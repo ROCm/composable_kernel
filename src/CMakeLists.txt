@@ -12,7 +12,7 @@ target_link_libraries(convolution boost_python3)
 
 # cuda
 target_link_libraries(convolution nvToolsExt)
-target_compile_features(convolution PUBLIC cxx_std_11)
+target_compile_features(convolution PUBLIC)
 set_target_properties(convolution PROPERTIES POSITION_INDEPENDENT_CODE ON)
 set_target_properties(convolution PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)
 

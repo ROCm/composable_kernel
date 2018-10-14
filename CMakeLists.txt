@@ -3,6 +3,7 @@ project(convolution LANGUAGES CXX CUDA)
 
 #c++
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
+add_compile_options(-std=c++14)
 
 #boost
 find_package(Boost REQUIRED)
