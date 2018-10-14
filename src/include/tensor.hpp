@@ -1,6 +1,9 @@
 #include <thread>
 #include <vector>
 #include <numeric>
+#include <utility>
+#include "cuda_runtime.h"
+#include "helper_cuda.h"
 
 typedef enum
 {
@@ -34,17 +37,21 @@ struct TensorDescriptor
         this->CalculateStrides();
     }
 
-    template<class Range1, class Range2>
+    template <class Range1, class Range2>
     TensorDescriptor(DataType_t t, const Range1& lens, const Range2& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end()), mDataType(t)
-    {}
+    {
+    }
 
     std::size_t GetDimension() const;
     std::size_t GetElementSize() const;
     std::size_t GetElementSpace() const;
 
-    template<class... Xs>
-    std::size_t GetIndex(Xs... xs) const
+    const std::vector<std::size_t>& GetLengths() const;
+    const std::vector<std::size_t>& GetStrides() const;
+
+    template <class... Xs>
+    std::size_t Get1dIndex(Xs... xs) const
     {
         assert(sizeof...(Xs) == this->GetDimension());
         std::initializer_list<std::size_t> is{xs...};
@@ -81,7 +88,49 @@ struct Tensor
     template <class G>
     void GenerateTensorValue(G g)
     {
-        parallel_for([&](Xs... xs) { mData(mDesc.GetIndex(xs...)) = g(xs...); }, mDesc.mLens);
+        // ParallelTensorFunctor([&](Xs... xs) { mData(mDesc.Get1dIndex(xs...)) = g(xs...); },
+        // mDesc.mLens)();
+        switch(mDesc.GetDimension())
+        {
+        case 1:
+        {
+            ParallelTensorFunctor([&](auto i) { mData(mDesc.Get1dIndex(i)) = g(i); },
+                                  mDesc.GetLengths()[0])();
+            break;
+        }
+        case 2:
+        {
+            ParallelTensorFunctor(
+                [&](auto i0, auto i1) { mData(mDesc.Get1dIndex(i0, i1)) = g(i0, i1); },
+                mDesc.GetLengths()[0],
+                mDesc.GetLengths()[1])();
+            break;
+        }
+        case 3:
+        {
+            ParallelTensorFunctor(
+                [&](auto i0, auto i1, auto i2) {
+                    mData(mDesc.Get1dIndex(i0, i1, i2)) = g(i0, i1, i2);
+                },
+                mDesc.GetLengths()[0],
+                mDesc.GetLengths()[1],
+                mDesc.GetLengths()[2])();
+            break;
+        }
+        case 4:
+        {
+            ParallelTensorFunctor(
+                [&](auto i0, auto i1, auto i2, auto i3) {
+                    mData(mDesc.Get1dIndex(i0, i1, i2, i3)) = g(i0, i1, i2, i3);
+                },
+                mDesc.GetLengths()[0],
+                mDesc.GetLengths()[1],
+                mDesc.GetLengths()[3],
+                mDesc.GetLengths()[4])();
+            break;
+        }
+        default: throw std::runtime_error("unspported dimension");
+        }
     }
 
     T& operator[](std::size_t i) { return mData.at(i); }
@@ -103,42 +152,44 @@ struct Tensor
 struct GpuMem
 {
     GpuMem() = delete;
-    GpuMem(std::size_t sz, std::size_t data_sz) : mSz(sz), mDataSz(data_sz)
+    GpuMem(std::size_t size, std::size_t data_size) : mSize(size), mDataSize(data_size)
     {
-        cudaMalloc(statci_cast<void**>(&GpuBuf), mDataSize * mSz);
+        cudaMalloc(static_cast<void**>(&mGpuBuf), mDataSize * mSize);
     }
 
     int ToGpu(void* p)
     {
-        return static_cast<int>(cudaMemcpy(mGpuBuf, p, mDataSz * mSz, cudaMemCpyHostToDevice));
+        return static_cast<int>(cudaMemcpy(mGpuBuf, p, mDataSize * mSize, cudaMemcpyHostToDevice));
     }
 
-    int FromGpu(void* p) { return static_cast<int>(cuadMemCpy(p, mGpuBuf, mDataSz * mSz)); }
+    int FromGpu(void* p)
+    {
+        return static_cast<int>(cudaMemcpy(p, mGpuBuf, mDataSize * mSize, cudaMemcpyDeviceToHost));
+    }
 
     ~GpuMem() { cudaFree(mGpuBuf); }
 
     void* mGpuBuf;
-    std::size_t mSz;
-    std::size_t mDataSz;
+    std::size_t mSize;
+    std::size_t mDataSize;
 };
 
-void dummy()
+struct joinable_thread : std::thread
 {
-    auto f1 = [](int n, int c, int h, int w) { do_f1(n, c, h, w); };
-    auto f2 = [](int n, int c, int h, int w) { do_f2(n, c, h, w); };
+    template <class... Xs>
+    joinable_thread(Xs&&... xs) : std::thread(std::forward<Xs>(xs)...)
+    {
+    }
 
-    auto par_f1 = generate_ParallelTensorFunctor(f1, 3, 3, 3, 3, 3);
-    auto par_f2 = generate_ParallelTensorFunctor(f2, 4, 4, 4);
+    joinable_thread(joinable_thread&&) = default;
+    joinable_thread& operator=(joinable_thread&&) = default;
 
-    auto r1 = par_f1();
-    auto r2 = par_f2();
-}
-
-template <class F, class... Xs>
-auto generate_parallel_tensor_functor(F f, Xs... xs)
-{
-    return ParallelTensorFunctor(f, xs...);
-}
+    ~joinable_thread()
+    {
+        if(this->joinable())
+            this->join();
+    }
+};
 
 template <class F, class... Xs>
 struct ParallelTensorFunctor
@@ -150,7 +201,7 @@ struct ParallelTensorFunctor
     };
 
     F mF;
-    constexpr std::size_t DIM = sizeof...(Xs);
+    static constexpr std::size_t NDIM = sizeof...(Xs);
     std::array<std::size_t, NDIM> mLens;
     std::array<std::size_t, NDIM> mStrides;
     std::size_t mN1d;
@@ -165,16 +216,29 @@ struct ParallelTensorFunctor
         mN1d = mStrides[0] * mLens[0];
     }
 
+    std::array<std::size_t, NDIM> GetNdIndices(std::size_t i) const
+    {
+        std::array<std::size_t, NDIM> indices;
+
+        for(int idim = 0; idim < NDIM; ++idim)
+        {
+            indices[idim] = i / mStrides[idim];
+            i -= indices[idim] * mStrides[idim];
+        }
+
+        return indices;
+    }
+
     void operator()(std::integral_constant<ParallelMethod_t, ParallelMethod_t::Serial>)
     {
         for(std::size_t i = 0; i < mN1d; ++i)
         {
-            call_f_unpack_indices(mF, GetNdIndices(i));
+            call_f_unpack_args(mF, GetNdIndices(i));
         }
     }
 
     void operator()(std::integral_constant<ParallelMethod_t, ParallelMethod_t::Parallel>,
-                    std::size_t::num_thread)
+                    std::size_t num_thread)
     {
         std::size_t work_per_thread = (mN1d + num_thread - 1) / num_thread;
 
@@ -183,42 +247,43 @@ struct ParallelTensorFunctor
         for(std::size_t it = 0; it < num_thread; ++it)
         {
             std::size_t iw_begin = it * work_per_thread;
-            std::size_t iw_end = std::min(((it+1)*work_per_thread, mN1d));
+            std::size_t iw_end   = std::min(((it + 1) * work_per_thread, mN1d));
 
             auto f = [=] {
                 for(std::size_t iw = iw_begin; iw < iw_end; ++iw)
-                    call_f_unpack_indices(mF, GetNdIndices(iw);
+                {
+                    call_f_unpack_args(mF, GetNdIndices(iw));
+                }
             };
             threads[it] = joinable_thread(f);
         }
     }
 };
 
-struct joinable_thread : std::thread
-{
-    template <class... Xs>
-    joinable_thread(Xs&&... xs) : std::thread(std::forward<Xs>(xs)...)
-    {
-    }
-
-    ~joinable_thread()
-    {
-        if(this->joinable())
-            this->join;
-    }
-}
-
 template <class F, class T>
-auto call_f_unpack_indices(F f, T indices)
+auto call_f_unpack_args(F f, T args)
 {
-    constexpr std::size_t N = std::tuple_size<T>::value;
-    using NSeq              = std::make_integer_sequence<std::size_t, N>;
+    static constexpr std::size_t N = std::tuple_size<T>::value;
 
-    return call_f_unpack_indices_impl(f, indices, NSeq{});
+    return call_f_unpack_args_impl(f, args, std::make_index_sequence<N>{});
 }
 
 template <class F, class T, class... Is>
-auto call_f_unpack_indices_impl(F f, T indices, std::integer_sequence<std::size_t, Is...>)
+auto call_f_unpack_args_impl(F f, T args, std::integer_sequence<Is...>)
 {
-    return f(std::get<Is>(indices)...);
+    return f(std::get<Is>(args)...);
+}
+
+template <class F, class T, class... Is>
+auto construct_f_unpack_args_impl(T args, std::integer_sequence<Is...>)
+{
+    return F(std::get<Is>(args)...);
+}
+
+template <class F, class T>
+auto construct_f_unpack_args(F, T args)
+{
+    static constexpr std::size_t N = std::tuple_size<T>::value;
+
+    return construct_f_unpack_args_impl<F>(args, std::make_index_sequence<N>{});
 }
