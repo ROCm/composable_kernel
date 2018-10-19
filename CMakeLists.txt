@@ -41,5 +41,7 @@ link_libraries(${PYTHON_LIBRARIES})
 include_directories(BEFORE ${CUDA_COMMON_INCLUDE_DIR})
 
 #
+include_directories(BEFORE src/include)
 add_subdirectory(src)
 add_subdirectory(driver)
+
