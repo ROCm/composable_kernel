@@ -1,3 +1,4 @@
+#pragma once
 #include <thread>
 #include <vector>
 #include <numeric>
@@ -89,6 +90,7 @@ struct TensorDescriptor
     {
     }
 
+    DataType_t GetDataType() const;
     std::size_t GetDimension() const;
     std::size_t GetElementSize() const;
     std::size_t GetElementSpace() const;
@@ -105,35 +107,36 @@ struct TensorDescriptor
     }
 
     private:
+    DataType_t mDataType;
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
-
-    DataType_t mDataType;
 };
 
-struct GpuMem
+struct DeviceMem
 {
-    GpuMem() = delete;
-    GpuMem(std::size_t size, std::size_t data_size) : mSize(size), mDataSize(data_size)
+    DeviceMem() = delete;
+    DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
     {
-        cudaMalloc(static_cast<void**>(&mGpuBuf), mDataSize * mSize);
+        cudaMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize);
     }
 
-    int ToGpu(void* p)
+    void* GetDeviceBuffer() { return mpDeviceBuf; }
+
+    int ToDevice(const void* p)
     {
-        return static_cast<int>(cudaMemcpy(mGpuBuf, p, mDataSize * mSize, cudaMemcpyHostToDevice));
+        return static_cast<int>(
+            cudaMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, cudaMemcpyHostToDevice));
     }
 
-    int FromGpu(void* p)
+    int FromDevice(void* p)
     {
-        return static_cast<int>(cudaMemcpy(p, mGpuBuf, mDataSize * mSize, cudaMemcpyDeviceToHost));
+        return static_cast<int>(cudaMemcpy(p, mpDeviceBuf, mMemSize, cudaMemcpyDeviceToHost));
     }
 
-    ~GpuMem() { cudaFree(mGpuBuf); }
+    ~DeviceMem() { cudaFree(mpDeviceBuf); }
 
-    void* mGpuBuf;
-    std::size_t mSize;
-    std::size_t mDataSize;
+    void* mpDeviceBuf;
+    std::size_t mMemSize;
 };
 
 struct joinable_thread : std::thread
