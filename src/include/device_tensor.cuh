@@ -14,26 +14,24 @@ struct DeviceTensorDescriptor
         checkCudaErrors(cudaMalloc(&mpLengths, data_sz * mDim));
         checkCudaErrors(cudaMalloc(&mpStrides, data_sz * mDim));
 
-        checkCudaErrors(
-            cudaMemcpy(const_cast<void*>(static_cast<const void*>(host_desc.GetLengths().data())),
-                       mpLengths,
-                       data_sz * mDim,
-                       cudaMemcpyHostToDevice));
-        checkCudaErrors(
-            cudaMemcpy(const_cast<void*>(static_cast<const void*>(host_desc.GetStrides().data())),
-                       mpStrides,
-                       data_sz * mDim,
-                       cudaMemcpyHostToDevice));
+        checkCudaErrors(cudaMemcpy(
+            mpLengths, host_desc.GetLengths().data(), data_sz * mDim, cudaMemcpyHostToDevice));
+        checkCudaErrors(cudaMemcpy(
+            mpStrides, host_desc.GetStrides().data(), data_sz * mDim, cudaMemcpyHostToDevice));
     }
 
     __host__ ~DeviceTensorDescriptor()
     {
-        checkCudaErrors(cudaFree(mpLengths));
-        checkCudaErrors(cudaFree(mpStrides));
+#if 0
+        if(mpLengths != nullptr)
+            checkCudaErrors(cudaFree(mpLengths));
+        if(mpStrides != nullptr)
+            checkCudaErrors(cudaFree(mpStrides));
+#endif
     }
 
     DataType_t mDataType;
     unsigned long mDim;
-    unsigned long* mpLengths;
-    unsigned long* mpStrides;
+    unsigned long* mpLengths = nullptr;
+    unsigned long* mpStrides = nullptr;
 };
