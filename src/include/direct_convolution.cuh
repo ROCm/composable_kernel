@@ -3,10 +3,10 @@
 
 template <class TFloat, int NBlockDim>
 __global__ void direct_convolution(DeviceTensorDescriptor in_desc,
-                                   TFloat* const in,
+                                   TFloat* const p_in,
                                    DeviceTensorDescriptor wei_desc,
-                                   TFloat* const wei,
+                                   TFloat* const p_wei,
                                    DeviceTensorDescriptor out_desc,
-                                   TFloat* out)
+                                   TFloat* p_out)
 {
 }
