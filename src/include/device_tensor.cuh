@@ -1,37 +1,31 @@
 #pragma once
+#include <algorithm>
 #include "helper_cuda.h"
 #include "tensor.hpp"
 
+template <unsigned NDim>
 struct DeviceTensorDescriptor
 {
-    DeviceTensorDescriptor() = delete;
+    __host__ __device__ DeviceTensorDescriptor() = default;
 
     __host__ DeviceTensorDescriptor(const TensorDescriptor& host_desc)
-        : mDataType(host_desc.GetDataType()), mDim(host_desc.GetDimension())
     {
-        std::size_t data_sz = host_desc.GetDataType() == DataType_t::Float ? 4 : 2;
-
-        checkCudaErrors(cudaMalloc(&mpLengths, data_sz * mDim));
-        checkCudaErrors(cudaMalloc(&mpStrides, data_sz * mDim));
-
-        checkCudaErrors(cudaMemcpy(
-            mpLengths, host_desc.GetLengths().data(), data_sz * mDim, cudaMemcpyHostToDevice));
-        checkCudaErrors(cudaMemcpy(
-            mpStrides, host_desc.GetStrides().data(), data_sz * mDim, cudaMemcpyHostToDevice));
+        assert(NDim == host_desc.GetDimension());
+        std::copy(host_desc.GetLengths().begin(), host_desc.GetLengths().end(), mpLengths);
+        std::copy(host_desc.GetStrides().begin(), host_desc.GetStrides().end(), mpStrides);
     }
 
-    __host__ ~DeviceTensorDescriptor()
+    __host__ __device__ unsigned GetLength(unsigned i) const { return mpLengths[i]; }
+
+    __host__ __device__ unsigned long GetStride(unsigned i) const { return mpStrides[i]; }
+
+    // this is ugly
+    __host__ __device__ unsigned long
+    Get1dIndex(unsigned n, unsigned c, unsigned h, unsigned w) const
     {
-#if 0
-        if(mpLengths != nullptr)
-            checkCudaErrors(cudaFree(mpLengths));
-        if(mpStrides != nullptr)
-            checkCudaErrors(cudaFree(mpStrides));
-#endif
+        return n * mpStrides[0] + c * mpStrides[1] + h * mpStrides[2] + w * mpStrides[3];
     }
 
-    DataType_t mDataType;
-    unsigned long mDim;
-    unsigned long* mpLengths = nullptr;
-    unsigned long* mpStrides = nullptr;
+    unsigned mpLengths[NDim];
+    unsigned long mpStrides[NDim];
 };
