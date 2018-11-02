@@ -17,15 +17,14 @@ struct DeviceTensorDescriptor
 
     __host__ __device__ unsigned GetLength(unsigned i) const { return mpLengths[i]; }
 
-    __host__ __device__ unsigned long GetStride(unsigned i) const { return mpStrides[i]; }
+    __host__ __device__ unsigned GetStride(unsigned i) const { return mpStrides[i]; }
 
     // this is ugly
-    __host__ __device__ unsigned long
-    Get1dIndex(unsigned n, unsigned c, unsigned h, unsigned w) const
+    __host__ __device__ unsigned Get1dIndex(unsigned n, unsigned c, unsigned h, unsigned w) const
     {
         return n * mpStrides[0] + c * mpStrides[1] + h * mpStrides[2] + w * mpStrides[3];
     }
 
     unsigned mpLengths[NDim];
-    unsigned long mpStrides[NDim];
+    unsigned mpStrides[NDim];
 };
