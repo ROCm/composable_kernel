@@ -20,11 +20,11 @@ __device__ void blockwise_4d_tensor_op(
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
 
-#if 1
+#if 0
     if(threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(src_desc);
-        print_ConstantTensorDescriptor(dst_desc);
+        print_ConstantTensorDescriptor(src_desc, "blockwise_4d_tensor_op: src_desc: ");
+        print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op: dst_desc: ");
     }
 #endif
 
@@ -99,7 +99,7 @@ __device__ void threadwise_4d_tensor_op(
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
 
-#if 1
+#if 0
     if(threadIdx.x == 0)
     {
         print_ConstantTensorDescriptor(src_desc);
@@ -161,7 +161,7 @@ __device__ void threadwise_direct_convolution(InDesc,
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 
-#if 1
+#if 0
     if(threadIdx.x == 0)
     {
         print_ConstantTensorDescriptor(in_desc);
@@ -262,7 +262,7 @@ __device__ void blockwise_convolution(InDesc,
     constexpr unsigned InTileSizeH = OutTileSizeH + S - 1;
     constexpr unsigned InTileSizeW = OutTileSizeW + R - 1;
 
-#if 1
+#if 0
     if(threadIdx.x == 0)
     {
         print_ConstantTensorDescriptor(in_desc);
@@ -417,40 +417,43 @@ __global__ void gridwise_convolution(InDesc,
     constexpr unsigned S = wei_desc.GetLength(I2);
     constexpr unsigned R = wei_desc.GetLength(I3);
 
-#if 1
-    if(threadIdx.x == 0)
-    {
-        print_ConstantTensorDescriptor(in_desc);
-        print_ConstantTensorDescriptor(wei_desc);
-        print_ConstantTensorDescriptor(out_desc);
-    }
-#endif
+    constexpr unsigned HoPerBlock = OutTileSizeH * YPerBlock;
+    constexpr unsigned WoPerBlock = OutTileSizeW * XPerBlock;
+
+    constexpr unsigned HiPerBlock = YPerBlock * OutTileSizeH + S - 1;
+    constexpr unsigned WiPerBlock = XPerBlock * OutTileSizeW + R - 1;
 
     constexpr unsigned NBlockWork = (out_desc.GetLength(I0) + NPerBlock - 1) / NPerBlock;
     constexpr unsigned KBlockWork = (out_desc.GetLength(I1) + KPerBlock - 1) / KPerBlock;
-    constexpr unsigned YBlockWork = (out_desc.GetLength(I2) + YPerBlock - 1) / YPerBlock;
-    constexpr unsigned XBlockWork = (out_desc.GetLength(I3) + XPerBlock - 1) / XPerBlock;
+    constexpr unsigned YBlockWork = (out_desc.GetLength(I2) + HoPerBlock - 1) / HoPerBlock;
+    constexpr unsigned XBlockWork = (out_desc.GetLength(I3) + WoPerBlock - 1) / WoPerBlock;
+
+    constexpr auto in_block_glb_desc = make_ConstantTensorDescriptor(
+        Sequence<NPerBlock, CPerBlockLoop, HiPerBlock, WiPerBlock>{}, in_desc.GetStrides());
+
+    constexpr auto wei_block_glb_desc = make_ConstantTensorDescriptor(
+        Sequence<KPerBlock, CPerBlockLoop, S, R>{}, wei_desc.GetStrides());
+
+    constexpr auto out_block_glb_desc = make_ConstantTensorDescriptor(
+        Sequence<NPerBlock, KPerBlock, HoPerBlock, WoPerBlock>{}, out_desc.GetStrides());
+
+    constexpr auto in_block_lds_desc =
+        make_ConstantTensorDescriptor(in_block_glb_desc.GetLengths());
+    constexpr auto wei_block_lds_desc =
+        make_ConstantTensorDescriptor(wei_block_glb_desc.GetLengths());
+    constexpr auto out_block_lds_desc =
+        make_ConstantTensorDescriptor(out_block_glb_desc.GetLengths());
+
+    constexpr unsigned in_block_size  = in_block_lds_desc.GetElementSize();
+    constexpr unsigned wei_block_size = wei_block_lds_desc.GetElementSize();
+    constexpr unsigned out_block_size = out_block_lds_desc.GetElementSize();
+
+    __shared__ TFloat p_in_block[in_block_size];
+    __shared__ TFloat p_wei_block[wei_block_size];
+    __shared__ TFloat p_out_block[out_block_size];
 
     const unsigned block_id =
         blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * (gridDim.y * gridDim.x);
-
-    constexpr auto in_block_desc =
-        make_ConstantTensorDescriptor(Sequence<NPerBlock,
-                                               CPerBlockLoop,
-                                               YPerBlock * OutTileSizeH + S - 1,
-                                               XPerBlock * OutTileSizeW + R - 1>{});
-
-    constexpr auto wei_block_desc =
-        make_ConstantTensorDescriptor(Sequence<KPerBlock, CPerBlockLoop, S, R>{});
-
-    constexpr auto out_block_desc = make_ConstantTensorDescriptor(
-        Sequence<NPerBlock, KPerBlock, YPerBlock * OutTileSizeH, XPerBlock * OutTileSizeW>{});
-
-    __shared__ TFloat p_in_block[NPerBlock * CPerBlockLoop * (YPerBlock * OutTileSizeH + S - 1) *
-                                 (XPerBlock * OutTileSizeW + R - 1)];
-    __shared__ TFloat p_wei_block[KPerBlock * CPerBlockLoop * S * R];
-    __shared__ TFloat p_out_block[NPerBlock * KPerBlock * (YPerBlock * OutTileSizeH) *
-                                  (XPerBlock * OutTileSizeW)];
 
     unsigned itmp            = block_id;
     unsigned n_block_work_id = itmp / (KBlockWork * YBlockWork * XBlockWork);
@@ -471,6 +474,34 @@ __global__ void gridwise_convolution(InDesc,
     unsigned hi_block_work_begin = ho_block_work_begin; // minus padding
     unsigned wi_block_work_begin = wo_block_work_begin; // minus padding
 
+#if 0
+    if(threadIdx.x == 0)
+    {
+        print_ConstantTensorDescriptor( in_desc, "gridwise_convolution:  in_desc: ");
+        print_ConstantTensorDescriptor(wei_desc, "gridwise_convolution: wei_desc: ");
+        print_ConstantTensorDescriptor(out_desc, "gridwise_convolution: out_desc: ");
+        print_ConstantTensorDescriptor( in_block_glb_desc, "gridwise_convolution:  in_block_glb_desc: ");
+        print_ConstantTensorDescriptor(wei_block_glb_desc, "gridwise_convolution: wei_block_glb_desc: ");
+        print_ConstantTensorDescriptor(out_block_glb_desc, "gridwise_convolution: out_block_glb_desc: ");
+        print_ConstantTensorDescriptor( in_block_lds_desc, "gridwise_convolution:  in_block_lds_desc: ");
+        print_ConstantTensorDescriptor(wei_block_lds_desc, "gridwise_convolution: wei_block_lds_desc: ");
+        print_ConstantTensorDescriptor(out_block_lds_desc, "gridwise_convolution: out_block_lds_desc: ");
+
+        printf("NBlockWork %u, KBlockWork %u, YBlockWork %u, XBlockWork %u \t"
+               "block_id %u, n_block_work_id %u, k_block_work_id %u, y_block_work_id %u, "
+               "x_block_work_id %u\n",
+               NBlockWork,
+               KBlockWork,
+               YBlockWork,
+               XBlockWork,
+               block_id,
+               n_block_work_id,
+               k_block_work_id,
+               y_block_work_id,
+               x_block_work_id);
+    }
+#endif
+
     for(unsigned c_block_work_begin = 0; c_block_work_begin < in_desc.GetLength(I1);
         c_block_work_begin += CPerBlockLoop)
     {
@@ -478,81 +509,94 @@ __global__ void gridwise_convolution(InDesc,
 
         // copy input tensor to LDS
         blockwise_4d_tensor_op<TFloat,
-                               decltype(in_desc),
-                               decltype(in_block_desc),
-                               NBlockCopyLen0,
-                               NBlockCopyLen1,
-                               NBlockCopyLen2,
-                               NBlockCopyLen3,
-                               decltype(f_copy)>(in_desc,
-                                                 p_in + in_desc.Get1dIndex(n_block_work_begin,
-                                                                           c_block_work_begin,
-                                                                           hi_block_work_begin,
-                                                                           wi_block_work_begin),
-                                                 in_block_desc,
-                                                 p_in_block,
-                                                 f_copy);
-
-        // copy weight tensor to LDS
-        blockwise_4d_tensor_op<TFloat,
-                               decltype(wei_desc),
-                               decltype(wei_block_desc),
+                               decltype(in_block_glb_desc),
+                               decltype(in_block_lds_desc),
                                NBlockCopyLen0,
                                NBlockCopyLen1,
                                NBlockCopyLen2,
                                NBlockCopyLen3,
                                decltype(f_copy)>(
-            wei_desc,
-            p_wei + wei_desc.Get1dIndex(k_block_work_begin, c_block_work_begin, 0, 0),
-            wei_block_desc,
+            in_block_glb_desc,
+            p_in + in_block_glb_desc.Get1dIndex(n_block_work_begin,
+                                                c_block_work_begin,
+                                                hi_block_work_begin,
+                                                wi_block_work_begin),
+            in_block_lds_desc,
+            p_in_block,
+            f_copy);
+
+#if 1
+        // copy weight tensor to LDS
+        blockwise_4d_tensor_op<TFloat,
+                               decltype(wei_block_glb_desc),
+                               decltype(wei_block_lds_desc),
+                               NBlockCopyLen0,
+                               NBlockCopyLen1,
+                               NBlockCopyLen2,
+                               NBlockCopyLen3,
+                               decltype(f_copy)>(
+            wei_block_glb_desc,
+            p_wei + wei_block_glb_desc.Get1dIndex(k_block_work_begin, c_block_work_begin, 0, 0),
+            wei_block_lds_desc,
             p_wei_block,
             f_copy);
 
         // copy output tensor to LDS
         blockwise_4d_tensor_op<TFloat,
-                               decltype(out_desc),
-                               decltype(out_block_desc),
+                               decltype(out_block_glb_desc),
+                               decltype(out_block_lds_desc),
                                NBlockCopyLen0,
                                NBlockCopyLen1,
                                NBlockCopyLen2,
                                NBlockCopyLen3,
-                               decltype(f_copy)>(out_desc,
-                                                 p_out + out_desc.Get1dIndex(n_block_work_begin,
-                                                                             k_block_work_begin,
-                                                                             ho_block_work_begin,
-                                                                             wo_block_work_begin),
-                                                 out_block_desc,
-                                                 p_out_block,
-                                                 f_copy);
+                               decltype(f_copy)>(
+            out_block_glb_desc,
+            p_out + out_block_glb_desc.Get1dIndex(n_block_work_begin,
+                                                  k_block_work_begin,
+                                                  ho_block_work_begin,
+                                                  wo_block_work_begin),
+            out_block_lds_desc,
+            p_out_block,
+            f_copy);
 
+#if 0
         __syncthreads();
+#endif
 
         // blockwise convolution
         blockwise_convolution<TFloat,
-                              decltype(in_block_desc),
-                              decltype(wei_block_desc),
-                              decltype(out_block_desc),
+                              decltype(in_block_lds_desc),
+                              decltype(wei_block_lds_desc),
+                              decltype(out_block_lds_desc),
                               OutTileSizeH,
-                              OutTileSizeW>(
-            in_block_desc, p_in_block, wei_block_desc, p_wei_block, out_block_desc, p_out_block);
+                              OutTileSizeW>(in_block_lds_desc,
+                                            p_in_block,
+                                            wei_block_lds_desc,
+                                            p_wei_block,
+                                            out_block_lds_desc,
+                                            p_out_block);
 
+#if 0
         __syncthreads();
+#endif
 
         // accum output tensor from LDS to device mem
         blockwise_4d_tensor_op<TFloat,
-                               decltype(out_block_desc),
-                               decltype(out_desc),
+                               decltype(out_block_lds_desc),
+                               decltype(out_block_glb_desc),
                                NBlockCopyLen0,
                                NBlockCopyLen1,
                                NBlockCopyLen2,
                                NBlockCopyLen3,
-                               decltype(f_copy)>(out_block_desc,
-                                                 p_out_block,
-                                                 out_desc,
-                                                 p_out + out_desc.Get1dIndex(n_block_work_begin,
-                                                                             k_block_work_begin,
-                                                                             ho_block_work_begin,
-                                                                             wo_block_work_begin),
-                                                 f_copy);
+                               decltype(f_copy)>(
+            out_block_lds_desc,
+            p_out_block,
+            out_block_glb_desc,
+            p_out + out_block_glb_desc.Get1dIndex(n_block_work_begin,
+                                                  k_block_work_begin,
+                                                  ho_block_work_begin,
+                                                  wo_block_work_begin),
+            f_copy);
+#endif
     }
 }
