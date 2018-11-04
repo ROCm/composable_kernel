@@ -24,20 +24,6 @@ struct Sequence
     }
 };
 
-#if 0
-template<class F, class T, T... Is>
-void for_each(F f, std::integer_sequence<T, Is...>)
-{
-    f(Is)...;
-}
-
-template<class F, class T, T N>
-void for_n_time(F f, Constant<T, N>)
-{
-    for_each(f, std::make_integer_sequence<T, N>{});    
-}
-#endif
-
 template <class Lengths, class Strides>
 struct ConstantTensorDescriptor
 {
@@ -67,17 +53,33 @@ struct ConstantTensorDescriptor
         return Strides{}.Get(Index<I>{});
     }
 
-#if 0
-    template <class... Is>
-    __host__ __device__ unsigned Get1dIndex(Is... is) const
+    // this is ugly, only for 4d
+    __host__ __device__ constexpr unsigned GetElementSize() const
     {
-        static_assert(nDim == sizeof...(Is), "nDim not consistent");
-        const unsigned iss[nDim] = {static_cast<unsigned>(is)...};
-        unsigned idx             = 0;
-        for_n_time([&](auto iDim) { idx += iss[iDim] * GetStride<iDim>(); }, NDimConstant{});
-        return idx;
+        static_assert(nDim == 4, "nDim is not 4");
+
+        constexpr auto I0 = Index<0>{};
+        constexpr auto I1 = Index<1>{};
+        constexpr auto I2 = Index<2>{};
+        constexpr auto I3 = Index<3>{};
+
+        return GetLength(I0) * GetLength(I1) * GetLength(I2) * GetLength(I3);
     }
-#elif 1
+
+    // this is ugly, only for 4d
+    __host__ __device__ constexpr unsigned GetElementSpace() const
+    {
+        static_assert(nDim == 4, "nDim is not 4");
+
+        constexpr auto I0 = Index<0>{};
+        constexpr auto I1 = Index<1>{};
+        constexpr auto I2 = Index<2>{};
+        constexpr auto I3 = Index<3>{};
+
+        return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
+               (GetLength(I2) - 1) * GetStride(I2) + (GetLength(I3) - 1) * GetStride(I3) + 1;
+    }
+
     // this is ugly, only for 4d
     __host__ __device__ unsigned Get1dIndex(unsigned n, unsigned c, unsigned h, unsigned w) const
     {
@@ -86,10 +88,9 @@ struct ConstantTensorDescriptor
         constexpr auto I2 = Index<2>{};
         constexpr auto I3 = Index<3>{};
 
-        static_assert(nDim == 4, "nDim not consistent");
+        static_assert(nDim == 4, "nDim is not 4");
         return n * GetStride(I0) + c * GetStride(I1) + h * GetStride(I2) + w * GetStride(I3);
     }
-#endif
 };
 
 // this is ugly, only for 4d
@@ -145,7 +146,7 @@ __host__ __device__ constexpr auto get_output_4d_tensor_descriptor(InDesc, WeiDe
 
 // this is ugly, only for 4d
 template <class TDesc>
-__host__ __device__ void print_ConstantTensorDescriptor(TDesc)
+__host__ __device__ void print_ConstantTensorDescriptor(TDesc, const char* s)
 {
     constexpr auto desc = TDesc{};
 
@@ -156,7 +157,8 @@ __host__ __device__ void print_ConstantTensorDescriptor(TDesc)
 
     static_assert(desc.GetDimension() == 4, "dim is not 4");
 
-    printf("dim %u, lengths {%u %u %u %u}, strides {%u %u %u %u}\n",
+    printf("%s dim %u, lengths {%u %u %u %u}, strides {%u %u %u %u}\n",
+           s,
            desc.GetDimension(),
            desc.GetLength(I0),
            desc.GetLength(I1),
