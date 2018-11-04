@@ -3,8 +3,14 @@
 #include <initializer_list>
 #include "nvToolsExt.h"
 #include "tensor.hpp"
-#include "device_tensor.cuh"
+#include "constant_tensor_descriptor.cuh"
+#include "device_tensor_descriptor.cuh"
+
+#if 0
 #include "direct_convolution.cuh"
+#else
+#include "constant_direct_convolution.cuh"
+#endif
 
 template <class T>
 struct GeneratorConstant
@@ -38,11 +44,46 @@ struct GeneratorTensor
     }
 };
 
-template <typename T>
-void host_convolution(const Tensor<T>& in,
-                      const Tensor<T>& wei,
-                      Tensor<T>& out,
-                      std::size_t num_thread)
+// this is ugly, only for 4d
+template <class TConstTensorDesc>
+void ostream_ConstantTensorDescriptor(TConstTensorDesc, std::ostream& os = std::cout)
+{
+    static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
+
+    constexpr auto I0   = Index<0>{};
+    constexpr auto I1   = Index<1>{};
+    constexpr auto I2   = Index<2>{};
+    constexpr auto I3   = Index<3>{};
+    constexpr auto desc = TConstTensorDesc{};
+
+    os << "Lengths: {" << desc.GetLength(I0) << ", " << desc.GetLength(I1) << ", "
+       << desc.GetLength(I2) << ", " << desc.GetLength(I3) << "}, "
+       << "Strides: {" << desc.GetStride(I0) << ", " << desc.GetStride(I1) << ", "
+       << desc.GetStride(I2) << ", " << desc.GetStride(I3) << "}" << std::endl;
+}
+
+// this is ugly, only for 4d
+template <class TConstTensorDesc>
+auto make_TensorDescriptor(TConstTensorDesc)
+{
+    static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
+
+    constexpr auto I0   = Index<0>{};
+    constexpr auto I1   = Index<1>{};
+    constexpr auto I2   = Index<2>{};
+    constexpr auto I3   = Index<3>{};
+    constexpr auto desc = TConstTensorDesc{};
+
+    std::initializer_list<unsigned> lengths = {
+        desc.GetLength(I0), desc.GetLength(I1), desc.GetLength(I2), desc.GetLength(I3)};
+    std::initializer_list<unsigned> strides = {
+        desc.GetStride(I0), desc.GetStride(I1), desc.GetStride(I2), desc.GetStride(I3)};
+
+    return TensorDescriptor(lengths, strides);
+}
+
+template <class T>
+void host_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
 {
     auto f = [&](auto n, auto k, auto ho, auto wo) {
         double v = 0;
@@ -67,12 +108,12 @@ void host_convolution(const Tensor<T>& in,
                                             out.mDesc.GetLengths()[2],
                                             out.mDesc.GetLengths()[3]);
 
-    f_par(num_thread);
+    f_par(std::thread::hardware_concurrency());
 }
 
-template <class T>
-void device_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
-
+template <class T, class InDesc, class WeiDesc, class OutDesc>
+void device_convolution(
+    InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
 {
     DeviceTensorDescriptor<4> in_desc_device(in.mDesc);
     DeviceTensorDescriptor<4> wei_desc_device(wei.mDesc);
@@ -103,6 +144,7 @@ void device_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& ou
 
     dim3 block_dim(64, 1, 1);
     dim3 grid_dim(1, 1, 1);
+#if 0
     gridwise_convolution<T, 3, 3, 4, 4, 2, 2, 1, 1, 8, 8, 1>
         <<<grid_dim, block_dim>>>(in_desc_device,
                                   static_cast<T*>(in_device_buf.GetDeviceBuffer()),
@@ -110,6 +152,15 @@ void device_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& ou
                                   static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
                                   out_desc_device,
                                   static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+#else
+    gridwise_convolution<T, InDesc, WeiDesc, OutDesc, 4, 4, 2, 2, 1, 1, 8, 8, 1>
+        <<<grid_dim, block_dim>>>(InDesc{},
+                                  static_cast<T*>(in_device_buf.GetDeviceBuffer()),
+                                  WeiDesc{},
+                                  static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
+                                  OutDesc{},
+                                  static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+#endif
 
     checkCudaErrors(cudaGetLastError());
     out_device_buf.FromDevice(out.mData.data());
@@ -117,34 +168,53 @@ void device_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& ou
 
 int main()
 {
-#if 0
-    Tensor<float> in({3, 16, 130, 130});
-    Tensor<float> wei({4, 16, 3, 3});
-    Tensor<float> out_host({3, 4, 128, 128});
+#if 1
+    constexpr unsigned N  = 1;
+    constexpr unsigned C  = 1;
+    constexpr unsigned HI = 18;
+    constexpr unsigned WI = 18;
+    constexpr unsigned K  = 1;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 0
-    Tensor<float> in({1, 1, 130, 130});
-    Tensor<float> wei({1, 1, 3, 3});
-    Tensor<float> out_host({1, 1, 128, 128});
-#elif 1
-    Tensor<float> in({1, 1, 18, 18});
-    Tensor<float> wei({1, 1, 3, 3});
-    Tensor<float> out_host({1, 1, 16, 16});
-#else
-    Tensor<float> in({1, 1, 4, 4});
-    Tensor<float> wei({1, 1, 3, 3});
-    Tensor<float> out_host({1, 1, 2, 2});
+    constexpr unsigned N = 1;
+    constexpr unsigned C = 1;
+    constexpr unsigned HI = 130;
+    constexpr unsigned WI = 130;
+    constexpr unsigned K = 1;
+    constexpr unsigned S = 3;
+    constexpr unsigned R = 3;
+#elif 0
+    constexpr unsigned N  = 3;
+    constexpr unsigned C  = 16;
+    constexpr unsigned HI = 130;
+    constexpr unsigned WI = 130;
+    constexpr unsigned K  = 4;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #endif
+
+    auto in_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
+    auto wei_desc = make_ConstantTensorDescriptor(Sequence<K, C, S, R>{});
+    auto out_desc = get_output_4d_tensor_descriptor(in_desc, wei_desc);
+
+    ostream_ConstantTensorDescriptor(in_desc, std::cout << "in_desc: ");
+    ostream_ConstantTensorDescriptor(wei_desc, std::cout << "wei_desc: ");
+    ostream_ConstantTensorDescriptor(out_desc, std::cout << "out_desc: ");
+
+    Tensor<float> in(make_TensorDescriptor(in_desc));
+    Tensor<float> wei(make_TensorDescriptor(wei_desc));
+    Tensor<float> out_host(make_TensorDescriptor(out_desc));
+
     Tensor<float> out_device = out_host;
 
     int num_thread = std::thread::hardware_concurrency();
 
-    std::cout << __func__ << ": num_thread " << num_thread << std::endl;
-
     in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
 
-    host_convolution(in, wei, out_host, num_thread);
-    device_convolution(in, wei, out_device);
+    host_convolution(in, wei, out_host);
+    device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 
     std::cout << __func__ << ": done" << std::endl;
 

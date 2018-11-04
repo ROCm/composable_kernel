@@ -69,28 +69,25 @@ auto construct_f_unpack_args(F, T args)
 struct TensorDescriptor
 {
     TensorDescriptor() = delete;
-    TensorDescriptor(DataType_t t, std::initializer_list<std::size_t> lens);
-    TensorDescriptor(DataType_t t,
-                     std::initializer_list<std::size_t> lens,
+    TensorDescriptor(std::initializer_list<std::size_t> lens);
+    TensorDescriptor(std::initializer_list<std::size_t> lens,
                      std::initializer_list<std::size_t> strides);
-    TensorDescriptor(DataType_t t, std::vector<std::size_t> lens, std::vector<std::size_t> strides);
+    TensorDescriptor(std::vector<std::size_t> lens, std::vector<std::size_t> strides);
 
     void CalculateStrides();
 
     template <class Range>
-    TensorDescriptor(DataType_t t, const Range& lens)
-        : mLens(lens.begin(), lens.end()), mDataType(t)
+    TensorDescriptor(const Range& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
 
     template <class Range1, class Range2>
-    TensorDescriptor(DataType_t t, const Range1& lens, const Range2& strides)
-        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end()), mDataType(t)
+    TensorDescriptor(const Range1& lens, const Range2& strides)
+        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
     }
 
-    DataType_t GetDataType() const;
     std::size_t GetDimension() const;
     std::size_t GetElementSize() const;
     std::size_t GetElementSpace() const;
@@ -107,7 +104,6 @@ struct TensorDescriptor
     }
 
     private:
-    DataType_t mDataType;
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
 };
@@ -220,21 +216,22 @@ template <class T>
 struct Tensor
 {
     template <class X>
-    Tensor(std::initializer_list<X> lens)
-        : mDesc(DataType<T>{}, lens), mData(mDesc.GetElementSpace())
+    Tensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.GetElementSpace())
     {
     }
 
     template <class X>
-    Tensor(std::vector<X> lens) : mDesc(DataType<T>{}, lens), mData(mDesc.GetElementSpace())
+    Tensor(std::vector<X> lens) : mDesc(lens), mData(mDesc.GetElementSpace())
     {
     }
 
     template <class X, class Y>
     Tensor(std::vector<X> lens, std::vector<Y> strides)
-        : mDesc(DataType<T>{}, lens, strides), mData(mDesc.GetElementSpace())
+        : mDesc(lens, strides), mData(mDesc.GetElementSpace())
     {
     }
+
+    Tensor(const TensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
     template <class G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
