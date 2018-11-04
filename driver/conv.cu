@@ -111,9 +111,10 @@ void host_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
     f_par(std::thread::hardware_concurrency());
 }
 
-template <class T, class InDesc, class WeiDesc, class OutDesc>
+#if 0
+template <class T>
 void device_convolution(
-    InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
+    const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
 {
     DeviceTensorDescriptor<4> in_desc_device(in.mDesc);
     DeviceTensorDescriptor<4> wei_desc_device(wei.mDesc);
@@ -144,7 +145,7 @@ void device_convolution(
 
     dim3 block_dim(64, 1, 1);
     dim3 grid_dim(1, 1, 1);
-#if 0
+
     gridwise_convolution<T, 3, 3, 4, 4, 2, 2, 1, 1, 8, 8, 1>
         <<<grid_dim, block_dim>>>(in_desc_device,
                                   static_cast<T*>(in_device_buf.GetDeviceBuffer()),
@@ -152,19 +153,78 @@ void device_convolution(
                                   static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
                                   out_desc_device,
                                   static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+
+    checkCudaErrors(cudaGetLastError());
+    out_device_buf.FromDevice(out.mData.data());
+}
 #else
-    gridwise_convolution<T, InDesc, WeiDesc, OutDesc, 4, 4, 2, 2, 1, 1, 8, 8, 1>
+template <class T, class InDesc, class WeiDesc, class OutDesc>
+void const_device_convolution(
+    InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
+{
+    std::size_t data_sz = sizeof(T);
+    DeviceMem in_device_buf(data_sz * in.mDesc.GetElementSpace());
+    DeviceMem wei_device_buf(data_sz * wei.mDesc.GetElementSpace());
+    DeviceMem out_device_buf(data_sz * out.mDesc.GetElementSpace());
+
+    int num_thread = std::thread::hardware_concurrency();
+
+    out.GenerateTensorValue(GeneratorConstant<float>{0}, num_thread);
+
+    in_device_buf.ToDevice(in.mData.data());
+    wei_device_buf.ToDevice(wei.mData.data());
+    out_device_buf.ToDevice(out.mData.data());
+
+    dim3 block_dim(64, 1, 1);
+    dim3 grid_dim(1, 1, 1);
+
+    constexpr auto I0 = Index<0>{};
+    constexpr auto I1 = Index<1>{};
+    constexpr auto I2 = Index<2>{};
+    constexpr auto I3 = Index<3>{};
+
+    constexpr auto in_desc = InDesc{};
+    constexpr auto wei_desc = WeiDesc{};
+    constexpr auto out_desc = OutDesc{};
+    constexpr unsigned NPerBlock = 1;
+    constexpr unsigned KPerBlock = 1;
+    constexpr unsigned CPerBlockLoop = 1;
+    constexpr unsigned OutTileSizeH = 2;
+    constexpr unsigned OutTileSizeW = 2;
+    constexpr unsigned YPerBlock = (out_desc.GetLength(I2) + OutTileSizeH - 1) / OutTileSizeH;
+    constexpr unsigned XPerBlock = (out_desc.GetLength(I3) + OutTileSizeW - 1) / OutTileSizeW;
+
+    constexpr unsigned NBlockCopyLen0 = 1;
+    constexpr unsigned NBlockCopyLen1 = 1;
+    constexpr unsigned NBlockCopyLen2 = 1;
+    constexpr unsigned NBlockCopyLen3 = 64;
+
+    gridwise_convolution<T,
+                         InDesc,
+                         WeiDesc,
+                         OutDesc,
+                         NPerBlock,
+                         KPerBlock,
+                         CPerBlockLoop,
+                         OutTileSizeH,
+                         OutTileSizeW,
+                         YPerBlock,
+                         XPerBlock,
+                         NBlockCopyLen0,
+                         NBlockCopyLen1,
+                         NBlockCopyLen2,
+                         NBlockCopyLen3>
         <<<grid_dim, block_dim>>>(InDesc{},
                                   static_cast<T*>(in_device_buf.GetDeviceBuffer()),
                                   WeiDesc{},
                                   static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
                                   OutDesc{},
                                   static_cast<T*>(out_device_buf.GetDeviceBuffer()));
-#endif
 
     checkCudaErrors(cudaGetLastError());
     out_device_buf.FromDevice(out.mData.data());
 }
+#endif
 
 int main()
 {
@@ -176,14 +236,22 @@ int main()
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 0
+#elif 1
     constexpr unsigned N = 1;
     constexpr unsigned C = 1;
-    constexpr unsigned HI = 130;
-    constexpr unsigned WI = 130;
+    constexpr unsigned HI = 36;
+    constexpr unsigned WI = 36;
     constexpr unsigned K = 1;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
+#elif 0
+    constexpr unsigned N  = 1;
+    constexpr unsigned C  = 1;
+    constexpr unsigned HI = 130;
+    constexpr unsigned WI = 130;
+    constexpr unsigned K  = 1;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 0
     constexpr unsigned N  = 3;
     constexpr unsigned C  = 16;
@@ -214,7 +282,12 @@ int main()
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
 
     host_convolution(in, wei, out_host);
-    device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
+
+#if 0
+    device_convolution(in, wei, out_device);
+#else
+    const_device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
+#endif
 
     std::cout << __func__ << ": done" << std::endl;
 
