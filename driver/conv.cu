@@ -5,13 +5,7 @@
 #include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "constant_tensor_descriptor.cuh"
-#include "device_tensor_descriptor.cuh"
-
-#if 0
 #include "direct_convolution.cuh"
-#else
-#include "constant_direct_convolution.cuh"
-#endif
 
 template <class T>
 struct GeneratorConstant
@@ -116,7 +110,7 @@ void host_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
 }
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void const_device_convolution(
+void device_convolution(
     InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
 {
     std::size_t data_sz = sizeof(T);
@@ -125,10 +119,6 @@ void const_device_convolution(
     DeviceMem out_device_buf(data_sz * out.mDesc.GetElementSpace());
 
     int num_thread = std::thread::hardware_concurrency();
-
-#if 0
-    out.GenerateTensorValue(GeneratorConstant<float>{0}, num_thread);
-#endif
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
@@ -147,13 +137,13 @@ void const_device_convolution(
     constexpr unsigned CPerBlockLoop = 1;
     constexpr unsigned OutTileSizeH  = 2;
     constexpr unsigned OutTileSizeW  = 2;
-    constexpr unsigned YPerBlock     = 16;
-    constexpr unsigned XPerBlock     = 16;
+    constexpr unsigned YPerBlock     = 4;
+    constexpr unsigned XPerBlock     = 8;
 
     constexpr unsigned NBlockCopyLen0 = 1;
     constexpr unsigned NBlockCopyLen1 = 1;
-    constexpr unsigned NBlockCopyLen2 = 1;
-    constexpr unsigned NBlockCopyLen3 = 64;
+    constexpr unsigned NBlockCopyLen2 = 2;
+    constexpr unsigned NBlockCopyLen3 = 16;
 
     constexpr unsigned nblock = (out_desc.GetLength(I0) / NPerBlock) *
                                 (out_desc.GetLength(I1) / KPerBlock) *
@@ -239,31 +229,23 @@ int main()
     Tensor<float> wei(make_TensorDescriptor(wei_desc));
     Tensor<float> out_host(make_TensorDescriptor(out_desc));
 
-    Tensor<float> out_device = out_host;
-
     int num_thread = std::thread::hardware_concurrency();
 
-#if 0
+#if 1
     in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
+    out_host.GenerateTensorValue(GeneratorConstant<float>{0}, num_thread);
 #endif
 
-#if 0
-    host_convolution(in, wei, out_host);
-#endif
+    Tensor<float> out_device = out_host;
 
-    const_device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
+    device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 
     std::cout << __func__ << ": done" << std::endl;
 
-#if 0
-    LogRange(std::cout << __func__ << "in : ", in.mData, ",") << std::endl;
-    LogRange(std::cout << __func__ << "wei: ", wei.mData, ",") << std::endl;
-    LogRange(std::cout, out_host.mData, ",") << std::endl;
-    LogRange(std::cout, out_device.mData, ",") << std::endl;
-#endif
+#if 1
+    host_convolution(in, wei, out_host);
 
-#if 0
     float error      = 0;
     float max_diff   = 0;
     float host_value = 0, device_value = 0;
@@ -281,5 +263,12 @@ int main()
     std::cout << "error: " << error << std::endl;
     std::cout << "max_diff: " << max_diff << ", " << host_value << ", " << device_value
               << std::endl;
+#endif
+
+#if 0
+    LogRange(std::cout << __func__ << "in : ", in.mData, ",") << std::endl;
+    LogRange(std::cout << __func__ << "wei: ", wei.mData, ",") << std::endl;
+    LogRange(std::cout, out_host.mData, ",") << std::endl;
+    LogRange(std::cout, out_device.mData, ",") << std::endl;
 #endif
 }
