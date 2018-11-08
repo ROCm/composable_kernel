@@ -137,23 +137,31 @@ void device_convolution(
     constexpr unsigned CPerBlockLoop = 1;
     constexpr unsigned OutTileSizeH  = 2;
     constexpr unsigned OutTileSizeW  = 2;
-    constexpr unsigned YPerBlock     = 4;
-    constexpr unsigned XPerBlock     = 8;
+    constexpr unsigned YPerBlock     = 8;
+    constexpr unsigned XPerBlock     = 16;
 
     constexpr unsigned NBlockCopyLen0 = 1;
     constexpr unsigned NBlockCopyLen1 = 1;
     constexpr unsigned NBlockCopyLen2 = 2;
     constexpr unsigned NBlockCopyLen3 = 16;
 
-    constexpr unsigned nblock = (out_desc.GetLength(I0) / NPerBlock) *
-                                (out_desc.GetLength(I1) / KPerBlock) *
-                                (out_desc.GetLength(I2) / (OutTileSizeH * YPerBlock)) *
-                                (out_desc.GetLength(I3) / (OutTileSizeW * XPerBlock));
+    constexpr unsigned BlockSize = 128;
 
-    dim3 block_dim(32);
-    dim3 grid_dim(nblock);
+    constexpr unsigned GridSize = (out_desc.GetLength(I0) / NPerBlock) *
+                                  (out_desc.GetLength(I1) / KPerBlock) *
+                                  (out_desc.GetLength(I2) / (OutTileSizeH * YPerBlock)) *
+                                  (out_desc.GetLength(I3) / (OutTileSizeW * XPerBlock));
 
-    printf("__func__: nblock %u \n", nblock);
+    dim3 block_dim(BlockSize);
+    dim3 grid_dim(GridSize);
+
+    printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
+
+    cudaEvent_t start, stop;
+    float elapsedTime;
+
+    cudaEventCreate(&start);
+    cudaEventRecord(start, 0);
 
     gridwise_convolution<T,
                          InDesc,
@@ -169,13 +177,22 @@ void device_convolution(
                          NBlockCopyLen0,
                          NBlockCopyLen1,
                          NBlockCopyLen2,
-                         NBlockCopyLen3>
+                         NBlockCopyLen3,
+                         BlockSize,
+                         GridSize>
         <<<grid_dim, block_dim>>>(InDesc{},
                                   static_cast<T*>(in_device_buf.GetDeviceBuffer()),
                                   WeiDesc{},
                                   static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
                                   OutDesc{},
                                   static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+
+    cudaEventCreate(&stop);
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    cudaEventElapsedTime(&elapsedTime, start, stop);
+    printf("Elapsed time : %f ms\n", elapsedTime);
 
     checkCudaErrors(cudaGetLastError());
     out_device_buf.FromDevice(out.mData.data());
@@ -231,7 +248,7 @@ int main()
 
     int num_thread = std::thread::hardware_concurrency();
 
-#if 1
+#if 0
     in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     out_host.GenerateTensorValue(GeneratorConstant<float>{0}, num_thread);
@@ -241,9 +258,7 @@ int main()
 
     device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 
-    std::cout << __func__ << ": done" << std::endl;
-
-#if 1
+#if 0
     host_convolution(in, wei, out_host);
 
     float error      = 0;
