@@ -1,5 +1,5 @@
 #pragma once
-#include "helper_cuda.h"
+#include "common.cuh"
 
 template <class T, T N>
 struct Constant
