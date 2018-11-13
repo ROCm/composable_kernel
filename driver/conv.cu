@@ -5,7 +5,7 @@
 #include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "constant_tensor_descriptor.cuh"
-#include "direct_convolution.cuh"
+#include "direct_convolution_2.cuh"
 
 template <class T>
 struct GeneratorConstant
@@ -133,8 +133,8 @@ void device_convolution(
     constexpr auto wei_desc          = WeiDesc{};
     constexpr auto out_desc          = OutDesc{};
     constexpr unsigned NPerBlock     = 1;
-    constexpr unsigned KPerBlock     = 1;
-    constexpr unsigned CPerBlockLoop = 1;
+    constexpr unsigned KPerBlock     = 2;
+    constexpr unsigned CPerBlockLoop = 4;
     constexpr unsigned OutTileSizeH  = 2;
     constexpr unsigned OutTileSizeW  = 2;
     constexpr unsigned YPerBlock     = 8;
@@ -213,7 +213,7 @@ int main()
     constexpr unsigned C = 256;
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
-    constexpr unsigned K = 56;
+    constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 0
