@@ -5,7 +5,7 @@
 #include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "constant_tensor_descriptor.cuh"
-#include "direct_convolution_2.cuh"
+#include "direct_convolution.cuh"
 
 template <class T>
 struct GeneratorConstant
