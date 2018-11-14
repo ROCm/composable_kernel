@@ -26,7 +26,7 @@ struct GeneratorTensor
     T operator()(Is... is)
     {
 #if 1
-        return std::rand() / RAND_MAX;
+        return T(std::rand()) / T(RAND_MAX);
 #elif 0
 
         std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
@@ -142,8 +142,8 @@ void device_convolution(
 
     constexpr unsigned NBlockCopyLen0 = 1;
     constexpr unsigned NBlockCopyLen1 = 1;
-    constexpr unsigned NBlockCopyLen2 = 2;
-    constexpr unsigned NBlockCopyLen3 = 16;
+    constexpr unsigned NBlockCopyLen2 = 4;
+    constexpr unsigned NBlockCopyLen3 = 32;
 
     constexpr unsigned BlockSize = 128;
 

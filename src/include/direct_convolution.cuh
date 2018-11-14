@@ -283,6 +283,7 @@ __global__ void gridwise_convolution(InDesc,
     {
         auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
 
+#if 1
         // copy input tensor to LDS
         blockwise_4d_tensor_op<TFloat,
                                decltype(in_block_glb_desc),
@@ -300,7 +301,9 @@ __global__ void gridwise_convolution(InDesc,
                                           in_block_lds_desc,
                                           p_in_block,
                                           f_copy);
+#endif
 
+#if 1
         // copy weight tensor to LDS
         blockwise_4d_tensor_op<TFloat,
                                decltype(wei_block_glb_desc),
@@ -316,6 +319,7 @@ __global__ void gridwise_convolution(InDesc,
             wei_block_lds_desc,
             p_wei_block,
             f_copy);
+#endif
 
         // copy output tensor to LDS
         blockwise_4d_tensor_op<TFloat,
