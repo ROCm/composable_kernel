@@ -96,9 +96,14 @@ __device__ void blockwise_4d_tensor_op(
     }
 #endif
 
+#if 0
+    if(threadIdx.x != 0)
+        return;
+#endif
+
     constexpr unsigned NLoop = desc.GetElementSize() / BlockSize;
 
-    for(unsigned iloop = 0; iloop + 1 < NLoop; ++iloop)
+    for(unsigned iloop = 0; iloop < NLoop; ++iloop)
     {
         unsigned is = threadIdx.x + iloop * BlockSize;
 

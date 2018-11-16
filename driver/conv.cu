@@ -5,7 +5,7 @@
 #include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "constant_tensor_descriptor.cuh"
-#include "direct_convolution.cuh"
+#include "direct_convolution_2.cuh"
 
 template <class T>
 struct GeneratorConstant
@@ -129,16 +129,16 @@ void device_convolution(
     constexpr auto I2 = Index<2>{};
     constexpr auto I3 = Index<3>{};
 
-    constexpr auto in_desc           = InDesc{};
-    constexpr auto wei_desc          = WeiDesc{};
-    constexpr auto out_desc          = OutDesc{};
-    constexpr unsigned NPerBlock     = 1;
-    constexpr unsigned KPerBlock     = 2;
-    constexpr unsigned CPerBlockLoop = 4;
-    constexpr unsigned OutTileSizeH  = 2;
-    constexpr unsigned OutTileSizeW  = 2;
-    constexpr unsigned YPerBlock     = 8;
-    constexpr unsigned XPerBlock     = 16;
+    constexpr auto in_desc          = InDesc{};
+    constexpr auto wei_desc         = WeiDesc{};
+    constexpr auto out_desc         = OutDesc{};
+    constexpr unsigned OutTileSizeH = 2;
+    constexpr unsigned OutTileSizeW = 2;
+    constexpr unsigned NPerBlock    = 1;
+    constexpr unsigned KPerBlock    = 4;
+    constexpr unsigned CPerBlock    = 2;
+    constexpr unsigned YPerBlock    = 8;
+    constexpr unsigned XPerBlock    = 16;
 
     constexpr unsigned NBlockCopyLen0 = 1;
     constexpr unsigned NBlockCopyLen1 = 1;
@@ -167,11 +167,11 @@ void device_convolution(
                          InDesc,
                          WeiDesc,
                          OutDesc,
-                         NPerBlock,
-                         KPerBlock,
-                         CPerBlockLoop,
                          OutTileSizeH,
                          OutTileSizeW,
+                         NPerBlock,
+                         KPerBlock,
+                         CPerBlock,
                          YPerBlock,
                          XPerBlock,
                          NBlockCopyLen0,
@@ -248,7 +248,7 @@ int main()
 
     int num_thread = std::thread::hardware_concurrency();
 
-#if 0
+#if 1
     in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     out_host.GenerateTensorValue(GeneratorConstant<float>{0}, num_thread);
@@ -258,7 +258,7 @@ int main()
 
     device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 
-#if 0
+#if 1
     host_convolution(in, wei, out_host);
 
     float error      = 0;
