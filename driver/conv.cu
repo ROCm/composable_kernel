@@ -5,7 +5,7 @@
 #include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "constant_tensor_descriptor.cuh"
-#include "device_direct_convolution_2.cuh"
+#include "device_direct_convolution_3.cuh"
 
 template <class T>
 struct GeneratorConstant
@@ -27,8 +27,9 @@ struct GeneratorTensor
     {
 #if 1
         return T(std::rand()) / T(RAND_MAX);
-#elif
-
+#elif 1
+        return 1;
+#elif 0
         std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
         return std::accumulate(ls.begin(), ls.end(), std::size_t(0));
 #else
@@ -111,11 +112,12 @@ void host_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
 
 int main()
 {
+
 #if 0
     constexpr unsigned N  = 1;
     constexpr unsigned C  = 1;
-    constexpr unsigned HI = 18;
-    constexpr unsigned WI = 18;
+    constexpr unsigned HI = 34;
+    constexpr unsigned WI = 34;
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
@@ -125,6 +127,14 @@ int main()
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
     constexpr unsigned K = 64;
+    constexpr unsigned S = 3;
+    constexpr unsigned R = 3;
+#elif 0
+    constexpr unsigned N = 1;
+    constexpr unsigned C = 1;
+    constexpr unsigned HI = 18;
+    constexpr unsigned WI = 18;
+    constexpr unsigned K = 1;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 0
@@ -156,18 +166,19 @@ int main()
     Tensor<float> in(make_TensorDescriptor(in_desc));
     Tensor<float> wei(make_TensorDescriptor(wei_desc));
     Tensor<float> out_host(make_TensorDescriptor(out_desc));
+    Tensor<float> out_device(make_TensorDescriptor(out_desc));
 
     int num_thread = std::thread::hardware_concurrency();
 
 #if 1
     in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
-    out_host.GenerateTensorValue(GeneratorConstant<float>{0}, num_thread);
 #endif
 
-    Tensor<float> out_device = out_host;
-
-    device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
+    for(int i = 0; i < 20; ++i)
+    {
+        device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
+    }
 
 #if 1
     host_convolution(in, wei, out_host);
@@ -192,9 +203,9 @@ int main()
 #endif
 
 #if 0
-    LogRange(std::cout << __func__ << "in : ", in.mData, ",") << std::endl;
-    LogRange(std::cout << __func__ << "wei: ", wei.mData, ",") << std::endl;
-    LogRange(std::cout, out_host.mData, ",") << std::endl;
-    LogRange(std::cout, out_device.mData, ",") << std::endl;
+    LogRange(std::cout << "in : ", in.mData, ",") << std::endl;
+    LogRange(std::cout << "wei: ", wei.mData, ",") << std::endl;
+    LogRange(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
+    LogRange(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
 #endif
 }

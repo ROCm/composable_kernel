@@ -4,7 +4,7 @@
 #define THREADWISE_TENSOR_OP_METHOD 0
 
 #if THREADWISE_TENSOR_OP_METHOD == 0
-template <class TFloat, class SrcDesc, class DstDesc, class F>
+template <class TFloat, class DstDesc, class F>
 __device__ void threadwise_4d_tensor_op_unary(DstDesc, TFloat* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Index<0>{};
@@ -17,7 +17,7 @@ __device__ void threadwise_4d_tensor_op_unary(DstDesc, TFloat* __restrict__ p_ds
 #if 0
     if(threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(dst_desc);
+        print_ConstantTensorDescriptor(dst_desc, "threadwise_4d_tensor_op_unary: ");
     }
 #endif
 
@@ -34,6 +34,17 @@ __device__ void threadwise_4d_tensor_op_unary(DstDesc, TFloat* __restrict__ p_ds
                         dst_desc.GetStride(I2) * did2 + dst_desc.GetStride(I3) * did3;
 
                     f(p_dst[dindex]);
+
+#if 0
+                    if(threadIdx.x == 0)
+                    {
+                        printf("threadwise_4d_tensor_op_unary: thread id %u, \t"
+                               "dindex %u, p_dst[dindex] %f\n",
+                               threadIdx.x,
+                               dindex,
+                               p_dst[dindex]);
+                    }
+#endif
                 }
             }
         }
@@ -57,8 +68,8 @@ __device__ void threadwise_4d_tensor_op_binary(
 #if 0
     if(threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(src_desc);
-        print_ConstantTensorDescriptor(dst_desc);
+        print_ConstantTensorDescriptor(src_desc, "threadwise_4d_tensor_op_binary: src_desc: ");
+        print_ConstantTensorDescriptor(dst_desc, "threadwise_4d_tensor_op_binary: dst_desc: ");
     }
 #endif
 
@@ -79,6 +90,20 @@ __device__ void threadwise_4d_tensor_op_binary(
                         dst_desc.GetStride(I2) * did2 + dst_desc.GetStride(I3) * did3;
 
                     f(p_src[sindex], p_dst[dindex]);
+
+#if 0
+                    if(threadIdx.x == 0)
+                    {
+                        printf("threadwise_4d_tensor_op_binary: thread id %u, \t"
+                               "sindex %u, p_src[sindex] %f, \t"
+                               "dindex %u, p_dst[dindex] %f\n",
+                               threadIdx.x,
+                               sindex,
+                               p_src[sindex],
+                               dindex,
+                               p_dst[dindex]);
+                    }
+#endif
                 }
             }
         }
@@ -104,8 +129,8 @@ __device__ void threadwise_4d_tensor_op(
 #if 0
     if(threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(src_desc);
-        print_ConstantTensorDescriptor(dst_desc);
+        print_ConstantTensorDescriptor(src_desc, "threadwise_4d_tensor_op: src_desc: ");
+        print_ConstantTensorDescriptor(dst_desc, "threadwise_4d_tensor_op: dst_desc: ");
     }
 #endif
 

@@ -21,9 +21,9 @@ __device__ void threadwise_direct_convolution(InDesc,
 #if 0
     if(threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(in_desc);
-        print_ConstantTensorDescriptor(wei_desc);
-        print_ConstantTensorDescriptor(out_desc);
+        print_ConstantTensorDescriptor(in_desc, "threadwise_direct_convolution: ");
+        print_ConstantTensorDescriptor(wei_desc, "threadwise_direct_convolution: ");
+        print_ConstantTensorDescriptor(out_desc, "threadwise_direct_convolution: ");
     }
 #endif
 
@@ -59,9 +59,9 @@ __device__ void threadwise_direct_convolution(InDesc,
                                 p_out[out_index] += p_wei[wei_index] * p_in[in_index];
 
 #if 0
-                                if(threadIdx.x == 0)
+                                //   if(threadIdx.x == 0)
                                 {
-                                    printf("threadwise_direct_convolution: 1: \t"
+                                    printf("threadwise_direct_convolution: \t"
                                            "threadIdx.x %u\t"
                                            "out_index %u, p_out[out_index] %f, \t"
                                            "wei_index %u, p_wei[wei_index] %f, \t"
