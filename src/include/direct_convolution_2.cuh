@@ -92,10 +92,10 @@ __device__ void blockwise_convolution(InDesc,
         auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
 
         // copy input tensor into register
-        threadwise_4d_tensor_op_in<TFloat,
-                                   decltype(in_thread_src_desc),
-                                   decltype(in_thread_dst_desc),
-                                   decltype(f_copy)>(
+        threadwise_4d_tensor_op_binary<TFloat,
+                                       decltype(in_thread_src_desc),
+                                       decltype(in_thread_dst_desc),
+                                       decltype(f_copy)>(
             in_thread_src_desc,
             p_in_lds + in_desc.Get1dIndex(
                            n_thread_work_begin, 0, hi_thread_work_begin, wi_thread_work_begin),
@@ -107,10 +107,10 @@ __device__ void blockwise_convolution(InDesc,
             ++k_thread_work_begin)
         {
             // copy weight tensor into register
-            threadwise_4d_tensor_op_wei<TFloat,
-                                        decltype(wei_thread_src_desc),
-                                        decltype(wei_thread_dst_desc),
-                                        decltype(f_copy)>(
+            threadwise_4d_tensor_op_binary<TFloat,
+                                           decltype(wei_thread_src_desc),
+                                           decltype(wei_thread_dst_desc),
+                                           decltype(f_copy)>(
                 wei_thread_src_desc,
                 p_wei_lds + wei_desc.Get1dIndex(k_thread_work_begin, 0, 0, 0),
                 wei_thread_dst_desc,
@@ -118,10 +118,10 @@ __device__ void blockwise_convolution(InDesc,
                 f_copy);
 
             // copy output tensor into register
-            threadwise_4d_tensor_op_out<TFloat,
-                                        decltype(out_thread_src_desc),
-                                        decltype(out_thread_dst_desc),
-                                        decltype(f_copy)>(
+            threadwise_4d_tensor_op_binary<TFloat,
+                                           decltype(out_thread_src_desc),
+                                           decltype(out_thread_dst_desc),
+                                           decltype(f_copy)>(
                 out_thread_src_desc,
                 p_out_lds + out_desc.Get1dIndex(n_thread_work_begin,
                                                 k_thread_work_begin,
@@ -143,10 +143,10 @@ __device__ void blockwise_convolution(InDesc,
                                                                          p_out_thread);
 
             // accumulate output tensor into LDS
-            threadwise_4d_tensor_op_out<TFloat,
-                                        decltype(out_thread_dst_desc),
-                                        decltype(out_thread_src_desc),
-                                        decltype(f_copy)>(
+            threadwise_4d_tensor_op_binary<TFloat,
+                                           decltype(out_thread_dst_desc),
+                                           decltype(out_thread_src_desc),
+                                           decltype(f_copy)>(
                 out_thread_dst_desc,
                 p_out_thread,
                 out_thread_src_desc,
