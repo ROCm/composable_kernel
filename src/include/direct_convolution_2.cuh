@@ -279,68 +279,58 @@ __global__ void gridwise_convolution(InDesc,
     }
 #endif
 
+    auto f_set0 = [](TFloat& v) { v = TFloat(0); };
     auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
     auto f_accu = [](const TFloat& src, TFloat& dst) { dst += src; };
 
-    // copy output tensor to LDS
-    blockwise_4d_tensor_op<TFloat,
-                           decltype(out_block_glb_desc),
-                           decltype(out_block_lds_desc),
-                           NBlockCopyLen0,
-                           NBlockCopyLen1,
-                           NBlockCopyLen2,
-                           NBlockCopyLen3,
-                           decltype(f_copy),
-                           BlockSize>(out_block_glb_desc,
-                                      p_out + out_block_glb_desc.Get1dIndex(n_block_work_begin,
-                                                                            k_block_work_begin,
-                                                                            ho_block_work_begin,
-                                                                            wo_block_work_begin),
-                                      out_block_lds_desc,
-                                      p_out_block,
-                                      f_copy);
+    // set output tensor in LDS to 0
+    blockwise_4d_tensor_op_unary<TFloat,
+                                 decltype(out_block_lds_desc),
+                                 NBlockCopyLen0,
+                                 NBlockCopyLen1,
+                                 NBlockCopyLen2,
+                                 NBlockCopyLen3,
+                                 decltype(f_set0),
+                                 BlockSize>(out_block_lds_desc, p_out_block, f_set0);
 
     for(unsigned c_block_work_begin = 0; c_block_work_begin < in_desc.GetLength(I1);
         c_block_work_begin += CPerBlock)
     {
 
-#if 1
         // copy input tensor to LDS
-        blockwise_4d_tensor_op<TFloat,
-                               decltype(in_block_glb_desc),
-                               decltype(in_block_lds_desc),
-                               NBlockCopyLen0,
-                               NBlockCopyLen1,
-                               NBlockCopyLen2,
-                               NBlockCopyLen3,
-                               decltype(f_copy),
-                               BlockSize>(in_block_glb_desc,
-                                          p_in + in_block_glb_desc.Get1dIndex(n_block_work_begin,
-                                                                              c_block_work_begin,
-                                                                              hi_block_work_begin,
-                                                                              wi_block_work_begin),
-                                          in_block_lds_desc,
-                                          p_in_block,
-                                          f_copy);
-#endif
+        blockwise_4d_tensor_op_binary<TFloat,
+                                      decltype(in_block_glb_desc),
+                                      decltype(in_block_lds_desc),
+                                      NBlockCopyLen0,
+                                      NBlockCopyLen1,
+                                      NBlockCopyLen2,
+                                      NBlockCopyLen3,
+                                      decltype(f_copy),
+                                      BlockSize>(
+            in_block_glb_desc,
+            p_in + in_block_glb_desc.Get1dIndex(n_block_work_begin,
+                                                c_block_work_begin,
+                                                hi_block_work_begin,
+                                                wi_block_work_begin),
+            in_block_lds_desc,
+            p_in_block,
+            f_copy);
 
-#if 1
         // copy weight tensor to LDS
-        blockwise_4d_tensor_op<TFloat,
-                               decltype(wei_block_glb_desc),
-                               decltype(wei_block_lds_desc),
-                               NBlockCopyLen0,
-                               NBlockCopyLen1,
-                               NBlockCopyLen2,
-                               NBlockCopyLen3,
-                               decltype(f_copy),
-                               BlockSize>(
+        blockwise_4d_tensor_op_binary<TFloat,
+                                      decltype(wei_block_glb_desc),
+                                      decltype(wei_block_lds_desc),
+                                      NBlockCopyLen0,
+                                      NBlockCopyLen1,
+                                      NBlockCopyLen2,
+                                      NBlockCopyLen3,
+                                      decltype(f_copy),
+                                      BlockSize>(
             wei_block_glb_desc,
             p_wei + wei_block_glb_desc.Get1dIndex(k_block_work_begin, c_block_work_begin, 0, 0),
             wei_block_lds_desc,
             p_wei_block,
             f_copy);
-#endif
 
 #if 1
         __syncthreads();
@@ -366,20 +356,20 @@ __global__ void gridwise_convolution(InDesc,
     }
 
     // copy output tensor from LDS to device mem
-    blockwise_4d_tensor_op<TFloat,
-                           decltype(out_block_lds_desc),
-                           decltype(out_block_glb_desc),
-                           NBlockCopyLen0,
-                           NBlockCopyLen1,
-                           NBlockCopyLen2,
-                           NBlockCopyLen3,
-                           decltype(f_copy),
-                           BlockSize>(out_block_lds_desc,
-                                      p_out_block,
-                                      out_block_glb_desc,
-                                      p_out + out_block_glb_desc.Get1dIndex(n_block_work_begin,
-                                                                            k_block_work_begin,
-                                                                            ho_block_work_begin,
-                                                                            wo_block_work_begin),
-                                      f_copy);
+    blockwise_4d_tensor_op_binary<TFloat,
+                                  decltype(out_block_lds_desc),
+                                  decltype(out_block_glb_desc),
+                                  NBlockCopyLen0,
+                                  NBlockCopyLen1,
+                                  NBlockCopyLen2,
+                                  NBlockCopyLen3,
+                                  decltype(f_copy),
+                                  BlockSize>(
+        out_block_lds_desc,
+        p_out_block,
+        out_block_glb_desc,
+        p_out +
+            out_block_glb_desc.Get1dIndex(
+                n_block_work_begin, k_block_work_begin, ho_block_work_begin, wo_block_work_begin),
+        f_copy);
 }
