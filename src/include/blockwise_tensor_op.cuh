@@ -7,10 +7,10 @@
 template <class TFloat,
           class SrcDesc,
           class DstDesc,
-          unsigned NWorkLen0,
-          unsigned NWorkLen1,
-          unsigned NWorkLen2,
-          unsigned NWorkLen3,
+          unsigned NBlockOpLen0,
+          unsigned NBlockOpLen1,
+          unsigned NBlockOpLen2,
+          unsigned NBlockOpLen3,
           class F,
           unsigned BlockSize>
 __device__ void blockwise_4d_tensor_op_binary(
@@ -67,10 +67,10 @@ __device__ void blockwise_4d_tensor_op_binary(
 template <class TFloat,
           class SrcDesc,
           class DstDesc,
-          unsigned NWorkLen0,
-          unsigned NWorkLen1,
-          unsigned NWorkLen2,
-          unsigned NWorkLen3,
+          unsigned NBlockOpLen0,
+          unsigned NBlockOpLen1,
+          unsigned NBlockOpLen2,
+          unsigned NBlockOpLen3,
           class F,
           unsigned BlockSize>
 __device__ void blockwise_4d_tensor_op_binary(
@@ -156,10 +156,10 @@ __device__ void blockwise_4d_tensor_op_binary(
 
 template <class TFloat,
           class DstDesc,
-          unsigned NWorkLen0,
-          unsigned NWorkLen1,
-          unsigned NWorkLen2,
-          unsigned NWorkLen3,
+          unsigned NBlockOpLen0,
+          unsigned NBlockOpLen1,
+          unsigned NBlockOpLen2,
+          unsigned NBlockOpLen3,
           class F,
           unsigned BlockSize>
 __device__ void blockwise_4d_tensor_op_unary(DstDesc, TFloat* __restrict__ p_dst, F f)
@@ -240,10 +240,10 @@ __device__ void blockwise_4d_tensor_op_unary(DstDesc, TFloat* __restrict__ p_dst
 template <class TFloat,
           class SrcDesc,
           class DstDesc,
-          unsigned NWorkLen0,
-          unsigned NWorkLen1,
-          unsigned NWorkLen2,
-          unsigned NWorkLen3,
+          unsigned NBlockOpLen0,
+          unsigned NBlockOpLen1,
+          unsigned NBlockOpLen2,
+          unsigned NBlockOpLen3,
           class F,
           unsigned BlockSize>
 __device__ void blockwise_4d_tensor_op_binary(
@@ -259,34 +259,34 @@ __device__ void blockwise_4d_tensor_op_binary(
 
     static_assert(is_same<decltype(src_desc.GetLengths()), decltype(dst_desc.GetLengths())>::value);
 
-    constexpr unsigned NWorkStride3 = 1;
-    constexpr unsigned NWorkStride2 = NWorkLen3 * NWorkStride3;
-    constexpr unsigned NWorkStride1 = NWorkLen2 * NWorkStride2;
-    constexpr unsigned NWorkStride0 = NWorkLen1 * NWorkStride1;
+    constexpr unsigned NBlockOpStride3 = 1;
+    constexpr unsigned NBlockOpStride2 = NBlockOpLen3 * NBlockOpStride3;
+    constexpr unsigned NBlockOpStride1 = NBlockOpLen2 * NBlockOpStride2;
+    constexpr unsigned NBlockOpStride0 = NBlockOpLen1 * NBlockOpStride1;
 
     unsigned itmp = threadIdx.x;
 
-    const unsigned did0_begin = itmp / NWorkStride0;
+    const unsigned did0_begin = itmp / NBlockOpStride0;
 
-    itmp -= did0_begin * NWorkStride0;
+    itmp -= did0_begin * NBlockOpStride0;
 
-    const unsigned did1_begin = itmp / NWorkStride1;
+    const unsigned did1_begin = itmp / NBlockOpStride1;
 
-    itmp -= did1_begin * NWorkStride1;
+    itmp -= did1_begin * NBlockOpStride1;
 
-    const unsigned did2_begin = itmp / NWorkStride2;
+    const unsigned did2_begin = itmp / NBlockOpStride2;
 
-    itmp -= did2_begin * NWorkStride2;
+    itmp -= did2_begin * NBlockOpStride2;
 
-    const unsigned did3_begin = itmp / NWorkStride3;
+    const unsigned did3_begin = itmp / NBlockOpStride3;
 
-    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NWorkLen0)
+    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NBlockOpLen0)
     {
-        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NWorkLen1)
+        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NBlockOpLen1)
         {
-            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NWorkLen2)
+            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NBlockOpLen2)
             {
-                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NWorkLen3)
+                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NBlockOpLen3)
                 {
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1, did2, did3);
 
@@ -304,10 +304,10 @@ __device__ void blockwise_4d_tensor_op_binary(
 template <class TFloat,
           class SrcDesc,
           class DstDesc,
-          unsigned NWorkLen0,
-          unsigned NWorkLen1,
-          unsigned NWorkLen2,
-          unsigned NWorkLen3,
+          unsigned NBlockOpLen0,
+          unsigned NBlockOpLen1,
+          unsigned NBlockOpLen2,
+          unsigned NBlockOpLen3,
           class F,
           unsigned BlockSize>
 __device__ void blockwise_4d_tensor_op_binary(
@@ -323,63 +323,63 @@ __device__ void blockwise_4d_tensor_op_binary(
 
     static_assert(is_same<decltype(src_desc.GetLengths()), decltype(dst_desc.GetLengths())>::value);
 
-    constexpr unsigned NWorkStride3 = 1;
-    constexpr unsigned NWorkStride2 = NWorkLen3 * NWorkStride3;
-    constexpr unsigned NWorkStride1 = NWorkLen2 * NWorkStride2;
-    constexpr unsigned NWorkStride0 = NWorkLen1 * NWorkStride1;
+    constexpr unsigned NBlockOpStride3 = 1;
+    constexpr unsigned NBlockOpStride2 = NBlockOpLen3 * NBlockOpStride3;
+    constexpr unsigned NBlockOpStride1 = NBlockOpLen2 * NBlockOpStride2;
+    constexpr unsigned NBlockOpStride0 = NBlockOpLen1 * NBlockOpStride1;
 
     unsigned itmp = threadIdx.x;
 
-    const unsigned did0_begin = itmp / NWorkStride0;
+    const unsigned did0_begin = itmp / NBlockOpStride0;
 
-    itmp -= did0_begin * NWorkStride0;
+    itmp -= did0_begin * NBlockOpStride0;
 
-    const unsigned did1_begin = itmp / NWorkStride1;
+    const unsigned did1_begin = itmp / NBlockOpStride1;
 
-    itmp -= did1_begin * NWorkStride1;
+    itmp -= did1_begin * NBlockOpStride1;
 
-    const unsigned did2_begin = itmp / NWorkStride2;
+    const unsigned did2_begin = itmp / NBlockOpStride2;
 
-    itmp -= did2_begin * NWorkStride2;
+    itmp -= did2_begin * NBlockOpStride2;
 
-    const unsigned did3_begin = itmp / NWorkStride3;
+    const unsigned did3_begin = itmp / NBlockOpStride3;
 
     unsigned sindex = src_desc.Get1dIndex(did0_begin, did1_begin, did2_begin, did3_begin);
     unsigned dindex = dst_desc.Get1dIndex(did0_begin, did1_begin, did2_begin, did3_begin);
 
-    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NWorkLen0)
+    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NBlockOpLen0)
     {
         const unsigned sindex_save0 = sindex;
         const unsigned dindex_save0 = dindex;
 
-        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NWorkLen1)
+        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NBlockOpLen1)
         {
             const unsigned sindex_save1 = sindex;
             const unsigned dindex_save1 = dindex;
 
-            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NWorkLen2)
+            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NBlockOpLen2)
             {
                 const unsigned sindex_save2 = sindex;
                 const unsigned dindex_save2 = dindex;
 
-                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NWorkLen3)
+                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NBlockOpLen3)
                 {
                     f(p_src[sindex], p_dst[dindex]);
 
-                    sindex += NWorkLen3 * src_desc.GetStride(I3);
-                    dindex += NWorkLen3 * dst_desc.GetStride(I3);
+                    sindex += NBlockOpLen3 * src_desc.GetStride(I3);
+                    dindex += NBlockOpLen3 * dst_desc.GetStride(I3);
                 }
 
-                sindex = sindex_save2 + NWorkLen2 * src_desc.GetStride(I2);
-                dindex = dindex_save2 + NWorkLen2 * dst_desc.GetStride(I2);
+                sindex = sindex_save2 + NBlockOpLen2 * src_desc.GetStride(I2);
+                dindex = dindex_save2 + NBlockOpLen2 * dst_desc.GetStride(I2);
             }
 
-            sindex = sindex_save1 + NWorkLen1 * src_desc.GetStride(I1);
-            dindex = dindex_save1 + NWorkLen1 * dst_desc.GetStride(I1);
+            sindex = sindex_save1 + NBlockOpLen1 * src_desc.GetStride(I1);
+            dindex = dindex_save1 + NBlockOpLen1 * dst_desc.GetStride(I1);
         }
 
-        sindex = sindex_save0 + NWorkLen0 * src_desc.GetStride(I0);
-        dindex = dindex_save0 + NWorkLen0 * dst_desc.GetStride(I0);
+        sindex = sindex_save0 + NBlockOpLen0 * src_desc.GetStride(I0);
+        dindex = dindex_save0 + NBlockOpLen0 * dst_desc.GetStride(I0);
     }
 }
 #endif
@@ -388,10 +388,10 @@ __device__ void blockwise_4d_tensor_op_binary(
 template <class TFloat,
           class SrcDesc,
           class DstDesc,
-          unsigned NWorkLen0,
-          unsigned NWorkLen1,
-          unsigned NWorkLen2,
-          unsigned NWorkLen3,
+          unsigned NBlockOpLen0,
+          unsigned NBlockOpLen1,
+          unsigned NBlockOpLen2,
+          unsigned NBlockOpLen3,
           class F,
           unsigned BlockSize>
 __device__ void blockwise_4d_tensor_op_binary(
@@ -407,65 +407,69 @@ __device__ void blockwise_4d_tensor_op_binary(
 
     static_assert(is_same<decltype(src_desc.GetLengths()), decltype(dst_desc.GetLengths())>::value);
 
-    constexpr unsigned NWorkStride3 = 1;
-    constexpr unsigned NWorkStride2 = NWorkLen3 * NWorkStride3;
-    constexpr unsigned NWorkStride1 = NWorkLen2 * NWorkStride2;
-    constexpr unsigned NWorkStride0 = NWorkLen1 * NWorkStride1;
+    constexpr unsigned NBlockOpStride3 = 1;
+    constexpr unsigned NBlockOpStride2 = NBlockOpLen3 * NBlockOpStride3;
+    constexpr unsigned NBlockOpStride1 = NBlockOpLen2 * NBlockOpStride2;
+    constexpr unsigned NBlockOpStride0 = NBlockOpLen1 * NBlockOpStride1;
 
     unsigned itmp = threadIdx.x;
 
-    const unsigned did0_begin = itmp / NWorkStride0;
+    const unsigned did0_begin = itmp / NBlockOpStride0;
 
-    itmp -= did0_begin * NWorkStride0;
+    itmp -= did0_begin * NBlockOpStride0;
 
-    const unsigned did1_begin = itmp / NWorkStride1;
+    const unsigned did1_begin = itmp / NBlockOpStride1;
 
-    itmp -= did1_begin * NWorkStride1;
+    itmp -= did1_begin * NBlockOpStride1;
 
-    const unsigned did2_begin = itmp / NWorkStride2;
+    const unsigned did2_begin = itmp / NBlockOpStride2;
 
-    itmp -= did2_begin * NWorkStride2;
+    itmp -= did2_begin * NBlockOpStride2;
 
-    const unsigned did3_begin = itmp / NWorkStride3;
+    const unsigned did3_begin = itmp / NBlockOpStride3;
 
     unsigned sindex = src_desc.Get1dIndex(did0_begin, did1_begin, did2_begin, did3_begin);
     unsigned dindex = dst_desc.Get1dIndex(did0_begin, did1_begin, did2_begin, did3_begin);
 
-    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NWorkLen0)
+    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NBlockOpLen0)
     {
         unsigned i1 = 0;
-        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NWorkLen1)
+        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NBlockOpLen1)
         {
             unsigned i2 = 0;
-            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NWorkLen2)
+            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NBlockOpLen2)
             {
                 unsigned i3 = 0;
-                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NWorkLen3)
+                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NBlockOpLen3)
                 {
                     f(p_src[sindex], p_dst[dindex]);
 
-                    sindex += NWorkLen3 * src_desc.GetStride(I3);
-                    dindex += NWorkLen3 * dst_desc.GetStride(I3);
+                    sindex += NBlockOpLen3 * src_desc.GetStride(I3);
+                    dindex += NBlockOpLen3 * dst_desc.GetStride(I3);
 
                     ++i3;
                 }
 
-                sindex +=
-                    NWorkLen2 * src_desc.GetStride(I2) - i3 * NWorkLen3 * src_desc.GetStride(I3);
-                dindex +=
-                    NWorkLen2 * dst_desc.GetStride(I2) - i3 * NWorkLen3 * dst_desc.GetStride(I3);
+                sindex += NBlockOpLen2 * src_desc.GetStride(I2) -
+                          i3 * NBlockOpLen3 * src_desc.GetStride(I3);
+                dindex += NBlockOpLen2 * dst_desc.GetStride(I2) -
+                          i3 * NBlockOpLen3 * dst_desc.GetStride(I3);
 
                 ++i2;
             }
 
-            sindex += NWorkLen1 * src_desc.GetStride(I1) - i2 * NWorkLen2 * src_desc.GetStride(I2);
-            dindex += NWorkLen1 * dst_desc.GetStride(I1) - i2 * NWorkLen2 * dst_desc.GetStride(I2);
+            sindex +=
+                NBlockOpLen1 * src_desc.GetStride(I1) - i2 * NBlockOpLen2 * src_desc.GetStride(I2);
+            dindex +=
+                NBlockOpLen1 * dst_desc.GetStride(I1) - i2 * NBlockOpLen2 * dst_desc.GetStride(I2);
 
             ++i1;
         }
 
-        sindex += NWorkLen0 * src_desc.GetStride(I0) - i1 * NWorkLen1 * src_desc.GetStride(I1);
-        dindex += NWorkLen0 * dst_desc.GetStride(I0) - i1 * NWorkLen1 * dst_desc.GetStride(I1);
+        sindex +=
+            NBlockOpLen0 * src_desc.GetStride(I0) - i1 * NBlockOpLen1 * src_desc.GetStride(I1);
+        dindex +=
+            NBlockOpLen0 * dst_desc.GetStride(I0) - i1 * NBlockOpLen1 * dst_desc.GetStride(I1);
     }
 }
 #endif
@@ -474,10 +478,10 @@ __device__ void blockwise_4d_tensor_op_binary(
 template <class TFloat,
           class SrcDesc,
           class DstDesc,
-          unsigned NWorkLen0,
-          unsigned NWorkLen1,
-          unsigned NWorkLen2,
-          unsigned NWorkLen3,
+          unsigned NBlockOpLen0,
+          unsigned NBlockOpLen1,
+          unsigned NBlockOpLen2,
+          unsigned NBlockOpLen3,
           class F,
           unsigned BlockSize>
 __device__ void blockwise_4d_tensor_op_binary(
@@ -493,34 +497,34 @@ __device__ void blockwise_4d_tensor_op_binary(
 
     static_assert(is_same<decltype(src_desc.GetLengths()), decltype(dst_desc.GetLengths())>::value);
 
-    constexpr unsigned NWorkStride3 = 1;
-    constexpr unsigned NWorkStride2 = NWorkLen3 * NWorkStride3;
-    constexpr unsigned NWorkStride1 = NWorkLen2 * NWorkStride2;
-    constexpr unsigned NWorkStride0 = NWorkLen1 * NWorkStride1;
+    constexpr unsigned NBlockOpStride3 = 1;
+    constexpr unsigned NBlockOpStride2 = NBlockOpLen3 * NBlockOpStride3;
+    constexpr unsigned NBlockOpStride1 = NBlockOpLen2 * NBlockOpStride2;
+    constexpr unsigned NBlockOpStride0 = NBlockOpLen1 * NBlockOpStride1;
 
     unsigned itmp = threadIdx.x;
 
-    const unsigned did0_begin = itmp / NWorkStride0;
+    const unsigned did0_begin = itmp / NBlockOpStride0;
 
-    itmp -= did0_begin * NWorkStride0;
+    itmp -= did0_begin * NBlockOpStride0;
 
-    const unsigned did1_begin = itmp / NWorkStride1;
+    const unsigned did1_begin = itmp / NBlockOpStride1;
 
-    itmp -= did1_begin * NWorkStride1;
+    itmp -= did1_begin * NBlockOpStride1;
 
-    const unsigned did2_begin = itmp / NWorkStride2;
+    const unsigned did2_begin = itmp / NBlockOpStride2;
 
-    itmp -= did2_begin * NWorkStride2;
+    itmp -= did2_begin * NBlockOpStride2;
 
-    const unsigned did3_begin = itmp / NWorkStride3;
+    const unsigned did3_begin = itmp / NBlockOpStride3;
 
-    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NWorkLen0)
+    for(unsigned did0 = did0_begin; did0 < src_desc.GetLength(I0); did0 += NBlockOpLen0)
     {
-        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NWorkLen1)
+        for(unsigned did1 = did1_begin; did1 < src_desc.GetLength(I1); did1 += NBlockOpLen1)
         {
-            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NWorkLen2)
+            for(unsigned did2 = did2_begin; did2 < src_desc.GetLength(I2); did2 += NBlockOpLen2)
             {
-                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NWorkLen3)
+                for(unsigned did3 = did3_begin; did3 < src_desc.GetLength(I3); did3 += NBlockOpLen3)
                 {
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1, did2, did3);
 

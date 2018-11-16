@@ -140,10 +140,10 @@ void device_convolution(
     constexpr unsigned YPerBlock    = 8;
     constexpr unsigned XPerBlock    = 16;
 
-    constexpr unsigned NBlockCopyLen0 = 1;
-    constexpr unsigned NBlockCopyLen1 = 1;
-    constexpr unsigned NBlockCopyLen2 = 4;
-    constexpr unsigned NBlockCopyLen3 = 32;
+    constexpr unsigned NBlockOpLen0 = 1;
+    constexpr unsigned NBlockOpLen1 = 1;
+    constexpr unsigned NBlockOpLen2 = 4;
+    constexpr unsigned NBlockOpLen3 = 32;
 
     constexpr unsigned BlockSize = 128;
 
@@ -174,10 +174,10 @@ void device_convolution(
                          CPerBlock,
                          YPerBlock,
                          XPerBlock,
-                         NBlockCopyLen0,
-                         NBlockCopyLen1,
-                         NBlockCopyLen2,
-                         NBlockCopyLen3,
+                         NBlockOpLen0,
+                         NBlockOpLen1,
+                         NBlockOpLen2,
+                         NBlockOpLen3,
                          BlockSize,
                          GridSize>
         <<<grid_dim, block_dim>>>(InDesc{},
@@ -248,7 +248,7 @@ int main()
 
     int num_thread = std::thread::hardware_concurrency();
 
-#if 0
+#if 1
     in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     out_host.GenerateTensorValue(GeneratorConstant<float>{0}, num_thread);
@@ -258,7 +258,7 @@ int main()
 
     device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 
-#if 0
+#if 1
     host_convolution(in, wei, out_host);
 
     float error      = 0;
