@@ -97,7 +97,7 @@ __device__ void blockwise_convolution(InBlockDesc,
                                        decltype(f_copy)>(
             in_thread_src_desc,
             p_in_block + in_block_desc.Get1dIndex(
-                           n_thread_work_begin, 0, hi_thread_work_begin, wi_thread_work_begin),
+                             n_thread_work_begin, 0, hi_thread_work_begin, wi_thread_work_begin),
             in_thread_dst_desc,
             p_in_thread,
             f_copy);
@@ -123,9 +123,9 @@ __device__ void blockwise_convolution(InBlockDesc,
                                            decltype(f_copy)>(
                 out_thread_src_desc,
                 p_out_block + out_block_desc.Get1dIndex(n_thread_work_begin,
-                                                k_thread_work_begin,
-                                                ho_thread_work_begin,
-                                                wo_thread_work_begin),
+                                                        k_thread_work_begin,
+                                                        ho_thread_work_begin,
+                                                        wo_thread_work_begin),
                 out_thread_dst_desc,
                 p_out_thread,
                 f_copy);
@@ -150,9 +150,9 @@ __device__ void blockwise_convolution(InBlockDesc,
                 p_out_thread,
                 out_thread_src_desc,
                 p_out_block + out_block_desc.Get1dIndex(n_thread_work_begin,
-                                                k_thread_work_begin,
-                                                ho_thread_work_begin,
-                                                wo_thread_work_begin),
+                                                        k_thread_work_begin,
+                                                        ho_thread_work_begin,
+                                                        wo_thread_work_begin),
                 f_copy);
         }
     }
