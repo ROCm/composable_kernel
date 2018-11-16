@@ -13,7 +13,7 @@ template <class TFloat,
           unsigned NWorkLen3,
           class F,
           unsigned BlockSize>
-__device__ void blockwise_4d_tensor_op(
+__device__ void blockwise_4d_tensor_op_binary(
     SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Index<0>{};
@@ -31,8 +31,8 @@ __device__ void blockwise_4d_tensor_op(
 #if 0
     if(threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(src_desc, "blockwise_4d_tensor_op: src_desc: ");
-        print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op: dst_desc: ");
+        print_ConstantTensorDescriptor(src_desc, "blockwise_4d_tensor_op_binary: src_desc: ");
+        print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op_binary: dst_desc: ");
     }
 #endif
 
@@ -73,7 +73,7 @@ template <class TFloat,
           unsigned NWorkLen3,
           class F,
           unsigned BlockSize>
-__device__ void blockwise_4d_tensor_op(
+__device__ void blockwise_4d_tensor_op_binary(
     SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Index<0>{};
@@ -91,14 +91,9 @@ __device__ void blockwise_4d_tensor_op(
 #if 0
     if(threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(src_desc, "blockwise_4d_tensor_op: src_desc: ");
-        print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op: dst_desc: ");
+        print_ConstantTensorDescriptor(src_desc, "blockwise_4d_tensor_op_binary: src_desc: ");
+        print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op_binary: dst_desc: ");
     }
-#endif
-
-#if 0
-    if(threadIdx.x != 0)
-        return;
 #endif
 
     constexpr unsigned NLoop = desc.GetElementSize() / BlockSize;
@@ -158,6 +153,87 @@ __device__ void blockwise_4d_tensor_op(
         }
     }
 }
+
+template <class TFloat,
+          class DstDesc,
+          unsigned NWorkLen0,
+          unsigned NWorkLen1,
+          unsigned NWorkLen2,
+          unsigned NWorkLen3,
+          class F,
+          unsigned BlockSize>
+__device__ void blockwise_4d_tensor_op_unary(DstDesc, TFloat* __restrict__ p_dst, F f)
+{
+    constexpr auto I0 = Index<0>{};
+    constexpr auto I1 = Index<1>{};
+    constexpr auto I2 = Index<2>{};
+    constexpr auto I3 = Index<3>{};
+
+    constexpr auto dst_desc = DstDesc{};
+
+    constexpr auto desc = make_ConstantTensorDescriptor(dst_desc.GetLengths());
+
+#if 0
+    if(threadIdx.x == 0)
+    {
+        print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op_unary: dst_desc: ");
+        print_ConstantTensorDescriptor(desc, "blockwise_4d_tensor_op_unary: desc: ");
+    }
+#endif
+
+    constexpr unsigned NLoop = desc.GetElementSize() / BlockSize;
+
+    for(unsigned iloop = 0; iloop < NLoop; ++iloop)
+    {
+        unsigned is = threadIdx.x + iloop * BlockSize;
+
+        const unsigned did0 = is / desc.GetStride(I0);
+
+        is -= did0 * desc.GetStride(I0);
+
+        const unsigned did1 = is / desc.GetStride(I1);
+
+        is -= did1 * desc.GetStride(I1);
+
+        const unsigned did2 = is / desc.GetStride(I2);
+
+        is -= did2 * desc.GetStride(I2);
+
+        const unsigned did3 = is / desc.GetStride(I3);
+
+        const unsigned dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
+
+        f(p_dst[dindex]);
+    }
+
+    constexpr bool has_tail = (desc.GetElementSize() > NLoop * BlockSize);
+
+    if(has_tail)
+    {
+        unsigned is = threadIdx.x + NLoop * BlockSize;
+
+        if(is < desc.GetElementSize())
+        {
+            const unsigned did0 = is / desc.GetStride(I0);
+
+            is -= did0 * desc.GetStride(I0);
+
+            const unsigned did1 = is / desc.GetStride(I1);
+
+            is -= did1 * desc.GetStride(I1);
+
+            const unsigned did2 = is / desc.GetStride(I2);
+
+            is -= did2 * desc.GetStride(I2);
+
+            const unsigned did3 = is / desc.GetStride(I3);
+
+            const unsigned dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
+
+            f(p_dst[dindex]);
+        }
+    }
+}
 #endif
 
 #if BLOCKWISE_TENSOR_OP_METHOD == 21
@@ -170,7 +246,7 @@ template <class TFloat,
           unsigned NWorkLen3,
           class F,
           unsigned BlockSize>
-__device__ void blockwise_4d_tensor_op(
+__device__ void blockwise_4d_tensor_op_binary(
     SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Index<0>{};
@@ -234,7 +310,7 @@ template <class TFloat,
           unsigned NWorkLen3,
           class F,
           unsigned BlockSize>
-__device__ void blockwise_4d_tensor_op(
+__device__ void blockwise_4d_tensor_op_binary(
     SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Index<0>{};
@@ -318,7 +394,7 @@ template <class TFloat,
           unsigned NWorkLen3,
           class F,
           unsigned BlockSize>
-__device__ void blockwise_4d_tensor_op(
+__device__ void blockwise_4d_tensor_op_binary(
     SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Index<0>{};
@@ -404,7 +480,7 @@ template <class TFloat,
           unsigned NWorkLen3,
           class F,
           unsigned BlockSize>
-__device__ void blockwise_4d_tensor_op(
+__device__ void blockwise_4d_tensor_op_binary(
     SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Index<0>{};
