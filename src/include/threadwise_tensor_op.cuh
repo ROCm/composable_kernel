@@ -1,12 +1,16 @@
 #pragma once
 #include "constant_tensor_descriptor.cuh"
 
-#define THREADWISE_TENSOR_OP_METHOD 1
+#define THREADWISE_TENSOR_OP_METHOD 0
 
 #if THREADWISE_TENSOR_OP_METHOD == 0
 template <class TFloat, class SrcDesc, class DstDesc, class F>
-__device__ void threadwise_4d_tensor_op(
-    SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, F f)
+__device__ void threadwise_4d_tensor_op(SrcDesc,
+                                        TFloat* const __restrict__ p_src,
+                                        DstDesc,
+                                        TFloat* __restrict__ p_dst,
+                                        F f,
+                                        bool flag = false)
 {
     constexpr auto I0 = Index<0>{};
     constexpr auto I1 = Index<1>{};
@@ -24,6 +28,11 @@ __device__ void threadwise_4d_tensor_op(
         print_ConstantTensorDescriptor(src_desc);
         print_ConstantTensorDescriptor(dst_desc);
     }
+#endif
+
+#if 1
+    if(flag && threadIdx.x != 0)
+        return;
 #endif
 
     for(unsigned did0 = 0; did0 < src_desc.GetLength(I0); ++did0)

@@ -35,7 +35,7 @@ __device__ void blockwise_convolution(InDesc,
     constexpr unsigned YPerBlock = (out_desc.GetLength(I2) + OutTileSizeH - 1) / OutTileSizeH;
     constexpr unsigned XPerBlock = (out_desc.GetLength(I3) + OutTileSizeW - 1) / OutTileSizeW;
 
-    constexpr unsigned CPerBlockLoop = in_desc.GetLength(I1);
+    constexpr unsigned CPerBlock = in_desc.GetLength(I1);
 
     constexpr unsigned InTileSizeH = OutTileSizeH + S - 1;
     constexpr unsigned InTileSizeW = OutTileSizeW + R - 1;
@@ -50,11 +50,10 @@ __device__ void blockwise_convolution(InDesc,
 #endif
 
     constexpr auto in_thread_src_desc = make_ConstantTensorDescriptor(
-        Sequence<1, CPerBlockLoop, OutTileSizeH + S - 1, OutTileSizeW + R - 1>{},
-        in_desc.GetStrides());
+        Sequence<1, CPerBlock, OutTileSizeH + S - 1, OutTileSizeW + R - 1>{}, in_desc.GetStrides());
 
     constexpr auto wei_thread_src_desc =
-        make_ConstantTensorDescriptor(Sequence<1, CPerBlockLoop, S, R>{}, wei_desc.GetStrides());
+        make_ConstantTensorDescriptor(Sequence<1, CPerBlock, S, R>{}, wei_desc.GetStrides());
 
     constexpr auto out_thread_src_desc = make_ConstantTensorDescriptor(
         Sequence<1, 1, OutTileSizeH, OutTileSizeW>{}, out_desc.GetStrides());
@@ -90,8 +89,8 @@ __device__ void blockwise_convolution(InDesc,
         unsigned hi_thread_work_begin = ho_thread_work_begin; // minus padding
         unsigned wi_thread_work_begin = wo_thread_work_begin; // minus padding
 
-        TFloat p_in_thread[1 * CPerBlockLoop * InTileSizeH * InTileSizeW];
-        TFloat p_wei_thread[1 * CPerBlockLoop * S * R];
+        TFloat p_in_thread[1 * CPerBlock * InTileSizeH * InTileSizeW];
+        TFloat p_wei_thread[1 * CPerBlock * S * R];
         TFloat p_out_thread[1 * 1 * OutTileSizeH * OutTileSizeW];
 
         auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
@@ -162,11 +161,11 @@ template <class TFloat,
           class InDesc,
           class WeiDesc,
           class OutDesc,
-          unsigned NPerBlock,
-          unsigned KPerBlock,
-          unsigned CPerBlockLoop,
           unsigned OutTileSizeH,
           unsigned OutTileSizeW,
+          unsigned NPerBlock,
+          unsigned KPerBlock,
+          unsigned CPerBlock,
           unsigned YPerBlock,
           unsigned XPerBlock,
           unsigned NBlockCopyLen0,
@@ -206,10 +205,10 @@ __global__ void gridwise_convolution(InDesc,
     constexpr unsigned XBlockWork = (out_desc.GetLength(I3) + WoPerBlock - 1) / WoPerBlock;
 
     constexpr auto in_block_glb_desc = make_ConstantTensorDescriptor(
-        Sequence<NPerBlock, CPerBlockLoop, HiPerBlock, WiPerBlock>{}, in_desc.GetStrides());
+        Sequence<NPerBlock, CPerBlock, HiPerBlock, WiPerBlock>{}, in_desc.GetStrides());
 
     constexpr auto wei_block_glb_desc = make_ConstantTensorDescriptor(
-        Sequence<KPerBlock, CPerBlockLoop, S, R>{}, wei_desc.GetStrides());
+        Sequence<KPerBlock, CPerBlock, S, R>{}, wei_desc.GetStrides());
 
     constexpr auto out_block_glb_desc = make_ConstantTensorDescriptor(
         Sequence<NPerBlock, KPerBlock, HoPerBlock, WoPerBlock>{}, out_desc.GetStrides());
@@ -279,7 +278,7 @@ __global__ void gridwise_convolution(InDesc,
 #endif
 
     for(unsigned c_block_work_begin = 0; c_block_work_begin < in_desc.GetLength(I1);
-        c_block_work_begin += CPerBlockLoop)
+        c_block_work_begin += CPerBlock)
     {
         auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
 
