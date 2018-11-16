@@ -27,7 +27,7 @@ struct GeneratorTensor
     {
 #if 1
         return T(std::rand()) / T(RAND_MAX);
-#elif 0
+#elif
 
         std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
         return std::accumulate(ls.begin(), ls.end(), std::size_t(0));
