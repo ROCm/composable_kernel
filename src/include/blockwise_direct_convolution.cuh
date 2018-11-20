@@ -1,7 +1,7 @@
 #pragma once
 #include "constant_tensor_descriptor.cuh"
 #include "threadwise_tensor_op.cuh"
-#include "threadwise_convolution.cuh"
+#include "threadwise_direct_convolution.cuh"
 
 template <class TFloat,
           class InBlockDesc,

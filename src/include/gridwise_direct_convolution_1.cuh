@@ -1,7 +1,7 @@
 #pragma once
 #include "constant_tensor_descriptor.cuh"
 #include "blockwise_tensor_op.cuh"
-#include "blockwise_convolution.cuh"
+#include "blockwise_direct_convolution.cuh"
 
 template <class TFloat,
           class InGlobalDesc,
