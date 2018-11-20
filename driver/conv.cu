@@ -170,7 +170,7 @@ int main()
 
     int num_thread = std::thread::hardware_concurrency();
 
-#if 1
+#if 0
     in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
 #endif
@@ -180,7 +180,7 @@ int main()
         device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
     }
 
-#if 1
+#if 0
     host_convolution(in, wei, out_host);
 
     float error      = 0;

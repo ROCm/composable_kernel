@@ -27,9 +27,9 @@ void device_convolution(
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
-    constexpr unsigned KPerBlock    = 8;
+    constexpr unsigned KPerBlock    = 32;
     constexpr unsigned CPerBlock    = 2;
-    constexpr unsigned YPerBlock    = 4;
+    constexpr unsigned YPerBlock    = 1;
     constexpr unsigned XPerBlock    = 16;
 
     constexpr unsigned NPerThread = 2;
