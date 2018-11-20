@@ -1,8 +1,8 @@
 #pragma once
-#include "direct_convolution_2.cuh"
+#include "gridwise_direct_convolution_2.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_convolution(
+void device_direct_convolution_2(
     InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
 {
     std::size_t data_sz = sizeof(T);
@@ -26,11 +26,15 @@ void device_convolution(
     constexpr auto out_desc         = OutDesc{};
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
-    constexpr unsigned NPerBlock    = 1;
-    constexpr unsigned KPerBlock    = 4;
+    constexpr unsigned NPerBlock    = 2;
+    constexpr unsigned KPerBlock    = 32;
     constexpr unsigned CPerBlock    = 2;
-    constexpr unsigned YPerBlock    = 8;
+    constexpr unsigned YPerBlock    = 1;
     constexpr unsigned XPerBlock    = 16;
+
+    constexpr unsigned NPerThread = 2;
+    constexpr unsigned KPerThread = 4;
+    constexpr unsigned CPerThread = 2;
 
     constexpr unsigned NBlockOpLen0 = 1;
     constexpr unsigned NBlockOpLen1 = 1;
@@ -66,6 +70,9 @@ void device_convolution(
                          CPerBlock,
                          YPerBlock,
                          XPerBlock,
+                         NPerThread,
+                         KPerThread,
+                         CPerThread,
                          NBlockOpLen0,
                          NBlockOpLen1,
                          NBlockOpLen2,

@@ -5,7 +5,8 @@
 #include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "constant_tensor_descriptor.cuh"
-#include "device_direct_convolution_3.cuh"
+#include "device_direct_convolution_1.cuh"
+#include "device_direct_convolution_2.cuh"
 
 template <class T>
 struct GeneratorConstant
@@ -177,7 +178,7 @@ int main()
 
     for(int i = 0; i < 20; ++i)
     {
-        device_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
+        device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
     }
 
 #if 0
