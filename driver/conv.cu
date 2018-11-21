@@ -8,27 +8,25 @@
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
 
-template <class T>
 struct GeneratorConstant
 {
-    T value = 0;
+    double value = 0;
 
     template <class... Is>
-    T operator()(Is... is)
+    double operator()(Is...)
     {
         return value;
     }
 };
 
-template <class T>
 struct GeneratorTensor
 {
     template <class... Is>
-    T operator()(Is... is)
+    double operator()(Is... is)
     {
 #if 1
-        return T(std::rand()) / T(RAND_MAX);
-#elif 1
+        return double(std::rand()) / double(RAND_MAX);
+#elif 0
         return 1;
 #elif 0
         std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
@@ -41,6 +39,18 @@ struct GeneratorTensor
         std::partial_sum(lens.rbegin(), lens.rbegin() + (sizeof...(Is) - 1), strides.rbegin() + 1);
         return std::inner_product(ids.begin(), ids.end(), strides.begin(), std::size_t(0)) + 1;
 #endif
+    }
+};
+
+struct GeneratorTensor_2
+{
+    int min_value = 0;
+    int max_value = 1;
+
+    template <class... Is>
+    double operator()(Is...)
+    {
+        return (std::rand() % (max_value - min_value)) + min_value;
     }
 };
 
@@ -83,7 +93,7 @@ auto make_TensorDescriptor(TConstTensorDesc)
 }
 
 template <class T>
-void host_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
+void host_direct_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
 {
     auto f = [&](auto n, auto k, auto ho, auto wo) {
         double v = 0;
@@ -111,9 +121,217 @@ void host_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
     f_par(std::thread::hardware_concurrency());
 }
 
+template <class T>
+void host_winograd_3x3_convolution(const Tensor<T>& in, const Tensor<T>& wei, Tensor<T>& out)
+{
+    constexpr std::size_t OutTileSizeH = 2;
+    constexpr std::size_t OutTileSizeW = 2;
+
+    std::size_t N  = in.mDesc.GetLengths()[0];
+    std::size_t C  = in.mDesc.GetLengths()[1];
+    std::size_t HI = in.mDesc.GetLengths()[2];
+    std::size_t WI = in.mDesc.GetLengths()[3];
+
+    std::size_t K = wei.mDesc.GetLengths()[0];
+    std::size_t S = wei.mDesc.GetLengths()[2];
+    std::size_t R = wei.mDesc.GetLengths()[3];
+
+    std::size_t HO = out.mDesc.GetLengths()[2];
+    std::size_t WO = out.mDesc.GetLengths()[3];
+
+    std::size_t InTileSizeH = OutTileSizeH + S - 1;
+    std::size_t InTileSizeW = OutTileSizeW + R - 1;
+
+    std::size_t Y = (HO + OutTileSizeH - 1) / OutTileSizeH;
+    std::size_t X = (WO + OutTileSizeW - 1) / OutTileSizeW;
+
+    Tensor<T> in_hold({N, C, Y, X, InTileSizeH, InTileSizeW});
+    Tensor<T> in_transform({N, C, Y, X, InTileSizeH, InTileSizeW});
+    Tensor<T> wei_transform({K, C, InTileSizeH, InTileSizeW});
+    Tensor<T> out_transform({N, K, Y, X, InTileSizeH, InTileSizeH});
+    Tensor<T> out_hold({N, K, Y, X, OutTileSizeH, OutTileSizeW});
+
+    auto f_in_hold = [&](auto n, auto c, auto y, auto x) {
+        for(int j = 0; j < InTileSizeH; ++j)
+        {
+            std::size_t hi = OutTileSizeH * y + j;
+            for(int i = 0; i < InTileSizeW; ++i)
+            {
+                std::size_t wi            = OutTileSizeW * x + i;
+                in_hold(n, c, y, x, j, i) = in(n, c, hi, wi);
+            }
+        }
+    };
+
+    auto f_in_transform = [&](auto n, auto c, auto y, auto x) {
+        in_transform(n, c, y, x, 0, 0) = in_hold(n, c, y, x, 0, 0) - in_hold(n, c, y, x, 0, 2) -
+                                         in_hold(n, c, y, x, 2, 0) + in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 0, 1) = in_hold(n, c, y, x, 0, 1) + in_hold(n, c, y, x, 0, 2) -
+                                         in_hold(n, c, y, x, 2, 1) - in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 0, 2) = -in_hold(n, c, y, x, 0, 1) + in_hold(n, c, y, x, 0, 2) +
+                                         in_hold(n, c, y, x, 2, 1) - in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 0, 3) = in_hold(n, c, y, x, 0, 1) - in_hold(n, c, y, x, 0, 3) -
+                                         in_hold(n, c, y, x, 2, 1) + in_hold(n, c, y, x, 2, 3);
+
+        in_transform(n, c, y, x, 1, 0) = in_hold(n, c, y, x, 1, 0) - in_hold(n, c, y, x, 1, 2) +
+                                         in_hold(n, c, y, x, 2, 0) - in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 1, 1) = in_hold(n, c, y, x, 1, 1) + in_hold(n, c, y, x, 1, 2) +
+                                         in_hold(n, c, y, x, 2, 1) + in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 1, 2) = -in_hold(n, c, y, x, 1, 1) + in_hold(n, c, y, x, 1, 2) -
+                                         in_hold(n, c, y, x, 2, 1) + in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 1, 3) = in_hold(n, c, y, x, 1, 1) - in_hold(n, c, y, x, 1, 3) +
+                                         in_hold(n, c, y, x, 2, 1) - in_hold(n, c, y, x, 2, 3);
+
+        in_transform(n, c, y, x, 2, 0) = -in_hold(n, c, y, x, 1, 0) + in_hold(n, c, y, x, 1, 2) +
+                                         in_hold(n, c, y, x, 2, 0) - in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 2, 1) = -in_hold(n, c, y, x, 1, 1) - in_hold(n, c, y, x, 1, 2) +
+                                         in_hold(n, c, y, x, 2, 1) + in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 2, 2) = in_hold(n, c, y, x, 1, 1) - in_hold(n, c, y, x, 1, 2) -
+                                         in_hold(n, c, y, x, 2, 1) + in_hold(n, c, y, x, 2, 2);
+        in_transform(n, c, y, x, 2, 3) = -in_hold(n, c, y, x, 1, 1) + in_hold(n, c, y, x, 1, 3) +
+                                         in_hold(n, c, y, x, 2, 1) - in_hold(n, c, y, x, 2, 3);
+
+        in_transform(n, c, y, x, 3, 0) = in_hold(n, c, y, x, 1, 0) - in_hold(n, c, y, x, 1, 2) -
+                                         in_hold(n, c, y, x, 3, 0) + in_hold(n, c, y, x, 3, 2);
+        in_transform(n, c, y, x, 3, 1) = in_hold(n, c, y, x, 1, 1) + in_hold(n, c, y, x, 1, 2) -
+                                         in_hold(n, c, y, x, 3, 1) - in_hold(n, c, y, x, 3, 2);
+        in_transform(n, c, y, x, 3, 2) = -in_hold(n, c, y, x, 1, 1) + in_hold(n, c, y, x, 1, 2) +
+                                         in_hold(n, c, y, x, 3, 1) - in_hold(n, c, y, x, 3, 2);
+        in_transform(n, c, y, x, 3, 3) = in_hold(n, c, y, x, 1, 1) - in_hold(n, c, y, x, 1, 3) -
+                                         in_hold(n, c, y, x, 3, 1) + in_hold(n, c, y, x, 3, 3);
+    };
+
+    auto f_wei_transform = [&](auto k, auto c) {
+        wei_transform(k, c, 0, 0) = wei(k, c, 0, 0);
+        wei_transform(k, c, 0, 1) =
+            0.5 * wei(k, c, 0, 0) + 0.5 * wei(k, c, 0, 1) + 0.5 * wei(k, c, 0, 2);
+        wei_transform(k, c, 0, 2) =
+            0.5 * wei(k, c, 0, 0) - 0.5 * wei(k, c, 0, 1) + 0.5 * wei(k, c, 0, 2);
+        wei_transform(k, c, 0, 3) = wei(k, c, 0, 2);
+
+        wei_transform(k, c, 1, 0) =
+            0.5 * wei(k, c, 0, 0) + 0.5 * wei(k, c, 1, 0) + 0.5 * wei(k, c, 2, 0);
+        wei_transform(k, c, 1, 1) =
+            0.25 * wei(k, c, 0, 0) + 0.25 * wei(k, c, 0, 1) + 0.25 * wei(k, c, 0, 2) +
+            0.25 * wei(k, c, 1, 0) + 0.25 * wei(k, c, 1, 1) + 0.25 * wei(k, c, 1, 2) +
+            0.25 * wei(k, c, 2, 0) + 0.25 * wei(k, c, 2, 1) + 0.25 * wei(k, c, 2, 2);
+        wei_transform(k, c, 1, 2) =
+            0.25 * wei(k, c, 0, 0) - 0.25 * wei(k, c, 0, 1) + 0.25 * wei(k, c, 0, 2) +
+            0.25 * wei(k, c, 1, 0) - 0.25 * wei(k, c, 1, 1) + 0.25 * wei(k, c, 1, 2) +
+            0.25 * wei(k, c, 2, 0) - 0.25 * wei(k, c, 2, 1) + 0.25 * wei(k, c, 2, 2);
+        wei_transform(k, c, 1, 3) =
+            0.5 * wei(k, c, 0, 2) + 0.5 * wei(k, c, 1, 2) + 0.5 * wei(k, c, 2, 2);
+
+        wei_transform(k, c, 2, 0) =
+            0.5 * wei(k, c, 0, 0) - 0.5 * wei(k, c, 1, 0) + 0.5 * wei(k, c, 2, 0);
+        wei_transform(k, c, 2, 1) =
+            0.25 * wei(k, c, 0, 0) + 0.25 * wei(k, c, 0, 1) + 0.25 * wei(k, c, 0, 2) -
+            0.25 * wei(k, c, 1, 0) - 0.25 * wei(k, c, 1, 1) - 0.25 * wei(k, c, 1, 2) +
+            0.25 * wei(k, c, 2, 0) + 0.25 * wei(k, c, 2, 1) + 0.25 * wei(k, c, 2, 2);
+        wei_transform(k, c, 2, 2) =
+            0.25 * wei(k, c, 0, 0) - 0.25 * wei(k, c, 0, 1) + 0.25 * wei(k, c, 0, 2) -
+            0.25 * wei(k, c, 1, 0) + 0.25 * wei(k, c, 1, 1) - 0.25 * wei(k, c, 1, 2) +
+            0.25 * wei(k, c, 2, 0) - 0.25 * wei(k, c, 2, 1) + 0.25 * wei(k, c, 2, 2);
+        wei_transform(k, c, 2, 3) =
+            0.5 * wei(k, c, 0, 2) - 0.5 * wei(k, c, 1, 2) + 0.5 * wei(k, c, 2, 2);
+
+        wei_transform(k, c, 3, 0) = wei(k, c, 2, 0);
+        wei_transform(k, c, 3, 1) =
+            0.5 * wei(k, c, 2, 0) + 0.5 * wei(k, c, 2, 1) + 0.5 * wei(k, c, 2, 2);
+        wei_transform(k, c, 3, 2) =
+            0.5 * wei(k, c, 2, 0) - 0.5 * wei(k, c, 2, 1) + 0.5 * wei(k, c, 2, 2);
+        wei_transform(k, c, 3, 3) = wei(k, c, 2, 2);
+    };
+
+    auto f_out_transform = [&](auto n, auto k, auto y, auto x) {
+        for(int j = 0; j < InTileSizeH; ++j)
+        {
+            for(int i = 0; i < InTileSizeW; ++i)
+            {
+                double v = 0;
+                for(int c = 0; c < C; ++c)
+                {
+                    v += in_transform(n, c, y, x, j, i) * wei_transform(k, c, j, i);
+                }
+
+                out_transform(n, k, y, x, j, i) = v;
+            }
+        }
+    };
+
+    auto f_out_hold = [&](auto n, auto k, auto y, auto x) {
+        out_hold(n, k, y, x, 0, 0) =
+            out_transform(n, k, y, x, 0, 0) + out_transform(n, k, y, x, 0, 1) +
+            out_transform(n, k, y, x, 0, 2) + out_transform(n, k, y, x, 1, 0) +
+            out_transform(n, k, y, x, 1, 1) + out_transform(n, k, y, x, 1, 2) +
+            out_transform(n, k, y, x, 2, 0) + out_transform(n, k, y, x, 2, 1) +
+            out_transform(n, k, y, x, 2, 2);
+        out_hold(n, k, y, x, 0, 1) =
+            out_transform(n, k, y, x, 0, 1) - out_transform(n, k, y, x, 0, 2) -
+            out_transform(n, k, y, x, 0, 3) + out_transform(n, k, y, x, 1, 1) -
+            out_transform(n, k, y, x, 1, 2) - out_transform(n, k, y, x, 1, 3) +
+            out_transform(n, k, y, x, 2, 1) - out_transform(n, k, y, x, 2, 2) -
+            out_transform(n, k, y, x, 2, 3);
+        out_hold(n, k, y, x, 1, 0) =
+            out_transform(n, k, y, x, 1, 0) + out_transform(n, k, y, x, 1, 1) +
+            out_transform(n, k, y, x, 1, 2) - out_transform(n, k, y, x, 2, 0) -
+            out_transform(n, k, y, x, 2, 1) - out_transform(n, k, y, x, 2, 2) -
+            out_transform(n, k, y, x, 3, 0) - out_transform(n, k, y, x, 3, 1) -
+            out_transform(n, k, y, x, 3, 2);
+        out_hold(n, k, y, x, 1, 1) =
+            out_transform(n, k, y, x, 1, 1) - out_transform(n, k, y, x, 1, 2) -
+            out_transform(n, k, y, x, 1, 3) - out_transform(n, k, y, x, 2, 1) +
+            out_transform(n, k, y, x, 2, 2) + out_transform(n, k, y, x, 2, 3) -
+            out_transform(n, k, y, x, 3, 1) + out_transform(n, k, y, x, 3, 2) +
+            out_transform(n, k, y, x, 3, 3);
+    };
+
+    auto f_out = [&](auto n, auto k, auto y, auto x) {
+        for(int j = 0; j < OutTileSizeH; ++j)
+        {
+            std::size_t ho = OutTileSizeH * y + j;
+            for(int i = 0; i < OutTileSizeW; ++i)
+            {
+                std::size_t wo    = OutTileSizeW * x + i;
+                out(n, k, ho, wo) = out_hold(n, k, y, x, j, i);
+            }
+        }
+    };
+
+    std::size_t num_thread = std::thread::hardware_concurrency();
+
+    make_ParallelTensorFunctor(f_in_hold, N, C, Y, X)(num_thread);
+    make_ParallelTensorFunctor(f_in_transform, N, C, Y, X)(num_thread);
+    make_ParallelTensorFunctor(f_wei_transform, K, C)(num_thread);
+    make_ParallelTensorFunctor(f_out_transform, N, K, Y, X)(num_thread);
+    make_ParallelTensorFunctor(f_out_hold, N, K, Y, X)(num_thread);
+    make_ParallelTensorFunctor(f_out, N, K, Y, X)(num_thread);
+}
+
+template <class T>
+void check_error(const Tensor<T>& ref, const Tensor<T>& result)
+{
+    float error     = 0;
+    float max_diff  = 0;
+    float ref_value = 0, result_value = 0;
+    for(int i = 0; i < ref.mData.size(); ++i)
+    {
+        error += std::abs(ref.mData[i] - result.mData[i]);
+        float diff = std::abs(ref.mData[i] - result.mData[i]);
+        if(max_diff < diff)
+        {
+            max_diff     = diff;
+            ref_value    = ref.mData[i];
+            result_value = result.mData[i];
+        }
+    }
+
+    std::cout << "error: " << error << std::endl;
+    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
+}
+
 int main()
 {
-
 #if 0
     constexpr unsigned N  = 1;
     constexpr unsigned C  = 1;
@@ -139,13 +357,21 @@ int main()
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 0
-    constexpr unsigned N = 2;
-    constexpr unsigned C = 3;
-    constexpr unsigned HI = 130;
-    constexpr unsigned WI = 130;
-    constexpr unsigned K = 5;
+    constexpr unsigned N = 1;
+    constexpr unsigned C = 1;
+    constexpr unsigned HI = 4;
+    constexpr unsigned WI = 4;
+    constexpr unsigned K = 1;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
+#elif 0
+    constexpr unsigned N  = 2;
+    constexpr unsigned C  = 3;
+    constexpr unsigned HI = 130;
+    constexpr unsigned WI = 130;
+    constexpr unsigned K  = 5;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 0
     constexpr unsigned N  = 3;
     constexpr unsigned C  = 16;
@@ -169,11 +395,10 @@ int main()
     Tensor<float> out_host(make_TensorDescriptor(out_desc));
     Tensor<float> out_device(make_TensorDescriptor(out_desc));
 
-    int num_thread = std::thread::hardware_concurrency();
-
-#if 0
-    in.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
-    wei.GenerateTensorValue(GeneratorTensor<float>{}, num_thread);
+#if 1
+    std::size_t num_thread = std::thread::hardware_concurrency();
+    in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+    wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
 #endif
 
     for(int i = 0; i < 20; ++i)
@@ -182,26 +407,12 @@ int main()
     }
 
 #if 0
-    host_convolution(in, wei, out_host);
-
-    float error      = 0;
-    float max_diff   = 0;
-    float host_value = 0, device_value = 0;
-    for(int i = 0; i < out_host.mData.size(); ++i)
-    {
-        error += std::abs(out_host.mData[i] - out_device.mData[i]);
-        float diff = std::abs(out_host.mData[i] - out_device.mData[i]);
-        if(max_diff < diff)
-        {
-            max_diff     = diff;
-            host_value   = out_host.mData[i];
-            device_value = out_device.mData[i];
-        }
-    }
-    std::cout << "error: " << error << std::endl;
-    std::cout << "max_diff: " << max_diff << ", " << host_value << ", " << device_value
-              << std::endl;
+    host_direct_convolution(in, wei, out_host);
+#else
+    host_winograd_3x3_convolution(in, wei, out_host);
 #endif
+
+    check_error(out_host, out_device);
 
 #if 0
     LogRange(std::cout << "in : ", in.mData, ",") << std::endl;
