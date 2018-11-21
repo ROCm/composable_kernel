@@ -176,13 +176,6 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
     for(unsigned c_block_data_offset = 0; c_block_data_offset < in_global_desc.GetLength(I1);
         c_block_data_offset += CPerBlock, __syncthreads())
     {
-
-#if 0
-        if(threadIdx.x == 0)
-        {
-            printf("c_block_data_offset: %u\n", c_block_data_offset);
-        }
-#endif
         // copy input tensor to LDS
         blockwise_4d_tensor_op_binary<TFloat,
                                       decltype(in_block_global_desc),
@@ -224,13 +217,6 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
         for(unsigned c_thread_data_offset = 0; c_thread_data_offset < CPerBlock;
             c_thread_data_offset += CPerThread)
         {
-
-#if 0
-            if(threadIdx.x == 0)
-            {
-                printf("c_thread_data_offset: %u\n", c_thread_data_offset);
-            }
-#endif
             // copy input tensor into register
             threadwise_4d_tensor_op_binary<TFloat,
                                            decltype(in_thread_block_desc),
