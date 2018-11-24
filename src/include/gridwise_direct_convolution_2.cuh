@@ -214,8 +214,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
 
         __syncthreads();
 
-        for(unsigned c_thread_data_offset = 0; c_thread_data_offset < CPerBlock;
-            c_thread_data_offset += CPerThread)
+        for(unsigned c_thread_data = 0; c_thread_data < CPerBlock; c_thread_data += CPerThread)
         {
             // copy input tensor into register
             threadwise_4d_tensor_op_binary<TFloat,
@@ -224,7 +223,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
                                            decltype(f_copy)>(
                 in_thread_block_desc,
                 p_in_block + in_block_desc.Get1dIndex(n_thread_data_offset,
-                                                      c_thread_data_offset,
+                                                      c_thread_data,
                                                       hi_thread_data_offset,
                                                       wi_thread_data_offset),
                 in_thread_desc,
@@ -237,8 +236,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
                                            decltype(wei_thread_desc),
                                            decltype(f_copy)>(
                 wei_thread_block_desc,
-                p_wei_block +
-                    wei_block_desc.Get1dIndex(k_thread_data_offset, c_thread_data_offset, 0, 0),
+                p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_offset, c_thread_data, 0, 0),
                 wei_thread_desc,
                 p_wei_thread,
                 f_copy);

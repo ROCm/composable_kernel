@@ -1,8 +1,8 @@
 #pragma once
-#include "gridwise_direct_convolution_2.cuh"
+#include "gridwise_winograd_convolution.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_direct_convolution_2(
+void device_winograd_convolution(
     InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
 {
     std::size_t data_sz = sizeof(T);
@@ -27,19 +27,14 @@ void device_direct_convolution_2(
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
-    constexpr unsigned KPerBlock    = 32;
+    constexpr unsigned KPerBlock    = 16;
     constexpr unsigned CPerBlock    = 4;
     constexpr unsigned YPerBlock    = 1;
     constexpr unsigned XPerBlock    = 16;
 
     constexpr unsigned NPerThread = 2;
-    constexpr unsigned KPerThread = 4;
+    constexpr unsigned KPerThread = 2;
     constexpr unsigned CPerThread = 2;
-
-    constexpr unsigned NBlockOpLen0 = 1;
-    constexpr unsigned NBlockOpLen1 = 1;
-    constexpr unsigned NBlockOpLen2 = 4;
-    constexpr unsigned NBlockOpLen3 = 32;
 
     constexpr unsigned BlockSize = 128;
 
@@ -59,7 +54,7 @@ void device_direct_convolution_2(
     cudaEventCreate(&start);
     cudaEventRecord(start, 0);
 
-    gridwise_direct_convolution_2<T,
+    gridwise_winograd_convolution<T,
                                   InDesc,
                                   WeiDesc,
                                   OutDesc,
@@ -73,10 +68,6 @@ void device_direct_convolution_2(
                                   NPerThread,
                                   KPerThread,
                                   CPerThread,
-                                  NBlockOpLen0,
-                                  NBlockOpLen1,
-                                  NBlockOpLen2,
-                                  NBlockOpLen3,
                                   BlockSize,
                                   GridSize>
         <<<grid_dim, block_dim>>>(InDesc{},

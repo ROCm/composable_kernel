@@ -44,17 +44,11 @@ __device__ void threadwise_direct_convolution(InDesc,
                                 const unsigned hi = ho + s;
                                 const unsigned wi = wo + r;
 
-                                const unsigned in_index =
-                                    in_desc.GetStride(I0) * n + in_desc.GetStride(I1) * c +
-                                    in_desc.GetStride(I2) * hi + in_desc.GetStride(I3) * wi;
+                                const unsigned in_index = in_desc.Get1dIndex(n, c, hi, wi);
 
-                                const unsigned wei_index =
-                                    wei_desc.GetStride(I0) * k + wei_desc.GetStride(I1) * c +
-                                    wei_desc.GetStride(I2) * s + in_desc.GetStride(I3) * r;
+                                const unsigned wei_index = wei_desc.Get1dIndex(k, c, s, r);
 
-                                const unsigned out_index =
-                                    out_desc.GetStride(I0) * n + out_desc.GetStride(I1) * k +
-                                    out_desc.GetStride(I2) * ho + out_desc.GetStride(I3) * wo;
+                                const unsigned out_index = out_desc.Get1dIndex(n, k, ho, wo);
 
                                 p_out[out_index] += p_wei[wei_index] * p_in[in_index];
 
