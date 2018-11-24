@@ -7,6 +7,7 @@
 #include "constant_tensor_descriptor.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
+#include "device_winograd_convolution.cuh"
 
 struct GeneratorConstant
 {
@@ -395,7 +396,7 @@ int main()
     Tensor<float> out_host(make_TensorDescriptor(out_desc));
     Tensor<float> out_device(make_TensorDescriptor(out_desc));
 
-#if 1
+#if 0
     std::size_t num_thread = std::thread::hardware_concurrency();
     in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
@@ -403,16 +404,20 @@ int main()
 
     for(int i = 0; i < 20; ++i)
     {
-        device_direct_convolution_1(in_desc, in, wei_desc, wei, out_desc, out_device);
+#if 1
+        device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
+#else
+        device_winograd_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
+#endif
     }
 
 #if 0
     host_direct_convolution(in, wei, out_host);
-#else
-    host_winograd_3x3_convolution(in, wei, out_host);
-#endif
-
     check_error(out_host, out_device);
+#elif 0
+    host_winograd_3x3_convolution(in, wei, out_host);
+    check_error(out_host, out_device);
+#endif
 
 #if 0
     LogRange(std::cout << "in : ", in.mData, ",") << std::endl;
