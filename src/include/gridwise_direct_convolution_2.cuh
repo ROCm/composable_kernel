@@ -19,10 +19,6 @@ template <class TFloat,
           unsigned NPerThread,
           unsigned KPerThread,
           unsigned CPerThread,
-          unsigned NBlockOpLen0,
-          unsigned NBlockOpLen1,
-          unsigned NBlockOpLen2,
-          unsigned NBlockOpLen3,
           unsigned BlockSize,
           unsigned GridSize>
 __global__ void gridwise_direct_convolution_2(InGlobalDesc,
@@ -32,10 +28,10 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
                                               OutGlobalDesc,
                                               TFloat* __restrict__ p_out_global)
 {
-    constexpr auto I0 = Index<0>{};
-    constexpr auto I1 = Index<1>{};
-    constexpr auto I2 = Index<2>{};
-    constexpr auto I3 = Index<3>{};
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
 
     constexpr auto in_global_desc  = InGlobalDesc{};
     constexpr auto wei_global_desc = WeiGlobalDesc{};
@@ -147,10 +143,6 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
     const unsigned hi_thread_data_offset = ho_thread_data_offset;
     const unsigned wi_thread_data_offset = wo_thread_data_offset;
 
-    // op
-    auto f_set0 = [](TFloat& v) { v = TFloat(0); };
-    auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
-
 #if 0
     if(threadIdx.x == 0)
     {
@@ -170,76 +162,54 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
 #endif
 
     // set threadwise output tensor to 0
-    threadwise_4d_tensor_op_unary<TFloat, decltype(out_thread_desc), decltype(f_set0)>(
-        out_thread_desc, p_out_thread, f_set0);
+    threadwise_4d_tensor_set_zero(out_thread_desc, p_out_thread);
 
     for(unsigned c_block_data_offset = 0; c_block_data_offset < in_global_desc.GetLength(I1);
         c_block_data_offset += CPerBlock, __syncthreads())
     {
         // copy input tensor to LDS
-        blockwise_4d_tensor_op_binary<TFloat,
-                                      decltype(in_block_global_desc),
-                                      decltype(in_block_desc),
-                                      NBlockOpLen0,
-                                      NBlockOpLen1,
-                                      NBlockOpLen2,
-                                      NBlockOpLen3,
-                                      decltype(f_copy),
-                                      BlockSize>(
-            in_block_global_desc,
-            p_in_global + in_global_desc.Get1dIndex(n_block_data_offset,
-                                                    c_block_data_offset,
-                                                    hi_block_data_offset,
-                                                    wi_block_data_offset),
-            in_block_desc,
-            p_in_block,
-            f_copy);
+        blockwise_4d_tensor_copy<TFloat,
+                                 decltype(in_block_global_desc),
+                                 decltype(in_block_desc),
+                                 BlockSize>(in_block_global_desc,
+                                            p_in_global +
+                                                in_global_desc.Get1dIndex(n_block_data_offset,
+                                                                          c_block_data_offset,
+                                                                          hi_block_data_offset,
+                                                                          wi_block_data_offset),
+                                            in_block_desc,
+                                            p_in_block);
 
         // copy weight tensor to LDS
-        blockwise_4d_tensor_op_binary<TFloat,
-                                      decltype(wei_block_global_desc),
-                                      decltype(wei_block_desc),
-                                      NBlockOpLen0,
-                                      NBlockOpLen1,
-                                      NBlockOpLen2,
-                                      NBlockOpLen3,
-                                      decltype(f_copy),
-                                      BlockSize>(
+        blockwise_4d_tensor_copy<TFloat,
+                                 decltype(wei_block_global_desc),
+                                 decltype(wei_block_desc),
+                                 BlockSize>(
             wei_block_global_desc,
             p_wei_global +
                 wei_global_desc.Get1dIndex(k_block_data_offset, c_block_data_offset, 0, 0),
             wei_block_desc,
-            p_wei_block,
-            f_copy);
+            p_wei_block);
 
         __syncthreads();
 
         for(unsigned c_thread_data = 0; c_thread_data < CPerBlock; c_thread_data += CPerThread)
         {
             // copy input tensor into register
-            threadwise_4d_tensor_op_binary<TFloat,
-                                           decltype(in_thread_block_desc),
-                                           decltype(in_thread_desc),
-                                           decltype(f_copy)>(
-                in_thread_block_desc,
-                p_in_block + in_block_desc.Get1dIndex(n_thread_data_offset,
-                                                      c_thread_data,
-                                                      hi_thread_data_offset,
-                                                      wi_thread_data_offset),
-                in_thread_desc,
-                p_in_thread,
-                f_copy);
+            threadwise_4d_tensor_copy(in_thread_block_desc,
+                                      p_in_block + in_block_desc.Get1dIndex(n_thread_data_offset,
+                                                                            c_thread_data,
+                                                                            hi_thread_data_offset,
+                                                                            wi_thread_data_offset),
+                                      in_thread_desc,
+                                      p_in_thread);
 
             // copy weight tensor into register
-            threadwise_4d_tensor_op_binary<TFloat,
-                                           decltype(wei_thread_block_desc),
-                                           decltype(wei_thread_desc),
-                                           decltype(f_copy)>(
+            threadwise_4d_tensor_copy(
                 wei_thread_block_desc,
                 p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_offset, c_thread_data, 0, 0),
                 wei_thread_desc,
-                p_wei_thread,
-                f_copy);
+                p_wei_thread);
 
             // threadwise convolution
             threadwise_direct_convolution<TFloat,
@@ -255,16 +225,12 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
     }
 
     // copy output tensor from register to global mem
-    threadwise_4d_tensor_op_binary<TFloat,
-                                   decltype(out_thread_desc),
-                                   decltype(out_thread_global_desc),
-                                   decltype(f_copy)>(
+    threadwise_4d_tensor_copy(
         out_thread_desc,
         p_out_thread,
         out_thread_global_desc,
         p_out_global + out_global_desc.Get1dIndex(n_block_data_offset + n_thread_data_offset,
                                                   k_block_data_offset + k_thread_data_offset,
                                                   ho_block_data_offset + ho_thread_data_offset,
-                                                  wo_block_data_offset + wo_thread_data_offset),
-        f_copy);
+                                                  wo_block_data_offset + wo_thread_data_offset));
 }
