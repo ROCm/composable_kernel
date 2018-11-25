@@ -16,10 +16,10 @@ void device_direct_convolution_1(
     wei_device_buf.ToDevice(wei.mData.data());
     out_device_buf.ToDevice(out.mData.data());
 
-    constexpr auto I0 = Index<0>{};
-    constexpr auto I1 = Index<1>{};
-    constexpr auto I2 = Index<2>{};
-    constexpr auto I3 = Index<3>{};
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
 
     constexpr auto in_desc          = InDesc{};
     constexpr auto wei_desc         = WeiDesc{};

@@ -7,8 +7,8 @@ struct Constant
     const T mValue = N;
 };
 
-template <unsigned I>
-using Index = Constant<unsigned, I>;
+template <unsigned N>
+using Number = Constant<unsigned, N>;
 
 template <unsigned... Is>
 struct Sequence
@@ -18,7 +18,7 @@ struct Sequence
     const unsigned mData[nDim] = {Is...};
 
     template <unsigned I>
-    __host__ __device__ constexpr unsigned Get(Index<I>) const
+    __host__ __device__ constexpr unsigned Get(Number<I>) const
     {
         return mData[I];
     }
@@ -28,7 +28,7 @@ template <class Lengths, class Strides>
 struct ConstantTensorDescriptor
 {
     static constexpr unsigned nDim = Lengths::nDim;
-    using NDimConstant             = Index<nDim>;
+    using NDimConstant             = Number<nDim>;
 
     __host__ __device__ constexpr ConstantTensorDescriptor()
     {
@@ -42,15 +42,15 @@ struct ConstantTensorDescriptor
     __host__ __device__ constexpr Strides GetStrides() const { return Strides{}; }
 
     template <unsigned I>
-    __host__ __device__ constexpr unsigned GetLength(Index<I>) const
+    __host__ __device__ constexpr unsigned GetLength(Number<I>) const
     {
-        return Lengths{}.Get(Index<I>{});
+        return Lengths{}.Get(Number<I>{});
     }
 
     template <unsigned I>
-    __host__ __device__ constexpr unsigned GetStride(Index<I>) const
+    __host__ __device__ constexpr unsigned GetStride(Number<I>) const
     {
-        return Strides{}.Get(Index<I>{});
+        return Strides{}.Get(Number<I>{});
     }
 
     // this is ugly, only for 4d
@@ -58,10 +58,10 @@ struct ConstantTensorDescriptor
     {
         static_assert(nDim == 4, "nDim is not 4");
 
-        constexpr auto I0 = Index<0>{};
-        constexpr auto I1 = Index<1>{};
-        constexpr auto I2 = Index<2>{};
-        constexpr auto I3 = Index<3>{};
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
 
         return GetLength(I0) * GetLength(I1) * GetLength(I2) * GetLength(I3);
     }
@@ -71,10 +71,10 @@ struct ConstantTensorDescriptor
     {
         static_assert(nDim == 4, "nDim is not 4");
 
-        constexpr auto I0 = Index<0>{};
-        constexpr auto I1 = Index<1>{};
-        constexpr auto I2 = Index<2>{};
-        constexpr auto I3 = Index<3>{};
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
 
         return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
                (GetLength(I2) - 1) * GetStride(I2) + (GetLength(I3) - 1) * GetStride(I3) + 1;
@@ -83,10 +83,10 @@ struct ConstantTensorDescriptor
     // this is ugly, only for 4d
     __host__ __device__ unsigned Get1dIndex(unsigned n, unsigned c, unsigned h, unsigned w) const
     {
-        constexpr auto I0 = Index<0>{};
-        constexpr auto I1 = Index<1>{};
-        constexpr auto I2 = Index<2>{};
-        constexpr auto I3 = Index<3>{};
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
 
         static_assert(nDim == 4, "nDim is not 4");
         return n * GetStride(I0) + c * GetStride(I1) + h * GetStride(I2) + w * GetStride(I3);
@@ -120,10 +120,10 @@ __host__ __device__ constexpr auto get_output_4d_tensor_descriptor(InDesc, WeiDe
     constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
 
-    constexpr auto I0 = Index<0>{};
-    constexpr auto I1 = Index<1>{};
-    constexpr auto I2 = Index<2>{};
-    constexpr auto I3 = Index<3>{};
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
 
     static_assert(in_desc.GetDimension() == 4, "input nDim is not 4");
     static_assert(wei_desc.GetDimension() == 4, "weight nDim is not 4");
@@ -150,10 +150,10 @@ __host__ __device__ void print_ConstantTensorDescriptor(TDesc, const char* s)
 {
     constexpr auto desc = TDesc{};
 
-    constexpr auto I0 = Index<0>{};
-    constexpr auto I1 = Index<1>{};
-    constexpr auto I2 = Index<2>{};
-    constexpr auto I3 = Index<3>{};
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
 
     static_assert(desc.GetDimension() == 4, "dim is not 4");
 

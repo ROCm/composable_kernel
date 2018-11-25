@@ -7,7 +7,6 @@
 #include "constant_tensor_descriptor.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-#include "device_winograd_convolution.cuh"
 
 struct GeneratorConstant
 {
@@ -61,10 +60,10 @@ void ostream_ConstantTensorDescriptor(TConstTensorDesc, std::ostream& os = std::
 {
     static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
 
-    constexpr auto I0   = Index<0>{};
-    constexpr auto I1   = Index<1>{};
-    constexpr auto I2   = Index<2>{};
-    constexpr auto I3   = Index<3>{};
+    constexpr auto I0   = Number<0>{};
+    constexpr auto I1   = Number<1>{};
+    constexpr auto I2   = Number<2>{};
+    constexpr auto I3   = Number<3>{};
     constexpr auto desc = TConstTensorDesc{};
 
     os << "Lengths: {" << desc.GetLength(I0) << ", " << desc.GetLength(I1) << ", "
@@ -79,10 +78,10 @@ auto make_TensorDescriptor(TConstTensorDesc)
 {
     static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
 
-    constexpr auto I0   = Index<0>{};
-    constexpr auto I1   = Index<1>{};
-    constexpr auto I2   = Index<2>{};
-    constexpr auto I3   = Index<3>{};
+    constexpr auto I0   = Number<0>{};
+    constexpr auto I1   = Number<1>{};
+    constexpr auto I2   = Number<2>{};
+    constexpr auto I3   = Number<3>{};
     constexpr auto desc = TConstTensorDesc{};
 
     std::initializer_list<unsigned> lengths = {
@@ -396,7 +395,7 @@ int main()
     Tensor<float> out_host(make_TensorDescriptor(out_desc));
     Tensor<float> out_device(make_TensorDescriptor(out_desc));
 
-#if 0
+#if 1
     std::size_t num_thread = std::thread::hardware_concurrency();
     in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
@@ -405,17 +404,17 @@ int main()
     for(int i = 0; i < 20; ++i)
     {
 #if 1
-        device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
+        device_direct_convolution_1(in_desc, in, wei_desc, wei, out_desc, out_device);
 #else
         device_winograd_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 #endif
     }
 
-#if 0
-    host_direct_convolution(in, wei, out_host);
+#if 1
+    host_winograd_3x3_convolution(in, wei, out_host);
     check_error(out_host, out_device);
 #elif 0
-    host_winograd_3x3_convolution(in, wei, out_host);
+    host_direct_convolution(in, wei, out_host);
     check_error(out_host, out_device);
 #endif
 
