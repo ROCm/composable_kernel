@@ -14,10 +14,9 @@ template <class TFloat,
           unsigned CPerBlock,
           unsigned YPerBlock,
           unsigned XPerBlock,
-          unsigned NBlockOpLen0,
-          unsigned NBlockOpLen1,
-          unsigned NBlockOpLen2,
-          unsigned NBlockOpLen3,
+          unsigned NPerThread,
+          unsigned KPerThread,
+          unsigned CPerThread,
           unsigned BlockSize,
           unsigned GridSize>
 __global__ void gridwise_direct_convolution_1(InGlobalDesc,
@@ -125,9 +124,8 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
                                                                               p_out_block);
 
     for(unsigned c_block_work_begin = 0; c_block_work_begin < in_global_desc.GetLength(I1);
-        c_block_work_begin += CPerBlock, __syncthreads())
+        c_block_work_begin += CPerBlock)
     {
-
         // copy input tensor to LDS
         blockwise_4d_tensor_copy<TFloat,
                                  decltype(in_block_src_desc),
@@ -154,14 +152,19 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
         __syncthreads();
 
         // blockwise convolution
-        blockwise_convolution<TFloat,
-                              decltype(in_block_desc),
-                              decltype(wei_block_desc),
-                              decltype(out_block_desc),
-                              OutTileSizeH,
-                              OutTileSizeW,
-                              BlockSize>(
+        blockwise_direct_convolution<TFloat,
+                                     decltype(in_block_desc),
+                                     decltype(wei_block_desc),
+                                     decltype(out_block_desc),
+                                     OutTileSizeH,
+                                     OutTileSizeW,
+                                     NPerThread,
+                                     KPerThread,
+                                     CPerThread,
+                                     BlockSize>(
             in_block_desc, p_in_block, wei_block_desc, p_wei_block, out_block_desc, p_out_block);
+
+        __syncthreads();
     }
 
     // copy output tensor from LDS to device mem

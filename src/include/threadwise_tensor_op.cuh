@@ -2,7 +2,7 @@
 #include "constant_tensor_descriptor.cuh"
 
 template <class TFloat, class Desc, class F>
-__device__ void threadwise_4d_tensor_pointwise_op_unary(Desc, TFloat* __restrict__ p_dst, F f)
+__device__ void threadwise_4d_tensor_pointwise_op_unary(Desc, TFloat* __restrict__ p, F f)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -28,7 +28,7 @@ __device__ void threadwise_4d_tensor_pointwise_op_unary(Desc, TFloat* __restrict
                 {
                     const unsigned dindex = desc.Get1dIndex(did0, did1, did2, did3);
 
-                    f(p_dst[dindex]);
+                    f(p[dindex]);
                 }
             }
         }
@@ -77,12 +77,12 @@ __device__ void threadwise_4d_tensor_pointwise_op_binary(
 }
 
 template <class TFloat, class Desc>
-__device__ void threadwise_4d_tensor_set_zero(Desc, TFloat* __restrict__ p_dst)
+__device__ void threadwise_4d_tensor_set_zero(Desc, TFloat* __restrict__ p)
 {
     auto f_set_zero = [](TFloat& v) { v = TFloat(0); };
 
     threadwise_4d_tensor_pointwise_op_unary<TFloat, Desc, decltype(f_set_zero)>(
-        Desc{}, p_dst, f_set_zero);
+        Desc{}, p, f_set_zero);
 }
 
 template <class TFloat, class SrcDesc, class DstDesc>
@@ -95,4 +95,49 @@ __device__ void threadwise_4d_tensor_copy(SrcDesc,
 
     threadwise_4d_tensor_pointwise_op_binary<TFloat, SrcDesc, DstDesc, decltype(f_copy)>(
         SrcDesc{}, p_src, DstDesc{}, p_dst, f_copy);
+}
+
+template <class TFloat, class Desc, class IDim>
+__device__ void threadwise_4d_tensor_shift_down(Desc, TFloat* __restrict__ p, IDim, unsigned shift)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+
+    constexpr auto desc = Desc{};
+
+#if 0
+    if(threadIdx.x == 0)
+    {
+        print_ConstantTensorDescriptor(desc, "threadwise_4d_tensor_shift_down: ");
+    }
+#endif
+
+    const unsigned did0_end =
+        is_same<decltype(I0), IDim>::value ? desc.GetLength(I0) - shift : desc.GetLength(I0);
+    const unsigned did1_end =
+        is_same<decltype(I1), IDim>::value ? desc.GetLength(I1) - shift : desc.GetLength(I1);
+    const unsigned did2_end =
+        is_same<decltype(I2), IDim>::value ? desc.GetLength(I2) - shift : desc.GetLength(I2);
+    const unsigned did3_end =
+        is_same<decltype(I3), IDim>::value ? desc.GetLength(I3) - shift : desc.GetLength(I3);
+
+    for(unsigned did0 = 0; did0 < did0_end; ++did0)
+    {
+        for(unsigned did1 = 0; did1 < did1_end; ++did1)
+        {
+            for(unsigned did2 = 0; did2 < did2_end; ++did2)
+            {
+                for(unsigned did3 = 0; did3 < did3_end; ++did3)
+                {
+                    const unsigned dindex = desc.Get1dIndex(did0, did1, did2, did3);
+
+                    const unsigned sindex = dindex + shift * desc.GetStride(IDim{});
+
+                    p[dindex] = p[sindex];
+                }
+            }
+        }
+    }
 }

@@ -27,15 +27,14 @@ void device_direct_convolution_1(
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 1;
-    constexpr unsigned KPerBlock    = 4;
-    constexpr unsigned CPerBlock    = 2;
-    constexpr unsigned YPerBlock    = 8;
+    constexpr unsigned KPerBlock    = 16;
+    constexpr unsigned CPerBlock    = 4;
+    constexpr unsigned YPerBlock    = 4;
     constexpr unsigned XPerBlock    = 16;
 
-    constexpr unsigned NBlockOpLen0 = 1;
-    constexpr unsigned NBlockOpLen1 = 1;
-    constexpr unsigned NBlockOpLen2 = 4;
-    constexpr unsigned NBlockOpLen3 = 32;
+    constexpr unsigned NPerThread = 1;
+    constexpr unsigned KPerThread = 4;
+    constexpr unsigned CPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
 
@@ -66,10 +65,9 @@ void device_direct_convolution_1(
                                   CPerBlock,
                                   YPerBlock,
                                   XPerBlock,
-                                  NBlockOpLen0,
-                                  NBlockOpLen1,
-                                  NBlockOpLen2,
-                                  NBlockOpLen3,
+                                  NPerThread,
+                                  KPerThread,
+                                  CPerThread,
                                   BlockSize,
                                   GridSize>
         <<<grid_dim, block_dim>>>(InDesc{},

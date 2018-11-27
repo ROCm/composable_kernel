@@ -108,16 +108,16 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
     const unsigned y_block_work_id = itmp / XBlockWork;
     const unsigned x_block_work_id = itmp - y_block_work_id * XBlockWork;
 
-    const unsigned n_block_data_offset = n_block_work_id * NPerBlock;
-    const unsigned k_block_data_offset = k_block_work_id * KPerBlock;
-    const unsigned y_block_data_offset = y_block_work_id * YPerBlock;
-    const unsigned x_block_data_offset = x_block_work_id * XPerBlock;
+    const unsigned n_block_data_begin = n_block_work_id * NPerBlock;
+    const unsigned k_block_data_begin = k_block_work_id * KPerBlock;
+    const unsigned y_block_data_begin = y_block_work_id * YPerBlock;
+    const unsigned x_block_data_begin = x_block_work_id * XPerBlock;
 
-    const unsigned ho_block_data_offset = y_block_data_offset * OutTileSizeH;
-    const unsigned wo_block_data_offset = x_block_data_offset * OutTileSizeW;
+    const unsigned ho_block_data_begin = y_block_data_begin * OutTileSizeH;
+    const unsigned wo_block_data_begin = x_block_data_begin * OutTileSizeW;
 
-    const unsigned hi_block_data_offset = ho_block_data_offset; // minus padding
-    const unsigned wi_block_data_offset = wo_block_data_offset; // minus padding
+    const unsigned hi_block_data_begin = ho_block_data_begin; // minus padding
+    const unsigned wi_block_data_begin = wo_block_data_begin; // minus padding
 
     // divide thread work
     constexpr unsigned NThreadWork = (NPerBlock + NPerThread - 1) / NPerThread;
@@ -135,13 +135,13 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
     const unsigned y_thread_work_id = itmp / XThreadWork;
     const unsigned x_thread_work_id = itmp - y_thread_work_id * XThreadWork;
 
-    const unsigned n_thread_data_offset  = n_thread_work_id * NPerThread;
-    const unsigned k_thread_data_offset  = k_thread_work_id * KPerThread;
-    const unsigned ho_thread_data_offset = y_thread_work_id * OutTileSizeH;
-    const unsigned wo_thread_data_offset = x_thread_work_id * OutTileSizeW;
+    const unsigned n_thread_data_begin  = n_thread_work_id * NPerThread;
+    const unsigned k_thread_data_begin  = k_thread_work_id * KPerThread;
+    const unsigned ho_thread_data_begin = y_thread_work_id * OutTileSizeH;
+    const unsigned wo_thread_data_begin = x_thread_work_id * OutTileSizeW;
 
-    const unsigned hi_thread_data_offset = ho_thread_data_offset;
-    const unsigned wi_thread_data_offset = wo_thread_data_offset;
+    const unsigned hi_thread_data_begin = ho_thread_data_begin;
+    const unsigned wi_thread_data_begin = wo_thread_data_begin;
 
 #if 0
     if(threadIdx.x == 0)
@@ -152,20 +152,20 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
     }
 
     printf("threadIdx.x %u \t"
-           "n_thread_data_offset %u, k_thread_data_offset %u, ho_thread_data_offset %u, "
-           "wo_thread_data_offset %u\n",
+           "n_thread_data_begin %u, k_thread_data_begin %u, ho_thread_data_begin %u, "
+           "wo_thread_data_begin %u\n",
            threadIdx.x,
-           n_thread_data_offset,
-           k_thread_data_offset,
-           ho_thread_data_offset,
-           wo_thread_data_offset);
+           n_thread_data_begin,
+           k_thread_data_begin,
+           ho_thread_data_begin,
+           wo_thread_data_begin);
 #endif
 
     // set threadwise output tensor to 0
     threadwise_4d_tensor_set_zero(out_thread_desc, p_out_thread);
 
-    for(unsigned c_block_data_offset = 0; c_block_data_offset < in_global_desc.GetLength(I1);
-        c_block_data_offset += CPerBlock, __syncthreads())
+    for(unsigned c_block_data_begin = 0; c_block_data_begin < in_global_desc.GetLength(I1);
+        c_block_data_begin += CPerBlock, __syncthreads())
     {
         // copy input tensor to LDS
         blockwise_4d_tensor_copy<TFloat,
@@ -173,10 +173,10 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
                                  decltype(in_block_desc),
                                  BlockSize>(in_block_global_desc,
                                             p_in_global +
-                                                in_global_desc.Get1dIndex(n_block_data_offset,
-                                                                          c_block_data_offset,
-                                                                          hi_block_data_offset,
-                                                                          wi_block_data_offset),
+                                                in_global_desc.Get1dIndex(n_block_data_begin,
+                                                                          c_block_data_begin,
+                                                                          hi_block_data_begin,
+                                                                          wi_block_data_begin),
                                             in_block_desc,
                                             p_in_block);
 
@@ -186,8 +186,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
                                  decltype(wei_block_desc),
                                  BlockSize>(
             wei_block_global_desc,
-            p_wei_global +
-                wei_global_desc.Get1dIndex(k_block_data_offset, c_block_data_offset, 0, 0),
+            p_wei_global + wei_global_desc.Get1dIndex(k_block_data_begin, c_block_data_begin, 0, 0),
             wei_block_desc,
             p_wei_block);
 
@@ -197,30 +196,27 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
         {
             // copy input tensor into register
             threadwise_4d_tensor_copy(in_thread_block_desc,
-                                      p_in_block + in_block_desc.Get1dIndex(n_thread_data_offset,
+                                      p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
                                                                             c_thread_data,
-                                                                            hi_thread_data_offset,
-                                                                            wi_thread_data_offset),
+                                                                            hi_thread_data_begin,
+                                                                            wi_thread_data_begin),
                                       in_thread_desc,
                                       p_in_thread);
 
             // copy weight tensor into register
             threadwise_4d_tensor_copy(
                 wei_thread_block_desc,
-                p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_offset, c_thread_data, 0, 0),
+                p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
                 wei_thread_desc,
                 p_wei_thread);
 
             // threadwise convolution
-            threadwise_direct_convolution<TFloat,
-                                          decltype(in_thread_desc),
-                                          decltype(wei_thread_desc),
-                                          decltype(out_thread_desc)>(in_thread_desc,
-                                                                     p_in_thread,
-                                                                     wei_thread_desc,
-                                                                     p_wei_thread,
-                                                                     out_thread_desc,
-                                                                     p_out_thread);
+            threadwise_direct_convolution(in_thread_desc,
+                                          p_in_thread,
+                                          wei_thread_desc,
+                                          p_wei_thread,
+                                          out_thread_desc,
+                                          p_out_thread);
         }
     }
 
@@ -229,8 +225,8 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
         out_thread_desc,
         p_out_thread,
         out_thread_global_desc,
-        p_out_global + out_global_desc.Get1dIndex(n_block_data_offset + n_thread_data_offset,
-                                                  k_block_data_offset + k_thread_data_offset,
-                                                  ho_block_data_offset + ho_thread_data_offset,
-                                                  wo_block_data_offset + wo_thread_data_offset));
+        p_out_global + out_global_desc.Get1dIndex(n_block_data_begin + n_thread_data_begin,
+                                                  k_block_data_begin + k_thread_data_begin,
+                                                  ho_block_data_begin + ho_thread_data_begin,
+                                                  wo_block_data_begin + wo_thread_data_begin));
 }

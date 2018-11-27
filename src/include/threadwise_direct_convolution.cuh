@@ -19,11 +19,11 @@ __device__ void threadwise_direct_convolution(InDesc,
     constexpr auto out_desc = OutDesc{};
 
 #if 0
-    if(threadIdx.x == 0)
+    if(blockIdx.x == 0 && threadIdx.x == 0)
     {
-        print_ConstantTensorDescriptor(in_desc, "threadwise_direct_convolution: ");
-        print_ConstantTensorDescriptor(wei_desc, "threadwise_direct_convolution: ");
-        print_ConstantTensorDescriptor(out_desc, "threadwise_direct_convolution: ");
+        print_ConstantTensorDescriptor(in_desc, "threadwise_direct_convolution: in_desc: ");
+        print_ConstantTensorDescriptor(wei_desc, "threadwise_direct_convolution: wei_desc: ");
+        print_ConstantTensorDescriptor(out_desc, "threadwise_direct_convolution: out_desc: ");
     }
 #endif
 
