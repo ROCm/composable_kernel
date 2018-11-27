@@ -9,13 +9,16 @@ template <class TFloat,
           class OutBlockDesc,
           unsigned OutTileSizeH,
           unsigned OutTileSizeW,
+          unsigned NPerThread,
+          unsigned KPerThread,
+          unsigned CPerThread,
           unsigned BlockSize>
-__device__ void blockwise_convolution(InBlockDesc,
-                                      TFloat* const __restrict__ p_in_block,
-                                      WeiBlockDesc,
-                                      TFloat* const __restrict__ p_wei_block,
-                                      OutBlockDesc,
-                                      TFloat* __restrict__ p_out_block)
+__device__ void blockwise_direct_convolution(InBlockDesc,
+                                             TFloat* const __restrict__ p_in_block,
+                                             WeiBlockDesc,
+                                             TFloat* const __restrict__ p_wei_block,
+                                             OutBlockDesc,
+                                             TFloat* __restrict__ p_out_block)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -29,15 +32,16 @@ __device__ void blockwise_convolution(InBlockDesc,
     constexpr unsigned S = wei_block_desc.GetLength(I2);
     constexpr unsigned R = wei_block_desc.GetLength(I3);
 
-    constexpr unsigned NPerBlock = out_block_desc.GetLength(I0);
-    constexpr unsigned KPerBlock = out_block_desc.GetLength(I1);
-    constexpr unsigned YPerBlock = (out_block_desc.GetLength(I2) + OutTileSizeH - 1) / OutTileSizeH;
-    constexpr unsigned XPerBlock = (out_block_desc.GetLength(I3) + OutTileSizeW - 1) / OutTileSizeW;
-
-    constexpr unsigned CPerBlock = in_block_desc.GetLength(I1);
-
     constexpr unsigned InTileSizeH = OutTileSizeH + S - 1;
     constexpr unsigned InTileSizeW = OutTileSizeW + R - 1;
+
+    // divide thread work
+    constexpr unsigned NThreadWork = (out_block_desc.GetLength(I0) + NPerThread - 1) / NPerThread;
+    constexpr unsigned KThreadWork = (out_block_desc.GetLength(I1) + KPerThread - 1) / KPerThread;
+    constexpr unsigned YThreadWork =
+        (out_block_desc.GetLength(I2) + OutTileSizeH - 1) / OutTileSizeH;
+    constexpr unsigned XThreadWork =
+        (out_block_desc.GetLength(I3) + OutTileSizeW - 1) / OutTileSizeW;
 
 #if 0
     if(threadIdx.x == 0)
@@ -48,90 +52,94 @@ __device__ void blockwise_convolution(InBlockDesc,
     }
 #endif
 
-    constexpr auto in_thread_src_desc = make_ConstantTensorDescriptor(
-        Sequence<1, CPerBlock, InTileSizeH, InTileSizeW>{}, in_block_desc.GetStrides());
+    constexpr auto in_thread_desc =
+        make_ConstantTensorDescriptor(Sequence<NPerThread, CPerThread, InTileSizeH, InTileSizeW>{});
 
-    constexpr auto wei_thread_src_desc =
-        make_ConstantTensorDescriptor(Sequence<1, CPerBlock, S, R>{}, wei_block_desc.GetStrides());
+    constexpr auto wei_thread_desc =
+        make_ConstantTensorDescriptor(Sequence<KPerThread, CPerThread, S, R>{});
 
-    constexpr auto out_thread_src_desc = make_ConstantTensorDescriptor(
-        Sequence<1, 1, OutTileSizeH, OutTileSizeW>{}, out_block_desc.GetStrides());
+    constexpr auto out_thread_desc = make_ConstantTensorDescriptor(
+        Sequence<NPerThread, KPerThread, OutTileSizeH, OutTileSizeW>{});
 
-    constexpr auto in_thread_dst_desc =
-        make_ConstantTensorDescriptor(in_thread_src_desc.GetLengths());
+    constexpr auto in_thread_block_desc =
+        make_ConstantTensorDescriptor(in_thread_desc.GetLengths(), in_block_desc.GetStrides());
 
-    constexpr auto wei_thread_dst_desc =
-        make_ConstantTensorDescriptor(wei_thread_src_desc.GetLengths());
+    constexpr auto wei_thread_block_desc =
+        make_ConstantTensorDescriptor(wei_thread_desc.GetLengths(), wei_block_desc.GetStrides());
 
-    constexpr auto out_thread_dst_desc =
-        make_ConstantTensorDescriptor(out_thread_src_desc.GetLengths());
+    constexpr auto out_thread_block_desc =
+        make_ConstantTensorDescriptor(out_thread_desc.GetLengths(), out_block_desc.GetStrides());
 
     const unsigned thread_id = threadIdx.x;
 
-    for(unsigned thread_work_id = thread_id; thread_work_id < NPerBlock * YPerBlock * XPerBlock;
+    for(unsigned thread_work_id = thread_id;
+        thread_work_id < NThreadWork * KThreadWork * YThreadWork * XThreadWork;
         thread_work_id += BlockSize)
     {
         unsigned itmp             = thread_work_id;
-        unsigned n_thread_work_id = itmp / (YPerBlock * XPerBlock);
-        itmp -= n_thread_work_id * (YPerBlock * XPerBlock);
-        unsigned y_thread_work_id = itmp / XPerBlock;
-        unsigned x_thread_work_id = itmp - y_thread_work_id * XPerBlock;
+        unsigned n_thread_work_id = itmp / (KThreadWork * YThreadWork * XThreadWork);
+        itmp -= n_thread_work_id * (KThreadWork * YThreadWork * XThreadWork);
+        unsigned k_thread_work_id = itmp / (YThreadWork * XThreadWork);
+        itmp -= k_thread_work_id * (YThreadWork * XThreadWork);
+        unsigned y_thread_work_id = itmp / XThreadWork;
+        unsigned x_thread_work_id = itmp - y_thread_work_id * XThreadWork;
 
-        unsigned n_thread_work_begin  = n_thread_work_id * 1;
-        unsigned ho_thread_work_begin = y_thread_work_id * OutTileSizeH;
-        unsigned wo_thread_work_begin = x_thread_work_id * OutTileSizeW;
+        unsigned n_thread_data_begin  = n_thread_work_id * NPerThread;
+        unsigned k_thread_data_begin  = k_thread_work_id * KPerThread;
+        unsigned ho_thread_data_begin = y_thread_work_id * OutTileSizeH;
+        unsigned wo_thread_data_begin = x_thread_work_id * OutTileSizeW;
 
-        unsigned hi_thread_work_begin = ho_thread_work_begin; // minus padding
-        unsigned wi_thread_work_begin = wo_thread_work_begin; // minus padding
+        unsigned hi_thread_data_begin = ho_thread_data_begin; // minus padding
+        unsigned wi_thread_data_begin = wo_thread_data_begin; // minus padding
 
-        TFloat p_in_thread[in_thread_src_desc.GetElementSpace()];
-        TFloat p_wei_thread[wei_thread_src_desc.GetElementSpace()];
-        TFloat p_out_thread[out_thread_src_desc.GetElementSpace()];
+        TFloat p_in_thread[in_thread_desc.GetElementSpace()];
+        TFloat p_wei_thread[wei_thread_desc.GetElementSpace()];
+        TFloat p_out_thread[out_thread_desc.GetElementSpace()];
 
-        // copy input tensor into register
-        threadwise_4d_tensor_copy(
-            in_thread_src_desc,
-            p_in_block + in_block_desc.Get1dIndex(
-                             n_thread_work_begin, 0, hi_thread_work_begin, wi_thread_work_begin),
-            in_thread_dst_desc,
-            p_in_thread);
+        threadwise_4d_tensor_copy(out_thread_block_desc,
+                                  p_out_block + out_block_desc.Get1dIndex(n_thread_data_begin,
+                                                                          k_thread_data_begin,
+                                                                          ho_thread_data_begin,
+                                                                          wo_thread_data_begin),
+                                  out_thread_desc,
+                                  p_out_thread);
 
-        for(unsigned k_thread_work_begin = 0; k_thread_work_begin < KPerBlock;
-            ++k_thread_work_begin)
+        for(unsigned c_thread_data_begin = 0; c_thread_data_begin < in_block_desc.GetLength(I1);
+            c_thread_data_begin += CPerThread)
         {
-            // copy weight tensor into register
-            threadwise_4d_tensor_copy(wei_thread_src_desc,
-                                      p_wei_block +
-                                          wei_block_desc.Get1dIndex(k_thread_work_begin, 0, 0, 0),
-                                      wei_thread_dst_desc,
-                                      p_wei_thread);
+            // copy input into register
+            threadwise_4d_tensor_copy(in_thread_block_desc,
+                                      p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
+                                                                            c_thread_data_begin,
+                                                                            hi_thread_data_begin,
+                                                                            wi_thread_data_begin),
+                                      in_thread_desc,
+                                      p_in_thread);
 
-            // copy output tensor into register
-            threadwise_4d_tensor_copy(out_thread_src_desc,
-                                      p_out_block + out_block_desc.Get1dIndex(n_thread_work_begin,
-                                                                              k_thread_work_begin,
-                                                                              ho_thread_work_begin,
-                                                                              wo_thread_work_begin),
-                                      out_thread_dst_desc,
-                                      p_out_thread);
+            // copy weight into register
+            threadwise_4d_tensor_copy(
+                wei_thread_block_desc,
+                p_wei_block +
+                    wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data_begin, 0, 0),
+                wei_thread_desc,
+                p_wei_thread);
 
             // threadwise convolution
-            threadwise_direct_convolution(in_thread_dst_desc,
+            threadwise_direct_convolution(in_thread_desc,
                                           p_in_thread,
-                                          wei_thread_dst_desc,
+                                          wei_thread_desc,
                                           p_wei_thread,
-                                          out_thread_dst_desc,
+                                          out_thread_desc,
                                           p_out_thread);
-
-            // accumulate output tensor into LDS
-            threadwise_4d_tensor_copy(out_thread_dst_desc,
-                                      p_out_thread,
-                                      out_thread_src_desc,
-                                      p_out_block +
-                                          out_block_desc.Get1dIndex(n_thread_work_begin,
-                                                                    k_thread_work_begin,
-                                                                    ho_thread_work_begin,
-                                                                    wo_thread_work_begin));
         }
+
+        // copy output into LDS
+        threadwise_4d_tensor_copy(out_thread_desc,
+                                  p_out_thread,
+                                  out_thread_block_desc,
+                                  p_out_block + out_block_desc.Get1dIndex(n_thread_data_begin,
+                                                                          k_thread_data_begin,
+                                                                          ho_thread_data_begin,
+                                                                          wo_thread_data_begin));
     }
 }

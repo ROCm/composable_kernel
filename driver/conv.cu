@@ -7,26 +7,16 @@
 #include "constant_tensor_descriptor.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
+//#include "device_winograd_convolution.cuh"
 
-struct GeneratorConstant
-{
-    double value = 0;
-
-    template <class... Is>
-    double operator()(Is...)
-    {
-        return value;
-    }
-};
-
-struct GeneratorTensor
+struct GeneratorTensor_1
 {
     template <class... Is>
     double operator()(Is... is)
     {
-#if 1
+#if 0
         return double(std::rand()) / double(RAND_MAX);
-#elif 0
+#elif 1
         return 1;
 #elif 0
         std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
@@ -395,7 +385,11 @@ int main()
     Tensor<float> out_host(make_TensorDescriptor(out_desc));
     Tensor<float> out_device(make_TensorDescriptor(out_desc));
 
-#if 1
+#if 0
+    std::size_t num_thread = std::thread::hardware_concurrency();
+    in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+    wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+#elif 0
     std::size_t num_thread = std::thread::hardware_concurrency();
     in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
@@ -410,7 +404,7 @@ int main()
 #endif
     }
 
-#if 1
+#if 0
     host_winograd_3x3_convolution(in, wei, out_host);
     check_error(out_host, out_device);
 #elif 0
