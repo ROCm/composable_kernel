@@ -302,7 +302,7 @@ template <class T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float error     = 0;
-    float max_diff  = 0;
+    float max_diff  = -1;
     float ref_value = 0, result_value = 0;
     for(int i = 0; i < ref.mData.size(); ++i)
     {
@@ -339,6 +339,14 @@ int main()
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 0
+    constexpr unsigned N = 72;
+    constexpr unsigned C = 288;
+    constexpr unsigned HI = 38;
+    constexpr unsigned WI = 38;
+    constexpr unsigned K = 72;
+    constexpr unsigned S = 3;
+    constexpr unsigned R = 3;
+#elif 0
     constexpr unsigned N = 1;
     constexpr unsigned C = 1;
     constexpr unsigned HI = 18;
@@ -347,13 +355,13 @@ int main()
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 0
-    constexpr unsigned N = 1;
-    constexpr unsigned C = 1;
+    constexpr unsigned N  = 1;
+    constexpr unsigned C  = 1;
     constexpr unsigned HI = 4;
     constexpr unsigned WI = 4;
-    constexpr unsigned K = 1;
-    constexpr unsigned S = 3;
-    constexpr unsigned R = 3;
+    constexpr unsigned K  = 1;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 0
     constexpr unsigned N  = 2;
     constexpr unsigned C  = 3;

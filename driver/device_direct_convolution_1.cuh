@@ -26,13 +26,13 @@ void device_direct_convolution_1(
     constexpr auto out_desc         = OutDesc{};
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
-    constexpr unsigned NPerBlock    = 1;
+    constexpr unsigned NPerBlock    = 2;
     constexpr unsigned KPerBlock    = 16;
-    constexpr unsigned CPerBlock    = 4;
-    constexpr unsigned YPerBlock    = 4;
+    constexpr unsigned CPerBlock    = 2;
+    constexpr unsigned YPerBlock    = 2;
     constexpr unsigned XPerBlock    = 16;
 
-    constexpr unsigned NPerThread = 1;
+    constexpr unsigned NPerThread = 2;
     constexpr unsigned KPerThread = 4;
     constexpr unsigned CPerThread = 2;
 
