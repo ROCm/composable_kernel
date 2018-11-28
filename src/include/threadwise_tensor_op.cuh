@@ -116,10 +116,13 @@ __device__ void threadwise_4d_tensor_shift_down(Desc, TFloat* __restrict__ p, ID
 
     const unsigned did0_end =
         is_same<decltype(I0), IDim>::value ? desc.GetLength(I0) - shift : desc.GetLength(I0);
+
     const unsigned did1_end =
         is_same<decltype(I1), IDim>::value ? desc.GetLength(I1) - shift : desc.GetLength(I1);
+
     const unsigned did2_end =
         is_same<decltype(I2), IDim>::value ? desc.GetLength(I2) - shift : desc.GetLength(I2);
+
     const unsigned did3_end =
         is_same<decltype(I3), IDim>::value ? desc.GetLength(I3) - shift : desc.GetLength(I3);
 
