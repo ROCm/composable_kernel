@@ -325,12 +325,20 @@ int main()
 #if 0
     constexpr unsigned N  = 1;
     constexpr unsigned C  = 1;
-    constexpr unsigned HI = 34;
-    constexpr unsigned WI = 34;
+    constexpr unsigned HI = 4;
+    constexpr unsigned WI = 4;
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 1
+#elif 0
+    constexpr unsigned N = 1;
+    constexpr unsigned C = 1;
+    constexpr unsigned HI = 34;
+    constexpr unsigned WI = 34;
+    constexpr unsigned K = 1;
+    constexpr unsigned S = 3;
+    constexpr unsigned R = 3;
+#elif 0
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
     constexpr unsigned HI = 34;
@@ -338,44 +346,20 @@ int main()
     constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
-#elif 0
-    constexpr unsigned N = 72;
-    constexpr unsigned C = 288;
-    constexpr unsigned HI = 38;
-    constexpr unsigned WI = 38;
-    constexpr unsigned K = 72;
+#elif 1
+    constexpr unsigned N = 64;
+    constexpr unsigned C = 64;
+    constexpr unsigned HI = 56;
+    constexpr unsigned WI = 56;
+    constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 0
-    constexpr unsigned N = 1;
-    constexpr unsigned C = 1;
-    constexpr unsigned HI = 18;
-    constexpr unsigned WI = 18;
-    constexpr unsigned K = 1;
-    constexpr unsigned S = 3;
-    constexpr unsigned R = 3;
-#elif 0
-    constexpr unsigned N  = 1;
-    constexpr unsigned C  = 1;
-    constexpr unsigned HI = 4;
-    constexpr unsigned WI = 4;
-    constexpr unsigned K  = 1;
-    constexpr unsigned S  = 3;
-    constexpr unsigned R  = 3;
-#elif 0
-    constexpr unsigned N  = 2;
-    constexpr unsigned C  = 3;
-    constexpr unsigned HI = 130;
-    constexpr unsigned WI = 130;
-    constexpr unsigned K  = 5;
-    constexpr unsigned S  = 3;
-    constexpr unsigned R  = 3;
-#elif 0
-    constexpr unsigned N  = 3;
-    constexpr unsigned C  = 16;
-    constexpr unsigned HI = 130;
-    constexpr unsigned WI = 130;
-    constexpr unsigned K  = 4;
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 64;
+    constexpr unsigned HI = 66;
+    constexpr unsigned WI = 66;
+    constexpr unsigned K  = 64;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
 #endif
@@ -397,7 +381,7 @@ int main()
     std::size_t num_thread = std::thread::hardware_concurrency();
     in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-#elif 0
+#elif 1
     std::size_t num_thread = std::thread::hardware_concurrency();
     in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
@@ -412,7 +396,7 @@ int main()
 #endif
     }
 
-#if 0
+#if 1
     host_winograd_3x3_convolution(in, wei, out_host);
     check_error(out_host, out_device);
 #elif 0

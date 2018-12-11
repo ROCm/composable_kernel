@@ -21,9 +21,11 @@ void device_direct_convolution_1(
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr auto in_desc          = InDesc{};
-    constexpr auto wei_desc         = WeiDesc{};
-    constexpr auto out_desc         = OutDesc{};
+    constexpr auto in_desc  = InDesc{};
+    constexpr auto wei_desc = WeiDesc{};
+    constexpr auto out_desc = OutDesc{};
+
+#if 0
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
@@ -37,6 +39,21 @@ void device_direct_convolution_1(
     constexpr unsigned CPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
+#elif 1
+    constexpr unsigned OutTileSizeH = 2;
+    constexpr unsigned OutTileSizeW = 2;
+    constexpr unsigned NPerBlock    = 2;
+    constexpr unsigned KPerBlock    = 16;
+    constexpr unsigned CPerBlock    = 2;
+    constexpr unsigned YPerBlock    = 2;
+    constexpr unsigned XPerBlock    = 27;
+
+    constexpr unsigned NPerThread = 2;
+    constexpr unsigned KPerThread = 4;
+    constexpr unsigned CPerThread = 2;
+
+    constexpr unsigned BlockSize = 216;
+#endif
 
     constexpr unsigned GridSize = (out_desc.GetLength(I0) / NPerBlock) *
                                   (out_desc.GetLength(I1) / KPerBlock) *
