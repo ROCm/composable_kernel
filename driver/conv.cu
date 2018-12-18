@@ -7,6 +7,7 @@
 #include "constant_tensor_descriptor.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
+#include "device_direct_convolution_3.cuh"
 //#include "device_winograd_convolution.cuh"
 
 struct GeneratorTensor_1
@@ -338,7 +339,7 @@ int main()
     constexpr unsigned K = 1;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
-#elif 0
+#elif 1
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
     constexpr unsigned HI = 34;
@@ -346,7 +347,7 @@ int main()
     constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
-#elif 1
+#elif 0
     constexpr unsigned N = 64;
     constexpr unsigned C = 64;
     constexpr unsigned HI = 56;
@@ -387,11 +388,15 @@ int main()
     wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
 #endif
 
-    for(int i = 0; i < 20; ++i)
+    for(int i = 0; i < 40; ++i)
     {
 #if 1
         device_direct_convolution_1(in_desc, in, wei_desc, wei, out_desc, out_device);
-#else
+#elif 0
+        device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
+#elif 0
+        device_direct_convolution_3(in_desc, in, wei_desc, wei, out_desc, out_device);
+#elif 0
         device_winograd_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 #endif
     }

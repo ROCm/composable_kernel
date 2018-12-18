@@ -21,7 +21,7 @@ template <class TFloat,
           unsigned CPerThread,
           unsigned BlockSize,
           unsigned GridSize>
-__global__ void gridwise_direct_convolution_2(InGlobalDesc,
+__global__ void gridwise_direct_convolution_3(InGlobalDesc,
                                               TFloat* const __restrict__ p_in_global,
                                               WeiGlobalDesc,
                                               TFloat* const __restrict__ p_wei_global,
@@ -63,18 +63,16 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
     constexpr unsigned InTileSizeH = OutTileSizeH + S - 1;
     constexpr unsigned InTileSizeW = OutTileSizeW + R - 1;
 
-    constexpr auto in_thread_desc =
-        make_ConstantTensorDescriptor(Sequence<NPerThread, CPerThread, InTileSizeH, InTileSizeW>{});
+    constexpr auto in_thread_block_desc = make_ConstantTensorDescriptor(
+        Sequence<NPerThread, CPerThread, InTileSizeH, InTileSizeW>{}, in_block_desc.GetStrides());
 
-    constexpr auto wei_thread_desc =
-        make_ConstantTensorDescriptor(Sequence<KPerThread, CPerThread, S, R>{});
+    constexpr auto wei_thread_block_desc = make_ConstantTensorDescriptor(
+        Sequence<KPerThread, CPerThread, S, R>{}, wei_block_desc.GetStrides());
 
     constexpr auto out_thread_desc =
-        get_output_4d_tensor_descriptor(in_thread_desc, wei_thread_desc);
+        get_output_4d_tensor_descriptor(in_thread_block_desc, wei_thread_block_desc);
 
     // register
-    TFloat p_in_thread[in_thread_desc.GetElementSpace()];
-    TFloat p_wei_thread[wei_thread_desc.GetElementSpace()];
     TFloat p_out_thread[out_thread_desc.GetElementSpace()];
 
     // divide block work
@@ -183,31 +181,17 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
 
         for(unsigned c_thread_data = 0; c_thread_data < CPerBlock; c_thread_data += CPerThread)
         {
-            // copy input tensor into register
-            threadwise_4d_tensor_copy(in_block_desc,
-                                      p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
-                                                                            c_thread_data,
-                                                                            hi_thread_data_begin,
-                                                                            wi_thread_data_begin),
-                                      in_thread_desc,
-                                      p_in_thread,
-                                      in_thread_desc);
-
-            // copy weight tensor into register
-            threadwise_4d_tensor_copy(
-                wei_block_desc,
-                p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
-                wei_thread_desc,
-                p_wei_thread,
-                wei_thread_desc);
-
             // threadwise convolution
-            threadwise_direct_convolution_1(in_thread_desc,
-                                            p_in_thread,
-                                            wei_thread_desc,
-                                            p_wei_thread,
-                                            out_thread_desc,
-                                            p_out_thread);
+            threadwise_direct_convolution_2(
+                in_thread_block_desc,
+                p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
+                                                      c_thread_data,
+                                                      hi_thread_data_begin,
+                                                      wi_thread_data_begin),
+                wei_thread_block_desc,
+                p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
+                out_thread_desc,
+                p_out_thread);
         }
     }
 

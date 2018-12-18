@@ -1,8 +1,8 @@
 #pragma once
-#include "gridwise_direct_convolution_1.cuh"
+#include "gridwise_direct_convolution_3.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_direct_convolution_1(
+void device_direct_convolution_3(
     InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
 {
     std::size_t data_sz = sizeof(T);
@@ -29,9 +29,9 @@ void device_direct_convolution_1(
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
-    constexpr unsigned KPerBlock    = 16;
-    constexpr unsigned CPerBlock    = 2;
-    constexpr unsigned YPerBlock    = 2;
+    constexpr unsigned KPerBlock    = 32;
+    constexpr unsigned CPerBlock    = 4;
+    constexpr unsigned YPerBlock    = 1;
     constexpr unsigned XPerBlock    = 16;
 
     constexpr unsigned NPerThread = 2;
@@ -39,13 +39,13 @@ void device_direct_convolution_1(
     constexpr unsigned CPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
-    constexpr unsigned KPerBlock    = 16;
-    constexpr unsigned CPerBlock    = 2;
-    constexpr unsigned YPerBlock    = 2;
+    constexpr unsigned KPerBlock    = 32;
+    constexpr unsigned CPerBlock    = 4;
+    constexpr unsigned YPerBlock    = 1;
     constexpr unsigned XPerBlock    = 27;
 
     constexpr unsigned NPerThread = 2;
@@ -53,6 +53,20 @@ void device_direct_convolution_1(
     constexpr unsigned CPerThread = 2;
 
     constexpr unsigned BlockSize = 216;
+#elif 0
+    constexpr unsigned OutTileSizeH = 2;
+    constexpr unsigned OutTileSizeW = 2;
+    constexpr unsigned NPerBlock    = 2;
+    constexpr unsigned KPerBlock    = 32;
+    constexpr unsigned CPerBlock    = 4;
+    constexpr unsigned YPerBlock    = 1;
+    constexpr unsigned XPerBlock    = 32;
+
+    constexpr unsigned NPerThread = 2;
+    constexpr unsigned KPerThread = 4;
+    constexpr unsigned CPerThread = 2;
+
+    constexpr unsigned BlockSize = 256;
 #endif
 
     constexpr unsigned GridSize = (out_desc.GetLength(I0) / NPerBlock) *
@@ -71,7 +85,7 @@ void device_direct_convolution_1(
     cudaEventCreate(&start);
     cudaEventRecord(start, 0);
 
-    gridwise_direct_convolution_1<T,
+    gridwise_direct_convolution_3<T,
                                   InDesc,
                                   WeiDesc,
                                   OutDesc,

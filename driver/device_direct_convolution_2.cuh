@@ -25,7 +25,7 @@ void device_direct_convolution_2(
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 
-#if 0
+#if 1
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
@@ -39,7 +39,7 @@ void device_direct_convolution_2(
     constexpr unsigned CPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
@@ -53,7 +53,7 @@ void device_direct_convolution_2(
     constexpr unsigned CPerThread = 2;
 
     constexpr unsigned BlockSize = 216;
-#elif 1
+#elif 0
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
