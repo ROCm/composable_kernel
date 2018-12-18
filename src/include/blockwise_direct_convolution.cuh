@@ -102,7 +102,8 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
                                                                           ho_thread_data_begin,
                                                                           wo_thread_data_begin),
                                   out_thread_desc,
-                                  p_out_thread);
+                                  p_out_thread,
+                                  out_thread_desc);
 
         for(unsigned c_thread_data_begin = 0; c_thread_data_begin < in_block_desc.GetLength(I1);
             c_thread_data_begin += CPerThread)
@@ -114,7 +115,8 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
                                                                             hi_thread_data_begin,
                                                                             wi_thread_data_begin),
                                       in_thread_desc,
-                                      p_in_thread);
+                                      p_in_thread,
+                                      in_thread_desc);
 
             // copy weight into register
             threadwise_4d_tensor_copy(
@@ -122,15 +124,16 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
                 p_wei_block +
                     wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data_begin, 0, 0),
                 wei_thread_desc,
-                p_wei_thread);
+                p_wei_thread,
+                wei_thread_desc);
 
             // threadwise convolution
-            threadwise_direct_convolution(in_thread_desc,
-                                          p_in_thread,
-                                          wei_thread_desc,
-                                          p_wei_thread,
-                                          out_thread_desc,
-                                          p_out_thread);
+            threadwise_direct_convolution_2(in_thread_desc,
+                                            p_in_thread,
+                                            wei_thread_desc,
+                                            p_wei_thread,
+                                            out_thread_desc,
+                                            p_out_thread);
         }
 
         // copy output into LDS
@@ -140,6 +143,7 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
                                   p_out_block + out_block_desc.Get1dIndex(n_thread_data_begin,
                                                                           k_thread_data_begin,
                                                                           ho_thread_data_begin,
-                                                                          wo_thread_data_begin));
+                                                                          wo_thread_data_begin),
+                                  out_thread_desc);
     }
 }

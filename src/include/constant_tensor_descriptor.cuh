@@ -4,7 +4,7 @@
 template <class T, T N>
 struct Constant
 {
-    const T mValue = N;
+    static const T mValue = N;
 };
 
 template <unsigned N>
