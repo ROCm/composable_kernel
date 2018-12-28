@@ -58,8 +58,8 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
     constexpr auto wei_thread_desc =
         make_ConstantTensorDescriptor(Sequence<KPerThread, CPerThread, S, R>{});
 
-    constexpr auto out_thread_desc = make_ConstantTensorDescriptor(
-        Sequence<NPerThread, KPerThread, OutTileSizeH, OutTileSizeW>{});
+    constexpr auto out_thread_desc =
+        get_output_4d_tensor_descriptor(in_thread_desc, wei_thread_desc);
 
     constexpr auto in_thread_block_desc =
         make_ConstantTensorDescriptor(in_thread_desc.GetLengths(), in_block_desc.GetStrides());
@@ -92,11 +92,9 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
         unsigned hi_thread_data_begin = ho_thread_data_begin; // minus padding
         unsigned wi_thread_data_begin = wo_thread_data_begin; // minus padding
 
-        TFloat p_in_thread[in_thread_desc.GetElementSpace()];
-        TFloat p_wei_thread[wei_thread_desc.GetElementSpace()];
         TFloat p_out_thread[out_thread_desc.GetElementSpace()];
 
-        threadwise_4d_tensor_copy(out_thread_block_desc,
+        threadwise_4d_tensor_copy(out_block_desc,
                                   p_out_block + out_block_desc.Get1dIndex(n_thread_data_begin,
                                                                           k_thread_data_begin,
                                                                           ho_thread_data_begin,
@@ -108,38 +106,24 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
         for(unsigned c_thread_data_begin = 0; c_thread_data_begin < in_block_desc.GetLength(I1);
             c_thread_data_begin += CPerThread)
         {
-            // copy input into register
-            threadwise_4d_tensor_copy(in_thread_block_desc,
-                                      p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
-                                                                            c_thread_data_begin,
-                                                                            hi_thread_data_begin,
-                                                                            wi_thread_data_begin),
-                                      in_thread_desc,
-                                      p_in_thread,
-                                      in_thread_desc);
-
-            // copy weight into register
-            threadwise_4d_tensor_copy(
+            // threadwise convolution
+            threadwise_direct_convolution_2(
+                in_thread_block_desc,
+                p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
+                                                      c_thread_data_begin,
+                                                      hi_thread_data_begin,
+                                                      wi_thread_data_begin),
                 wei_thread_block_desc,
                 p_wei_block +
                     wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data_begin, 0, 0),
-                wei_thread_desc,
-                p_wei_thread,
-                wei_thread_desc);
-
-            // threadwise convolution
-            threadwise_direct_convolution_2(in_thread_desc,
-                                            p_in_thread,
-                                            wei_thread_desc,
-                                            p_wei_thread,
-                                            out_thread_desc,
-                                            p_out_thread);
+                out_thread_desc,
+                p_out_thread);
         }
 
         // copy output into LDS
         threadwise_4d_tensor_copy(out_thread_desc,
                                   p_out_thread,
-                                  out_thread_block_desc,
+                                  out_block_desc,
                                   p_out_block + out_block_desc.Get1dIndex(n_thread_data_begin,
                                                                           k_thread_data_begin,
                                                                           ho_thread_data_begin,

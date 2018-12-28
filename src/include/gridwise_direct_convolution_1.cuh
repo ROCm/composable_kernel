@@ -49,18 +49,20 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
     constexpr unsigned YBlockWork = (out_global_desc.GetLength(I2) + HoPerBlock - 1) / HoPerBlock;
     constexpr unsigned XBlockWork = (out_global_desc.GetLength(I3) + WoPerBlock - 1) / WoPerBlock;
 
-    constexpr auto in_block_src_desc = make_ConstantTensorDescriptor(
+    constexpr auto in_block_global_desc = make_ConstantTensorDescriptor(
         Sequence<NPerBlock, CPerBlock, HiPerBlock, WiPerBlock>{}, in_global_desc.GetStrides());
 
-    constexpr auto wei_block_src_desc = make_ConstantTensorDescriptor(
+    constexpr auto wei_block_global_desc = make_ConstantTensorDescriptor(
         Sequence<KPerBlock, CPerBlock, S, R>{}, wei_global_desc.GetStrides());
 
-    constexpr auto out_block_src_desc = make_ConstantTensorDescriptor(
+    constexpr auto out_block_global_desc = make_ConstantTensorDescriptor(
         Sequence<NPerBlock, KPerBlock, HoPerBlock, WoPerBlock>{}, out_global_desc.GetStrides());
 
-    constexpr auto in_block_desc  = make_ConstantTensorDescriptor(in_block_src_desc.GetLengths());
-    constexpr auto wei_block_desc = make_ConstantTensorDescriptor(wei_block_src_desc.GetLengths());
-    constexpr auto out_block_desc = make_ConstantTensorDescriptor(out_block_src_desc.GetLengths());
+    constexpr auto in_block_desc = make_ConstantTensorDescriptor(in_block_global_desc.GetLengths());
+    constexpr auto wei_block_desc =
+        make_ConstantTensorDescriptor(wei_block_global_desc.GetLengths());
+    constexpr auto out_block_desc =
+        make_ConstantTensorDescriptor(out_block_global_desc.GetLengths());
 
     constexpr unsigned in_block_size  = in_block_desc.GetElementSpace();
     constexpr unsigned wei_block_size = wei_block_desc.GetElementSpace();
@@ -97,9 +99,9 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
         print_ConstantTensorDescriptor( in_global_desc, "gridwise_convolution:  in_global_desc: ");
         print_ConstantTensorDescriptor(wei_global_desc, "gridwise_convolution: wei_global_desc: ");
         print_ConstantTensorDescriptor(out_global_desc, "gridwise_convolution: out_global_desc: ");
-        print_ConstantTensorDescriptor( in_block_src_desc, "gridwise_convolution:  in_block_src_desc: ");
-        print_ConstantTensorDescriptor(wei_block_src_desc, "gridwise_convolution: wei_block_src_desc: ");
-        print_ConstantTensorDescriptor(out_block_src_desc, "gridwise_convolution: out_block_src_desc: ");
+        print_ConstantTensorDescriptor( in_block_global_desc, "gridwise_convolution:  in_block_global_desc: ");
+        print_ConstantTensorDescriptor(wei_block_global_desc, "gridwise_convolution: wei_block_global_desc: ");
+        print_ConstantTensorDescriptor(out_block_global_desc, "gridwise_convolution: out_block_global_desc: ");
         print_ConstantTensorDescriptor( in_block_desc, "gridwise_convolution:  in_block_desc: ");
         print_ConstantTensorDescriptor(wei_block_desc, "gridwise_convolution: wei_block_desc: ");
         print_ConstantTensorDescriptor(out_block_desc, "gridwise_convolution: out_block_desc: ");
@@ -128,10 +130,10 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
     {
         // copy input tensor to LDS
         blockwise_4d_tensor_copy<TFloat,
-                                 decltype(in_block_src_desc),
+                                 decltype(in_block_global_desc),
                                  decltype(in_block_desc),
                                  decltype(in_block_desc),
-                                 BlockSize>(in_block_src_desc,
+                                 BlockSize>(in_block_global_desc,
                                             p_in_global +
                                                 in_global_desc.Get1dIndex(n_block_work_begin,
                                                                           c_block_work_begin,
@@ -143,11 +145,11 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
 
         // copy weight tensor to LDS
         blockwise_4d_tensor_copy<TFloat,
-                                 decltype(wei_block_src_desc),
+                                 decltype(wei_block_global_desc),
                                  decltype(wei_block_desc),
                                  decltype(wei_block_desc),
                                  BlockSize>(
-            wei_block_src_desc,
+            wei_block_global_desc,
             p_wei_global + wei_global_desc.Get1dIndex(k_block_work_begin, c_block_work_begin, 0, 0),
             wei_block_desc,
             p_wei_block,
@@ -174,12 +176,12 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
     // copy output tensor from LDS to device mem
     blockwise_4d_tensor_copy<TFloat,
                              decltype(out_block_desc),
-                             decltype(out_block_src_desc),
+                             decltype(out_block_global_desc),
                              decltype(out_block_desc),
                              BlockSize>(
         out_block_desc,
         p_out_block,
-        out_block_src_desc,
+        out_block_global_desc,
         p_out_global +
             out_global_desc.Get1dIndex(
                 n_block_work_begin, k_block_work_begin, ho_block_work_begin, wo_block_work_begin),
