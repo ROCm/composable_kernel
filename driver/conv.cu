@@ -7,7 +7,6 @@
 #include "constant_tensor_descriptor.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-#include "device_direct_convolution_3.cuh"
 //#include "device_winograd_convolution.cuh"
 
 struct GeneratorTensor_1
@@ -390,12 +389,10 @@ int main()
 
     for(int i = 0; i < 40; ++i)
     {
-#if 1
+#if 0
         device_direct_convolution_1(in_desc, in, wei_desc, wei, out_desc, out_device);
-#elif 0
+#elif 1
         device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
-#elif 0
-        device_direct_convolution_3(in_desc, in, wei_desc, wei, out_desc, out_device);
 #elif 0
         device_winograd_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 #endif
