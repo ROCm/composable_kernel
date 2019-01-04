@@ -76,6 +76,8 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, TFloat* __restrict__ p_ds
     }
 }
 
+// TODO: in order to optimize mem access for different mem type,
+// need to write specialized version
 template <class TFloat,
           class SrcDesc,
           class DstDesc,
