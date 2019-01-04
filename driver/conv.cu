@@ -7,6 +7,7 @@
 #include "constant_tensor_descriptor.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
+//#include "device_implicit_gemm_convolution.cuh"
 //#include "device_winograd_convolution.cuh"
 
 struct GeneratorTensor_1
@@ -366,7 +367,7 @@ int main()
 
     auto in_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
     auto wei_desc = make_ConstantTensorDescriptor(Sequence<K, C, S, R>{});
-    auto out_desc = get_output_4d_tensor_descriptor(in_desc, wei_desc);
+    auto out_desc = get_convolution_output_4d_tensor_descriptor(in_desc, wei_desc);
 
     ostream_ConstantTensorDescriptor(in_desc, std::cout << "in_desc: ");
     ostream_ConstantTensorDescriptor(wei_desc, std::cout << "wei_desc: ");
@@ -393,6 +394,8 @@ int main()
         device_direct_convolution_1(in_desc, in, wei_desc, wei, out_desc, out_device);
 #elif 1
         device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
+#elif 0
+        device_implicit_gemm_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 #elif 0
         device_winograd_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 #endif

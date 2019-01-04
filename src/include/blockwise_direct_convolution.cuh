@@ -59,7 +59,7 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
         make_ConstantTensorDescriptor(Sequence<KPerThread, CPerThread, S, R>{});
 
     constexpr auto out_thread_desc =
-        get_output_4d_tensor_descriptor(in_thread_desc, wei_thread_desc);
+        get_convolution_output_4d_tensor_descriptor(in_thread_desc, wei_thread_desc);
 
     constexpr auto in_thread_block_desc =
         make_ConstantTensorDescriptor(in_thread_desc.GetLengths(), in_block_desc.GetStrides());

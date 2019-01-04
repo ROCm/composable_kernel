@@ -22,6 +22,14 @@ struct Sequence
     {
         return mData[I];
     }
+
+    template <unsigned I>
+    __host__ __device__ constexpr auto GetNumber(Number<I>) const
+    {
+        constexpr unsigned N = Get(I);
+
+        return Number<N>{};
+    }
 };
 
 template <class Lengths, class Strides>
@@ -114,8 +122,30 @@ __host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths, Stride
 }
 
 // this is ugly, only for 4d
+template <class Desc, class Reorder>
+__host__ __device__ constexpr auto get_reordered_4d_tensor_descriptor(Desc, Reorder)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+
+    constexpr auto IT0 = Reorder{}.GetNumber(I0);
+    constexpr auto IT1 = Reorder{}.GetNumber(I1);
+    constexpr auto IT2 = Reorder{}.GetNumber(I2);
+    constexpr auto IT3 = Reorder{}.GetNumber(I3);
+
+    constexpr unsigned L0 = Desc{}.GetLength(IT0);
+    constexpr unsigned L1 = Desc{}.GetLength(IT1);
+    constexpr unsigned L2 = Desc{}.GetLength(IT2);
+    constexpr unsigned L3 = Desc{}.GetLength(IT3);
+
+    return make_ConstantTensorDescriptor(Sequence<L0, L1, L2, L3>{});
+}
+
+// this is ugly, only for 4d
 template <class InDesc, class WeiDesc>
-__host__ __device__ constexpr auto get_output_4d_tensor_descriptor(InDesc, WeiDesc)
+__host__ __device__ constexpr auto get_convolution_output_4d_tensor_descriptor(InDesc, WeiDesc)
 {
     constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
