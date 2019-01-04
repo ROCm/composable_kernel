@@ -182,7 +182,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
         for(unsigned c_thread_data = 0; c_thread_data < CPerBlock; c_thread_data += CPerThread)
         {
             // threadwise convolution
-#if 1
+#if 0
             threadwise_direct_convolution_2(
                 in_thread_block_desc,
                 p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
