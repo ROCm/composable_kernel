@@ -5,6 +5,7 @@
 #include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "constant_tensor_descriptor.cuh"
+#include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
 //#include "device_implicit_gemm_convolution.cuh"
@@ -367,7 +368,7 @@ int main()
 
     auto in_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
     auto wei_desc = make_ConstantTensorDescriptor(Sequence<K, C, S, R>{});
-    auto out_desc = get_convolution_output_4d_tensor_descriptor(in_desc, wei_desc);
+    auto out_desc = get_convolution_output_default_4d_tensor_descriptor(in_desc, wei_desc);
 
     ostream_ConstantTensorDescriptor(in_desc, std::cout << "in_desc: ");
     ostream_ConstantTensorDescriptor(wei_desc, std::cout << "wei_desc: ");
