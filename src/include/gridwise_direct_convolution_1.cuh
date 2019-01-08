@@ -3,7 +3,7 @@
 #include "blockwise_tensor_op.cuh"
 #include "blockwise_direct_convolution.cuh"
 
-template <class TFloat,
+template <class Float,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
@@ -20,11 +20,11 @@ template <class TFloat,
           unsigned BlockSize,
           unsigned GridSize>
 __global__ void gridwise_direct_convolution_1(InGlobalDesc,
-                                              TFloat* const __restrict__ p_in_global,
+                                              Float* const __restrict__ p_in_global,
                                               WeiGlobalDesc,
-                                              TFloat* const __restrict__ p_wei_global,
+                                              Float* const __restrict__ p_wei_global,
                                               OutGlobalDesc,
-                                              TFloat* __restrict__ p_out_global)
+                                              Float* __restrict__ p_out_global)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -68,9 +68,9 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
     constexpr unsigned wei_block_size = wei_block_desc.GetElementSpace();
     constexpr unsigned out_block_size = out_block_desc.GetElementSpace();
 
-    __shared__ TFloat p_in_block[in_block_size];
-    __shared__ TFloat p_wei_block[wei_block_size];
-    __shared__ TFloat p_out_block[out_block_size];
+    __shared__ Float p_in_block[in_block_size];
+    __shared__ Float p_wei_block[wei_block_size];
+    __shared__ Float p_out_block[out_block_size];
 
     const unsigned block_id = blockIdx.x;
 
@@ -150,7 +150,7 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
 
         // blockwise convolution
         blockwise_direct_convolution<BlockSize,
-                                     TFloat,
+                                     Float,
                                      decltype(in_block_desc),
                                      decltype(wei_block_desc),
                                      decltype(out_block_desc),

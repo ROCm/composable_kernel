@@ -1,9 +1,9 @@
 #pragma once
 #include "constant_tensor_descriptor.cuh"
 
-template <unsigned BlockSize, class TFloat, class DstDesc, class F>
+template <unsigned BlockSize, class Float, class DstDesc, class F>
 __device__ void
-blockwise_4d_tensor_pointwise_operation_unary(DstDesc, TFloat* __restrict__ p_dst, F f)
+blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst, F f)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -79,7 +79,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, TFloat* __restrict__ p_ds
 // TODO: in order to optimize mem access for different mem type,
 // need to write specialized version
 template <unsigned BlockSize,
-          class TFloat,
+          class Float,
           class SrcDesc,
           class DstDesc,
           class RefDesc,
@@ -87,9 +87,9 @@ template <unsigned BlockSize,
           class F>
 __device__ void
 blockwise_4d_tensor_pointwise_operation_binary_reorder(SrcDesc,
-                                                       TFloat* const __restrict__ p_src,
+                                                       Float* const __restrict__ p_src,
                                                        DstDesc,
-                                                       TFloat* __restrict__ p_dst,
+                                                       Float* __restrict__ p_dst,
                                                        RefDesc,
                                                        Reorder,
                                                        F f)
@@ -170,36 +170,32 @@ blockwise_4d_tensor_pointwise_operation_binary_reorder(SrcDesc,
     }
 }
 
-template <unsigned BlockSize, class TFloat, class DstDesc>
-__device__ void blockwise_4d_tensor_set_zero(DstDesc, TFloat* __restrict__ p_dst)
+template <unsigned BlockSize, class Float, class DstDesc>
+__device__ void blockwise_4d_tensor_set_zero(DstDesc, Float* __restrict__ p_dst)
 {
-    auto f_set_zero = [](TFloat& v) { v = TFloat(0); };
+    auto f_set_zero = [](Float& v) { v = Float(0); };
 
     blockwise_4d_tensor_pointwise_operation_unary<BlockSize>(DstDesc{}, p_dst, f_set_zero);
 }
 
 template <unsigned BlockSize,
-          class TFloat,
+          class Float,
           class SrcDesc,
           class DstDesc,
           class RefDesc,
           class Reorder>
-__device__ void blockwise_4d_tensor_copy_reorder(SrcDesc,
-                                                 TFloat* const __restrict__ p_src,
-                                                 DstDesc,
-                                                 TFloat* __restrict__ p_dst,
-                                                 RefDesc,
-                                                 Reorder)
+__device__ void blockwise_4d_tensor_copy_reorder(
+    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, RefDesc, Reorder)
 {
-    auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
+    auto f_copy = [](const Float& src, Float& dst) { dst = src; };
 
     blockwise_4d_tensor_pointwise_operation_binary_reorder<BlockSize>(
         SrcDesc{}, p_src, DstDesc{}, p_dst, RefDesc{}, Reorder{}, f_copy);
 }
 
-template <unsigned BlockSize, class TFloat, class SrcDesc, class DstDesc, class RefDesc>
+template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class RefDesc>
 __device__ void blockwise_4d_tensor_copy(
-    SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, RefDesc)
+    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, RefDesc)
 {
     constexpr auto reorder = Sequence<0, 1, 2, 3>{};
 
