@@ -24,11 +24,54 @@ struct Sequence
     }
 
     template <unsigned I>
-    __host__ __device__ constexpr auto GetNumber(Number<I>) const
+    __host__ __device__ constexpr auto GetConstant(Number<I>) const
     {
         constexpr unsigned N = Get(I);
 
         return Number<N>{};
+    }
+
+    template <unsigned I0, unsigned I1>
+    __host__ __device__ constexpr auto Reorder(Number<I0>, Number<I1>) const
+    {
+        constexpr unsigned IR0 = Get(Number<I0>{});
+        constexpr unsigned IR1 = Get(Number<I1>{});
+
+        return Sequence<IR0, IR1>{};
+    }
+
+    template <unsigned I0, unsigned I1, unsigned I2>
+    __host__ __device__ constexpr auto Reorder(Number<I0>, Number<I1>, Number<I2>) const
+    {
+        constexpr unsigned IR0 = Get(Number<I0>{});
+        constexpr unsigned IR1 = Get(Number<I1>{});
+        constexpr unsigned IR2 = Get(Number<I2>{});
+
+        return Sequence<IR0, IR1, IR2>{};
+    }
+
+    template <unsigned I0, unsigned I1, unsigned I2, unsigned I3>
+    __host__ __device__ constexpr auto Reorder(Number<I0>, Number<I1>, Number<I2>, Number<I3>) const
+    {
+        constexpr unsigned IR0 = Get(Number<I0>{});
+        constexpr unsigned IR1 = Get(Number<I1>{});
+        constexpr unsigned IR2 = Get(Number<I2>{});
+        constexpr unsigned IR3 = Get(Number<I3>{});
+
+        return Sequence<IR0, IR1, IR2, IR3>{};
+    }
+
+    template <unsigned I0, unsigned I1, unsigned I2, unsigned I3, unsigned I4>
+    __host__ __device__ constexpr auto
+        Reorder(Number<I0>, Number<I1>, Number<I2>, Number<I3>, Number<I4>) const
+    {
+        constexpr unsigned IR0 = Get(Number<I0>{});
+        constexpr unsigned IR1 = Get(Number<I1>{});
+        constexpr unsigned IR2 = Get(Number<I2>{});
+        constexpr unsigned IR3 = Get(Number<I3>{});
+        constexpr unsigned IR4 = Get(Number<I4>{});
+
+        return Sequence<IR0, IR1, IR2, IR3, IR4>{};
     }
 };
 
@@ -99,6 +142,15 @@ struct ConstantTensorDescriptor
         static_assert(nDim == 4, "nDim is not 4");
         return n * GetStride(I0) + c * GetStride(I1) + h * GetStride(I2) + w * GetStride(I3);
     }
+
+    template <class... Is>
+    __host__ __device__ constexpr auto Reorder(Is... is) const
+    {
+        constexpr auto lengths = Lengths{}.Reorder(is...);
+        constexpr auto strides = Strides{}.Reorder(is...);
+
+        return ConstantTensorDescriptor<decltype(lengths), decltype(strides)>{};
+    }
 };
 
 // this is ugly, only for 4d
@@ -119,28 +171,6 @@ template <class Lengths, class Strides>
 __host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths, Strides)
 {
     return ConstantTensorDescriptor<Lengths, Strides>{};
-}
-
-// this is ugly, only for 4d
-template <class Desc, class Reorder>
-__host__ __device__ constexpr auto get_reordered_4d_tensor_descriptor(Desc, Reorder)
-{
-    constexpr auto I0 = Number<0>{};
-    constexpr auto I1 = Number<1>{};
-    constexpr auto I2 = Number<2>{};
-    constexpr auto I3 = Number<3>{};
-
-    constexpr auto IT0 = Reorder{}.GetNumber(I0);
-    constexpr auto IT1 = Reorder{}.GetNumber(I1);
-    constexpr auto IT2 = Reorder{}.GetNumber(I2);
-    constexpr auto IT3 = Reorder{}.GetNumber(I3);
-
-    constexpr unsigned L0 = Desc{}.GetLength(IT0);
-    constexpr unsigned L1 = Desc{}.GetLength(IT1);
-    constexpr unsigned L2 = Desc{}.GetLength(IT2);
-    constexpr unsigned L3 = Desc{}.GetLength(IT3);
-
-    return make_ConstantTensorDescriptor(Sequence<L0, L1, L2, L3>{});
 }
 
 // this is ugly, only for 4d

@@ -122,18 +122,13 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
 #endif
 
     // set output tensor in LDS to 0
-    blockwise_4d_tensor_set_zero<TFloat, decltype(out_block_desc), BlockSize>(out_block_desc,
-                                                                              p_out_block);
+    blockwise_4d_tensor_set_zero<BlockSize>(out_block_desc, p_out_block);
 
     for(unsigned c_block_work_begin = 0; c_block_work_begin < in_global_desc.GetLength(I1);
         c_block_work_begin += CPerBlock)
     {
         // copy input tensor to LDS
-        blockwise_4d_tensor_copy<TFloat,
-                                 decltype(in_block_global_desc),
-                                 decltype(in_block_desc),
-                                 decltype(in_block_desc),
-                                 BlockSize>(in_block_global_desc,
+        blockwise_4d_tensor_copy<BlockSize>(in_block_global_desc,
                                             p_in_global +
                                                 in_global_desc.Get1dIndex(n_block_work_begin,
                                                                           c_block_work_begin,
@@ -144,11 +139,7 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
                                             in_block_desc);
 
         // copy weight tensor to LDS
-        blockwise_4d_tensor_copy<TFloat,
-                                 decltype(wei_block_global_desc),
-                                 decltype(wei_block_desc),
-                                 decltype(wei_block_desc),
-                                 BlockSize>(
+        blockwise_4d_tensor_copy<BlockSize>(
             wei_block_global_desc,
             p_wei_global + wei_global_desc.Get1dIndex(k_block_work_begin, c_block_work_begin, 0, 0),
             wei_block_desc,
@@ -158,7 +149,8 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
         __syncthreads();
 
         // blockwise convolution
-        blockwise_direct_convolution<TFloat,
+        blockwise_direct_convolution<BlockSize,
+                                     TFloat,
                                      decltype(in_block_desc),
                                      decltype(wei_block_desc),
                                      decltype(out_block_desc),
@@ -166,19 +158,14 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
                                      OutTileSizeW,
                                      NPerThread,
                                      KPerThread,
-                                     CPerThread,
-                                     BlockSize>(
+                                     CPerThread>(
             in_block_desc, p_in_block, wei_block_desc, p_wei_block, out_block_desc, p_out_block);
 
         __syncthreads();
     }
 
     // copy output tensor from LDS to device mem
-    blockwise_4d_tensor_copy<TFloat,
-                             decltype(out_block_desc),
-                             decltype(out_block_global_desc),
-                             decltype(out_block_desc),
-                             BlockSize>(
+    blockwise_4d_tensor_copy<BlockSize>(
         out_block_desc,
         p_out_block,
         out_block_global_desc,
