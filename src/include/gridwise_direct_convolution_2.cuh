@@ -151,11 +151,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
         c_block_data_begin += CPerBlock, __syncthreads())
     {
         // copy input tensor to LDS
-        blockwise_4d_tensor_copy<TFloat,
-                                 decltype(in_global_desc),
-                                 decltype(in_block_desc),
-                                 decltype(in_block_desc),
-                                 BlockSize>(in_global_desc,
+        blockwise_4d_tensor_copy<BlockSize>(in_global_desc,
                                             p_in_global +
                                                 in_global_desc.Get1dIndex(n_block_data_begin,
                                                                           c_block_data_begin,
@@ -166,11 +162,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
                                             in_block_desc);
 
         // copy weight tensor to LDS
-        blockwise_4d_tensor_copy<TFloat,
-                                 decltype(wei_global_desc),
-                                 decltype(wei_block_desc),
-                                 decltype(wei_block_desc),
-                                 BlockSize>(
+        blockwise_4d_tensor_copy<BlockSize>(
             wei_global_desc,
             p_wei_global + wei_global_desc.Get1dIndex(k_block_data_begin, c_block_data_begin, 0, 0),
             wei_block_desc,
@@ -182,7 +174,7 @@ __global__ void gridwise_direct_convolution_2(InGlobalDesc,
         for(unsigned c_thread_data = 0; c_thread_data < CPerBlock; c_thread_data += CPerThread)
         {
             // threadwise convolution
-#if 0
+#if 1
             threadwise_direct_convolution_2(
                 in_thread_block_desc,
                 p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,

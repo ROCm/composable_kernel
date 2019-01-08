@@ -3,7 +3,8 @@
 #include "threadwise_tensor_op.cuh"
 #include "threadwise_direct_convolution.cuh"
 
-template <class TFloat,
+template <unsigned BlockSize,
+          class TFloat,
           class InBlockDesc,
           class WeiBlockDesc,
           class OutBlockDesc,
@@ -11,8 +12,7 @@ template <class TFloat,
           unsigned OutTileSizeW,
           unsigned NPerThread,
           unsigned KPerThread,
-          unsigned CPerThread,
-          unsigned BlockSize>
+          unsigned CPerThread>
 __device__ void blockwise_direct_convolution(InBlockDesc,
                                              TFloat* const __restrict__ p_in_block,
                                              WeiBlockDesc,
