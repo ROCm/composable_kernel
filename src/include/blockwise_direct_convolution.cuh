@@ -4,7 +4,7 @@
 #include "threadwise_direct_convolution.cuh"
 
 template <unsigned BlockSize,
-          class TFloat,
+          class Float,
           class InBlockDesc,
           class WeiBlockDesc,
           class OutBlockDesc,
@@ -14,11 +14,11 @@ template <unsigned BlockSize,
           unsigned KPerThread,
           unsigned CPerThread>
 __device__ void blockwise_direct_convolution(InBlockDesc,
-                                             TFloat* const __restrict__ p_in_block,
+                                             Float* const __restrict__ p_in_block,
                                              WeiBlockDesc,
-                                             TFloat* const __restrict__ p_wei_block,
+                                             Float* const __restrict__ p_wei_block,
                                              OutBlockDesc,
-                                             TFloat* __restrict__ p_out_block)
+                                             Float* __restrict__ p_out_block)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -92,7 +92,7 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
         unsigned hi_thread_data_begin = ho_thread_data_begin; // minus padding
         unsigned wi_thread_data_begin = wo_thread_data_begin; // minus padding
 
-        TFloat p_out_thread[out_thread_desc.GetElementSpace()];
+        Float p_out_thread[out_thread_desc.GetElementSpace()];
 
         threadwise_4d_tensor_copy(out_block_desc,
                                   p_out_block + out_block_desc.Get1dIndex(n_thread_data_begin,

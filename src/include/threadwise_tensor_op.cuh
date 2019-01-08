@@ -1,8 +1,8 @@
 #pragma once
 #include "constant_tensor_descriptor.cuh"
 
-template <class TFloat, class Desc, class F>
-__device__ void threadwise_4d_tensor_pointwise_operation_unary(Desc, TFloat* __restrict__ p, F f)
+template <class Float, class Desc, class F>
+__device__ void threadwise_4d_tensor_pointwise_operation_unary(Desc, Float* __restrict__ p, F f)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -37,12 +37,12 @@ __device__ void threadwise_4d_tensor_pointwise_operation_unary(Desc, TFloat* __r
 
 // TODO: in order to optimize mem access for different mem type,
 // need to write specialized version
-template <class TFloat, class SrcDesc, class DstDesc, class RefDesc, class Reorder, class F>
+template <class Float, class SrcDesc, class DstDesc, class RefDesc, class Reorder, class F>
 __device__ void
 threadwise_4d_tensor_pointwise_operation_binary_reorder(SrcDesc,
-                                                        TFloat* const __restrict__ p_src,
+                                                        Float* const __restrict__ p_src,
                                                         DstDesc,
-                                                        TFloat* __restrict__ p_dst,
+                                                        Float* __restrict__ p_dst,
                                                         RefDesc,
                                                         Reorder,
                                                         F f)
@@ -83,26 +83,22 @@ threadwise_4d_tensor_pointwise_operation_binary_reorder(SrcDesc,
     }
 }
 
-template <class TFloat, class Desc>
-__device__ void threadwise_4d_tensor_set_zero(Desc, TFloat* __restrict__ p)
+template <class Float, class Desc>
+__device__ void threadwise_4d_tensor_set_zero(Desc, Float* __restrict__ p)
 {
-    auto f_set_zero = [](TFloat& v) { v = TFloat(0); };
+    auto f_set_zero = [](Float& v) { v = Float(0); };
 
-    threadwise_4d_tensor_pointwise_operation_unary<TFloat, Desc, decltype(f_set_zero)>(
+    threadwise_4d_tensor_pointwise_operation_unary<Float, Desc, decltype(f_set_zero)>(
         Desc{}, p, f_set_zero);
 }
 
-template <class TFloat, class SrcDesc, class DstDesc, class RefDesc, class Reorder>
-__device__ void threadwise_4d_tensor_copy_reorder(SrcDesc,
-                                                  TFloat* const __restrict__ p_src,
-                                                  DstDesc,
-                                                  TFloat* __restrict__ p_dst,
-                                                  RefDesc,
-                                                  Reorder)
+template <class Float, class SrcDesc, class DstDesc, class RefDesc, class Reorder>
+__device__ void threadwise_4d_tensor_copy_reorder(
+    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, RefDesc, Reorder)
 {
-    auto f_copy = [](const TFloat& src, TFloat& dst) { dst = src; };
+    auto f_copy = [](const Float& src, Float& dst) { dst = src; };
 
-    threadwise_4d_tensor_pointwise_operation_binary_reorder<TFloat,
+    threadwise_4d_tensor_pointwise_operation_binary_reorder<Float,
                                                             SrcDesc,
                                                             DstDesc,
                                                             RefDesc,
@@ -111,18 +107,18 @@ __device__ void threadwise_4d_tensor_copy_reorder(SrcDesc,
         SrcDesc{}, p_src, DstDesc{}, p_dst, RefDesc{}, Reorder{}, f_copy);
 }
 
-template <class TFloat, class SrcDesc, class DstDesc, class RefDesc>
+template <class Float, class SrcDesc, class DstDesc, class RefDesc>
 __device__ void threadwise_4d_tensor_copy(
-    SrcDesc, TFloat* const __restrict__ p_src, DstDesc, TFloat* __restrict__ p_dst, RefDesc)
+    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, RefDesc)
 {
     auto reorder = Sequence<0, 1, 2, 3>{};
 
-    threadwise_4d_tensor_copy_reorder<TFloat, SrcDesc, DstDesc, RefDesc, decltype(reorder)>(
+    threadwise_4d_tensor_copy_reorder<Float, SrcDesc, DstDesc, RefDesc, decltype(reorder)>(
         SrcDesc{}, p_src, DstDesc{}, p_dst, RefDesc{}, reorder);
 }
 
-template <class TFloat, class Desc, class IDim, class NShift>
-__device__ void threadwise_4d_tensor_shift_down(Desc, TFloat* __restrict__ p, IDim, NShift)
+template <class Float, class Desc, class IDim, class NShift>
+__device__ void threadwise_4d_tensor_shift_down(Desc, Float* __restrict__ p, IDim, NShift)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};

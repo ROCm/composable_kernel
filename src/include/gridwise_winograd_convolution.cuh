@@ -3,7 +3,7 @@
 #include "blockwise_winograd_transform.cuh"
 #include "threadwise_winograd_transform.cuh"
 
-template <class TFloat,
+template <class Float,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
@@ -20,11 +20,11 @@ template <class TFloat,
           unsigned BlockSize,
           unsigned GridSize>
 __global__ void gridwise_winograd_convolution(InGlobalDesc,
-                                              TFloat* const __restrict__ p_in_global,
+                                              Float* const __restrict__ p_in_global,
                                               WeiGlobalDesc,
-                                              TFloat* const __restrict__ p_wei_global,
+                                              Float* const __restrict__ p_wei_global,
                                               OutGlobalDesc,
-                                              TFloat* __restrict__ p_out_global)
+                                              Float* __restrict__ p_out_global)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -102,8 +102,8 @@ __global__ void gridwise_winograd_convolution(InGlobalDesc,
     constexpr auto wei_transform_block_desc =
         make_ConstantTensorDescriptor(Sequence<KPerBlock, CPerBlock, InTileSizeH, InTileSizeW>{});
 
-    __shared__ TFloat p_in_transform_block[in_transform_block_desc.GetElementSpace()];
-    __shared__ TFloat p_wei_transform_block[wei_transform_block_desc.GetElementSpace()];
+    __shared__ Float p_in_transform_block[in_transform_block_desc.GetElementSpace()];
+    __shared__ Float p_wei_transform_block[wei_transform_block_desc.GetElementSpace()];
 
     // thread data
     constexpr auto in_transform_thread_block_desc =
@@ -123,8 +123,8 @@ __global__ void gridwise_winograd_convolution(InGlobalDesc,
     constexpr auto out_thread_global_desc =
         make_ConstantTensorDescriptor(out_thread_desc.GetLengths(), out_global_desc.GetStrides());
 
-    TFloat p_out_transform_thread[out_transform_thread_desc.GetElementSpace()];
-    TFloat p_out_thread[out_thread_desc.GetElementSpace()];
+    Float p_out_transform_thread[out_transform_thread_desc.GetElementSpace()];
+    Float p_out_thread[out_thread_desc.GetElementSpace()];
 
 #if 0
     if(blockIdx.x == 0 && threadIdx.x == 0)
@@ -146,7 +146,7 @@ __global__ void gridwise_winograd_convolution(InGlobalDesc,
     {
 #if 0
         // blockwise transform input
-        blockwise_winograd_transform_input<TFloat,
+        blockwise_winograd_transform_input<Float,
                                            InTileSizeH,
                                            InTileSizeW,
                                            S,
@@ -166,7 +166,7 @@ __global__ void gridwise_winograd_convolution(InGlobalDesc,
 
 #endif
         // blockwise transform weights
-        blockwise_winograd_transform_weight<TFloat,
+        blockwise_winograd_transform_weight<Float,
                                             InTileSizeH,
                                             InTileSizeW,
                                             S,
@@ -183,7 +183,7 @@ __global__ void gridwise_winograd_convolution(InGlobalDesc,
         {
             // threadwise point multiplication
             threadwise_winograd_calculate_transformed_output<
-                TFloat,
+                Float,
                 decltype(in_transform_thread_block_desc),
                 decltype(wei_transform_thread_block_desc),
                 decltype(out_transform_thread_desc),
@@ -207,7 +207,7 @@ __global__ void gridwise_winograd_convolution(InGlobalDesc,
     };
 
     // transform back
-    threadwise_winograd_reverse_transform_output<TFloat,
+    threadwise_winograd_reverse_transform_output<Float,
                                                  decltype(out_transform_thread_desc),
                                                  decltype(out_thread_desc),
                                                  InTileSizeH,
