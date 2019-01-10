@@ -76,6 +76,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
     }
 }
 
+// Function: p_dst[reorder[i0], reorder[i1], reorder[i2], reorder[i3]] = p_src[i0,i1,i2,i3]
 // TODO: in order to optimize mem access for different mem type,
 // need to write specialized version
 template <unsigned BlockSize,
