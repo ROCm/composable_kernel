@@ -11,3 +11,5 @@ struct is_same<T, T>
 {
     static const bool value = true;
 };
+
+__device__ unsigned get_thread_local_id() { return threadIdx.x; }
