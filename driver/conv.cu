@@ -8,7 +8,7 @@
 #include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-//#include "device_implicit_gemm_convolution.cuh"
+#include "device_implicit_gemm_convolution.cuh"
 //#include "device_winograd_convolution.cuh"
 
 struct GeneratorTensor_1
@@ -393,9 +393,9 @@ int main()
     {
 #if 0
         device_direct_convolution_1(in_desc, in, wei_desc, wei, out_desc, out_device);
-#elif 1
-        device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
 #elif 0
+        device_direct_convolution_2(in_desc, in, wei_desc, wei, out_desc, out_device);
+#elif 1
         device_implicit_gemm_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
 #elif 0
         device_winograd_convolution(in_desc, in, wei_desc, wei, out_desc, out_device);
