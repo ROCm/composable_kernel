@@ -1,5 +1,5 @@
 #pragma once
-#include "constant_tensor_descriptor.cuh"
+#include "ConstantTensorDescriptor.cuh"
 
 template <unsigned BlockSize, class Float, class DstDesc, class F>
 __device__ void

@@ -1,5 +1,5 @@
 #pragma once
-#include "constant_tensor_descriptor.cuh"
+#include "ConstantTensorDescriptor.cuh"
 #include "blockwise_winograd_transform.cuh"
 #include "threadwise_winograd_transform.cuh"
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "constant_tensor_descriptor.cuh"
+#include "ConstantTensorDescriptor.cuh"
 
 // this is ugly, only for 4d
 template <class InDesc, class WeiDesc>

@@ -27,14 +27,14 @@ void device_implicit_gemm_convolution(
 
 #if 1
     constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 128;
+    constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 4;
     constexpr unsigned HoPerBlock = 2;
     constexpr unsigned WoPerBlock = 32;
 
-    constexpr unsigned NPerThread = 2;
-    constexpr unsigned KPerThread = 8;
-    constexpr unsigned CPerThread = 2;
+    constexpr unsigned NPerThread  = 2;
+    constexpr unsigned KPerThread  = 8;
+    constexpr unsigned CPerThread  = 2;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 4;
 
