@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include "nvToolsExt.h"
 #include "tensor.hpp"
-#include "constant_tensor_descriptor.cuh"
+#include "ConstantTensorDescriptor.cuh"
 #include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"

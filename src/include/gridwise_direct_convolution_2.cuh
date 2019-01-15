@@ -1,5 +1,5 @@
 #pragma once
-#include "constant_tensor_descriptor.cuh"
+#include "ConstantTensorDescriptor.cuh"
 #include "blockwise_tensor_op.cuh"
 #include "blockwise_direct_convolution.cuh"
 #include "threadwise_tensor_op.cuh"
