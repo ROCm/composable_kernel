@@ -135,7 +135,7 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
         const unsigned bindex = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
-#if 1
+#if 0
         printf("did %u %u %u %u, did_IR %u %u %u %u, index %u %u\n",
                did[0],
                did[1],
