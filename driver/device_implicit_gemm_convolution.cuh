@@ -1,5 +1,5 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_nchw_kcsr.cuh"
+//#include "gridwise_implicit_gemm_convolution_nchw_kcsr.cuh"
 #include "gridwise_implicit_gemm_convolution_nchw_srck.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
@@ -26,20 +26,20 @@ void device_implicit_gemm_convolution(
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 
-#if 0
-    constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 4;
+#if 1
+    constexpr unsigned NPerBlock  = 1;
+    constexpr unsigned KPerBlock  = 1;
+    constexpr unsigned CPerBlock  = 1;
     constexpr unsigned HoPerBlock = 2;
     constexpr unsigned WoPerBlock = 32;
 
-    constexpr unsigned NPerThread  = 2;
-    constexpr unsigned KPerThread  = 8;
-    constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 4;
+    constexpr unsigned NPerThread  = 1;
+    constexpr unsigned KPerThread  = 1;
+    constexpr unsigned CPerThread  = 1;
+    constexpr unsigned HoPerThread = 2;
+    constexpr unsigned WoPerThread = 2;
 
-    constexpr unsigned BlockSize = 256;
+    constexpr unsigned BlockSize = 16;
 #elif 1
     constexpr unsigned NPerBlock  = 2;
     constexpr unsigned KPerBlock  = 32;
@@ -50,7 +50,7 @@ void device_implicit_gemm_convolution(
     constexpr unsigned NPerThread  = 2;
     constexpr unsigned KPerThread  = 4;
     constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 1;
+    constexpr unsigned HoPerThread = 2;
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
