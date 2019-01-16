@@ -152,7 +152,6 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
     for(unsigned c_block_data_begin = 0; c_block_data_begin < in_nchw_global_desc.GetLength(I1);
         c_block_data_begin += CPerBlock, __syncthreads())
     {
-#if 1
         // input: global mem to LDS,
         //   convert 4d-tensor in[N,C,Hi,Wi] to matrix in_matrix[C,Hi*Wi*N]
         blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
@@ -165,9 +164,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
             p_in_block,
             in_nchw_block_desc.GetLengths(),
             reorder_chwn_from_nchw);
-#endif
 
-#if 1
         // weight: global mem to LDS,
         blockwise_4d_tensor_copy<BlockSize>(
             wei_srck_global_desc,
@@ -176,11 +173,9 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
             wei_srck_block_desc,
             p_wei_block,
             wei_srck_block_desc.GetLengths());
-#endif
 
         __syncthreads();
 
-#if 1
         // a series of batched GEMM
         for(unsigned s = 0; s < S; ++s)
         {
@@ -194,7 +189,6 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
                                          f_accum);
             }
         }
-#endif
     }
 
     const auto matrix_c_index =
