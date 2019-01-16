@@ -145,9 +145,6 @@ struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
             static_assert(BlockSize == BThreadWork * MThreadWork * NThreadWork,
                           "wrong! wrong BlockSize");
 
-            // printf("%u %u, %u %u\n", get_block_1d_id(), get_thread_local_1d_id(), MThreadWork,
-            // NThreadWork);
-
             if(DistributeThreadAlongColumnFirst)
             {
                 // num of operations can be reduced

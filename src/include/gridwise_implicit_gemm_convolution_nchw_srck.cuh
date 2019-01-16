@@ -90,7 +90,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
     constexpr auto out_hkwn_thread_desc =
         make_ConstantTensorDescriptor(Sequence<HoPerThread, KPerThread, WoPerThread, NPerThread>{});
 
-#if 1
+#if 0
     if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(in_nchw_block_desc, "in_nchw_block_desc");
@@ -189,7 +189,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
                 auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
 
                 blockwise_batch_gemm.run(p_wei_block + wei_srck_block_desc.Get1dIndex(s, r, 0, 0),
-                                         p_in_block + in_chwn_block_desc.Get1dIndex(0, 0, r, 0),
+                                         p_in_block + in_chwn_block_desc.Get1dIndex(0, s, r, 0),
                                          p_out_thread,
                                          f_accum);
             }
