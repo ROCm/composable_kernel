@@ -153,7 +153,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
         c_block_data_begin += CPerBlock, __syncthreads())
     {
         // input: global mem to LDS,
-        //   convert 4d-tensor in[N,C,Hi,Wi] to matrix in_matrix[C,Hi*Wi*N]
+        //   convert [N,C,Hi,Wi] to [C,Hi,Wi,N]
         blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
             in_nchw_global_desc,
             p_in_global + in_nchw_global_desc.Get1dIndex(n_block_data_begin,
@@ -166,6 +166,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
             reorder_chwn_from_nchw);
 
         // weight: global mem to LDS,
+        //   format is [S,R,C,K], no conversion needed
         blockwise_4d_tensor_copy<BlockSize>(
             wei_srck_global_desc,
             p_wei_global +
@@ -212,10 +213,4 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
                                                        wo_block_data_begin + wo_thread_data_begin),
         out_hkwn_thread_desc.GetLengths(),
         reorder_nkhw_from_hkwn);
-
-    // printf("%f %f %f %f\n", p_out_thread[0], p_out_thread[1], p_out_thread[2], p_out_thread[3]);
-    // printf("%u %u, %u %u %u\n", get_block_1d_id(), get_thread_local_1d_id(),
-    // matrix_c_index.batch_begin, matrix_c_index.row_begin, matrix_c_index.col_begin); printf("%u
-    // %u, %u %u %u\n", get_block_1d_id(), get_thread_local_1d_id(), ho_thread_data_begin,
-    // k_thread_data_begin, wo_thread_data_begin);
 }

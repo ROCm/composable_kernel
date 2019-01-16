@@ -8,7 +8,8 @@
 #include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-#include "device_implicit_gemm_convolution.cuh"
+#include "device_implicit_gemm_convolution_nchw_kcsr.cuh"
+#include "device_implicit_gemm_convolution_nchw_srck.cuh"
 //#include "device_winograd_convolution.cuh"
 
 struct GeneratorTensor_1
@@ -393,18 +394,6 @@ int main()
     wei_kcsr.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
 #endif
 
-#if 1
-    auto wei_srck_desc = make_ConstantTensorDescriptor(Sequence<S, R, C, K>{});
-    ostream_ConstantTensorDescriptor(wei_srck_desc, std::cout << "wei_srck_desc: ");
-    Tensor<float> wei_srck(make_TensorDescriptor(wei_srck_desc));
-
-    auto f_reorder_kcsr2srck = [&](auto k, auto c, auto s, auto r) {
-        wei_srck(s, r, c, k) = wei_kcsr(k, c, s, r);
-    };
-
-    make_ParallelTensorFunctor(f_reorder_kcsr2srck, K, C, S, R)(num_thread);
-#endif
-
     for(int i = 0; i < 40; ++i)
     {
 #if 0
@@ -413,11 +402,11 @@ int main()
         device_direct_convolution_2(
             in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
 #elif 0
-        device_implicit_gemm_convolution(
+        device_implicit_gemm_convolution_nchw_kcsr(
             in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
 #elif 1
-        device_implicit_gemm_convolution(
-            in_nchw_desc, in_nchw, wei_srck_desc, wei_srck, out_nkhw_desc, out_nkhw_device);
+        device_implicit_gemm_convolution_nchw_srck(
+            in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
 #elif 0
         device_winograd_convolution(
             in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
