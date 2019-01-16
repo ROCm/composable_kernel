@@ -1,5 +1,6 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution.cuh"
+#include "gridwise_implicit_gemm_convolution_nchw_kcsr.cuh"
+#include "gridwise_implicit_gemm_convolution_nchw_srck.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution(
@@ -25,7 +26,7 @@ void device_implicit_gemm_convolution(
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 
-#if 1
+#if 0
     constexpr unsigned NPerBlock  = 2;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 4;
@@ -39,6 +40,20 @@ void device_implicit_gemm_convolution(
     constexpr unsigned WoPerThread = 4;
 
     constexpr unsigned BlockSize = 256;
+#elif 1
+    constexpr unsigned NPerBlock  = 2;
+    constexpr unsigned KPerBlock  = 32;
+    constexpr unsigned CPerBlock  = 4;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 32;
+
+    constexpr unsigned NPerThread  = 2;
+    constexpr unsigned KPerThread  = 4;
+    constexpr unsigned CPerThread  = 2;
+    constexpr unsigned HoPerThread = 1;
+    constexpr unsigned WoPerThread = 2;
+
+    constexpr unsigned BlockSize = 128;
 #endif
 
     constexpr unsigned GridSize =
@@ -56,27 +71,31 @@ void device_implicit_gemm_convolution(
     cudaEventCreate(&start);
     cudaEventRecord(start, 0);
 
-    gridwise_implicit_gemm_convolution_nchw_kcsr<GridSize,
-                                                 BlockSize,
-                                                 T,
-                                                 InDesc,
-                                                 WeiDesc,
-                                                 OutDesc,
-                                                 NPerBlock,
-                                                 KPerBlock,
-                                                 CPerBlock,
-                                                 HoPerBlock,
-                                                 WoPerBlock,
-                                                 KPerThread,
-                                                 CPerThread,
-                                                 HoPerThread,
-                                                 WoPerThread>
-        <<<grid_dim, block_dim>>>(InDesc{},
-                                  static_cast<T*>(in_device_buf.GetDeviceBuffer()),
-                                  WeiDesc{},
-                                  static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
-                                  OutDesc{},
-                                  static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+#if 0
+    gridwise_implicit_gemm_convolution_nchw_kcsr
+#elif 1
+    gridwise_implicit_gemm_convolution_nchw_srck
+#endif
+    <GridSize,
+     BlockSize,
+     T,
+     InDesc,
+     WeiDesc,
+     OutDesc,
+     NPerBlock,
+     KPerBlock,
+     CPerBlock,
+     HoPerBlock,
+     WoPerBlock,
+     KPerThread,
+     CPerThread,
+     HoPerThread,
+     WoPerThread><<<grid_dim, block_dim>>>(InDesc{},
+                                           static_cast<T*>(in_device_buf.GetDeviceBuffer()),
+                                           WeiDesc{},
+                                           static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
+                                           OutDesc{},
+                                           static_cast<T*>(out_device_buf.GetDeviceBuffer()));
 
     cudaEventCreate(&stop);
     cudaEventRecord(stop, 0);

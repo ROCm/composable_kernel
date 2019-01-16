@@ -74,16 +74,38 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
     const unsigned hi_block_data_begin = ho_block_data_begin;
     const unsigned wi_block_data_begin = wo_block_data_begin;
 
-    // tensor view of blockwise input and weight in LDS
-    constexpr auto wei_srck_block_desc =
-        make_ConstantTensorDescriptor(Sequence<S, R, CPerBlock, KPerBlock>{});
+    // tensor view of un-reorderd blockwise input and weight (imaginary)
+    constexpr auto in_nchw_block_desc =
+        make_ConstantTensorDescriptor(Sequence<NPerBlock, CPerBlock, HiPerBlock, WiPerBlock>{});
 
-    constexpr auto in_chwn_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{});
+    constexpr auto wei_kcsr_block_desc =
+        make_ConstantTensorDescriptor(Sequence<KPerBlock, CPerBlock, S, R>{});
+
+    // tensor view of reordered blockwise input and weight in LDS
+    constexpr auto reorder_chwn_from_nchw = Sequence<1, 2, 3, 0>{};
+    constexpr auto in_chwn_block_desc     = make_ConstantTensorDescriptor(
+        in_nchw_block_desc.GetLengths().ReorderByGetNewFromOld(reorder_chwn_from_nchw));
+
+    constexpr auto reorder_srck_from_kcsr = Sequence<2, 3, 1, 0>{};
+    constexpr auto wei_srck_block_desc    = make_ConstantTensorDescriptor(
+        wei_kcsr_block_desc.GetLengths().ReorderByGetNewFromOld(reorder_srck_from_kcsr));
 
     // tensor view of threadwise output in register
     constexpr auto out_hkwn_thread_desc =
         make_ConstantTensorDescriptor(Sequence<HoPerThread, KPerThread, WoPerThread, NPerThread>{});
+
+#if 0
+    if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+    {
+        print_ConstantTensorDescriptor(in_nchw_block_desc, "in_nchw_block_desc");
+        print_ConstantTensorDescriptor(in_chwn_block_desc, "in_chwn_block_desc");
+
+        print_ConstantTensorDescriptor(wei_kcsr_block_desc, "wei_kcsr_block_desc");
+        print_ConstantTensorDescriptor(wei_srck_block_desc, "wei_srck_block_desc");
+
+        print_ConstantTensorDescriptor(out_hkwn_thread_desc, "out_hkwn_thread_desc");
+    }
+#endif
 
     // a series of blockwise batched GEMM
     // C_matrix += transpose(A_matrix) * B_matrix
@@ -97,7 +119,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
     const auto b_cxwn_block_mtx_desc = make_ConstantMatrixDescriptor(
         Number<CPerBlock>{},
         Number<WoPerBlock * NPerBlock>{},
-        Number<in_chwn_block_desc.GetStride(I1)>{}); // constexpr doesn't compile
+        Number<in_chwn_block_desc.GetStride(I0)>{}); // constexpr doesn't compile
 
     const auto c_kxwn_thread_mtx_desc = make_ConstantMatrixDescriptor(
         Number<KPerThread>{}, Number<WoPerThread * NPerThread>{}); // constexpr doesn't compile
@@ -137,11 +159,10 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
     for(unsigned c_block_data_begin = 0; c_block_data_begin < in_nchw_global_desc.GetLength(I1);
         c_block_data_begin += CPerBlock, __syncthreads())
     {
+#if 1
         // input: global mem to LDS,
         //   convert 4d-tensor in[N,C,Hi,Wi] to matrix in_matrix[C,Hi*Wi*N]
-        constexpr auto reorder_nchw2chwn = Sequence<3, 0, 1, 2>{};
-
-        blockwise_4d_tensor_copy_reorder<BlockSize>(
+        blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
             in_nchw_global_desc,
             p_in_global + in_nchw_global_desc.Get1dIndex(n_block_data_begin,
                                                          c_block_data_begin,
@@ -149,21 +170,22 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
                                                          wi_block_data_begin),
             in_chwn_block_desc,
             p_in_block,
-            in_chwn_block_desc,
-            reorder_nchw2chwn);
+            in_nchw_block_desc.GetLengths(),
+            reorder_chwn_from_nchw);
+#endif
 
+#if 1
         // weight: global mem to LDS,
         //   convert 4d-tensor wei[K,C,S,R] to matrix wei_matrix[S*R*C,K]
-        constexpr auto reorder_kcsr2srck = Sequence<3, 2, 0, 1>{};
-
-        blockwise_4d_tensor_copy_reorder<BlockSize>(
+        blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
             wei_kcsr_global_desc,
             p_wei_global +
                 wei_kcsr_global_desc.Get1dIndex(k_block_data_begin, c_block_data_begin, 0, 0),
             wei_srck_block_desc,
             p_wei_block,
-            wei_srck_block_desc,
-            reorder_kcsr2srck);
+            wei_kcsr_block_desc.GetLengths(),
+            reorder_srck_from_kcsr);
+#endif
 
         __syncthreads();
 
@@ -187,10 +209,10 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
     const unsigned wo_thread_data_begin = matrix_c_index.row_begin / NPerThread;
 
     // output: register to global mem,
-    //   convert matrix out_matrix[Ho*K,Wo*N] to 4d-tensor out[N,K,Ho,Wo]
-    constexpr auto reorder_hkwn2nkhw = Sequence<2, 1, 3, 0>{};
+    //   convert out_thread[Ho,K,Wo,N] to out_global[N,K,Ho,Wo]
+    constexpr auto reorder_nkhw_from_hkwn = Sequence<3, 1, 0, 2>{};
 
-    threadwise_4d_tensor_copy_reorder(
+    threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(
         out_hkwn_thread_desc,
         p_out_thread,
         out_nkhw_global_desc,
@@ -198,6 +220,6 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
                                                        k_block_data_begin + k_thread_data_begin,
                                                        ho_block_data_begin + ho_thread_data_begin,
                                                        wo_block_data_begin + wo_thread_data_begin),
-        out_hkwn_thread_desc,
-        reorder_hkwn2nkhw);
+        out_hkwn_thread_desc.GetLengths(),
+        reorder_nkhw_from_hkwn);
 }
