@@ -336,14 +336,6 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 int main()
 {
 #if 0
-    constexpr unsigned N  = 1;
-    constexpr unsigned C  = 1;
-    constexpr unsigned HI = 4;
-    constexpr unsigned WI = 4;
-    constexpr unsigned K  = 1;
-    constexpr unsigned S  = 3;
-    constexpr unsigned R  = 3;
-#elif 0
     constexpr unsigned N = 1;
     constexpr unsigned C = 1;
     constexpr unsigned HI = 34;
@@ -352,13 +344,13 @@ int main()
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 1
-    constexpr unsigned N  = 64;
-    constexpr unsigned C  = 256;
+    constexpr unsigned N = 64;
+    constexpr unsigned C = 256;
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
-    constexpr unsigned K  = 64;
-    constexpr unsigned S  = 3;
-    constexpr unsigned R  = 3;
+    constexpr unsigned K = 64;
+    constexpr unsigned S = 3;
+    constexpr unsigned R = 3;
 #elif 0
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 64;
@@ -369,12 +361,12 @@ int main()
     constexpr unsigned R  = 3;
 #elif 0
     constexpr unsigned N  = 64;
-    constexpr unsigned C  = 64;
-    constexpr unsigned HI = 66;
-    constexpr unsigned WI = 66;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 36;
+    constexpr unsigned WI = 36;
     constexpr unsigned K  = 64;
-    constexpr unsigned S  = 3;
-    constexpr unsigned R  = 3;
+    constexpr unsigned S  = 5;
+    constexpr unsigned R  = 5;
 #endif
 
     auto in_nchw_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});

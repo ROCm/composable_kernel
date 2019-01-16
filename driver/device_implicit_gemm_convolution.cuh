@@ -52,7 +52,7 @@ void device_implicit_gemm_convolution(
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     constexpr unsigned NPerBlock  = 2;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 4;
@@ -60,7 +60,7 @@ void device_implicit_gemm_convolution(
     constexpr unsigned WoPerBlock = 32;
 
     constexpr unsigned KPerThread  = 4;
-    constexpr unsigned CPerThread  = 1;
+    constexpr unsigned CPerThread  = 2;
     constexpr unsigned HoPerThread = 2;
     constexpr unsigned WoPerThread = 2;
 
