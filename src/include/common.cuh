@@ -30,6 +30,8 @@ using Number = Constant<unsigned, N>;
 template <unsigned... Is>
 struct Sequence
 {
+    using Type = Sequence<Is...>;
+
     static constexpr unsigned nDim = sizeof...(Is);
 
     const unsigned mData[nDim] = {Is...};
@@ -40,44 +42,24 @@ struct Sequence
         return mData[I];
     }
 
-    template <unsigned I0, unsigned I1>
-    __host__ __device__ constexpr auto Reorder(Number<I0>, Number<I1>) const
+    template <unsigned I0, unsigned I1, unsigned I2, unsigned I3>
+    __host__ __device__ constexpr auto ReorderByGetNewFromOld(Sequence<I0, I1, I2, I3>) const
     {
-        constexpr unsigned IR0 = Get(Number<I0>{});
-        constexpr unsigned IR1 = Get(Number<I1>{});
+        constexpr auto old_sequence = Type{};
 
-        return Sequence<IR0, IR1>{};
-    }
+        constexpr unsigned NR0 = old_sequence.mData[I0];
+        constexpr unsigned NR1 = old_sequence.mData[I1];
+        constexpr unsigned NR2 = old_sequence.mData[I2];
+        constexpr unsigned NR3 = old_sequence.mData[I3];
 
-    template <unsigned I0, unsigned I1, unsigned I2>
-    __host__ __device__ constexpr auto Reorder(Number<I0>, Number<I1>, Number<I2>) const
-    {
-        constexpr unsigned IR0 = Get(Number<I0>{});
-        constexpr unsigned IR1 = Get(Number<I1>{});
-        constexpr unsigned IR2 = Get(Number<I2>{});
-
-        return Sequence<IR0, IR1, IR2>{};
+        return Sequence<NR0, NR1, NR2, NR3>{};
     }
 
     template <unsigned I0, unsigned I1, unsigned I2, unsigned I3>
-    __host__ __device__ constexpr auto Reorder(Number<I0>, Number<I1>, Number<I2>, Number<I3>) const
+    __host__ __device__ constexpr auto ReorderByPutOldToNew(Sequence<I0, I1, I2, I3>) const
     {
-        constexpr unsigned IR0 = Get(Number<I0>{});
-        constexpr unsigned IR1 = Get(Number<I1>{});
-        constexpr unsigned IR2 = Get(Number<I2>{});
-        constexpr unsigned IR3 = Get(Number<I3>{});
-
-        return Sequence<IR0, IR1, IR2, IR3>{};
-    }
-
-    template <unsigned I0, unsigned I1, unsigned I2, unsigned I3>
-    __host__ __device__ constexpr auto Reorder(Sequence<I0, I1, I2, I3>) const
-    {
-        constexpr unsigned IR0 = Get(Number<I0>{});
-        constexpr unsigned IR1 = Get(Number<I1>{});
-        constexpr unsigned IR2 = Get(Number<I2>{});
-        constexpr unsigned IR3 = Get(Number<I3>{});
-
-        return Sequence<IR0, IR1, IR2, IR3>{};
+        // don't know how to implement this
+        printf("Sequence::ReorderByPutOldToNew not implemented");
+        assert(false);
     }
 };

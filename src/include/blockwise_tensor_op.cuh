@@ -83,31 +83,31 @@ template <unsigned BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
-          class RefDesc,
-          class Reorder,
+          class SrcOpLengths,
+          class DstFromSrcReorder,
           class F>
-__device__ void
-blockwise_4d_tensor_pointwise_operation_binary_reorder(SrcDesc,
-                                                       Float* const __restrict__ p_src,
-                                                       DstDesc,
-                                                       Float* __restrict__ p_dst,
-                                                       RefDesc,
-                                                       Reorder,
-                                                       F f)
+__device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
+    SrcDesc,
+    Float* const __restrict__ p_src,
+    DstDesc,
+    Float* __restrict__ p_dst,
+    SrcOpLengths,
+    DstFromSrcReorder,
+    F f)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr unsigned IT0 = Reorder{}.Get(I0);
-    constexpr unsigned IT1 = Reorder{}.Get(I1);
-    constexpr unsigned IT2 = Reorder{}.Get(I2);
-    constexpr unsigned IT3 = Reorder{}.Get(I3);
+    constexpr unsigned IR0 = DstFromSrcReorder{}.Get(I0);
+    constexpr unsigned IR1 = DstFromSrcReorder{}.Get(I1);
+    constexpr unsigned IR2 = DstFromSrcReorder{}.Get(I2);
+    constexpr unsigned IR3 = DstFromSrcReorder{}.Get(I3);
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
-    constexpr auto ref_desc = RefDesc{};
+    constexpr auto ref_desc = make_ConstantTensorDescriptor(SrcOpLengths{});
 
     constexpr unsigned NLoop = ref_desc.GetElementSize() / BlockSize;
 
@@ -133,7 +133,7 @@ blockwise_4d_tensor_pointwise_operation_binary_reorder(SrcDesc,
 
         const unsigned aindex = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
-        const unsigned bindex = dst_desc.Get1dIndex(did[IT0], did[IT1], did[IT2], did[IT3]);
+        const unsigned bindex = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
         f(p_src[aindex], p_dst[bindex]);
     }
@@ -164,7 +164,7 @@ blockwise_4d_tensor_pointwise_operation_binary_reorder(SrcDesc,
 
             const unsigned aindex = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
-            const unsigned bindex = dst_desc.Get1dIndex(did[IT0], did[IT1], did[IT2], did[IT3]);
+            const unsigned bindex = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
             f(p_src[aindex], p_dst[bindex]);
         }
@@ -183,23 +183,28 @@ template <unsigned BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
-          class RefDesc,
-          class Reorder>
-__device__ void blockwise_4d_tensor_copy_reorder(
-    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, RefDesc, Reorder)
+          class SrcOpLengths,
+          class DstFromSrcReorder>
+__device__ void
+blockwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
+                                                     Float* const __restrict__ p_src,
+                                                     DstDesc,
+                                                     Float* __restrict__ p_dst,
+                                                     SrcOpLengths,
+                                                     DstFromSrcReorder)
 {
     auto f_copy = [](const Float& src, Float& dst) { dst = src; };
 
-    blockwise_4d_tensor_pointwise_operation_binary_reorder<BlockSize>(
-        SrcDesc{}, p_src, DstDesc{}, p_dst, RefDesc{}, Reorder{}, f_copy);
+    blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src<BlockSize>(
+        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
 }
 
-template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class RefDesc>
+template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
 __device__ void blockwise_4d_tensor_copy(
-    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, RefDesc)
+    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, SrcOpLengths)
 {
-    constexpr auto reorder = Sequence<0, 1, 2, 3>{};
+    constexpr auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
 
-    blockwise_4d_tensor_copy_reorder<BlockSize>(
-        SrcDesc{}, p_src, DstDesc{}, p_dst, RefDesc{}, reorder);
+    blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
+        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
 }
