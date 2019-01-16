@@ -90,13 +90,12 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
     constexpr auto out_hkwn_thread_desc =
         make_ConstantTensorDescriptor(Sequence<HoPerThread, KPerThread, WoPerThread, NPerThread>{});
 
-#if 0
+#if 1
     if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(in_nchw_block_desc, "in_nchw_block_desc");
         print_ConstantTensorDescriptor(in_chwn_block_desc, "in_chwn_block_desc");
 
-        print_ConstantTensorDescriptor(wei_kcsr_block_desc, "wei_kcsr_block_desc");
         print_ConstantTensorDescriptor(wei_srck_block_desc, "wei_srck_block_desc");
 
         print_ConstantTensorDescriptor(out_hkwn_thread_desc, "out_hkwn_thread_desc");
@@ -120,8 +119,6 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
     const auto c_kxwn_thread_mtx_desc = make_ConstantMatrixDescriptor(
         Number<KPerThread>{}, Number<WoPerThread * NPerThread>{}); // constexpr doesn't compile
 
-    auto f_accum = [](auto& c, auto& ab) { c += ab; };
-
     const auto blockwise_batch_gemm =
         blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c<BlockSize,
                                                                    decltype(a_cxk_block_mtx_desc),
@@ -133,11 +130,11 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
                                                                    0,
                                                                    in_chwn_block_desc.GetStride(I1),
                                                                    out_hkwn_thread_desc.GetStride(
-                                                                       I1),
+                                                                       I0),
                                                                    HoPerBlock,
                                                                    HoPerThread,
                                                                    CPerThread,
-                                                                   decltype(f_accum)>{};
+                                                                   true>{};
 
     // LDS
     constexpr unsigned in_block_size  = in_chwn_block_desc.GetElementSpace();
@@ -183,24 +180,29 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
 
         __syncthreads();
 
+#if 1
         // a series of batched GEMM
         for(unsigned s = 0; s < S; ++s)
         {
             for(unsigned r = 0; r < R; ++r)
             {
+                auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
+
                 blockwise_batch_gemm.run(p_wei_block + wei_srck_block_desc.Get1dIndex(s, r, 0, 0),
                                          p_in_block + in_chwn_block_desc.Get1dIndex(0, 0, r, 0),
-                                         p_out_thread);
+                                         p_out_thread,
+                                         f_accum);
             }
         }
+#endif
     }
 
     const auto matrix_c_index =
         blockwise_batch_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
 
     const unsigned ho_thread_data_begin = matrix_c_index.batch_begin;
-    const unsigned k_thread_data_begin  = matrix_c_index.col_begin;
-    const unsigned wo_thread_data_begin = matrix_c_index.row_begin / NPerThread;
+    const unsigned k_thread_data_begin  = matrix_c_index.row_begin;
+    const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerThread;
 
     // output: register to global mem,
     //   convert out_thread[Ho,K,Wo,N] to out_global[N,K,Ho,Wo]
@@ -216,4 +218,10 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_srck(InGlobalDesc,
                                                        wo_block_data_begin + wo_thread_data_begin),
         out_hkwn_thread_desc.GetLengths(),
         reorder_nkhw_from_hkwn);
+
+    // printf("%f %f %f %f\n", p_out_thread[0], p_out_thread[1], p_out_thread[2], p_out_thread[3]);
+    // printf("%u %u, %u %u %u\n", get_block_1d_id(), get_thread_local_1d_id(),
+    // matrix_c_index.batch_begin, matrix_c_index.row_begin, matrix_c_index.col_begin); printf("%u
+    // %u, %u %u %u\n", get_block_1d_id(), get_thread_local_1d_id(), ho_thread_data_begin,
+    // k_thread_data_begin, wo_thread_data_begin);
 }

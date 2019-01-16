@@ -1,8 +1,27 @@
 #pragma once
 
-template <class ThreadMatrixA,
-          class ThreadMatrixB,
-          class ThreadMatrixC,
+template <class Float, class SrcMatrix, class DstMatrix, unsigned NRow, unsigned NCol>
+__device__ void
+threadwise_matrix_copy(SrcMatrix, Float* const p_src, DstMatrix, Float* p_dst, Sequence<NRow, NCol>)
+{
+    const auto src_mtx = SrcMatrix{}; // constexpr doesn't compile
+    const auto dst_mtx = DstMatrix{}; // constexpr doesn't compile
+
+    for(unsigned i = 0; i < NRow; ++i)
+    {
+        for(unsigned j = 0; j < NCol; ++j)
+        {
+            const unsigned src_index = src_mtx.Get1dIndex(i, j);
+            const unsigned dst_index = dst_mtx.Get1dIndex(i, j);
+
+            p_dst[dst_index] = p_src[src_index];
+        }
+    }
+}
+
+template <class MatrixA,
+          class MatrixB,
+          class MatrixC,
           bool TransA,
           bool TransB,
           bool TransC,
@@ -10,18 +29,47 @@ template <class ThreadMatrixA,
           class FloatB,
           class FloatC,
           class Accumulator>
-__device__ void threadwise_gemm(ThreadMatrixA,
+__device__ void threadwise_gemm(MatrixA,
                                 Constant<bool, TransA>,
                                 FloatA* const p_a_thread,
-                                ThreadMatrixB,
+                                MatrixB,
                                 Constant<bool, TransB>,
                                 FloatB* const p_b_thread,
-                                ThreadMatrixC,
+                                MatrixC,
                                 Constant<bool, TransC>,
                                 FloatC* p_c_thread,
-                                Accumulator)
+                                Accumulator f_accum)
 {
-    // do something
+    if(TransA && (!TransB) && (!TransC))
+    {
+        const auto a_mtx = MatrixA{}; // constexpr doesn't compile
+        const auto b_mtx = MatrixB{}; // constexpr doesn't compile
+        const auto c_mtx = MatrixC{}; // constexpr doesn't compile
+
+        constexpr unsigned M = c_mtx.NRow();
+        constexpr unsigned N = c_mtx.NCol();
+        constexpr unsigned K = a_mtx.NRow(); // A is transposed
+
+        for(unsigned i = 0; i < M; ++i)
+        {
+            for(unsigned j = 0; j < N; ++j)
+            {
+                for(unsigned k = 0; k < K; ++k)
+                {
+                    const unsigned aindex = a_mtx.Get1dIndex(k, i); // A is transposed
+                    const unsigned bindex = b_mtx.Get1dIndex(k, j);
+                    const unsigned cindex = c_mtx.Get1dIndex(i, j);
+
+                    f_accum(p_c_thread[cindex], p_a_thread[aindex] * p_b_thread[bindex]);
+                }
+            }
+        }
+    }
+    else
+    {
+        // not implemented
+        assert(false);
+    }
 }
 
 template <unsigned BlockSize,
@@ -36,8 +84,8 @@ template <unsigned BlockSize,
           unsigned ThreadMatrixStrideC,
           unsigned BatchSize,
           unsigned BatchPerThread,
-          unsigned KPerLoop,
-          class Accumulator>
+          unsigned KPerThreadLoop,
+          bool DistributeThreadAlongColumnFirst>
 struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
 {
     unsigned mMyThreadOffsetA = 0;
@@ -52,82 +100,177 @@ struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
 
     __device__ blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c()
     {
-        static_assert(ThreadMatrixStrideC > 0, "wrong! ThreadMatrixStrideC == 0!");
+        const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
+        const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
 
-#if 0
-        constexpr auto a_block_desc = BlockMatrixA{};
-        constexpr auto b_block_desc = BlockMatrixB{};
+        const auto c_thread_mtx_index = CalculateThreadMatrixCIndex(get_thread_local_1d_id());
 
-        constexpr unsigned a_thread_row = (!TransA) ? MPerThread : KPerThread;
-        constexpr unsigned a_thread_col = (!TransA) ? KPerThread : MPerThread;
-        constexpr unsigned b_thread_row = (!TransB) ? KPerThread : NPerThread;
-        constexpr unsigned b_thread_col = (!TransB) ? NPerThread : KPerThread;
+        mMyThreadOffsetA = c_thread_mtx_index.batch_begin * a_block_mtx.GetElementSpace() +
+                           ((!TransA) ? a_block_mtx.Get1dIndex(c_thread_mtx_index.row_begin, 0)
+                                      : a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row_begin));
 
-        constexpr auto a_thread_desc = ConstantMatrixDescriptor<a_thread_row, a_thread_col>{};
-        constexpr auto b_thread_desc = ConstantMatrixDescriptor<b_thread_row, b_thread_col>{};
-        constexpr auto c_thread_desc = ConstantMatrixDescriptor<MPerThread, NPerThread>{};
-
-        constexpr unsigned m_block = (!TransA) ? a_block_desc.NRow() : a_block_desc.NCol();
-        constexpr unsigned n_block = (!TransB) ? b_block_desc.NCol() : b_block_desc.NRow();
-
-        constexpr unsigned m_thread = (!TransA) ? a_thread_desc.NRow() : a_thread_desc.NCol();
-        constexpr unsigned n_thread = (!TransB) ? b_thread_desc.NCol() : b_thread_desc.NRow();
-
-        constexpr unsigned num_threads_per_row   = (m_block + m_thread - 1) / m_thread;
-        constexpr unsigned num_threads_per_col   = (n_block + n_thread - 1) / n_thread;
-        constexpr unsigned num_threads_per_batch = num_threads_per_row * num_threads_per_col;
-
-        static_assert(BlockSize >= ((BatchSize + BatchPerThread - 1) / BatchPerThread) *
-                                       num_threads_per_batch,
-                      "not enough thread!");
-
-        const auto mtx_c_idnex = CalculateThreadMatrixCIndex(get_thread_local_id());
-
-        // mMyThreadOffsetA = xxx;
-        // mMyThreadoffSetB = xxx;
-#else
-        mMyThreadOffsetA = 0;
-        mMyThreadOffsetB = 0;
-#endif
+        mMyThreadOffsetB = c_thread_mtx_index.batch_begin * b_block_mtx.GetElementSpace() +
+                           ((!TransB) ? b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col_begin)
+                                      : b_block_mtx.Get1dIndex(c_thread_mtx_index.col_begin, 0));
     }
 
     __device__ MatrixIndex CalculateThreadMatrixCIndex(unsigned thread_id) const
     {
-#if 0
-        constexpr auto a_block = BlockMatrixA{};
-        constexpr auto b_block = BlockMatrixB{};
-        constexpr auto c_block = BlockMatrixC{};
 
-        constexpr auto a_thread = ThreadMatrixA{};
-        constexpr auto b_thread = ThreadMatrixB{};
-        constexpr auto c_thread = ThreadMatrixC{};
+        if(TransA && (!TransB) && (!TransC))
+        {
+            const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
+            const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
 
-        constexpr unsigned m_block = (!TransA) ? a_block.NRow() : a_block.NCol();
-        constexpr unsigned n_block = (!TransB) ? b_block.NCol() : b_block.NRow();
+            static_assert(a_block_mtx.NRow() == b_block_mtx.NRow(),
+                          "wrong! k dimension not consistent!");
 
-        constexpr unsigned m_thread = (!TransA) ? a_thread.NRow() : a_thread.NCol();
-        constexpr unsigned n_thread = (!TransB) ? b_thread.NCol() : b_thread.NRow();
+            constexpr unsigned MPerBlock = a_block_mtx.NCol();
+            constexpr unsigned NPerBlock = b_block_mtx.NCol();
 
-        constexpr unsigned num_threads_per_row   = (m_block + m_thread - 1) / m_thread;
-        constexpr unsigned num_threads_per_col   = (n_block + n_thread - 1) / n_thread;
-        constexpr unsigned num_threads_per_batch = num_threads_per_row * num_threads_per_col;
+            const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
 
-        // this is wrong, need fix
-        const unsigned batch_begin = thread_id / (num_threads_per_batch)*BatchPerThread;
-        const unsigned tmp = thread_id - batch_id * (num_threads_per_row * num_threads_per_col);
-        const unsigned thread_matrix_row_id = tmp / num_threads_per_row;
-        const unsigned thread_matrix_col_id = tmp - thread_matrix_row_id * num_threads_per_row;
+            // divide thread work
+            constexpr unsigned MPerThread = c_thread_mtx.NRow();
+            constexpr unsigned NPerThread = c_thread_mtx.NCol();
 
-        return MatrixIndex{
-            batch_begin, thread_matrix_row_id * m_thread, thread_matrix_col_id * n_thread};
-#else
-        return MatrixIndex{0, 0, 0};
-#endif
+            static_assert(BatchSize % BatchPerThread == 0, "BatchSize % BatchPerThread != 0");
+            static_assert(MPerBlock % MPerThread == 0, "MPerBlock % MPerThread != 0");
+            static_assert(NPerBlock % NPerThread == 0, "NPerBlock % NPerThread != 0");
+
+            constexpr unsigned BThreadWork = (BatchSize + BatchPerThread - 1) / BatchPerThread;
+            constexpr unsigned MThreadWork = (MPerBlock + MPerThread - 1) / MPerThread;
+            constexpr unsigned NThreadWork = (NPerBlock + NPerThread - 1) / NPerThread;
+
+            static_assert(BlockSize == BThreadWork * MThreadWork * NThreadWork,
+                          "wrong! wrong BlockSize");
+
+            // printf("%u %u, %u %u\n", get_block_1d_id(), get_thread_local_1d_id(), MThreadWork,
+            // NThreadWork);
+
+            if(DistributeThreadAlongColumnFirst)
+            {
+                // num of operations can be reduced
+                const unsigned b_work_id = thread_id / (MThreadWork * NThreadWork);
+                unsigned itmp            = thread_id - b_work_id * (MThreadWork * NThreadWork);
+                const unsigned m_work_id = itmp / NThreadWork;
+                const unsigned n_work_id = itmp - m_work_id * NThreadWork;
+
+                return MatrixIndex{
+                    b_work_id * BatchPerThread, m_work_id * MPerThread, n_work_id * NPerThread};
+            }
+            else
+            {
+                // not implemented
+                assert(false);
+            }
+        }
+        else
+        {
+            // not implemented
+            assert(false);
+        }
     }
 
-    template <class FloatA, class FloatB, class FloatC>
-    __device__ void run(FloatA* const p_a_block, FloatB* const p_b_block, FloatC* p_c_thread) const
+    template <class FloatA, class FloatB, class FloatC, class Accumulator>
+    __device__ void run(FloatA* const p_a_block,
+                        FloatB* const p_b_block,
+                        FloatC* p_c_thread,
+                        Accumulator f_accum) const
     {
-        // do something
+        if(TransA && (!TransB) && (!TransC))
+        {
+            constexpr auto True  = Constant<bool, true>{};
+            constexpr auto False = Constant<bool, false>{};
+
+            const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
+            const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
+            const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+
+            constexpr unsigned KPerBlock = a_block_mtx.NRow(); // A is transposed
+
+            constexpr unsigned MPerThread = c_thread_mtx.NRow();
+            constexpr unsigned NPerThread = c_thread_mtx.NCol();
+
+            // a is transposed, b is not
+            const auto a_thread_mtx = make_ConstantMatrixDescriptor(
+                Number<KPerThreadLoop>{}, Number<MPerThread>{}); // constexpr doesn't compile
+
+            const auto b_thread_mtx = make_ConstantMatrixDescriptor(
+                Number<KPerThreadLoop>{}, Number<NPerThread>{}); // constexpr doesn't compile
+
+            FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
+            FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
+
+            // loop over k
+            for(unsigned k_begin = 0; k_begin < KPerBlock; k_begin += KPerThreadLoop)
+            {
+                // read first batch of a, b
+                threadwise_matrix_copy(a_block_mtx,
+                                       p_a_block + mMyThreadOffsetA +
+                                           k_begin * a_block_mtx.RowStride(),
+                                       a_thread_mtx,
+                                       p_a_thread,
+                                       a_thread_mtx.GetLengths());
+
+                threadwise_matrix_copy(b_block_mtx,
+                                       p_b_block + mMyThreadOffsetB +
+                                           k_begin * b_block_mtx.RowStride(),
+                                       b_thread_mtx,
+                                       p_b_thread,
+                                       b_thread_mtx.GetLengths());
+
+                // loop over batch
+                for(unsigned ib = 0; ib + 1 < BatchPerThread; ++ib)
+                {
+                    // do current batch of gemm
+                    threadwise_gemm(a_thread_mtx,
+                                    True,
+                                    p_a_thread,
+                                    b_thread_mtx,
+                                    False,
+                                    p_b_thread,
+                                    c_thread_mtx,
+                                    False,
+                                    p_c_thread + ib * ThreadMatrixStrideC,
+                                    f_accum);
+
+                    // read next batch of a, b
+                    if(BlockMatrixStrideA != 0)
+                    {
+                        threadwise_matrix_copy(a_block_mtx,
+                                               p_a_block + mMyThreadOffsetA +
+                                                   (ib + 1) * BlockMatrixStrideA +
+                                                   +k_begin * a_block_mtx.RowStride(),
+                                               a_thread_mtx,
+                                               p_a_thread,
+                                               a_thread_mtx.GetLengths());
+                    }
+
+                    if(BlockMatrixStrideB != 0)
+                    {
+                        threadwise_matrix_copy(b_block_mtx,
+                                               p_b_block + mMyThreadOffsetB +
+                                                   (ib + 1) * BlockMatrixStrideB +
+                                                   k_begin * b_block_mtx.RowStride(),
+                                               b_thread_mtx,
+                                               p_b_thread,
+                                               b_thread_mtx.GetLengths());
+                    }
+                }
+
+                // do last batch of gemm
+                threadwise_gemm(a_thread_mtx,
+                                True,
+                                p_a_thread,
+                                b_thread_mtx,
+                                False,
+                                p_b_thread,
+                                c_thread_mtx,
+                                False,
+                                p_c_thread + (BatchPerThread - 1) * ThreadMatrixStrideC,
+                                f_accum);
+            }
+        }
     }
 };

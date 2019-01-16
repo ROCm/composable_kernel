@@ -16,21 +16,7 @@ struct GeneratorTensor_1
     template <class... Is>
     double operator()(Is... is)
     {
-#if 0
-        return double(std::rand()) / double(RAND_MAX);
-#elif 1
         return 1;
-#elif 0
-        std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
-        return std::accumulate(ls.begin(), ls.end(), std::size_t(0));
-#else
-        assert(sizeof...(Is) > 0);
-        std::initializer_list<std::size_t> ids = {static_cast<std::size_t>(is)...};
-        std::vector<std::size_t> lens(sizeof...(Is), 100);
-        std::vector<std::size_t> strides(sizeof...(Is), 1);
-        std::partial_sum(lens.rbegin(), lens.rbegin() + (sizeof...(Is) - 1), strides.rbegin() + 1);
-        return std::inner_product(ids.begin(), ids.end(), strides.begin(), std::size_t(0)) + 1;
-#endif
     }
 };
 
@@ -43,6 +29,25 @@ struct GeneratorTensor_2
     double operator()(Is...)
     {
         return (std::rand() % (max_value - min_value)) + min_value;
+    }
+};
+
+struct GeneratorTensor_3
+{
+    template <class... Is>
+    double operator()(Is... is)
+    {
+#if 0
+        std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
+        return std::accumulate(ls.begin(), ls.end(), std::size_t(0));
+#elif 1
+        assert(sizeof...(Is) > 0);
+        std::initializer_list<std::size_t> ids = {static_cast<std::size_t>(is)...};
+        std::vector<std::size_t> lens(sizeof...(Is), 100);
+        std::vector<std::size_t> strides(sizeof...(Is), 1);
+        std::partial_sum(lens.rbegin(), lens.rbegin() + (sizeof...(Is) - 1), strides.rbegin() + 1);
+        return std::inner_product(ids.begin(), ids.end(), strides.begin(), std::size_t(0)) + 1;
+#endif
     }
 };
 
@@ -338,7 +343,7 @@ int main()
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 0
+#elif 1
     constexpr unsigned N = 1;
     constexpr unsigned C = 1;
     constexpr unsigned HI = 34;
@@ -347,21 +352,21 @@ int main()
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
 #elif 1
-    constexpr unsigned N = 64;
-    constexpr unsigned C = 256;
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 256;
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
-    constexpr unsigned K = 64;
-    constexpr unsigned S = 3;
-    constexpr unsigned R = 3;
+    constexpr unsigned K  = 64;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 0
-    constexpr unsigned N = 64;
-    constexpr unsigned C = 64;
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 64;
     constexpr unsigned HI = 56;
     constexpr unsigned WI = 56;
-    constexpr unsigned K = 64;
-    constexpr unsigned S = 3;
-    constexpr unsigned R = 3;
+    constexpr unsigned K  = 64;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 0
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 64;
@@ -374,34 +379,51 @@ int main()
 
     auto in_nchw_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
     auto wei_kcsr_desc = make_ConstantTensorDescriptor(Sequence<K, C, S, R>{});
-    auto wei_srck_desc = make_ConstantTensorDescriptor(Sequence<S, R, C, K>{});
     auto out_nkhw_desc =
         get_convolution_output_default_4d_tensor_descriptor(in_nchw_desc, wei_kcsr_desc);
 
     ostream_ConstantTensorDescriptor(in_nchw_desc, std::cout << "in_nchw_desc: ");
     ostream_ConstantTensorDescriptor(wei_kcsr_desc, std::cout << "wei_kcsr_desc: ");
-    ostream_ConstantTensorDescriptor(wei_srck_desc, std::cout << "wei_srck_desc: ");
     ostream_ConstantTensorDescriptor(out_nkhw_desc, std::cout << "out_nkhw_desc: ");
 
     Tensor<float> in_nchw(make_TensorDescriptor(in_nchw_desc));
     Tensor<float> wei_kcsr(make_TensorDescriptor(wei_kcsr_desc));
-    Tensor<float> wei_srck(make_TensorDescriptor(wei_srck_desc));
     Tensor<float> out_nkhw_host(make_TensorDescriptor(out_nkhw_desc));
     Tensor<float> out_nkhw_device(make_TensorDescriptor(out_nkhw_desc));
 
-#if 0
     std::size_t num_thread = std::thread::hardware_concurrency();
+
+#if 0
     in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-    wei_srck.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-#elif 1
-    std::size_t num_thread = std::thread::hardware_concurrency();
+#elif 0
     in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-    wei_srck.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+#elif 0
+    in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+    wei_kcsr.GenerateTensorValue(GeneratorTensor_3{}, num_thread);
+#elif 1
+    in_nchw.GenerateTensorValue(GeneratorTensor_3{}, num_thread);
+    wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #endif
 
-    for(int i = 0; i < 40; ++i)
+#if 1
+    auto wei_srck_desc = make_ConstantTensorDescriptor(Sequence<S, R, C, K>{});
+    Tensor<float> wei_srck(make_TensorDescriptor(wei_srck_desc));
+
+    auto f_reorder_kcsr2srck = [&](auto k, auto c, auto s, auto r) {
+        wei_srck(s, r, c, k) = wei_kcsr(k, c, s, r);
+    };
+
+    make_ParallelTensorFunctor(f_reorder_kcsr2srck, K, C, S, R)(num_thread);
+#endif
+
+#if 0
+    wei_srck.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+    out_nkhw_device.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+#endif
+
+    for(int i = 0; i < 1; ++i)
     {
 #if 0
         device_direct_convolution_1(in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
@@ -428,7 +450,7 @@ int main()
     check_error(out_nkhw_host, out_nkhw_device);
 #endif
 
-#if 0
+#if 1
     LogRange(std::cout << "in_nchw : ", in_nchw.mData, ",") << std::endl;
     LogRange(std::cout << "wei_kcsr: ", wei_kcsr.mData, ",") << std::endl;
     LogRange(std::cout << "out_nkhw_host  : ", out_nkhw_host.mData, ",") << std::endl;
