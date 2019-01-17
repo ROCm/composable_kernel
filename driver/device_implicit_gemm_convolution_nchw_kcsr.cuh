@@ -38,20 +38,20 @@ void device_implicit_gemm_convolution_nchw_kcsr(
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 16;
-#elif 0
-    constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 32;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
+#elif 1
+    constexpr unsigned NPerBlock  = 1;
+    constexpr unsigned KPerBlock  = 64;
+    constexpr unsigned CPerBlock  = 2;
+    constexpr unsigned HoPerBlock = 4;
     constexpr unsigned WoPerBlock = 32;
 
-    constexpr unsigned KPerThread  = 4;
-    constexpr unsigned CPerThread  = 2;
+    constexpr unsigned KPerThread  = 16;
+    constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 2;
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     constexpr unsigned NPerBlock  = 1;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 4;
