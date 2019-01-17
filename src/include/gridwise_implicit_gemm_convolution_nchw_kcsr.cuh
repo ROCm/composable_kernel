@@ -185,7 +185,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
                                             in_nchw_block_desc.GetLengths());
 #endif
 
-#if 0
+#if 1
         // weight: global mem to LDS,
         //   convert [K,C,S,R] to [S,R,C,K]
         blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
@@ -238,7 +238,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
     const unsigned k_thread_data_begin  = matrix_c_index.row_begin;
     const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerThread;
 
-#if 0
+#if 1
     // output: register to global mem,
     //   convert out_thread[Ho,K,Wo,N] to out_global[N,K,Ho,Wo]
     constexpr auto reorder_nkhw_from_hkwn = Sequence<3, 1, 0, 2>{};

@@ -404,7 +404,7 @@ int main()
 #elif 1
         device_implicit_gemm_convolution_nchw_kcsr(
             in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
-#elif 0
+#elif 1
         device_implicit_gemm_convolution_nchw_srck(
             in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
 #elif 0
