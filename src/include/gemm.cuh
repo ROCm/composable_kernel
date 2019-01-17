@@ -105,13 +105,24 @@ struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
 
         const auto c_thread_mtx_index = CalculateThreadMatrixCIndex(get_thread_local_1d_id());
 
-        mMyThreadOffsetA = c_thread_mtx_index.batch_begin * a_block_mtx.GetElementSpace() +
+        mMyThreadOffsetA = c_thread_mtx_index.batch_begin * BlockMatrixStrideA +
                            ((!TransA) ? a_block_mtx.Get1dIndex(c_thread_mtx_index.row_begin, 0)
                                       : a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row_begin));
 
-        mMyThreadOffsetB = c_thread_mtx_index.batch_begin * b_block_mtx.GetElementSpace() +
+        mMyThreadOffsetB = c_thread_mtx_index.batch_begin * BlockMatrixStrideB +
                            ((!TransB) ? b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col_begin)
                                       : b_block_mtx.Get1dIndex(c_thread_mtx_index.col_begin, 0));
+
+#if 0
+        printf("%u %u, %u %u %u, %u %u\n",
+               get_block_1d_id(),
+               get_thread_local_1d_id(),
+               c_thread_mtx_index.batch_begin,
+               c_thread_mtx_index.row_begin,
+               c_thread_mtx_index.col_begin,
+               mMyThreadOffsetA,
+               mMyThreadOffsetB);
+#endif
     }
 
     __device__ MatrixIndex CalculateThreadMatrixCIndex(unsigned thread_id) const

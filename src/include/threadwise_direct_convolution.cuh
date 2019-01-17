@@ -151,6 +151,7 @@ __device__ void threadwise_direct_convolution_3(InDesc,
                                                in_w_new_read>{});
 
 #if 0
+    // this verison reused old input data in register, and read new data from LDS
     // loop over vertical direction
     for(unsigned s = 0; s < wei_desc.GetLength(I2); ++s)
     {
@@ -200,6 +201,7 @@ __device__ void threadwise_direct_convolution_3(InDesc,
         }
     }
 #elif 1
+    // this version read all input from LDS when filter moves
     // loop over vertical direction
     for(unsigned s = 0; s < wei_desc.GetLength(I2); ++s)
     {

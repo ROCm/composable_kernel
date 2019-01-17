@@ -389,7 +389,7 @@ int main()
 #if 0
     in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-#elif 1
+#elif 0
     in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
 #endif
@@ -413,7 +413,7 @@ int main()
 #endif
     }
 
-#if 1
+#if 0
     host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host);
     check_error(out_nkhw_host, out_nkhw_device);
 #elif 0
