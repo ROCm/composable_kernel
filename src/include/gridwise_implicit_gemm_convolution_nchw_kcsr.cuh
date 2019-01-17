@@ -84,6 +84,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
         print_ConstantTensorDescriptor(in_nchw_block_desc, "in_nchw_block_desc");
         print_ConstantTensorDescriptor(in_chwn_block_desc, "in_chwn_block_desc");
 
+        print_ConstantTensorDescriptor(wei_kcsr_block_desc, "wei_kcsr_block_desc");
         print_ConstantTensorDescriptor(wei_srck_block_desc, "wei_srck_block_desc");
 
         print_ConstantTensorDescriptor(out_hkwn_thread_desc, "out_hkwn_thread_desc");
@@ -184,7 +185,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
                                             in_nchw_block_desc.GetLengths());
 #endif
 
-#if 1
+#if 0
         // weight: global mem to LDS,
         //   convert [K,C,S,R] to [S,R,C,K]
         blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
@@ -209,6 +210,7 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
 
         __syncthreads();
 
+#if 1
         // a series of batched GEMM
         for(unsigned s = 0; s < S; ++s)
         {
@@ -222,16 +224,21 @@ __global__ void gridwise_implicit_gemm_convolution_nchw_kcsr(InGlobalDesc,
                                          f_accum);
             }
         }
+#endif
     }
 
     const auto matrix_c_index =
         blockwise_batch_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
 
+#if 0
+    printf("%u %u, %u %u %u\n",get_block_1d_id(), get_thread_local_1d_id(), matrix_c_index.batch_begin, matrix_c_index.row_begin, matrix_c_index.col_begin);
+#endif
+
     const unsigned ho_thread_data_begin = matrix_c_index.batch_begin;
     const unsigned k_thread_data_begin  = matrix_c_index.row_begin;
     const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerThread;
 
-#if 1
+#if 0
     // output: register to global mem,
     //   convert out_thread[Ho,K,Wo,N] to out_global[N,K,Ho,Wo]
     constexpr auto reorder_nkhw_from_hkwn = Sequence<3, 1, 0, 2>{};
