@@ -67,29 +67,29 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     Tensor<T> out_knhw(make_TensorDescriptor(out_knhw_desc));
 
 #if 0
-    constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 4;
+    constexpr unsigned BPerBlock = 256;
+    constexpr unsigned KPerBlock = 1;
     constexpr unsigned CPerBlock = 1;
 
-    constexpr unsigned BPerThread = 4;
+    constexpr unsigned BPerThread = 8;
     constexpr unsigned KPerThread = 1;
     constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned ThreadPerClusterRow    = 4;
-    constexpr unsigned ThreadPerClusterColumn = 16;
+    constexpr unsigned ThreadPerClusterRow    = 1;
+    constexpr unsigned ThreadPerClusterColumn = 4;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr unsigned BlockSize = 32;
 #elif 1
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 2;
 
-    constexpr unsigned BPerThread = 4;
-    constexpr unsigned KPerThread = 16;
+    constexpr unsigned BPerThread = 8;
+    constexpr unsigned KPerThread = 8;
     constexpr unsigned CPerThread = 1;
 
     constexpr unsigned ThreadPerClusterRow    = 4;
-    constexpr unsigned ThreadPerClusterColumn = 16;
+    constexpr unsigned ThreadPerClusterColumn = 4;
 
     constexpr unsigned BlockSize = 128;
 #endif

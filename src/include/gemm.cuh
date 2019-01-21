@@ -388,9 +388,9 @@ struct blockwise_gemm_block_a_block_b_thread_c
                 const unsigned thread_work_cluster_id =
                     thread_id - cluster_work_block_id * (MThreadPerCluster * NThreadPerCluster);
 
-                const unsigned m_cluster_work_block_id = cluster_work_block_id / NThreadPerCluster;
+                const unsigned m_cluster_work_block_id = cluster_work_block_id / NClusterWork;
                 const unsigned n_cluster_work_block_id =
-                    cluster_work_block_id - m_cluster_work_block_id * NThreadPerCluster;
+                    cluster_work_block_id - m_cluster_work_block_id * NClusterWork;
 
                 const unsigned m_thread_work_cluster_id =
                     thread_work_cluster_id / NThreadPerCluster;
@@ -401,12 +401,12 @@ struct blockwise_gemm_block_a_block_b_thread_c
                 if(get_block_1d_id() == 0)
                 {
                     printf("%u %u, \t"
-                         //"MClusterWork %u MThreadPerCluster %u NClusterWork %u NThreadPerCluster %u \t"
+                           "MClusterWork %u MThreadPerCluster %u NClusterWork %u NThreadPerCluster %u \t"
                            "m_cluster_work_block_id %u n_cluster_work_block_id %u \t"
                            "m_thread_work_cluster_id %u n_thread_work_cluster_id %u \t"
                             "\n",
                             get_block_1d_id(), get_thread_local_1d_id(),
-                          //MClusterWork, MThreadPerCluster, NClusterWork, NThreadPerCluster,
+                            MClusterWork, MThreadPerCluster, NClusterWork, NThreadPerCluster,
                             m_cluster_work_block_id, n_cluster_work_block_id,
                             m_thread_work_cluster_id, n_thread_work_cluster_id);
                 }
