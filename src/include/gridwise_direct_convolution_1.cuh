@@ -1,6 +1,6 @@
 #pragma once
 #include "ConstantTensorDescriptor.cuh"
-#include "blockwise_tensor_op.cuh"
+#include "blockwise_4d_tensor_op.cuh"
 #include "blockwise_direct_convolution.cuh"
 
 template <class Float,

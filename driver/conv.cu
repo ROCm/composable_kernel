@@ -8,8 +8,9 @@
 #include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-#include "device_implicit_gemm_convolution_nchw_kcsr.cuh"
-#include "device_implicit_gemm_convolution_nchw_srck.cuh"
+#include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
+#include "device_implicit_gemm_convolution_1_nchw_srck.cuh"
+#include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
 //#include "device_winograd_convolution.cuh"
 
 struct GeneratorTensor_1
@@ -49,6 +50,21 @@ struct GeneratorTensor_3
         std::partial_sum(lens.rbegin(), lens.rbegin() + (sizeof...(Is) - 1), strides.rbegin() + 1);
         return std::inner_product(ids.begin(), ids.end(), strides.begin(), std::size_t(0)) + 1;
 #endif
+    }
+};
+
+struct GeneratorTensor_Checkboard
+{
+    template <class... Ts>
+    double operator()(Ts... Xs) const
+    {
+        std::array<unsigned long, sizeof...(Ts)> dims = {{Xs...}};
+        return std::accumulate(dims.begin(),
+                               dims.end(),
+                               true,
+                               [](bool init, unsigned long x) -> int { return init != (x % 2); })
+                   ? 1
+                   : -1;
     }
 };
 
@@ -337,13 +353,13 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 int main()
 {
 #if 0
-    constexpr unsigned N = 1;
-    constexpr unsigned C = 1;
+    constexpr unsigned N  = 1;
+    constexpr unsigned C  = 2;
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
-    constexpr unsigned K = 1;
-    constexpr unsigned S = 3;
-    constexpr unsigned R = 3;
+    constexpr unsigned K  = 2;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 1
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
@@ -389,31 +405,29 @@ int main()
 #if 0
     in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-#elif 0
+#elif 1
     in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
 #endif
 
-    for(int i = 0; i < 40; ++i)
-    {
-#if 0
-        device_direct_convolution_1(in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
-#elif 0
-        device_direct_convolution_2(
-            in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
-#elif 1
-        device_implicit_gemm_convolution_nchw_kcsr(
-            in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
-#elif 1
-        device_implicit_gemm_convolution_nchw_srck(
-            in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
-#elif 0
-        device_winograd_convolution(
-            in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device);
-#endif
-    }
+    unsigned nrepeat = 100;
 
 #if 0
+    device_direct_convolution_1
+#elif 0
+    device_direct_convolution_2
+#elif 0
+    device_implicit_gemm_convolution_1_nchw_kcsr
+#elif 0
+    device_implicit_gemm_convolution_1_nchw_srck
+#elif 1
+    device_implicit_gemm_convolution_2_cnhw_srck_knhw
+#elif 0
+    device_winograd_convolution
+#endif
+    (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
+
+#if 1
     host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host);
     check_error(out_nkhw_host, out_nkhw_device);
 #elif 0

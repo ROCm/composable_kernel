@@ -1,6 +1,6 @@
 #pragma once
 #include "ConstantTensorDescriptor.cuh"
-#include "threadwise_tensor_op.cuh"
+#include "threadwise_4d_tensor_op.cuh"
 #include "threadwise_direct_convolution.cuh"
 
 template <unsigned BlockSize,

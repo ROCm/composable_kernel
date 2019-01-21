@@ -1,13 +1,13 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_nchw_srck.cuh"
+#include "gridwise_implicit_gemm_convolution_1_nchw_srck.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_implicit_gemm_convolution_nchw_srck(InDesc,
-                                                const Tensor<T>& in_nchw,
-                                                WeiDesc,
-                                                const Tensor<T>& wei_kcsr,
-                                                OutDesc,
-                                                Tensor<T>& out_nkhw)
+void device_implicit_gemm_convolution_1_nchw_srck(InDesc,
+                                                  const Tensor<T>& in_nchw,
+                                                  WeiDesc,
+                                                  const Tensor<T>& wei_kcsr,
+                                                  OutDesc,
+                                                  Tensor<T>& out_nkhw)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -89,6 +89,19 @@ void device_implicit_gemm_convolution_nchw_srck(InDesc,
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
+#elif 0
+    constexpr unsigned NPerBlock  = 2;
+    constexpr unsigned KPerBlock  = 64;
+    constexpr unsigned CPerBlock  = 2;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 32;
+
+    constexpr unsigned KPerThread  = 16;
+    constexpr unsigned CPerThread  = 1;
+    constexpr unsigned HoPerThread = 2;
+    constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned BlockSize = 128;
 #endif
 
     constexpr unsigned GridSize =
@@ -106,21 +119,21 @@ void device_implicit_gemm_convolution_nchw_srck(InDesc,
     cudaEventCreate(&start);
     cudaEventRecord(start, 0);
 
-    gridwise_implicit_gemm_convolution_nchw_srck<GridSize,
-                                                 BlockSize,
-                                                 T,
-                                                 decltype(in_nchw_desc),
-                                                 decltype(wei_srck_desc),
-                                                 decltype(out_nkhw_desc),
-                                                 NPerBlock,
-                                                 KPerBlock,
-                                                 CPerBlock,
-                                                 HoPerBlock,
-                                                 WoPerBlock,
-                                                 KPerThread,
-                                                 CPerThread,
-                                                 HoPerThread,
-                                                 WoPerThread>
+    gridwise_implicit_gemm_convolution_1_nchw_srck<GridSize,
+                                                   BlockSize,
+                                                   T,
+                                                   decltype(in_nchw_desc),
+                                                   decltype(wei_srck_desc),
+                                                   decltype(out_nkhw_desc),
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   CPerBlock,
+                                                   HoPerBlock,
+                                                   WoPerBlock,
+                                                   KPerThread,
+                                                   CPerThread,
+                                                   HoPerThread,
+                                                   WoPerThread>
         <<<grid_dim, block_dim>>>(in_nchw_desc,
                                   static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
                                   wei_srck_desc,
