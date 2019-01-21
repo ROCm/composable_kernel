@@ -354,10 +354,10 @@ int main()
 {
 #if 0
     constexpr unsigned N  = 1;
-    constexpr unsigned C  = 2;
+    constexpr unsigned C  = 1;
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
-    constexpr unsigned K  = 2;
+    constexpr unsigned K  = 4;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
 #elif 1
@@ -418,7 +418,7 @@ int main()
     device_direct_convolution_2
 #elif 0
     device_implicit_gemm_convolution_1_nchw_kcsr
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 1
     device_implicit_gemm_convolution_2_cnhw_srck_knhw

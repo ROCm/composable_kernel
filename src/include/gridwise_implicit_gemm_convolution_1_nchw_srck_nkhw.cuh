@@ -23,11 +23,11 @@ template <unsigned GridSize,
           unsigned WoPerThread>
 __global__ void
 gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
-                                               Float* const __restrict__ p_in_global,
-                                               WeiGlobalDesc,
-                                               Float* const __restrict__ p_wei_global,
-                                               OutGlobalDesc,
-                                               Float* __restrict__ p_out_global)
+                                                    Float* const __restrict__ p_in_global,
+                                                    WeiGlobalDesc,
+                                                    Float* const __restrict__ p_wei_global,
+                                                    OutGlobalDesc,
+                                                    Float* __restrict__ p_out_global)
 {
     // NPerThread == NPerBlock, because the format of input in LDS [C,Hi,Wi,N]
     //   for GEMM trans([C,K]) * [C,Wo*N], we need a thread to do all the "N"

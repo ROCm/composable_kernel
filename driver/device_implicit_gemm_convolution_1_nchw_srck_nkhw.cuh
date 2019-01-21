@@ -4,12 +4,12 @@
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
-                                                  const Tensor<T>& in_nchw,
-                                                  WeiDesc,
-                                                  const Tensor<T>& wei_kcsr,
-                                                  OutDesc,
-                                                  Tensor<T>& out_nkhw,
-                                                  unsigned nrepeat)
+                                                       const Tensor<T>& in_nchw,
+                                                       WeiDesc,
+                                                       const Tensor<T>& wei_kcsr,
+                                                       OutDesc,
+                                                       Tensor<T>& out_nkhw,
+                                                       unsigned nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -104,7 +104,7 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     constexpr unsigned NPerBlock  = 2;
     constexpr unsigned KPerBlock  = 32;
     constexpr unsigned CPerBlock  = 4;
@@ -137,20 +137,20 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
         cudaEventRecord(start, 0);
 
         gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw<GridSize,
-                                                       BlockSize,
-                                                       T,
-                                                       decltype(in_nchw_desc),
-                                                       decltype(wei_srck_desc),
-                                                       decltype(out_nkhw_desc),
-                                                       NPerBlock,
-                                                       KPerBlock,
-                                                       CPerBlock,
-                                                       HoPerBlock,
-                                                       WoPerBlock,
-                                                       KPerThread,
-                                                       CPerThread,
-                                                       HoPerThread,
-                                                       WoPerThread>
+                                                            BlockSize,
+                                                            T,
+                                                            decltype(in_nchw_desc),
+                                                            decltype(wei_srck_desc),
+                                                            decltype(out_nkhw_desc),
+                                                            NPerBlock,
+                                                            KPerBlock,
+                                                            CPerBlock,
+                                                            HoPerBlock,
+                                                            WoPerBlock,
+                                                            KPerThread,
+                                                            CPerThread,
+                                                            HoPerThread,
+                                                            WoPerThread>
             <<<grid_dim, block_dim>>>(in_nchw_desc,
                                       static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
                                       wei_srck_desc,
@@ -165,9 +165,8 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
         cudaEventElapsedTime(&elapsedTime, start, stop);
         printf("Elapsed time : %f ms\n", elapsedTime);
 
-        usleep(10);
+        usleep(10000);
     }
-
 
     checkCudaErrors(cudaGetLastError());
     out_nkhw_device_buf.FromDevice(out_nkhw.mData.data());
