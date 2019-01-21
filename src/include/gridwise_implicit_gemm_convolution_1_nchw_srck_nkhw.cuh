@@ -22,7 +22,7 @@ template <unsigned GridSize,
           unsigned HoPerThread,
           unsigned WoPerThread>
 __global__ void
-gridwise_implicit_gemm_convolution_1_nchw_srck(InGlobalDesc,
+gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
                                                Float* const __restrict__ p_in_global,
                                                WeiGlobalDesc,
                                                Float* const __restrict__ p_wei_global,
