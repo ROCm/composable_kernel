@@ -20,7 +20,8 @@ template <unsigned GridSize,
           unsigned BPerThread,
           unsigned KPerThread,
           unsigned CPerThread,
-          unsigned BPerBatch>
+          unsigned ThreadPerClusterRow,
+          unsigned ThreadPerClusterColumn>
 __global__ void
 gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
                                                     Float* const __restrict__ p_in_global,
@@ -112,31 +113,26 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
     const auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
         Number<CPerBlock>{}, Number<KPerBlock>{}); // constexpr doesn't compile
 
-    static_assert(BPerBlock % BPerBatch == 0 && BPerBatch % BPerThread == 0, "B cannot be evenly divided\n");
-
     const auto b_cxb_block_mtx_desc = make_ConstantMatrixDescriptor(
         Number<CPerBlock>{},
-        Number<BPerBatch>{},
+        Number<BPerBlock>{},
         Number<in_cb_block_desc.GetStride(I0)>{}); // constexpr doesn't compile
 
     const auto c_kxb_thread_mtx_desc = make_ConstantMatrixDescriptor(
         Number<KPerThread>{}, Number<BPerThread>{}); // constexpr doesn't compile
 
-    const auto blockwise_batched_gemm =
-        blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c<BlockSize,
-                                                                   decltype(a_cxk_block_mtx_desc),
-                                                                   decltype(b_cxb_block_mtx_desc),
-                                                                   decltype(c_kxb_thread_mtx_desc),
-                                                                   true,
-                                                                   false,
-                                                                   false,
-                                                                   0,
-                                                                   BPerBatch,
-                                                                   0,
-                                                                   BPerBlock/BPerBatch,
-                                                                   1,
-                                                                   CPerThread,
-                                                                   true>{};
+    const auto blockwise_gemm =
+        blockwise_gemm_block_a_block_b_thread_c<BlockSize,
+                                                decltype(a_cxk_block_mtx_desc),
+                                                decltype(b_cxb_block_mtx_desc),
+                                                decltype(c_kxb_thread_mtx_desc),
+                                                true,
+                                                false,
+                                                false,
+                                                CPerThread,
+                                                ThreadPerClusterRow,
+                                                ThreadPerClusterColumn,
+                                                true>{};
 
     // LDS
     constexpr unsigned in_block_size  = in_cb_block_desc.GetElementSpace();
@@ -175,6 +171,7 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
 
         __syncthreads();
 
+#if 1
         // a series of GEMM
         for(unsigned s = 0; s < S; ++s)
         {
@@ -182,31 +179,31 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
             {
                 auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
 
-                blockwise_batched_gemm.run(p_wei_block + wei_srck_block_desc.Get1dIndex(s, r, 0, 0),
+                blockwise_gemm.run(p_wei_block + wei_srck_block_desc.Get1dIndex(s, r, 0, 0),
                                    p_in_block + s * Wi + r,
                                    p_out_thread,
                                    f_accum);
             }
         }
+#endif
     }
 
     // output: register to global mem,
     const auto matrix_c_index =
-        blockwise_batched_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
+        blockwise_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
 
     const unsigned k_thread_data_begin = matrix_c_index.row_begin;
-    const unsigned b_thread_data_begin = matrix_c_index.batch_begin * BPerBatch + matrix_c_index.col_begin;
+    const unsigned b_thread_data_begin = matrix_c_index.col_begin;
 
     const unsigned k_data_begin = k_block_data_begin + k_thread_data_begin;
     const unsigned b_data_begin = b_block_data_begin + b_thread_data_begin;
 
 #if 0
-  //if(get_block_1d_id() == 10)
+    if(get_block_1d_id() == 0)
     {
-        printf("%u %u, batch_begin %u row_begin %u col_begin %u, k_data_begin %u b_data_begin %u, %f %f %f %f\n",
+        printf("%u %u, row_begin %u col_begin %u, k_data_begin %u b_data_begin %u, %f %f %f %f\n",
                get_block_1d_id(),
                get_thread_local_1d_id(),
-               matrix_c_index.batch_begin,
                matrix_c_index.row_begin,
                matrix_c_index.col_begin,
                k_data_begin,
@@ -228,7 +225,7 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
             unsigned w_data = itmp - h_data * Wi;
 
 #if 0
-            if(get_block_1d_id() == 10)
+            if(get_block_1d_id() == 0)
             {
                 printf("%u %u, k %u b %u, k_data %u n_data %u h_data %u w_data %u %f\n",
                        get_block_1d_id(),

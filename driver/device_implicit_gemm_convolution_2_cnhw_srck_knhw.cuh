@@ -1,5 +1,6 @@
 #pragma once
 #include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
+#include <unistd.h>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
@@ -67,34 +68,28 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
 
 #if 0
     constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 1;
+    constexpr unsigned KPerBlock = 4;
     constexpr unsigned CPerBlock = 1;
 
     constexpr unsigned BPerThread = 4;
     constexpr unsigned KPerThread = 1;
     constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned BlockSize = 32;
-#elif 0
-    constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 2;
-    constexpr unsigned CPerBlock = 2;
+    constexpr unsigned ThreadPerClusterRow    = 4;
+    constexpr unsigned ThreadPerClusterColumn = 16;
 
-    constexpr unsigned BPerThread = 4;
-    constexpr unsigned KPerThread = 2;
-    constexpr unsigned CPerThread = 1;
-
-    constexpr unsigned BlockSize = 32;
+    constexpr unsigned BlockSize = 128;
 #elif 1
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 2;
 
-    constexpr unsigned BPerBatch = 32;
-
     constexpr unsigned BPerThread = 4;
     constexpr unsigned KPerThread = 16;
     constexpr unsigned CPerThread = 1;
+
+    constexpr unsigned ThreadPerClusterRow    = 4;
+    constexpr unsigned ThreadPerClusterColumn = 16;
 
     constexpr unsigned BlockSize = 128;
 #endif
@@ -137,7 +132,8 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
                                                             BPerThread,
                                                             KPerThread,
                                                             CPerThread,
-                                                            BPerBatch>
+                                                            ThreadPerClusterRow,
+                                                            ThreadPerClusterColumn>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,
                                       static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
                                       wei_srck_desc,
@@ -151,6 +147,8 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
 
         cudaEventElapsedTime(&elapsedTime, start, stop);
         printf("Elapsed time : %f ms\n", elapsedTime);
+
+        usleep(10000);
     }
 
     checkCudaErrors(cudaGetLastError());
