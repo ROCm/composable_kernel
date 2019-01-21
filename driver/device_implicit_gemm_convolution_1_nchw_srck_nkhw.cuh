@@ -1,13 +1,15 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_1_nchw_srck.cuh"
+#include "gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
+#include <unistd.h>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_implicit_gemm_convolution_1_nchw_srck(InDesc,
+void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
                                                   const Tensor<T>& in_nchw,
                                                   WeiDesc,
                                                   const Tensor<T>& wei_kcsr,
                                                   OutDesc,
-                                                  Tensor<T>& out_nkhw)
+                                                  Tensor<T>& out_nkhw,
+                                                  unsigned nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -102,6 +104,19 @@ void device_implicit_gemm_convolution_1_nchw_srck(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
+#elif 1
+    constexpr unsigned NPerBlock  = 2;
+    constexpr unsigned KPerBlock  = 32;
+    constexpr unsigned CPerBlock  = 4;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 32;
+
+    constexpr unsigned KPerThread  = 4;
+    constexpr unsigned CPerThread  = 2;
+    constexpr unsigned HoPerThread = 2;
+    constexpr unsigned WoPerThread = 2;
+
+    constexpr unsigned BlockSize = 128;
 #endif
 
     constexpr unsigned GridSize =
@@ -113,40 +128,46 @@ void device_implicit_gemm_convolution_1_nchw_srck(InDesc,
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    cudaEvent_t start, stop;
-    float elapsedTime;
+    for(unsigned i = 0; i < nrepeat; ++i)
+    {
+        cudaEvent_t start, stop;
+        float elapsedTime;
 
-    cudaEventCreate(&start);
-    cudaEventRecord(start, 0);
+        cudaEventCreate(&start);
+        cudaEventRecord(start, 0);
 
-    gridwise_implicit_gemm_convolution_1_nchw_srck<GridSize,
-                                                   BlockSize,
-                                                   T,
-                                                   decltype(in_nchw_desc),
-                                                   decltype(wei_srck_desc),
-                                                   decltype(out_nkhw_desc),
-                                                   NPerBlock,
-                                                   KPerBlock,
-                                                   CPerBlock,
-                                                   HoPerBlock,
-                                                   WoPerBlock,
-                                                   KPerThread,
-                                                   CPerThread,
-                                                   HoPerThread,
-                                                   WoPerThread>
-        <<<grid_dim, block_dim>>>(in_nchw_desc,
-                                  static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
-                                  wei_srck_desc,
-                                  static_cast<T*>(wei_srck_device_buf.GetDeviceBuffer()),
-                                  out_nkhw_desc,
-                                  static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+        gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw<GridSize,
+                                                       BlockSize,
+                                                       T,
+                                                       decltype(in_nchw_desc),
+                                                       decltype(wei_srck_desc),
+                                                       decltype(out_nkhw_desc),
+                                                       NPerBlock,
+                                                       KPerBlock,
+                                                       CPerBlock,
+                                                       HoPerBlock,
+                                                       WoPerBlock,
+                                                       KPerThread,
+                                                       CPerThread,
+                                                       HoPerThread,
+                                                       WoPerThread>
+            <<<grid_dim, block_dim>>>(in_nchw_desc,
+                                      static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
+                                      wei_srck_desc,
+                                      static_cast<T*>(wei_srck_device_buf.GetDeviceBuffer()),
+                                      out_nkhw_desc,
+                                      static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
 
-    cudaEventCreate(&stop);
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
+        cudaEventCreate(&stop);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
 
-    cudaEventElapsedTime(&elapsedTime, start, stop);
-    printf("Elapsed time : %f ms\n", elapsedTime);
+        cudaEventElapsedTime(&elapsedTime, start, stop);
+        printf("Elapsed time : %f ms\n", elapsedTime);
+
+        usleep(10);
+    }
+
 
     checkCudaErrors(cudaGetLastError());
     out_nkhw_device_buf.FromDevice(out_nkhw.mData.data());

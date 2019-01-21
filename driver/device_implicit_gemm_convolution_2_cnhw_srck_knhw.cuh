@@ -90,6 +90,8 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 2;
 
+    constexpr unsigned BPerBatch = 32;
+
     constexpr unsigned BPerThread = 4;
     constexpr unsigned KPerThread = 16;
     constexpr unsigned CPerThread = 1;
@@ -134,7 +136,8 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
                                                             CPerBlock,
                                                             BPerThread,
                                                             KPerThread,
-                                                            CPerThread>
+                                                            CPerThread,
+                                                            BPerBatch>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,
                                       static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
                                       wei_srck_desc,

@@ -9,7 +9,7 @@
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
 #include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
-#include "device_implicit_gemm_convolution_1_nchw_srck.cuh"
+#include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
 #include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
 //#include "device_winograd_convolution.cuh"
 
@@ -418,8 +418,8 @@ int main()
     device_direct_convolution_2
 #elif 0
     device_implicit_gemm_convolution_1_nchw_kcsr
-#elif 0
-    device_implicit_gemm_convolution_1_nchw_srck
+#elif 1
+    device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 1
     device_implicit_gemm_convolution_2_cnhw_srck_knhw
 #elif 0
