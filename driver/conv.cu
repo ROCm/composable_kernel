@@ -357,7 +357,7 @@ int main()
     constexpr unsigned C  = 1;
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
-    constexpr unsigned K  = 4;
+    constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
 #elif 1

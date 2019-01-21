@@ -239,10 +239,13 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
                        p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)]);
             }
 #endif
-            if(k_data < K && n_data < N && h_data < Ho && w_data < Wo)
+            if(n_data < N && h_data < Ho && w_data < Wo)
             {
+#if 1
                 p_out_global[out_knhw_global_desc.Get1dIndex(k_data, n_data, h_data, w_data)] =
                     p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)];
+#endif
+
 #if 0
                 if(get_block_1d_id() == 0)
                 {
