@@ -1,8 +1,8 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_nchw_kcsr.cuh"
+#include "gridwise_implicit_gemm_convolution_1_nchw_kcsr.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_implicit_gemm_convolution_nchw_kcsr(
+void device_implicit_gemm_convolution_1_nchw_kcsr(
     InDesc, const Tensor<T>& in, WeiDesc, const Tensor<T>& wei, OutDesc, Tensor<T>& out)
 {
     std::size_t data_sz = sizeof(T);
@@ -81,21 +81,21 @@ void device_implicit_gemm_convolution_nchw_kcsr(
     cudaEventCreate(&start);
     cudaEventRecord(start, 0);
 
-    gridwise_implicit_gemm_convolution_nchw_kcsr<GridSize,
-                                                 BlockSize,
-                                                 T,
-                                                 InDesc,
-                                                 WeiDesc,
-                                                 OutDesc,
-                                                 NPerBlock,
-                                                 KPerBlock,
-                                                 CPerBlock,
-                                                 HoPerBlock,
-                                                 WoPerBlock,
-                                                 KPerThread,
-                                                 CPerThread,
-                                                 HoPerThread,
-                                                 WoPerThread>
+    gridwise_implicit_gemm_convolution_1_nchw_kcsr<GridSize,
+                                                   BlockSize,
+                                                   T,
+                                                   InDesc,
+                                                   WeiDesc,
+                                                   OutDesc,
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   CPerBlock,
+                                                   HoPerBlock,
+                                                   WoPerBlock,
+                                                   KPerThread,
+                                                   CPerThread,
+                                                   HoPerThread,
+                                                   WoPerThread>
         <<<grid_dim, block_dim>>>(InDesc{},
                                   static_cast<T*>(in_device_buf.GetDeviceBuffer()),
                                   WeiDesc{},

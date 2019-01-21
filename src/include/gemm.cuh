@@ -114,14 +114,21 @@ struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
                                       : b_block_mtx.Get1dIndex(c_thread_mtx_index.col_begin, 0));
 
 #if 0
-        printf("%u %u, %u %u %u, %u %u\n",
-               get_block_1d_id(),
-               get_thread_local_1d_id(),
-               c_thread_mtx_index.batch_begin,
-               c_thread_mtx_index.row_begin,
-               c_thread_mtx_index.col_begin,
-               mMyThreadOffsetA,
-               mMyThreadOffsetB);
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            print_ConstantMatrixDescriptor(BlockMatrixA{}, "a_block_mtx: ");
+            print_ConstantMatrixDescriptor(BlockMatrixB{}, "b_block_mtx: ");
+            print_ConstantMatrixDescriptor(ThreadMatrixC{}, "c_thread_mtx: ");
+
+            printf("%u %u, %u %u %u, %u %u\n",
+                   get_block_1d_id(),
+                   get_thread_local_1d_id(),
+                   c_thread_mtx_index.batch_begin,
+                   c_thread_mtx_index.row_begin,
+                   c_thread_mtx_index.col_begin,
+                   mMyThreadOffsetA,
+                   mMyThreadOffsetB);
+        }
 #endif
     }
 

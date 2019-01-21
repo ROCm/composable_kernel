@@ -1,6 +1,13 @@
 #pragma once
 #include "common.cuh"
 
+// this is ugly, only for 2d
+template <unsigned L0, unsigned L1>
+__host__ __device__ constexpr auto calculate_default_strides(Sequence<L0, L1>)
+{
+    return Sequence<L1, 1>{};
+}
+
 // this is ugly, only for 4d
 template <unsigned L0, unsigned L1, unsigned L2, unsigned L3>
 __host__ __device__ constexpr auto calculate_default_strides(Sequence<L0, L1, L2, L3>)
@@ -49,28 +56,85 @@ struct ConstantTensorDescriptor
     // this is ugly, only for 4d
     __host__ __device__ constexpr unsigned GetElementSize() const
     {
-        static_assert(nDim == 4, "nDim is not 4");
+        static_assert(nDim >= 2 && nDim <= 4, "nDim");
 
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
+        if(nDim == 2)
+        {
+            constexpr auto I0 = Number<0>{};
+            constexpr auto I1 = Number<1>{};
 
-        return GetLength(I0) * GetLength(I1) * GetLength(I2) * GetLength(I3);
+            return GetLength(I0) * GetLength(I1);
+        }
+        else if(nDim == 3)
+        {
+            constexpr auto I0 = Number<0>{};
+            constexpr auto I1 = Number<1>{};
+            constexpr auto I2 = Number<2>{};
+
+            return GetLength(I0) * GetLength(I1) * GetLength(I2);
+        }
+        else if(nDim == 4)
+        {
+            constexpr auto I0 = Number<0>{};
+            constexpr auto I1 = Number<1>{};
+            constexpr auto I2 = Number<2>{};
+            constexpr auto I3 = Number<3>{};
+
+            return GetLength(I0) * GetLength(I1) * GetLength(I2) * GetLength(I3);
+        }
     }
 
-    // this is ugly, only for 4d
     __host__ __device__ constexpr unsigned GetElementSpace() const
     {
-        static_assert(nDim == 4, "nDim is not 4");
+        static_assert(nDim >= 2 && nDim <= 4, "nDim");
 
+        if(nDim == 2)
+        {
+            constexpr auto I0 = Number<0>{};
+            constexpr auto I1 = Number<1>{};
+
+            return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) + 1;
+        }
+        else if(nDim == 3)
+        {
+            constexpr auto I0 = Number<0>{};
+            constexpr auto I1 = Number<1>{};
+            constexpr auto I2 = Number<2>{};
+
+            return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
+                   (GetLength(I2) - 1) * GetStride(I2) + 1;
+        }
+        else if(nDim == 4)
+        {
+            constexpr auto I0 = Number<0>{};
+            constexpr auto I1 = Number<1>{};
+            constexpr auto I2 = Number<2>{};
+            constexpr auto I3 = Number<3>{};
+
+            return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
+                   (GetLength(I2) - 1) * GetStride(I2) + (GetLength(I3) - 1) * GetStride(I3) + 1;
+        }
+    }
+
+    // this is ugly, only for 2d
+    __host__ __device__ unsigned Get1dIndex(unsigned i0, unsigned i1) const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        static_assert(nDim == 2, "nDim is not 2");
+        return i0 * GetStride(I0) + i1 * GetStride(I1);
+    }
+
+    // this is ugly, only for 3d
+    __host__ __device__ unsigned Get1dIndex(unsigned i0, unsigned i1, unsigned i2) const
+    {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
 
-        return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
-               (GetLength(I2) - 1) * GetStride(I2) + (GetLength(I3) - 1) * GetStride(I3) + 1;
+        static_assert(nDim == 3, "nDim is not 3");
+        return i0 * GetStride(I0) + i1 * GetStride(I1) + i2 * GetStride(I2);
     }
 
     // this is ugly, only for 4d
@@ -106,28 +170,44 @@ __host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths, Stride
     return ConstantTensorDescriptor<Lengths, Strides>{};
 }
 
-// this is ugly, only for 4d
 template <class TDesc>
 __host__ __device__ void print_ConstantTensorDescriptor(TDesc, const char* s)
 {
-    constexpr auto desc = TDesc{};
+    constexpr auto desc     = TDesc{};
+    constexpr unsigned ndim = desc.GetDimension();
 
-    constexpr auto I0 = Number<0>{};
-    constexpr auto I1 = Number<1>{};
-    constexpr auto I2 = Number<2>{};
-    constexpr auto I3 = Number<3>{};
+    static_assert(ndim >= 2 && ndim <= 4, "wrong!");
 
-    static_assert(desc.GetDimension() == 4, "dim is not 4");
+    if(ndim == 2)
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
 
-    printf("%s dim %u, lengths {%u %u %u %u}, strides {%u %u %u %u}\n",
-           s,
-           desc.GetDimension(),
-           desc.GetLength(I0),
-           desc.GetLength(I1),
-           desc.GetLength(I2),
-           desc.GetLength(I3),
-           desc.GetStride(I0),
-           desc.GetStride(I1),
-           desc.GetStride(I2),
-           desc.GetStride(I3));
+        printf("%s dim %u, lengths {%u %u}, strides {%u %u}\n",
+               s,
+               desc.GetDimension(),
+               desc.GetLength(I0),
+               desc.GetLength(I1),
+               desc.GetStride(I0),
+               desc.GetStride(I1));
+    }
+    else if(ndim == 4)
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        printf("%s dim %u, lengths {%u %u %u %u}, strides {%u %u %u %u}\n",
+               s,
+               desc.GetDimension(),
+               desc.GetLength(I0),
+               desc.GetLength(I1),
+               desc.GetLength(I2),
+               desc.GetLength(I3),
+               desc.GetStride(I0),
+               desc.GetStride(I1),
+               desc.GetStride(I2),
+               desc.GetStride(I3));
+    }
 }
