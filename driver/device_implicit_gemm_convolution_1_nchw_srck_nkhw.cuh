@@ -104,19 +104,6 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
-#elif 0
-    constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 32;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 32;
-
-    constexpr unsigned KPerThread  = 4;
-    constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 2;
-    constexpr unsigned WoPerThread = 2;
-
-    constexpr unsigned BlockSize = 128;
 #endif
 
     constexpr unsigned GridSize =

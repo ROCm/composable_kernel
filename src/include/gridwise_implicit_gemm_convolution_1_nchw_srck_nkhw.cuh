@@ -153,6 +153,7 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
     for(unsigned c_block_data_begin = 0; c_block_data_begin < in_nchw_global_desc.GetLength(I1);
         c_block_data_begin += CPerBlock, __syncthreads())
     {
+#if 1
         // input: global mem to LDS,
         //   convert [N,C,Hi,Wi] to [C,Hi,Wi,N]
         blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
@@ -165,7 +166,9 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
             p_in_block,
             in_nchw_block_desc.GetLengths(),
             reorder_chwn_from_nchw);
+#endif
 
+#if 1
         // weight: global mem to LDS,
         //   format is [S,R,C,K], no conversion needed
         blockwise_4d_tensor_copy<BlockSize>(
@@ -175,6 +178,7 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
             wei_srck_block_desc,
             p_wei_block,
             wei_srck_block_desc.GetLengths());
+#endif
 
         __syncthreads();
 

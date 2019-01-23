@@ -162,11 +162,188 @@ blockwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
 }
 
 template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
-__device__ void blockwise_2d_tensor_copy(
-    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, SrcOpLengths)
+struct blockwise_2d_tensor_copy_1
 {
-    constexpr auto dst_from_src_reorder = Sequence<0, 1>{};
+    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    {
+        constexpr auto dst_from_src_reorder = Sequence<0, 1>{};
 
-    blockwise_2d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
-        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
-}
+        blockwise_2d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
+            SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
+    }
+};
+
+template <unsigned BlockSize,
+          class Float,
+          class SrcDesc,
+          class DstDesc,
+          class SrcOpLengths,
+          unsigned ThreadPerDim0,
+          unsigned ThreadPerDim1>
+struct blockwise_2d_tensor_copy_2
+{
+    unsigned mThreadId0;
+    unsigned mThreadId1;
+
+    __device__ blockwise_2d_tensor_copy_2()
+    {
+        mThreadId0 = get_thread_local_1d_id() / ThreadPerDim1;
+        mThreadId1 = get_thread_local_1d_id() - mThreadId0 * ThreadPerDim1;
+    }
+
+    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    {
+        if(get_thread_local_1d_id() >= ThreadPerDim0 * ThreadPerDim1)
+            return;
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        constexpr auto src_desc = SrcDesc{};
+        constexpr auto dst_desc = DstDesc{};
+
+        constexpr unsigned L0 = SrcOpLengths{}.Get(I0);
+        constexpr unsigned L1 = SrcOpLengths{}.Get(I1);
+
+        constexpr unsigned Dim0Loop = L0 / ThreadPerDim0;
+        constexpr bool d0_has_tail  = (L0 > ThreadPerDim0 * Dim0Loop);
+
+        constexpr unsigned Dim1V4Loop = L1 / (ThreadPerDim1 * 4);
+        constexpr unsigned Dim1V2Loop =
+            (L1 - Dim1V4Loop * (ThreadPerDim1 * 4)) / (ThreadPerDim1 * 2);
+        constexpr unsigned Dim1V1Loop =
+            (L1 - Dim1V4Loop * (ThreadPerDim1 * 4) - Dim1V2Loop * (ThreadPerDim1 * 2)) /
+            ThreadPerDim1;
+        constexpr bool d1_has_tail =
+            (L1 > ThreadPerDim1 * (4 * Dim1V4Loop + 2 * Dim1V2Loop + Dim1V1Loop));
+
+        for(unsigned d0loop = 0; d0loop < Dim0Loop; ++d0loop)
+        {
+            unsigned did0 = d0loop * ThreadPerDim0 + mThreadId0;
+
+            // v4
+            for(unsigned d1v4loop = 0; d1v4loop < Dim1V4Loop; ++d1v4loop)
+            {
+                unsigned did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
+
+                for(unsigned i = 0; i < 4; ++i)
+                {
+                    const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
+                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
+
+                    p_dst[dindex] = p_src[sindex];
+                }
+            }
+
+            // v2
+            for(unsigned d1v2loop = 0; d1v2loop < Dim1V2Loop; ++d1v2loop)
+            {
+                unsigned did1 =
+                    Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 + 2 * mThreadId1;
+
+                for(unsigned i = 0; i < 2; ++i)
+                {
+                    const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
+                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
+
+                    p_dst[dindex] = p_src[sindex];
+                }
+            }
+
+            // v1
+            for(unsigned d1v1loop = 0; d1v1loop < Dim1V1Loop; ++d1v1loop)
+            {
+                unsigned did1 = Dim1V4Loop * 4 * ThreadPerDim1 + Dim1V2Loop * 2 * ThreadPerDim1 +
+                                d1v1loop * ThreadPerDim1 + mThreadId1;
+
+                const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
+
+                p_dst[dindex] = p_src[sindex];
+            }
+
+            // dim-1 tail
+            if(d1_has_tail)
+            {
+                unsigned did1 = Dim1V4Loop * 4 * ThreadPerDim1 + Dim1V2Loop * 2 * ThreadPerDim1 +
+                                Dim1V1Loop * ThreadPerDim1 + mThreadId1;
+
+                if(did1 < L1)
+                {
+                    const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
+
+                    p_dst[dindex] = p_src[sindex];
+                }
+            }
+        }
+
+        // dim-0 tail
+        if(d0_has_tail)
+        {
+            unsigned did0 = Dim0Loop * ThreadPerDim0 + mThreadId0;
+
+            if(did0 < L0)
+            {
+
+                // v4
+                for(unsigned d1v4loop = 0; d1v4loop < Dim1V4Loop; ++d1v4loop)
+                {
+                    unsigned did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
+
+                    for(unsigned i = 0; i < 4; ++i)
+                    {
+                        const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
+                        const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
+
+                        p_dst[dindex] = p_src[sindex];
+                    }
+                }
+
+                // v2
+                for(unsigned d1v2loop = 0; d1v2loop < Dim1V2Loop; ++d1v2loop)
+                {
+                    unsigned did1 = Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 +
+                                    2 * mThreadId1;
+
+                    for(unsigned i = 0; i < 2; ++i)
+                    {
+                        const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
+                        const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
+
+                        p_dst[dindex] = p_src[sindex];
+                    }
+                }
+
+                // v1
+                for(unsigned d1v1loop = 0; d1v1loop < Dim1V1Loop; ++d1v1loop)
+                {
+                    unsigned did1 = Dim1V4Loop * 4 * ThreadPerDim1 +
+                                    Dim1V2Loop * 2 * ThreadPerDim1 + d1v1loop * ThreadPerDim1 +
+                                    mThreadId1;
+
+                    const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
+
+                    p_dst[dindex] = p_src[sindex];
+                }
+
+                // tail
+                if(d1_has_tail)
+                {
+                    unsigned did1 = Dim1V4Loop * 4 * ThreadPerDim1 +
+                                    Dim1V2Loop * 2 * ThreadPerDim1 + Dim1V1Loop * ThreadPerDim1 +
+                                    mThreadId1;
+
+                    if(did1 < L1)
+                    {
+                        const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                        const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
+
+                        p_dst[dindex] = p_src[sindex];
+                    }
+                }
+            }
+        }
+    }
+};
