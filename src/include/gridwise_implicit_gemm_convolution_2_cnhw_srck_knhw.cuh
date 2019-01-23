@@ -20,8 +20,10 @@ template <unsigned GridSize,
           unsigned BPerThread,
           unsigned KPerThread,
           unsigned CPerThread,
-          unsigned ThreadPerClusterRow,
-          unsigned ThreadPerClusterColumn>
+          unsigned GemmThreadPerClusterRow,
+          unsigned GemmThreadPerClusterColumn,
+          unsigned InBlockCopyThreadPerDim0,
+          unsigned InBlockCopyThreadPerDim1>
 __global__ void
 gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
                                                     Float* const __restrict__ p_in_global,
@@ -104,6 +106,26 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
     }
 #endif
 
+#if 1
+    // blockwise 2d copy
+    const auto blockwise_2d_copy =
+        blockwise_2d_tensor_copy_1<BlockSize,
+                                   Float,
+                                   decltype(in_cb_global_desc),
+                                   decltype(in_cb_block_desc),
+                                   decltype(in_cb_block_desc.GetLengths())>{};
+#elif 0
+    // blockwise 2d copy
+    const auto blockwise_2d_copy =
+        blockwise_2d_tensor_copy_2<BlockSize,
+                                   Float,
+                                   decltype(in_cb_global_desc),
+                                   decltype(in_cb_block_desc),
+                                   decltype(in_cb_block_desc.GetLengths()),
+                                   InBlockCopyThreadPerDim0,
+                                   InBlockCopyThreadPerDim1>{};
+#endif
+
     // a series of blockwise GEMM
     // c_mtx += transpose(a_mtx) * b_mtx
     //   a_mtx and b_mtx saved in LDS, c_mtx saved in register
@@ -130,8 +152,8 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
                                                 false,
                                                 false,
                                                 CPerThread,
-                                                ThreadPerClusterRow,
-                                                ThreadPerClusterColumn,
+                                                GemmThreadPerClusterRow,
+                                                GemmThreadPerClusterColumn,
                                                 true>{};
 
     // LDS
@@ -152,12 +174,9 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
     {
         // input: global mem to LDS,
         //   formmat is [CPerBlock,BPerBlock + BGhostRead]
-        blockwise_2d_tensor_copy<BlockSize>(
-            in_cb_global_desc,
+        blockwise_2d_copy.run(
             p_in_global + in_cb_global_desc.Get1dIndex(c_block_data_begin, b_block_data_begin),
-            in_cb_block_desc,
-            p_in_block,
-            in_cb_block_desc.GetLengths());
+            p_in_block);
 
         // weight: global mem to LDS,
         //   format is [S,R,CPerBlock,KPerBlock]
@@ -244,22 +263,6 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
 #if 1
                 p_out_global[out_knhw_global_desc.Get1dIndex(k_data, n_data, h_data, w_data)] =
                     p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)];
-#endif
-
-#if 0
-                if(get_block_1d_id() == 0)
-                {
-                    printf("%u %u, k %u b %u, k_data %u n_data %u h_data %u w_data %u %f\n",
-                           get_block_1d_id(),
-                           get_thread_local_1d_id(),
-                           k,
-                           b,
-                           k_data,
-                           n_data,
-                           h_data,
-                           w_data,
-                           p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)]);
-                }
 #endif
             }
         }

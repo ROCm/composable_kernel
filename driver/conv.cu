@@ -376,7 +376,7 @@ int main()
     constexpr unsigned K  = 64;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 0
+#elif 1
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 256;
     constexpr unsigned HI = 36;
@@ -427,7 +427,7 @@ int main()
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 
-#if 1
+#if 0
     host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host);
     check_error(out_nkhw_host, out_nkhw_device);
 #elif 0

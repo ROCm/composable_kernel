@@ -75,10 +75,23 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     constexpr unsigned KPerThread = 1;
     constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned ThreadPerClusterRow    = 1;
-    constexpr unsigned ThreadPerClusterColumn = 4;
+    constexpr unsigned GemmThreadPerClusterRow    = 1;
+    constexpr unsigned GemmThreadPerClusterColumn = 4;
 
     constexpr unsigned BlockSize = 32;
+#elif 0
+    constexpr unsigned BPerBlock = 128;
+    constexpr unsigned KPerBlock = 64;
+    constexpr unsigned CPerBlock = 2;
+
+    constexpr unsigned BPerThread = 8;
+    constexpr unsigned KPerThread = 8;
+    constexpr unsigned CPerThread = 1;
+
+    constexpr unsigned GemmThreadPerClusterRow    = 4;
+    constexpr unsigned GemmThreadPerClusterColumn = 4;
+
+    constexpr unsigned BlockSize = 128;
 #elif 1
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 64;
@@ -88,8 +101,11 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     constexpr unsigned KPerThread = 8;
     constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned ThreadPerClusterRow    = 4;
-    constexpr unsigned ThreadPerClusterColumn = 4;
+    constexpr unsigned GemmThreadPerClusterRow    = 4;
+    constexpr unsigned GemmThreadPerClusterColumn = 4;
+
+    constexpr unsigned InBlockCopyThreadPerDim0 = 2;
+    constexpr unsigned InBlockCopyThreadPerDim1 = 64;
 
     constexpr unsigned BlockSize = 128;
 #endif
@@ -132,8 +148,10 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
                                                             BPerThread,
                                                             KPerThread,
                                                             CPerThread,
-                                                            ThreadPerClusterRow,
-                                                            ThreadPerClusterColumn>
+                                                            GemmThreadPerClusterRow,
+                                                            GemmThreadPerClusterColumn,
+                                                            InBlockCopyThreadPerDim0,
+                                                            InBlockCopyThreadPerDim1>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,
                                       static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
                                       wei_srck_desc,

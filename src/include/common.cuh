@@ -1,5 +1,7 @@
 #pragma once
 
+#define WARPSIZE 32;
+
 template <class T1, class T2>
 struct is_same
 {
