@@ -200,11 +200,42 @@ blockwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
 }
 
 template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
-__device__ void blockwise_4d_tensor_copy(
-    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, SrcOpLengths)
+struct blockwise_4d_tensor_copy_1
 {
-    constexpr auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
+    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    {
+        constexpr auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
 
-    blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
-        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
-}
+        blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
+            SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
+    }
+};
+
+template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
+struct blockwise_4d_tensor_copy_dummy
+{
+    unsigned mBegin;
+
+    __device__ blockwise_4d_tensor_copy_dummy()
+    {
+        constexpr unsigned n_total =
+            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+
+        constexpr unsigned n_per_thread = n_total / BlockSize;
+
+        mBegin = n_per_thread * get_thread_local_1d_id();
+    }
+
+    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    {
+        constexpr unsigned n_total =
+            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+
+        constexpr unsigned n_per_thread = n_total / BlockSize;
+
+        for(unsigned i = 0; i < n_per_thread; ++i)
+        {
+            p_dst[mBegin + i] = p_src[mBegin + i];
+        }
+    }
+};

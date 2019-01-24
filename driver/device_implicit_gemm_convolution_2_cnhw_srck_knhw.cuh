@@ -1,5 +1,6 @@
 #pragma once
 #include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
+#include "gridwise_implicit_gemm_convolution_3_cnhw_srck_knhw.cuh"
 #include <unistd.h>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
