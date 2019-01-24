@@ -101,7 +101,7 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
                                                                           wo_thread_data_begin),
                                   out_thread_desc,
                                   p_out_thread,
-                                  out_thread_desc);
+                                  out_thread_desc.GetLengths());
 
         for(unsigned c_thread_data_begin = 0; c_thread_data_begin < in_block_desc.GetLength(I1);
             c_thread_data_begin += CPerThread)
@@ -128,6 +128,6 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
                                                                           k_thread_data_begin,
                                                                           ho_thread_data_begin,
                                                                           wo_thread_data_begin),
-                                  out_thread_desc);
+                                  out_thread_desc.GetLengths());
     }
 }

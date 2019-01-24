@@ -347,3 +347,50 @@ struct blockwise_2d_tensor_copy_2
         }
     }
 };
+
+template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
+struct blockwise_2d_tensor_copy_dummy_1
+{
+    unsigned mBegin;
+
+    __device__ blockwise_2d_tensor_copy_dummy_1()
+    {
+        constexpr unsigned n_total =
+            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+
+        constexpr unsigned n_per_thread = n_total / BlockSize;
+
+        mBegin = n_per_thread * get_thread_local_1d_id();
+    }
+
+    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    {
+        constexpr unsigned n_total =
+            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+
+        constexpr unsigned n_per_thread = n_total / BlockSize;
+
+        for(unsigned i = 0; i < n_per_thread; ++i)
+        {
+            p_dst[mBegin + i] = p_src[mBegin + i];
+        }
+    }
+};
+
+template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
+struct blockwise_2d_tensor_copy_dummy_2
+{
+    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    {
+        constexpr unsigned n_total =
+            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+
+        constexpr unsigned n_per_thread = n_total / BlockSize;
+
+        for(unsigned i = 0; i < n_per_thread; ++i)
+        {
+            unsigned index = get_thread_local_1d_id() + BlockSize * i;
+            p_dst[index]   = p_src[index];
+        }
+    }
+};

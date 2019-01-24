@@ -8,8 +8,8 @@
 #include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-#include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
-#include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
+//#include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
+//#include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
 #include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
 //#include "device_winograd_convolution.cuh"
 
@@ -410,7 +410,7 @@ int main()
     wei_kcsr.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
 #endif
 
-    unsigned nrepeat = 100;
+    unsigned nrepeat = 50;
 
 #if 0
     device_direct_convolution_1
@@ -427,7 +427,7 @@ int main()
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 
-#if 0
+#if 1
     host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host);
     check_error(out_nkhw_host, out_nkhw_device);
 #elif 0
