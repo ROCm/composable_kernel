@@ -102,8 +102,8 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     constexpr unsigned KPerThread = 8;
     constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned GemmThreadPerClusterRow    = 4;
-    constexpr unsigned GemmThreadPerClusterColumn = 4;
+    constexpr unsigned GemmRowThreadPerCluster    = 4;
+    constexpr unsigned GemmColumnThreadPerCluster = 4;
 
     constexpr unsigned InBlockCopyThreadPerDim0 = 2;
     constexpr unsigned InBlockCopyThreadPerDim1 = 64;
@@ -149,8 +149,8 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
                                                             BPerThread,
                                                             KPerThread,
                                                             CPerThread,
-                                                            GemmThreadPerClusterRow,
-                                                            GemmThreadPerClusterColumn,
+                                                            GemmRowThreadPerCluster,
+                                                            GemmColumnThreadPerCluster,
                                                             InBlockCopyThreadPerDim0,
                                                             InBlockCopyThreadPerDim1>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,

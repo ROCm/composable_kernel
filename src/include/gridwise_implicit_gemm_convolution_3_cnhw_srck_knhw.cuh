@@ -20,8 +20,8 @@ template <unsigned GridSize,
           unsigned BPerThread,
           unsigned KPerThread,
           unsigned CPerThread,
-          unsigned GemmThreadPerClusterRow,
-          unsigned GemmThreadPerClusterColumn,
+          unsigned GemmRowThreadPerCluster,
+          unsigned GemmColumnThreadPerCluster,
           unsigned InBlockCopyThreadPerDim0,
           unsigned InBlockCopyThreadPerDim1>
 __global__ void
@@ -177,8 +177,8 @@ gridwise_implicit_gemm_convolution_3_cnhw_srck_knhw(InGlobalDesc,
                                                 false,
                                                 false,
                                                 CPerThread,
-                                                GemmThreadPerClusterRow,
-                                                GemmThreadPerClusterColumn,
+                                                GemmRowThreadPerCluster,
+                                                GemmColumnThreadPerCluster,
                                                 true>{};
 
     // LDS
