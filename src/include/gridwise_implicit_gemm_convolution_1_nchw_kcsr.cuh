@@ -104,7 +104,7 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr(InGlobalDesc,
     const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
     const unsigned k_block_data_begin  = k_block_work_id * KPerBlock;
     const unsigned ho_block_data_begin = h_block_work_id * HoPerBlock;
-    const unsigned wo_block_data_begin = w_block_work_id * HoPerBlock;
+    const unsigned wo_block_data_begin = w_block_work_id * WoPerBlock;
 
     const unsigned hi_block_data_begin = ho_block_data_begin;
     const unsigned wi_block_data_begin = wo_block_data_begin;
