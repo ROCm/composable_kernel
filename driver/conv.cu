@@ -361,7 +361,7 @@ int main()
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 1
+#elif 0
     // 3x3, 34x34
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
@@ -370,15 +370,6 @@ int main()
     constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
-#elif 0
-    // 3x3, 54x54
-    constexpr unsigned N  = 64;
-    constexpr unsigned C  = 64;
-    constexpr unsigned HI = 54;
-    constexpr unsigned WI = 54;
-    constexpr unsigned K  = 64;
-    constexpr unsigned S  = 3;
-    constexpr unsigned R  = 3;
 #elif 0
     // 3x3, 56x56
     constexpr unsigned N  = 64;
@@ -415,6 +406,15 @@ int main()
     constexpr unsigned K  = 64;
     constexpr unsigned S  = 7;
     constexpr unsigned R  = 7;
+#elif 1
+    // 3x3, 58x58
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 128;
+    constexpr unsigned HI = 58;
+    constexpr unsigned WI = 58;
+    constexpr unsigned K  = 256;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #endif
 
     auto in_nchw_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
@@ -449,7 +449,7 @@ int main()
     device_direct_convolution_2
 #elif 0
     device_implicit_gemm_convolution_1_nchw_kcsr
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 1
     device_implicit_gemm_convolution_1_chwn_csrk_khwn

@@ -65,7 +65,7 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 16;
-#elif 1
+#elif 0
     // for 3x3, 34x34
     constexpr unsigned NPerBlock  = 1;
     constexpr unsigned KPerBlock  = 64;
@@ -73,6 +73,7 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
     constexpr unsigned HoPerBlock = 4;
     constexpr unsigned WoPerBlock = 32;
 
+    constexpr unsigned NPerThread  = 1;
     constexpr unsigned KPerThread  = 16;
     constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 2;
@@ -80,16 +81,32 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
 
     constexpr unsigned BlockSize = 128;
 #elif 0
-    // for 3x3, 34x34
-    constexpr unsigned NPerBlock  = 2;
+    // for 3x3, 58x58
+    constexpr unsigned NPerBlock  = 4;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 32;
+    constexpr unsigned HoPerBlock = 4;
+    constexpr unsigned WoPerBlock = 8;
 
+    constexpr unsigned NPerThread  = 4;
     constexpr unsigned KPerThread  = 16;
     constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 2;
+    constexpr unsigned HoPerThread = 1;
+    constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned BlockSize = 128;
+#elif 1
+    // for 3x3, 56x56
+    constexpr unsigned NPerBlock  = 32;
+    constexpr unsigned KPerBlock  = 64;
+    constexpr unsigned CPerBlock  = 4;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 2;
+
+    constexpr unsigned NPerThread  = 4;
+    constexpr unsigned KPerThread  = 16;
+    constexpr unsigned CPerThread  = 1;
+    constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
@@ -123,6 +140,7 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
                                                             CPerBlock,
                                                             HoPerBlock,
                                                             WoPerBlock,
+                                                            NPerThread,
                                                             KPerThread,
                                                             CPerThread,
                                                             HoPerThread,
