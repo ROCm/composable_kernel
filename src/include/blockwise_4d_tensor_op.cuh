@@ -211,6 +211,133 @@ struct blockwise_4d_tensor_copy_1
     }
 };
 
+template <unsigned BlockSize,
+          class Float,
+          class SrcDesc,
+          class DstDesc,
+          class DstOpLengths,
+          class GlobalLowerPads>
+struct blockwise_chwn_tensor_copy_with_padding
+{
+    __device__ void run(Float* const __restrict__ p_src,
+                        unsigned c_block_data_begin,
+                        unsigned ho_block_data_begin,
+                        unsigned wo_block_data_begin,
+                        unsigned n_block_data_begin,
+                        Float* __restrict__ p_dst,
+                        unsigned h_block_pad_low,
+                        unsigned w_block_pad_low,
+                        unsigned h_block_pad_up,
+                        unsigned w_block_pad_up) const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        constexpr auto src_desc = SrcDesc{};
+        constexpr auto dst_desc = DstDesc{};
+        constexpr auto ref_desc = make_ConstantTensorDescriptor(DstOpLengths{});
+
+        constexpr auto h_global_pad_low = GlobalLowerPads{}.Get(I0);
+        constexpr auto w_global_pad_low = GlobalLowerPads{}.Get(I1);
+
+        constexpr unsigned NLoop = ref_desc.GetElementSize() / BlockSize;
+
+        Float* const p_src_tmp =
+            p_src + src_desc.Get1dIndex(c_block_data_begin,
+                                        (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
+                                        (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,
+                                        n_block_data_begin);
+
+#if 0
+        if(get_thread_local_1d_id() == 0)
+        {
+            print_ConstantTensorDescriptor(src_desc, "src_desc: ");
+            print_ConstantTensorDescriptor(dst_desc, "dst_desc: ");
+            print_ConstantTensorDescriptor(ref_desc, "ref_desc: ");
+
+            printf("%u %u, \t"
+                   "h_global_pad_low %u w_global_pad_low %u \t"
+                   "h_block_pad_low %u w_block_pad_low %u h_block_pad_up %u  w_block_pad_up %u \t"
+                   "\n",
+                   get_block_1d_id(),
+                   get_thread_local_1d_id(),
+                   h_global_pad_low,
+                   w_global_pad_low,
+                   h_block_pad_low,
+                   w_block_pad_low,
+                   h_block_pad_up,
+                   w_block_pad_up);
+        }
+#endif
+
+        for(unsigned iloop = 0; iloop < NLoop; ++iloop)
+        {
+            unsigned is = threadIdx.x + iloop * BlockSize;
+
+            unsigned did[4];
+
+            did[0] = is / ref_desc.GetStride(I0);
+
+            is -= did[0] * ref_desc.GetStride(I0);
+
+            did[1] = is / ref_desc.GetStride(I1);
+
+            is -= did[1] * ref_desc.GetStride(I1);
+
+            did[2] = is / ref_desc.GetStride(I2);
+
+            is -= did[2] * ref_desc.GetStride(I2);
+
+            did[3] = is / ref_desc.GetStride(I3);
+
+            const unsigned bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+
+            p_dst[bindex] =
+                (did[1] < h_block_pad_low || did[1] + h_block_pad_up >= ref_desc.GetLength(I1) ||
+                 did[2] < w_block_pad_low || did[2] + w_block_pad_up >= ref_desc.GetLength(I2))
+                    ? Float(0)
+                    : p_src_tmp[src_desc.Get1dIndex(did[0], did[1], did[2], did[3])];
+        }
+
+        constexpr bool has_tail = (ref_desc.GetElementSize() > NLoop * BlockSize);
+
+        if(has_tail)
+        {
+            unsigned is = threadIdx.x + NLoop * BlockSize;
+
+            if(is < ref_desc.GetElementSize())
+            {
+                unsigned did[4];
+
+                did[0] = is / ref_desc.GetStride(I0);
+
+                is -= did[0] * ref_desc.GetStride(I0);
+
+                did[1] = is / ref_desc.GetStride(I1);
+
+                is -= did[1] * ref_desc.GetStride(I1);
+
+                did[2] = is / ref_desc.GetStride(I2);
+
+                is -= did[2] * ref_desc.GetStride(I2);
+
+                did[3] = is / ref_desc.GetStride(I3);
+
+                const unsigned bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+
+                p_dst[bindex] =
+                    (did[1] < h_block_pad_low ||
+                     did[1] + h_block_pad_up >= ref_desc.GetLength(I1) ||
+                     did[2] < w_block_pad_low || did[2] + w_block_pad_up >= ref_desc.GetLength(I2))
+                        ? Float(0)
+                        : p_src_tmp[src_desc.Get1dIndex(did[0], did[1], did[2], did[3])];
+            }
+        }
+    }
+};
+
 template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
 struct blockwise_4d_tensor_copy_dummy
 {
