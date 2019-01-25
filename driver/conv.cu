@@ -11,6 +11,7 @@
 #include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
 #include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
+#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding.cuh"
 #include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
 //#include "device_winograd_convolution.cuh"
 
@@ -107,20 +108,31 @@ auto make_TensorDescriptor(TConstTensorDesc)
     return TensorDescriptor(lengths, strides);
 }
 
-template <class T>
-void host_direct_convolution(const Tensor<T>& in_nchw, const Tensor<T>& wei_kcsr, Tensor<T>& out)
+template <class T, class LowerPads, class UpperPads>
+void host_direct_convolution(
+    const Tensor<T>& in_nchw, const Tensor<T>& wei_kcsr, Tensor<T>& out, LowerPads, UpperPads)
 {
+    unsigned h_pad_low = LowerPads{}.Get(Number<0>{});
+    unsigned w_pad_low = LowerPads{}.Get(Number<1>{});
+
+    unsigned h_pad_up = UpperPads{}.Get(Number<0>{});
+    unsigned w_pad_up = UpperPads{}.Get(Number<1>{});
+
     auto f = [&](auto n, auto k, auto ho, auto wo) {
         double v = 0;
         for(int c = 0; c < wei_kcsr.mDesc.GetLengths()[1]; ++c)
         {
             for(int y = 0; y < wei_kcsr.mDesc.GetLengths()[2]; ++y)
             {
-                int hi = ho + y;
+                int hi = ho + y - h_pad_low;
                 for(int x = 0; x < wei_kcsr.mDesc.GetLengths()[3]; ++x)
                 {
-                    int wi = wo + x;
-                    v += in_nchw(n, c, hi, wi) * wei_kcsr(k, c, y, x);
+                    int wi = wo + x - w_pad_low;
+                    if(hi >= 0 && hi < in_nchw.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in_nchw.mDesc.GetLengths()[3])
+                    {
+                        v += in_nchw(n, c, hi, wi) * wei_kcsr(k, c, y, x);
+                    }
                 }
             }
         }
@@ -136,10 +148,9 @@ void host_direct_convolution(const Tensor<T>& in_nchw, const Tensor<T>& wei_kcsr
     f_par(std::thread::hardware_concurrency());
 }
 
-template <class T>
-void host_winograd_3x3_convolution(const Tensor<T>& in_nchw,
-                                   const Tensor<T>& wei_kcsr,
-                                   Tensor<T>& out)
+template <class T, class LowerPads, class UpperPads>
+void host_winograd_3x3_convolution(
+    const Tensor<T>& in_nchw, const Tensor<T>& wei_kcsr, Tensor<T>& out, LowerPads, UpperPads)
 {
     constexpr std::size_t OutTileSizeH = 2;
     constexpr std::size_t OutTileSizeW = 2;
@@ -156,6 +167,12 @@ void host_winograd_3x3_convolution(const Tensor<T>& in_nchw,
     std::size_t HO = out.mDesc.GetLengths()[2];
     std::size_t WO = out.mDesc.GetLengths()[3];
 
+    unsigned h_pad_low = LowerPads{}.Get(Number<0>{});
+    unsigned w_pad_low = LowerPads{}.Get(Number<1>{});
+
+    unsigned h_pad_up = UpperPads{}.Get(Number<0>{});
+    unsigned w_pad_up = UpperPads{}.Get(Number<1>{});
+
     std::size_t InTileSizeH = OutTileSizeH + S - 1;
     std::size_t InTileSizeW = OutTileSizeW + R - 1;
 
@@ -171,11 +188,20 @@ void host_winograd_3x3_convolution(const Tensor<T>& in_nchw,
     auto f_in_hold = [&](auto n, auto c, auto y, auto x) {
         for(int j = 0; j < InTileSizeH; ++j)
         {
-            std::size_t hi = OutTileSizeH * y + j;
+            int hi = OutTileSizeH * y + j - h_pad_low;
             for(int i = 0; i < InTileSizeW; ++i)
             {
-                std::size_t wi            = OutTileSizeW * x + i;
-                in_hold(n, c, y, x, j, i) = in_nchw(n, c, hi, wi);
+                int wi = OutTileSizeW * x + i - w_pad_low;
+
+                if(hi >= 0 && hi < in_nchw.mDesc.GetLengths()[2] && wi >= 0 &&
+                   wi < in_nchw.mDesc.GetLengths()[3])
+                {
+                    in_hold(n, c, y, x, j, i) = in_nchw(n, c, hi, wi);
+                }
+                else
+                {
+                    in_hold(n, c, y, x, j, i) = T(0);
+                }
             }
         }
     };
@@ -406,7 +432,7 @@ int main()
     constexpr unsigned K  = 64;
     constexpr unsigned S  = 7;
     constexpr unsigned R  = 7;
-#elif 1
+#elif 0
     // 3x3, 58x58
     constexpr unsigned N  = 16;
     constexpr unsigned C  = 128;
@@ -415,12 +441,63 @@ int main()
     constexpr unsigned K  = 256;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
+#elif 0
+    // 3x3 filter, 58x58 image, 0x0 padding
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 128;
+    constexpr unsigned HI = 58;
+    constexpr unsigned WI = 58;
+    constexpr unsigned K  = 256;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
+#elif 1
+    // 3x3 filter, 56x56 image, 1x1 padding
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 128;
+    constexpr unsigned HI = 56;
+    constexpr unsigned WI = 56;
+    constexpr unsigned K  = 256;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
+
+    constexpr unsigned HPad = 1;
+    constexpr unsigned WPad = 1;
+#elif 0
+    // 3x3 filter, 28x28 image, 1x1 padding
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 28;
+    constexpr unsigned WI = 28;
+    constexpr unsigned K  = 512;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
+
+    constexpr unsigned HPad = 1;
+    constexpr unsigned WPad = 1;
+#elif 0
+    // 3x3 filter, 20x84 image, 1x1 padding
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 20;
+    constexpr unsigned WI = 84;
+    constexpr unsigned K  = 256;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
+
+    constexpr unsigned HPad = 1;
+    constexpr unsigned WPad = 1;
 #endif
+
+    auto lower_pads = Sequence<HPad, WPad>{};
+    auto upper_pads = Sequence<HPad, WPad>{};
 
     auto in_nchw_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
     auto wei_kcsr_desc = make_ConstantTensorDescriptor(Sequence<K, C, S, R>{});
-    auto out_nkhw_desc =
-        get_convolution_output_default_4d_tensor_descriptor(in_nchw_desc, wei_kcsr_desc);
+    auto out_nkhw_desc = get_convolution_with_padding_output_default_4d_tensor_descriptor(
+        in_nchw_desc, wei_kcsr_desc, lower_pads, upper_pads);
 
     ostream_ConstantTensorDescriptor(in_nchw_desc, std::cout << "in_nchw_desc: ");
     ostream_ConstantTensorDescriptor(wei_kcsr_desc, std::cout << "wei_kcsr_desc: ");
@@ -444,6 +521,7 @@ int main()
     unsigned nrepeat = 50;
 
 #if 0
+#if 0
     device_direct_convolution_1
 #elif 0
     device_direct_convolution_2
@@ -451,7 +529,7 @@ int main()
     device_implicit_gemm_convolution_1_nchw_kcsr
 #elif 0
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn
 #elif 0
     device_implicit_gemm_convolution_2_cnhw_srck_knhw
@@ -459,15 +537,28 @@ int main()
     device_winograd_convolution
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
+#endif
+
+#if 1
+    device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(in_nchw_desc,
+                                                                   in_nchw,
+                                                                   wei_kcsr_desc,
+                                                                   wei_kcsr,
+                                                                   out_nkhw_desc,
+                                                                   out_nkhw_device,
+                                                                   lower_pads,
+                                                                   upper_pads,
+                                                                   nrepeat);
+#endif
 
 #if 1
     if(S == 3 && R == 3)
     {
-        host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host);
+        host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
     }
     else
     {
-        host_direct_convolution(in_nchw, wei_kcsr, out_nkhw_host);
+        host_direct_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
     }
     check_error(out_nkhw_host, out_nkhw_device);
 #endif
