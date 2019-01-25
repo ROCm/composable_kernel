@@ -10,6 +10,7 @@
 #include "device_direct_convolution_2.cuh"
 //#include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
 #include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
+#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
 #include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
 //#include "device_winograd_convolution.cuh"
 
@@ -355,12 +356,13 @@ int main()
 #if 0
     constexpr unsigned N  = 1;
     constexpr unsigned C  = 1;
-    constexpr unsigned HI = 34;
-    constexpr unsigned WI = 34;
+    constexpr unsigned HI = 10;
+    constexpr unsigned WI = 10;
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 1
+#elif 0
+    // 3x3, 34x34
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
     constexpr unsigned HI = 34;
@@ -368,7 +370,17 @@ int main()
     constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
+#elif 1
+    // 3x3, 54x54
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 64;
+    constexpr unsigned HI = 54;
+    constexpr unsigned WI = 54;
+    constexpr unsigned K  = 64;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
 #elif 0
+    // 3x3, 56x56
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 64;
     constexpr unsigned HI = 56;
@@ -377,6 +389,16 @@ int main()
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
 #elif 1
+    // 3x3, 58x58
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 64;
+    constexpr unsigned HI = 58;
+    constexpr unsigned WI = 58;
+    constexpr unsigned K  = 64;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
+#elif 0
+    // 5x5, 36x36
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 256;
     constexpr unsigned HI = 36;
@@ -384,6 +406,15 @@ int main()
     constexpr unsigned K  = 64;
     constexpr unsigned S  = 5;
     constexpr unsigned R  = 5;
+#elif 0
+    // 7x7, 38x38
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 38;
+    constexpr unsigned WI = 38;
+    constexpr unsigned K  = 64;
+    constexpr unsigned S  = 7;
+    constexpr unsigned R  = 7;
 #endif
 
     auto in_nchw_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
@@ -402,7 +433,7 @@ int main()
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
-#if 0
+#if 1
     in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #elif 1
@@ -418,8 +449,10 @@ int main()
     device_direct_convolution_2
 #elif 0
     device_implicit_gemm_convolution_1_nchw_kcsr
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
+#elif 1
+    device_implicit_gemm_convolution_1_chwn_csrk_khwn
 #elif 0
     device_implicit_gemm_convolution_2_cnhw_srck_knhw
 #elif 0
@@ -428,10 +461,14 @@ int main()
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 
 #if 1
-    host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host);
-    check_error(out_nkhw_host, out_nkhw_device);
-#elif 0
-    host_direct_convolution(in_nchw, wei_kcsr, out_nkhw_host);
+    if(S == 3 && R == 3)
+    {
+        host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host);
+    }
+    else
+    {
+        host_direct_convolution(in_nchw, wei_kcsr, out_nkhw_host);
+    }
     check_error(out_nkhw_host, out_nkhw_device);
 #endif
 

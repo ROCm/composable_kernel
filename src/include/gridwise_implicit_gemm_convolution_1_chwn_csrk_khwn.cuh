@@ -17,12 +17,13 @@ template <unsigned GridSize,
           unsigned CPerBlock,
           unsigned HoPerBlock,
           unsigned WoPerBlock,
+          unsigned NPerThread,
           unsigned KPerThread,
           unsigned CPerThread,
           unsigned HoPerThread,
           unsigned WoPerThread>
 __global__ void
-gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
+gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(InGlobalDesc,
                                                     Float* const __restrict__ p_in_global,
                                                     WeiGlobalDesc,
                                                     Float* const __restrict__ p_wei_global,
@@ -32,60 +33,59 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
     // NPerThread == NPerBlock, because the format of input in LDS [C,Hi,Wi,N]
     //   for GEMM trans([C,K]) * [C,Wo*N], we need a thread to do all the "N"
     // if we use [C,Hi,N,Wi,N] in LDS, then NPerThread can be different from NPerBlock
-    constexpr unsigned NPerThread = NPerBlock;
+    static_assert(NPerBlock % NPerThread == 0, "wrong! NPerBlock % NPerThread !=0");
+    static_assert((NPerThread < NPerBlock && WoPerThread == 1) || NPerThread == NPerBlock,
+                  "wrong!");
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr auto in_nchw_global_desc  = InGlobalDesc{};
-    constexpr auto wei_srck_global_desc = WeiGlobalDesc{};
-    constexpr auto out_nkhw_global_desc = OutGlobalDesc{};
+    constexpr auto in_chwn_global_desc  = InGlobalDesc{};
+    constexpr auto wei_csrk_global_desc = WeiGlobalDesc{};
+    constexpr auto out_khwn_global_desc = OutGlobalDesc{};
 
-    constexpr unsigned S = wei_srck_global_desc.GetLength(I0);
-    constexpr unsigned R = wei_srck_global_desc.GetLength(I1);
+    constexpr unsigned C = in_chwn_global_desc.GetLength(I0);
+
+    constexpr unsigned K  = out_khwn_global_desc.GetLength(I0);
+    constexpr unsigned Ho = out_khwn_global_desc.GetLength(I1);
+    constexpr unsigned Wo = out_khwn_global_desc.GetLength(I2);
+    constexpr unsigned N  = out_khwn_global_desc.GetLength(I3);
+
+    constexpr unsigned S = wei_csrk_global_desc.GetLength(I1);
+    constexpr unsigned R = wei_csrk_global_desc.GetLength(I2);
 
     constexpr unsigned HiPerBlock = HoPerBlock + S - 1;
     constexpr unsigned WiPerBlock = WoPerBlock + R - 1;
 
-    // divide block work: NCHW
-    constexpr unsigned NBlockWork =
-        (out_nkhw_global_desc.GetLength(I0) + NPerBlock - 1) / NPerBlock;
-    constexpr unsigned KBlockWork =
-        (out_nkhw_global_desc.GetLength(I1) + KPerBlock - 1) / KPerBlock;
-    constexpr unsigned HBlockWork =
-        (out_nkhw_global_desc.GetLength(I2) + HoPerBlock - 1) / HoPerBlock;
-    constexpr unsigned WBlockWork =
-        (out_nkhw_global_desc.GetLength(I3) + WoPerBlock - 1) / WoPerBlock;
+    // divide block work: [K, Ho, Wo, N]
+    constexpr unsigned KBlockWork = (K + KPerBlock - 1) / KPerBlock;
+    constexpr unsigned HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
+    constexpr unsigned WBlockWork = (Wo + WoPerBlock - 1) / WoPerBlock;
+    constexpr unsigned NBlockWork = (N + NPerBlock - 1) / NPerBlock;
 
-    unsigned itmp                  = get_block_1d_id();
-    const unsigned n_block_work_id = itmp / (KBlockWork * HBlockWork * WBlockWork);
-    itmp -= n_block_work_id * (KBlockWork * HBlockWork * WBlockWork);
-    const unsigned k_block_work_id = itmp / (HBlockWork * WBlockWork);
-    itmp -= k_block_work_id * (HBlockWork * WBlockWork);
-    const unsigned h_block_work_id = itmp / WBlockWork;
-    const unsigned w_block_work_id = itmp - h_block_work_id * WBlockWork;
+    const unsigned k_block_work_id = get_block_1d_id() / (HBlockWork * WBlockWork * NBlockWork);
+    unsigned itmp = get_block_1d_id() - k_block_work_id * (HBlockWork * WBlockWork * NBlockWork);
+    const unsigned h_block_work_id = itmp / (WBlockWork * NBlockWork);
+    itmp -= h_block_work_id * (WBlockWork * NBlockWork);
+    const unsigned w_block_work_id = itmp / NBlockWork;
+    const unsigned n_block_work_id = itmp - w_block_work_id * NBlockWork;
 
-    const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
     const unsigned k_block_data_begin  = k_block_work_id * KPerBlock;
     const unsigned ho_block_data_begin = h_block_work_id * HoPerBlock;
-    const unsigned wo_block_data_begin = w_block_work_id * HoPerBlock;
+    const unsigned wo_block_data_begin = w_block_work_id * WoPerBlock;
+    const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
 
     const unsigned hi_block_data_begin = ho_block_data_begin;
     const unsigned wi_block_data_begin = wo_block_data_begin;
 
-    // tensor view of un-reorderd blockwise input and weight (imaginary)
-    constexpr auto in_nchw_block_desc =
-        make_ConstantTensorDescriptor(Sequence<NPerBlock, CPerBlock, HiPerBlock, WiPerBlock>{});
+    // tensor view of blockwise input and weight in LDS
+    constexpr auto in_chwn_block_desc =
+        make_ConstantTensorDescriptor(Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{});
 
-    constexpr auto wei_srck_block_desc =
-        make_ConstantTensorDescriptor(Sequence<S, R, CPerBlock, KPerBlock>{});
-
-    // tensor view of reordered blockwise input and weight in LDS
-    constexpr auto reorder_chwn_from_nchw = Sequence<1, 2, 3, 0>{};
-    constexpr auto in_chwn_block_desc     = make_ConstantTensorDescriptor(
-        in_nchw_block_desc.GetLengths().ReorderByGetNewFromOld(reorder_chwn_from_nchw));
+    constexpr auto wei_csrk_block_desc =
+        make_ConstantTensorDescriptor(Sequence<CPerBlock, S, R, KPerBlock>{});
 
     // tensor view of threadwise output in register
     constexpr auto out_hkwn_thread_desc =
@@ -104,13 +104,21 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
 #endif
 
     // blockwise copy
-    // wei: format is [S,R,C,K], no conversion needed
+    // input: format is [C, Hi, Wi, N]
+    constexpr auto blockwise_in_copy =
+        blockwise_4d_tensor_copy_1<BlockSize,
+                                   Float,
+                                   decltype(in_chwn_global_desc),
+                                   decltype(in_chwn_block_desc),
+                                   decltype(in_chwn_block_desc.GetLengths())>{};
+
+    // weight: format is [S,R,C,K]
     constexpr auto blockwise_wei_copy =
         blockwise_4d_tensor_copy_1<BlockSize,
                                    Float,
-                                   decltype(wei_srck_global_desc),
-                                   decltype(wei_srck_block_desc),
-                                   decltype(wei_srck_block_desc.GetLengths())>{};
+                                   decltype(wei_csrk_global_desc),
+                                   decltype(wei_csrk_block_desc),
+                                   decltype(wei_csrk_block_desc.GetLengths())>{};
 
     // a series of blockwise batched GEMM
     // C_matrix += transpose(A_matrix) * B_matrix
@@ -119,7 +127,9 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
     //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
     //   C_matrix[K,Wo*N] is a sub-matrix of out_block[Ho,K,Wo,N]
     const auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{}, Number<KPerBlock>{}); // constexpr doesn't compile
+        Number<CPerBlock>{},
+        Number<KPerBlock>{},
+        Number<wei_csrk_block_desc.GetStride(I0)>{}); // constexpr doesn't compile
 
     const auto b_cxwn_block_mtx_desc = make_ConstantMatrixDescriptor(
         Number<CPerBlock>{},
@@ -148,7 +158,7 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
 
     // LDS
     constexpr unsigned in_block_size  = in_chwn_block_desc.GetElementSpace();
-    constexpr unsigned wei_block_size = wei_srck_block_desc.GetElementSpace();
+    constexpr unsigned wei_block_size = wei_csrk_block_desc.GetElementSpace();
 
     __shared__ Float p_in_block[in_block_size];
     __shared__ Float p_wei_block[wei_block_size];
@@ -159,29 +169,22 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
     // set threadwise output tensor to 0
     threadwise_4d_tensor_set_zero(out_hkwn_thread_desc, p_out_thread);
 
-    for(unsigned c_block_data_begin = 0; c_block_data_begin < in_nchw_global_desc.GetLength(I1);
+    for(unsigned c_block_data_begin = 0; c_block_data_begin < C;
         c_block_data_begin += CPerBlock, __syncthreads())
     {
-#if 0
+#if 1
         // input: global mem to LDS,
-        //   convert [N,C,Hi,Wi] to [C,Hi,Wi,N]
-        blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
-            in_nchw_global_desc,
-            p_in_global + in_nchw_global_desc.Get1dIndex(n_block_data_begin,
-                                                         c_block_data_begin,
-                                                         hi_block_data_begin,
-                                                         wi_block_data_begin),
-            in_chwn_block_desc,
-            p_in_block,
-            in_nchw_block_desc.GetLengths(),
-            reorder_chwn_from_nchw);
+        blockwise_in_copy.run(p_in_global + in_chwn_global_desc.Get1dIndex(c_block_data_begin,
+                                                                           hi_block_data_begin,
+                                                                           wi_block_data_begin,
+                                                                           n_block_data_begin),
+                              p_in_block);
 #endif
 
-#if 0
+#if 1
         // weight: global mem to LDS,
-        //   format is [S,R,C,K], no conversion needed
-        blockwise_wei_copy.run(p_wei_global + wei_srck_global_desc.Get1dIndex(
-                                                  0, 0, c_block_data_begin, k_block_data_begin),
+        blockwise_wei_copy.run(p_wei_global + wei_csrk_global_desc.Get1dIndex(
+                                                  c_block_data_begin, 0, 0, k_block_data_begin),
                                p_wei_block);
 #endif
 
@@ -192,9 +195,9 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
         {
             for(unsigned r = 0; r < R; ++r)
             {
-                auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
+                auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
-                blockwise_batch_gemm.run(p_wei_block + wei_srck_block_desc.Get1dIndex(s, r, 0, 0),
+                blockwise_batch_gemm.run(p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
                                          p_in_block + in_chwn_block_desc.Get1dIndex(0, s, r, 0),
                                          p_out_thread,
                                          f_accum);
@@ -207,20 +210,30 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
 
     const unsigned ho_thread_data_begin = matrix_c_index.batch_begin;
     const unsigned k_thread_data_begin  = matrix_c_index.row_begin;
-    const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerThread;
+    const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerBlock;
+    const unsigned n_thread_data_begin =
+        matrix_c_index.col_begin - wo_thread_data_begin * NPerBlock;
+
+#if 0
+    printf("block %u %u, %u %u %u %u, %u %u %u %u, %f \n", 
+            get_block_1d_id(), get_thread_local_1d_id(),
+            ho_block_data_begin, k_block_data_begin, wo_block_data_begin, n_block_data_begin,
+            ho_thread_data_begin, k_thread_data_begin, wo_thread_data_begin, n_thread_data_begin,
+            p_out_thread[0]);
+#endif
 
     // output: register to global mem,
-    //   convert out_thread[Ho,K,Wo,N] to out_global[N,K,Ho,Wo]
-    constexpr auto reorder_nkhw_from_hkwn = Sequence<3, 1, 0, 2>{};
+    //   convert out_thread[Ho,K,Wo,N] to out_global[K,Ho,Wo,N]
+    constexpr auto reorder_khwn_from_hkwn = Sequence<1, 0, 2, 3>{};
 
     threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(
         out_hkwn_thread_desc,
         p_out_thread,
-        out_nkhw_global_desc,
-        p_out_global + out_nkhw_global_desc.Get1dIndex(n_block_data_begin,
-                                                       k_block_data_begin + k_thread_data_begin,
+        out_khwn_global_desc,
+        p_out_global + out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
                                                        ho_block_data_begin + ho_thread_data_begin,
-                                                       wo_block_data_begin + wo_thread_data_begin),
+                                                       wo_block_data_begin + wo_thread_data_begin,
+                                                       n_block_data_begin + n_thread_data_begin),
         out_hkwn_thread_desc.GetLengths(),
-        reorder_nkhw_from_hkwn);
+        reorder_khwn_from_hkwn);
 }
