@@ -70,7 +70,7 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
     const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
     const unsigned k_block_data_begin  = k_block_work_id * KPerBlock;
     const unsigned ho_block_data_begin = h_block_work_id * HoPerBlock;
-    const unsigned wo_block_data_begin = w_block_work_id * HoPerBlock;
+    const unsigned wo_block_data_begin = w_block_work_id * WoPerBlock;
 
     const unsigned hi_block_data_begin = ho_block_data_begin;
     const unsigned wi_block_data_begin = wo_block_data_begin;
@@ -162,7 +162,7 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
     for(unsigned c_block_data_begin = 0; c_block_data_begin < in_nchw_global_desc.GetLength(I1);
         c_block_data_begin += CPerBlock, __syncthreads())
     {
-#if 0
+#if 1
         // input: global mem to LDS,
         //   convert [N,C,Hi,Wi] to [C,Hi,Wi,N]
         blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
@@ -177,7 +177,7 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
             reorder_chwn_from_nchw);
 #endif
 
-#if 0
+#if 1
         // weight: global mem to LDS,
         //   format is [S,R,C,K], no conversion needed
         blockwise_wei_copy.run(p_wei_global + wei_srck_global_desc.Get1dIndex(

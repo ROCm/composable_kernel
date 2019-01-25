@@ -8,7 +8,7 @@
 #include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-//#include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
+#include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
 #include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
 #include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
@@ -361,7 +361,7 @@ int main()
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 0
+#elif 1
     // 3x3, 34x34
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
@@ -370,7 +370,7 @@ int main()
     constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
-#elif 1
+#elif 0
     // 3x3, 54x54
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 64;
@@ -388,7 +388,7 @@ int main()
     constexpr unsigned K  = 64;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
-#elif 1
+#elif 0
     // 3x3, 58x58
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 64;
@@ -449,7 +449,7 @@ int main()
     device_direct_convolution_2
 #elif 0
     device_implicit_gemm_convolution_1_nchw_kcsr
-#elif 0
+#elif 1
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 1
     device_implicit_gemm_convolution_1_chwn_csrk_khwn

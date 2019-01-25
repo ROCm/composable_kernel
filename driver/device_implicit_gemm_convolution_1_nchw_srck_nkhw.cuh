@@ -65,20 +65,8 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 16;
-#elif 0
-    constexpr unsigned NPerBlock  = 1;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 32;
-
-    constexpr unsigned KPerThread  = 8;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 2;
-    constexpr unsigned WoPerThread = 4;
-
-    constexpr unsigned BlockSize = 128;
 #elif 1
+    // for 3x3, 34x34
     constexpr unsigned NPerBlock  = 1;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 2;
@@ -92,6 +80,7 @@ void device_implicit_gemm_convolution_1_nchw_srck_nkhw(InDesc,
 
     constexpr unsigned BlockSize = 128;
 #elif 0
+    // for 3x3, 34x34
     constexpr unsigned NPerBlock  = 2;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 2;
