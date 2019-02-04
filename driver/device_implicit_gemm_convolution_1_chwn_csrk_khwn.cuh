@@ -87,7 +87,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 8;
-#elif 0
+#elif 1
     // for 3x3, 34x34 | 3x3 58x58, NKC = 64, 64, 256
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 64;
@@ -162,7 +162,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     // for 1x1, 28x28
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 128;

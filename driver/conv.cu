@@ -396,6 +396,9 @@ int main()
     constexpr unsigned K = 64;
     constexpr unsigned S = 3;
     constexpr unsigned R = 3;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
 #elif 0
     // 3x3, 56x56
     constexpr unsigned N  = 64;
@@ -586,7 +589,7 @@ int main()
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(in_nchw_desc,
                                                                    in_nchw,
                                                                    wei_kcsr_desc,
@@ -598,7 +601,7 @@ int main()
                                                                    nrepeat);
 #endif
 
-#if 0
+#if 1
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
