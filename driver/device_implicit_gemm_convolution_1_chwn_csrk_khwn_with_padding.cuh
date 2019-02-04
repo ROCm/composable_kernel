@@ -164,7 +164,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     // 3x3 56x56, NKC = 16,256,128, with padding
     // 3x3 28x28, NKC = 16,512,256, with padding
     // 3x3 20x84, NKC = 16,256,256, with padding
@@ -177,6 +177,51 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
     constexpr unsigned NPerThread  = 4;
     constexpr unsigned KPerThread  = 16;
     constexpr unsigned CPerThread  = 1;
+    constexpr unsigned HoPerThread = 1;
+    constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned BlockSize = 128;
+#elif 0
+    // for 5x5 filter, 20x84 image, 1x1 padding
+    constexpr unsigned NPerBlock  = 16;
+    constexpr unsigned KPerBlock  = 64;
+    constexpr unsigned CPerBlock  = 1;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 4;
+
+    constexpr unsigned NPerThread  = 4;
+    constexpr unsigned KPerThread  = 16;
+    constexpr unsigned CPerThread  = 1;
+    constexpr unsigned HoPerThread = 1;
+    constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned BlockSize = 128;
+#elif 0
+    // 5x5 filter, 28x28 image, 2x2 padding
+    constexpr unsigned NPerBlock  = 16;
+    constexpr unsigned KPerBlock  = 32;
+    constexpr unsigned CPerBlock  = 2;
+    constexpr unsigned HoPerBlock = 4;
+    constexpr unsigned WoPerBlock = 4;
+
+    constexpr unsigned NPerThread  = 4;
+    constexpr unsigned KPerThread  = 16;
+    constexpr unsigned CPerThread  = 1;
+    constexpr unsigned HoPerThread = 1;
+    constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned BlockSize = 128;
+#elif 1
+    // for 1x1, 28x28
+    constexpr unsigned NPerBlock  = 16;
+    constexpr unsigned KPerBlock  = 128;
+    constexpr unsigned CPerBlock  = 8;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 2;
+
+    constexpr unsigned NPerThread  = 4;
+    constexpr unsigned KPerThread  = 16;
+    constexpr unsigned CPerThread  = 2;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
@@ -229,7 +274,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
         cudaEventElapsedTime(&elapsedTime, start, stop);
         printf("Elapsed time : %f ms\n", elapsedTime);
 
-        usleep(10000);
+        usleep(elapsedTime * 1000);
     }
 
     checkCudaErrors(cudaGetLastError());

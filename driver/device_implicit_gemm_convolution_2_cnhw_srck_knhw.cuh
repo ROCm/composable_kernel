@@ -93,7 +93,7 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     constexpr unsigned GemmThreadPerClusterColumn = 4;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 2;
@@ -104,6 +104,23 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
 
     constexpr unsigned GemmRowThreadPerCluster    = 4;
     constexpr unsigned GemmColumnThreadPerCluster = 4;
+
+    constexpr unsigned InBlockCopyThreadPerDim0 = 2;
+    constexpr unsigned InBlockCopyThreadPerDim1 = 64;
+
+    constexpr unsigned BlockSize = 128;
+#elif 1
+    // 1x1, 28x28
+    constexpr unsigned BPerBlock = 64;
+    constexpr unsigned KPerBlock = 128;
+    constexpr unsigned CPerBlock = 8;
+
+    constexpr unsigned BPerThread = 4;
+    constexpr unsigned KPerThread = 16;
+    constexpr unsigned CPerThread = 2;
+
+    constexpr unsigned GemmRowThreadPerCluster    = 8;
+    constexpr unsigned GemmColumnThreadPerCluster = 8;
 
     constexpr unsigned InBlockCopyThreadPerDim0 = 2;
     constexpr unsigned InBlockCopyThreadPerDim1 = 64;
