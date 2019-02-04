@@ -7,7 +7,7 @@
 #include "threadwise_2d_tensor_op.cuh"
 #include "gemm.cuh"
 
-// define B = N*Hi*Wi
+// define B = flatten(N, Hi, Wi)
 template <unsigned GridSize,
           unsigned BlockSize,
           class Float,

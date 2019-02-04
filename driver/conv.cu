@@ -453,7 +453,7 @@ int main()
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
-#elif 1
+#elif 0
     // 3x3 filter, 56x56 image, 1x1 padding
     constexpr unsigned N  = 16;
     constexpr unsigned C  = 128;
@@ -477,6 +477,18 @@ int main()
 
     constexpr unsigned HPad = 1;
     constexpr unsigned WPad = 1;
+#elif 1
+    // 1x1 filter, 28x28 image
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 28;
+    constexpr unsigned WI = 28;
+    constexpr unsigned K  = 512;
+    constexpr unsigned S  = 1;
+    constexpr unsigned R  = 1;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
 #elif 0
     // 3x3 filter, 20x84 image, 1x1 padding
     constexpr unsigned N  = 16;
@@ -489,6 +501,42 @@ int main()
 
     constexpr unsigned HPad = 1;
     constexpr unsigned WPad = 1;
+#elif 0
+    // 3x3 filter, 112x112 image, 1x1 padding
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 64;
+    constexpr unsigned HI = 112;
+    constexpr unsigned WI = 112;
+    constexpr unsigned K  = 128;
+    constexpr unsigned S  = 3;
+    constexpr unsigned R  = 3;
+
+    constexpr unsigned HPad = 1;
+    constexpr unsigned WPad = 1;
+#elif 0
+    // 5x5 filter, 20x86 image, 1x1 padding
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 20;
+    constexpr unsigned WI = 86;
+    constexpr unsigned K  = 512;
+    constexpr unsigned S  = 5;
+    constexpr unsigned R  = 5;
+
+    constexpr unsigned HPad = 1;
+    constexpr unsigned WPad = 1;
+#elif 0
+    // 5x5 filter, 28x28 image, 2x2 padding
+    constexpr unsigned N  = 16;
+    constexpr unsigned C  = 192;
+    constexpr unsigned HI = 28;
+    constexpr unsigned WI = 28;
+    constexpr unsigned K  = 32;
+    constexpr unsigned S  = 5;
+    constexpr unsigned R  = 5;
+
+    constexpr unsigned HPad = 2;
+    constexpr unsigned WPad = 2;
 #endif
 
     auto lower_pads = Sequence<HPad, WPad>{};
@@ -510,7 +558,7 @@ int main()
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
-#if 1
+#if 0
     in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #elif 1
@@ -518,9 +566,9 @@ int main()
     wei_kcsr.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
 #endif
 
-    unsigned nrepeat = 50;
+    unsigned nrepeat = 100;
 
-#if 0
+#if 1
 #if 0
     device_direct_convolution_1
 #elif 0
@@ -531,15 +579,14 @@ int main()
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn
-#elif 0
+#elif 1
     device_implicit_gemm_convolution_2_cnhw_srck_knhw
 #elif 0
     device_winograd_convolution
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
-#endif
 
-#if 1
+#elif 1
     device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(in_nchw_desc,
                                                                    in_nchw,
                                                                    wei_kcsr_desc,
@@ -551,7 +598,7 @@ int main()
                                                                    nrepeat);
 #endif
 
-#if 1
+#if 0
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);

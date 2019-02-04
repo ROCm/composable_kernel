@@ -115,7 +115,7 @@ gridwise_implicit_gemm_convolution_3_cnhw_srck_knhw(InGlobalDesc,
                                    decltype(in_cb_global_desc),
                                    decltype(in_cb_block_desc),
                                    decltype(in_cb_block_desc.GetLengths())>{};
-#elif 0
+#elif 1
     const auto blockwise_in_copy =
         blockwise_2d_tensor_copy_2<BlockSize,
                                    Float,
