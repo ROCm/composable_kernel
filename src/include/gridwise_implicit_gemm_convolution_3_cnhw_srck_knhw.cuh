@@ -5,7 +5,7 @@
 #include "blockwise_4d_tensor_op.cuh"
 #include "blockwise_2d_tensor_op.cuh"
 #include "threadwise_2d_tensor_op.cuh"
-#include "gemm.cuh"
+#include "blockwise_gemm.cuh"
 
 // define B = N*Hi*Wi
 template <unsigned GridSize,

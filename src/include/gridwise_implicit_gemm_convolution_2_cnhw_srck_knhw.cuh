@@ -5,7 +5,7 @@
 #include "blockwise_4d_tensor_op.cuh"
 #include "blockwise_2d_tensor_op.cuh"
 #include "threadwise_2d_tensor_op.cuh"
-#include "gemm.cuh"
+#include "blockwise_gemm.cuh"
 
 // define B = flatten(N, Hi, Wi)
 template <unsigned GridSize,
@@ -128,14 +128,12 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
 
     // blockwise wei copy
     //   format is [S,R,CPerBlock,KPerBlock]
-#if 1
     const auto blockwise_wei_copy =
         blockwise_4d_tensor_copy_1<BlockSize,
                                    Float,
                                    decltype(wei_srck_global_desc),
                                    decltype(wei_srck_block_desc),
                                    decltype(wei_srck_block_desc.GetLengths())>{};
-#endif
 
     // a series of blockwise GEMM
     // c_mtx += transpose(a_mtx) * b_mtx
@@ -180,21 +178,25 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
     // set threadwise output tensor to 0
     threadwise_2d_tensor_set_zero(out_kb_thread_desc, p_out_thread);
 
-    for(unsigned c_block_data_begin = 0; c_block_data_begin < C;
-        c_block_data_begin += CPerBlock, __syncthreads())
+    Float* p_in_global_block_offset =
+        p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
+
+    Float* p_wei_global_block_offset =
+        p_wei_global + wei_srck_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
+
+    for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
+                 p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
+                 p_wei_global_block_offset += CPerBlock * wei_srck_global_desc.GetStride(I2),
+                 __syncthreads())
     {
 #if 1
         // input: global mem to LDS,
-        blockwise_in_copy.run(
-            p_in_global + in_cb_global_desc.Get1dIndex(c_block_data_begin, b_block_data_begin),
-            p_in_block);
+        blockwise_in_copy.run(p_in_global_block_offset, p_in_block);
 #endif
 
 #if 1
         // weight: global mem to LDS,
-        blockwise_wei_copy.run(p_wei_global + wei_srck_global_desc.Get1dIndex(
-                                                  0, 0, c_block_data_begin, k_block_data_begin),
-                               p_wei_block);
+        blockwise_wei_copy.run(p_wei_global_block_offset, p_wei_block);
 #endif
 
         __syncthreads();

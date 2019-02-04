@@ -4,7 +4,7 @@
 #include "ConstantMatrixDescriptor.cuh"
 #include "blockwise_4d_tensor_op.cuh"
 #include "threadwise_4d_tensor_op.cuh"
-#include "gemm.cuh"
+#include "blockwise_gemm.cuh"
 
 template <unsigned GridSize,
           unsigned BlockSize,
