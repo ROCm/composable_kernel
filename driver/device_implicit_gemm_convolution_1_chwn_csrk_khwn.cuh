@@ -226,7 +226,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
         cudaEventElapsedTime(&elapsedTime, start, stop);
         printf("Elapsed time : %f ms\n", elapsedTime);
 
-        usleep(10000);
+        usleep(std::min(elapsedTime * 1000, float(10000)));
     }
 
     checkCudaErrors(cudaGetLastError());
