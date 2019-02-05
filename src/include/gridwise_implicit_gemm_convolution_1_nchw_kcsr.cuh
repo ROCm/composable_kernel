@@ -127,21 +127,20 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr(InGlobalDesc,
         Number<KPerThread>{}, Number<WoPerThread * NPerThread>{}); // constexpr doesn't compile
 
     const auto blockwise_batch_gemm =
-        blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c<BlockSize,
-                                                                   decltype(a_cxk_block_mtx_desc),
-                                                                   decltype(b_cxwn_block_mtx_desc),
-                                                                   decltype(c_kxwn_thread_mtx_desc),
-                                                                   true,
-                                                                   false,
-                                                                   false,
-                                                                   0,
-                                                                   in_chwn_block_desc.GetStride(I1),
-                                                                   out_hkwn_thread_desc.GetStride(
-                                                                       I0),
-                                                                   HoPerBlock,
-                                                                   HoPerThread,
-                                                                   CPerThread,
-                                                                   true>{};
+        Blockwise1dStridedBatchedGemmBlockABlockBThreadC<BlockSize,
+                                                         decltype(a_cxk_block_mtx_desc),
+                                                         decltype(b_cxwn_block_mtx_desc),
+                                                         decltype(c_kxwn_thread_mtx_desc),
+                                                         true,
+                                                         false,
+                                                         false,
+                                                         0,
+                                                         in_chwn_block_desc.GetStride(I1),
+                                                         out_hkwn_thread_desc.GetStride(I0),
+                                                         HoPerBlock,
+                                                         HoPerThread,
+                                                         CPerThread,
+                                                         true>{};
 
     // LDS
     constexpr unsigned in_block_size  = in_chwn_block_desc.GetElementSpace();
@@ -175,15 +174,15 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr(InGlobalDesc,
 #else
         // input: global mem to LDS,
         //   no format conversion, this is wrong, for performance study only!
-        blockwise_4d_tensor_copy<BlockSize>(in_nchw_global_desc,
-                                            p_in_global +
-                                                in_nchw_global_desc.Get1dIndex(n_block_data_begin,
-                                                                               c_block_data_begin,
-                                                                               hi_block_data_begin,
-                                                                               wi_block_data_begin),
-                                            in_nchw_block_desc,
-                                            p_in_block,
-                                            in_nchw_block_desc.GetLengths());
+        Blockwise4dTensorCopy<BlockSize>(in_nchw_global_desc,
+                                         p_in_global +
+                                             in_nchw_global_desc.Get1dIndex(n_block_data_begin,
+                                                                            c_block_data_begin,
+                                                                            hi_block_data_begin,
+                                                                            wi_block_data_begin),
+                                         in_nchw_block_desc,
+                                         p_in_block,
+                                         in_nchw_block_desc.GetLengths());
 #endif
 
 #if 1
@@ -200,7 +199,7 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr(InGlobalDesc,
 #else
         // weight: global mem to LDS,
         //   no format conversion, this is wrong, for performance study only!
-        blockwise_4d_tensor_copy<BlockSize>(
+        Blockwise4dTensorCopy<BlockSize>(
             wei_kcsr_global_desc,
             p_wei_global +
                 wei_kcsr_global_desc.Get1dIndex(k_block_data_begin, c_block_data_begin, 0, 0),
@@ -219,7 +218,7 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr(InGlobalDesc,
             {
                 auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
 
-                blockwise_batch_gemm.run(p_wei_block + wei_srck_block_desc.Get1dIndex(s, r, 0, 0),
+                blockwise_batch_gemm.Run(p_wei_block + wei_srck_block_desc.Get1dIndex(s, r, 0, 0),
                                          p_in_block + in_chwn_block_desc.Get1dIndex(0, s, r, 0),
                                          p_out_thread,
                                          f_accum);

@@ -15,7 +15,7 @@ template <unsigned BlockSize,
           unsigned BatchPerThread,
           unsigned KPerThreadLoop,
           bool DistributeThreadAlongColumnFirst>
-struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
+struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
 {
     unsigned mMyThreadOffsetA = 0;
     unsigned mMyThreadOffsetB = 0;
@@ -27,7 +27,7 @@ struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
         unsigned col_begin;
     };
 
-    __device__ blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c()
+    __device__ Blockwise1dStridedBatchedGemmBlockABlockBThreadC()
     {
         const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
         const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
@@ -117,7 +117,7 @@ struct blockwise_1d_strided_batched_gemm_block_a_block_b_thread_c
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void run(FloatA* const p_a_block,
+    __device__ void Run(FloatA* const p_a_block,
                         FloatB* const p_b_block,
                         FloatC* p_c_thread,
                         Accumulator f_accum) const
@@ -230,7 +230,7 @@ template <unsigned BlockSize,
           unsigned MThreadPerCluster,
           unsigned NThreadPerCluster,
           bool DistributeThreadAlongColumnFirst>
-struct blockwise_gemm_block_a_block_b_thread_c
+struct BlockwiseGemmBlockABlockBThreadC
 {
     unsigned mMyThreadOffsetA = 0;
     unsigned mMyThreadOffsetB = 0;
@@ -241,7 +241,7 @@ struct blockwise_gemm_block_a_block_b_thread_c
         unsigned col_begin;
     };
 
-    __device__ blockwise_gemm_block_a_block_b_thread_c()
+    __device__ BlockwiseGemmBlockABlockBThreadC()
     {
         const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
         const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
@@ -360,7 +360,7 @@ struct blockwise_gemm_block_a_block_b_thread_c
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void run(FloatA* const p_a_block,
+    __device__ void Run(FloatA* const p_a_block,
                         FloatB* const p_b_block,
                         FloatC* p_c_thread,
                         Accumulator f_accum) const
