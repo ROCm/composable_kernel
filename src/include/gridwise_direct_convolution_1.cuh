@@ -122,25 +122,25 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
 #endif
 
     constexpr auto blockwise_in_copy =
-        blockwise_4d_tensor_copy_1<BlockSize,
-                                   Float,
-                                   decltype(in_block_global_desc),
-                                   decltype(in_block_desc),
-                                   decltype(in_block_desc.GetLengths())>{};
+        Blockwise4dTensorCopy1<BlockSize,
+                               Float,
+                               decltype(in_block_global_desc),
+                               decltype(in_block_desc),
+                               decltype(in_block_desc.GetLengths())>{};
 
     constexpr auto blockwise_wei_copy =
-        blockwise_4d_tensor_copy_1<BlockSize,
-                                   Float,
-                                   decltype(wei_block_global_desc),
-                                   decltype(wei_block_desc),
-                                   decltype(wei_block_desc.GetLengths())>{};
+        Blockwise4dTensorCopy1<BlockSize,
+                               Float,
+                               decltype(wei_block_global_desc),
+                               decltype(wei_block_desc),
+                               decltype(wei_block_desc.GetLengths())>{};
 
     constexpr auto blockwise_out_copy =
-        blockwise_4d_tensor_copy_1<BlockSize,
-                                   Float,
-                                   decltype(out_block_desc),
-                                   decltype(out_block_global_desc),
-                                   decltype(out_block_desc.GetLengths())>{};
+        Blockwise4dTensorCopy1<BlockSize,
+                               Float,
+                               decltype(out_block_desc),
+                               decltype(out_block_global_desc),
+                               decltype(out_block_desc.GetLengths())>{};
 
     // set output tensor in LDS to 0
     blockwise_4d_tensor_set_zero<BlockSize>(out_block_desc, p_out_block);
@@ -149,14 +149,14 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
         c_block_work_begin += CPerBlock)
     {
         // copy input tensor to LDS
-        blockwise_in_copy.run(p_in_global + in_global_desc.Get1dIndex(n_block_work_begin,
+        blockwise_in_copy.Run(p_in_global + in_global_desc.Get1dIndex(n_block_work_begin,
                                                                       c_block_work_begin,
                                                                       hi_block_work_begin,
                                                                       wi_block_work_begin),
                               p_in_block);
 
         // copy weight tensor to LDS
-        blockwise_wei_copy.run(
+        blockwise_wei_copy.Run(
             p_wei_global + wei_global_desc.Get1dIndex(k_block_work_begin, c_block_work_begin, 0, 0),
             p_wei_block);
 
@@ -179,7 +179,7 @@ __global__ void gridwise_direct_convolution_1(InGlobalDesc,
     }
 
     // copy output tensor from LDS to device mem
-    blockwise_out_copy.run(p_out_block,
+    blockwise_out_copy.Run(p_out_block,
                            p_out_global + out_global_desc.Get1dIndex(n_block_work_begin,
                                                                      k_block_work_begin,
                                                                      ho_block_work_begin,

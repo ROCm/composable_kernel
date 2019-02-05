@@ -86,6 +86,9 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
     constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
     constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
 
+    constexpr unsigned InBlockCopyDataPerRead  = 4;
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+
     constexpr unsigned BlockSize = 64;
 #endif
 
@@ -137,7 +140,9 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
              InBlockCopyThreadPerDim0,
              InBlockCopyThreadPerDim1,
              WeiBlockCopyThreadPerDim0,
-             WeiBlockCopyThreadPerDim1>
+             WeiBlockCopyThreadPerDim1,
+             InBlockCopyDataPerRead,
+             WeiBlockCopyDataPerRead>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,
                                       static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
                                       wei_csrk_desc,

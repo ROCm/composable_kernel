@@ -162,9 +162,9 @@ blockwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
 }
 
 template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
-struct blockwise_2d_tensor_copy_1
+struct Blockwise2dTensorCopy1
 {
-    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
     {
         constexpr auto dst_from_src_reorder = Sequence<0, 1>{};
 
@@ -173,6 +173,8 @@ struct blockwise_2d_tensor_copy_1
     }
 };
 
+// need to be aligned to float4 and float2
+// stride1 need to be 1 for both source and destination
 template <unsigned BlockSize,
           class Float,
           class SrcDesc,
@@ -180,21 +182,27 @@ template <unsigned BlockSize,
           class SrcOpLengths,
           unsigned ThreadPerDim0,
           unsigned ThreadPerDim1>
-struct blockwise_2d_tensor_copy_2
+struct Blockwise2dTensorCopy2
 {
     unsigned mThreadId0;
     unsigned mThreadId1;
 
-    __device__ blockwise_2d_tensor_copy_2()
+    __device__ Blockwise2dTensorCopy2()
     {
-        static_assert(is_same<Float, float>::value, "wrong! type is not float!\n");
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        static_assert(SrcDesc{}.GetStride(I1) == 1 && DstDesc{}.GetStride(I1) == 1,
+                      "wrong! stride is not 1!\n");
 
         mThreadId0 = get_thread_local_1d_id() / ThreadPerDim1;
         mThreadId1 = get_thread_local_1d_id() - mThreadId0 * ThreadPerDim1;
     }
 
-    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
     {
+        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+
         if(get_thread_local_1d_id() >= ThreadPerDim0 * ThreadPerDim1)
             return;
 
@@ -227,22 +235,12 @@ struct blockwise_2d_tensor_copy_2
             for(unsigned d1v4loop = 0; d1v4loop < Dim1V4Loop; ++d1v4loop)
             {
                 unsigned did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
-#if 1
+
                 const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                 const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                 *(reinterpret_cast<float4*>(p_dst + dindex)) =
                     *(reinterpret_cast<float4*>(p_src + sindex));
-
-#else
-                for(unsigned i = 0; i < 4; ++i)
-                {
-                    const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
-                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
-
-                    p_dst[dindex] = p_src[sindex];
-                }
-#endif
             }
 
             // v2
@@ -251,22 +249,11 @@ struct blockwise_2d_tensor_copy_2
                 unsigned did1 =
                     Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 + 2 * mThreadId1;
 
-#if 1
                 const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                 const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                 *(reinterpret_cast<float2*>(p_dst + dindex)) =
                     *(reinterpret_cast<float2*>(p_src + sindex));
-
-#else
-                for(unsigned i = 0; i < 2; ++i)
-                {
-                    const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
-                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
-
-                    p_dst[dindex] = p_src[sindex];
-                }
-#endif
             }
 
             // v1
@@ -310,22 +297,11 @@ struct blockwise_2d_tensor_copy_2
                 {
                     unsigned did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
 
-#if 1
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                     const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                     *(reinterpret_cast<float4*>(p_dst + dindex)) =
                         *(reinterpret_cast<float4*>(p_src + sindex));
-
-#else
-                    for(unsigned i = 0; i < 4; ++i)
-                    {
-                        const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
-                        const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
-
-                        p_dst[dindex] = p_src[sindex];
-                    }
-#endif
                 }
 
                 // v2
@@ -334,22 +310,11 @@ struct blockwise_2d_tensor_copy_2
                     unsigned did1 = Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 +
                                     2 * mThreadId1;
 
-#if 1
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                     const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                     *(reinterpret_cast<float2*>(p_dst + dindex)) =
                         *(reinterpret_cast<float2*>(p_src + sindex));
-
-#else
-                    for(unsigned i = 0; i < 2; ++i)
-                    {
-                        const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
-                        const unsigned dindex = dst_desc.Get1dIndex(did0, did1 + i);
-
-                        p_dst[dindex] = p_src[sindex];
-                    }
-#endif
                 }
 
                 // v1
@@ -385,49 +350,104 @@ struct blockwise_2d_tensor_copy_2
     }
 };
 
-template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
-struct blockwise_2d_tensor_copy_dummy_1
+// starting point need to be aligned to float4 or float2 or float
+// stride1 need to be 1 for both source and destination
+template <unsigned BlockSize,
+          class Float,
+          class SrcDesc,
+          class DstDesc,
+          class SrcOpLengths,
+          unsigned DataPerRead>
+struct Blockwise2dTensorCopy3
 {
-    unsigned mBegin;
+    unsigned mSrcMyThreadOffset;
+    unsigned mDstMyThreadOffset;
 
-    __device__ blockwise_2d_tensor_copy_dummy_1()
+    __device__ Blockwise2dTensorCopy3()
     {
-        constexpr unsigned n_total =
-            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
 
-        constexpr unsigned n_per_thread = n_total / BlockSize;
+        static_assert(SrcDesc{}.GetStride(I1) == 1 && DstDesc{}.GetStride(I1) == 1,
+                      "wrong! only support stride1 == 1!\n");
 
-        mBegin = n_per_thread * get_thread_local_1d_id();
+        static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
+                      "wrong! only support DataPerRead == 1, 2 or 4!\n");
+
+        constexpr unsigned L0 = SrcOpLengths{}.Get(I0);
+        constexpr unsigned L1 = SrcOpLengths{}.Get(I1);
+
+        static_assert(L1 % DataPerRead == 0, "wrong! only support mod(L1, DataPerRead) == 0\n");
+
+        constexpr unsigned thread_per_d1 = L1 / DataPerRead;
+        constexpr unsigned thread_per_d0 = BlockSize / thread_per_d1;
+
+        static_assert(thread_per_d1 <= BlockSize,
+                      "wrong! not enough threads to cover L1 dimension\n");
+
+        const unsigned thread_id_d0 = get_thread_local_1d_id() / thread_per_d1;
+        const unsigned thread_id_d1 = get_thread_local_1d_id() - thread_id_d0 * thread_per_d1;
+
+        mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(thread_id_d0, thread_id_d1 * DataPerRead);
+        mDstMyThreadOffset = DstDesc{}.Get1dIndex(thread_id_d0, thread_id_d1 * DataPerRead);
     }
 
-    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        constexpr unsigned n_total =
-            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
 
-        constexpr unsigned n_per_thread = n_total / BlockSize;
+        using Float2 = float2;
+        using Float4 = float4;
 
-        for(unsigned i = 0; i < n_per_thread; ++i)
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        constexpr unsigned L0 = SrcOpLengths{}.Get(I0);
+        constexpr unsigned L1 = SrcOpLengths{}.Get(I1);
+
+        constexpr unsigned thread_per_d1 = L1 / DataPerRead;
+        constexpr unsigned thread_per_d0 = BlockSize / thread_per_d1;
+
+        constexpr unsigned num_active_thread = thread_per_d0 * thread_per_d1;
+
+        if(BlockSize > num_active_thread)
         {
-            p_dst[mBegin + i] = p_src[mBegin + i];
+            if(get_thread_local_1d_id() > num_active_thread)
+            {
+                return;
+            }
         }
-    }
-};
 
-template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
-struct blockwise_2d_tensor_copy_dummy_2
-{
-    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
-    {
-        constexpr unsigned n_total =
-            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
+        constexpr unsigned nloop_d0 = L0 / thread_per_d0;
 
-        constexpr unsigned n_per_thread = n_total / BlockSize;
+        constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
 
-        for(unsigned i = 0; i < n_per_thread; ++i)
+        constexpr unsigned src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
+        constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
+
+        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
         {
-            unsigned index = get_thread_local_1d_id() + BlockSize * i;
-            p_dst[index]   = p_src[index];
+            if(DataPerRead == 1)
+            {
+                p_dst[mDstMyThreadOffset + iloop * dst_loop_stride] =
+                    p_src[mSrcMyThreadOffset + iloop * src_loop_stride];
+            }
+            else if(DataPerRead == 2)
+            {
+                *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
+                    *(reinterpret_cast<Float2*>(p_src + mSrcMyThreadOffset +
+                                                iloop * src_loop_stride));
+            }
+            else if(DataPerRead == 4)
+            {
+                *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
+                    *(reinterpret_cast<Float4*>(p_src + mSrcMyThreadOffset +
+                                                iloop * src_loop_stride));
+            }
+            else
+            {
+                assert(false);
+            }
         }
     }
 };

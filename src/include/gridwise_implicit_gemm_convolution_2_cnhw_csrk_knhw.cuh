@@ -25,7 +25,9 @@ template <unsigned GridSize,
           unsigned InBlockCopyThreadPerDim0,
           unsigned InBlockCopyThreadPerDim1,
           unsigned WeiBlockCopyThreadPerDim0,
-          unsigned WeiBlockCopyThreadPerDim1>
+          unsigned WeiBlockCopyThreadPerDim1,
+          unsigned InBlockCopyDataPerRead,
+          unsigned WeiBlockCopyDataPerRead>
 __global__ void
 gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
                                                     Float* const __restrict__ p_in_global,
@@ -117,40 +119,52 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
     //   formmat is [CPerBlock,BPerBlock + BGhostRead]
 #if 0
     const auto blockwise_in_copy =
-        blockwise_2d_tensor_copy_1<BlockSize,
+        Blockwise2dTensorCopy1<BlockSize,
                                    Float,
                                    decltype(in_cb_global_desc),
                                    decltype(in_cb_block_desc),
                                    decltype(in_cb_block_desc.GetLengths())>{};
+#elif 0
+    const auto blockwise_in_copy  = Blockwise2dTensorCopy2<BlockSize,
+                                                          Float,
+                                                          decltype(in_cb_global_desc),
+                                                          decltype(in_cb_block_desc),
+                                                          decltype(in_cb_block_desc.GetLengths()),
+                                                          InBlockCopyThreadPerDim0,
+                                                          InBlockCopyThreadPerDim1>{};
 #elif 1
-    const auto blockwise_in_copy =
-        blockwise_2d_tensor_copy_2<BlockSize,
-                                   Float,
-                                   decltype(in_cb_global_desc),
-                                   decltype(in_cb_block_desc),
-                                   decltype(in_cb_block_desc.GetLengths()),
-                                   InBlockCopyThreadPerDim0,
-                                   InBlockCopyThreadPerDim1>{};
+    const auto blockwise_in_copy  = Blockwise2dTensorCopy3<BlockSize,
+                                                          Float,
+                                                          decltype(in_cb_global_desc),
+                                                          decltype(in_cb_block_desc),
+                                                          decltype(in_cb_block_desc.GetLengths()),
+                                                          InBlockCopyDataPerRead>{};
 #endif
 
     // blockwise wei copy
     //   format is [CPerBlock*S*R,KPerBlock]
 #if 0
     const auto blockwise_wei_copy =
-        blockwise_2d_tensor_copy_1<BlockSize,
-                                   Float,
-                                   decltype(wei_ek_global_desc),
-                                   decltype(wei_ek_block_desc),
-                                   decltype(wei_ek_block_desc.GetLengths())>{};
+        Blockwise2dTensorCopy1<BlockSize,
+                               Float,
+                               decltype(wei_ek_global_desc),
+                               decltype(wei_ek_block_desc),
+                               decltype(wei_ek_block_desc.GetLengths())>{};
+#elif 0
+    const auto blockwise_wei_copy = Blockwise2dTensorCopy2<BlockSize,
+                                                           Float,
+                                                           decltype(wei_ek_global_desc),
+                                                           decltype(wei_ek_block_desc),
+                                                           decltype(wei_ek_block_desc.GetLengths()),
+                                                           WeiBlockCopyThreadPerDim0,
+                                                           WeiBlockCopyThreadPerDim1>{};
 #elif 1
-    const auto blockwise_wei_copy =
-        blockwise_2d_tensor_copy_2<BlockSize,
-                                   Float,
-                                   decltype(wei_ek_global_desc),
-                                   decltype(wei_ek_block_desc),
-                                   decltype(wei_ek_block_desc.GetLengths()),
-                                   WeiBlockCopyThreadPerDim0,
-                                   WeiBlockCopyThreadPerDim1>{};
+    const auto blockwise_wei_copy = Blockwise2dTensorCopy3<BlockSize,
+                                                           Float,
+                                                           decltype(wei_ek_global_desc),
+                                                           decltype(wei_ek_block_desc),
+                                                           decltype(wei_ek_block_desc.GetLengths()),
+                                                           WeiBlockCopyDataPerRead>{};
 #endif
 
     // a series of blockwise GEMM
@@ -170,18 +184,17 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
     const auto c_kxb_thread_mtx_desc = make_ConstantMatrixDescriptor(
         Number<KPerThread>{}, Number<BPerThread>{}); // constexpr doesn't compile
 
-    const auto blockwise_gemm =
-        blockwise_gemm_block_a_block_b_thread_c<BlockSize,
-                                                decltype(a_cxk_block_mtx_desc),
-                                                decltype(b_cxb_block_mtx_desc),
-                                                decltype(c_kxb_thread_mtx_desc),
-                                                true,
-                                                false,
-                                                false,
-                                                CPerThread,
-                                                GemmThreadPerClusterRow,
-                                                GemmThreadPerClusterColumn,
-                                                true>{};
+    const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadC<BlockSize,
+                                                                 decltype(a_cxk_block_mtx_desc),
+                                                                 decltype(b_cxb_block_mtx_desc),
+                                                                 decltype(c_kxb_thread_mtx_desc),
+                                                                 true,
+                                                                 false,
+                                                                 false,
+                                                                 CPerThread,
+                                                                 GemmThreadPerClusterRow,
+                                                                 GemmThreadPerClusterColumn,
+                                                                 true>{};
 
     // LDS
     constexpr unsigned in_block_size  = in_cb_block_desc.GetElementSpace();
@@ -208,10 +221,10 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
                  __syncthreads())
     {
         // input: global mem to LDS,
-        blockwise_in_copy.run(p_in_global_block_offset, p_in_block);
+        blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
 
         // weight: global mem to LDS,
-        blockwise_wei_copy.run(p_wei_global_block_offset, p_wei_block);
+        blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
 
         __syncthreads();
 
@@ -222,7 +235,7 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
             {
                 auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
 
-                blockwise_gemm.run(p_wei_block + wei_csrk_block_desc.Get1dIndex(s, r, 0, 0),
+                blockwise_gemm.Run(p_wei_block + wei_csrk_block_desc.Get1dIndex(s, r, 0, 0),
                                    p_in_block + s * Wi + r,
                                    p_out_thread,
                                    f_accum);
@@ -283,10 +296,8 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
 #endif
             if(n_data < N && h_data < Ho && w_data < Wo)
             {
-#if 1
                 p_out_global[out_knhw_global_desc.Get1dIndex(k_data, n_data, h_data, w_data)] =
                     p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)];
-#endif
             }
         }
     }

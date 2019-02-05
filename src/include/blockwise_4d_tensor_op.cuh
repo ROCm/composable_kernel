@@ -200,9 +200,9 @@ blockwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
 }
 
 template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
-struct blockwise_4d_tensor_copy_1
+struct Blockwise4dTensorCopy1
 {
-    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
     {
         constexpr auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
 
@@ -217,9 +217,9 @@ template <unsigned BlockSize,
           class DstDesc,
           class DstOpLengths,
           class GlobalLowerPads>
-struct blockwise_chwn_tensor_copy_with_padding
+struct BlockwiseChwnTensorCopyPadded
 {
-    __device__ void run(Float* const __restrict__ p_src,
+    __device__ void Run(Float* const __restrict__ p_src,
                         unsigned c_block_data_begin,
                         unsigned ho_block_data_begin,
                         unsigned wo_block_data_begin,
@@ -334,35 +334,6 @@ struct blockwise_chwn_tensor_copy_with_padding
                         ? Float(0)
                         : p_src_tmp[src_desc.Get1dIndex(did[0], did[1], did[2], did[3])];
             }
-        }
-    }
-};
-
-template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
-struct blockwise_4d_tensor_copy_dummy
-{
-    unsigned mBegin;
-
-    __device__ blockwise_4d_tensor_copy_dummy()
-    {
-        constexpr unsigned n_total =
-            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
-
-        constexpr unsigned n_per_thread = n_total / BlockSize;
-
-        mBegin = n_per_thread * get_thread_local_1d_id();
-    }
-
-    __device__ void run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
-    {
-        constexpr unsigned n_total =
-            make_ConstantTensorDescriptor(SrcOpLengths{}).GetElementSpace();
-
-        constexpr unsigned n_per_thread = n_total / BlockSize;
-
-        for(unsigned i = 0; i < n_per_thread; ++i)
-        {
-            p_dst[mBegin + i] = p_src[mBegin + i];
         }
     }
 };
