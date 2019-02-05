@@ -1,17 +1,19 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding.cuh"
+#include "gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.cuh"
+#include "gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_pipeline.cuh"
 #include <unistd.h>
+#include <algorithm>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc, class LowerPads, class UpperPads>
-void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
-                                                                    const Tensor<T>& in_nchw,
-                                                                    WeiDesc,
-                                                                    const Tensor<T>& wei_kcsr,
-                                                                    OutDesc,
-                                                                    Tensor<T>& out_nkhw,
-                                                                    LowerPads,
-                                                                    UpperPads,
-                                                                    unsigned nrepeat)
+void device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(InDesc,
+                                                              const Tensor<T>& in_nchw,
+                                                              WeiDesc,
+                                                              const Tensor<T>& wei_kcsr,
+                                                              OutDesc,
+                                                              Tensor<T>& out_nkhw,
+                                                              LowerPads,
+                                                              UpperPads,
+                                                              unsigned nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -87,6 +89,9 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
     constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 1;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 1;
 
     constexpr unsigned BlockSize = 8;
 #elif 0
@@ -180,6 +185,9 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 2;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 64;
+
     constexpr unsigned BlockSize = 128;
 #elif 0
     // for 5x5 filter, 20x84 image, 1x1 padding
@@ -225,6 +233,9 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+
     constexpr unsigned BlockSize = 128;
 #endif
 
@@ -245,24 +256,31 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
         cudaEventCreate(&start);
         cudaEventRecord(start, 0);
 
-        gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding<GridSize,
-                                                                         BlockSize,
-                                                                         T,
-                                                                         decltype(in_chwn_desc),
-                                                                         decltype(wei_csrk_desc),
-                                                                         decltype(out_khwn_desc),
-                                                                         LowerPads,
-                                                                         UpperPads,
-                                                                         NPerBlock,
-                                                                         KPerBlock,
-                                                                         CPerBlock,
-                                                                         HoPerBlock,
-                                                                         WoPerBlock,
-                                                                         NPerThread,
-                                                                         KPerThread,
-                                                                         CPerThread,
-                                                                         HoPerThread,
-                                                                         WoPerThread>
+#if 1
+        gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded
+#elif 1
+        gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_pipeline
+#endif
+            <GridSize,
+             BlockSize,
+             T,
+             decltype(in_chwn_desc),
+             decltype(wei_csrk_desc),
+             decltype(out_khwn_desc),
+             LowerPads,
+             UpperPads,
+             NPerBlock,
+             KPerBlock,
+             CPerBlock,
+             HoPerBlock,
+             WoPerBlock,
+             NPerThread,
+             KPerThread,
+             CPerThread,
+             HoPerThread,
+             WoPerThread,
+             WeiBlockCopyThreadPerDim0,
+             WeiBlockCopyThreadPerDim1>
             <<<grid_dim, block_dim>>>(static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
                                       static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
                                       static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
@@ -274,7 +292,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(InDesc,
         cudaEventElapsedTime(&elapsedTime, start, stop);
         printf("Elapsed time : %f ms\n", elapsedTime);
 
-        usleep(elapsedTime * 1000);
+        usleep(std::min(elapsedTime * 1000, float(10000)));
     }
 
     checkCudaErrors(cudaGetLastError());

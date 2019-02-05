@@ -11,8 +11,9 @@
 #include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
 #include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
-#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding.cuh"
+#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.cuh"
 #include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
+#include "device_implicit_gemm_convolution_2_cnhw_csrk_knhw.cuh"
 //#include "device_winograd_convolution.cuh"
 
 struct GeneratorTensor_1
@@ -382,11 +383,14 @@ int main()
 #if 0
     constexpr unsigned N  = 1;
     constexpr unsigned C  = 1;
-    constexpr unsigned HI = 10;
-    constexpr unsigned WI = 10;
+    constexpr unsigned HI = 28;
+    constexpr unsigned WI = 28;
     constexpr unsigned K  = 1;
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
+
+    constexpr unsigned HPad = 1;
+    constexpr unsigned WPad = 1;
 #elif 0
     // 3x3, 34x34
     constexpr unsigned N = 64;
@@ -567,6 +571,9 @@ int main()
 #elif 1
     in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
     wei_kcsr.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+#elif 1
+    in_nchw.GenerateTensorValue(GeneratorTensor_2{-2, 2}, num_thread);
+    wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #endif
 
     unsigned nrepeat = 100;
@@ -582,26 +589,28 @@ int main()
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_2_cnhw_srck_knhw
+#elif 1
+    device_implicit_gemm_convolution_2_cnhw_csrk_knhw
 #elif 0
     device_winograd_convolution
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 
-#elif 0
-    device_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(in_nchw_desc,
-                                                                   in_nchw,
-                                                                   wei_kcsr_desc,
-                                                                   wei_kcsr,
-                                                                   out_nkhw_desc,
-                                                                   out_nkhw_device,
-                                                                   lower_pads,
-                                                                   upper_pads,
-                                                                   nrepeat);
+#elif 1
+    device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(in_nchw_desc,
+                                                             in_nchw,
+                                                             wei_kcsr_desc,
+                                                             wei_kcsr,
+                                                             out_nkhw_desc,
+                                                             out_nkhw_device,
+                                                             lower_pads,
+                                                             upper_pads,
+                                                             nrepeat);
 #endif
 
-#if 1
+#if 0
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);

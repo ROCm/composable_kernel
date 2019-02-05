@@ -1,10 +1,10 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
-#include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline.cuh"
+#include "gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw.cuh"
+#include "gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_pipeline.cuh"
 #include <unistd.h>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
+void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
                                                        const Tensor<T>& in_nchw,
                                                        WeiDesc,
                                                        const Tensor<T>& wei_kcsr,
@@ -48,17 +48,17 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     make_ParallelTensorFunctor(f_reorder_nchw2cnhw, N, C, Hi, Wi)(
         std::thread::hardware_concurrency());
 
-    // convert wei_kcsr to wei_srck
-    auto wei_srck_desc = make_ConstantTensorDescriptor(Sequence<S, R, C, K>{});
-    ostream_ConstantTensorDescriptor(wei_srck_desc, std::cout << "wei_srck_desc: ");
+    // convert wei_kcsr to wei_csrk
+    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, S, R, K>{});
+    ostream_ConstantTensorDescriptor(wei_csrk_desc, std::cout << "wei_csrk_desc: ");
 
-    Tensor<T> wei_srck(make_TensorDescriptor(wei_srck_desc));
+    Tensor<T> wei_csrk(make_TensorDescriptor(wei_csrk_desc));
 
-    auto f_reorder_kcsr2srck = [&](auto k, auto c, auto s, auto r) {
-        wei_srck(s, r, c, k) = wei_kcsr(k, c, s, r);
+    auto f_reorder_kcsr2csrk = [&](auto k, auto c, auto s, auto r) {
+        wei_csrk(c, s, r, k) = wei_kcsr(k, c, s, r);
     };
 
-    make_ParallelTensorFunctor(f_reorder_kcsr2srck, K, C, S, R)(
+    make_ParallelTensorFunctor(f_reorder_kcsr2csrk, K, C, S, R)(
         std::thread::hardware_concurrency());
 
     // conver out_nkhw to out_knhw
@@ -67,65 +67,26 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
 
     Tensor<T> out_knhw(make_TensorDescriptor(out_knhw_desc));
 
-#if 0
-    constexpr unsigned BPerBlock = 256;
-    constexpr unsigned KPerBlock = 1;
-    constexpr unsigned CPerBlock = 1;
-
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 1;
-    constexpr unsigned CPerThread = 1;
-
-    constexpr unsigned GemmThreadPerClusterRow    = 1;
-    constexpr unsigned GemmThreadPerClusterColumn = 4;
-
-    constexpr unsigned BlockSize = 32;
-#elif 0
-    constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 2;
-
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
-    constexpr unsigned CPerThread = 1;
-
-    constexpr unsigned GemmThreadPerClusterRow    = 4;
-    constexpr unsigned GemmThreadPerClusterColumn = 4;
-
-    constexpr unsigned BlockSize = 128;
-#elif 0
-    constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 2;
-
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
-    constexpr unsigned CPerThread = 1;
-
-    constexpr unsigned GemmRowThreadPerCluster    = 4;
-    constexpr unsigned GemmColumnThreadPerCluster = 4;
-
-    constexpr unsigned InBlockCopyThreadPerDim0 = 2;
-    constexpr unsigned InBlockCopyThreadPerDim1 = 64;
-
-    constexpr unsigned BlockSize = 128;
-#elif 1
+#if 1
     // 1x1, 28x28
     constexpr unsigned BPerBlock = 64;
-    constexpr unsigned KPerBlock = 128;
+    constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 8;
 
     constexpr unsigned BPerThread = 4;
     constexpr unsigned KPerThread = 16;
-    constexpr unsigned CPerThread = 2;
+    constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned GemmRowThreadPerCluster    = 8;
+    constexpr unsigned GemmRowThreadPerCluster    = 4;
     constexpr unsigned GemmColumnThreadPerCluster = 8;
 
-    constexpr unsigned InBlockCopyThreadPerDim0 = 8;
+    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
     constexpr unsigned InBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
+
+    constexpr unsigned BlockSize = 64;
 #endif
 
     constexpr unsigned GridSize =
@@ -140,11 +101,11 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     std::size_t data_sz = sizeof(T);
     DeviceMem in_cnhw_device_buf(data_sz * (in_cnhw.mDesc.GetElementSpace() + BGhostRead +
                                             BPerBlock)); // reserve extra space for BGhostRead
-    DeviceMem wei_srck_device_buf(data_sz * wei_srck.mDesc.GetElementSpace());
+    DeviceMem wei_csrk_device_buf(data_sz * wei_csrk.mDesc.GetElementSpace());
     DeviceMem out_knhw_device_buf(data_sz * out_knhw.mDesc.GetElementSpace());
 
     in_cnhw_device_buf.ToDevice(in_cnhw.mData.data());
-    wei_srck_device_buf.ToDevice(wei_srck.mData.data());
+    wei_csrk_device_buf.ToDevice(wei_csrk.mData.data());
     out_knhw_device_buf.ToDevice(out_knhw.mData.data());
 
     for(unsigned i = 0; i < nrepeat; ++i)
@@ -154,31 +115,33 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
         cudaEventCreate(&start);
         cudaEventRecord(start, 0);
 
-#if 0
-        gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw
+#if 1
+        gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw
 #else
-        gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
+        gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_pipeline
 #endif
-        <GridSize,
-         BlockSize,
-         T,
-         decltype(in_cnhw_desc),
-         decltype(wei_srck_desc),
-         decltype(out_knhw_desc),
-         BPerBlock,
-         KPerBlock,
-         CPerBlock,
-         BPerThread,
-         KPerThread,
-         CPerThread,
-         GemmRowThreadPerCluster,
-         GemmColumnThreadPerCluster,
-         InBlockCopyThreadPerDim0,
-         InBlockCopyThreadPerDim1>
+            <GridSize,
+             BlockSize,
+             T,
+             decltype(in_cnhw_desc),
+             decltype(wei_csrk_desc),
+             decltype(out_knhw_desc),
+             BPerBlock,
+             KPerBlock,
+             CPerBlock,
+             BPerThread,
+             KPerThread,
+             CPerThread,
+             GemmRowThreadPerCluster,
+             GemmColumnThreadPerCluster,
+             InBlockCopyThreadPerDim0,
+             InBlockCopyThreadPerDim1,
+             WeiBlockCopyThreadPerDim0,
+             WeiBlockCopyThreadPerDim1>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,
                                       static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
-                                      wei_srck_desc,
-                                      static_cast<T*>(wei_srck_device_buf.GetDeviceBuffer()),
+                                      wei_csrk_desc,
+                                      static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
                                       out_knhw_desc,
                                       static_cast<T*>(out_knhw_device_buf.GetDeviceBuffer()));
 

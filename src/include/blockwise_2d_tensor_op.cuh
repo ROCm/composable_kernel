@@ -187,6 +187,8 @@ struct blockwise_2d_tensor_copy_2
 
     __device__ blockwise_2d_tensor_copy_2()
     {
+        static_assert(is_same<Float, float>::value, "wrong! type is not float!\n");
+
         mThreadId0 = get_thread_local_1d_id() / ThreadPerDim1;
         mThreadId1 = get_thread_local_1d_id() - mThreadId0 * ThreadPerDim1;
     }
@@ -225,7 +227,14 @@ struct blockwise_2d_tensor_copy_2
             for(unsigned d1v4loop = 0; d1v4loop < Dim1V4Loop; ++d1v4loop)
             {
                 unsigned did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
+#if 1
+                const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
+                *(reinterpret_cast<float4*>(p_dst + dindex)) =
+                    *(reinterpret_cast<float4*>(p_src + sindex));
+
+#else
                 for(unsigned i = 0; i < 4; ++i)
                 {
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
@@ -233,6 +242,7 @@ struct blockwise_2d_tensor_copy_2
 
                     p_dst[dindex] = p_src[sindex];
                 }
+#endif
             }
 
             // v2
@@ -241,6 +251,14 @@ struct blockwise_2d_tensor_copy_2
                 unsigned did1 =
                     Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 + 2 * mThreadId1;
 
+#if 1
+                const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
+
+                *(reinterpret_cast<float2*>(p_dst + dindex)) =
+                    *(reinterpret_cast<float2*>(p_src + sindex));
+
+#else
                 for(unsigned i = 0; i < 2; ++i)
                 {
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
@@ -248,6 +266,7 @@ struct blockwise_2d_tensor_copy_2
 
                     p_dst[dindex] = p_src[sindex];
                 }
+#endif
             }
 
             // v1
@@ -291,6 +310,14 @@ struct blockwise_2d_tensor_copy_2
                 {
                     unsigned did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
 
+#if 1
+                    const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
+
+                    *(reinterpret_cast<float4*>(p_dst + dindex)) =
+                        *(reinterpret_cast<float4*>(p_src + sindex));
+
+#else
                     for(unsigned i = 0; i < 4; ++i)
                     {
                         const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
@@ -298,6 +325,7 @@ struct blockwise_2d_tensor_copy_2
 
                         p_dst[dindex] = p_src[sindex];
                     }
+#endif
                 }
 
                 // v2
@@ -306,6 +334,14 @@ struct blockwise_2d_tensor_copy_2
                     unsigned did1 = Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 +
                                     2 * mThreadId1;
 
+#if 1
+                    const unsigned sindex = src_desc.Get1dIndex(did0, did1);
+                    const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
+
+                    *(reinterpret_cast<float2*>(p_dst + dindex)) =
+                        *(reinterpret_cast<float2*>(p_src + sindex));
+
+#else
                     for(unsigned i = 0; i < 2; ++i)
                     {
                         const unsigned sindex = src_desc.Get1dIndex(did0, did1 + i);
@@ -313,6 +349,7 @@ struct blockwise_2d_tensor_copy_2
 
                         p_dst[dindex] = p_src[sindex];
                     }
+#endif
                 }
 
                 // v1

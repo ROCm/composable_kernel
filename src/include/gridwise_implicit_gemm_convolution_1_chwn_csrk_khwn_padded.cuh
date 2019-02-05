@@ -3,6 +3,7 @@
 #include "ConstantTensorDescriptor.cuh"
 #include "ConstantMatrixDescriptor.cuh"
 #include "blockwise_4d_tensor_op.cuh"
+#include "blockwise_2d_tensor_op.cuh"
 #include "threadwise_4d_tensor_op.cuh"
 #include "blockwise_gemm.cuh"
 
@@ -23,11 +24,13 @@ template <unsigned GridSize,
           unsigned KPerThread,
           unsigned CPerThread,
           unsigned HoPerThread,
-          unsigned WoPerThread>
-__global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding(
-    Float* const __restrict__ p_in_global,
-    Float* const __restrict__ p_wei_global,
-    Float* __restrict__ p_out_global)
+          unsigned WoPerThread,
+          unsigned WeiBlockCopyThreadPerDim0,
+          unsigned WeiBlockCopyThreadPerDim1>
+__global__ void
+gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(Float* const __restrict__ p_in_global,
+                                                           Float* const __restrict__ p_wei_global,
+                                                           Float* __restrict__ p_out_global)
 {
     // NPerThread == NPerBlock, because the format of input in LDS [C,Hi,Wi,N]
     //   for GEMM trans([C,K]) * [C,Wo*N], we need a thread to do all the "N"
@@ -82,12 +85,19 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding
     const unsigned wo_block_data_begin = w_block_work_id * WoPerBlock;
     const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
 
+    // flattened (2d) tensor view of wei in global mem
+    constexpr auto wei_ek_global_desc = make_ConstantTensorDescriptor(Sequence<C * S * R, K>{});
+
     // tensor view of blockwise input and weight in LDS
     constexpr auto in_chwn_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{});
 
     constexpr auto wei_csrk_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, S, R, KPerBlock>{});
+
+    // flattened (2d) tensor view of wei in LDS
+    constexpr auto wei_ek_block_desc =
+        make_ConstantTensorDescriptor(Sequence<CPerBlock * S * R, KPerBlock>{});
 
     // tensor view of threadwise output in register
     constexpr auto out_hkwn_thread_desc =
@@ -133,13 +143,33 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding
                                                 decltype(in_chwn_block_desc.GetLengths()),
                                                 LowerPads>{};
 
-    // weight: format is [S,R,C,K]
+#if 1
+    // weight: format is [C,S,R,K]
     constexpr auto blockwise_wei_copy =
         blockwise_4d_tensor_copy_1<BlockSize,
                                    Float,
                                    decltype(wei_csrk_global_desc),
                                    decltype(wei_csrk_block_desc),
                                    decltype(wei_csrk_block_desc.GetLengths())>{};
+#elif 1
+    // weight: format is [C*S*R,K]
+    constexpr auto blockwise_wei_copy =
+        blockwise_2d_tensor_copy_1<BlockSize,
+                                   Float,
+                                   decltype(wei_ek_global_desc),
+                                   decltype(wei_ek_block_desc),
+                                   decltype(wei_ek_block_desc.GetLengths())>{};
+#elif 1
+    // weight: format is [C*S*R,K]
+    const auto blockwise_wei_copy =
+        blockwise_2d_tensor_copy_2<BlockSize,
+                                   Float,
+                                   decltype(wei_ek_global_desc),
+                                   decltype(wei_ek_block_desc),
+                                   decltype(wei_ek_block_desc.GetLengths()),
+                                   WeiBlockCopyThreadPerDim0,
+                                   WeiBlockCopyThreadPerDim1>{};
+#endif
 
     // a series of blockwise batched GEMM
     // C_matrix += transpose(A_matrix) * B_matrix
@@ -190,8 +220,12 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding
     // set threadwise output tensor to 0
     threadwise_4d_tensor_set_zero(out_hkwn_thread_desc, p_out_thread);
 
-    for(unsigned c_block_data_begin = 0; c_block_data_begin < C;
-        c_block_data_begin += CPerBlock, __syncthreads())
+    Float* p_wei_global_block_begin =
+        p_wei_global + wei_ek_global_desc.Get1dIndex(0, k_block_data_begin);
+
+    for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
+                 p_wei_global_block_begin += CPerBlock * wei_ek_global_desc.GetStride(I0),
+                 __syncthreads())
     {
 #if 1
         // input: global mem to LDS,
@@ -209,9 +243,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_with_padding
 
 #if 1
         // weight: global mem to LDS,
-        blockwise_wei_copy.run(p_wei_global + wei_csrk_global_desc.Get1dIndex(
-                                                  c_block_data_begin, 0, 0, k_block_data_begin),
-                               p_wei_block);
+        blockwise_wei_copy.run(p_wei_global_block_begin, p_wei_block);
 #endif
 
         __syncthreads();
