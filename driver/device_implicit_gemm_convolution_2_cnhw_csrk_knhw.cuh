@@ -67,7 +67,30 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     Tensor<T> out_knhw(make_TensorDescriptor(out_knhw_desc));
 
-#if 1
+#if 0
+    // 3x3, 34x34
+    constexpr unsigned BPerBlock = 128;
+    constexpr unsigned KPerBlock = 64;
+    constexpr unsigned CPerBlock = 4;
+
+    constexpr unsigned BPerThread = 4;
+    constexpr unsigned KPerThread = 16;
+    constexpr unsigned CPerThread = 1;
+
+    constexpr unsigned GemmThreadPerColumnPerCluster = 4;
+    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
+
+    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
+
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
+
+    constexpr unsigned InBlockCopyDataPerRead  = 2;
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+
+    constexpr unsigned BlockSize = 128;
+#elif 1
     // 1x1, 28x28
     constexpr unsigned BPerBlock = 64;
     constexpr unsigned KPerBlock = 64;
@@ -120,7 +143,7 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
 #if 1
         gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw
-#elif 0
+#elif 1
         gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_pipeline
 #endif
             <GridSize,

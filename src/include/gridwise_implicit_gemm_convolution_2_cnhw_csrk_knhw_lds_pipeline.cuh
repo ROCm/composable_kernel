@@ -259,7 +259,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_pipeline
             {
                 auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
 
-                blockwise_gemm.Run(p_wei_block_now + wei_csrk_block_desc.Get1dIndex(s, r, 0, 0),
+                blockwise_gemm.Run(p_wei_block_now + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
                                    p_in_block_now + s * Wi + r,
                                    p_out_thread,
                                    f_accum);

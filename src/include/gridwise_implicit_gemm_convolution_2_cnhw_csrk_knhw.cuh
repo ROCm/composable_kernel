@@ -70,35 +70,32 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
     const unsigned k_block_data_begin = k_block_work_id * KPerBlock;
     const unsigned b_block_data_begin = b_block_work_id * BPerBlock;
 
-#if 0
-    if(get_thread_local_1d_id() == 0)
-    {
-        printf("K %u B %u, BGhostRead %u\n", K, B, BGhostRead);
-
-        printf("%u %u, KBlockWork %u BBlockWork %u, k_block_data_begin %u b_block_data_begin %u\n",
-               get_block_1d_id(),
-               get_thread_local_1d_id(),
-               KBlockWork,
-               BBlockWork,
-               k_block_data_begin,
-               b_block_data_begin);
-    }
-#endif
-
     // flattend (2d) tensor view of gridwise input
-    constexpr auto in_cb_global_desc = make_ConstantTensorDescriptor(Sequence<C, B>{});
-
+    constexpr auto in_cb_global_desc  = make_ConstantTensorDescriptor(Sequence<C, B>{});
     constexpr auto wei_ek_global_desc = make_ConstantTensorDescriptor(Sequence<C * S * R, K>{});
 
     // tensor view of blockwise input and weight
+#if 0
     constexpr auto in_cb_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, BPerBlock + BGhostRead>{});
+#else
+    constexpr auto in_cb_block_desc = make_ConstantTensorDescriptor_aligned(
+        Sequence<CPerBlock, BPerBlock + BGhostRead>{}, Number<InBlockCopyDataPerRead>{});
+#endif
 
+#if 0
     constexpr auto wei_ek_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock * S * R, KPerBlock>{});
 
     constexpr auto wei_csrk_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, S, R, KPerBlock>{});
+#else
+    constexpr auto wei_ek_block_desc = make_ConstantTensorDescriptor_aligned(
+        Sequence<CPerBlock * S * R, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
+
+    constexpr auto wei_csrk_block_desc = make_ConstantTensorDescriptor_aligned(
+        Sequence<CPerBlock, S, R, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
+#endif
 
     // tensor view of threadwise output in register
     constexpr auto out_kb_thread_desc =
@@ -107,8 +104,16 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
 #if 0
     if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
     {
+        print_ConstantTensorDescriptor(in_cnhw_global_desc, "in_cnhw_global_desc");
+        print_ConstantTensorDescriptor(wei_csrk_global_desc, "wei_csrk_global_desc");
+        print_ConstantTensorDescriptor(out_knhw_global_desc, "out_knhw_global_desc");
+
+        print_ConstantTensorDescriptor(in_cb_global_desc, "in_cb_global_desc");
+        print_ConstantTensorDescriptor(wei_ek_global_desc, "wei_ek_global_desc");
+
         print_ConstantTensorDescriptor(in_cb_block_desc, "in_cb_block_desc");
         print_ConstantTensorDescriptor(wei_csrk_block_desc, "wei_csrk_block_desc");
+        print_ConstantTensorDescriptor(wei_ek_block_desc, "wei_ek_block_desc");
         print_ConstantTensorDescriptor(out_kb_thread_desc, "out_kb_thread_desc");
 
         printf("KPerBlock %u\n", KPerBlock);
@@ -120,10 +125,10 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
 #if 0
     const auto blockwise_in_copy =
         Blockwise2dTensorCopy1<BlockSize,
-                                   Float,
-                                   decltype(in_cb_global_desc),
-                                   decltype(in_cb_block_desc),
-                                   decltype(in_cb_block_desc.GetLengths())>{};
+                               Float,
+                               decltype(in_cb_global_desc),
+                               decltype(in_cb_block_desc),
+                               decltype(in_cb_block_desc.GetLengths())>{};
 #elif 0
     const auto blockwise_in_copy  = Blockwise2dTensorCopy2<BlockSize,
                                                           Float,
@@ -170,11 +175,13 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
     // a series of blockwise GEMM
     // c_mtx += transpose(a_mtx) * b_mtx
     //   a_mtx and b_mtx saved in LDS, c_mtx saved in register
-    //   a_mtx[C,K] is a sub-matrix of wei_block[S,R,C,K]
+    //   a_mtx[C,K] is a sub-matrix of wei_block[C,S,R,K]
     //   b_mtx[C,B] is a subset of in_block[C,B + BGhostRead]
     //   c_mtx[K,B] is out_block[K,B]
     const auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{}, Number<KPerBlock>{}); // constexpr doesn't compile
+        Number<CPerBlock>{},
+        Number<KPerBlock>{},
+        Number<wei_csrk_block_desc.GetStride(I0)>{}); // constexpr doesn't compile
 
     const auto b_cxb_block_mtx_desc = make_ConstantMatrixDescriptor(
         Number<CPerBlock>{},
@@ -217,7 +224,7 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
 
     for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
                  p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
-                 p_wei_global_block_offset += CPerBlock * wei_csrk_global_desc.GetStride(I2),
+                 p_wei_global_block_offset += CPerBlock * wei_csrk_global_desc.GetStride(I0),
                  __syncthreads())
     {
         // input: global mem to LDS,
@@ -233,9 +240,9 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
         {
             for(unsigned r = 0; r < R; ++r)
             {
-                auto f_accum = [](auto& c, const auto&& ab) { c += ab; };
+                auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
-                blockwise_gemm.Run(p_wei_block + wei_csrk_block_desc.Get1dIndex(s, r, 0, 0),
+                blockwise_gemm.Run(p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
                                    p_in_block + s * Wi + r,
                                    p_out_thread,
                                    f_accum);

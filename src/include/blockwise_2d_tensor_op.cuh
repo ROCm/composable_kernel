@@ -203,6 +203,9 @@ struct Blockwise2dTensorCopy2
     {
         static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
 
+        using Float4 = float4;
+        using Float2 = float2;
+
         if(get_thread_local_1d_id() >= ThreadPerDim0 * ThreadPerDim1)
             return;
 
@@ -212,18 +215,28 @@ struct Blockwise2dTensorCopy2
         constexpr auto src_desc = SrcDesc{};
         constexpr auto dst_desc = DstDesc{};
 
+        // check alignment
+        constexpr bool align_v4 =
+            src_desc.GetStride(I0) % 4 == 0 && dst_desc.GetStride(I0) % 4 == 0;
+
+        constexpr bool align_v2 =
+            src_desc.GetStride(I0) % 2 == 0 && dst_desc.GetStride(I0) % 2 == 0;
+
         constexpr unsigned L0 = SrcOpLengths{}.Get(I0);
         constexpr unsigned L1 = SrcOpLengths{}.Get(I1);
 
         constexpr unsigned Dim0Loop = L0 / ThreadPerDim0;
         constexpr bool d0_has_tail  = (L0 > ThreadPerDim0 * Dim0Loop);
 
-        constexpr unsigned Dim1V4Loop = L1 / (ThreadPerDim1 * 4);
+        constexpr unsigned Dim1V4Loop = align_v4 ? L1 / (ThreadPerDim1 * 4) : 0;
+
         constexpr unsigned Dim1V2Loop =
-            (L1 - Dim1V4Loop * (ThreadPerDim1 * 4)) / (ThreadPerDim1 * 2);
+            align_v2 ? (L1 - Dim1V4Loop * (ThreadPerDim1 * 4)) / (ThreadPerDim1 * 2) : 0;
+
         constexpr unsigned Dim1V1Loop =
             (L1 - Dim1V4Loop * (ThreadPerDim1 * 4) - Dim1V2Loop * (ThreadPerDim1 * 2)) /
             ThreadPerDim1;
+
         constexpr bool d1_has_tail =
             (L1 > ThreadPerDim1 * (4 * Dim1V4Loop + 2 * Dim1V2Loop + Dim1V1Loop));
 
@@ -239,8 +252,8 @@ struct Blockwise2dTensorCopy2
                 const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                 const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
-                *(reinterpret_cast<float4*>(p_dst + dindex)) =
-                    *(reinterpret_cast<float4*>(p_src + sindex));
+                *(reinterpret_cast<Float4*>(p_dst + dindex)) =
+                    *(reinterpret_cast<Float4*>(p_src + sindex));
             }
 
             // v2
@@ -252,8 +265,8 @@ struct Blockwise2dTensorCopy2
                 const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                 const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
-                *(reinterpret_cast<float2*>(p_dst + dindex)) =
-                    *(reinterpret_cast<float2*>(p_src + sindex));
+                *(reinterpret_cast<Float2*>(p_dst + dindex)) =
+                    *(reinterpret_cast<Float2*>(p_src + sindex));
             }
 
             // v1
@@ -300,8 +313,8 @@ struct Blockwise2dTensorCopy2
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                     const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
-                    *(reinterpret_cast<float4*>(p_dst + dindex)) =
-                        *(reinterpret_cast<float4*>(p_src + sindex));
+                    *(reinterpret_cast<Float4*>(p_dst + dindex)) =
+                        *(reinterpret_cast<Float4*>(p_src + sindex));
                 }
 
                 // v2
@@ -313,8 +326,8 @@ struct Blockwise2dTensorCopy2
                     const unsigned sindex = src_desc.Get1dIndex(did0, did1);
                     const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
-                    *(reinterpret_cast<float2*>(p_dst + dindex)) =
-                        *(reinterpret_cast<float2*>(p_src + sindex));
+                    *(reinterpret_cast<Float2*>(p_dst + dindex)) =
+                        *(reinterpret_cast<Float2*>(p_src + sindex));
                 }
 
                 // v1
@@ -356,7 +369,7 @@ template <unsigned BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
-          class SrcOpLengths,
+          class CopyLengths,
           unsigned DataPerRead>
 struct Blockwise2dTensorCopy3
 {
@@ -374,16 +387,23 @@ struct Blockwise2dTensorCopy3
         static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
                       "wrong! only support DataPerRead == 1, 2 or 4!\n");
 
-        constexpr unsigned L0 = SrcOpLengths{}.Get(I0);
-        constexpr unsigned L1 = SrcOpLengths{}.Get(I1);
+        static_assert(SrcDesc{}.GetStride(I0) % DataPerRead == 0 &&
+                          DstDesc{}.GetStride(I0) % DataPerRead == 0,
+                      "src and dst stride should be multiple of DataPerRead to keep alignment");
 
-        static_assert(L1 % DataPerRead == 0, "wrong! only support mod(L1, DataPerRead) == 0\n");
+        constexpr unsigned L0 = CopyLengths{}.Get(I0);
+        constexpr unsigned L1 = CopyLengths{}.Get(I1);
 
-        constexpr unsigned thread_per_d1 = L1 / DataPerRead;
+        constexpr unsigned thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;
         constexpr unsigned thread_per_d0 = BlockSize / thread_per_d1;
 
-        static_assert(thread_per_d1 <= BlockSize,
-                      "wrong! not enough threads to cover L1 dimension\n");
+        // we allow out-of-bound read from src in D1 dimension,
+        //   but we need to make sure dst stride is big enough,
+        //   so that the out-of-bound write won't overwrite next line
+        static_assert(thread_per_d1 * DataPerRead <= DstDesc{}.GetStride(I0),
+                      "wrong! out-of-bound write will overwrite next line!\n");
+
+        static_assert(thread_per_d0 >= 1, "wrong! not enough threads to cover L1 dimension\n");
 
         const unsigned thread_id_d0 = get_thread_local_1d_id() / thread_per_d1;
         const unsigned thread_id_d1 = get_thread_local_1d_id() - thread_id_d0 * thread_per_d1;
@@ -402,25 +422,23 @@ struct Blockwise2dTensorCopy3
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
 
-        constexpr unsigned L0 = SrcOpLengths{}.Get(I0);
-        constexpr unsigned L1 = SrcOpLengths{}.Get(I1);
+        constexpr unsigned L0 = CopyLengths{}.Get(I0);
+        constexpr unsigned L1 = CopyLengths{}.Get(I1);
 
-        constexpr unsigned thread_per_d1 = L1 / DataPerRead;
+        constexpr unsigned thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;
         constexpr unsigned thread_per_d0 = BlockSize / thread_per_d1;
 
         constexpr unsigned num_active_thread = thread_per_d0 * thread_per_d1;
 
         if(BlockSize > num_active_thread)
         {
-            if(get_thread_local_1d_id() > num_active_thread)
+            if(get_thread_local_1d_id() >= num_active_thread)
             {
                 return;
             }
         }
 
         constexpr unsigned nloop_d0 = L0 / thread_per_d0;
-
-        constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
 
         constexpr unsigned src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
         constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
@@ -449,6 +467,8 @@ struct Blockwise2dTensorCopy3
                 assert(false);
             }
         }
+
+        constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
 
         if(has_tail_d0)
         {

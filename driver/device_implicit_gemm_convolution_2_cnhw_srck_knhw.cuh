@@ -68,64 +68,55 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     Tensor<T> out_knhw(make_TensorDescriptor(out_knhw_desc));
 
 #if 0
-    constexpr unsigned BPerBlock = 256;
+    constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 1;
     constexpr unsigned CPerBlock = 1;
 
-    constexpr unsigned BPerThread = 8;
+    constexpr unsigned BPerThread = 4;
     constexpr unsigned KPerThread = 1;
     constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned GemmThreadPerColumnPerCluster    = 1;
-    constexpr unsigned GemmThreadPerRowPerCluster = 4;
+    constexpr unsigned GemmThreadPerColumnPerCluster = 1;
+    constexpr unsigned GemmThreadPerRowPerCluster    = 1;
+
+    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
 
     constexpr unsigned BlockSize = 32;
-#elif 0
+#elif 1
+    // 3x3, 34x34
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 2;
+    constexpr unsigned CPerBlock = 4;
 
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
+    constexpr unsigned BPerThread = 4;
+    constexpr unsigned KPerThread = 16;
     constexpr unsigned CPerThread = 1;
 
     constexpr unsigned GemmThreadPerColumnPerCluster = 4;
-    constexpr unsigned GemmThreadPerRowPerCluster    = 4;
+    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
 
-    constexpr unsigned BlockSize = 128;
-#elif 0
-    constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 2;
-
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
-    constexpr unsigned CPerThread = 1;
-
-    constexpr unsigned GemmThreadPerColumnPerCluster = 4;
-    constexpr unsigned GemmThreadPerRowPerCluster    = 4;
-
-    constexpr unsigned InBlockCopyThreadPerDim0 = 2;
-    constexpr unsigned InBlockCopyThreadPerDim1 = 64;
+    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
 
     constexpr unsigned BlockSize = 128;
 #elif 1
     // 1x1, 28x28
     constexpr unsigned BPerBlock = 64;
-    constexpr unsigned KPerBlock = 128;
+    constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 8;
 
     constexpr unsigned BPerThread = 4;
     constexpr unsigned KPerThread = 16;
-    constexpr unsigned CPerThread = 2;
+    constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned GemmThreadPerColumnPerCluster = 8;
+    constexpr unsigned GemmThreadPerColumnPerCluster = 4;
     constexpr unsigned GemmThreadPerRowPerCluster    = 8;
 
-    constexpr unsigned InBlockCopyThreadPerDim0 = 8;
+    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
     constexpr unsigned InBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr unsigned BlockSize = 64;
 #endif
 
     constexpr unsigned GridSize =
