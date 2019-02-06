@@ -399,11 +399,21 @@ struct Blockwise2dTensorCopy3
 
         // we allow out-of-bound read from src in D1 dimension,
         //   but we need to make sure dst stride is big enough,
-        //   so that the out-of-bound write won't overwrite next line
+        //   so that the out-of-bound write won't contaminate next line in dst
         static_assert(thread_per_d1 * DataPerRead <= DstDesc{}.GetStride(I0),
-                      "wrong! out-of-bound write will overwrite next line!\n");
+                      "wrong! out-of-bound write will contaminate next line!\n");
 
-        static_assert(thread_per_d0 >= 1, "wrong! not enough threads to cover L1 dimension\n");
+        static_assert(thread_per_d0 >= 1, "wrong! not enough threads to cover one line\n");
+
+        constexpr unsigned num_active_thread = thread_per_d0 * thread_per_d1;
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
 
         const unsigned thread_id_d0 = get_thread_local_1d_id() / thread_per_d1;
         const unsigned thread_id_d1 = get_thread_local_1d_id() - thread_id_d0 * thread_per_d1;
