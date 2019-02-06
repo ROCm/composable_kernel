@@ -77,8 +77,8 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
     constexpr unsigned KPerThread = 16;
     constexpr unsigned CPerThread = 1;
 
-    constexpr unsigned GemmRowThreadPerCluster    = 4;
-    constexpr unsigned GemmColumnThreadPerCluster = 8;
+    constexpr unsigned GemmThreadPerColumnPerCluster = 4;
+    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
 
     constexpr unsigned InBlockCopyThreadPerDim0 = 4;
     constexpr unsigned InBlockCopyThreadPerDim1 = 16;
@@ -120,7 +120,7 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
 #if 1
         gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw
-#else
+#elif 0
         gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_pipeline
 #endif
             <GridSize,
@@ -135,8 +135,8 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
              BPerThread,
              KPerThread,
              CPerThread,
-             GemmRowThreadPerCluster,
-             GemmColumnThreadPerCluster,
+             GemmThreadPerColumnPerCluster,
+             GemmThreadPerRowPerCluster,
              InBlockCopyThreadPerDim0,
              InBlockCopyThreadPerDim1,
              WeiBlockCopyThreadPerDim0,

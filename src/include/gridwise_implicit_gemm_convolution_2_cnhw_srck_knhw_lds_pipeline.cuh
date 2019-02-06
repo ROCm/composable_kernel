@@ -20,8 +20,8 @@ template <unsigned GridSize,
           unsigned BPerThread,
           unsigned KPerThread,
           unsigned CPerThread,
-          unsigned GemmRowThreadPerCluster,
-          unsigned GemmColumnThreadPerCluster,
+          unsigned GemmThreadPerColumnPerCluster,
+          unsigned GemmThreadPerRowPerCluster,
           unsigned InBlockCopyThreadPerDim0,
           unsigned InBlockCopyThreadPerDim1>
 __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline(
@@ -175,8 +175,8 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
                                                                  false,
                                                                  false,
                                                                  CPerThread,
-                                                                 GemmRowThreadPerCluster,
-                                                                 GemmColumnThreadPerCluster,
+                                                                 GemmThreadPerColumnPerCluster,
+                                                                 GemmThreadPerRowPerCluster,
                                                                  true>{};
 
     // LDS
