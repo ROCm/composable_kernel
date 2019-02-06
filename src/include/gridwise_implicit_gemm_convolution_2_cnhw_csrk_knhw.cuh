@@ -75,27 +75,14 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
     constexpr auto wei_ek_global_desc = make_ConstantTensorDescriptor(Sequence<C * S * R, K>{});
 
     // tensor view of blockwise input and weight
-#if 0
-    constexpr auto in_cb_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock, BPerBlock + BGhostRead>{});
-#else
     constexpr auto in_cb_block_desc = make_ConstantTensorDescriptor_aligned(
         Sequence<CPerBlock, BPerBlock + BGhostRead>{}, Number<InBlockCopyDataPerRead>{});
-#endif
 
-#if 0
-    constexpr auto wei_ek_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock * S * R, KPerBlock>{});
-
-    constexpr auto wei_csrk_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock, S, R, KPerBlock>{});
-#else
     constexpr auto wei_ek_block_desc = make_ConstantTensorDescriptor_aligned(
         Sequence<CPerBlock * S * R, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
 
     constexpr auto wei_csrk_block_desc = make_ConstantTensorDescriptor_aligned(
         Sequence<CPerBlock, S, R, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
-#endif
 
     // tensor view of threadwise output in register
     constexpr auto out_kb_thread_desc =
@@ -203,12 +190,19 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
                                                                  GemmThreadPerRowPerCluster,
                                                                  true>{};
 
-    // LDS
-    constexpr unsigned in_block_size  = in_cb_block_desc.GetElementSpace();
-    constexpr unsigned wei_block_size = wei_csrk_block_desc.GetElementSpace();
+    // LDS: be careful of alignment
+    constexpr unsigned in_block_size =
+        in_cb_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
 
-    __shared__ Float p_in_block[in_block_size];
-    __shared__ Float p_wei_block[wei_block_size];
+    constexpr unsigned wei_block_size =
+        wei_csrk_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
+
+    constexpr unsigned max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
+                                       ? InBlockCopyDataPerRead
+                                       : WeiBlockCopyDataPerRead;
+
+    __shared__ Float p_in_block[max_align * ((in_block_size + max_align - 1) / max_align)];
+    __shared__ Float p_wei_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
 
     // register
     Float p_out_thread[out_kb_thread_desc.GetElementSpace()];

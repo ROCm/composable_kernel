@@ -33,15 +33,6 @@ __host__ __device__ constexpr auto calculate_default_strides_aligned(Sequence<L0
     return Sequence<L1 * L2 * L3_align, L2 * L3_align, L3_align, 1>{};
 }
 
-// this is ugly, only for 4d
-template <unsigned S0, unsigned S1, unsigned S2, unsigned S3>
-__host__ __device__ constexpr auto calculate_full_lengths(Sequence<S0, S1, S2, S3>)
-{
-    static_assert((S0 % S1 == 0) && (S1 % S2 == 0) && (S2 % S3 == 0), "cannot be evenly divided!");
-
-    return Sequence<1, S0 / S1, S1 / S2, S2 / S3>{};
-}
-
 template <class Lengths, class Strides>
 struct ConstantTensorDescriptor
 {
@@ -71,7 +62,6 @@ struct ConstantTensorDescriptor
         return Strides{}.Get(Number<I>{});
     }
 
-    // this is ugly, only for 4d
     __host__ __device__ constexpr unsigned GetElementSize() const
     {
         static_assert(nDim >= 2 && nDim <= 4, "nDim");
@@ -102,16 +92,20 @@ struct ConstantTensorDescriptor
         }
     }
 
-    __host__ __device__ constexpr unsigned GetElementSpace() const
+    template <class Align = Number<1>>
+    __host__ __device__ constexpr unsigned GetElementSpace(Align align = Align{}) const
     {
         static_assert(nDim >= 2 && nDim <= 4, "nDim");
+
+        constexpr unsigned align_size = align.Get();
 
         if(nDim == 2)
         {
             constexpr auto I0 = Number<0>{};
             constexpr auto I1 = Number<1>{};
 
-            return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) + 1;
+            return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
+                   align_size;
         }
         else if(nDim == 3)
         {
@@ -120,7 +114,7 @@ struct ConstantTensorDescriptor
             constexpr auto I2 = Number<2>{};
 
             return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
-                   (GetLength(I2) - 1) * GetStride(I2) + 1;
+                   (GetLength(I2) - 1) * GetStride(I2) + align_size;
         }
         else if(nDim == 4)
         {
@@ -130,7 +124,8 @@ struct ConstantTensorDescriptor
             constexpr auto I3 = Number<3>{};
 
             return (GetLength(I0) - 1) * GetStride(I0) + (GetLength(I1) - 1) * GetStride(I1) +
-                   (GetLength(I2) - 1) * GetStride(I2) + (GetLength(I3) - 1) * GetStride(I3) + 1;
+                   (GetLength(I2) - 1) * GetStride(I2) + (GetLength(I3) - 1) * GetStride(I3) +
+                   align_size;
         }
     }
 
