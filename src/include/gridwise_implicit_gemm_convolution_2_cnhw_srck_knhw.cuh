@@ -108,7 +108,7 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
 
     // blockwise in copy
     //   formmat is [CPerBlock,BPerBlock + BGhostRead]
-#if 1
+#if 0
     const auto blockwise_in_copy =
         Blockwise2dTensorCopy1<BlockSize,
                                Float,

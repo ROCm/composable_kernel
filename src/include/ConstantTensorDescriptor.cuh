@@ -15,6 +15,24 @@ __host__ __device__ constexpr auto calculate_default_strides(Sequence<L0, L1, L2
     return Sequence<L1 * L2 * L3, L2 * L3, L3, 1>{};
 }
 
+// this is ugly, only for 2d
+template <unsigned L0, unsigned L1, unsigned Align>
+__host__ __device__ constexpr auto calculate_default_strides_aligned(Sequence<L0, L1>,
+                                                                     Number<Align>)
+{
+    constexpr unsigned L1_align = Align * ((L1 + Align - 1) / Align);
+    return Sequence<L1_align, 1>{};
+}
+
+// this is ugly, only for 4d
+template <unsigned L0, unsigned L1, unsigned L2, unsigned L3, unsigned Align>
+__host__ __device__ constexpr auto calculate_default_strides_aligned(Sequence<L0, L1, L2, L3>,
+                                                                     Number<Align>)
+{
+    constexpr unsigned L3_align = Align * ((L3 + Align - 1) / Align);
+    return Sequence<L1 * L2 * L3_align, L2 * L3_align, L3_align, 1>{};
+}
+
 // this is ugly, only for 4d
 template <unsigned S0, unsigned S1, unsigned S2, unsigned S3>
 __host__ __device__ constexpr auto calculate_full_lengths(Sequence<S0, S1, S2, S3>)
@@ -167,6 +185,13 @@ __host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths)
 template <class Lengths, class Strides>
 __host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths, Strides)
 {
+    return ConstantTensorDescriptor<Lengths, Strides>{};
+}
+
+template <class Lengths, unsigned Align>
+__host__ __device__ constexpr auto make_ConstantTensorDescriptor_aligned(Lengths, Number<Align>)
+{
+    using Strides = decltype(calculate_default_strides_aligned(Lengths{}, Number<Align>{}));
     return ConstantTensorDescriptor<Lengths, Strides>{};
 }
 

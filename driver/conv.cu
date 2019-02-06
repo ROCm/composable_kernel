@@ -389,8 +389,8 @@ int main()
     constexpr unsigned S  = 3;
     constexpr unsigned R  = 3;
 
-    constexpr unsigned HPad = 1;
-    constexpr unsigned WPad = 1;
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
 #elif 0
     // 3x3, 34x34
     constexpr unsigned N = 64;
@@ -593,8 +593,6 @@ int main()
     device_implicit_gemm_convolution_2_cnhw_srck_knhw
 #elif 1
     device_implicit_gemm_convolution_2_cnhw_csrk_knhw
-#elif 0
-    device_winograd_convolution
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 

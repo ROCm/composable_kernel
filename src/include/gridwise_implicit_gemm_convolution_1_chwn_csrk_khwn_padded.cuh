@@ -173,7 +173,7 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(Float* const __restri
     // a series of blockwise batched GEMM
     // C_matrix += transpose(A_matrix) * B_matrix
     //   A_matrix and B_matrix saved in LDS, C_matrix saved in register
-    //   A_matrix[C,K] is a sub-matrix of wei_block[S,R,C,K]
+    //   A_matrix[C,K] is a sub-matrix of wei_block[C,S,R,K]
     //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
     //   C_matrix[K,Wo*N] is a sub-matrix of out_block[Ho,K,Wo,N]
     const auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
