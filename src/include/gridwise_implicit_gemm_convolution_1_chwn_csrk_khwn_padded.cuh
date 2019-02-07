@@ -262,13 +262,12 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(Float* const __restri
     }
 
     const auto matrix_c_index =
-        blockwise_batch_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
+        blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    const unsigned ho_thread_data_begin = matrix_c_index.batch_begin;
-    const unsigned k_thread_data_begin  = matrix_c_index.row_begin;
-    const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerBlock;
-    const unsigned n_thread_data_begin =
-        matrix_c_index.col_begin - wo_thread_data_begin * NPerBlock;
+    const unsigned ho_thread_data_begin = matrix_c_index.batch;
+    const unsigned k_thread_data_begin  = matrix_c_index.row;
+    const unsigned wo_thread_data_begin = matrix_c_index.col / NPerBlock;
+    const unsigned n_thread_data_begin  = matrix_c_index.col - wo_thread_data_begin * NPerBlock;
 
 #if 0
     printf("block %u %u, %u %u %u %u, %u %u %u %u, %f \n", 

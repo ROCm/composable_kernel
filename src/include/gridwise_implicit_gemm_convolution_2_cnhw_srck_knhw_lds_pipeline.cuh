@@ -276,11 +276,10 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
     }
 
     // output: register to global mem,
-    const auto matrix_c_index =
-        blockwise_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
+    const auto matrix_c_index = blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    const unsigned k_thread_data_begin = matrix_c_index.row_begin;
-    const unsigned b_thread_data_begin = matrix_c_index.col_begin;
+    const unsigned k_thread_data_begin = matrix_c_index.row;
+    const unsigned b_thread_data_begin = matrix_c_index.col;
 
     const unsigned k_data_begin = k_block_data_begin + k_thread_data_begin;
     const unsigned b_data_begin = b_block_data_begin + b_thread_data_begin;
@@ -288,11 +287,11 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
 #if 0
     if(get_block_1d_id() == 0)
     {
-        printf("%u %u, row_begin %u col_begin %u, k_data_begin %u b_data_begin %u, %f %f %f %f\n",
+        printf("%u %u, row %u col %u, k_data_begin %u b_data_begin %u, %f %f %f %f\n",
                get_block_1d_id(),
                get_thread_local_1d_id(),
-               matrix_c_index.row_begin,
-               matrix_c_index.col_begin,
+               matrix_c_index.row,
+               matrix_c_index.col,
                k_data_begin,
                b_data_begin,
                p_out_thread[0], p_out_thread[1], p_out_thread[2], p_out_thread[3]);

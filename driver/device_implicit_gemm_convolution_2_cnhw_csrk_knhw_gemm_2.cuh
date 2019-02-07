@@ -1,16 +1,15 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw.cuh"
-#include "gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_pipeline.cuh"
+#include "gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_gemm_2.cuh"
 #include <unistd.h>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
-                                                       const Tensor<T>& in_nchw,
-                                                       WeiDesc,
-                                                       const Tensor<T>& wei_kcsr,
-                                                       OutDesc,
-                                                       Tensor<T>& out_nkhw,
-                                                       unsigned nrepeat)
+void device_implicit_gemm_convolution_2_cnhw_csrk_knhw_gemm_2(InDesc,
+                                                              const Tensor<T>& in_nchw,
+                                                              WeiDesc,
+                                                              const Tensor<T>& wei_kcsr,
+                                                              OutDesc,
+                                                              Tensor<T>& out_nkhw,
+                                                              unsigned nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -68,14 +67,21 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
     Tensor<T> out_knhw(make_TensorDescriptor(out_knhw_desc));
 
 #if 0
-    // 3x3, 34x34
-    constexpr unsigned BPerBlock = 128;
+    // 1x1, 28x28
+    constexpr unsigned BPerBlock = 64;
     constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 4;
+    constexpr unsigned CPerBlock = 8;
 
     constexpr unsigned BPerThread = 4;
     constexpr unsigned KPerThread = 16;
-    constexpr unsigned CPerThread = 1;
+
+    constexpr unsigned GemmMPerThreadSubC = 16;
+    constexpr unsigned GemmNPerThreadSubC = 4;
+    constexpr unsigned GemmMLevel0Cluster = 4;
+    constexpr unsigned GemmNLevel0Cluster = 8;
+    constexpr unsigned GemmMLevel1Cluster = 1;
+    constexpr unsigned GemmNLevel1Cluster = 2;
+    constexpr unsigned GemmKPerThreadLoop = 1;
 
     constexpr unsigned GemmThreadPerColumnPerCluster = 4;
     constexpr unsigned GemmThreadPerRowPerCluster    = 8;
@@ -89,18 +95,25 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
     constexpr unsigned InBlockCopyDataPerRead  = 4;
     constexpr unsigned WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr unsigned BlockSize = 64;
 #elif 1
-    // 1x1, 28x28
+    // 1x1, 28x28 try
     constexpr unsigned BPerBlock = 64;
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 8;
 
-    constexpr unsigned BPerThread = 4;
-    constexpr unsigned KPerThread = 16;
-    constexpr unsigned CPerThread = 1;
+    constexpr unsigned BPerThread = 8;
+    constexpr unsigned KPerThread = 8;
 
-    constexpr unsigned GemmThreadPerColumnPerCluster = 4;
+    constexpr unsigned GemmMPerThreadSubC = 4;
+    constexpr unsigned GemmNPerThreadSubC = 4;
+    constexpr unsigned GemmMLevel0Cluster = 8;
+    constexpr unsigned GemmNLevel0Cluster = 2;
+    constexpr unsigned GemmMLevel1Cluster = 1;
+    constexpr unsigned GemmNLevel1Cluster = 4;
+    constexpr unsigned GemmKPerThreadLoop = 1;
+
+    constexpr unsigned GemmThreadPerColumnPerCluster = 8;
     constexpr unsigned GemmThreadPerRowPerCluster    = 8;
 
     constexpr unsigned InBlockCopyThreadPerDim0 = 4;
@@ -141,31 +154,32 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
         cudaEventCreate(&start);
         cudaEventRecord(start, 0);
 
-#if 1
-        gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw
-#elif 1
-        gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_pipeline
-#endif
-            <GridSize,
-             BlockSize,
-             T,
-             decltype(in_cnhw_desc),
-             decltype(wei_csrk_desc),
-             decltype(out_knhw_desc),
-             BPerBlock,
-             KPerBlock,
-             CPerBlock,
-             BPerThread,
-             KPerThread,
-             CPerThread,
-             GemmThreadPerColumnPerCluster,
-             GemmThreadPerRowPerCluster,
-             InBlockCopyThreadPerDim0,
-             InBlockCopyThreadPerDim1,
-             WeiBlockCopyThreadPerDim0,
-             WeiBlockCopyThreadPerDim1,
-             InBlockCopyDataPerRead,
-             WeiBlockCopyDataPerRead>
+        gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_gemm_2<GridSize,
+                                                                   BlockSize,
+                                                                   T,
+                                                                   decltype(in_cnhw_desc),
+                                                                   decltype(wei_csrk_desc),
+                                                                   decltype(out_knhw_desc),
+                                                                   BPerBlock,
+                                                                   KPerBlock,
+                                                                   CPerBlock,
+                                                                   BPerThread,
+                                                                   KPerThread,
+                                                                   GemmThreadPerColumnPerCluster,
+                                                                   GemmThreadPerRowPerCluster,
+                                                                   GemmMPerThreadSubC,
+                                                                   GemmNPerThreadSubC,
+                                                                   GemmMLevel0Cluster,
+                                                                   GemmNLevel0Cluster,
+                                                                   GemmMLevel1Cluster,
+                                                                   GemmNLevel1Cluster,
+                                                                   GemmKPerThreadLoop,
+                                                                   InBlockCopyThreadPerDim0,
+                                                                   InBlockCopyThreadPerDim1,
+                                                                   WeiBlockCopyThreadPerDim0,
+                                                                   WeiBlockCopyThreadPerDim1,
+                                                                   InBlockCopyDataPerRead,
+                                                                   WeiBlockCopyDataPerRead>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,
                                       static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
                                       wei_csrk_desc,
