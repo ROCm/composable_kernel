@@ -237,10 +237,15 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
-                blockwise_gemm.Run(p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
-                                   p_in_block + s * Wi + r,
-                                   p_out_thread,
-                                   f_accum);
+#if 1
+                blockwise_gemm.Run
+#else
+                blockwise_gemm.Run_RegisterDoubleBuffer
+#endif
+                    (p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
+                     p_in_block + s * Wi + r,
+                     p_out_thread,
+                     f_accum);
             }
         }
     }
