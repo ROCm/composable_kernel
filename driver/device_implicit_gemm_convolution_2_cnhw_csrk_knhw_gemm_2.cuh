@@ -66,38 +66,8 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw_gemm_2(InDesc,
 
     Tensor<T> out_knhw(make_TensorDescriptor(out_knhw_desc));
 
-#if 0
+#if 1
     // 1x1, 28x28
-    constexpr unsigned BPerBlock = 64;
-    constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 8;
-
-    constexpr unsigned BPerThread = 4;
-    constexpr unsigned KPerThread = 16;
-
-    constexpr unsigned GemmMPerThreadSubC = 16;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 8;
-    constexpr unsigned GemmMLevel1Cluster = 1;
-    constexpr unsigned GemmNLevel1Cluster = 2;
-    constexpr unsigned GemmKPerThreadLoop = 1;
-
-    constexpr unsigned GemmThreadPerColumnPerCluster = 4;
-    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
-
-    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
-
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
-
-    constexpr unsigned InBlockCopyDataPerRead  = 4;
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
-
-    constexpr unsigned BlockSize = 64;
-#elif 1
-    // 1x1, 28x28 try
     constexpr unsigned BPerBlock = 64;
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 8;
