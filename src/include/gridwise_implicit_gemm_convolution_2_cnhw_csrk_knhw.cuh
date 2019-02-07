@@ -19,9 +19,15 @@ template <unsigned GridSize,
           unsigned CPerBlock,
           unsigned BPerThread,
           unsigned KPerThread,
-          unsigned CPerThread,
           unsigned GemmThreadPerColumnPerCluster,
           unsigned GemmThreadPerRowPerCluster,
+          unsigned GemmMPerThreadSubC,
+          unsigned GemmNPerThreadSubC,
+          unsigned GemmMLevel0Cluster,
+          unsigned GemmNLevel0Cluster,
+          unsigned GemmMLevel1Cluster,
+          unsigned GemmNLevel1Cluster,
+          unsigned GemmKPerThreadLoop,
           unsigned InBlockCopyThreadPerDim0,
           unsigned InBlockCopyThreadPerDim1,
           unsigned WeiBlockCopyThreadPerDim0,
@@ -179,6 +185,7 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
     const auto c_kxb_thread_mtx_desc = make_ConstantMatrixDescriptor(
         Number<KPerThread>{}, Number<BPerThread>{}); // constexpr doesn't compile
 
+#if 0
     const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadC<BlockSize,
                                                                  decltype(a_cxk_block_mtx_desc),
                                                                  decltype(b_cxb_block_mtx_desc),
@@ -186,10 +193,24 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
                                                                  true,
                                                                  false,
                                                                  false,
-                                                                 CPerThread,
+                                                                 GemmKPerThreadLoop,
                                                                  GemmThreadPerColumnPerCluster,
                                                                  GemmThreadPerRowPerCluster,
                                                                  true>{};
+#else
+    const auto blockwise_gemm =
+        BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<BlockSize,
+                                                                decltype(a_cxk_block_mtx_desc),
+                                                                decltype(b_cxb_block_mtx_desc),
+                                                                decltype(c_kxb_thread_mtx_desc),
+                                                                GemmMPerThreadSubC,
+                                                                GemmNPerThreadSubC,
+                                                                GemmMLevel0Cluster,
+                                                                GemmNLevel0Cluster,
+                                                                GemmMLevel1Cluster,
+                                                                GemmNLevel1Cluster,
+                                                                GemmKPerThreadLoop>{};
+#endif
 
     // LDS: be careful of alignment
     constexpr unsigned in_block_size =
@@ -237,27 +258,25 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
-#if 1
+#if 0
                 blockwise_gemm.Run
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                    (p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
-                     p_in_block + s * Wi + r,
-                     p_out_thread,
-                     f_accum);
+                (p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
+                 p_in_block + s * Wi + r,
+                 p_out_thread,
+                 f_accum);
             }
         }
     }
 
     // output: register to global mem,
-    const auto matrix_c_index = blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
+    const auto c_thread_mtx_begin =
+        blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    const unsigned k_thread_data_begin = matrix_c_index.row;
-    const unsigned b_thread_data_begin = matrix_c_index.col;
-
-    const unsigned k_data_begin = k_block_data_begin + k_thread_data_begin;
-    const unsigned b_data_begin = b_block_data_begin + b_thread_data_begin;
+    const unsigned k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
+    const unsigned b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
 
 #if 0
     if(get_block_1d_id() == 0)
@@ -277,8 +296,11 @@ gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw(InGlobalDesc,
     {
         for(unsigned b = 0; b < out_kb_thread_desc.GetLength(I1); ++b)
         {
-            unsigned k_data = k_data_begin + k;
-            unsigned b_data = b_data_begin + b;
+            const auto c_thread_mtx_distance =
+                blockwise_gemm.GetDistanceFromBeginOfThreadMatrixC(k, b);
+
+            unsigned k_data = k_thread_data_begin + c_thread_mtx_distance.row;
+            unsigned b_data = b_thread_data_begin + c_thread_mtx_distance.col;
 
             unsigned n_data = b_data / (Hi * Wi);
             unsigned itmp   = b_data - n_data * (Hi * Wi);

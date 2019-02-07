@@ -680,6 +680,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                           Number<NPerThreadSubC>{},
                                           Number<NPerThread>{}); // constexpr doesn't compile
 
+        // register
         FloatA p_a_thread_0[a_thread_mtx.GetElementSpace()];
         FloatB p_b_thread_0[b_thread_mtx.GetElementSpace()];
 
@@ -687,7 +688,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         FloatB p_b_thread_1[b_thread_mtx.GetElementSpace()];
 
         constexpr unsigned MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
-
         constexpr unsigned NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
 
         constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
@@ -717,7 +717,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         bool even_loop = true;
 
 #pragma unroll
-        for(unsigned k_begin = 0; k_begin + 1 < K;
+        for(unsigned k_begin = 0; k_begin + KPerThreadLoop < K;
             k_begin += KPerThreadLoop, even_loop = !even_loop)
         { // loop over k
             FloatA* p_a_thread_now = even_loop ? p_a_thread_0 : p_a_thread_1;
@@ -727,7 +727,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             FloatB* p_b_thread_next = even_loop ? p_b_thread_1 : p_b_thread_0;
 
             // preload next A, B
-
 #pragma unroll
             for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
             { // copy A-sub to form A
@@ -767,8 +766,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         // last loop
         {
-            even_loop = !even_loop;
-
             FloatA* p_a_thread_now = even_loop ? p_a_thread_0 : p_a_thread_1;
             FloatB* p_b_thread_now = even_loop ? p_b_thread_0 : p_b_thread_1;
 
