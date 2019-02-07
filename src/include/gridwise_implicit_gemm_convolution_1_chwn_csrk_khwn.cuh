@@ -3,6 +3,7 @@
 #include "ConstantTensorDescriptor.cuh"
 #include "ConstantMatrixDescriptor.cuh"
 #include "blockwise_4d_tensor_op.cuh"
+#include "blockwise_2d_tensor_op.cuh"
 #include "threadwise_4d_tensor_op.cuh"
 #include "blockwise_gemm.cuh"
 
@@ -21,7 +22,11 @@ template <unsigned GridSize,
           unsigned KPerThread,
           unsigned CPerThread,
           unsigned HoPerThread,
-          unsigned WoPerThread>
+          unsigned WoPerThread,
+          unsigned WeiBlockCopyThreadPerDim0,
+          unsigned WeiBlockCopyThreadPerDim1,
+          unsigned InBlockCopyDataPerRead,
+          unsigned WeiBlockCopyDataPerRead>
 __global__ void
 gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(InGlobalDesc,
                                                     Float* const __restrict__ p_in_global,
@@ -80,12 +85,19 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(InGlobalDesc,
     const unsigned hi_block_data_begin = ho_block_data_begin;
     const unsigned wi_block_data_begin = wo_block_data_begin;
 
+    // flattend (2d) tensor view of gridwise weight
+    constexpr auto wei_ek_global_desc = make_ConstantTensorDescriptor(Sequence<C * S * R, K>{});
+
     // tensor view of blockwise input and weight in LDS
+    //   be careful of alignment
     constexpr auto in_chwn_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{});
 
-    constexpr auto wei_csrk_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock, S, R, KPerBlock>{});
+    constexpr auto wei_ek_block_desc = make_ConstantTensorDescriptor_aligned(
+        Sequence<CPerBlock * S * R, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
+
+    constexpr auto wei_csrk_block_desc = make_ConstantTensorDescriptor_aligned(
+        Sequence<CPerBlock, S, R, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
 
     // tensor view of threadwise output in register
     constexpr auto out_hkwn_thread_desc =
@@ -112,13 +124,31 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(InGlobalDesc,
                                decltype(in_chwn_block_desc),
                                decltype(in_chwn_block_desc.GetLengths())>{};
 
-    // weight: format is [S,R,C,K]
-    constexpr auto blockwise_wei_copy =
-        Blockwise4dTensorCopy1<BlockSize,
+    // blockwise wei copy
+    //   format is [CPerBlock*S*R,KPerBlock]
+#if 0
+    const auto blockwise_wei_copy =
+        Blockwise2dTensorCopy1<BlockSize,
                                Float,
-                               decltype(wei_csrk_global_desc),
-                               decltype(wei_csrk_block_desc),
-                               decltype(wei_csrk_block_desc.GetLengths())>{};
+                               decltype(wei_ek_global_desc),
+                               decltype(wei_ek_block_desc),
+                               decltype(wei_ek_block_desc.GetLengths())>{};
+#elif 0
+    const auto blockwise_wei_copy = Blockwise2dTensorCopy2<BlockSize,
+                                                           Float,
+                                                           decltype(wei_ek_global_desc),
+                                                           decltype(wei_ek_block_desc),
+                                                           decltype(wei_ek_block_desc.GetLengths()),
+                                                           WeiBlockCopyThreadPerDim0,
+                                                           WeiBlockCopyThreadPerDim1>{};
+#elif 1
+    const auto blockwise_wei_copy = Blockwise2dTensorCopy3<BlockSize,
+                                                           Float,
+                                                           decltype(wei_ek_global_desc),
+                                                           decltype(wei_ek_block_desc),
+                                                           decltype(wei_ek_block_desc.GetLengths()),
+                                                           WeiBlockCopyDataPerRead>{};
+#endif
 
     // a series of blockwise batched GEMM
     // C_matrix += transpose(A_matrix) * B_matrix
@@ -155,12 +185,17 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(InGlobalDesc,
                                                          CPerThread,
                                                          true>{};
 
-    // LDS
-    constexpr unsigned in_block_size  = in_chwn_block_desc.GetElementSpace();
-    constexpr unsigned wei_block_size = wei_csrk_block_desc.GetElementSpace();
+    // LDS: be careful of alignment
+    constexpr unsigned in_block_size = in_chwn_block_desc.GetElementSpace();
+    constexpr unsigned wei_block_size =
+        wei_csrk_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 
-    __shared__ Float p_in_block[in_block_size];
-    __shared__ Float p_wei_block[wei_block_size];
+    constexpr unsigned max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
+                                       ? InBlockCopyDataPerRead
+                                       : WeiBlockCopyDataPerRead;
+
+    __shared__ Float p_in_block[max_align * ((in_block_size + max_align - 1) / max_align)];
+    __shared__ Float p_wei_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
 
     // register
     Float p_out_thread[out_hkwn_thread_desc.GetElementSpace()];

@@ -87,7 +87,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 8;
-#elif 1
+#elif 0
     // for 3x3, 34x34 | 3x3 58x58, NKC = 64, 64, 256
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 64;
@@ -100,6 +100,12 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+
+    constexpr unsigned InBlockCopyDataPerRead  = 2; // not used, yet
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
 
     constexpr unsigned BlockSize = 128;
 #elif 0
@@ -162,7 +168,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
-#elif 0
+#elif 1
     // for 1x1, 28x28
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 128;
@@ -175,6 +181,12 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned CPerThread  = 2;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+
+    constexpr unsigned InBlockCopyDataPerRead  = 4; // not used, yet
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
 
     constexpr unsigned BlockSize = 128;
 #endif
@@ -211,7 +223,11 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
                                                             KPerThread,
                                                             CPerThread,
                                                             HoPerThread,
-                                                            WoPerThread>
+                                                            WoPerThread,
+                                                            WeiBlockCopyThreadPerDim0,
+                                                            WeiBlockCopyThreadPerDim1,
+                                                            InBlockCopyDataPerRead,
+                                                            WeiBlockCopyDataPerRead>
             <<<grid_dim, block_dim>>>(in_chwn_desc,
                                       static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
                                       wei_csrk_desc,

@@ -108,6 +108,9 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(InDesc,
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+
     constexpr unsigned BlockSize = 128;
 #elif 0
     // 3x3 58x58, NKC = 16,256,128
