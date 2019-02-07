@@ -22,9 +22,9 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
 
     struct MatrixIndex
     {
-        unsigned batch_begin;
-        unsigned row_begin;
-        unsigned col_begin;
+        unsigned batch;
+        unsigned row;
+        unsigned col;
     };
 
     __device__ Blockwise1dStridedBatchedGemmBlockABlockBThreadC()
@@ -32,15 +32,15 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
         const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
         const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
 
-        const auto c_thread_mtx_index = CalculateThreadMatrixCIndex(get_thread_local_1d_id());
+        const auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-        mMyThreadOffsetA = c_thread_mtx_index.batch_begin * BlockMatrixStrideA +
-                           ((!TransA) ? a_block_mtx.Get1dIndex(c_thread_mtx_index.row_begin, 0)
-                                      : a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row_begin));
+        mMyThreadOffsetA = c_thread_mtx_index.batch * BlockMatrixStrideA +
+                           ((!TransA) ? a_block_mtx.Get1dIndex(c_thread_mtx_index.row, 0)
+                                      : a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row));
 
-        mMyThreadOffsetB = c_thread_mtx_index.batch_begin * BlockMatrixStrideB +
-                           ((!TransB) ? b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col_begin)
-                                      : b_block_mtx.Get1dIndex(c_thread_mtx_index.col_begin, 0));
+        mMyThreadOffsetB = c_thread_mtx_index.batch * BlockMatrixStrideB +
+                           ((!TransB) ? b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col)
+                                      : b_block_mtx.Get1dIndex(c_thread_mtx_index.col, 0));
 
 #if 0
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
@@ -52,16 +52,16 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
             printf("%u %u, %u %u %u, %u %u\n",
                    get_block_1d_id(),
                    get_thread_local_1d_id(),
-                   c_thread_mtx_index.batch_begin,
-                   c_thread_mtx_index.row_begin,
-                   c_thread_mtx_index.col_begin,
+                   c_thread_mtx_index.batch,
+                   c_thread_mtx_index.row,
+                   c_thread_mtx_index.col,
                    mMyThreadOffsetA,
                    mMyThreadOffsetB);
         }
 #endif
     }
 
-    __device__ MatrixIndex CalculateThreadMatrixCIndex(unsigned thread_id) const
+    __device__ MatrixIndex GetBeginOfThreadMatrixC(unsigned thread_id) const
     {
 
         if(TransA && (!TransB) && (!TransC))
@@ -237,8 +237,8 @@ struct BlockwiseGemmBlockABlockBThreadC
 
     struct MatrixIndex
     {
-        unsigned row_begin;
-        unsigned col_begin;
+        unsigned row;
+        unsigned col;
     };
 
     __device__ BlockwiseGemmBlockABlockBThreadC()
@@ -246,13 +246,13 @@ struct BlockwiseGemmBlockABlockBThreadC
         const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
         const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
 
-        const auto c_thread_mtx_index = CalculateThreadMatrixCIndex(get_thread_local_1d_id());
+        const auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-        mMyThreadOffsetA = (!TransA) ? a_block_mtx.Get1dIndex(c_thread_mtx_index.row_begin, 0)
-                                     : a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row_begin);
+        mMyThreadOffsetA = (!TransA) ? a_block_mtx.Get1dIndex(c_thread_mtx_index.row, 0)
+                                     : a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row);
 
-        mMyThreadOffsetB = (!TransB) ? b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col_begin)
-                                     : b_block_mtx.Get1dIndex(c_thread_mtx_index.col_begin, 0);
+        mMyThreadOffsetB = (!TransB) ? b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col)
+                                     : b_block_mtx.Get1dIndex(c_thread_mtx_index.col, 0);
 
 #if 0
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
@@ -264,16 +264,16 @@ struct BlockwiseGemmBlockABlockBThreadC
             printf("%u %u, %u %u %u, %u %u\n",
                    get_block_1d_id(),
                    get_thread_local_1d_id(),
-                   c_thread_mtx_index.batch_begin,
-                   c_thread_mtx_index.row_begin,
-                   c_thread_mtx_index.col_begin,
+                   c_thread_mtx_index.batch,
+                   c_thread_mtx_index.row,
+                   c_thread_mtx_index.col,
                    mMyThreadOffsetA,
                    mMyThreadOffsetB);
         }
 #endif
     }
 
-    __device__ MatrixIndex CalculateThreadMatrixCIndex(unsigned thread_id) const
+    __device__ MatrixIndex GetBeginOfThreadMatrixC(unsigned thread_id) const
     {
 
         if(TransA && (!TransB) && (!TransC))
@@ -359,6 +359,13 @@ struct BlockwiseGemmBlockABlockBThreadC
         }
     }
 
+    // this should be optimized away if input is known
+    __device__ static MatrixIndex GetDistanceFromBeginOfThreadMatrixC(unsigned m_in_c,
+                                                                      unsigned n_in_c)
+    {
+        return MatrixIndex{m_in_c, n_in_c};
+    }
+
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
     __device__ void Run(FloatA* const p_a_block,
                         FloatB* const p_b_block,
@@ -417,6 +424,218 @@ struct BlockwiseGemmBlockABlockBThreadC
                                 p_c_thread,
                                 f_accum);
             }
+        }
+    }
+};
+
+// if following number are power of 2, index calculation shall be greatly reduced:
+//    MPerThreadSubC, NPerThreadSubC, MLevel0Cluster, NLevel0Cluster, MLevel1Cluster, NLevel1Cluster
+template <unsigned BlockSize,
+          class BlockMatrixA,
+          class BlockMatrixB,
+          class ThreadMatrixC,
+          unsigned MPerThreadSubC,
+          unsigned NPerThreadSubC,
+          unsigned MLevel0Cluster,
+          unsigned NLevel0Cluster,
+          unsigned MLevel1Cluster,
+          unsigned NLevel1Cluster,
+          unsigned KPerThreadLoop>
+struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
+{
+    struct MatrixIndex
+    {
+        unsigned row;
+        unsigned col;
+    };
+
+    unsigned mMyThreadOffsetA;
+    unsigned mMyThreadOffsetB;
+
+    __device__ BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2()
+    {
+        constexpr unsigned ThreadPerLevel1Cluster =
+            MLevel0Cluster * NLevel0Cluster * MLevel1Cluster * NLevel1Cluster;
+
+        static_assert(BlockSize == ThreadPerLevel1Cluster, "wrong! wrong blocksize\n");
+
+        const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
+        const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
+        const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+
+        static_assert(a_block_mtx.NRow() == b_block_mtx.NRow(),
+                      "wrong! K dimension not consistent\n");
+
+        constexpr unsigned M = a_block_mtx.NCol(); // A is transposed
+        constexpr unsigned N = b_block_mtx.NCol();
+        constexpr unsigned K = a_block_mtx.NRow();
+
+        constexpr unsigned MPerThread = c_thread_mtx.NRow();
+        constexpr unsigned NPerThread = c_thread_mtx.NCol();
+
+        static_assert((MPerThread % MPerThreadSubC == 0) && (NPerThread % NPerThreadSubC == 0),
+                      "wrong! Cannot evenly divide thread work among repeat \n");
+
+        constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
+        constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
+
+        static_assert((M % MRepeat == 0) && (N % NRepeat == 0),
+                      "wrong! Cannot evenly divide work among repeat\n");
+
+        constexpr unsigned MPerLevel1Cluster = M / MRepeat;
+        constexpr unsigned NPerLevel1Cluster = N / NRepeat;
+
+        static_assert((MPerLevel1Cluster % MLevel1Cluster == 0) &&
+                          (NPerLevel1Cluster % NLevel1Cluster == 0),
+                      "wrong! Cannot evenly divide work among Level1Cluster\n");
+
+        constexpr unsigned MPerLevel0Cluster = MPerLevel1Cluster / MLevel1Cluster;
+        constexpr unsigned NPerLevel0Cluster = NPerLevel1Cluster / NLevel1Cluster;
+
+        static_assert((MPerLevel0Cluster % MLevel0Cluster == 0) &&
+                          (NPerLevel0Cluster % NLevel0Cluster == 0),
+                      "wrong! Cannot evenly divide work among Level0Cluster\n");
+
+        static_assert((MPerThreadSubC == MPerLevel0Cluster / MLevel0Cluster) &&
+                          (NPerThreadSubC == NPerLevel0Cluster / NLevel0Cluster),
+                      "wrong! thread work size is wrong\n");
+
+        auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
+
+        mMyThreadOffsetA = a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row);
+        mMyThreadOffsetB = b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col);
+    }
+
+    __device__ static MatrixIndex GetBeginOfThreadMatrixC(unsigned thread_id)
+    {
+        constexpr unsigned ThreadPerLevel0Cluster = MLevel0Cluster * NLevel0Cluster;
+
+        unsigned level1_id   = thread_id / ThreadPerLevel0Cluster;
+        unsigned level1_m_id = level1_id / NLevel1Cluster;
+        unsigned level1_n_id = level1_id % NLevel1Cluster;
+
+        unsigned level0_id   = thread_id % ThreadPerLevel0Cluster;
+        unsigned level0_m_id = level0_id / NLevel0Cluster;
+        unsigned level0_n_id = level0_id % NLevel0Cluster;
+
+        constexpr unsigned MPerLevel0Cluster = MPerThreadSubC * MLevel0Cluster;
+        constexpr unsigned NPerLevel0Cluster = NPerThreadSubC * NLevel0Cluster;
+
+        return MatrixIndex{level1_m_id * MPerLevel0Cluster + level0_m_id * MPerThreadSubC,
+                           level1_n_id * NPerLevel0Cluster + level0_n_id * NPerThreadSubC};
+    }
+
+    // this should be optimized away if input is known
+    __device__ static MatrixIndex GetDistanceFromBeginOfThreadMatrixC(unsigned m_in_c,
+                                                                      unsigned n_in_c)
+    {
+        const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+
+        constexpr unsigned MPerThread = c_thread_mtx.NRow();
+        constexpr unsigned NPerThread = c_thread_mtx.NCol();
+
+        constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
+        constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
+
+        constexpr unsigned MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
+        constexpr unsigned NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
+
+        unsigned m_repeat = m_in_c / MPerThreadSubC;
+        unsigned n_repeat = n_in_c / NPerThreadSubC;
+
+        unsigned m_in_sub_c = m_in_c % MPerThreadSubC;
+        unsigned n_in_sub_c = n_in_c % NPerThreadSubC;
+
+        return MatrixIndex{m_repeat * MPerLevel1Cluster + m_in_sub_c,
+                           n_repeat * NPerLevel1Cluster + n_in_sub_c};
+    }
+
+    template <class FloatA, class FloatB, class FloatC, class Accumulator>
+    __device__ void Run(FloatA* const p_a_block,
+                        FloatB* const p_b_block,
+                        FloatC* p_c_thread,
+                        Accumulator f_accum) const
+    {
+        constexpr auto True  = Constant<bool, true>{};
+        constexpr auto False = Constant<bool, false>{};
+
+        const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
+        const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
+        const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+
+        constexpr unsigned M = a_block_mtx.NCol();
+        constexpr unsigned N = b_block_mtx.NCol();
+        constexpr unsigned K = a_block_mtx.NRow();
+
+        constexpr unsigned MPerThread = c_thread_mtx.NRow();
+        constexpr unsigned NPerThread = c_thread_mtx.NCol();
+
+        // thread A, B for GEMM
+        const auto a_thread_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<MPerThread>{}); // constexpr doesn't compile
+
+        const auto b_thread_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<NPerThread>{}); // constexpr doesn't compile
+
+        // thread A-sub, B-sub for copy
+        const auto a_thread_sub_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{},
+                                          Number<MPerThreadSubC>{},
+                                          Number<MPerThread>{}); // constexpr doesn't compile
+
+        const auto b_thread_sub_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{},
+                                          Number<NPerThreadSubC>{},
+                                          Number<NPerThread>{}); // constexpr doesn't compile
+
+        FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
+        FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
+
+        constexpr unsigned MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
+
+        constexpr unsigned NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
+
+        constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
+        constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
+
+        // loop over k
+        for(unsigned k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
+        {
+            // copy A-sub to form A
+            for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
+            {
+                threadwise_matrix_copy(a_block_mtx,
+                                       p_a_block + mMyThreadOffsetA +
+                                           k_begin * a_block_mtx.RowStride() +
+                                           m_repeat * MPerLevel1Cluster,
+                                       a_thread_sub_mtx,
+                                       p_a_thread + m_repeat * MPerThreadSubC,
+                                       a_thread_sub_mtx.GetLengths());
+            }
+
+            // copy B-sub to form B
+            for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
+            {
+                threadwise_matrix_copy(b_block_mtx,
+                                       p_b_block + mMyThreadOffsetB +
+                                           k_begin * b_block_mtx.RowStride() +
+                                           n_repeat * NPerLevel1Cluster,
+                                       b_thread_sub_mtx,
+                                       p_b_thread + n_repeat * NPerThreadSubC,
+                                       b_thread_sub_mtx.GetLengths());
+            }
+
+            // C = A * B
+            threadwise_gemm(a_thread_mtx,
+                            True,
+                            p_a_thread,
+                            b_thread_mtx,
+                            False,
+                            p_b_thread,
+                            c_thread_mtx,
+                            False,
+                            p_c_thread,
+                            f_accum);
         }
     }
 };

@@ -228,15 +228,15 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr(InGlobalDesc,
     }
 
     const auto matrix_c_index =
-        blockwise_batch_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
+        blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
 #if 0
-    printf("%u %u, %u %u %u\n",get_block_1d_id(), get_thread_local_1d_id(), matrix_c_index.batch_begin, matrix_c_index.row_begin, matrix_c_index.col_begin);
+    printf("%u %u, %u %u %u\n",get_block_1d_id(), get_thread_local_1d_id(), matrix_c_index.batch, matrix_c_index.row, matrix_c_index.col);
 #endif
 
-    const unsigned ho_thread_data_begin = matrix_c_index.batch_begin;
-    const unsigned k_thread_data_begin  = matrix_c_index.row_begin;
-    const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerThread;
+    const unsigned ho_thread_data_begin = matrix_c_index.batch;
+    const unsigned k_thread_data_begin  = matrix_c_index.row;
+    const unsigned wo_thread_data_begin = matrix_c_index.col / NPerThread;
 
 #if 1
     // output: register to global mem,

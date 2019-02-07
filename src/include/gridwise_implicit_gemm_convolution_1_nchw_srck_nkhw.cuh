@@ -205,13 +205,12 @@ gridwise_implicit_gemm_convolution_1_nchw_srck_nkhw(InGlobalDesc,
     }
 
     const auto matrix_c_index =
-        blockwise_batch_gemm.CalculateThreadMatrixCIndex(get_thread_local_1d_id());
+        blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    const unsigned ho_thread_data_begin = matrix_c_index.batch_begin;
-    const unsigned k_thread_data_begin  = matrix_c_index.row_begin;
-    const unsigned wo_thread_data_begin = matrix_c_index.col_begin / NPerBlock;
-    const unsigned n_thread_data_begin =
-        matrix_c_index.col_begin - wo_thread_data_begin * NPerBlock;
+    const unsigned ho_thread_data_begin = matrix_c_index.batch;
+    const unsigned k_thread_data_begin  = matrix_c_index.row;
+    const unsigned wo_thread_data_begin = matrix_c_index.col / NPerBlock;
+    const unsigned n_thread_data_begin  = matrix_c_index.col - wo_thread_data_begin * NPerBlock;
 
     // output: register to global mem,
     //   convert out_thread[Ho,K,Wo,N] to out_global[N,K,Ho,Wo]
