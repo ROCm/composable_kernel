@@ -4,7 +4,7 @@
 template <unsigned NRow_, unsigned NCol_, unsigned RowStride_>
 struct ConstantMatrixDescriptor
 {
-    __host__ __device__ ConstantMatrixDescriptor()
+    __host__ __device__ constexpr ConstantMatrixDescriptor()
     {
         static_assert(NCol_ <= RowStride_, "wrong! NCol > RowStride!");
     }

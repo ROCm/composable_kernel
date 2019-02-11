@@ -30,13 +30,13 @@ template <class MatrixA,
           class FloatC,
           class Accumulator>
 __device__ void threadwise_gemm(MatrixA,
-                                Constant<bool, TransA>,
+                                integral_constant<bool, TransA>,
                                 FloatA* const p_a_thread,
                                 MatrixB,
-                                Constant<bool, TransB>,
+                                integral_constant<bool, TransB>,
                                 FloatB* const p_b_thread,
                                 MatrixC,
-                                Constant<bool, TransC>,
+                                integral_constant<bool, TransC>,
                                 FloatC* p_c_thread,
                                 Accumulator f_accum)
 {

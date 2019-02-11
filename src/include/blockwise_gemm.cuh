@@ -124,12 +124,12 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
     {
         if(TransA && (!TransB) && (!TransC))
         {
-            constexpr auto True  = Constant<bool, true>{};
-            constexpr auto False = Constant<bool, false>{};
+            constexpr auto True  = integral_constant<bool, true>{};
+            constexpr auto False = integral_constant<bool, false>{};
 
-            const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
-            const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
-            const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+            constexpr auto a_block_mtx  = BlockMatrixA{};
+            constexpr auto b_block_mtx  = BlockMatrixB{};
+            constexpr auto c_thread_mtx = ThreadMatrixC{};
 
             constexpr unsigned KPerBlock = a_block_mtx.NRow(); // A is transposed
 
@@ -137,11 +137,11 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
             constexpr unsigned NPerThread = c_thread_mtx.NCol();
 
             // a is transposed, b is not
-            const auto a_thread_mtx = make_ConstantMatrixDescriptor(
-                Number<KPerThreadLoop>{}, Number<MPerThread>{}); // constexpr doesn't compile
+            constexpr auto a_thread_mtx =
+                make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
 
-            const auto b_thread_mtx = make_ConstantMatrixDescriptor(
-                Number<KPerThreadLoop>{}, Number<NPerThread>{}); // constexpr doesn't compile
+            constexpr auto b_thread_mtx =
+                make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
 
             FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
             FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
@@ -278,8 +278,8 @@ struct BlockwiseGemmBlockABlockBThreadC
 
         if(TransA && (!TransB) && (!TransC))
         {
-            const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
-            const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
+            constexpr auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
+            constexpr auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
 
             static_assert(a_block_mtx.NRow() == b_block_mtx.NRow(),
                           "wrong! k dimension not consistent!");
@@ -287,7 +287,7 @@ struct BlockwiseGemmBlockABlockBThreadC
             constexpr unsigned MPerBlock = a_block_mtx.NCol();
             constexpr unsigned NPerBlock = b_block_mtx.NCol();
 
-            const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+            constexpr auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
 
             // divide thread work
             constexpr unsigned MPerThread = c_thread_mtx.NRow();
@@ -374,12 +374,12 @@ struct BlockwiseGemmBlockABlockBThreadC
     {
         if(TransA && (!TransB) && (!TransC))
         {
-            constexpr auto True  = Constant<bool, true>{};
-            constexpr auto False = Constant<bool, false>{};
+            constexpr auto True  = integral_constant<bool, true>{};
+            constexpr auto False = integral_constant<bool, false>{};
 
-            const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
-            const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
-            const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+            constexpr auto a_block_mtx  = BlockMatrixA{};
+            constexpr auto b_block_mtx  = BlockMatrixB{};
+            constexpr auto c_thread_mtx = ThreadMatrixC{};
 
             constexpr unsigned KPerBlock = a_block_mtx.NRow(); // A is transposed
 
@@ -387,11 +387,11 @@ struct BlockwiseGemmBlockABlockBThreadC
             constexpr unsigned NPerThread = c_thread_mtx.NCol();
 
             // a is transposed, b is not
-            const auto a_thread_mtx = make_ConstantMatrixDescriptor(
-                Number<KPerThreadLoop>{}, Number<MPerThread>{}); // constexpr doesn't compile
+            constexpr auto a_thread_mtx =
+                make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
 
-            const auto b_thread_mtx = make_ConstantMatrixDescriptor(
-                Number<KPerThreadLoop>{}, Number<NPerThread>{}); // constexpr doesn't compile
+            constexpr auto b_thread_mtx =
+                make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
 
             FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
             FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
@@ -556,8 +556,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                         FloatC* p_c_thread,
                         Accumulator f_accum) const
     {
-        constexpr auto True  = Constant<bool, true>{};
-        constexpr auto False = Constant<bool, false>{};
+        constexpr auto True  = integral_constant<bool, true>{};
+        constexpr auto False = integral_constant<bool, false>{};
 
         const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
         const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
@@ -648,12 +648,12 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                              FloatC* p_c_thread,
                                              Accumulator f_accum) const
     {
-        constexpr auto True  = Constant<bool, true>{};
-        constexpr auto False = Constant<bool, false>{};
+        constexpr auto True  = integral_constant<bool, true>{};
+        constexpr auto False = integral_constant<bool, false>{};
 
-        const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
-        const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
-        const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+        constexpr auto a_block_mtx  = BlockMatrixA{};
+        constexpr auto b_block_mtx  = BlockMatrixB{};
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
 
         constexpr unsigned M = a_block_mtx.NCol();
         constexpr unsigned N = b_block_mtx.NCol();
@@ -663,22 +663,18 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr unsigned NPerThread = c_thread_mtx.NCol();
 
         // thread A, B for GEMM
-        const auto a_thread_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<MPerThread>{}); // constexpr doesn't compile
+        constexpr auto a_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
 
-        const auto b_thread_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<NPerThread>{}); // constexpr doesn't compile
+        constexpr auto b_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
 
         // thread A-sub, B-sub for copy
-        const auto a_thread_sub_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{},
-                                          Number<MPerThreadSubC>{},
-                                          Number<MPerThread>{}); // constexpr doesn't compile
+        constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<MPerThreadSubC>{}, Number<MPerThread>{});
 
-        const auto b_thread_sub_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{},
-                                          Number<NPerThreadSubC>{},
-                                          Number<NPerThread>{}); // constexpr doesn't compile
+        constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
 
         // register
         FloatA p_a_thread_0[a_thread_mtx.GetElementSpace()];

@@ -137,12 +137,18 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+
+    constexpr unsigned InBlockCopyDataPerRead  = 4; // not used, yet
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+
     constexpr unsigned BlockSize = 128;
-#elif 0
+#elif 1
     // for 7x7, 38x38
     constexpr unsigned NPerBlock  = 8;
     constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
+    constexpr unsigned CPerBlock  = 1;
     constexpr unsigned HoPerBlock = 4;
     constexpr unsigned WoPerBlock = 4;
 
@@ -151,6 +157,12 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+
+    constexpr unsigned InBlockCopyDataPerRead  = 4; // not used, yet
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
 
     constexpr unsigned BlockSize = 128;
 #elif 0

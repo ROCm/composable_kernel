@@ -172,18 +172,14 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
     //   a_mtx[C,K] is a sub-matrix of wei_block[C,S,R,K]
     //   b_mtx[C,B] is a subset of in_block[C,B + BGhostRead]
     //   c_mtx[K,B] is out_block[K,B]
-    const auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{},
-        Number<KPerBlock>{},
-        Number<wei_csrk_block_desc.GetStride(I0)>{}); // constexpr doesn't compile
+    constexpr auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
+        Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_csrk_block_desc.GetStride(I0)>{});
 
-    const auto b_cxb_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{},
-        Number<BPerBlock>{},
-        Number<in_cb_block_desc.GetStride(I0)>{}); // constexpr doesn't compile
+    constexpr auto b_cxb_block_mtx_desc = make_ConstantMatrixDescriptor(
+        Number<CPerBlock>{}, Number<BPerBlock>{}, Number<in_cb_block_desc.GetStride(I0)>{});
 
-    const auto c_kxb_thread_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<KPerThread>{}, Number<BPerThread>{}); // constexpr doesn't compile
+    constexpr auto c_kxb_thread_mtx_desc =
+        make_ConstantMatrixDescriptor(Number<KPerThread>{}, Number<BPerThread>{});
 
 #if 0
     const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadC<BlockSize,

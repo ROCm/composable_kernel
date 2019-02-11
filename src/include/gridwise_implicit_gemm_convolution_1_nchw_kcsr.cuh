@@ -115,16 +115,16 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr(InGlobalDesc,
     //   A_matrix[C,K] is a sub-matrix of wei_block[S,R,C,K]
     //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
     //   C_matrix[K,Wo*N] is a sub-matrix of out_block[Ho,K,Wo,N]
-    const auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{}, Number<KPerBlock>{}); // constexpr doesn't compile
+    constexpr auto a_cxk_block_mtx_desc =
+        make_ConstantMatrixDescriptor(Number<CPerBlock>{}, Number<KPerBlock>{});
 
-    const auto b_cxwn_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{},
-        Number<WoPerBlock * NPerBlock>{},
-        Number<in_chwn_block_desc.GetStride(I0)>{}); // constexpr doesn't compile
+    constexpr auto b_cxwn_block_mtx_desc =
+        make_ConstantMatrixDescriptor(Number<CPerBlock>{},
+                                      Number<WoPerBlock * NPerBlock>{},
+                                      Number<in_chwn_block_desc.GetStride(I0)>{});
 
-    const auto c_kxwn_thread_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<KPerThread>{}, Number<WoPerThread * NPerThread>{}); // constexpr doesn't compile
+    constexpr auto c_kxwn_thread_mtx_desc =
+        make_ConstantMatrixDescriptor(Number<KPerThread>{}, Number<WoPerThread * NPerThread>{});
 
     const auto blockwise_batch_gemm =
         Blockwise1dStridedBatchedGemmBlockABlockBThreadC<BlockSize,

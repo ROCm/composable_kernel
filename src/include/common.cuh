@@ -1,6 +1,8 @@
 #pragma once
 
-#define WARPSIZE 32;
+__device__ unsigned get_thread_local_1d_id() { return threadIdx.x; }
+
+__device__ unsigned get_block_1d_id() { return blockIdx.x; }
 
 template <class T1, class T2>
 struct is_same
@@ -14,20 +16,16 @@ struct is_same<T, T>
     static const bool value = true;
 };
 
-__device__ unsigned get_thread_local_1d_id() { return threadIdx.x; }
-
-__device__ unsigned get_block_1d_id() { return blockIdx.x; }
-
 template <class T, T N>
-struct Constant
+struct integral_constant
 {
-    static const T mValue = N;
+    static const T value = N;
 
-    __host__ __device__ constexpr T Get() const { return mValue; }
+    __host__ __device__ constexpr T Get() const { return value; }
 };
 
 template <unsigned N>
-using Number = Constant<unsigned, N>;
+using Number = integral_constant<unsigned, N>;
 
 template <unsigned... Is>
 struct Sequence
