@@ -391,7 +391,7 @@ int main()
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
-#elif 0
+#elif 1
     // 3x3, 34x34
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
@@ -430,6 +430,9 @@ int main()
     constexpr unsigned K  = 64;
     constexpr unsigned S  = 5;
     constexpr unsigned R  = 5;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
 #elif 0
     // 7x7, 38x38
     constexpr unsigned N  = 64;
@@ -439,6 +442,9 @@ int main()
     constexpr unsigned K  = 64;
     constexpr unsigned S  = 7;
     constexpr unsigned R  = 7;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
 #elif 0
     // 3x3, 58x58
     constexpr unsigned N  = 16;
@@ -484,7 +490,7 @@ int main()
 
     constexpr unsigned HPad = 1;
     constexpr unsigned WPad = 1;
-#elif 1
+#elif 0
     // 1x1 filter, 28x28 image
     constexpr unsigned N  = 16;
     constexpr unsigned C  = 256;
@@ -608,7 +614,7 @@ int main()
                                                              nrepeat);
 #endif
 
-#if 0
+#if 1
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
