@@ -512,4 +512,196 @@ struct Blockwise2dTensorCopy3
             }
         }
     }
+
+#if 1
+    __device__ constexpr unsigned GetRegisterClipboardSize() const
+    {
+        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        constexpr unsigned L0 = CopyLengths{}.Get(I0);
+        constexpr unsigned L1 = CopyLengths{}.Get(I1);
+
+        constexpr unsigned thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;
+        constexpr unsigned thread_per_d0 = BlockSize / thread_per_d1;
+
+        return DataPerRead * (L0 + thread_per_d0 - 1) / thread_per_d0;
+    }
+
+    __device__ void RunLoadRegisterClipboard(const Float* __restrict__ p_src,
+                                             Float* p_clipboard) const
+    {
+        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+
+        using Float2 = float2;
+        using Float4 = float4;
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        constexpr unsigned L0 = CopyLengths{}.Get(I0);
+        constexpr unsigned L1 = CopyLengths{}.Get(I1);
+
+        constexpr unsigned thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;
+        constexpr unsigned thread_per_d0 = BlockSize / thread_per_d1;
+
+        constexpr unsigned num_active_thread = thread_per_d0 * thread_per_d1;
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
+
+        constexpr unsigned nloop_d0 = L0 / thread_per_d0;
+
+        constexpr unsigned src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
+        constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
+
+        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
+        {
+            if(DataPerRead == 1)
+            {
+                p_clipboard[iloop] = p_src[mSrcMyThreadOffset + iloop * src_loop_stride];
+            }
+            else if(DataPerRead == 2)
+            {
+                *(reinterpret_cast<Float2*>(p_clipboard + iloop * 2)) =
+                    *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
+                                                      iloop * src_loop_stride));
+            }
+            else if(DataPerRead == 4)
+            {
+                *(reinterpret_cast<Float4*>(p_clipboard + iloop * 4)) =
+                    *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
+                                                      iloop * src_loop_stride));
+            }
+            else
+            {
+                assert(false);
+            }
+        }
+
+        constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
+
+        if(has_tail_d0)
+        {
+            constexpr unsigned tail_d0 = L0 - nloop_d0 * thread_per_d0;
+
+            if(get_thread_local_1d_id() < tail_d0 * thread_per_d1)
+            {
+                if(DataPerRead == 1)
+                {
+                    p_clipboard[nloop_d0] = p_src[mSrcMyThreadOffset + nloop_d0 * src_loop_stride];
+                }
+                else if(DataPerRead == 2)
+                {
+                    *(reinterpret_cast<Float2*>(p_clipboard + nloop_d0 * 2)) =
+                        *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
+                                                          nloop_d0 * src_loop_stride));
+                }
+                else if(DataPerRead == 4)
+                {
+                    *(reinterpret_cast<Float4*>(p_clipboard + nloop_d0 * 4)) =
+                        *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
+                                                          nloop_d0 * src_loop_stride));
+                }
+                else
+                {
+                    assert(false);
+                }
+            }
+        }
+    }
+
+    __device__ void RunStoreRegisterClipboard(const Float* __restrict__ p_clipboard,
+                                              Float* __restrict__ p_dst) const
+    {
+        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+
+        using Float2 = float2;
+        using Float4 = float4;
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        constexpr unsigned L0 = CopyLengths{}.Get(I0);
+        constexpr unsigned L1 = CopyLengths{}.Get(I1);
+
+        constexpr unsigned thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;
+        constexpr unsigned thread_per_d0 = BlockSize / thread_per_d1;
+
+        constexpr unsigned num_active_thread = thread_per_d0 * thread_per_d1;
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
+
+        constexpr unsigned nloop_d0 = L0 / thread_per_d0;
+
+        constexpr unsigned src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
+        constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
+
+        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
+        {
+            if(DataPerRead == 1)
+            {
+                p_dst[mDstMyThreadOffset + iloop * dst_loop_stride] = p_clipboard[iloop];
+            }
+            else if(DataPerRead == 2)
+            {
+                *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
+                    *(reinterpret_cast<const Float2*>(p_clipboard + iloop * 2));
+            }
+            else if(DataPerRead == 4)
+            {
+                *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
+                    *(reinterpret_cast<const Float4*>(p_clipboard + iloop * 4));
+            }
+            else
+            {
+                assert(false);
+            }
+        }
+
+        constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
+
+        if(has_tail_d0)
+        {
+            constexpr unsigned tail_d0 = L0 - nloop_d0 * thread_per_d0;
+
+            if(get_thread_local_1d_id() < tail_d0 * thread_per_d1)
+            {
+                if(DataPerRead == 1)
+                {
+                    p_dst[mDstMyThreadOffset + nloop_d0 * dst_loop_stride] = p_clipboard[nloop_d0];
+                }
+                else if(DataPerRead == 2)
+                {
+                    *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset +
+                                                nloop_d0 * dst_loop_stride)) =
+                        *(reinterpret_cast<const Float2*>(p_clipboard + nloop_d0 * 2));
+                }
+                else if(DataPerRead == 4)
+                {
+                    *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset +
+                                                nloop_d0 * dst_loop_stride)) =
+                        *(reinterpret_cast<const Float4*>(p_clipboard + nloop_d0 * 4));
+                }
+                else
+                {
+                    assert(false);
+                }
+            }
+        }
+    }
+#endif
 };

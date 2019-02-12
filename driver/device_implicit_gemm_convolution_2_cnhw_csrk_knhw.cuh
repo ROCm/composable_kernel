@@ -128,7 +128,8 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     constexpr unsigned BlockSize = 64;
 #elif 1
-    // 1x1, 28x28, 128 threads
+    // 1x1, 28x28, 128 threads, no lds-double-buffer
+    // 1x1, 28x28, 128 threads, with lds-double-buffer, max_register = 128
     constexpr unsigned BPerBlock = 64;
     constexpr unsigned KPerBlock = 128;
     constexpr unsigned CPerBlock = 8;
@@ -215,37 +216,37 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
         cudaEventCreate(&start);
         cudaEventRecord(start, 0);
 
-#if 1
+#if 0
         gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw
 #else
         gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_buffer
 #endif
-            <GridSize,
-             BlockSize,
-             T,
-             decltype(in_cnhw_desc),
-             decltype(wei_csrk_desc),
-             decltype(out_knhw_desc),
-             BPerBlock,
-             KPerBlock,
-             CPerBlock,
-             BPerThread,
-             KPerThread,
-             GemmThreadPerColumnPerCluster,
-             GemmThreadPerRowPerCluster,
-             GemmMPerThreadSubC,
-             GemmNPerThreadSubC,
-             GemmMLevel0Cluster,
-             GemmNLevel0Cluster,
-             GemmMLevel1Cluster,
-             GemmNLevel1Cluster,
-             GemmKPerThreadLoop,
-             InBlockCopyThreadPerDim0,
-             InBlockCopyThreadPerDim1,
-             WeiBlockCopyThreadPerDim0,
-             WeiBlockCopyThreadPerDim1,
-             InBlockCopyDataPerRead,
-             WeiBlockCopyDataPerRead>
+        <GridSize,
+         BlockSize,
+         T,
+         decltype(in_cnhw_desc),
+         decltype(wei_csrk_desc),
+         decltype(out_knhw_desc),
+         BPerBlock,
+         KPerBlock,
+         CPerBlock,
+         BPerThread,
+         KPerThread,
+         GemmThreadPerColumnPerCluster,
+         GemmThreadPerRowPerCluster,
+         GemmMPerThreadSubC,
+         GemmNPerThreadSubC,
+         GemmMLevel0Cluster,
+         GemmNLevel0Cluster,
+         GemmMLevel1Cluster,
+         GemmNLevel1Cluster,
+         GemmKPerThreadLoop,
+         InBlockCopyThreadPerDim0,
+         InBlockCopyThreadPerDim1,
+         WeiBlockCopyThreadPerDim0,
+         WeiBlockCopyThreadPerDim1,
+         InBlockCopyDataPerRead,
+         WeiBlockCopyDataPerRead>
             <<<grid_dim, block_dim>>>(in_cnhw_desc,
                                       static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
                                       wei_csrk_desc,
