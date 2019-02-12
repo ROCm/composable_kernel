@@ -29,8 +29,8 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
 
     __device__ Blockwise1dStridedBatchedGemmBlockABlockBThreadC()
     {
-        const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
-        const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
+        constexpr auto a_block_mtx = BlockMatrixA{};
+        constexpr auto b_block_mtx = BlockMatrixB{};
 
         const auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
@@ -66,8 +66,8 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
 
         if(TransA && (!TransB) && (!TransC))
         {
-            const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
-            const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
+            constexpr auto a_block_mtx = BlockMatrixA{};
+            constexpr auto b_block_mtx = BlockMatrixB{};
 
             static_assert(a_block_mtx.NRow() == b_block_mtx.NRow(),
                           "wrong! k dimension not consistent!");
@@ -75,7 +75,7 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
             constexpr unsigned MPerBlock = a_block_mtx.NCol();
             constexpr unsigned NPerBlock = b_block_mtx.NCol();
 
-            const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+            constexpr auto c_thread_mtx = ThreadMatrixC{};
 
             // divide thread work
             constexpr unsigned MPerThread = c_thread_mtx.NRow();
@@ -117,9 +117,9 @@ struct Blockwise1dStridedBatchedGemmBlockABlockBThreadC
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void Run(FloatA* const p_a_block,
-                        FloatB* const p_b_block,
-                        FloatC* p_c_thread,
+    __device__ void Run(const FloatA* __restrict__ p_a_block,
+                        const FloatB* __restrict__ p_b_block,
+                        FloatC* __restrict__ p_c_thread,
                         Accumulator f_accum) const
     {
         if(TransA && (!TransB) && (!TransC))
@@ -243,8 +243,8 @@ struct BlockwiseGemmBlockABlockBThreadC
 
     __device__ BlockwiseGemmBlockABlockBThreadC()
     {
-        const auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
-        const auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
+        constexpr auto a_block_mtx = BlockMatrixA{};
+        constexpr auto b_block_mtx = BlockMatrixB{};
 
         const auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
@@ -278,8 +278,8 @@ struct BlockwiseGemmBlockABlockBThreadC
 
         if(TransA && (!TransB) && (!TransC))
         {
-            constexpr auto a_block_mtx = BlockMatrixA{}; // constexpr doesn't compile
-            constexpr auto b_block_mtx = BlockMatrixB{}; // constexpr doesn't compile
+            constexpr auto a_block_mtx = BlockMatrixA{};
+            constexpr auto b_block_mtx = BlockMatrixB{};
 
             static_assert(a_block_mtx.NRow() == b_block_mtx.NRow(),
                           "wrong! k dimension not consistent!");
@@ -287,7 +287,7 @@ struct BlockwiseGemmBlockABlockBThreadC
             constexpr unsigned MPerBlock = a_block_mtx.NCol();
             constexpr unsigned NPerBlock = b_block_mtx.NCol();
 
-            constexpr auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+            constexpr auto c_thread_mtx = ThreadMatrixC{};
 
             // divide thread work
             constexpr unsigned MPerThread = c_thread_mtx.NRow();
@@ -367,9 +367,9 @@ struct BlockwiseGemmBlockABlockBThreadC
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void Run(FloatA* const p_a_block,
-                        FloatB* const p_b_block,
-                        FloatC* p_c_thread,
+    __device__ void Run(const FloatA* __restrict__ p_a_block,
+                        const FloatB* __restrict__ p_b_block,
+                        FloatC* __restrict__ p_c_thread,
                         Accumulator f_accum) const
     {
         if(TransA && (!TransB) && (!TransC))
@@ -459,9 +459,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         static_assert(BlockSize == ThreadPerLevel1Cluster, "wrong! wrong blocksize\n");
 
-        const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
-        const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
-        const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+        constexpr auto a_block_mtx  = BlockMatrixA{};
+        constexpr auto b_block_mtx  = BlockMatrixB{};
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
 
         static_assert(a_block_mtx.NRow() == b_block_mtx.NRow(),
                       "wrong! K dimension not consistent\n");
@@ -529,7 +529,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     __device__ static MatrixIndex GetDistanceFromBeginOfThreadMatrixC(unsigned m_in_c,
                                                                       unsigned n_in_c)
     {
-        const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
 
         constexpr unsigned MPerThread = c_thread_mtx.NRow();
         constexpr unsigned NPerThread = c_thread_mtx.NCol();
@@ -551,17 +551,17 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void Run(FloatA* const p_a_block,
-                        FloatB* const p_b_block,
-                        FloatC* p_c_thread,
+    __device__ void Run(const FloatA* __restrict__ p_a_block,
+                        const FloatB* __restrict__ p_b_block,
+                        FloatC* __restrict__ p_c_thread,
                         Accumulator f_accum) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
 
-        const auto a_block_mtx  = BlockMatrixA{};  // constexpr doesn't compile
-        const auto b_block_mtx  = BlockMatrixB{};  // constexpr doesn't compile
-        const auto c_thread_mtx = ThreadMatrixC{}; // constexpr doesn't compile
+        constexpr auto a_block_mtx  = BlockMatrixA{};
+        constexpr auto b_block_mtx  = BlockMatrixB{};
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
 
         constexpr unsigned M = a_block_mtx.NCol();
         constexpr unsigned N = b_block_mtx.NCol();
@@ -571,22 +571,18 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr unsigned NPerThread = c_thread_mtx.NCol();
 
         // thread A, B for GEMM
-        const auto a_thread_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<MPerThread>{}); // constexpr doesn't compile
+        constexpr auto a_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
 
-        const auto b_thread_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<NPerThread>{}); // constexpr doesn't compile
+        constexpr auto b_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
 
         // thread A-sub, B-sub for copy
-        const auto a_thread_sub_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{},
-                                          Number<MPerThreadSubC>{},
-                                          Number<MPerThread>{}); // constexpr doesn't compile
+        constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<MPerThreadSubC>{}, Number<MPerThread>{});
 
-        const auto b_thread_sub_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{},
-                                          Number<NPerThreadSubC>{},
-                                          Number<NPerThread>{}); // constexpr doesn't compile
+        constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
 
         FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
         FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
@@ -606,26 +602,26 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             // copy A-sub to form A
             for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
             {
-                threadwise_matrix_copy(a_block_mtx,
-                                       p_a_block + mMyThreadOffsetA +
-                                           k_begin * a_block_mtx.RowStride() +
-                                           m_repeat * MPerLevel1Cluster,
-                                       a_thread_sub_mtx,
-                                       p_a_thread + m_repeat * MPerThreadSubC,
-                                       a_thread_sub_mtx.GetLengths());
+                threadwise_matrix_copy(
+                    a_block_mtx,
+                    p_a_block + a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
+                        mMyThreadOffsetA,
+                    a_thread_mtx,
+                    p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                    a_thread_sub_mtx.GetLengths());
             }
 
 #pragma unroll
             // copy B-sub to form B
             for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
             {
-                threadwise_matrix_copy(b_block_mtx,
-                                       p_b_block + mMyThreadOffsetB +
-                                           k_begin * b_block_mtx.RowStride() +
-                                           n_repeat * NPerLevel1Cluster,
-                                       b_thread_sub_mtx,
-                                       p_b_thread + n_repeat * NPerThreadSubC,
-                                       b_thread_sub_mtx.GetLengths());
+                threadwise_matrix_copy(
+                    b_block_mtx,
+                    p_b_block + b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
+                        mMyThreadOffsetB,
+                    b_thread_mtx,
+                    p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                    b_thread_sub_mtx.GetLengths());
             }
 
             // C = A * B
@@ -776,6 +772,146 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             False,
                             p_c_thread,
                             f_accum);
+        }
+    }
+
+    template <class FloatA, class FloatB, class FloatC, class Accumulator>
+    __device__ void Run_v2(const FloatA* __restrict__ p_a_block,
+                           const FloatB* __restrict__ p_b_block,
+                           FloatC* __restrict__ p_c_thread,
+                           Accumulator f_accum) const
+    {
+        constexpr auto True  = integral_constant<bool, true>{};
+        constexpr auto False = integral_constant<bool, false>{};
+
+        constexpr auto a_block_mtx  = BlockMatrixA{};
+        constexpr auto b_block_mtx  = BlockMatrixB{};
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
+
+        constexpr unsigned M = a_block_mtx.NCol();
+        constexpr unsigned N = b_block_mtx.NCol();
+        constexpr unsigned K = a_block_mtx.NRow();
+
+        constexpr unsigned MPerThread = c_thread_mtx.NRow();
+        constexpr unsigned NPerThread = c_thread_mtx.NCol();
+
+        // thread A-sub, B-sub, C-sub
+        constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<MPerThreadSubC>{}, Number<MPerThread>{});
+
+        constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
+
+        constexpr auto c_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<MPerThreadSubC>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
+
+        // thread A, B
+        constexpr auto a_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
+
+        constexpr auto b_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
+
+        FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
+        FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
+
+        constexpr unsigned MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
+        constexpr unsigned NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
+
+        constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
+        constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
+
+#pragma unroll
+        // loop over k
+        for(unsigned k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
+        {
+            // C-sub(s) in first row-wise subblock of C
+            {
+                //   copy first A-sub
+                threadwise_matrix_copy(a_block_mtx,
+                                       p_a_block + a_block_mtx.Get1dIndex(k_begin, 0) +
+                                           mMyThreadOffsetA,
+                                       a_thread_mtx,
+                                       p_a_thread,
+                                       a_thread_sub_mtx.GetLengths());
+
+                //   copy first B-sub
+                threadwise_matrix_copy(b_block_mtx,
+                                       p_b_block + b_block_mtx.Get1dIndex(k_begin, 0) +
+                                           mMyThreadOffsetB,
+                                       b_thread_mtx,
+                                       p_b_thread,
+                                       b_thread_sub_mtx.GetLengths());
+
+                //   do first sub GEMM
+                threadwise_gemm(a_thread_sub_mtx,
+                                True,
+                                p_a_thread,
+                                b_thread_sub_mtx,
+                                False,
+                                p_b_thread,
+                                c_thread_sub_mtx,
+                                False,
+                                p_c_thread,
+                                f_accum);
+
+#pragma unroll
+                //   copy next B-sub, and do GEMM
+                for(unsigned n_repeat = 1; n_repeat < NRepeat; ++n_repeat)
+                {
+                    threadwise_matrix_copy(
+                        b_block_mtx,
+                        p_b_block + b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
+                            mMyThreadOffsetB,
+                        b_thread_mtx,
+                        p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                        b_thread_sub_mtx.GetLengths());
+
+                    threadwise_gemm(
+                        a_thread_sub_mtx,
+                        True,
+                        p_a_thread,
+                        b_thread_sub_mtx,
+                        False,
+                        p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                        c_thread_sub_mtx,
+                        False,
+                        p_c_thread + c_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                        f_accum);
+                }
+
+#pragma unroll
+                // loop over rest of row-wise subblock
+                //   all B-sub(s) has been copied, so only A-sub(s) need to be copied
+                for(unsigned m_repeat = 1; m_repeat < MRepeat; ++m_repeat)
+                {
+                    // copy a A-sub
+                    threadwise_matrix_copy(
+                        a_block_mtx,
+                        p_a_block + a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
+                            mMyThreadOffsetA,
+                        a_thread_mtx,
+                        p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                        a_thread_sub_mtx.GetLengths());
+
+                    // do some GEMMs
+                    for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
+                    {
+                        threadwise_gemm(
+                            a_thread_sub_mtx,
+                            True,
+                            p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                            b_thread_sub_mtx,
+                            False,
+                            p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                            c_thread_sub_mtx,
+                            False,
+                            p_c_thread + c_thread_mtx.Get1dIndex(m_repeat * MPerThreadSubC,
+                                                                 n_repeat * NPerThreadSubC),
+                            f_accum);
+                    }
+                }
+            }
         }
     }
 };

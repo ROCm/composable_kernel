@@ -70,7 +70,7 @@ template <unsigned BlockSize,
           class F>
 __device__ void blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
     SrcDesc,
-    Float* const __restrict__ p_src,
+    const Float* __restrict__ p_src,
     DstDesc,
     Float* __restrict__ p_dst,
     SrcOpLengths,
@@ -149,7 +149,7 @@ template <unsigned BlockSize,
           class DstFromSrcReorder>
 __device__ void
 blockwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
-                                                     Float* const __restrict__ p_src,
+                                                     const Float* __restrict__ p_src,
                                                      DstDesc,
                                                      Float* __restrict__ p_dst,
                                                      SrcOpLengths,
@@ -164,7 +164,7 @@ blockwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
 template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
 struct Blockwise2dTensorCopy1
 {
-    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
         constexpr auto dst_from_src_reorder = Sequence<0, 1>{};
 
@@ -199,7 +199,7 @@ struct Blockwise2dTensorCopy2
         mThreadId1 = get_thread_local_1d_id() - mThreadId0 * ThreadPerDim1;
     }
 
-    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
         static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
 
@@ -253,7 +253,7 @@ struct Blockwise2dTensorCopy2
                 const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                 *(reinterpret_cast<Float4*>(p_dst + dindex)) =
-                    *(reinterpret_cast<Float4*>(p_src + sindex));
+                    *(reinterpret_cast<const Float4*>(p_src + sindex));
             }
 
             // v2
@@ -266,7 +266,7 @@ struct Blockwise2dTensorCopy2
                 const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                 *(reinterpret_cast<Float2*>(p_dst + dindex)) =
-                    *(reinterpret_cast<Float2*>(p_src + sindex));
+                    *(reinterpret_cast<const Float2*>(p_src + sindex));
             }
 
             // v1
@@ -314,7 +314,7 @@ struct Blockwise2dTensorCopy2
                     const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                     *(reinterpret_cast<Float4*>(p_dst + dindex)) =
-                        *(reinterpret_cast<Float4*>(p_src + sindex));
+                        *(reinterpret_cast<const Float4*>(p_src + sindex));
                 }
 
                 // v2
@@ -327,7 +327,7 @@ struct Blockwise2dTensorCopy2
                     const unsigned dindex = dst_desc.Get1dIndex(did0, did1);
 
                     *(reinterpret_cast<Float2*>(p_dst + dindex)) =
-                        *(reinterpret_cast<Float2*>(p_src + sindex));
+                        *(reinterpret_cast<const Float2*>(p_src + sindex));
                 }
 
                 // v1
@@ -422,7 +422,7 @@ struct Blockwise2dTensorCopy3
         mDstMyThreadOffset = DstDesc{}.Get1dIndex(thread_id_d0, thread_id_d1 * DataPerRead);
     }
 
-    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
         static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
 
@@ -463,14 +463,14 @@ struct Blockwise2dTensorCopy3
             else if(DataPerRead == 2)
             {
                 *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
-                    *(reinterpret_cast<Float2*>(p_src + mSrcMyThreadOffset +
-                                                iloop * src_loop_stride));
+                    *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
+                                                      iloop * src_loop_stride));
             }
             else if(DataPerRead == 4)
             {
                 *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
-                    *(reinterpret_cast<Float4*>(p_src + mSrcMyThreadOffset +
-                                                iloop * src_loop_stride));
+                    *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
+                                                      iloop * src_loop_stride));
             }
             else
             {
@@ -495,15 +495,15 @@ struct Blockwise2dTensorCopy3
                 {
                     *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset +
                                                 nloop_d0 * dst_loop_stride)) =
-                        *(reinterpret_cast<Float2*>(p_src + mSrcMyThreadOffset +
-                                                    nloop_d0 * src_loop_stride));
+                        *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
+                                                          nloop_d0 * src_loop_stride));
                 }
                 else if(DataPerRead == 4)
                 {
                     *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset +
                                                 nloop_d0 * dst_loop_stride)) =
-                        *(reinterpret_cast<Float4*>(p_src + mSrcMyThreadOffset +
-                                                    nloop_d0 * src_loop_stride));
+                        *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
+                                                          nloop_d0 * src_loop_stride));
                 }
                 else
                 {

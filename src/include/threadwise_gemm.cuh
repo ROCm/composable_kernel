@@ -1,11 +1,14 @@
 #pragma once
 
 template <class Float, class SrcMatrix, class DstMatrix, unsigned NRow, unsigned NCol>
-__device__ void
-threadwise_matrix_copy(SrcMatrix, Float* const p_src, DstMatrix, Float* p_dst, Sequence<NRow, NCol>)
+__device__ void threadwise_matrix_copy(SrcMatrix,
+                                       const Float* __restrict__ p_src,
+                                       DstMatrix,
+                                       Float* __restrict__ p_dst,
+                                       Sequence<NRow, NCol>)
 {
-    const auto src_mtx = SrcMatrix{}; // constexpr doesn't compile
-    const auto dst_mtx = DstMatrix{}; // constexpr doesn't compile
+    constexpr auto src_mtx = SrcMatrix{};
+    constexpr auto dst_mtx = DstMatrix{};
 
     for(unsigned i = 0; i < NRow; ++i)
     {
@@ -31,30 +34,30 @@ template <class MatrixA,
           class Accumulator>
 __device__ void threadwise_gemm(MatrixA,
                                 integral_constant<bool, TransA>,
-                                FloatA* const p_a_thread,
+                                const FloatA* __restrict__ p_a_thread,
                                 MatrixB,
                                 integral_constant<bool, TransB>,
-                                FloatB* const p_b_thread,
+                                const FloatB* __restrict__ p_b_thread,
                                 MatrixC,
                                 integral_constant<bool, TransC>,
-                                FloatC* p_c_thread,
+                                FloatC* __restrict__ p_c_thread,
                                 Accumulator f_accum)
 {
     if(TransA && (!TransB) && (!TransC))
     {
-        const auto a_mtx = MatrixA{}; // constexpr doesn't compile
-        const auto b_mtx = MatrixB{}; // constexpr doesn't compile
-        const auto c_mtx = MatrixC{}; // constexpr doesn't compile
+        constexpr auto a_mtx = MatrixA{};
+        constexpr auto b_mtx = MatrixB{};
+        constexpr auto c_mtx = MatrixC{};
 
         constexpr unsigned M = c_mtx.NRow();
         constexpr unsigned N = c_mtx.NCol();
         constexpr unsigned K = a_mtx.NRow(); // A is transposed
 
-        for(unsigned i = 0; i < M; ++i)
+        for(unsigned k = 0; k < K; ++k)
         {
-            for(unsigned j = 0; j < N; ++j)
+            for(unsigned i = 0; i < M; ++i)
             {
-                for(unsigned k = 0; k < K; ++k)
+                for(unsigned j = 0; j < N; ++j)
                 {
                     const unsigned aindex = a_mtx.Get1dIndex(k, i); // A is transposed
                     const unsigned bindex = b_mtx.Get1dIndex(k, j);

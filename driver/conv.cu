@@ -391,7 +391,7 @@ int main()
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
-#elif 1
+#elif 0
     // 3x3, 34x34
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
@@ -490,7 +490,7 @@ int main()
 
     constexpr unsigned HPad = 1;
     constexpr unsigned WPad = 1;
-#elif 0
+#elif 1
     // 1x1 filter, 28x28 image
     constexpr unsigned N  = 16;
     constexpr unsigned C  = 256;
@@ -582,7 +582,7 @@ int main()
     wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #endif
 
-    unsigned nrepeat = 100;
+    unsigned nrepeat = 200;
 
 #if 1
 #if 0
@@ -593,11 +593,11 @@ int main()
     device_implicit_gemm_convolution_1_nchw_kcsr
 #elif 0
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn
 #elif 0
     device_implicit_gemm_convolution_2_cnhw_srck_knhw
-#elif 0
+#elif 1
     device_implicit_gemm_convolution_2_cnhw_csrk_knhw
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
