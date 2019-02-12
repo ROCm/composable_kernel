@@ -614,7 +614,7 @@ int main()
                                                              nrepeat);
 #endif
 
-#if 1
+#if 0
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);

@@ -262,8 +262,26 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
         __syncthreads();
 
         // load next data
+#if 0
         blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_next);
         blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_next);
+#elif 0
+        blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_next);
+
+        Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+        blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                    p_wei_register_clipboard);
+#elif 1
+        Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+        Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+        blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                   p_in_register_clipboard);
+
+        blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                    p_wei_register_clipboard);
+#endif
 
         // compute on current data
         //   a series of GEMM
@@ -283,6 +301,13 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                      f_accum);
             }
         }
+
+#if 0
+        blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block_next);
+#elif 1
+        blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block_next);
+        blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block_next);
+#endif
     }
 
     // last computation
