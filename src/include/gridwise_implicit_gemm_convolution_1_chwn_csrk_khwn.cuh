@@ -201,11 +201,11 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(InGlobalDesc,
     // set threadwise output tensor to 0
     threadwise_4d_tensor_set_zero(out_hkwn_thread_desc, p_out_thread);
 
-    Float* p_in_global_block_begin =
+    const Float* p_in_global_block_begin =
         p_in_global + in_chwn_global_desc.Get1dIndex(
                           0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
-    Float* p_wei_global_block_begin =
+    const Float* p_wei_global_block_begin =
         p_wei_global + wei_csrk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
     for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
@@ -213,15 +213,11 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(InGlobalDesc,
                  p_wei_global_block_begin += CPerBlock * wei_csrk_global_desc.GetStride(I0),
                  __syncthreads())
     {
-#if 1
         // input: global mem to LDS,
         blockwise_in_copy.Run(p_in_global_block_begin, p_in_block);
-#endif
 
-#if 1
         // weight: global mem to LDS,
         blockwise_wei_copy.Run(p_wei_global_block_begin, p_wei_block);
-#endif
 
         __syncthreads();
 

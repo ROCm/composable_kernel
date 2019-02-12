@@ -67,7 +67,7 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     Tensor<T> out_knhw(make_TensorDescriptor(out_knhw_desc));
 
-#if 1
+#if 0
     // 3x3, 34x34
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 64;
@@ -78,9 +78,9 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     constexpr unsigned GemmMPerThreadSubC = 4;
     constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 8;
+    constexpr unsigned GemmMLevel0Cluster = 4;
     constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 1;
+    constexpr unsigned GemmMLevel1Cluster = 2;
     constexpr unsigned GemmNLevel1Cluster = 8;
     constexpr unsigned GemmKPerThreadLoop = 1;
 
@@ -98,7 +98,7 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     constexpr unsigned BlockSize = 128;
 #elif 0
-    // 1x1, 28x28
+    // 1x1, 28x28, 64 threads
     constexpr unsigned BPerBlock = 64;
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 8;
@@ -108,9 +108,9 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     constexpr unsigned GemmMPerThreadSubC = 4;
     constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 8;
+    constexpr unsigned GemmMLevel0Cluster = 4;
     constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 1;
+    constexpr unsigned GemmMLevel1Cluster = 2;
     constexpr unsigned GemmNLevel1Cluster = 4;
     constexpr unsigned GemmKPerThreadLoop = 1;
 
@@ -128,7 +128,37 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     constexpr unsigned BlockSize = 64;
 #elif 1
-    // 1x1, 28x28 try
+    // 1x1, 28x28, 128 threads
+    constexpr unsigned BPerBlock = 64;
+    constexpr unsigned KPerBlock = 128;
+    constexpr unsigned CPerBlock = 8;
+
+    constexpr unsigned BPerThread = 8;
+    constexpr unsigned KPerThread = 8;
+
+    constexpr unsigned GemmMPerThreadSubC = 4;
+    constexpr unsigned GemmNPerThreadSubC = 4;
+    constexpr unsigned GemmMLevel0Cluster = 4;
+    constexpr unsigned GemmNLevel0Cluster = 2;
+    constexpr unsigned GemmMLevel1Cluster = 4;
+    constexpr unsigned GemmNLevel1Cluster = 4;
+    constexpr unsigned GemmKPerThreadLoop = 1;
+
+    constexpr unsigned GemmThreadPerColumnPerCluster = 8;
+    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
+
+    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
+
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
+
+    constexpr unsigned InBlockCopyDataPerRead  = 4;
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+
+    constexpr unsigned BlockSize = 128;
+#elif 1
+    // 1x1, 28x28, 256 thread
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 128;
     constexpr unsigned CPerBlock = 8;
@@ -138,9 +168,9 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     constexpr unsigned GemmMPerThreadSubC = 4;
     constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 8;
+    constexpr unsigned GemmMLevel0Cluster = 4;
     constexpr unsigned GemmNLevel0Cluster = 4;
-    constexpr unsigned GemmMLevel1Cluster = 2;
+    constexpr unsigned GemmMLevel1Cluster = 4;
     constexpr unsigned GemmNLevel1Cluster = 4;
     constexpr unsigned GemmKPerThreadLoop = 1;
 

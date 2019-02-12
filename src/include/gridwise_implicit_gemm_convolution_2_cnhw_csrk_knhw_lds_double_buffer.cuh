@@ -123,7 +123,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                                decltype(in_cb_global_desc),
                                decltype(in_cb_block_desc),
                                decltype(in_cb_block_desc.GetLengths())>{};
-#elif 1
+#elif 0
     const auto blockwise_in_copy  = Blockwise2dTensorCopy2<BlockSize,
                                                           Float,
                                                           decltype(in_cb_global_desc),
@@ -149,7 +149,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                                decltype(wei_ek_global_desc),
                                decltype(wei_ek_block_desc),
                                decltype(wei_ek_block_desc.GetLengths())>{};
-#elif 1
+#elif 0
     const auto blockwise_wei_copy = Blockwise2dTensorCopy2<BlockSize,
                                                            Float,
                                                            decltype(wei_ek_global_desc),
@@ -226,10 +226,10 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
     __shared__ Float p_in_block_1[max_align * ((in_block_size + max_align - 1) / max_align)];
     __shared__ Float p_wei_block_1[max_align * ((wei_block_size + max_align - 1) / max_align)];
 
-    Float* p_in_global_block_offset =
+    const Float* p_in_global_block_offset =
         p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
 
-    Float* p_wei_global_block_offset =
+    const Float* p_wei_global_block_offset =
         p_wei_global + wei_csrk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
     // preload data into LDS
@@ -272,15 +272,15 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
             for(unsigned r = 0; r < R; ++r)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
-#if 0
+#if 1
                 blockwise_gemm.Run
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                (p_wei_block_now + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
-                 p_in_block_now + s * Wi + r,
-                 p_out_thread,
-                 f_accum);
+                    (p_wei_block_now + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
+                     p_in_block_now + s * Wi + r,
+                     p_out_thread,
+                     f_accum);
             }
         }
     }
