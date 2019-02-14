@@ -1,7 +1,8 @@
 #pragma once
+#include <unistd.h>
+#include "device.hpp"
 #include "gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw.cuh"
 #include "gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_buffer.cuh"
-#include <unistd.h>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
@@ -69,6 +70,7 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
 #if 0
     // 3x3, 34x34
+    // need to use register double buffer for GEMM
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 64;
     constexpr unsigned CPerBlock = 4;
@@ -211,60 +213,53 @@ void device_implicit_gemm_convolution_2_cnhw_csrk_knhw(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        cudaEvent_t start, stop;
-        float elapsedTime;
-        cudaEventCreate(&start);
-        cudaEventRecord(start, 0);
-
+        const void* f = reinterpret_cast<const void*>(
 #if 0
-        gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw
+            gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw
 #else
-        gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_buffer
+            gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_buffer
 #endif
-        <GridSize,
-         BlockSize,
-         T,
-         decltype(in_cnhw_desc),
-         decltype(wei_csrk_desc),
-         decltype(out_knhw_desc),
-         BPerBlock,
-         KPerBlock,
-         CPerBlock,
-         BPerThread,
-         KPerThread,
-         GemmThreadPerColumnPerCluster,
-         GemmThreadPerRowPerCluster,
-         GemmMPerThreadSubC,
-         GemmNPerThreadSubC,
-         GemmMLevel0Cluster,
-         GemmNLevel0Cluster,
-         GemmMLevel1Cluster,
-         GemmNLevel1Cluster,
-         GemmKPerThreadLoop,
-         InBlockCopyThreadPerDim0,
-         InBlockCopyThreadPerDim1,
-         WeiBlockCopyThreadPerDim0,
-         WeiBlockCopyThreadPerDim1,
-         InBlockCopyDataPerRead,
-         WeiBlockCopyDataPerRead>
-            <<<grid_dim, block_dim>>>(in_cnhw_desc,
-                                      static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
-                                      wei_csrk_desc,
-                                      static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
-                                      out_knhw_desc,
-                                      static_cast<T*>(out_knhw_device_buf.GetDeviceBuffer()));
+            <GridSize,
+             BlockSize,
+             T,
+             decltype(in_cnhw_desc),
+             decltype(wei_csrk_desc),
+             decltype(out_knhw_desc),
+             BPerBlock,
+             KPerBlock,
+             CPerBlock,
+             BPerThread,
+             KPerThread,
+             GemmThreadPerColumnPerCluster,
+             GemmThreadPerRowPerCluster,
+             GemmMPerThreadSubC,
+             GemmNPerThreadSubC,
+             GemmMLevel0Cluster,
+             GemmNLevel0Cluster,
+             GemmMLevel1Cluster,
+             GemmNLevel1Cluster,
+             GemmKPerThreadLoop,
+             InBlockCopyThreadPerDim0,
+             InBlockCopyThreadPerDim1,
+             WeiBlockCopyThreadPerDim0,
+             WeiBlockCopyThreadPerDim1,
+             InBlockCopyDataPerRead,
+             WeiBlockCopyDataPerRead>);
 
-        cudaEventCreate(&stop);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
+        T* in_dev_ptr  = static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer());
+        T* wei_dev_ptr = static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer());
+        T* out_dev_ptr = static_cast<T*>(out_knhw_device_buf.GetDeviceBuffer());
 
-        cudaEventElapsedTime(&elapsedTime, start, stop);
-        printf("Elapsed time : %f ms\n", elapsedTime);
+        void* args[] = {&in_dev_ptr, &wei_dev_ptr, &out_dev_ptr};
 
-        usleep(std::min(elapsedTime * 1000, float(10000)));
+        float time;
+
+        launch_kernel(f, grid_dim, block_dim, args, time);
+
+        printf("Elapsed time : %f ms\n", time);
+        usleep(std::min(time * 1000, float(10000)));
     }
 
-    checkCudaErrors(cudaGetLastError());
     out_knhw_device_buf.FromDevice(out_knhw.mData.data());
 
     // convert out_knhw to out_nkhw

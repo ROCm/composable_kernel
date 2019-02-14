@@ -2,13 +2,12 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include "nvToolsExt.h"
 #include "tensor.hpp"
 #include "ConstantTensorDescriptor.cuh"
 #include "conv_common.cuh"
 #include "device_direct_convolution_1.cuh"
 #include "device_direct_convolution_2.cuh"
-#include "device_implicit_gemm_convolution_1_nchw_kcsr.cuh"
+#include "device_implicit_gemm_convolution_1_nchw_kcsr_nkhw.cuh"
 #include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.cuh"
@@ -590,7 +589,7 @@ int main()
 #elif 0
     device_direct_convolution_2
 #elif 0
-    device_implicit_gemm_convolution_1_nchw_kcsr
+    device_implicit_gemm_convolution_1_nchw_kcsr_nkhw
 #elif 0
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 0
@@ -602,7 +601,7 @@ int main()
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(in_nchw_desc,
                                                              in_nchw,
                                                              wei_kcsr_desc,
@@ -614,7 +613,7 @@ int main()
                                                              nrepeat);
 #endif
 
-#if 0
+#if 1
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);

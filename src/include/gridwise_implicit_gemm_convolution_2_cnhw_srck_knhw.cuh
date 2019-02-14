@@ -25,12 +25,9 @@ template <unsigned GridSize,
           unsigned InBlockCopyThreadPerDim0,
           unsigned InBlockCopyThreadPerDim1>
 __global__ void
-gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
-                                                    Float* const __restrict__ p_in_global,
-                                                    WeiGlobalDesc,
-                                                    Float* const __restrict__ p_wei_global,
-                                                    OutGlobalDesc,
-                                                    Float* __restrict__ p_out_global)
+gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(const Float* const __restrict__ p_in_global,
+                                                    const Float* const __restrict__ p_wei_global,
+                                                    Float* const __restrict__ p_out_global)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -174,10 +171,10 @@ gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw(InGlobalDesc,
     // set threadwise output tensor to 0
     threadwise_2d_tensor_set_zero(out_kb_thread_desc, p_out_thread);
 
-    Float* p_in_global_block_offset =
+    const Float* p_in_global_block_offset =
         p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
 
-    Float* p_wei_global_block_offset =
+    const Float* p_wei_global_block_offset =
         p_wei_global + wei_srck_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
     for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,

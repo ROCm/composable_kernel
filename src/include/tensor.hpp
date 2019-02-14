@@ -6,8 +6,6 @@
 #include <utility>
 #include <cassert>
 #include <iostream>
-#include "cuda_runtime.h"
-#include "helper_cuda.h"
 
 template <class Range>
 std::ostream& LogRange(std::ostream& os, Range&& r, std::string delim)
@@ -106,33 +104,6 @@ struct TensorDescriptor
     private:
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
-};
-
-struct DeviceMem
-{
-    DeviceMem() = delete;
-    DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
-    {
-        cudaMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize);
-    }
-
-    void* GetDeviceBuffer() { return mpDeviceBuf; }
-
-    int ToDevice(const void* p)
-    {
-        return static_cast<int>(
-            cudaMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, cudaMemcpyHostToDevice));
-    }
-
-    int FromDevice(void* p)
-    {
-        return static_cast<int>(cudaMemcpy(p, mpDeviceBuf, mMemSize, cudaMemcpyDeviceToHost));
-    }
-
-    ~DeviceMem() { cudaFree(mpDeviceBuf); }
-
-    void* mpDeviceBuf;
-    std::size_t mMemSize;
 };
 
 struct joinable_thread : std::thread

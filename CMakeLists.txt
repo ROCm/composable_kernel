@@ -1,9 +1,11 @@
-cmake_minimum_required(VERSION 3.9)
-project(convolution LANGUAGES CXX CUDA)
+cmake_minimum_required(VERSION 2.8.3)
+project(modular_convolution)
 
 #c++
+enable_language(CXX)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
-add_compile_options(-std=c++14)
 
 #boost
 find_package(Boost REQUIRED)
@@ -28,20 +30,11 @@ if( NOT( ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang") )
     link_libraries(${OpenMP_pthread_LIBRARY})
 endif( NOT( ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang") )
 
-#python
-find_package(PythonLibs 3 REQUIRED)
-
-message("PYTHON_INCLUDE_DIRS: ${PYTHON_INCLUDE_DIRS}")
-message("PYTHON_LIBRARIES: ${PYTHON_LIBRARIES}")
-
-include_directories(BEFORE ${PYTHON_INCLUDE_DIRS})
-link_libraries(${PYTHON_LIBRARIES})
-
 #cuda
+enable_language(CUDA)
 include_directories(BEFORE ${CUDA_COMMON_INCLUDE_DIR})
 
 #
 include_directories(BEFORE src/include)
 add_subdirectory(src)
 add_subdirectory(driver)
-

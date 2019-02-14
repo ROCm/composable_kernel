@@ -88,7 +88,7 @@ template <unsigned BlockSize,
           class F>
 __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
     SrcDesc,
-    Float* const __restrict__ p_src,
+    const Float* __restrict__ p_src,
     DstDesc,
     Float* __restrict__ p_dst,
     SrcOpLengths,
@@ -187,7 +187,7 @@ template <unsigned BlockSize,
           class DstFromSrcReorder>
 __device__ void
 blockwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
-                                                     Float* const __restrict__ p_src,
+                                                     const Float* __restrict__ p_src,
                                                      DstDesc,
                                                      Float* __restrict__ p_dst,
                                                      SrcOpLengths,
@@ -202,7 +202,7 @@ blockwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
 template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
 struct Blockwise4dTensorCopy1
 {
-    __device__ void Run(Float* const __restrict__ p_src, Float* __restrict__ p_dst) const
+    __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
         constexpr auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
 
@@ -219,7 +219,7 @@ template <unsigned BlockSize,
           class GlobalLowerPads>
 struct BlockwiseChwnTensorCopyPadded
 {
-    __device__ void Run(Float* const __restrict__ p_src,
+    __device__ void Run(const Float* __restrict__ p_src,
                         unsigned c_block_data_begin,
                         unsigned ho_block_data_begin,
                         unsigned wo_block_data_begin,
@@ -244,7 +244,7 @@ struct BlockwiseChwnTensorCopyPadded
 
         constexpr unsigned NLoop = ref_desc.GetElementSize() / BlockSize;
 
-        Float* const p_src_tmp =
+        const Float* p_src_tmp =
             p_src + src_desc.Get1dIndex(c_block_data_begin,
                                         (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
                                         (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,

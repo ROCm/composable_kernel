@@ -28,9 +28,9 @@ template <unsigned GridSize,
           unsigned WeiBlockCopyThreadPerDim0,
           unsigned WeiBlockCopyThreadPerDim1>
 __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_pipeline(
-    Float* const __restrict__ p_in_global,
-    Float* const __restrict__ p_wei_global,
-    Float* __restrict__ p_out_global)
+    const Float* const __restrict__ p_in_global,
+    const Float* const __restrict__ p_wei_global,
+    Float* const __restrict__ p_out_global)
 {
     // NPerThread == NPerBlock, because the format of input in LDS [C,Hi,Wi,N]
     //   for GEMM trans([C,K]) * [C,Wo*N], we need a thread to do all the "N"
@@ -220,7 +220,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_p
     // set threadwise output tensor to 0
     threadwise_4d_tensor_set_zero(out_hkwn_thread_desc, p_out_thread);
 
-    Float* p_wei_global_block_begin =
+    const Float* p_wei_global_block_begin =
         p_wei_global + wei_ek_global_desc.Get1dIndex(0, k_block_data_begin);
 
     // prelog: load data
