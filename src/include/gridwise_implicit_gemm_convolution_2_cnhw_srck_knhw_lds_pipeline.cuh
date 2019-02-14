@@ -25,12 +25,9 @@ template <unsigned GridSize,
           unsigned InBlockCopyThreadPerDim0,
           unsigned InBlockCopyThreadPerDim1>
 __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline(
-    InGlobalDesc,
-    Float* const __restrict__ p_in_global,
-    WeiGlobalDesc,
-    Float* const __restrict__ p_wei_global,
-    OutGlobalDesc,
-    Float* __restrict__ p_out_global)
+    const Float* const __restrict__ p_in_global,
+    const Float* const __restrict__ p_wei_global,
+    Float* const __restrict__ p_out_global)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};

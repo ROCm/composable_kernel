@@ -1,6 +1,7 @@
 #pragma once
-#include "gridwise_direct_convolution_1.cuh"
 #include <unistd.h>
+#include "device.hpp"
+#include "gridwise_direct_convolution_1.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_direct_convolution_1(InDesc,
@@ -32,6 +33,7 @@ void device_direct_convolution_1(InDesc,
     constexpr auto out_desc = OutDesc{};
 
 #if 1
+    // 3x3, 34x34
     constexpr unsigned OutTileSizeH = 2;
     constexpr unsigned OutTileSizeW = 2;
     constexpr unsigned NPerBlock    = 2;
@@ -45,20 +47,6 @@ void device_direct_convolution_1(InDesc,
     constexpr unsigned CPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
-    constexpr unsigned OutTileSizeH = 2;
-    constexpr unsigned OutTileSizeW = 2;
-    constexpr unsigned NPerBlock    = 2;
-    constexpr unsigned KPerBlock    = 16;
-    constexpr unsigned CPerBlock    = 2;
-    constexpr unsigned YPerBlock    = 2;
-    constexpr unsigned XPerBlock    = 27;
-
-    constexpr unsigned NPerThread = 2;
-    constexpr unsigned KPerThread = 4;
-    constexpr unsigned CPerThread = 2;
-
-    constexpr unsigned BlockSize = 216;
 #endif
 
     constexpr unsigned GridSize = (out_desc.GetLength(I0) / NPerBlock) *
@@ -73,45 +61,36 @@ void device_direct_convolution_1(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        cudaEvent_t start, stop;
-        float elapsedTime;
+        const void* f = reinterpret_cast<const void*>(gridwise_direct_convolution_1<T,
+                                                                                    InDesc,
+                                                                                    WeiDesc,
+                                                                                    OutDesc,
+                                                                                    OutTileSizeH,
+                                                                                    OutTileSizeW,
+                                                                                    NPerBlock,
+                                                                                    KPerBlock,
+                                                                                    CPerBlock,
+                                                                                    YPerBlock,
+                                                                                    XPerBlock,
+                                                                                    NPerThread,
+                                                                                    KPerThread,
+                                                                                    CPerThread,
+                                                                                    BlockSize,
+                                                                                    GridSize>);
 
-        cudaEventCreate(&start);
-        cudaEventRecord(start, 0);
+        T* in_dev_ptr  = static_cast<T*>(in_device_buf.GetDeviceBuffer());
+        T* wei_dev_ptr = static_cast<T*>(wei_device_buf.GetDeviceBuffer());
+        T* out_dev_ptr = static_cast<T*>(out_device_buf.GetDeviceBuffer());
 
-        gridwise_direct_convolution_1<T,
-                                      InDesc,
-                                      WeiDesc,
-                                      OutDesc,
-                                      OutTileSizeH,
-                                      OutTileSizeW,
-                                      NPerBlock,
-                                      KPerBlock,
-                                      CPerBlock,
-                                      YPerBlock,
-                                      XPerBlock,
-                                      NPerThread,
-                                      KPerThread,
-                                      CPerThread,
-                                      BlockSize,
-                                      GridSize>
-            <<<grid_dim, block_dim>>>(InDesc{},
-                                      static_cast<T*>(in_device_buf.GetDeviceBuffer()),
-                                      WeiDesc{},
-                                      static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
-                                      OutDesc{},
-                                      static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+        void* args[] = {&in_dev_ptr, &wei_dev_ptr, &out_dev_ptr};
 
-        cudaEventCreate(&stop);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
+        float time = 0;
 
-        cudaEventElapsedTime(&elapsedTime, start, stop);
-        printf("Elapsed time : %f ms\n", elapsedTime);
+        launch_kernel(f, grid_dim, block_dim, args, time);
 
-        usleep(10000);
+        printf("Elapsed time : %f ms\n", time);
+        usleep(std::min(time * 1000, float(10000)));
     }
 
-    checkCudaErrors(cudaGetLastError());
     out_device_buf.FromDevice(out.mData.data());
 }

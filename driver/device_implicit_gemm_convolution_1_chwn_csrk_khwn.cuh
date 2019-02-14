@@ -1,6 +1,7 @@
 #pragma once
-#include "gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
 #include <unistd.h>
+#include "device.hpp"
+#include "gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
@@ -73,21 +74,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     wei_csrk_device_buf.ToDevice(wei_csrk.mData.data());
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
-#if 0
-    constexpr unsigned NPerBlock  = 1;
-    constexpr unsigned KPerBlock  = 1;
-    constexpr unsigned CPerBlock  = 1;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
-
-    constexpr unsigned NPerThread  = 1;
-    constexpr unsigned KPerThread  = 1;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
-
-    constexpr unsigned BlockSize = 8;
-#elif 0
+#if 1
     // for 3x3, 34x34 | 3x3 58x58, NKC = 64, 64, 256
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 64;
@@ -214,50 +201,42 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        cudaEvent_t start, stop;
-        float elapsedTime;
+        const void* f = reinterpret_cast<const void*>(
+            gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn<GridSize,
+                                                                BlockSize,
+                                                                T,
+                                                                decltype(in_chwn_desc),
+                                                                decltype(wei_csrk_desc),
+                                                                decltype(out_khwn_desc),
+                                                                NPerBlock,
+                                                                KPerBlock,
+                                                                CPerBlock,
+                                                                HoPerBlock,
+                                                                WoPerBlock,
+                                                                NPerThread,
+                                                                KPerThread,
+                                                                CPerThread,
+                                                                HoPerThread,
+                                                                WoPerThread,
+                                                                WeiBlockCopyThreadPerDim0,
+                                                                WeiBlockCopyThreadPerDim1,
+                                                                InBlockCopyDataPerRead,
+                                                                WeiBlockCopyDataPerRead>);
 
-        cudaEventCreate(&start);
-        cudaEventRecord(start, 0);
+        T* in_dev_ptr  = static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer());
+        T* wei_dev_ptr = static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer());
+        T* out_dev_ptr = static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer());
 
-        gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn<GridSize,
-                                                            BlockSize,
-                                                            T,
-                                                            decltype(in_chwn_desc),
-                                                            decltype(wei_csrk_desc),
-                                                            decltype(out_khwn_desc),
-                                                            NPerBlock,
-                                                            KPerBlock,
-                                                            CPerBlock,
-                                                            HoPerBlock,
-                                                            WoPerBlock,
-                                                            NPerThread,
-                                                            KPerThread,
-                                                            CPerThread,
-                                                            HoPerThread,
-                                                            WoPerThread,
-                                                            WeiBlockCopyThreadPerDim0,
-                                                            WeiBlockCopyThreadPerDim1,
-                                                            InBlockCopyDataPerRead,
-                                                            WeiBlockCopyDataPerRead>
-            <<<grid_dim, block_dim>>>(in_chwn_desc,
-                                      static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
-                                      wei_csrk_desc,
-                                      static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
-                                      out_khwn_desc,
-                                      static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
+        void* args[] = {&in_dev_ptr, &wei_dev_ptr, &out_dev_ptr};
 
-        cudaEventCreate(&stop);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
+        float time = 0;
 
-        cudaEventElapsedTime(&elapsedTime, start, stop);
-        printf("Elapsed time : %f ms\n", elapsedTime);
+        launch_kernel(f, grid_dim, block_dim, args, time);
 
-        usleep(std::min(elapsedTime * 1000, float(10000)));
+        printf("Elapsed time : %f ms\n", time);
+        usleep(std::min(time * 1000, float(10000)));
     }
 
-    checkCudaErrors(cudaGetLastError());
     out_khwn_device_buf.FromDevice(out_khwn.mData.data());
 
     // reorder output

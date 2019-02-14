@@ -1,17 +1,21 @@
-set(SOURCE 
+set(TENSOR_SOURCE 
     tensor.cpp;
 )
 
-add_library(convolution SHARED ${SOURCE})
-set_target_properties(convolution PROPERTIES PREFIX "")
+add_library(tensor SHARED ${TENSOR_SOURCE})
+set_target_properties(tensor PROPERTIES PREFIX "")
+target_compile_features(tensor PUBLIC)
+set_target_properties(tensor PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS tensor LIBRARY DESTINATION lib) 
 
-# boost.python
-target_link_libraries(convolution boost_python3)
 
-# cuda
-target_link_libraries(convolution nvToolsExt cudart)
-target_compile_features(convolution PUBLIC)
-set_target_properties(convolution PROPERTIES POSITION_INDEPENDENT_CODE ON)
-set_target_properties(convolution PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)
+set(DEVICE_SOURCE 
+    device.cu;
+)
 
-install(TARGETS convolution LIBRARY DESTINATION lib) 
+add_library(device SHARED ${DEVICE_SOURCE})
+set_target_properties(device PROPERTIES PREFIX "")
+target_compile_features(device PUBLIC)
+set_target_properties(device PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device LIBRARY DESTINATION lib) 
+target_link_libraries(device nvToolsExt cudart)

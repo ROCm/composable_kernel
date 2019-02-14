@@ -513,7 +513,6 @@ struct Blockwise2dTensorCopy3
         }
     }
 
-#if 1
     __device__ constexpr unsigned GetRegisterClipboardSize() const
     {
         static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
@@ -703,5 +702,4 @@ struct Blockwise2dTensorCopy3
             }
         }
     }
-#endif
 };

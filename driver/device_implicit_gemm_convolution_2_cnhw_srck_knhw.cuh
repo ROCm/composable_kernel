@@ -1,7 +1,8 @@
 #pragma once
+#include <unistd.h>
+#include "device.hpp"
 #include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
 #include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline.cuh"
-#include <unistd.h>
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
@@ -100,7 +101,7 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     constexpr unsigned InBlockCopyThreadPerDim1 = 16;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     // 1x1, 28x28
     constexpr unsigned BPerBlock = 64;
     constexpr unsigned KPerBlock = 64;
@@ -140,50 +141,43 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        cudaEvent_t start, stop;
-        float elapsedTime;
-        cudaEventCreate(&start);
-        cudaEventRecord(start, 0);
-
-#if 0
-        gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw
+        const void* f = reinterpret_cast<const void*>(
+#if 1
+            gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw
 #else
-        gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
+            gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
 #endif
-        <GridSize,
-         BlockSize,
-         T,
-         decltype(in_cnhw_desc),
-         decltype(wei_srck_desc),
-         decltype(out_knhw_desc),
-         BPerBlock,
-         KPerBlock,
-         CPerBlock,
-         BPerThread,
-         KPerThread,
-         CPerThread,
-         GemmThreadPerColumnPerCluster,
-         GemmThreadPerRowPerCluster,
-         InBlockCopyThreadPerDim0,
-         InBlockCopyThreadPerDim1>
-            <<<grid_dim, block_dim>>>(in_cnhw_desc,
-                                      static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
-                                      wei_srck_desc,
-                                      static_cast<T*>(wei_srck_device_buf.GetDeviceBuffer()),
-                                      out_knhw_desc,
-                                      static_cast<T*>(out_knhw_device_buf.GetDeviceBuffer()));
+            <GridSize,
+             BlockSize,
+             T,
+             decltype(in_cnhw_desc),
+             decltype(wei_srck_desc),
+             decltype(out_knhw_desc),
+             BPerBlock,
+             KPerBlock,
+             CPerBlock,
+             BPerThread,
+             KPerThread,
+             CPerThread,
+             GemmThreadPerColumnPerCluster,
+             GemmThreadPerRowPerCluster,
+             InBlockCopyThreadPerDim0,
+             InBlockCopyThreadPerDim1>);
 
-        cudaEventCreate(&stop);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
+        T* in_dev_ptr  = static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer());
+        T* wei_dev_ptr = static_cast<T*>(wei_srck_device_buf.GetDeviceBuffer());
+        T* out_dev_ptr = static_cast<T*>(out_knhw_device_buf.GetDeviceBuffer());
 
-        cudaEventElapsedTime(&elapsedTime, start, stop);
-        printf("Elapsed time : %f ms\n", elapsedTime);
+        void* args[] = {&in_dev_ptr, &wei_dev_ptr, &out_dev_ptr};
 
-        usleep(std::min(elapsedTime * 1000, float(10000)));
+        float time = 0;
+
+        launch_kernel(f, grid_dim, block_dim, args, time);
+
+        printf("Elapsed time : %f ms\n", time);
+        usleep(std::min(time * 1000, float(10000)));
     }
 
-    checkCudaErrors(cudaGetLastError());
     out_knhw_device_buf.FromDevice(out_knhw.mData.data());
 
     // convert out_knhw to out_nkhw
