@@ -43,7 +43,7 @@ float launch_kernel(F kernel, dim3 grid_dim, dim3 block_dim, Args... args)
     hipGetErrorString(hipGetLastError());
 #elif DEVICE_BACKEND_CUDA
     const void* f = reinterpret_cast<const void*>(kernel);
-    void* p_args  = {&args...};
+    void* p_args[]  = {&args...};
 
     timer.Start();
 
