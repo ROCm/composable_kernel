@@ -4,17 +4,17 @@
 #include <cstdlib>
 #include "config.h"
 #include "tensor.hpp"
-#include "ConstantTensorDescriptor.cuh"
-#include "conv_common.cuh"
-#include "device_direct_convolution_1.cuh"
-#include "device_direct_convolution_2.cuh"
-#include "device_implicit_gemm_convolution_1_nchw_kcsr_nkhw.cuh"
-#include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.cuh"
-#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.cuh"
-#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.cuh"
-#include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
-#include "device_implicit_gemm_convolution_2_cnhw_csrk_knhw.cuh"
-//#include "device_winograd_convolution.cuh"
+#include "ConstantTensorDescriptor.hip.hpp"
+#include "conv_common.hip.hpp"
+#include "device_direct_convolution_1.hpp"
+#include "device_direct_convolution_2.hpp"
+#include "device_implicit_gemm_convolution_1_nchw_kcsr_nkhw.hpp"
+#include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.hpp"
+#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.hpp"
+#include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.hpp"
+#include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.hpp"
+#include "device_implicit_gemm_convolution_2_cnhw_csrk_knhw.hpp"
+//#include "device_winograd_convolution.hip.hpp"
 
 struct GeneratorTensor_1
 {

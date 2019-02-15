@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_direct_convolution_2.cuh"
+#include "gridwise_direct_convolution_2.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_direct_convolution_2(InDesc,

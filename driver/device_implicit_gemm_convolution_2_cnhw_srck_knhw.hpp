@@ -1,8 +1,8 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw.cuh"
-#include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline.cuh"
+#include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw.hip.hpp"
+#include "gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,

@@ -1,5 +1,5 @@
 #pragma once
-#include "common.cuh"
+#include "common.hip.hpp"
 
 // this is ugly, only for 2d
 template <unsigned L0, unsigned L1>
