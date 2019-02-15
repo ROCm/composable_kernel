@@ -111,8 +111,8 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
     }
 #endif
 
-    // blockwise in copy
-    //   formmat is [CPerBlock,BPerBlock + BGhostRead]
+// blockwise in copy
+//   formmat is [CPerBlock,BPerBlock + BGhostRead]
 #if 0
     const auto blockwise_in_copy =
         Blockwise2dTensorCopy1<BlockSize,
@@ -121,7 +121,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                                decltype(in_cb_block_desc),
                                decltype(in_cb_block_desc.GetLengths())>{};
 #elif 0
-    const auto blockwise_in_copy  = Blockwise2dTensorCopy2<BlockSize,
+    const auto blockwise_in_copy = Blockwise2dTensorCopy2<BlockSize,
                                                           Float,
                                                           decltype(in_cb_global_desc),
                                                           decltype(in_cb_block_desc),
@@ -129,7 +129,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                                                           InBlockCopyThreadPerDim0,
                                                           InBlockCopyThreadPerDim1>{};
 #elif 1
-    const auto blockwise_in_copy  = Blockwise2dTensorCopy3<BlockSize,
+    const auto blockwise_in_copy = Blockwise2dTensorCopy3<BlockSize,
                                                           Float,
                                                           decltype(in_cb_global_desc),
                                                           decltype(in_cb_block_desc),
@@ -137,8 +137,8 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                                                           InBlockCopyDataPerRead>{};
 #endif
 
-    // blockwise wei copy
-    //   format is [CPerBlock*S*R,KPerBlock]
+// blockwise wei copy
+//   format is [CPerBlock*S*R,KPerBlock]
 #if 0
     const auto blockwise_wei_copy =
         Blockwise2dTensorCopy1<BlockSize,
@@ -258,7 +258,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
 
         __syncthreads();
 
-        // load next data
+// load next data
 #if 0
         blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_next);
         blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_next);

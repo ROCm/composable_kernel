@@ -256,7 +256,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_p
         Float* p_in_block_next  = even_loop ? p_in_block_1 : p_in_block_0;
         Float* p_wei_block_next = even_loop ? p_wei_block_1 : p_wei_block_0;
 
-        // preload next data
+// preload next data
 #if 1
         // input: global mem to LDS,
         blockwise_in_copy.Run(p_in_global,
@@ -339,10 +339,11 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_p
         out_hkwn_thread_desc,
         p_out_thread,
         out_khwn_global_desc,
-        p_out_global + out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                                       ho_block_data_begin + ho_thread_data_begin,
-                                                       wo_block_data_begin + wo_thread_data_begin,
-                                                       n_block_data_begin + n_thread_data_begin),
+        p_out_global +
+            out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
+                                            ho_block_data_begin + ho_thread_data_begin,
+                                            wo_block_data_begin + wo_thread_data_begin,
+                                            n_block_data_begin + n_thread_data_begin),
         out_hkwn_thread_desc.GetLengths(),
         reorder_khwn_from_hkwn);
 }

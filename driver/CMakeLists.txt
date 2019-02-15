@@ -1,2 +1,4 @@
-add_executable(conv conv.cu)
-target_link_libraries(conv tensor device)
+set(DRIVER_SOURCE driver.cpp)
+
+add_executable(driver ${DRIVER_SOURCE}) 
+target_link_libraries(driver PRIVATE tensor)

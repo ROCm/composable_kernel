@@ -194,14 +194,11 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
         ((N + NPerBlock - 1) / NPerBlock) * ((K + KPerBlock - 1) / KPerBlock) *
         ((Ho + HoPerBlock - 1) / HoPerBlock) * ((Wo + WoPerBlock - 1) / WoPerBlock);
 
-    dim3 block_dim(BlockSize);
-    dim3 grid_dim(GridSize);
-
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        const void* f = reinterpret_cast<const void*>(
+        float time = launch_kernel(
             gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn<GridSize,
                                                                 BlockSize,
                                                                 T,
@@ -221,17 +218,12 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
                                                                 WeiBlockCopyThreadPerDim0,
                                                                 WeiBlockCopyThreadPerDim1,
                                                                 InBlockCopyDataPerRead,
-                                                                WeiBlockCopyDataPerRead>);
-
-        T* in_dev_ptr  = static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer());
-        T* wei_dev_ptr = static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer());
-        T* out_dev_ptr = static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer());
-
-        void* args[] = {&in_dev_ptr, &wei_dev_ptr, &out_dev_ptr};
-
-        float time = 0;
-
-        launch_kernel(f, grid_dim, block_dim, args, time);
+                                                                WeiBlockCopyDataPerRead>,
+            dim3(GridSize),
+            dim3(BlockSize),
+            static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
+            static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
+            static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

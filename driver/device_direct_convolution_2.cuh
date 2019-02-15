@@ -69,39 +69,31 @@ void device_direct_convolution_2(InDesc,
                                   (out_desc.GetLength(I2) / (OutTileSizeH * YPerBlock)) *
                                   (out_desc.GetLength(I3) / (OutTileSizeW * XPerBlock));
 
-    dim3 block_dim(BlockSize);
-    dim3 grid_dim(GridSize);
-
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        const void* f = reinterpret_cast<const void*>(gridwise_direct_convolution_2<T,
-                                                                                    InDesc,
-                                                                                    WeiDesc,
-                                                                                    OutDesc,
-                                                                                    OutTileSizeH,
-                                                                                    OutTileSizeW,
-                                                                                    NPerBlock,
-                                                                                    KPerBlock,
-                                                                                    CPerBlock,
-                                                                                    YPerBlock,
-                                                                                    XPerBlock,
-                                                                                    NPerThread,
-                                                                                    KPerThread,
-                                                                                    CPerThread,
-                                                                                    BlockSize,
-                                                                                    GridSize>);
-
-        T* in_dev_ptr  = static_cast<T*>(in_device_buf.GetDeviceBuffer());
-        T* wei_dev_ptr = static_cast<T*>(wei_device_buf.GetDeviceBuffer());
-        T* out_dev_ptr = static_cast<T*>(out_device_buf.GetDeviceBuffer());
-
-        void* args[] = {&in_dev_ptr, &wei_dev_ptr, &out_dev_ptr};
-
-        float time = 0;
-
-        launch_kernel(f, grid_dim, block_dim, args, time);
+        float time = launch_kernel(gridwise_direct_convolution_2<T,
+                                                                 InDesc,
+                                                                 WeiDesc,
+                                                                 OutDesc,
+                                                                 OutTileSizeH,
+                                                                 OutTileSizeW,
+                                                                 NPerBlock,
+                                                                 KPerBlock,
+                                                                 CPerBlock,
+                                                                 YPerBlock,
+                                                                 XPerBlock,
+                                                                 NPerThread,
+                                                                 KPerThread,
+                                                                 CPerThread,
+                                                                 BlockSize,
+                                                                 GridSize>,
+                                   dim3(GridSize),
+                                   dim3(BlockSize),
+                                   static_cast<T*>(in_device_buf.GetDeviceBuffer()),
+                                   static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
+                                   static_cast<T*>(out_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

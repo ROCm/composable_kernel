@@ -121,8 +121,8 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
                                decltype(in_chwn_block_desc),
                                decltype(in_chwn_block_desc.GetLengths())>{};
 
-    // blockwise wei copy
-    //   format is [CPerBlock*S*R,KPerBlock]
+// blockwise wei copy
+//   format is [CPerBlock*S*R,KPerBlock]
 #if 0
     const auto blockwise_wei_copy =
         Blockwise2dTensorCopy1<BlockSize,
@@ -199,8 +199,9 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
     threadwise_4d_tensor_set_zero(out_hkwn_thread_desc, p_out_thread);
 
     const Float* p_in_global_block_begin =
-        p_in_global + in_chwn_global_desc.Get1dIndex(
-                          0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
+        p_in_global +
+        in_chwn_global_desc.Get1dIndex(
+            0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
     const Float* p_wei_global_block_begin =
         p_wei_global + wei_csrk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
@@ -257,10 +258,11 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
         out_hkwn_thread_desc,
         p_out_thread,
         out_khwn_global_desc,
-        p_out_global + out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                                       ho_block_data_begin + ho_thread_data_begin,
-                                                       wo_block_data_begin + wo_thread_data_begin,
-                                                       n_block_data_begin + n_thread_data_begin),
+        p_out_global +
+            out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
+                                            ho_block_data_begin + ho_thread_data_begin,
+                                            wo_block_data_begin + wo_thread_data_begin,
+                                            n_block_data_begin + n_thread_data_begin),
         out_hkwn_thread_desc.GetLengths(),
         reorder_khwn_from_hkwn);
 }
