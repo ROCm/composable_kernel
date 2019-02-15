@@ -50,7 +50,7 @@ struct GeneratorTensor_3
         std::initializer_list<std::size_t> ids = {static_cast<std::size_t>(is)...};
         std::vector<std::size_t> lens(sizeof...(Is), 100);
         std::vector<std::size_t> strides(sizeof...(Is), 1);
-        std::partial_sum(lens.rbegin(), lens.rbegin() + (sizeof...(Is)-1), strides.rbegin() + 1);
+        std::partial_sum(lens.rbegin(), lens.rbegin() + (sizeof...(Is) - 1), strides.rbegin() + 1);
         return std::inner_product(ids.begin(), ids.end(), strides.begin(), std::size_t(0)) + 1;
 #endif
     }
@@ -340,7 +340,7 @@ void host_winograd_3x3_convolution(
             std::size_t ho = OutTileSizeH * y + j;
             for(int i = 0; i < OutTileSizeW; ++i)
             {
-                std::size_t wo = OutTileSizeW * x + i;
+                std::size_t wo    = OutTileSizeW * x + i;
                 out(n, k, ho, wo) = out_hold(n, k, y, x, j, i);
             }
         }
@@ -393,13 +393,13 @@ int main()
     constexpr unsigned WPad = 0;
 #elif 0
     // 3x3, 34x34
-    constexpr unsigned N  = 64;
-    constexpr unsigned C  = 256;
+    constexpr unsigned N = 64;
+    constexpr unsigned C = 256;
     constexpr unsigned HI = 34;
     constexpr unsigned WI = 34;
-    constexpr unsigned K  = 64;
-    constexpr unsigned S  = 3;
-    constexpr unsigned R  = 3;
+    constexpr unsigned K = 64;
+    constexpr unsigned S = 3;
+    constexpr unsigned R = 3;
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
