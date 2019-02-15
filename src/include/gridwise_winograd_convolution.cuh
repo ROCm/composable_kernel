@@ -189,17 +189,18 @@ __global__ void gridwise_winograd_convolution(const Float* const __restrict__ p_
                 S,
                 R,
                 OutTileSizeH,
-                OutTileSizeW>(in_transform_thread_block_desc,
-                              p_in_transform_block + in_transform_block_desc.Get1dIndex(
-                                                         n_thread_data_begin,
-                                                         c_thread_data,
-                                                         y_thread_data_begin * InTileSizeH,
-                                                         x_thread_data_begin * InTileSizeW),
-                              wei_transform_thread_block_desc,
-                              p_wei_transform_block + wei_transform_block_desc.Get1dIndex(
-                                                          k_thread_data_begin, c_thread_data, 0, 0),
-                              out_transform_thread_desc,
-                              p_out_transform_thread);
+                OutTileSizeW>(
+                in_transform_thread_block_desc,
+                p_in_transform_block +
+                    in_transform_block_desc.Get1dIndex(n_thread_data_begin,
+                                                       c_thread_data,
+                                                       y_thread_data_begin * InTileSizeH,
+                                                       x_thread_data_begin * InTileSizeW),
+                wei_transform_thread_block_desc,
+                p_wei_transform_block +
+                    wei_transform_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
+                out_transform_thread_desc,
+                p_out_transform_thread);
         }
     };
 

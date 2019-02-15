@@ -5,6 +5,7 @@ project(modular_convolution)
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
 #boost
@@ -16,7 +17,7 @@ message("Boost_LIBRARY_DIRS: ${Boost_LIBRARY_DIRS}")
 include_directories(BEFORE ${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 
-#openMP
+#OpenMP
 if( NOT( ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang") )
     find_package(OpenMP REQUIRED)
 
@@ -30,11 +31,20 @@ if( NOT( ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang") )
     link_libraries(${OpenMP_pthread_LIBRARY})
 endif( NOT( ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang") )
 
-#cuda
-enable_language(CUDA)
-include_directories(BEFORE ${CUDA_COMMON_INCLUDE_DIR})
+#GPU backend
+if(DEVICE_BACKEND STREQUAL "HIP")
+    set(DEVICE_BACKEND_HIP 1)
+
+    set(CMAKE_MODULE_PATH "/opt/rocm/hip/cmake" ${CMAKE_MODULE_PATH})
+    find_package(HIP REQUIRED)
+elseif(DEVICE_BACKEND STREQUAL "CUDA")
+    set(DEVICE_BACKEND_CUDA 1)
+
+	enable_language(CUDA)
+	include_directories(BEFORE ${CUDA_COMMON_INCLUDE_DIR})
+endif()
 
 #
-include_directories(BEFORE src/include)
+include_directories(BEFORE src/include ${PROJECT_BINARY_DIR}/src/include)
 add_subdirectory(src)
 add_subdirectory(driver)

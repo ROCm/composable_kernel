@@ -103,8 +103,8 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
     }
 #endif
 
-    // in: global mem to LDS
-    //   formmat is [CPerBlock,BPerBlock + BGhostRead]
+// in: global mem to LDS
+//   formmat is [CPerBlock,BPerBlock + BGhostRead]
 #if 1
     const auto blockwise_in_copy =
         Blockwise2dTensorCopy1<BlockSize,
@@ -129,8 +129,8 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
                                          decltype(in_cb_block_desc.GetLengths())>{};
 #endif
 
-    // weight: global mem to LDS,
-    //   format is [S,R,CPerBlock,KPerBlock]
+// weight: global mem to LDS,
+//   format is [S,R,CPerBlock,KPerBlock]
 #if 1
     const auto blockwise_wei_copy =
         Blockwise4dTensorCopy1<BlockSize,
@@ -191,7 +191,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
     // set threadwise output tensor to 0
     threadwise_2d_tensor_set_zero(out_kb_thread_desc, p_out_thread);
 
-    // prelog: load data
+// prelog: load data
 #if 1
     // input: global mem to LDS,
     blockwise_in_copy.Run(p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin),
@@ -220,9 +220,10 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
 #if 1
         // preload next data
         // input: global mem to LDS,
-        blockwise_in_copy.Run(p_in_global + in_cb_global_desc.Get1dIndex(
-                                                c_block_data_begin + CPerBlock, b_block_data_begin),
-                              p_in_block_next);
+        blockwise_in_copy.Run(
+            p_in_global +
+                in_cb_global_desc.Get1dIndex(c_block_data_begin + CPerBlock, b_block_data_begin),
+            p_in_block_next);
 #endif
 
 #if 1

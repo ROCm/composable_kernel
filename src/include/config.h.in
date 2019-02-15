@@ -1,0 +1,11 @@
+#pragma once
+#cmakedefine01 DEVICE_BACKEND_HIP
+#cmakedefine01 DEVICE_BACKEND_CUDA
+
+#if DEVICE_BACKEND_HIP
+#include "hip/hip_runtime.h"
+#elif DEVICE_BACKEND_CUDA
+#include "cuda_runtime.h"
+#include "nvToolsExt.h"
+#include "helper_cuda.h"
+#endif

@@ -123,9 +123,6 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
     constexpr unsigned GridSize =
         ((N * Hi * Wi + BPerBlock - 1) / BPerBlock) * ((K + KPerBlock - 1) / KPerBlock);
 
-    dim3 block_dim(BlockSize);
-    dim3 grid_dim(GridSize);
-
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
     // mem
@@ -141,7 +138,7 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        const void* f = reinterpret_cast<const void*>(
+        float time = launch_kernel(
 #if 1
             gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw
 #else
@@ -162,17 +159,13 @@ void device_implicit_gemm_convolution_2_cnhw_srck_knhw(InDesc,
              GemmThreadPerColumnPerCluster,
              GemmThreadPerRowPerCluster,
              InBlockCopyThreadPerDim0,
-             InBlockCopyThreadPerDim1>);
+             InBlockCopyThreadPerDim1>,
+            dim3(GridSize),
+            dim3(BlockSize),
 
-        T* in_dev_ptr  = static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer());
-        T* wei_dev_ptr = static_cast<T*>(wei_srck_device_buf.GetDeviceBuffer());
-        T* out_dev_ptr = static_cast<T*>(out_knhw_device_buf.GetDeviceBuffer());
-
-        void* args[] = {&in_dev_ptr, &wei_dev_ptr, &out_dev_ptr};
-
-        float time = 0;
-
-        launch_kernel(f, grid_dim, block_dim, args, time);
+            static_cast<T*>(in_cnhw_device_buf.GetDeviceBuffer()),
+            static_cast<T*>(wei_srck_device_buf.GetDeviceBuffer()),
+            static_cast<T*>(out_knhw_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

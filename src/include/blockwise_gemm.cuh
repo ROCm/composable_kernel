@@ -305,8 +305,9 @@ struct BlockwiseGemmBlockABlockBThreadC
             constexpr unsigned NClusterWork =
                 (NPerBlock + NPerThread * NThreadPerCluster - 1) / (NPerThread * NThreadPerCluster);
 
-            static_assert(BlockSize == (MClusterWork * MThreadPerCluster) *
-                                           (NClusterWork * NThreadPerCluster),
+            static_assert(BlockSize ==
+                              (MClusterWork * MThreadPerCluster) *
+                                  (NClusterWork * NThreadPerCluster),
                           "wrong! wrong BlockSize");
 
             if(DistributeThreadAlongColumnFirst)
@@ -685,7 +686,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
         constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
 
-        // preload A, B
+// preload A, B
 #pragma unroll
         for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
         { // copy A-sub to form A
@@ -718,7 +719,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             FloatA* p_a_thread_next = even_loop ? p_a_thread_1 : p_a_thread_0;
             FloatB* p_b_thread_next = even_loop ? p_b_thread_1 : p_b_thread_0;
 
-            // preload next A, B
+// preload next A, B
 #pragma unroll
             for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
             { // copy A-sub to form A
@@ -906,8 +907,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
                             c_thread_sub_mtx,
                             False,
-                            p_c_thread + c_thread_mtx.Get1dIndex(m_repeat * MPerThreadSubC,
-                                                                 n_repeat * NPerThreadSubC),
+                            p_c_thread +
+                                c_thread_mtx.Get1dIndex(m_repeat * MPerThreadSubC,
+                                                        n_repeat * NPerThreadSubC),
                             f_accum);
                     }
                 }
