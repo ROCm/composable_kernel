@@ -1,10 +1,10 @@
 #pragma once
-#include "common.cuh"
-#include "ConstantTensorDescriptor.cuh"
-#include "ConstantMatrixDescriptor.cuh"
-#include "blockwise_4d_tensor_op.cuh"
-#include "threadwise_4d_tensor_op.cuh"
-#include "blockwise_gemm.cuh"
+#include "common.hip.hpp"
+#include "ConstantTensorDescriptor.hip.hpp"
+#include "ConstantMatrixDescriptor.hip.hpp"
+#include "blockwise_4d_tensor_op.hip.hpp"
+#include "threadwise_4d_tensor_op.hip.hpp"
+#include "blockwise_gemm.hip.hpp"
 
 template <unsigned GridSize,
           unsigned BlockSize,
@@ -160,11 +160,10 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr_nkhw(const Float* const __restric
         //   convert [N,C,Hi,Wi] to [C,Hi,Wi,N]
         blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
             in_nchw_global_desc,
-            p_in_global +
-                in_nchw_global_desc.Get1dIndex(n_block_data_begin,
-                                               c_block_data_begin,
-                                               hi_block_data_begin,
-                                               wi_block_data_begin),
+            p_in_global + in_nchw_global_desc.Get1dIndex(n_block_data_begin,
+                                                         c_block_data_begin,
+                                                         hi_block_data_begin,
+                                                         wi_block_data_begin),
             in_chwn_block_desc,
             p_in_block,
             in_nchw_block_desc.GetLengths(),
@@ -245,11 +244,10 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr_nkhw(const Float* const __restric
         out_hkwn_thread_desc,
         p_out_thread,
         out_nkhw_global_desc,
-        p_out_global +
-            out_nkhw_global_desc.Get1dIndex(n_block_data_begin,
-                                            k_block_data_begin + k_thread_data_begin,
-                                            ho_block_data_begin + ho_thread_data_begin,
-                                            wo_block_data_begin + wo_thread_data_begin),
+        p_out_global + out_nkhw_global_desc.Get1dIndex(n_block_data_begin,
+                                                       k_block_data_begin + k_thread_data_begin,
+                                                       ho_block_data_begin + ho_thread_data_begin,
+                                                       wo_block_data_begin + wo_thread_data_begin),
         out_hkwn_thread_desc.GetLengths(),
         reorder_nkhw_from_hkwn);
 #else
@@ -263,11 +261,10 @@ gridwise_implicit_gemm_convolution_1_nchw_kcsr_nkhw(const Float* const __restric
         out_nkhw_thread_desc,
         p_out_thread,
         out_nkhw_global_desc,
-        p_out_global +
-            out_nkhw_global_desc.Get1dIndex(n_block_data_begin,
-                                            k_block_data_begin + k_thread_data_begin,
-                                            ho_block_data_begin + ho_thread_data_begin,
-                                            wo_block_data_begin + wo_thread_data_begin),
+        p_out_global + out_nkhw_global_desc.Get1dIndex(n_block_data_begin,
+                                                       k_block_data_begin + k_thread_data_begin,
+                                                       ho_block_data_begin + ho_thread_data_begin,
+                                                       wo_block_data_begin + wo_thread_data_begin),
         out_nkhw_thread_desc.GetLengths());
 #endif
 }

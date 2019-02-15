@@ -1,5 +1,5 @@
 #pragma once
-#include "ConstantTensorDescriptor.cuh"
+#include "ConstantTensorDescriptor.hip.hpp"
 
 // optimized for scenario if p_in, p_wei, p_out are in register
 template <class Float, class InDesc, class WeiDesc, class OutDesc>

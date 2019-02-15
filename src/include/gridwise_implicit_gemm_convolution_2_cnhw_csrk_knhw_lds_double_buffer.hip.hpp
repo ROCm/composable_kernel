@@ -1,11 +1,11 @@
 #pragma once
-#include "common.cuh"
-#include "ConstantTensorDescriptor.cuh"
-#include "ConstantMatrixDescriptor.cuh"
-#include "blockwise_4d_tensor_op.cuh"
-#include "blockwise_2d_tensor_op.cuh"
-#include "threadwise_2d_tensor_op.cuh"
-#include "blockwise_gemm.cuh"
+#include "common.hip.hpp"
+#include "ConstantTensorDescriptor.hip.hpp"
+#include "ConstantMatrixDescriptor.hip.hpp"
+#include "blockwise_4d_tensor_op.hip.hpp"
+#include "blockwise_2d_tensor_op.hip.hpp"
+#include "threadwise_2d_tensor_op.hip.hpp"
+#include "blockwise_gemm.hip.hpp"
 
 // define B = flatten(N, Hi, Wi)
 template <unsigned GridSize,
@@ -121,7 +121,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                                decltype(in_cb_block_desc),
                                decltype(in_cb_block_desc.GetLengths())>{};
 #elif 0
-    const auto blockwise_in_copy = Blockwise2dTensorCopy2<BlockSize,
+    const auto blockwise_in_copy  = Blockwise2dTensorCopy2<BlockSize,
                                                           Float,
                                                           decltype(in_cb_global_desc),
                                                           decltype(in_cb_block_desc),
@@ -129,7 +129,7 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_csrk_knhw_lds_double_b
                                                           InBlockCopyThreadPerDim0,
                                                           InBlockCopyThreadPerDim1>{};
 #elif 1
-    const auto blockwise_in_copy = Blockwise2dTensorCopy3<BlockSize,
+    const auto blockwise_in_copy  = Blockwise2dTensorCopy3<BlockSize,
                                                           Float,
                                                           decltype(in_cb_global_desc),
                                                           decltype(in_cb_block_desc),

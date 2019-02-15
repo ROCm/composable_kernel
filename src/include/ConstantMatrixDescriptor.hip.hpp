@@ -1,5 +1,5 @@
 #pragma once
-#include "common.cuh"
+#include "common.hip.hpp"
 
 template <unsigned NRow_, unsigned NCol_, unsigned RowStride_>
 struct ConstantMatrixDescriptor

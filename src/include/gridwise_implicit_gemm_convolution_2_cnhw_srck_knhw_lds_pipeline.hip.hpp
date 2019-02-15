@@ -1,11 +1,11 @@
 #pragma once
-#include "common.cuh"
-#include "ConstantTensorDescriptor.cuh"
-#include "ConstantMatrixDescriptor.cuh"
-#include "blockwise_4d_tensor_op.cuh"
-#include "blockwise_2d_tensor_op.cuh"
-#include "threadwise_2d_tensor_op.cuh"
-#include "blockwise_gemm.cuh"
+#include "common.hip.hpp"
+#include "ConstantTensorDescriptor.hip.hpp"
+#include "ConstantMatrixDescriptor.hip.hpp"
+#include "blockwise_4d_tensor_op.hip.hpp"
+#include "blockwise_2d_tensor_op.hip.hpp"
+#include "threadwise_2d_tensor_op.hip.hpp"
+#include "blockwise_gemm.hip.hpp"
 
 // define B = N*Hi*Wi
 template <unsigned GridSize,
@@ -220,10 +220,9 @@ __global__ void gridwise_implicit_gemm_convolution_2_cnhw_srck_knhw_lds_pipeline
 #if 1
         // preload next data
         // input: global mem to LDS,
-        blockwise_in_copy.Run(
-            p_in_global +
-                in_cb_global_desc.Get1dIndex(c_block_data_begin + CPerBlock, b_block_data_begin),
-            p_in_block_next);
+        blockwise_in_copy.Run(p_in_global + in_cb_global_desc.Get1dIndex(
+                                                c_block_data_begin + CPerBlock, b_block_data_begin),
+                              p_in_block_next);
 #endif
 
 #if 1
