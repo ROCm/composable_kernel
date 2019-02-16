@@ -13,6 +13,7 @@
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.hpp"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.hpp"
 #include "device_implicit_gemm_convolution_2_cnhw_csrk_knhw.hpp"
+#include "device_implicit_gemm_convolution_2_chwn_csrk_khwn.hpp"
 //#include "device_winograd_convolution.hip.hpp"
 
 struct GeneratorTensor_1
@@ -594,8 +595,10 @@ int main()
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_2_cnhw_csrk_knhw
+#elif 1
+    device_implicit_gemm_convolution_2_chwn_csrk_khwn
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
 
@@ -611,7 +614,7 @@ int main()
                                                              nrepeat);
 #endif
 
-#if 0
+#if 1
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
