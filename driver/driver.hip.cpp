@@ -12,7 +12,6 @@
 #include "device_implicit_gemm_convolution_1_nchw_srck_nkhw.hpp"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn.hpp"
 #include "device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.hpp"
-#include "device_implicit_gemm_convolution_2_cnhw_srck_knhw.hpp"
 #include "device_implicit_gemm_convolution_2_cnhw_csrk_knhw.hpp"
 //#include "device_winograd_convolution.hip.hpp"
 
@@ -595,8 +594,6 @@ int main()
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
 #elif 0
     device_implicit_gemm_convolution_1_chwn_csrk_khwn
-#elif 0
-    device_implicit_gemm_convolution_2_cnhw_srck_knhw
 #elif 1
     device_implicit_gemm_convolution_2_cnhw_csrk_knhw
 #endif
@@ -614,7 +611,7 @@ int main()
                                                              nrepeat);
 #endif
 
-#if 1
+#if 0
     if(S == 3 && R == 3)
     {
         host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
