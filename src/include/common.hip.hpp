@@ -63,3 +63,20 @@ struct Sequence
         assert(false);
     }
 };
+
+template <typename T>
+__host__ __device__ constexpr T max(T a, T b)
+{
+    return a > b ? a : b;
+}
+
+template <typename T>
+__host__ __device__ constexpr T min(T a, T b)
+{
+    return a < b ? a : b;
+}
+
+__host__ __device__ constexpr unsigned integer_divide_ceil(unsigned a, unsigned b)
+{
+    return (a + b - 1) / b;
+}
