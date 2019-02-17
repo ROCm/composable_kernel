@@ -453,8 +453,7 @@ struct Blockwise2dTensorCopy3
         constexpr unsigned src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
         constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
-        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
-        {
+        auto f_copy = [&](unsigned iloop) {
             if(DataPerRead == 1)
             {
                 p_dst[mDstMyThreadOffset + iloop * dst_loop_stride] =
@@ -476,6 +475,11 @@ struct Blockwise2dTensorCopy3
             {
                 assert(false);
             }
+        };
+
+        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
+        {
+            f_copy(iloop);
         }
 
         constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
@@ -486,29 +490,7 @@ struct Blockwise2dTensorCopy3
 
             if(get_thread_local_1d_id() < tail_d0 * thread_per_d1)
             {
-                if(DataPerRead == 1)
-                {
-                    p_dst[mDstMyThreadOffset + nloop_d0 * dst_loop_stride] =
-                        p_src[mSrcMyThreadOffset + nloop_d0 * src_loop_stride];
-                }
-                else if(DataPerRead == 2)
-                {
-                    *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset +
-                                                nloop_d0 * dst_loop_stride)) =
-                        *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
-                                                          nloop_d0 * src_loop_stride));
-                }
-                else if(DataPerRead == 4)
-                {
-                    *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset +
-                                                nloop_d0 * dst_loop_stride)) =
-                        *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
-                                                          nloop_d0 * src_loop_stride));
-                }
-                else
-                {
-                    assert(false);
-                }
+                f_copy(nloop_d0);
             }
         }
     }
@@ -561,8 +543,7 @@ struct Blockwise2dTensorCopy3
         constexpr unsigned src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
         constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
-        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
-        {
+        auto f_copy = [&](unsigned iloop) {
             if(DataPerRead == 1)
             {
                 p_clipboard[iloop] = p_src[mSrcMyThreadOffset + iloop * src_loop_stride];
@@ -583,6 +564,11 @@ struct Blockwise2dTensorCopy3
             {
                 assert(false);
             }
+        };
+
+        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
+        {
+            f_copy(iloop);
         }
 
         constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
@@ -593,26 +579,7 @@ struct Blockwise2dTensorCopy3
 
             if(get_thread_local_1d_id() < tail_d0 * thread_per_d1)
             {
-                if(DataPerRead == 1)
-                {
-                    p_clipboard[nloop_d0] = p_src[mSrcMyThreadOffset + nloop_d0 * src_loop_stride];
-                }
-                else if(DataPerRead == 2)
-                {
-                    *(reinterpret_cast<Float2*>(p_clipboard + nloop_d0 * 2)) =
-                        *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
-                                                          nloop_d0 * src_loop_stride));
-                }
-                else if(DataPerRead == 4)
-                {
-                    *(reinterpret_cast<Float4*>(p_clipboard + nloop_d0 * 4)) =
-                        *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
-                                                          nloop_d0 * src_loop_stride));
-                }
-                else
-                {
-                    assert(false);
-                }
+                f_copy(nloop_d0);
             }
         }
     }
@@ -649,8 +616,7 @@ struct Blockwise2dTensorCopy3
         constexpr unsigned src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
         constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
-        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
-        {
+        auto f_copy = [&](unsigned iloop) {
             if(DataPerRead == 1)
             {
                 p_dst[mDstMyThreadOffset + iloop * dst_loop_stride] = p_clipboard[iloop];
@@ -669,6 +635,11 @@ struct Blockwise2dTensorCopy3
             {
                 assert(false);
             }
+        };
+
+        for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
+        {
+            f_copy(iloop);
         }
 
         constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
@@ -679,26 +650,7 @@ struct Blockwise2dTensorCopy3
 
             if(get_thread_local_1d_id() < tail_d0 * thread_per_d1)
             {
-                if(DataPerRead == 1)
-                {
-                    p_dst[mDstMyThreadOffset + nloop_d0 * dst_loop_stride] = p_clipboard[nloop_d0];
-                }
-                else if(DataPerRead == 2)
-                {
-                    *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset +
-                                                nloop_d0 * dst_loop_stride)) =
-                        *(reinterpret_cast<const Float2*>(p_clipboard + nloop_d0 * 2));
-                }
-                else if(DataPerRead == 4)
-                {
-                    *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset +
-                                                nloop_d0 * dst_loop_stride)) =
-                        *(reinterpret_cast<const Float4*>(p_clipboard + nloop_d0 * 4));
-                }
-                else
-                {
-                    assert(false);
-                }
+                f_copy(nloop_d0);
             }
         }
     }

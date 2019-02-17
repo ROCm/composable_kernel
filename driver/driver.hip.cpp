@@ -391,7 +391,7 @@ int main()
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
-#elif 0
+#elif 1
     // 3x3, 34x34
     constexpr unsigned N = 64;
     constexpr unsigned C = 256;
@@ -593,11 +593,11 @@ int main()
     device_implicit_gemm_convolution_1_nchw_kcsr_nkhw
 #elif 0
     device_implicit_gemm_convolution_1_nchw_srck_nkhw
-#elif 0
+#elif 1
     device_implicit_gemm_convolution_1_chwn_csrk_khwn
 #elif 0
     device_implicit_gemm_convolution_2_cnhw_csrk_knhw
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_2_chwn_csrk_khwn
 #endif
     (in_nchw_desc, in_nchw, wei_kcsr_desc, wei_kcsr, out_nkhw_desc, out_nkhw_device, nrepeat);
