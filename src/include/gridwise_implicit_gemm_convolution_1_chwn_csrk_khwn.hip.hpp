@@ -4,6 +4,7 @@
 #include "ConstantMatrixDescriptor.hip.hpp"
 #include "blockwise_4d_tensor_op.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
+#include "threadwise_nd_tensor_op.hip.hpp"
 #include "threadwise_4d_tensor_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
 
@@ -33,7 +34,8 @@ template <unsigned GridSize,
           unsigned GemmNLevel0Cluster,
           unsigned GemmMLevel1Cluster,
           unsigned GemmNLevel1Cluster,
-          unsigned GemmKPerThreadLoop>
+          unsigned GemmKPerThreadLoop,
+          unsigned OutThreadCopyDataPerWrite>
 __global__ void
 gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restrict__ p_in_global,
                                                     const Float* const __restrict__ p_wei_global,
@@ -270,19 +272,18 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
         }
     }
 
+    // output: register to global mem,
+#if 0
     const auto c_thread_mtx_begin =
         blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    // output: register to global mem,
-    //   convert out_thread[Ho,K,Wo,N] to out_global[K,Ho,Wo,N]
-#if 0
     // for v1 batch-gemm
     const unsigned k_thread_data_begin  = c_thread_mtx_begin.row;
     const unsigned ho_thread_data_begin = c_thread_mtx_begin.batch;
     const unsigned wo_thread_data_begin = c_thread_mtx_begin.col / NPerBlock;
-    const unsigned n_thread_data_begin  = c_thread_mtx_begin.col - wo_thread_data_begin * NPerBlock;
+    const unsigned n_thread_data_begin  = c_thread_mtx_begin.col % NPerBlock;
 
-    threadwise_4d_tensor_copy(
+    threadwise_4d_tensor_copy_v2(
         out_khwn_thread_desc,
         p_out_thread,
         out_khwn_global_desc,
@@ -290,8 +291,12 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
                                                        ho_block_data_begin + ho_thread_data_begin,
                                                        wo_block_data_begin + wo_thread_data_begin,
                                                        n_block_data_begin + n_thread_data_begin),
-        out_khwn_thread_desc.GetLengths());
-#else
+        out_khwn_thread_desc.GetLengths(),
+        Number<OutThreadCopyDataPerWrite>{});
+#elif 0
+    const auto c_thread_mtx_begin =
+        blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
+
     for(unsigned k = 0; k < out_khwn_thread_desc.GetLength(I0); ++k)
     {
         for(unsigned ho = 0; ho < out_khwn_thread_desc.GetLength(I1); ++ho)
@@ -321,6 +326,59 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
                 }
             }
         }
+    }
+#elif 1
+    const auto c_thread_mtx_begin =
+        blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
+
+    const unsigned k_thread_data_begin  = c_thread_mtx_begin.row;
+    const unsigned ho_thread_data_begin = c_thread_mtx_begin.batch;
+    const unsigned wo_thread_data_begin = c_thread_mtx_begin.col / NPerBlock;
+    const unsigned n_thread_data_begin  = c_thread_mtx_begin.col % NPerBlock;
+
+    // this is for v2 GEMM
+    // output is a 8d tensor
+    if(NPerThread < NPerBlock && WoPerThread == 1)
+    {
+        constexpr unsigned N1_ = GemmNPerThreadSubC;
+        constexpr unsigned W1_ = WoPerBlock / ((WoPerThread * NPerThread) / GemmNPerThreadSubC);
+        constexpr unsigned K2_ = GemmMPerThreadSubC;
+        constexpr unsigned K1_ = KPerBlock / KPerThread;
+
+        constexpr auto out_8d_global_desc = make_ConstantTensorDescriptor(
+            Sequence<K / (K1_ * K2_), K1_, K2_, Ho, Wo / W1_, W1_, N / N1_, N1_>{});
+
+        constexpr auto out_8d_thread_desc = make_ConstantTensorDescriptor(
+            Sequence<KPerBlock / (K1_ * K2_), 1, K2_, HoPerThread, WoPerBlock / W1_, 1, 1, N1_>{});
+
+#if 0
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            print_ConstantTensorDescriptor(out_khwn_thread_desc, "out_khwn_thread_desc");
+            print_ConstantTensorDescriptor(out_8d_thread_desc, "out_8d_thread_desc");
+
+            print_ConstantTensorDescriptor(out_khwn_global_desc, "out_khwn_global_desc");
+            print_ConstantTensorDescriptor(out_8d_global_desc, "out_8d_global_desc");
+        }
+#endif
+
+        threadwise_8d_tensor_copy(out_8d_thread_desc,
+                                  p_out_thread,
+                                  out_8d_global_desc,
+                                  p_out_global + out_khwn_global_desc.Get1dIndex(
+                                                     k_block_data_begin + k_thread_data_begin,
+                                                     ho_block_data_begin + ho_thread_data_begin,
+                                                     wo_block_data_begin + wo_thread_data_begin,
+                                                     n_block_data_begin + n_thread_data_begin),
+                                  out_8d_thread_desc.GetLengths(),
+                                  Number<OutThreadCopyDataPerWrite>{});
+    }
+    else if(NPerThread == NPerBlock)
+    {
+    }
+    else
+    {
+        assert(false);
     }
 #endif
 }

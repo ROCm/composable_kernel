@@ -75,7 +75,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
 #if 1
-    // for 3x3, 34x34, try
+    // for 3x3, 34x34
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 4;
@@ -106,9 +106,46 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned GemmNLevel1Cluster = 4;
     constexpr unsigned GemmKPerThreadLoop = 1;
 
+    constexpr unsigned OutThreadCopyDataPerWrite = 2;
+
     constexpr unsigned BlockSize = 128;
 #elif 0
-    // for 3x3, 34x34 | 3x3 58x58, NKC = 64, 64, 256
+    // for 5x5, 36x36
+    constexpr unsigned NPerBlock  = 16;
+    constexpr unsigned KPerBlock  = 64;
+    constexpr unsigned CPerBlock  = 2;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 4;
+
+    constexpr unsigned NPerThread  = 8;
+    constexpr unsigned KPerThread  = 8;
+    constexpr unsigned HoPerThread = 1;
+    constexpr unsigned WoPerThread = 1;
+
+    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
+    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+
+    constexpr unsigned InBlockCopy_ThreadPerDimC = 2;
+    constexpr unsigned InBlockCopy_ThreadPerDimH = 2;
+    constexpr unsigned InBlockCopy_ThreadPerDimW = 4;
+    constexpr unsigned InBlockCopy_ThreadPerDimN = 4;
+    constexpr unsigned InBlockCopyDataPerRead    = 4;
+
+    constexpr unsigned WeiBlockCopyDataPerRead = 2;
+
+    constexpr unsigned GemmMPerThreadSubC = 4;
+    constexpr unsigned GemmNPerThreadSubC = 4;
+    constexpr unsigned GemmMLevel0Cluster = 4;
+    constexpr unsigned GemmNLevel0Cluster = 2;
+    constexpr unsigned GemmMLevel1Cluster = 2;
+    constexpr unsigned GemmNLevel1Cluster = 4;
+    constexpr unsigned GemmKPerThreadLoop = 1;
+
+    constexpr unsigned OutThreadCopyDataPerWrite = 2;
+
+    constexpr unsigned BlockSize = 128;
+#elif 0
+    // 3x3 58x58, NKC = 64, 64, 256
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 64;
     constexpr unsigned CPerBlock  = 4;
@@ -141,27 +178,6 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
-
-    constexpr unsigned BlockSize = 128;
-#elif 0
-    // for 5x5, 36x36
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
-
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
-
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
-
-    constexpr unsigned InBlockCopyDataPerRead  = 4; // not used, yet
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
 
     constexpr unsigned BlockSize = 128;
 #elif 0
@@ -200,7 +216,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned WoPerThread = 1;
 
     constexpr unsigned BlockSize = 128;
-#elif 0
+#elif 1
     // for 1x1, 28x28
     constexpr unsigned NPerBlock  = 16;
     constexpr unsigned KPerBlock  = 128;
@@ -210,7 +226,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
 
     constexpr unsigned NPerThread  = 4;
     constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 2;
+    constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
@@ -224,6 +240,16 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned InBlockCopyDataPerRead    = 4;
 
     constexpr unsigned WeiBlockCopyDataPerRead = 4;
+
+    constexpr unsigned GemmMPerThreadSubC = 4;
+    constexpr unsigned GemmNPerThreadSubC = 4;
+    constexpr unsigned GemmMLevel0Cluster = 4;
+    constexpr unsigned GemmNLevel0Cluster = 2;
+    constexpr unsigned GemmMLevel1Cluster = 2;
+    constexpr unsigned GemmNLevel1Cluster = 4;
+    constexpr unsigned GemmKPerThreadLoop = 1;
+
+    constexpr unsigned OutThreadCopyDataPerWrite = 2;
 
     constexpr unsigned BlockSize = 128;
 #endif
@@ -266,7 +292,8 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
                                                                 GemmNLevel0Cluster,
                                                                 GemmMLevel1Cluster,
                                                                 GemmNLevel1Cluster,
-                                                                GemmKPerThreadLoop>,
+                                                                GemmKPerThreadLoop,
+                                                                OutThreadCopyDataPerWrite>,
             dim3(GridSize),
             dim3(BlockSize),
             static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
