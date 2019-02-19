@@ -525,7 +525,51 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                             f_accum);
         }
     }
+
+    template <class BlockMatrixC, unsigned BlockMatrixStrideC, class FloatC>
+    __device__ void CopyThreadMatrixCToBlockMatrixC(const FloatC* __restrict__ p_c_thread,
+                                                    FloatC* __restrict__ p_c_block) const
+    {
+        constexpr auto c_block_mtx  = BlockMatrixC{};
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
+
+        constexpr unsigned MPerThread = c_thread_mtx.NRow();
+        constexpr unsigned NPerThread = c_thread_mtx.NCol();
+
+        constexpr auto c_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<MPerThreadSubC>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
+
+        constexpr unsigned MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
+        constexpr unsigned NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
+
+        constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
+        constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
+
+        const auto c_thread_mtx_begin = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
+
+        const unsigned c_thread_offset =
+            c_thread_mtx_begin.batch * BlockMatrixStrideC +
+            c_block_mtx.Get1dIndex(c_thread_mtx_begin.row, c_thread_mtx_begin.col);
+
+        for(unsigned m_repeat = 0; m_repeat, MRepeat; ++m_repeat)
+        {
+            for(unsigned n_repeat = 0; n_repeat, NRepeat; ++n_repeat)
+            {
+                threadwise_matrix_copy(
+                    c_thread_sub_mtx,
+                    p_c_thread + c_thread_sub_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
+                                                             n_repeat * NPerLevel1Cluster),
+                    c_block_mtx,
+                    p_c_block +
+                        c_block_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
+                                               n_repeat * NPerLevel1Cluster) +
+                        c_thread_offset,
+                    c_thread_sub_mtx.GetLengths());
+            }
+        }
+    }
 };
+
 template <unsigned BlockSize,
           class BlockMatrixA,
           class BlockMatrixB,

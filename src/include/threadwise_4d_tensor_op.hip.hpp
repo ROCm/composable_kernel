@@ -45,7 +45,7 @@ template <class Float,
           class F>
 __device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
     SrcDesc,
-    Float* const __restrict__ p_src,
+    const Float* __restrict__ p_src,
     DstDesc,
     Float* __restrict__ p_dst,
     SrcOpLengths,
@@ -100,7 +100,7 @@ __device__ void threadwise_4d_tensor_set_zero(Desc, Float* __restrict__ p)
 template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, class DstFromSrcReorder>
 __device__ void
 threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
-                                                      Float* const __restrict__ p_src,
+                                                      const Float* __restrict__ p_src,
                                                       DstDesc,
                                                       Float* __restrict__ p_dst,
                                                       SrcOpLengths,
@@ -114,12 +114,91 @@ threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
 
 template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
 __device__ void threadwise_4d_tensor_copy(
-    SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, SrcOpLengths)
+    SrcDesc, const Float* __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, SrcOpLengths)
 {
     auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
 
     threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
+}
+
+// need to assume src and dst is aligned
+template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, unsigned DataPerRead>
+__device__ void threadwise_4d_tensor_copy_v2(SrcDesc,
+                                             const Float* __restrict__ p_src,
+                                             DstDesc,
+                                             Float* __restrict__ p_dst,
+                                             SrcOpLengths,
+                                             Number<DataPerRead>)
+{
+    using Float2 = float2;
+    using Float4 = float4;
+
+    static_assert(SrcDesc{}.GetDimension() == 4 && DstDesc{}.GetDimension() == 4 &&
+                      SrcOpLengths::nDim == 4,
+                  "wrong! should be 4 dimension");
+
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+
+    constexpr auto src_desc = SrcDesc{};
+    constexpr auto dst_desc = DstDesc{};
+    constexpr auto ref_desc = make_ConstantTensorDescriptor(SrcOpLengths{});
+
+    static_assert(SrcDesc{}.GetStride(I3) == 1 && DstDesc{}.GetStride(I3) == 1,
+                  "wrong! only support stride3 == 1!\n");
+
+    static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
+                  "wrong! only support DataPerRead == 1, 2 or 4!\n");
+
+    static_assert(SrcDesc{}.GetStride(I2) % DataPerRead == 0 &&
+                      DstDesc{}.GetStride(I2) % DataPerRead == 0,
+                  "wrong! src and dst stride should be multiple of DataPerRead to keep alignment");
+
+    constexpr unsigned L3 = SrcOpLengths{}.Get(I3);
+
+    static_assert(L3 % DataPerRead == 0, "wrong! L3 should be evenly divided by DataPerRead");
+
+    constexpr unsigned nloop_d3 = L3 / DataPerRead;
+
+    for(unsigned did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
+    {
+        for(unsigned did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
+        {
+            for(unsigned did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
+            {
+                for(unsigned iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
+                {
+                    const unsigned src_index =
+                        src_desc.Get1dIndex(did0, did1, did2, iloop_d3 * DataPerRead);
+
+                    const unsigned dst_index =
+                        dst_desc.Get1dIndex(did0, did1, did2, iloop_d3 * DataPerRead);
+
+                    if(DataPerRead == 1)
+                    {
+                        p_dst[dst_index] = p_src[src_index];
+                    }
+                    else if(DataPerRead == 2)
+                    {
+                        *(reinterpret_cast<Float2*>(p_dst + dst_index)) =
+                            *(reinterpret_cast<const Float2*>(p_src + src_index));
+                    }
+                    else if(DataPerRead == 4)
+                    {
+                        *(reinterpret_cast<Float4*>(p_dst + dst_index)) =
+                            *(reinterpret_cast<const Float4*>(p_src + src_index));
+                    }
+                    else
+                    {
+                        assert(false);
+                    }
+                }
+            }
+        }
+    }
 }
 
 template <class Float, class Desc, class IDim, class NShift>
