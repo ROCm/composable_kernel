@@ -2,6 +2,7 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
+#include <stdlib.h>
 #include "config.h"
 #include "tensor.hpp"
 #include "ConstantTensorDescriptor.hip.hpp"
@@ -378,7 +379,7 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
     std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
 #if 0
     constexpr unsigned N  = 1;
@@ -571,7 +572,14 @@ int main()
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
-    bool do_verification = true;
+    if(argc != 3)
+    {
+        printf("arg1: do_verification, arg2: nrepeat\n");
+        exit(1);
+    }
+
+    bool do_verification = atoi(argv[1]);
+    unsigned nrepeat     = atoi(argv[2]);
 
     if(do_verification)
     {
@@ -586,8 +594,6 @@ int main()
         wei_kcsr.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #endif
     }
-
-    unsigned nrepeat = 200;
 
 #if 1
 #if 0
