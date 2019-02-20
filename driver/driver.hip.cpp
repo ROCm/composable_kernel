@@ -491,7 +491,7 @@ int main(int argc, char* argv[])
 
     constexpr unsigned HPad = 1;
     constexpr unsigned WPad = 1;
-#elif 1
+#elif 0
     // 1x1 filter, 28x28 image
     constexpr unsigned N  = 16;
     constexpr unsigned C  = 256;

@@ -94,8 +94,8 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
 
     // tensor view of blockwise input and weight in LDS
     //   be careful of alignment
-    constexpr auto in_chwn_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{});
+    constexpr auto in_chwn_block_desc = make_ConstantTensorDescriptor_aligned(
+        Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{}, Number<InBlockCopyDataPerRead>{});
 
     constexpr auto wei_ek_block_desc = make_ConstantTensorDescriptor_aligned(
         Sequence<CPerBlock * S * R, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
@@ -164,7 +164,9 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
         HoPerThread>{};
 
     // LDS: be careful of alignment
-    constexpr unsigned in_block_size = in_chwn_block_desc.GetElementSpace();
+    constexpr unsigned in_block_size =
+        in_chwn_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
+
     constexpr unsigned wei_block_size =
         wei_csrk_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 

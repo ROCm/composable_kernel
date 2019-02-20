@@ -227,9 +227,6 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
     constexpr unsigned HoPerThread = 1;
     constexpr unsigned WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
-
     constexpr unsigned InBlockCopy_ThreadPerDimC = 8;
     constexpr unsigned InBlockCopy_ThreadPerDimH = 2;
     constexpr unsigned InBlockCopy_ThreadPerDimW = 2;
