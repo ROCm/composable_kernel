@@ -8,11 +8,11 @@ template <unsigned BlockSize,
           class InBlockDesc,
           class WeiBlockDesc,
           class OutBlockDesc,
-          unsigned OutTileSizeH,
-          unsigned OutTileSizeW,
           unsigned NPerThread,
           unsigned KPerThread,
-          unsigned CPerThread>
+          unsigned CPerThread,
+          unsigned HoPerThread,
+          unsigned WoPerThread>
 __device__ void blockwise_direct_convolution(InBlockDesc,
                                              Float* const __restrict__ p_in_block,
                                              WeiBlockDesc,
@@ -29,19 +29,17 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
     constexpr auto wei_block_desc = WeiBlockDesc{};
     constexpr auto out_block_desc = OutBlockDesc{};
 
-    constexpr unsigned S = wei_block_desc.GetLength(I2);
-    constexpr unsigned R = wei_block_desc.GetLength(I3);
+    constexpr unsigned Y = wei_block_desc.GetLength(I2);
+    constexpr unsigned X = wei_block_desc.GetLength(I3);
 
-    constexpr unsigned InTileSizeH = OutTileSizeH + S - 1;
-    constexpr unsigned InTileSizeW = OutTileSizeW + R - 1;
+    constexpr unsigned InTileSizeH = HoPerThread + Y - 1;
+    constexpr unsigned InTileSizeW = WoPerThread + X - 1;
 
     // divide thread work
     constexpr unsigned NThreadWork = (out_block_desc.GetLength(I0) + NPerThread - 1) / NPerThread;
     constexpr unsigned KThreadWork = (out_block_desc.GetLength(I1) + KPerThread - 1) / KPerThread;
-    constexpr unsigned YThreadWork =
-        (out_block_desc.GetLength(I2) + OutTileSizeH - 1) / OutTileSizeH;
-    constexpr unsigned XThreadWork =
-        (out_block_desc.GetLength(I3) + OutTileSizeW - 1) / OutTileSizeW;
+    constexpr unsigned YThreadWork = (out_block_desc.GetLength(I2) + HoPerThread - 1) / HoPerThread;
+    constexpr unsigned XThreadWork = (out_block_desc.GetLength(I3) + WoPerThread - 1) / WoPerThread;
 
 #if 0
     if(threadIdx.x == 0)
@@ -56,7 +54,7 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
         make_ConstantTensorDescriptor(Sequence<NPerThread, CPerThread, InTileSizeH, InTileSizeW>{});
 
     constexpr auto wei_thread_desc =
-        make_ConstantTensorDescriptor(Sequence<KPerThread, CPerThread, S, R>{});
+        make_ConstantTensorDescriptor(Sequence<KPerThread, CPerThread, Y, X>{});
 
     constexpr auto out_thread_desc =
         get_convolution_output_default_4d_tensor_descriptor(in_thread_desc, wei_thread_desc);
@@ -86,8 +84,8 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
 
         unsigned n_thread_data_begin  = n_thread_work_id * NPerThread;
         unsigned k_thread_data_begin  = k_thread_work_id * KPerThread;
-        unsigned ho_thread_data_begin = y_thread_work_id * OutTileSizeH;
-        unsigned wo_thread_data_begin = x_thread_work_id * OutTileSizeW;
+        unsigned ho_thread_data_begin = y_thread_work_id * HoPerThread;
+        unsigned wo_thread_data_begin = x_thread_work_id * WoPerThread;
 
         unsigned hi_thread_data_begin = ho_thread_data_begin; // minus padding
         unsigned wi_thread_data_begin = wo_thread_data_begin; // minus padding

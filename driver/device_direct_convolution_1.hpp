@@ -34,25 +34,24 @@ void device_direct_convolution_1(InDesc,
 
 #if 1
     // 3x3, 34x34
-    constexpr unsigned OutTileSizeH = 2;
-    constexpr unsigned OutTileSizeW = 2;
-    constexpr unsigned NPerBlock    = 2;
-    constexpr unsigned KPerBlock    = 16;
-    constexpr unsigned CPerBlock    = 2;
-    constexpr unsigned YPerBlock    = 2;
-    constexpr unsigned XPerBlock    = 16;
+    constexpr unsigned NPerBlock  = 2;
+    constexpr unsigned KPerBlock  = 16;
+    constexpr unsigned CPerBlock  = 2;
+    constexpr unsigned HoPerBlock = 4;
+    constexpr unsigned WoPerBlock = 32;
 
-    constexpr unsigned NPerThread = 2;
-    constexpr unsigned KPerThread = 4;
-    constexpr unsigned CPerThread = 2;
+    constexpr unsigned NPerThread  = 2;
+    constexpr unsigned KPerThread  = 4;
+    constexpr unsigned CPerThread  = 2;
+    constexpr unsigned HoPerThread = 2;
+    constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned BlockSize = 128;
 #endif
 
-    constexpr unsigned GridSize = (out_desc.GetLength(I0) / NPerBlock) *
-                                  (out_desc.GetLength(I1) / KPerBlock) *
-                                  (out_desc.GetLength(I2) / (OutTileSizeH * YPerBlock)) *
-                                  (out_desc.GetLength(I3) / (OutTileSizeW * XPerBlock));
+    constexpr unsigned GridSize =
+        (out_desc.GetLength(I0) / NPerBlock) * (out_desc.GetLength(I1) / KPerBlock) *
+        (out_desc.GetLength(I2) / HoPerBlock) * (out_desc.GetLength(I3) / WoPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
@@ -62,16 +61,16 @@ void device_direct_convolution_1(InDesc,
                                                                  InDesc,
                                                                  WeiDesc,
                                                                  OutDesc,
-                                                                 OutTileSizeH,
-                                                                 OutTileSizeW,
                                                                  NPerBlock,
                                                                  KPerBlock,
                                                                  CPerBlock,
-                                                                 YPerBlock,
-                                                                 XPerBlock,
+                                                                 HoPerBlock,
+                                                                 WoPerBlock,
                                                                  NPerThread,
                                                                  KPerThread,
                                                                  CPerThread,
+                                                                 HoPerThread,
+                                                                 WoPerThread,
                                                                  BlockSize,
                                                                  GridSize>,
                                    dim3(GridSize),

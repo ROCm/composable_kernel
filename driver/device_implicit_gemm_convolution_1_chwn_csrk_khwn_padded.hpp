@@ -2,7 +2,6 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded.hip.hpp"
-#include "gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_pipeline.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc, class LowerPads, class UpperPads>
 void device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(InDesc,
@@ -33,11 +32,11 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(InDesc,
 
     constexpr unsigned K = wei_kcsr_desc.GetLength(I0);
     constexpr unsigned C = wei_kcsr_desc.GetLength(I1);
-    constexpr unsigned S = wei_kcsr_desc.GetLength(I2);
-    constexpr unsigned R = wei_kcsr_desc.GetLength(I3);
+    constexpr unsigned Y = wei_kcsr_desc.GetLength(I2);
+    constexpr unsigned X = wei_kcsr_desc.GetLength(I3);
 
     // reorder weight
-    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, S, R, K>{});
+    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
     ostream_ConstantTensorDescriptor(wei_csrk_desc, std::cout << "wei_csrk_desc: ");
 
     Tensor<T> wei_csrk(make_TensorDescriptor(wei_csrk_desc));
@@ -46,7 +45,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(InDesc,
         wei_csrk(c, s, r, k) = wei_kcsr(k, c, s, r);
     };
 
-    make_ParallelTensorFunctor(f_reorder_kcsr2csrk, K, C, S, R)(
+    make_ParallelTensorFunctor(f_reorder_kcsr2csrk, K, C, Y, X)(
         std::thread::hardware_concurrency());
 
     // reorder input
@@ -251,31 +250,26 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(InDesc,
     for(unsigned i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
-#if 0
-        gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded
-#elif 1
-            gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded_lds_pipeline
-#endif
-            <GridSize,
-             BlockSize,
-             T,
-             decltype(in_chwn_desc),
-             decltype(wei_csrk_desc),
-             decltype(out_khwn_desc),
-             LowerPads,
-             UpperPads,
-             NPerBlock,
-             KPerBlock,
-             CPerBlock,
-             HoPerBlock,
-             WoPerBlock,
-             NPerThread,
-             KPerThread,
-             CPerThread,
-             HoPerThread,
-             WoPerThread,
-             WeiBlockCopyThreadPerDim0,
-             WeiBlockCopyThreadPerDim1>,
+            gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded<GridSize,
+                                                                       BlockSize,
+                                                                       T,
+                                                                       decltype(in_chwn_desc),
+                                                                       decltype(wei_csrk_desc),
+                                                                       decltype(out_khwn_desc),
+                                                                       LowerPads,
+                                                                       UpperPads,
+                                                                       NPerBlock,
+                                                                       KPerBlock,
+                                                                       CPerBlock,
+                                                                       HoPerBlock,
+                                                                       WoPerBlock,
+                                                                       NPerThread,
+                                                                       KPerThread,
+                                                                       CPerThread,
+                                                                       HoPerThread,
+                                                                       WoPerThread,
+                                                                       WeiBlockCopyThreadPerDim0,
+                                                                       WeiBlockCopyThreadPerDim1>,
             dim3(GridSize),
             dim3(BlockSize),
 
