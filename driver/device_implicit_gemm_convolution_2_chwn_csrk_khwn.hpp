@@ -30,10 +30,10 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
 
     constexpr unsigned K = wei_kcsr_desc.GetLength(I0);
     constexpr unsigned C = wei_kcsr_desc.GetLength(I1);
-    constexpr unsigned S = wei_kcsr_desc.GetLength(I2);
-    constexpr unsigned R = wei_kcsr_desc.GetLength(I3);
+    constexpr unsigned Y = wei_kcsr_desc.GetLength(I2);
+    constexpr unsigned X = wei_kcsr_desc.GetLength(I3);
 
-    constexpr unsigned BGhostRead = (S - 1) * Wi + (R - 1);
+    constexpr unsigned BGhostRead = (Y - 1) * Wi + (X - 1);
 
     // convert in_nchw to in_cnhw
     auto in_chwn_desc = make_ConstantTensorDescriptor(Sequence<C, Hi, Wi, N>{});
@@ -49,7 +49,7 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
         Wi)(std::thread::hardware_concurrency());
 
     // convert wei_kcsr to wei_csrk
-    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, S, R, K>{});
+    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
     ostream_ConstantTensorDescriptor(wei_csrk_desc, std::cout << "wei_csrk_desc: ");
 
     Tensor<T> wei_csrk(make_TensorDescriptor(wei_csrk_desc));
@@ -58,8 +58,8 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
         [&](auto k, auto c, auto s, auto r) { wei_csrk(c, s, r, k) = wei_kcsr(k, c, s, r); },
         K,
         C,
-        S,
-        R)(std::thread::hardware_concurrency());
+        Y,
+        X)(std::thread::hardware_concurrency());
 
     // conver out_nkhw to out_knhw
     auto out_khwn_desc = make_ConstantTensorDescriptor(Sequence<K, Ho, Wo, N>{});
@@ -209,43 +209,39 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(
-#if 0
-            gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn
-#else
-            gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_buffer
-#endif
-            <GridSize,
-             BlockSize,
-             T,
-             decltype(in_chwn_desc),
-             decltype(wei_csrk_desc),
-             decltype(out_khwn_desc),
-             BPerBlock,
-             KPerBlock,
-             CPerBlock,
-             BPerThread,
-             KPerThread,
-             GemmThreadPerColumnPerCluster,
-             GemmThreadPerRowPerCluster,
-             GemmMPerThreadSubC,
-             GemmNPerThreadSubC,
-             GemmMLevel0Cluster,
-             GemmNLevel0Cluster,
-             GemmMLevel1Cluster,
-             GemmNLevel1Cluster,
-             GemmKPerThreadLoop,
-             InBlockCopyThreadPerDim0,
-             InBlockCopyThreadPerDim1,
-             WeiBlockCopyThreadPerDim0,
-             WeiBlockCopyThreadPerDim1,
-             InBlockCopyDataPerRead,
-             WeiBlockCopyDataPerRead>,
-            dim3(GridSize),
-            dim3(BlockSize),
-            static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
+        float time =
+            launch_kernel(gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_buffer<
+                              GridSize,
+                              BlockSize,
+                              T,
+                              decltype(in_chwn_desc),
+                              decltype(wei_csrk_desc),
+                              decltype(out_khwn_desc),
+                              BPerBlock,
+                              KPerBlock,
+                              CPerBlock,
+                              BPerThread,
+                              KPerThread,
+                              GemmThreadPerColumnPerCluster,
+                              GemmThreadPerRowPerCluster,
+                              GemmMPerThreadSubC,
+                              GemmNPerThreadSubC,
+                              GemmMLevel0Cluster,
+                              GemmNLevel0Cluster,
+                              GemmMLevel1Cluster,
+                              GemmNLevel1Cluster,
+                              GemmKPerThreadLoop,
+                              InBlockCopyThreadPerDim0,
+                              InBlockCopyThreadPerDim1,
+                              WeiBlockCopyThreadPerDim0,
+                              WeiBlockCopyThreadPerDim1,
+                              InBlockCopyDataPerRead,
+                              WeiBlockCopyDataPerRead>,
+                          dim3(GridSize),
+                          dim3(BlockSize),
+                          static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

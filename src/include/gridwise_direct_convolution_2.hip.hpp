@@ -10,16 +10,16 @@ template <class Float,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
-          unsigned OutTileSizeH,
-          unsigned OutTileSizeW,
           unsigned NPerBlock,
           unsigned KPerBlock,
           unsigned CPerBlock,
-          unsigned YPerBlock,
-          unsigned XPerBlock,
+          unsigned HoPerBlock,
+          unsigned WoPerBlock,
           unsigned NPerThread,
           unsigned KPerThread,
           unsigned CPerThread,
+          unsigned HoPerThread,
+          unsigned WoPerThread,
           unsigned BlockSize,
           unsigned GridSize>
 __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_in_global,
@@ -35,20 +35,17 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
     constexpr auto wei_global_desc = WeiGlobalDesc{};
     constexpr auto out_global_desc = OutGlobalDesc{};
 
-    constexpr unsigned S = wei_global_desc.GetLength(I2);
-    constexpr unsigned R = wei_global_desc.GetLength(I3);
+    constexpr unsigned Y = wei_global_desc.GetLength(I2);
+    constexpr unsigned X = wei_global_desc.GetLength(I3);
 
-    constexpr unsigned HoPerBlock = OutTileSizeH * YPerBlock;
-    constexpr unsigned WoPerBlock = OutTileSizeW * XPerBlock;
-
-    constexpr unsigned HiPerBlock = YPerBlock * OutTileSizeH + S - 1;
-    constexpr unsigned WiPerBlock = XPerBlock * OutTileSizeW + R - 1;
+    constexpr unsigned HiPerBlock = HoPerBlock + Y - 1;
+    constexpr unsigned WiPerBlock = WoPerBlock + X - 1;
 
     constexpr auto in_block_desc =
         make_ConstantTensorDescriptor(Sequence<NPerBlock, CPerBlock, HiPerBlock, WiPerBlock>{});
 
     constexpr auto wei_block_desc =
-        make_ConstantTensorDescriptor(Sequence<KPerBlock, CPerBlock, S, R>{});
+        make_ConstantTensorDescriptor(Sequence<KPerBlock, CPerBlock, Y, X>{});
 
     // shared mem
     constexpr unsigned in_block_size  = in_block_desc.GetElementSpace();
@@ -58,14 +55,14 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
     __shared__ Float p_wei_block[wei_block_size];
 
     // threadwise tensors
-    constexpr unsigned InTileSizeH = OutTileSizeH + S - 1;
-    constexpr unsigned InTileSizeW = OutTileSizeW + R - 1;
+    constexpr unsigned HiPerThread = HoPerThread + Y - 1;
+    constexpr unsigned WiPerThread = WoPerThread + X - 1;
 
     constexpr auto in_thread_block_desc = make_ConstantTensorDescriptor(
-        Sequence<NPerThread, CPerThread, InTileSizeH, InTileSizeW>{}, in_block_desc.GetStrides());
+        Sequence<NPerThread, CPerThread, HiPerThread, WiPerThread>{}, in_block_desc.GetStrides());
 
     constexpr auto wei_thread_block_desc = make_ConstantTensorDescriptor(
-        Sequence<KPerThread, CPerThread, S, R>{}, wei_block_desc.GetStrides());
+        Sequence<KPerThread, CPerThread, Y, X>{}, wei_block_desc.GetStrides());
 
     constexpr auto out_thread_desc = get_convolution_output_default_4d_tensor_descriptor(
         in_thread_block_desc, wei_thread_block_desc);
@@ -76,26 +73,23 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
     // divide block work
     constexpr unsigned NBlockWork = (out_global_desc.GetLength(I0) + NPerBlock - 1) / NPerBlock;
     constexpr unsigned KBlockWork = (out_global_desc.GetLength(I1) + KPerBlock - 1) / KPerBlock;
-    constexpr unsigned YBlockWork = (out_global_desc.GetLength(I2) + HoPerBlock - 1) / HoPerBlock;
-    constexpr unsigned XBlockWork = (out_global_desc.GetLength(I3) + WoPerBlock - 1) / WoPerBlock;
+    constexpr unsigned HBlockWork = (out_global_desc.GetLength(I2) + HoPerBlock - 1) / HoPerBlock;
+    constexpr unsigned WBlockWork = (out_global_desc.GetLength(I3) + WoPerBlock - 1) / WoPerBlock;
 
     const unsigned block_id = blockIdx.x;
 
     unsigned itmp                  = block_id;
-    const unsigned n_block_work_id = itmp / (KBlockWork * YBlockWork * XBlockWork);
-    itmp -= n_block_work_id * (KBlockWork * YBlockWork * XBlockWork);
-    const unsigned k_block_work_id = itmp / (YBlockWork * XBlockWork);
-    itmp -= k_block_work_id * (YBlockWork * XBlockWork);
-    const unsigned y_block_work_id = itmp / XBlockWork;
-    const unsigned x_block_work_id = itmp - y_block_work_id * XBlockWork;
+    const unsigned n_block_work_id = itmp / (KBlockWork * HBlockWork * WBlockWork);
+    itmp -= n_block_work_id * (KBlockWork * HBlockWork * WBlockWork);
+    const unsigned k_block_work_id = itmp / (HBlockWork * WBlockWork);
+    itmp -= k_block_work_id * (HBlockWork * WBlockWork);
+    const unsigned h_block_work_id = itmp / WBlockWork;
+    const unsigned w_block_work_id = itmp - h_block_work_id * WBlockWork;
 
-    const unsigned n_block_data_begin = n_block_work_id * NPerBlock;
-    const unsigned k_block_data_begin = k_block_work_id * KPerBlock;
-    const unsigned y_block_data_begin = y_block_work_id * YPerBlock;
-    const unsigned x_block_data_begin = x_block_work_id * XPerBlock;
-
-    const unsigned ho_block_data_begin = y_block_data_begin * OutTileSizeH;
-    const unsigned wo_block_data_begin = x_block_data_begin * OutTileSizeW;
+    const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
+    const unsigned k_block_data_begin  = k_block_work_id * KPerBlock;
+    const unsigned ho_block_data_begin = h_block_work_id * HoPerBlock;
+    const unsigned wo_block_data_begin = w_block_work_id * WoPerBlock;
 
     const unsigned hi_block_data_begin = ho_block_data_begin; // minus padding
     const unsigned wi_block_data_begin = wo_block_data_begin; // minus padding
@@ -103,44 +97,26 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
     // divide thread work
     constexpr unsigned NThreadWork = (NPerBlock + NPerThread - 1) / NPerThread;
     constexpr unsigned KThreadWork = (KPerBlock + KPerThread - 1) / KPerThread;
-    constexpr unsigned YThreadWork = YPerBlock;
-    constexpr unsigned XThreadWork = XPerBlock;
+    constexpr unsigned HThreadWork = (HoPerBlock + HoPerThread - 1) / HoPerThread;
+    constexpr unsigned WThreadWork = (WoPerBlock + WoPerThread - 1) / WoPerThread;
 
     const unsigned thread_id = threadIdx.x;
 
     itmp                            = thread_id;
-    const unsigned n_thread_work_id = itmp / (KThreadWork * YThreadWork * XThreadWork);
-    itmp -= n_thread_work_id * (KThreadWork * YThreadWork * XThreadWork);
-    const unsigned k_thread_work_id = itmp / (YThreadWork * XThreadWork);
-    itmp -= k_thread_work_id * (YThreadWork * XThreadWork);
-    const unsigned y_thread_work_id = itmp / XThreadWork;
-    const unsigned x_thread_work_id = itmp - y_thread_work_id * XThreadWork;
+    const unsigned n_thread_work_id = itmp / (KThreadWork * HThreadWork * WThreadWork);
+    itmp -= n_thread_work_id * (KThreadWork * HThreadWork * WThreadWork);
+    const unsigned k_thread_work_id = itmp / (HThreadWork * WThreadWork);
+    itmp -= k_thread_work_id * (HThreadWork * WThreadWork);
+    const unsigned h_thread_work_id = itmp / WThreadWork;
+    const unsigned w_thread_work_id = itmp - h_thread_work_id * WThreadWork;
 
     const unsigned n_thread_data_begin  = n_thread_work_id * NPerThread;
     const unsigned k_thread_data_begin  = k_thread_work_id * KPerThread;
-    const unsigned ho_thread_data_begin = y_thread_work_id * OutTileSizeH;
-    const unsigned wo_thread_data_begin = x_thread_work_id * OutTileSizeW;
+    const unsigned ho_thread_data_begin = h_thread_work_id * HoPerThread;
+    const unsigned wo_thread_data_begin = w_thread_work_id * WoPerThread;
 
     const unsigned hi_thread_data_begin = ho_thread_data_begin;
     const unsigned wi_thread_data_begin = wo_thread_data_begin;
-
-#if 0
-    if(threadIdx.x == 0)
-    {
-        print_ConstantTensorDescriptor(in_global_desc, "gridwise_convolution:  in_global_desc: ");
-        print_ConstantTensorDescriptor(wei_global_desc, "gridwise_convolution: wei_global_desc: ");
-        print_ConstantTensorDescriptor(out_global_desc, "gridwise_convolution: out_global_desc: ");
-    }
-
-    printf("threadIdx.x %u \t"
-           "n_thread_data_begin %u, k_thread_data_begin %u, ho_thread_data_begin %u, "
-           "wo_thread_data_begin %u\n",
-           threadIdx.x,
-           n_thread_data_begin,
-           k_thread_data_begin,
-           ho_thread_data_begin,
-           wo_thread_data_begin);
-#endif
 
     constexpr auto blockwise_in_copy =
         Blockwise4dTensorCopy1<BlockSize,

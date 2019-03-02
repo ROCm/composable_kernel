@@ -30,11 +30,11 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
 
     constexpr unsigned K = wei_kcsr_desc.GetLength(I0);
     constexpr unsigned C = wei_kcsr_desc.GetLength(I1);
-    constexpr unsigned S = wei_kcsr_desc.GetLength(I2);
-    constexpr unsigned R = wei_kcsr_desc.GetLength(I3);
+    constexpr unsigned Y = wei_kcsr_desc.GetLength(I2);
+    constexpr unsigned X = wei_kcsr_desc.GetLength(I3);
 
     // reorder weight
-    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, S, R, K>{});
+    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
     ostream_ConstantTensorDescriptor(wei_csrk_desc, std::cout << "wei_csrk_desc: ");
 
     Tensor<T> wei_csrk(make_TensorDescriptor(wei_csrk_desc));
@@ -43,7 +43,7 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
         wei_csrk(c, s, r, k) = wei_kcsr(k, c, s, r);
     };
 
-    make_ParallelTensorFunctor(f_reorder_kcsr2csrk, K, C, S, R)(
+    make_ParallelTensorFunctor(f_reorder_kcsr2csrk, K, C, Y, X)(
         std::thread::hardware_concurrency());
 
     // reorder input

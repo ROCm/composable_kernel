@@ -55,8 +55,8 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     constexpr unsigned Wo = out_khwn_global_desc.GetLength(I2);
     constexpr unsigned N  = out_khwn_global_desc.GetLength(I3);
 
-    constexpr unsigned S = wei_csrk_global_desc.GetLength(I1);
-    constexpr unsigned R = wei_csrk_global_desc.GetLength(I2);
+    constexpr unsigned Y = wei_csrk_global_desc.GetLength(I1);
+    constexpr unsigned X = wei_csrk_global_desc.GetLength(I2);
 
     constexpr unsigned HPadLow = LowerPads{}.Get(I0);
     constexpr unsigned WPadLow = LowerPads{}.Get(I1);
@@ -64,8 +64,8 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     constexpr unsigned HPadUp = UpperPads{}.Get(I0);
     constexpr unsigned WPadUp = UpperPads{}.Get(I1);
 
-    constexpr unsigned HiPerBlock = HoPerBlock + S - 1;
-    constexpr unsigned WiPerBlock = WoPerBlock + R - 1;
+    constexpr unsigned HiPerBlock = HoPerBlock + Y - 1;
+    constexpr unsigned WiPerBlock = WoPerBlock + X - 1;
 
     // divide block work: [K, Ho, Wo, N]
     constexpr unsigned KBlockWork = (K + KPerBlock - 1) / KPerBlock;
@@ -86,18 +86,18 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
 
     // flattened (2d) tensor view of wei in global mem
-    constexpr auto wei_ek_global_desc = make_ConstantTensorDescriptor(Sequence<C * S * R, K>{});
+    constexpr auto wei_ek_global_desc = make_ConstantTensorDescriptor(Sequence<C * Y * X, K>{});
 
     // tensor view of blockwise input and weight in LDS
     constexpr auto in_chwn_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{});
 
     constexpr auto wei_csrk_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock, S, R, KPerBlock>{});
+        make_ConstantTensorDescriptor(Sequence<CPerBlock, Y, X, KPerBlock>{});
 
     // flattened (2d) tensor view of wei in LDS
     constexpr auto wei_ek_block_desc =
-        make_ConstantTensorDescriptor(Sequence<CPerBlock * S * R, KPerBlock>{});
+        make_ConstantTensorDescriptor(Sequence<CPerBlock * Y * X, KPerBlock>{});
 
     // tensor view of threadwise output in register
     constexpr auto out_hkwn_thread_desc =
@@ -144,7 +144,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
                                       LowerPads>{};
 
 #if 0
-    // weight: format is [C,S,R,K]
+    // weight: format is [C,Y,X,K]
     constexpr auto blockwise_wei_copy =
         Blockwise4dTensorCopy1<BlockSize,
                                Float,
@@ -152,7 +152,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
                                decltype(wei_csrk_block_desc),
                                decltype(wei_csrk_block_desc.GetLengths())>{};
 #elif 0
-    // weight: format is [C*S*R,K]
+    // weight: format is [C*Y*X,K]
     constexpr auto blockwise_wei_copy =
         Blockwise2dTensorCopy1<BlockSize,
                                Float,
@@ -160,7 +160,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
                                decltype(wei_ek_block_desc),
                                decltype(wei_ek_block_desc.GetLengths())>{};
 #elif 1
-    // weight: format is [C*S*R,K]
+    // weight: format is [C*Y*X,K]
     const auto blockwise_wei_copy = Blockwise2dTensorCopy2<BlockSize,
                                                            Float,
                                                            decltype(wei_ek_global_desc),
@@ -173,7 +173,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     // a series of blockwise batched GEMM
     // C_matrix += transpose(A_matrix) * B_matrix
     //   A_matrix and B_matrix saved in LDS, C_matrix saved in register
-    //   A_matrix[C,K] is a sub-matrix of wei_block[C,S,R,K]
+    //   A_matrix[C,K] is a sub-matrix of wei_block[C,Y,X,K]
     //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
     //   C_matrix[K,Wo*N] is a sub-matrix of out_block[Ho,K,Wo,N]
     constexpr auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
@@ -245,9 +245,9 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
         __syncthreads();
 
         // a series of batched GEMM
-        for(unsigned s = 0; s < S; ++s)
+        for(unsigned s = 0; s < Y; ++s)
         {
-            for(unsigned r = 0; r < R; ++r)
+            for(unsigned r = 0; r < X; ++r)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
