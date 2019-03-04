@@ -349,6 +349,8 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise4dTensorCopy3
 {
+    using vector_t = typename vector_type<Float, DataPerRead>::type;
+
     unsigned mSrcMyThreadOffset;
     unsigned mDstMyThreadOffset;
 
@@ -422,11 +424,6 @@ struct Blockwise4dTensorCopy3
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
-
-        using Float2 = float2;
-        using Float4 = float4;
-
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
@@ -482,27 +479,9 @@ struct Blockwise4dTensorCopy3
                                                  iloop_d2 * thread_per_d2,
                                                  iloop_d3 * thread_per_d3 * DataPerRead);
 
-                        if(DataPerRead == 1)
-                        {
-                            p_dst[dst_offset + mDstMyThreadOffset] =
-                                p_src[src_offset + mSrcMyThreadOffset];
-                        }
-                        else if(DataPerRead == 2)
-                        {
-                            *(reinterpret_cast<Float2*>(p_dst + dst_offset + mDstMyThreadOffset)) =
-                                *(reinterpret_cast<const Float2*>(p_src + src_offset +
-                                                                  mSrcMyThreadOffset));
-                        }
-                        else if(DataPerRead == 4)
-                        {
-                            *(reinterpret_cast<Float4*>(p_dst + dst_offset + mDstMyThreadOffset)) =
-                                *(reinterpret_cast<const Float4*>(p_src + src_offset +
-                                                                  mSrcMyThreadOffset));
-                        }
-                        else
-                        {
-                            assert(false);
-                        }
+                        *(reinterpret_cast<vector_t*>(p_dst + dst_offset + mDstMyThreadOffset)) =
+                            *(reinterpret_cast<const vector_t*>(p_src + src_offset +
+                                                                mSrcMyThreadOffset));
                     }
                 }
             }

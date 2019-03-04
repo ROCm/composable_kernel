@@ -633,6 +633,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
+#if 1
         if(Y == 3 && X == 3)
         {
             host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
@@ -642,6 +643,7 @@ int main(int argc, char* argv[])
             host_direct_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
         }
         check_error(out_nkhw_host, out_nkhw_device);
+#endif
 
 #if 0
         LogRange(std::cout << "in_nchw : ", in_nchw.mData, ",") << std::endl;
