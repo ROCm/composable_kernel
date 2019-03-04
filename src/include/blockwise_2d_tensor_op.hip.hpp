@@ -373,6 +373,8 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise2dTensorCopy3
 {
+    using vector_t = typename vector_type<Float, DataPerRead>::type;
+
     unsigned mSrcMyThreadOffset;
     unsigned mDstMyThreadOffset;
 
@@ -424,11 +426,6 @@ struct Blockwise2dTensorCopy3
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
-
-        using Float2 = float2;
-        using Float4 = float4;
-
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
 
@@ -454,27 +451,9 @@ struct Blockwise2dTensorCopy3
         constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
         auto f_copy = [&](unsigned iloop) {
-            if(DataPerRead == 1)
-            {
-                p_dst[mDstMyThreadOffset + iloop * dst_loop_stride] =
-                    p_src[mSrcMyThreadOffset + iloop * src_loop_stride];
-            }
-            else if(DataPerRead == 2)
-            {
-                *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
-                    *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
-                                                      iloop * src_loop_stride));
-            }
-            else if(DataPerRead == 4)
-            {
-                *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
-                    *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
-                                                      iloop * src_loop_stride));
-            }
-            else
-            {
-                assert(false);
-            }
+            *(reinterpret_cast<vector_t*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
+                *(reinterpret_cast<const vector_t*>(p_src + mSrcMyThreadOffset +
+                                                    iloop * src_loop_stride));
         };
 
         for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
@@ -514,11 +493,6 @@ struct Blockwise2dTensorCopy3
     __device__ void RunLoadRegisterClipboard(const Float* __restrict__ p_src,
                                              Float* p_clipboard) const
     {
-        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
-
-        using Float2 = float2;
-        using Float4 = float4;
-
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
 
@@ -544,26 +518,9 @@ struct Blockwise2dTensorCopy3
         constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
         auto f_copy = [&](unsigned iloop) {
-            if(DataPerRead == 1)
-            {
-                p_clipboard[iloop] = p_src[mSrcMyThreadOffset + iloop * src_loop_stride];
-            }
-            else if(DataPerRead == 2)
-            {
-                *(reinterpret_cast<Float2*>(p_clipboard + iloop * 2)) =
-                    *(reinterpret_cast<const Float2*>(p_src + mSrcMyThreadOffset +
-                                                      iloop * src_loop_stride));
-            }
-            else if(DataPerRead == 4)
-            {
-                *(reinterpret_cast<Float4*>(p_clipboard + iloop * 4)) =
-                    *(reinterpret_cast<const Float4*>(p_src + mSrcMyThreadOffset +
-                                                      iloop * src_loop_stride));
-            }
-            else
-            {
-                assert(false);
-            }
+            *(reinterpret_cast<vector_t*>(p_clipboard + iloop * 4)) =
+                *(reinterpret_cast<const vector_t*>(p_src + mSrcMyThreadOffset +
+                                                    iloop * src_loop_stride));
         };
 
         for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
@@ -587,11 +544,6 @@ struct Blockwise2dTensorCopy3
     __device__ void RunStoreRegisterClipboard(const Float* __restrict__ p_clipboard,
                                               Float* __restrict__ p_dst) const
     {
-        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
-
-        using Float2 = float2;
-        using Float4 = float4;
-
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
 
@@ -617,24 +569,8 @@ struct Blockwise2dTensorCopy3
         constexpr unsigned dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
         auto f_copy = [&](unsigned iloop) {
-            if(DataPerRead == 1)
-            {
-                p_dst[mDstMyThreadOffset + iloop * dst_loop_stride] = p_clipboard[iloop];
-            }
-            else if(DataPerRead == 2)
-            {
-                *(reinterpret_cast<Float2*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
-                    *(reinterpret_cast<const Float2*>(p_clipboard + iloop * 2));
-            }
-            else if(DataPerRead == 4)
-            {
-                *(reinterpret_cast<Float4*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
-                    *(reinterpret_cast<const Float4*>(p_clipboard + iloop * 4));
-            }
-            else
-            {
-                assert(false);
-            }
+            *(reinterpret_cast<vector_t*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
+                *(reinterpret_cast<const vector_t*>(p_clipboard + iloop * 4));
         };
 
         for(unsigned iloop = 0; iloop < nloop_d0; ++iloop)
