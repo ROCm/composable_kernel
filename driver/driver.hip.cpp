@@ -577,10 +577,10 @@ int main(int argc, char* argv[])
     ostream_ConstantTensorDescriptor(wei_kcsr_desc, std::cout << "wei_kcsr_desc: ");
     ostream_ConstantTensorDescriptor(out_nkhw_desc, std::cout << "out_nkhw_desc: ");
 
-    Tensor<float> in_nchw(make_TensorDescriptor(in_nchw_desc));
-    Tensor<float> wei_kcsr(make_TensorDescriptor(wei_kcsr_desc));
-    Tensor<float> out_nkhw_host(make_TensorDescriptor(out_nkhw_desc));
-    Tensor<float> out_nkhw_device(make_TensorDescriptor(out_nkhw_desc));
+    Tensor<half> in_nchw(make_TensorDescriptor(in_nchw_desc));
+    Tensor<half> wei_kcsr(make_TensorDescriptor(wei_kcsr_desc));
+    Tensor<half> out_nkhw_host(make_TensorDescriptor(out_nkhw_desc));
+    Tensor<half> out_nkhw_device(make_TensorDescriptor(out_nkhw_desc));
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
@@ -633,7 +633,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-#if 1
+#if 0
         if(Y == 3 && X == 3)
         {
             host_winograd_3x3_convolution(in_nchw, wei_kcsr, out_nkhw_host, lower_pads, upper_pads);
