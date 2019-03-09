@@ -39,8 +39,8 @@ void device_implicit_gemm_convolution_1_chwn_csrk_khwn(InDesc,
 
     Tensor<T> wei_csrk(make_TensorDescriptor(wei_csrk_desc));
 
-    auto f_reorder_kcsr2csrk = [&](auto k, auto c, auto s, auto r) {
-        wei_csrk(c, s, r, k) = wei_kcsr(k, c, s, r);
+    auto f_reorder_kcsr2csrk = [&](auto k, auto c, auto y, auto x) {
+        wei_csrk(c, y, x, k) = wei_kcsr(k, c, y, x);
     };
 
     make_ParallelTensorFunctor(f_reorder_kcsr2csrk, K, C, Y, X)(

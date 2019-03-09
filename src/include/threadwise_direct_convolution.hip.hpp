@@ -38,16 +38,16 @@ __device__ void threadwise_direct_convolution_1(InDesc,
                 {
                     for(unsigned c = 0; c < wei_desc.GetLength(I1); ++c)
                     {
-                        for(unsigned s = 0; s < wei_desc.GetLength(I2); ++s)
+                        for(unsigned y = 0; y < wei_desc.GetLength(I2); ++y)
                         {
-                            for(unsigned r = 0; r < wei_desc.GetLength(I3); ++r)
+                            for(unsigned x = 0; x < wei_desc.GetLength(I3); ++x)
                             {
-                                const unsigned hi = ho + s;
-                                const unsigned wi = wo + r;
+                                const unsigned hi = ho + y;
+                                const unsigned wi = wo + x;
 
                                 const unsigned in_index = in_desc.Get1dIndex(n, c, hi, wi);
 
-                                const unsigned wei_index = wei_desc.Get1dIndex(k, c, s, r);
+                                const unsigned wei_index = wei_desc.Get1dIndex(k, c, y, x);
 
                                 const unsigned out_index = out_desc.Get1dIndex(n, k, ho, wo);
 
@@ -153,18 +153,18 @@ __device__ void threadwise_direct_convolution_3(InDesc,
 #if 0
     // this verison reused old input data in register, and read new data from LDS
     // loop over vertical direction
-    for(unsigned s = 0; s < wei_desc.GetLength(I2); ++s)
+    for(unsigned y = 0; y < wei_desc.GetLength(I2); ++y)
     {
         // read first input
         threadwise_4d_tensor_copy(in_desc,
-                                  p_in + in_desc.Get1dIndex(0, 0, s, 0),
+                                  p_in + in_desc.Get1dIndex(0, 0, y, 0),
                                   in_reg_desc,
                                   p_in_reg,
                                   in_reg_desc.GetLengths());
 
         // read first 1x1 weight
         threadwise_4d_tensor_copy(wei_desc,
-                                  p_wei + wei_desc.Get1dIndex(0, 0, s, 0),
+                                  p_wei + wei_desc.Get1dIndex(0, 0, y, 0),
                                   wei_reg_desc,
                                   p_wei_reg,
                                   wei_reg_desc.GetLengths());
@@ -174,11 +174,11 @@ __device__ void threadwise_direct_convolution_3(InDesc,
             in_reg_desc, p_in_reg, wei_reg_desc, p_wei_reg, out_desc, p_out);
 
         // loop over horizontal direction
-        for(unsigned r = 1; r < wei_desc.GetLength(I3); ++r)
+        for(unsigned x = 1; x < wei_desc.GetLength(I3); ++x)
         {
             // read new weight
             threadwise_4d_tensor_copy(wei_desc,
-                                      p_wei + wei_desc.Get1dIndex(0, 0, s, r),
+                                      p_wei + wei_desc.Get1dIndex(0, 0, y, x),
                                       wei_reg_desc,
                                       p_wei_reg,
                                       wei_reg_desc.GetLengths());
@@ -189,7 +189,7 @@ __device__ void threadwise_direct_convolution_3(InDesc,
             // read new input
             threadwise_4d_tensor_copy(
                 in_desc,
-                p_in + in_desc.Get1dIndex(0, 0, s, r + in_reg_desc.GetLength(I3) - 1),
+                p_in + in_desc.Get1dIndex(0, 0, y, x + in_reg_desc.GetLength(I3) - 1),
                 in_reg_desc,
                 p_in_reg +
                     in_reg_desc.Get1dIndex(0, 0, 0, in_reg_desc.GetLength(I3) - in_w_new_read),
@@ -203,21 +203,21 @@ __device__ void threadwise_direct_convolution_3(InDesc,
 #elif 1
     // this version read all input from LDS when filter moves
     // loop over vertical direction
-    for(unsigned s = 0; s < wei_desc.GetLength(I2); ++s)
+    for(unsigned y = 0; y < wei_desc.GetLength(I2); ++y)
     {
         // loop over horizontal direction
-        for(unsigned r = 0; r < wei_desc.GetLength(I3); ++r)
+        for(unsigned x = 0; x < wei_desc.GetLength(I3); ++x)
         {
             // read new weight
             threadwise_4d_tensor_copy(wei_desc,
-                                      p_wei + wei_desc.Get1dIndex(0, 0, s, r),
+                                      p_wei + wei_desc.Get1dIndex(0, 0, y, x),
                                       wei_reg_desc,
                                       p_wei_reg,
                                       wei_reg_desc.GetLengths());
 
             // read new input
             threadwise_4d_tensor_copy(in_desc,
-                                      p_in + in_desc.Get1dIndex(0, 0, s, r),
+                                      p_in + in_desc.Get1dIndex(0, 0, y, x),
                                       in_reg_desc,
                                       p_in_reg,
                                       in_reg_desc.GetLengths());

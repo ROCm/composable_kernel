@@ -275,9 +275,9 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_b
 
         // compute on current data
         //   a series of GEMM
-        for(unsigned s = 0; s < Y; ++s)
+        for(unsigned y = 0; y < Y; ++y)
         {
-            for(unsigned r = 0; r < X; ++r)
+            for(unsigned x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 #if 1
@@ -285,8 +285,8 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_b
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                    (p_wei_block_now + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
-                     p_in_block_now + s * Wi + r,
+                    (p_wei_block_now + wei_csrk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block_now + y * Wi + x,
                      p_out_thread,
                      f_accum);
             }
@@ -305,9 +305,9 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_b
 
         __syncthreads();
 
-        for(unsigned s = 0; s < Y; ++s)
+        for(unsigned y = 0; y < Y; ++y)
         {
-            for(unsigned r = 0; r < X; ++r)
+            for(unsigned x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 #if 0
@@ -315,8 +315,8 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_b
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                (p_wei_block_now + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
-                 p_in_block_now + s * Wi + r,
+                (p_wei_block_now + wei_csrk_block_desc.Get1dIndex(0, y, x, 0),
+                 p_in_block_now + y * Wi + x,
                  p_out_thread,
                  f_accum);
             }
