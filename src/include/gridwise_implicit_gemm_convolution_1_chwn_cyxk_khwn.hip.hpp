@@ -35,7 +35,7 @@ template <unsigned GridSize,
           unsigned GemmKPerThreadLoop,
           unsigned OutThreadCopyDataPerWrite>
 __global__ void
-gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restrict__ p_in_global,
+gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn(const Float* const __restrict__ p_in_global,
                                                     const Float* const __restrict__ p_wei_global,
                                                     Float* const __restrict__ p_out_global)
 {
@@ -52,7 +52,7 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
     constexpr auto I3 = Number<3>{};
 
     constexpr auto in_chwn_global_desc  = InGlobalDesc{};
-    constexpr auto wei_csrk_global_desc = WeiGlobalDesc{};
+    constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
     constexpr auto out_khwn_global_desc = OutGlobalDesc{};
 
     constexpr unsigned C = in_chwn_global_desc.GetLength(I0);
@@ -62,8 +62,8 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
     constexpr unsigned Wo = out_khwn_global_desc.GetLength(I2);
     constexpr unsigned N  = out_khwn_global_desc.GetLength(I3);
 
-    constexpr unsigned Y = wei_csrk_global_desc.GetLength(I1);
-    constexpr unsigned X = wei_csrk_global_desc.GetLength(I2);
+    constexpr unsigned Y = wei_cyxk_global_desc.GetLength(I1);
+    constexpr unsigned X = wei_cyxk_global_desc.GetLength(I2);
 
     constexpr unsigned HiPerBlock = HoPerBlock + Y - 1;
     constexpr unsigned WiPerBlock = WoPerBlock + X - 1;
@@ -100,7 +100,7 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
     constexpr auto wei_ek_block_desc = make_ConstantTensorDescriptor_aligned(
         Sequence<CPerBlock * Y * X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
 
-    constexpr auto wei_csrk_block_desc = make_ConstantTensorDescriptor_aligned(
+    constexpr auto wei_cyxk_block_desc = make_ConstantTensorDescriptor_aligned(
         Sequence<CPerBlock, Y, X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
 
     // tensor view of threadwise output in register
@@ -133,7 +133,7 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
     //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
     //   C_matrix[K,Wo*N] is a sub-matrix of out_block[K,Ho,Wo,N]
     constexpr auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_csrk_block_desc.GetStride(I0)>{});
+        Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_cyxk_block_desc.GetStride(I0)>{});
 
     constexpr auto b_cxwn_block_mtx_desc =
         make_ConstantMatrixDescriptor(Number<CPerBlock>{},
@@ -168,7 +168,7 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
         in_chwn_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
 
     constexpr unsigned wei_block_size =
-        wei_csrk_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
+        wei_cyxk_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 
     constexpr unsigned max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
                                        ? InBlockCopyDataPerRead
@@ -188,11 +188,11 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
                           0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
     const Float* p_wei_global_block_begin =
-        p_wei_global + wei_csrk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
+        p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
     for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
                  p_in_global_block_begin += CPerBlock * in_chwn_global_desc.GetStride(I0),
-                 p_wei_global_block_begin += CPerBlock * wei_csrk_global_desc.GetStride(I0),
+                 p_wei_global_block_begin += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
                  __syncthreads())
     {
         // input: global mem to LDS
@@ -204,12 +204,12 @@ gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn(const Float* const __restric
         __syncthreads();
 
         // a series of batched GEMM
-        for(unsigned s = 0; s < Y; ++s)
+        for(unsigned y = 0; y < Y; ++y)
         {
-            for(unsigned r = 0; r < X; ++r)
+            for(unsigned x = 0; x < X; ++x)
             {
-                blockwise_batch_gemm.Run(p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
-                                         p_in_block + in_chwn_block_desc.Get1dIndex(0, s, r, 0),
+                blockwise_batch_gemm.Run(p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                                         p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
                                          p_out_thread,
                                          [](auto& acc, const auto&& v) { acc += v; });
             }

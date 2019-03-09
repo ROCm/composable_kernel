@@ -8,16 +8,16 @@
 #include <iostream>
 
 template <class Range>
-std::ostream& LogRange(std::ostream& os, Range&& r, std::string delim)
+std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
 {
     bool first = true;
-    for(auto&& x : r)
+    for(auto&& v : range)
     {
         if(first)
             first = false;
         else
             os << delim;
-        os << x;
+        os << v;
     }
     return os;
 }

@@ -1,13 +1,13 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_buffer.hip.hpp"
+#include "gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
+void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
                                                        const Tensor<T>& in_nchw,
                                                        WeiDesc,
-                                                       const Tensor<T>& wei_kcsr,
+                                                       const Tensor<T>& wei_kcyx,
                                                        OutDesc,
                                                        Tensor<T>& out_nkhw,
                                                        unsigned nrepeat)
@@ -18,7 +18,7 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
     constexpr auto I3 = Number<3>{};
 
     constexpr auto in_nchw_desc  = InDesc{};
-    constexpr auto wei_kcsr_desc = WeiDesc{};
+    constexpr auto wei_kcyx_desc = WeiDesc{};
     constexpr auto out_nkhw_desc = OutDesc{};
 
     constexpr unsigned N  = in_nchw_desc.GetLength(I0);
@@ -28,10 +28,10 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
     constexpr unsigned Ho = out_nkhw_desc.GetLength(I2);
     constexpr unsigned Wo = out_nkhw_desc.GetLength(I3);
 
-    constexpr unsigned K = wei_kcsr_desc.GetLength(I0);
-    constexpr unsigned C = wei_kcsr_desc.GetLength(I1);
-    constexpr unsigned Y = wei_kcsr_desc.GetLength(I2);
-    constexpr unsigned X = wei_kcsr_desc.GetLength(I3);
+    constexpr unsigned K = wei_kcyx_desc.GetLength(I0);
+    constexpr unsigned C = wei_kcyx_desc.GetLength(I1);
+    constexpr unsigned Y = wei_kcyx_desc.GetLength(I2);
+    constexpr unsigned X = wei_kcyx_desc.GetLength(I3);
 
     constexpr unsigned BGhostRead = (Y - 1) * Wi + (X - 1);
 
@@ -48,14 +48,14 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
         Hi,
         Wi)(std::thread::hardware_concurrency());
 
-    // convert wei_kcsr to wei_csrk
-    auto wei_csrk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
-    ostream_ConstantTensorDescriptor(wei_csrk_desc, std::cout << "wei_csrk_desc: ");
+    // convert wei_kcyx to wei_cyxk
+    auto wei_cyxk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
+    ostream_ConstantTensorDescriptor(wei_cyxk_desc, std::cout << "wei_cyxk_desc: ");
 
-    Tensor<T> wei_csrk(make_TensorDescriptor(wei_csrk_desc));
+    Tensor<T> wei_cyxk(make_TensorDescriptor(wei_cyxk_desc));
 
     make_ParallelTensorFunctor(
-        [&](auto k, auto c, auto s, auto r) { wei_csrk(c, s, r, k) = wei_kcsr(k, c, s, r); },
+        [&](auto k, auto c, auto y, auto x) { wei_cyxk(c, y, x, k) = wei_kcyx(k, c, y, x); },
         K,
         C,
         Y,
@@ -200,22 +200,22 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
     std::size_t data_sz = sizeof(T);
     DeviceMem in_chwn_device_buf(data_sz * (in_chwn.mDesc.GetElementSpace() + BGhostRead +
                                             BPerBlock)); // reserve extra space for BGhostRead
-    DeviceMem wei_csrk_device_buf(data_sz * wei_csrk.mDesc.GetElementSpace());
+    DeviceMem wei_cyxk_device_buf(data_sz * wei_cyxk.mDesc.GetElementSpace());
     DeviceMem out_khwn_device_buf(data_sz * out_khwn.mDesc.GetElementSpace());
 
     in_chwn_device_buf.ToDevice(in_chwn.mData.data());
-    wei_csrk_device_buf.ToDevice(wei_csrk.mData.data());
+    wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
         float time =
-            launch_kernel(gridwise_implicit_gemm_convolution_2_chwn_csrk_khwn_lds_double_buffer<
+            launch_kernel(gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer<
                               GridSize,
                               BlockSize,
                               T,
                               decltype(in_chwn_desc),
-                              decltype(wei_csrk_desc),
+                              decltype(wei_cyxk_desc),
                               decltype(out_khwn_desc),
                               BPerBlock,
                               KPerBlock,
@@ -240,7 +240,7 @@ void device_implicit_gemm_convolution_2_chwn_csrk_khwn(InDesc,
                           dim3(GridSize),
                           dim3(BlockSize),
                           static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
-                          static_cast<T*>(wei_csrk_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
                           static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
