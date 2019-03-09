@@ -27,7 +27,7 @@ template <unsigned GridSize,
           unsigned WoPerThread,
           unsigned WeiBlockCopyThreadPerDim0,
           unsigned WeiBlockCopyThreadPerDim1>
-__global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
+__global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
     const Float* const __restrict__ p_in_global,
     const Float* const __restrict__ p_wei_global,
     Float* const __restrict__ p_out_global)
@@ -45,7 +45,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     constexpr auto I3 = Number<3>{};
 
     constexpr auto in_chwn_global_desc  = InGlobalDesc{};
-    constexpr auto wei_csrk_global_desc = WeiGlobalDesc{};
+    constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
     constexpr auto out_khwn_global_desc = OutGlobalDesc{};
 
     constexpr unsigned C = in_chwn_global_desc.GetLength(I0);
@@ -55,8 +55,8 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     constexpr unsigned Wo = out_khwn_global_desc.GetLength(I2);
     constexpr unsigned N  = out_khwn_global_desc.GetLength(I3);
 
-    constexpr unsigned Y = wei_csrk_global_desc.GetLength(I1);
-    constexpr unsigned X = wei_csrk_global_desc.GetLength(I2);
+    constexpr unsigned Y = wei_cyxk_global_desc.GetLength(I1);
+    constexpr unsigned X = wei_cyxk_global_desc.GetLength(I2);
 
     constexpr unsigned HPadLow = LowerPads{}.Get(I0);
     constexpr unsigned WPadLow = LowerPads{}.Get(I1);
@@ -92,7 +92,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     constexpr auto in_chwn_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{});
 
-    constexpr auto wei_csrk_block_desc =
+    constexpr auto wei_cyxk_block_desc =
         make_ConstantTensorDescriptor(Sequence<CPerBlock, Y, X, KPerBlock>{});
 
     // flattened (2d) tensor view of wei in LDS
@@ -107,7 +107,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(in_chwn_block_desc, "in_chwn_block_desc");
-        print_ConstantTensorDescriptor(wei_csrk_block_desc, "wei_csrk_block_desc");
+        print_ConstantTensorDescriptor(wei_cyxk_block_desc, "wei_cyxk_block_desc");
         print_ConstantTensorDescriptor(out_hkwn_thread_desc, "out_hkwn_thread_desc");
     }
 #endif
@@ -148,9 +148,9 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     constexpr auto blockwise_wei_copy =
         Blockwise4dTensorCopy1<BlockSize,
                                Float,
-                               decltype(wei_csrk_global_desc),
-                               decltype(wei_csrk_block_desc),
-                               decltype(wei_csrk_block_desc.GetLengths())>{};
+                               decltype(wei_cyxk_global_desc),
+                               decltype(wei_cyxk_block_desc),
+                               decltype(wei_cyxk_block_desc.GetLengths())>{};
 #elif 0
     // weight: format is [C*Y*X,K]
     constexpr auto blockwise_wei_copy =
@@ -177,7 +177,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
     //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
     //   C_matrix[K,Wo*N] is a sub-matrix of out_block[Ho,K,Wo,N]
     constexpr auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
-        Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_csrk_block_desc.GetStride(I0)>{});
+        Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_cyxk_block_desc.GetStride(I0)>{});
 
     constexpr auto b_cxwn_block_mtx_desc =
         make_ConstantMatrixDescriptor(Number<CPerBlock>{},
@@ -205,7 +205,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
 
     // LDS
     constexpr unsigned in_block_size  = in_chwn_block_desc.GetElementSpace();
-    constexpr unsigned wei_block_size = wei_csrk_block_desc.GetElementSpace();
+    constexpr unsigned wei_block_size = wei_cyxk_block_desc.GetElementSpace();
 
     __shared__ Float p_in_block[in_block_size];
     __shared__ Float p_wei_block[wei_block_size];
@@ -245,14 +245,14 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_csrk_khwn_padded(
         __syncthreads();
 
         // a series of batched GEMM
-        for(unsigned s = 0; s < Y; ++s)
+        for(unsigned y = 0; y < Y; ++y)
         {
-            for(unsigned r = 0; r < X; ++r)
+            for(unsigned x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
-                blockwise_batch_gemm.Run(p_wei_block + wei_csrk_block_desc.Get1dIndex(0, s, r, 0),
-                                         p_in_block + in_chwn_block_desc.Get1dIndex(0, s, r, 0),
+                blockwise_batch_gemm.Run(p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                                         p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
                                          p_out_thread,
                                          f_accum);
             }
