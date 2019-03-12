@@ -4,7 +4,6 @@
 
 #if DEVICE_BACKEND_HIP
 #include "hip/hip_runtime.h"
-#include "half.hpp"
 #elif DEVICE_BACKEND_CUDA
 #include "cuda_runtime.h"
 #include "nvToolsExt.h"

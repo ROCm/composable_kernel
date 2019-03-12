@@ -184,8 +184,9 @@ gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn(const Float* const __restric
     threadwise_4d_tensor_set_zero(out_khwn_thread_desc, p_out_thread);
 
     const Float* p_in_global_block_begin =
-        p_in_global + in_chwn_global_desc.Get1dIndex(
-                          0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
+        p_in_global +
+        in_chwn_global_desc.Get1dIndex(
+            0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
     const Float* p_wei_global_block_begin =
         p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
@@ -216,7 +217,7 @@ gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn(const Float* const __restric
         }
     }
 
-    // output: register to global mem,
+// output: register to global mem,
 #if 0
     const auto c_thread_mtx_begin =
         blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
@@ -286,16 +287,17 @@ gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn(const Float* const __restric
         }
 #endif
 
-        threadwise_8d_tensor_copy(out_8d_thread_desc,
-                                  p_out_thread,
-                                  out_8d_global_desc,
-                                  p_out_global + out_khwn_global_desc.Get1dIndex(
-                                                     k_block_data_begin + k_thread_data_begin,
-                                                     ho_block_data_begin + ho_thread_data_begin,
-                                                     wo_block_data_begin + wo_thread_data_begin,
-                                                     n_block_data_begin + n_thread_data_begin),
-                                  out_8d_thread_desc.GetLengths(),
-                                  Number<OutThreadCopyDataPerWrite>{});
+        threadwise_8d_tensor_copy(
+            out_8d_thread_desc,
+            p_out_thread,
+            out_8d_global_desc,
+            p_out_global +
+                out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
+                                                ho_block_data_begin + ho_thread_data_begin,
+                                                wo_block_data_begin + wo_thread_data_begin,
+                                                n_block_data_begin + n_thread_data_begin),
+            out_8d_thread_desc.GetLengths(),
+            Number<OutThreadCopyDataPerWrite>{});
     }
     else if(NPerThread == NPerBlock)
     {

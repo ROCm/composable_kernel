@@ -431,12 +431,12 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
         constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
 
-        // loop over k
+// loop over k
 #pragma unroll
         for(unsigned k_begin = 0; k_begin < KPerBlock; k_begin += KPerThreadLoop)
         {
-            // read first batch of A, B
-            //   copy A-sub to form A
+// read first batch of A, B
+//   copy A-sub to form A
 #pragma unroll
             for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
             {
@@ -449,7 +449,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     a_thread_sub_mtx.GetLengths());
             }
 
-            //   copy B-sub to form B
+//   copy B-sub to form B
 #pragma unroll
             for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
             {
@@ -462,7 +462,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     b_thread_sub_mtx.GetLengths());
             }
 
-            // loop over batch
+// loop over batch
 #pragma unroll
             for(unsigned ib = 0; ib + 1 < BatchPerThread; ++ib)
             {
@@ -557,8 +557,9 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
             {
                 threadwise_matrix_copy(
                     c_thread_sub_mtx,
-                    p_c_thread + c_thread_sub_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
-                                                             n_repeat * NPerLevel1Cluster),
+                    p_c_thread +
+                        c_thread_sub_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
+                                                    n_repeat * NPerLevel1Cluster),
                     c_block_mtx,
                     p_c_block +
                         c_block_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
@@ -656,8 +657,9 @@ struct BlockwiseGemmBlockABlockBThreadC
             constexpr unsigned NClusterWork =
                 (NPerBlock + NPerThread * NThreadPerCluster - 1) / (NPerThread * NThreadPerCluster);
 
-            static_assert(BlockSize == (MClusterWork * MThreadPerCluster) *
-                                           (NClusterWork * NThreadPerCluster),
+            static_assert(BlockSize ==
+                              (MClusterWork * MThreadPerCluster) *
+                                  (NClusterWork * NThreadPerCluster),
                           "wrong! wrong BlockSize");
 
             if(DistributeThreadAlongColumnFirst)
@@ -1256,8 +1258,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
                             c_thread_sub_mtx,
                             False,
-                            p_c_thread + c_thread_mtx.Get1dIndex(m_repeat * MPerThreadSubC,
-                                                                 n_repeat * NPerThreadSubC),
+                            p_c_thread +
+                                c_thread_mtx.Get1dIndex(m_repeat * MPerThreadSubC,
+                                                        n_repeat * NPerThreadSubC),
                             f_accum);
                     }
                 }

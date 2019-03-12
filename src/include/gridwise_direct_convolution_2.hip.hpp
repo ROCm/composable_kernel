@@ -139,10 +139,11 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
         c_block_data_begin += CPerBlock, __syncthreads())
     {
         // copy input tensor to LDS
-        blockwise_in_copy.Run(p_in_global + in_global_desc.Get1dIndex(n_block_data_begin,
-                                                                      c_block_data_begin,
-                                                                      hi_block_data_begin,
-                                                                      wi_block_data_begin),
+        blockwise_in_copy.Run(p_in_global +
+                                  in_global_desc.Get1dIndex(n_block_data_begin,
+                                                            c_block_data_begin,
+                                                            hi_block_data_begin,
+                                                            wi_block_data_begin),
                               p_in_block);
 
         // copy weight tensor to LDS
@@ -158,10 +159,11 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
 #if 1
             threadwise_direct_convolution_2(
                 in_thread_block_desc,
-                p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
-                                                      c_thread_data,
-                                                      hi_thread_data_begin,
-                                                      wi_thread_data_begin),
+                p_in_block +
+                    in_block_desc.Get1dIndex(n_thread_data_begin,
+                                             c_thread_data,
+                                             hi_thread_data_begin,
+                                             wi_thread_data_begin),
                 wei_thread_block_desc,
                 p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
                 out_thread_desc,
@@ -169,10 +171,11 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
 #elif 0
             threadwise_direct_convolution_3(
                 in_thread_block_desc,
-                p_in_block + in_block_desc.Get1dIndex(n_thread_data_begin,
-                                                      c_thread_data,
-                                                      hi_thread_data_begin,
-                                                      wi_thread_data_begin),
+                p_in_block +
+                    in_block_desc.Get1dIndex(n_thread_data_begin,
+                                             c_thread_data,
+                                             hi_thread_data_begin,
+                                             wi_thread_data_begin),
                 wei_thread_block_desc,
                 p_wei_block + wei_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
                 out_thread_desc,
@@ -186,9 +189,10 @@ __global__ void gridwise_direct_convolution_2(const Float* const __restrict__ p_
         out_thread_desc,
         p_out_thread,
         out_global_desc,
-        p_out_global + out_global_desc.Get1dIndex(n_block_data_begin + n_thread_data_begin,
-                                                  k_block_data_begin + k_thread_data_begin,
-                                                  ho_block_data_begin + ho_thread_data_begin,
-                                                  wo_block_data_begin + wo_thread_data_begin),
+        p_out_global +
+            out_global_desc.Get1dIndex(n_block_data_begin + n_thread_data_begin,
+                                       k_block_data_begin + k_thread_data_begin,
+                                       ho_block_data_begin + ho_thread_data_begin,
+                                       wo_block_data_begin + wo_thread_data_begin),
         out_thread_desc.GetLengths());
 }
