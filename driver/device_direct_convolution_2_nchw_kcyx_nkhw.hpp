@@ -1,16 +1,16 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_direct_convolution_2.hip.hpp"
+#include "gridwise_direct_convolution_2_nchw_kcyx_nkhw.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_direct_convolution_2(InDesc,
-                                 const Tensor<T>& in,
-                                 WeiDesc,
-                                 const Tensor<T>& wei,
-                                 OutDesc,
-                                 Tensor<T>& out,
-                                 unsigned nrepeat)
+void device_direct_convolution_2_nchw_kcyx_nkhw(InDesc,
+                                                const Tensor<T>& in,
+                                                WeiDesc,
+                                                const Tensor<T>& wei,
+                                                OutDesc,
+                                                Tensor<T>& out,
+                                                unsigned nrepeat)
 {
     std::size_t data_sz = sizeof(T);
     DeviceMem in_device_buf(data_sz * in.mDesc.GetElementSpace());
@@ -57,22 +57,22 @@ void device_direct_convolution_2(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(gridwise_direct_convolution_2<T,
-                                                                 InDesc,
-                                                                 WeiDesc,
-                                                                 OutDesc,
-                                                                 NPerBlock,
-                                                                 KPerBlock,
-                                                                 CPerBlock,
-                                                                 HoPerBlock,
-                                                                 WoPerBlock,
-                                                                 NPerThread,
-                                                                 KPerThread,
-                                                                 CPerThread,
-                                                                 HoPerThread,
-                                                                 WoPerThread,
-                                                                 BlockSize,
-                                                                 GridSize>,
+        float time = launch_kernel(gridwise_direct_convolution_2_nchw_kcyx_nkhw<T,
+                                                                                InDesc,
+                                                                                WeiDesc,
+                                                                                OutDesc,
+                                                                                NPerBlock,
+                                                                                KPerBlock,
+                                                                                CPerBlock,
+                                                                                HoPerBlock,
+                                                                                WoPerBlock,
+                                                                                NPerThread,
+                                                                                KPerThread,
+                                                                                CPerThread,
+                                                                                HoPerThread,
+                                                                                WoPerThread,
+                                                                                BlockSize,
+                                                                                GridSize>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
                                    static_cast<T*>(in_device_buf.GetDeviceBuffer()),
