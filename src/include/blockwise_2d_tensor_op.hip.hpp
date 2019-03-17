@@ -383,8 +383,9 @@ struct Blockwise2dTensorCopy3
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
 
-        static_assert(SrcDesc{}.GetStride(I1) == 1 && DstDesc{}.GetStride(I1) == 1,
-                      "wrong! only support stride1 == 1!\n");
+        static_assert(DataPerRead == 1 ||
+                          (SrcDesc{}.GetStride(I1) == 1 && DstDesc{}.GetStride(I1) == 1),
+                      "wrong! only support stride1 == 1 if DataPerRead > 1!\n");
 
         static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
                       "wrong! only support DataPerRead == 1, 2 or 4!\n");

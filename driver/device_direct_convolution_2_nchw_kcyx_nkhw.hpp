@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_direct_convolution_2_nchw_kcyx_nkhw.hip.hpp"
+//#include "gridwise_direct_convolution_2_nchw_kcyx_nkhw.hip.hpp"
 #include "gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
@@ -47,6 +47,9 @@ void device_direct_convolution_2_nchw_kcyx_nkhw(InDesc,
     constexpr unsigned HoPerThread = 2;
     constexpr unsigned WoPerThread = 2;
 
+    constexpr unsigned InBlockCopyDataPerRead  = 2;
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+
     constexpr unsigned BlockSize = 128;
 #endif
 
@@ -59,7 +62,7 @@ void device_direct_convolution_2_nchw_kcyx_nkhw(InDesc,
     for(unsigned i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
-#if 0 
+#if 0
             gridwise_direct_convolution_2_nchw_kcyx_nkhw
 #else
             gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw
@@ -78,6 +81,8 @@ void device_direct_convolution_2_nchw_kcyx_nkhw(InDesc,
              CPerThread,
              HoPerThread,
              WoPerThread,
+             InBlockCopyDataPerRead,
+             WeiBlockCopyDataPerRead,
              BlockSize,
              GridSize>,
             dim3(GridSize),

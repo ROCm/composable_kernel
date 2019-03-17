@@ -7,11 +7,11 @@
 #include "tensor.hpp"
 #include "ConstantTensorDescriptor.hip.hpp"
 #include "conv_common.hip.hpp"
-#include "device_direct_convolution_1.hpp"
+//#include "device_direct_convolution_1.hpp"
 #include "device_direct_convolution_2_nchw_kcyx_nkhw.hpp"
-#include "device_implicit_gemm_convolution_1_chwn_cyxk_khwn.hpp"
-#include "device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
-#include "device_implicit_gemm_convolution_2_chwn_cyxk_khwn.hpp"
+//#include "device_implicit_gemm_convolution_1_chwn_cyxk_khwn.hpp"
+//#include "device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
+//#include "device_implicit_gemm_convolution_2_chwn_cyxk_khwn.hpp"
 
 struct GeneratorTensor_1
 {
