@@ -158,7 +158,8 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
                                Float,
                                decltype(wei_kcyx_global_desc),
                                decltype(wei_kcyx_block_desc),
-                               decltype(wei_kcyx_block_desc.GetLengths())>{};
+                               decltype(wei_kcyx_block_desc.GetLengths()),
+                               1>{};
 #elif 1
     const auto blockwise_wei_copy = Blockwise2dTensorCopy3<BlockSize,
                                                            Float,
