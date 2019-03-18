@@ -25,10 +25,10 @@ template <class Float,
           unsigned WeiBlockCopyDataPerRead,
           unsigned BlockSize,
           unsigned GridSize>
-__global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
-    const Float* const __restrict__ p_in_global,
-    const Float* const __restrict__ p_wei_global,
-    Float* const __restrict__ p_out_global)
+__global__ void
+gridwise_direct_convolution_2_nchw_kcyx_nkhw(const Float* const __restrict__ p_in_global,
+                                             const Float* const __restrict__ p_wei_global,
+                                             Float* const __restrict__ p_out_global)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};

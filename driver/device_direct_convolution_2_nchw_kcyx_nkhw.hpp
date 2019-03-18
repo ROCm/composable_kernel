@@ -1,8 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-//#include "gridwise_direct_convolution_2_nchw_kcyx_nkhw.hip.hpp"
-#include "gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hip.hpp"
+#include "gridwise_direct_convolution_2_nchw_kcyx_nkhw.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_direct_convolution_2_nchw_kcyx_nkhw(InDesc,
@@ -51,6 +50,24 @@ void device_direct_convolution_2_nchw_kcyx_nkhw(InDesc,
     constexpr unsigned WeiBlockCopyDataPerRead = 4;
 
     constexpr unsigned BlockSize = 128;
+#elif 1
+    // 3x3, 34x34, 128 thread, fp16
+    constexpr unsigned NPerBlock  = 2;
+    constexpr unsigned KPerBlock  = 32;
+    constexpr unsigned CPerBlock  = 4;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 32;
+
+    constexpr unsigned NPerThread  = 2;
+    constexpr unsigned KPerThread  = 4;
+    constexpr unsigned CPerThread  = 2;
+    constexpr unsigned HoPerThread = 2;
+    constexpr unsigned WoPerThread = 2;
+
+    constexpr unsigned InBlockCopyDataPerRead  = 2;
+    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+
+    constexpr unsigned BlockSize = 128;
 #endif
 
     constexpr unsigned GridSize =
@@ -61,35 +78,30 @@ void device_direct_convolution_2_nchw_kcyx_nkhw(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(
-#if 0
-            gridwise_direct_convolution_2_nchw_kcyx_nkhw
-#else
-            gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw
-#endif
-            <T,
-             InDesc,
-             WeiDesc,
-             OutDesc,
-             NPerBlock,
-             KPerBlock,
-             CPerBlock,
-             HoPerBlock,
-             WoPerBlock,
-             NPerThread,
-             KPerThread,
-             CPerThread,
-             HoPerThread,
-             WoPerThread,
-             InBlockCopyDataPerRead,
-             WeiBlockCopyDataPerRead,
-             BlockSize,
-             GridSize>,
-            dim3(GridSize),
-            dim3(BlockSize),
-            static_cast<T*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+        float time =
+            launch_kernel(gridwise_direct_convolution_2_nchw_kcyx_nkhw<T,
+                                                                       InDesc,
+                                                                       WeiDesc,
+                                                                       OutDesc,
+                                                                       NPerBlock,
+                                                                       KPerBlock,
+                                                                       CPerBlock,
+                                                                       HoPerBlock,
+                                                                       WoPerBlock,
+                                                                       NPerThread,
+                                                                       KPerThread,
+                                                                       CPerThread,
+                                                                       HoPerThread,
+                                                                       WoPerThread,
+                                                                       InBlockCopyDataPerRead,
+                                                                       WeiBlockCopyDataPerRead,
+                                                                       BlockSize,
+                                                                       GridSize>,
+                          dim3(GridSize),
+                          dim3(BlockSize),
+                          static_cast<T*>(in_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(out_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

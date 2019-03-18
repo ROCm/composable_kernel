@@ -207,9 +207,9 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise4dTensorCopy1
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::type;
+    using vector_t = typename vector_type<Float, DataPerRead>::VectorType;
 
-    __device__ void SanityCheck() const
+    __device__ constexpr Blockwise4dTensorCopy1()
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -239,8 +239,6 @@ struct Blockwise4dTensorCopy1
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        SanityCheck();
-
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
@@ -446,7 +444,7 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise4dTensorCopy3
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::type;
+    using vector_t = typename vector_type<Float, DataPerRead>::VectorType;
 
     unsigned mSrcMyThreadOffset;
     unsigned mDstMyThreadOffset;
