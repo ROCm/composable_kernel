@@ -373,7 +373,7 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise2dTensorCopy3
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::VectorType;
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     unsigned mSrcMyThreadOffset;
     unsigned mDstMyThreadOffset;
