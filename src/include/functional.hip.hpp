@@ -47,3 +47,11 @@ struct static_const_reduce_n<1>
         return f(Number<0>{});
     }
 };
+
+#if 0
+template<class F>
+__host__ __device__ constexpr auto unpacker(F f)
+{
+    return [=](auto xs_array){ f(xs...); };
+}
+#endif

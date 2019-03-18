@@ -207,7 +207,7 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise4dTensorCopy1
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::VectorType;
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     __device__ constexpr Blockwise4dTensorCopy1()
     {
@@ -444,7 +444,7 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise4dTensorCopy3
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::VectorType;
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     unsigned mSrcMyThreadOffset;
     unsigned mDstMyThreadOffset;

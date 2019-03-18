@@ -27,12 +27,14 @@ template <class Float,
           unsigned BlockSize,
           unsigned GridSize>
 __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
-    const typename vector_type<Float, ScalarPerVector>::VectorType* const __restrict__ p_in_vec_global,
-    const typename vector_type<Float, ScalarPerVector>::VectorType* const __restrict__ p_wei_vec_global,
+    const typename vector_type<Float,
+                               ScalarPerVector>::MemoryType* const __restrict__ p_in_vec_global,
+    const typename vector_type<Float,
+                               ScalarPerVector>::MemoryType* const __restrict__ p_wei_vec_global,
     Float* const __restrict__ p_out_global)
 {
-    using scalar_t = Float;
-    using vector_t = typename vector_type<scalar_t, ScalarPerVector>::VectorType;
+    using scalar_t     = Float;
+    using vector_mem_t = typename vector_type<scalar_t, ScalarPerVector>::MemoryType;
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -69,6 +71,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
     // shared mem
     constexpr unsigned in_block_size =
         in_nchw_vec_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
+
     constexpr unsigned wei_block_size =
         wei_kcyx_vec_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 
@@ -76,8 +79,10 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
                                        ? InBlockCopyDataPerRead
                                        : WeiBlockCopyDataPerRead;
 
-    __shared__ vector_t p_in_vec_block[max_align * ((in_block_size + max_align - 1) / max_align)];
-    __shared__ vector_t p_wei_vec_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
+    __shared__ vector_mem_t
+        p_in_vec_block[max_align * ((in_block_size + max_align - 1) / max_align)];
+    __shared__ vector_mem_t
+        p_wei_vec_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
 
     // threadwise tensors
     constexpr unsigned HiPerThread = HoPerThread + Y - 1;
@@ -150,7 +155,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
 
     constexpr auto blockwise_in_copy =
         Blockwise4dTensorCopy1<BlockSize,
-                               vector_t,
+                               vector_mem_t,
                                decltype(in_nchw_vec_global_desc),
                                decltype(in_nchw_vec_block_desc),
                                decltype(in_nchw_vec_block_desc.GetLengths()),
@@ -159,7 +164,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
 #if 0
     constexpr auto blockwise_wei_copy =
         Blockwise4dTensorCopy1<BlockSize,
-                               vector_t,
+                               vector_mem_t,
                                decltype(wei_kcyx_vec_global_desc),
                                decltype(wei_kcyx_vec_block_desc),
                                decltype(wei_kcyx_vec_block_desc.GetLengths()),
@@ -167,7 +172,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
 #elif 1
     const auto blockwise_wei_copy =
         Blockwise2dTensorCopy3<BlockSize,
-                               vector_t,
+                               vector_mem_t,
                                decltype(wei_ke_vec_global_desc),
                                decltype(wei_ke_vec_block_desc),
                                decltype(wei_ke_vec_block_desc.GetLengths()),
@@ -181,15 +186,16 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
         c_block_data_begin += CPerBlock, __syncthreads())
     {
         // copy input tensor to LDS
-        blockwise_in_copy.Run(p_in_vec_global + in_nchw_vec_global_desc.Get1dIndex(n_block_data_begin,
-                                                                               c_block_data_begin,
-                                                                               hi_block_data_begin,
-                                                                               wi_block_data_begin),
+        blockwise_in_copy.Run(p_in_vec_global +
+                                  in_nchw_vec_global_desc.Get1dIndex(n_block_data_begin,
+                                                                     c_block_data_begin,
+                                                                     hi_block_data_begin,
+                                                                     wi_block_data_begin),
                               p_in_vec_block);
 
         // copy weight tensor to LDS
         blockwise_wei_copy.Run(p_wei_vec_global + wei_kcyx_vec_global_desc.Get1dIndex(
-                                                  k_block_data_begin, c_block_data_begin, 0, 0),
+                                                      k_block_data_begin, c_block_data_begin, 0, 0),
                                p_wei_vec_block);
 
         __syncthreads();
@@ -201,9 +207,9 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
             threadwise_direct_convolution_2(
                 in_nchw_vec_thread_block_desc,
                 p_in_vec_block + in_nchw_vec_block_desc.Get1dIndex(n_thread_data_begin,
-                                                               c_thread_data,
-                                                               hi_thread_data_begin,
-                                                               wi_thread_data_begin),
+                                                                   c_thread_data,
+                                                                   hi_thread_data_begin,
+                                                                   wi_thread_data_begin),
                 wei_kcyx_vec_thread_block_desc,
                 p_wei_vec_block +
                     wei_kcyx_vec_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
@@ -213,9 +219,9 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
             threadwise_direct_convolution_3(
                 in_nchw_vec_thread_block_desc,
                 p_in_vec_block + in_nchw_vec_block_desc.Get1dIndex(n_thread_data_begin,
-                                                               c_thread_data,
-                                                               hi_thread_data_begin,
-                                                               wi_thread_data_begin),
+                                                                   c_thread_data,
+                                                                   hi_thread_data_begin,
+                                                                   wi_thread_data_begin),
                 wei_kcyx_vec_thread_block_desc,
                 p_wei_vec_block +
                     wei_kcyx_vec_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
