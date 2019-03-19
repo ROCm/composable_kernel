@@ -3,17 +3,18 @@
 #include "device.hpp"
 #include "gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hip.hpp"
 
-template <class T, class InDesc, class WeiDesc, class OutDesc>
+template <class TInWei, class TOut, class InDesc, class WeiDesc, class OutDesc>
 void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
-                                                           const Tensor<T>& in_nchw,
+                                                           const Tensor<TInWei>& in_nchw,
                                                            WeiDesc,
-                                                           const Tensor<T>& wei_kcyx,
+                                                           const Tensor<TInWei>& wei_kcyx,
                                                            OutDesc,
-                                                           Tensor<T>& out_nkhw,
+                                                           Tensor<TOut>& out_nkhw,
                                                            unsigned nrepeat)
 {
-    constexpr unsigned NVector = 1;
-    using vector_t             = vector_type<T, NVector>;
+    constexpr unsigned NVector = 4;
+    using accum_t              = int32_t;
+    using vector_t             = vector_type<TInWei, NVector>;
     using vector_mem_t         = typename vector_t::MemoryType;
 
     constexpr auto I0 = Number<0>{};
@@ -44,11 +45,16 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     Tensor<vector_mem_t> in_nchw_vec(make_TensorDescriptor(in_nchw_vec_desc));
 
     auto f_vectorized_nchw = [&](auto n, auto c, auto h, auto w) {
-#if 1
+#if 0
         in_nchw_vec(n, c, h, w) = in_nchw(n, c, h, w);
-#else
+#elif 0
         in_nchw_vec(n, c, h, w) =
             vector_t::Pack(in_nchw(n, 2 * c, h, w), in_nchw(n, 2 * c + 1, h, w));
+#elif 1
+        in_nchw_vec(n, c, h, w)  = vector_t::Pack(in_nchw(n, 4 * c, h, w),
+                                                 in_nchw(n, 4 * c + 1, h, w),
+                                                 in_nchw(n, 4 * c + 2, h, w),
+                                                 in_nchw(n, 4 * c + 3, h, w));
 #endif
     };
 
@@ -62,11 +68,16 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     Tensor<vector_mem_t> wei_kcyx_vec(make_TensorDescriptor(wei_kcyx_vec_desc));
 
     auto f_vectorized_kcyx = [&](auto k, auto c, auto y, auto x) {
-#if 1
+#if 0
         wei_kcyx_vec(k, c, y, x) = wei_kcyx(k, c, y, x);
-#else
+#elif 0
         wei_kcyx_vec(k, c, y, x) =
             vector_t::Pack(wei_kcyx(k, 2 * c, y, x), wei_kcyx(k, 2 * c + 1, y, x));
+#elif 1
+        wei_kcyx_vec(k, c, y, x) = vector_t::Pack(wei_kcyx(k, 4 * c, y, x),
+                                                  wei_kcyx(k, 4 * c + 1, y, x),
+                                                  wei_kcyx(k, 4 * c + 2, y, x),
+                                                  wei_kcyx(k, 4 * c + 3, y, x));
 #endif
     };
 
@@ -76,13 +87,13 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     //
     DeviceMem in_nchw_vec_device_buf(sizeof(vector_mem_t) * in_nchw_vec.mDesc.GetElementSpace());
     DeviceMem wei_kcyx_vec_device_buf(sizeof(vector_mem_t) * wei_kcyx_vec.mDesc.GetElementSpace());
-    DeviceMem out_nkhw_device_buf(sizeof(T) * out_nkhw.mDesc.GetElementSpace());
+    DeviceMem out_nkhw_device_buf(sizeof(TOut) * out_nkhw.mDesc.GetElementSpace());
 
     in_nchw_vec_device_buf.ToDevice(in_nchw_vec.mData.data());
     wei_kcyx_vec_device_buf.ToDevice(wei_kcyx_vec.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
-#if 1
+#if 0
     // 3x3, 34x34, 128 thread, fp32, vector = 1
     constexpr unsigned NPerBlock  = 2;
     constexpr unsigned KPerBlock  = 32;
@@ -100,7 +111,7 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     constexpr unsigned WeiBlockCopyDataPerRead = 2;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     // 3x3, 34x34, 128 thread, fp32, vector = 2
     constexpr unsigned NPerBlock = 2;
     constexpr unsigned KPerBlock = 32;
@@ -118,8 +129,26 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     constexpr unsigned WeiBlockCopyDataPerRead = 2;
 
     constexpr unsigned BlockSize = 128;
+#elif 0
+    // 3x3, 34x34, 128 thread, int8, vector = 4
+    constexpr unsigned NPerBlock = 2;
+    constexpr unsigned KPerBlock = 32;
+    constexpr unsigned CPerBlock = 4;
+    constexpr unsigned HoPerBlock = 2;
+    constexpr unsigned WoPerBlock = 32;
+
+    constexpr unsigned NPerThread = 2;
+    constexpr unsigned KPerThread = 4;
+    constexpr unsigned CPerThread = 1;
+    constexpr unsigned HoPerThread = 2;
+    constexpr unsigned WoPerThread = 2;
+
+    constexpr unsigned InBlockCopyDataPerRead = 2;
+    constexpr unsigned WeiBlockCopyDataPerRead = 2;
+
+    constexpr unsigned BlockSize = 128;
 #elif 1
-    // 3x3, 34x34, 128 thread, fp16
+    // 1x1, 32x32, 128 thread, int8, vector = 4
     constexpr unsigned NPerBlock  = 2;
     constexpr unsigned KPerBlock  = 32;
     constexpr unsigned CPerBlock  = 4;
@@ -128,12 +157,12 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
 
     constexpr unsigned NPerThread  = 2;
     constexpr unsigned KPerThread  = 4;
-    constexpr unsigned CPerThread  = 2;
+    constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 2;
     constexpr unsigned WoPerThread = 2;
 
     constexpr unsigned InBlockCopyDataPerRead  = 2;
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr unsigned WeiBlockCopyDataPerRead = 2;
 
     constexpr unsigned BlockSize = 128;
 #endif
@@ -146,7 +175,9 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     for(unsigned i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
-            gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw<T,
+            gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw<TInWei,
+                                                                    TOut,
+                                                                    accum_t,
                                                                     decltype(in_nchw_vec_desc),
                                                                     decltype(wei_kcyx_vec_desc),
                                                                     decltype(out_nkhw_desc),
@@ -167,9 +198,9 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
                                                                     GridSize>,
             dim3(GridSize),
             dim3(BlockSize),
-            static_cast<T*>(in_nchw_vec_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(wei_kcyx_vec_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+            static_cast<TInWei*>(in_nchw_vec_device_buf.GetDeviceBuffer()),
+            static_cast<TInWei*>(wei_kcyx_vec_device_buf.GetDeviceBuffer()),
+            static_cast<TInWei*>(out_nkhw_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));
