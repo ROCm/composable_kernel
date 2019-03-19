@@ -37,7 +37,8 @@ __device__ void threadwise_4d_tensor_pointwise_operation_unary(Desc, Float* __re
 
 // TODO: in order to optimize mem access for different mem type,
 // need to write specialized version
-template <class Float,
+template <class SrcData,
+          class DstData,
           class SrcDesc,
           class DstDesc,
           class SrcOpLengths,
@@ -45,9 +46,9 @@ template <class Float,
           class F>
 __device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
     SrcDesc,
-    const Float* __restrict__ p_src,
+    const SrcData* __restrict__ p_src,
     DstDesc,
-    Float* __restrict__ p_dst,
+    DstData* __restrict__ p_dst,
     SrcOpLengths,
     DstFromSrcReorder,
     F f)
@@ -88,33 +89,38 @@ __device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_d
     }
 }
 
-template <class Float, class Desc>
-__device__ void threadwise_4d_tensor_set_zero(Desc, Float* __restrict__ p)
+template <class Data, class Desc>
+__device__ void threadwise_4d_tensor_set_zero(Desc, Data* __restrict__ p)
 {
-    auto f_set_zero = [](Float& v) { v = Float(0); };
+    auto f_set_zero = [](Data& v) { v = Data(0); };
 
-    threadwise_4d_tensor_pointwise_operation_unary<Float, Desc, decltype(f_set_zero)>(
+    threadwise_4d_tensor_pointwise_operation_unary<Data, Desc, decltype(f_set_zero)>(
         Desc{}, p, f_set_zero);
 }
 
-template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, class DstFromSrcReorder>
+template <class SrcData,
+          class DstData,
+          class SrcDesc,
+          class DstDesc,
+          class SrcOpLengths,
+          class DstFromSrcReorder>
 __device__ void
 threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
-                                                      const Float* __restrict__ p_src,
+                                                      const SrcData* __restrict__ p_src,
                                                       DstDesc,
-                                                      Float* __restrict__ p_dst,
+                                                      DstData* __restrict__ p_dst,
                                                       SrcOpLengths,
                                                       DstFromSrcReorder)
 {
-    auto f_copy = [](const Float& src, Float& dst) { dst = src; };
+    auto f_copy = [](const SrcData& src, DstData& dst) { dst = static_cast<DstData>(src); };
 
     threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
 }
 
-template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
+template <class SrcData, class DstData, class SrcDesc, class DstDesc, class SrcOpLengths>
 __device__ void threadwise_4d_tensor_copy(
-    SrcDesc, const Float* __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, SrcOpLengths)
+    SrcDesc, const SrcData* __restrict__ p_src, DstDesc, DstData* __restrict__ p_dst, SrcOpLengths)
 {
     auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
 

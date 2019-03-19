@@ -7,7 +7,9 @@
 #include "threadwise_4d_tensor_op.hip.hpp"
 #include "threadwise_direct_convolution.hip.hpp"
 
-template <class Float,
+template <class TInWei,
+          class TOut,
+          class TAccum,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
@@ -27,14 +29,16 @@ template <class Float,
           unsigned BlockSize,
           unsigned GridSize>
 __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
-    const typename vector_type<Float,
+    const typename vector_type<TInWei,
                                ScalarPerVector>::MemoryType* const __restrict__ p_in_vec_global,
-    const typename vector_type<Float,
+    const typename vector_type<TInWei,
                                ScalarPerVector>::MemoryType* const __restrict__ p_wei_vec_global,
-    Float* const __restrict__ p_out_global)
+    TOut* const __restrict__ p_out_global)
 {
-    using scalar_t     = Float;
-    using vector_mem_t = typename vector_type<scalar_t, ScalarPerVector>::MemoryType;
+    using in_scalar_t     = TInWei;
+    using in_vector_mem_t = typename vector_type<in_scalar_t, ScalarPerVector>::MemoryType;
+    using out_scalar_t    = TOut;
+    using accum_t         = TAccum;
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -79,9 +83,9 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
                                        ? InBlockCopyDataPerRead
                                        : WeiBlockCopyDataPerRead;
 
-    __shared__ vector_mem_t
+    __shared__ in_vector_mem_t
         p_in_vec_block[max_align * ((in_block_size + max_align - 1) / max_align)];
-    __shared__ vector_mem_t
+    __shared__ in_vector_mem_t
         p_wei_vec_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
 
     // threadwise tensors
@@ -99,7 +103,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
         in_nchw_vec_thread_block_desc, wei_kcyx_vec_thread_block_desc);
 
     // register
-    scalar_t p_out_thread[out_nkhw_thread_desc.GetElementSpace()];
+    out_scalar_t p_out_thread[out_nkhw_thread_desc.GetElementSpace()];
 
     // divide block work
     constexpr unsigned NBlockWork =
@@ -155,7 +159,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
 
     constexpr auto blockwise_in_copy =
         Blockwise4dTensorCopy1<BlockSize,
-                               vector_mem_t,
+                               in_vector_mem_t,
                                decltype(in_nchw_vec_global_desc),
                                decltype(in_nchw_vec_block_desc),
                                decltype(in_nchw_vec_block_desc.GetLengths()),
@@ -164,7 +168,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
 #if 0
     constexpr auto blockwise_wei_copy =
         Blockwise4dTensorCopy1<BlockSize,
-                               vector_mem_t,
+                               in_vector_mem_t,
                                decltype(wei_kcyx_vec_global_desc),
                                decltype(wei_kcyx_vec_block_desc),
                                decltype(wei_kcyx_vec_block_desc.GetLengths()),
@@ -172,15 +176,17 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
 #elif 1
     const auto blockwise_wei_copy =
         Blockwise2dTensorCopy3<BlockSize,
-                               vector_mem_t,
+                               in_vector_mem_t,
                                decltype(wei_ke_vec_global_desc),
                                decltype(wei_ke_vec_block_desc),
                                decltype(wei_ke_vec_block_desc.GetLengths()),
                                WeiBlockCopyDataPerRead>{};
 #endif
 
+#if 1 // debug
     // set threadwise output tensor to 0
     threadwise_4d_tensor_set_zero(out_nkhw_thread_desc, p_out_thread);
+#endif
 
     for(unsigned c_block_data_begin = 0; c_block_data_begin < C;
         c_block_data_begin += CPerBlock, __syncthreads())

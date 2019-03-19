@@ -88,9 +88,12 @@ auto make_TensorDescriptor(TConstTensorDesc)
     return TensorDescriptor(lengths, strides);
 }
 
-template <class T, class LowerPads, class UpperPads>
-void host_direct_convolution(
-    const Tensor<T>& in_nchw, const Tensor<T>& wei_kcyx, Tensor<T>& out, LowerPads, UpperPads)
+template <class TIn, class TWei, class TOut, class LowerPads, class UpperPads>
+void host_direct_convolution(const Tensor<TIn>& in_nchw,
+                             const Tensor<TWei>& wei_kcyx,
+                             Tensor<TOut>& out_nkhw,
+                             LowerPads,
+                             UpperPads)
 {
     unsigned h_pad_low = LowerPads{}.Get(Number<0>{});
     unsigned w_pad_low = LowerPads{}.Get(Number<1>{});
@@ -116,21 +119,24 @@ void host_direct_convolution(
                 }
             }
         }
-        out(n, k, ho, wo) = v;
+        out_nkhw(n, k, ho, wo) = v;
     };
 
     auto f_par = make_ParallelTensorFunctor(f,
-                                            out.mDesc.GetLengths()[0],
-                                            out.mDesc.GetLengths()[1],
-                                            out.mDesc.GetLengths()[2],
-                                            out.mDesc.GetLengths()[3]);
+                                            out_nkhw.mDesc.GetLengths()[0],
+                                            out_nkhw.mDesc.GetLengths()[1],
+                                            out_nkhw.mDesc.GetLengths()[2],
+                                            out_nkhw.mDesc.GetLengths()[3]);
 
     f_par(std::thread::hardware_concurrency());
 }
 
-template <class T, class LowerPads, class UpperPads>
-void host_winograd_3x3_convolution(
-    const Tensor<T>& in_nchw, const Tensor<T>& wei_kcyx, Tensor<T>& out, LowerPads, UpperPads)
+template <class TIn, class TWei, class TOut, class LowerPads, class UpperPads>
+void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
+                                   const Tensor<TWei>& wei_kcyx,
+                                   Tensor<TOut>& out_nkhw,
+                                   LowerPads,
+                                   UpperPads)
 {
     constexpr std::size_t HoPerTile = 2;
     constexpr std::size_t WoPerTile = 2;
@@ -144,8 +150,8 @@ void host_winograd_3x3_convolution(
     std::size_t Y = wei_kcyx.mDesc.GetLengths()[2];
     std::size_t X = wei_kcyx.mDesc.GetLengths()[3];
 
-    std::size_t HO = out.mDesc.GetLengths()[2];
-    std::size_t WO = out.mDesc.GetLengths()[3];
+    std::size_t HO = out_nkhw.mDesc.GetLengths()[2];
+    std::size_t WO = out_nkhw.mDesc.GetLengths()[3];
 
     unsigned h_pad_low = LowerPads{}.Get(Number<0>{});
     unsigned w_pad_low = LowerPads{}.Get(Number<1>{});
@@ -180,7 +186,7 @@ void host_winograd_3x3_convolution(
                 }
                 else
                 {
-                    in_hold(n, c, htile, wtile, j, i) = T(0);
+                    in_hold(n, c, htile, wtile, j, i) = TIn(0);
                 }
             }
         }
@@ -347,8 +353,8 @@ void host_winograd_3x3_convolution(
             std::size_t ho = HoPerTile * htile + j;
             for(int i = 0; i < WoPerTile; ++i)
             {
-                std::size_t wo    = WoPerTile * wtile + i;
-                out(n, k, ho, wo) = out_hold(n, k, htile, wtile, j, i);
+                std::size_t wo         = WoPerTile * wtile + i;
+                out_nkhw(n, k, ho, wo) = out_hold(n, k, htile, wtile, j, i);
             }
         }
     };
@@ -403,7 +409,7 @@ int main(int argc, char* argv[])
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
-#elif 1
+#elif 0
     // 3x3, 34x34
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 256;
@@ -502,7 +508,7 @@ int main(int argc, char* argv[])
 
     constexpr unsigned HPad = 1;
     constexpr unsigned WPad = 1;
-#elif 1
+#elif 0
     // 1x1 filter, 28x28 image
     constexpr unsigned N  = 16;
     constexpr unsigned C  = 256;
@@ -562,6 +568,18 @@ int main(int argc, char* argv[])
 
     constexpr unsigned HPad = 2;
     constexpr unsigned WPad = 2;
+#elif 1
+    // 1x1 filter, 32x32 image
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 32;
+    constexpr unsigned WI = 32;
+    constexpr unsigned K  = 512;
+    constexpr unsigned Y  = 1;
+    constexpr unsigned X  = 1;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
 #endif
 
     auto lower_pads = Sequence<HPad, WPad>{};
@@ -576,11 +594,12 @@ int main(int argc, char* argv[])
     ostream_ConstantTensorDescriptor(wei_kcyx_desc, std::cout << "wei_kcyx_desc: ");
     ostream_ConstantTensorDescriptor(out_nkhw_desc, std::cout << "out_nkhw_desc: ");
 
-    using Float = float;
-    Tensor<Float> in_nchw(make_TensorDescriptor(in_nchw_desc));
-    Tensor<Float> wei_kcyx(make_TensorDescriptor(wei_kcyx_desc));
-    Tensor<Float> out_nkhw_host(make_TensorDescriptor(out_nkhw_desc));
-    Tensor<Float> out_nkhw_device(make_TensorDescriptor(out_nkhw_desc));
+    using in_data_t  = char;
+    using out_data_t = int32_t;
+    Tensor<in_data_t> in_nchw(make_TensorDescriptor(in_nchw_desc));
+    Tensor<in_data_t> wei_kcyx(make_TensorDescriptor(wei_kcyx_desc));
+    Tensor<out_data_t> out_nkhw_host(make_TensorDescriptor(out_nkhw_desc));
+    Tensor<out_data_t> out_nkhw_device(make_TensorDescriptor(out_nkhw_desc));
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 

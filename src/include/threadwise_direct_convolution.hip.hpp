@@ -51,10 +51,8 @@ __device__ void threadwise_direct_convolution_1(InDesc,
 
                                 const unsigned out_index = out_desc.Get1dIndex(n, k, ho, wo);
 
-                                fused_multiply_add(p_out[out_index],
-                                                   p_wei[wei_index],
-                                                   p_in[in_index],
-                                                   p_out[out_index]);
+                                fused_multiply_accumulate(
+                                    p_out[out_index], p_wei[wei_index], p_in[in_index]);
                             }
                         }
                     }
