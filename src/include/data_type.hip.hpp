@@ -231,17 +231,11 @@ __device__ void fused_multiply_accumulate(float& d, const half2& s0, const half2
 
 __device__ void fused_multiply_accumulate(char& d, const char& s0, const char& s1) { d += s0 * s1; }
 
-// TODO:: this interface is misleading, int32 is actually int8x4
+// TODO:: this interface is misleading, s0, s1 are actually int8x4
 //  need to make a better interface
 __device__ void fused_multiply_accumulate(int32_t& d, const int32_t& s0, const int32_t& s1)
 {
 #if DEVICE_BACKEND_CUDA
-#if 1 // debug
     d = __dp4a(s0, s1, d);
-#elif 1
-    asm volatile("dp4a.s32.s32 %0, %1, %2, %3;" : "=r"(d) : "r"(s0), "r"(s1), "r"(d));
-#elif 0 // this is wrong! just for debugging
-    d += (*reinterpret_cast<const int32_t*>(&s0)) * (*reinterpret_cast<const int32_t*>(&s1));
-#endif
 #endif
 }
