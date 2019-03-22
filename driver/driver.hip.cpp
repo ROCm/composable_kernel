@@ -580,10 +580,22 @@ int main(int argc, char* argv[])
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 14x14 image
     constexpr unsigned N  = 128;
     constexpr unsigned C  = 2048;
+    constexpr unsigned HI = 14;
+    constexpr unsigned WI = 14;
+    constexpr unsigned K  = 512;
+    constexpr unsigned Y  = 1;
+    constexpr unsigned X  = 1;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
+#elif 1
+    // 1x1 filter, 14x14 image, C = 256
+    constexpr unsigned N  = 128;
+    constexpr unsigned C  = 256;
     constexpr unsigned HI = 14;
     constexpr unsigned WI = 14;
     constexpr unsigned K  = 512;
