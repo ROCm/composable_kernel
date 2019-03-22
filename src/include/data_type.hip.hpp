@@ -1,15 +1,6 @@
 #pragma once
 #include "config.h"
 
-#if DEVICE_BACKEND_CUDA
-namespace CUDA {
-#include "cuda_fp16.h"
-}
-#endif
-
-using half  = CUDA::half;
-using half2 = CUDA::half2;
-
 template <class T, unsigned N>
 struct vector_type
 {
@@ -52,6 +43,7 @@ struct vector_type<float2, 2>
     using MemoryType = float4;
 };
 
+#if 0
 template <>
 struct vector_type<half, 1>
 {
@@ -87,24 +79,6 @@ struct vector_type<half, 4>
 
 template <>
 struct vector_type<half, 8>
-{
-    using MemoryType = float4;
-};
-
-template <>
-struct vector_type<half2, 1>
-{
-    using MemoryType = half2;
-};
-
-template <>
-struct vector_type<half2, 2>
-{
-    using MemoryType = float2;
-};
-
-template <>
-struct vector_type<half2, 4>
 {
     using MemoryType = float4;
 };
@@ -169,7 +143,6 @@ struct vector_type<int32_t, 2>
     using MemoryType = int64_t;
 };
 
-#if 0
 template <>
 struct vector_type<char2, 2>
 {
@@ -214,6 +187,7 @@ __device__ void fused_multiply_accumulate(float& d, const float4& s0, const floa
     d += s0.w * s1.w;
 }
 
+#if 0
 __device__ void fused_multiply_accumulate(half& d, const half& s0, const half& s1) { d += s0 * s1; }
 
 __device__ void fused_multiply_accumulate(half& d, const half2& s0, const half2& s1)
@@ -222,12 +196,10 @@ __device__ void fused_multiply_accumulate(half& d, const half2& s0, const half2&
     d += s0.y * s1.y;
 }
 
-#if 0
 __device__ void fused_multiply_accumulate(float& d, const half2& s0, const half2& s1)
 {
     d += s0.x * s1.x + s0.y * s1.y;
 }
-#endif
 
 __device__ void fused_multiply_accumulate(char& d, const char& s0, const char& s1) { d += s0 * s1; }
 
@@ -239,3 +211,4 @@ __device__ void fused_multiply_accumulate(int32_t& d, const int32_t& s0, const i
     d = __dp4a(s0, s1, d);
 #endif
 }
+#endif
