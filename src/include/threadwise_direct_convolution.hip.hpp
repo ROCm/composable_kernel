@@ -2,13 +2,13 @@
 #include "ConstantTensorDescriptor.hip.hpp"
 
 // optimized for scenario if p_in, p_wei, p_out are in register
-template <class Float, class InDesc, class WeiDesc, class OutDesc>
+template <class TInWei, class TOut, class InDesc, class WeiDesc, class OutDesc>
 __device__ void threadwise_direct_convolution_1(InDesc,
-                                                Float* const __restrict__ p_in,
+                                                TInWei* const __restrict__ p_in,
                                                 WeiDesc,
-                                                Float* const __restrict__ p_wei,
+                                                TInWei* const __restrict__ p_wei,
                                                 OutDesc,
-                                                Float* __restrict__ p_out)
+                                                TOut* __restrict__ p_out)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -51,25 +51,8 @@ __device__ void threadwise_direct_convolution_1(InDesc,
 
                                 const unsigned out_index = out_desc.Get1dIndex(n, k, ho, wo);
 
-                                p_out[out_index] += p_wei[wei_index] * p_in[in_index];
-
-#if 0
-                                //   if(threadIdx.x == 0)
-                                {
-                                    printf("threadwise_direct_convolution: \t"
-                                           "threadIdx.x %u\t"
-                                           "out_index %u, p_out[out_index] %f, \t"
-                                           "wei_index %u, p_wei[wei_index] %f, \t"
-                                           "in_index %u, p_in[in_index] %f\n",
-                                           threadIdx.x,
-                                           out_index,
-                                           p_out[out_index],
-                                           wei_index,
-                                           p_wei[wei_index],
-                                           in_index,
-                                           p_in[in_index]);
-                                }
-#endif
+                                fused_multiply_accumulate(
+                                    p_out[out_index], p_wei[wei_index], p_in[in_index]);
                             }
                         }
                     }
@@ -81,13 +64,13 @@ __device__ void threadwise_direct_convolution_1(InDesc,
 
 // Optimized for scenario if p_in and p_wei are in LDS, p_out are in register
 // Copy in and wei into register before doing convolution
-template <class Float, class InDesc, class WeiDesc, class OutDesc>
+template <class TInWei, class TOut, class InDesc, class WeiDesc, class OutDesc>
 __device__ void threadwise_direct_convolution_2(InDesc,
-                                                Float* const __restrict__ p_in,
+                                                TInWei* const __restrict__ p_in,
                                                 WeiDesc,
-                                                Float* const __restrict__ p_wei,
+                                                TInWei* const __restrict__ p_wei,
                                                 OutDesc,
-                                                Float* __restrict__ p_out)
+                                                TOut* __restrict__ p_out)
 {
     constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
@@ -97,8 +80,8 @@ __device__ void threadwise_direct_convolution_2(InDesc,
     constexpr auto wei_reg_desc = make_ConstantTensorDescriptor(wei_desc.GetLengths());
 
     // register
-    Float p_in_reg[in_reg_desc.GetElementSpace()];
-    Float p_wei_reg[wei_reg_desc.GetElementSpace()];
+    TInWei p_in_reg[in_reg_desc.GetElementSpace()];
+    TInWei p_wei_reg[wei_reg_desc.GetElementSpace()];
 
     // copy input tensor into register
     threadwise_4d_tensor_copy(in_desc, p_in, in_reg_desc, p_in_reg, in_reg_desc.GetLengths());
@@ -114,13 +97,13 @@ __device__ void threadwise_direct_convolution_2(InDesc,
 // optimized for scenario where p_in and p_wei are in LDS, p_out is in register
 // break down a non-1x1 convolution into a sequence of 1x1 convolutions,
 // load 1x1 weight into register, and do 1x1 convolution in register.
-template <class Float, class InDesc, class WeiDesc, class OutDesc>
+template <class Data, class InDesc, class WeiDesc, class OutDesc>
 __device__ void threadwise_direct_convolution_3(InDesc,
-                                                Float* const __restrict__ p_in,
+                                                Data* const __restrict__ p_in,
                                                 WeiDesc,
-                                                Float* const __restrict__ p_wei,
+                                                Data* const __restrict__ p_wei,
                                                 OutDesc,
-                                                Float* __restrict__ p_out)
+                                                Data* __restrict__ p_out)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -139,8 +122,8 @@ __device__ void threadwise_direct_convolution_3(InDesc,
     constexpr auto wei_reg_desc = make_ConstantTensorDescriptor(
         Sequence<wei_desc.GetLength(I0), wei_desc.GetLength(I1), 1, 1>{});
 
-    Float p_in_reg[in_reg_desc.GetElementSpace()];
-    Float p_wei_reg[wei_reg_desc.GetElementSpace()];
+    Data p_in_reg[in_reg_desc.GetElementSpace()];
+    Data p_wei_reg[wei_reg_desc.GetElementSpace()];
 
     constexpr unsigned in_w_new_read = 1;
 

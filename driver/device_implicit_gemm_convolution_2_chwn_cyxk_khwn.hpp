@@ -1,6 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
+#include "gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn.hip.hpp"
 #include "gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
@@ -209,39 +210,43 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     for(unsigned i = 0; i < nrepeat; ++i)
     {
-        float time =
-            launch_kernel(gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer<
-                              GridSize,
-                              BlockSize,
-                              T,
-                              decltype(in_chwn_desc),
-                              decltype(wei_cyxk_desc),
-                              decltype(out_khwn_desc),
-                              BPerBlock,
-                              KPerBlock,
-                              CPerBlock,
-                              BPerThread,
-                              KPerThread,
-                              GemmThreadPerColumnPerCluster,
-                              GemmThreadPerRowPerCluster,
-                              GemmMPerThreadSubC,
-                              GemmNPerThreadSubC,
-                              GemmMLevel0Cluster,
-                              GemmNLevel0Cluster,
-                              GemmMLevel1Cluster,
-                              GemmNLevel1Cluster,
-                              GemmKPerThreadLoop,
-                              InBlockCopyThreadPerDim0,
-                              InBlockCopyThreadPerDim1,
-                              WeiBlockCopyThreadPerDim0,
-                              WeiBlockCopyThreadPerDim1,
-                              InBlockCopyDataPerRead,
-                              WeiBlockCopyDataPerRead>,
-                          dim3(GridSize),
-                          dim3(BlockSize),
-                          static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
-                          static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
-                          static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
+        float time = launch_kernel(
+#if 0
+            gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
+#else
+            gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer
+#endif
+            <GridSize,
+             BlockSize,
+             T,
+             decltype(in_chwn_desc),
+             decltype(wei_cyxk_desc),
+             decltype(out_khwn_desc),
+             BPerBlock,
+             KPerBlock,
+             CPerBlock,
+             BPerThread,
+             KPerThread,
+             GemmThreadPerColumnPerCluster,
+             GemmThreadPerRowPerCluster,
+             GemmMPerThreadSubC,
+             GemmNPerThreadSubC,
+             GemmMLevel0Cluster,
+             GemmNLevel0Cluster,
+             GemmMLevel1Cluster,
+             GemmNLevel1Cluster,
+             GemmKPerThreadLoop,
+             InBlockCopyThreadPerDim0,
+             InBlockCopyThreadPerDim1,
+             WeiBlockCopyThreadPerDim0,
+             WeiBlockCopyThreadPerDim1,
+             InBlockCopyDataPerRead,
+             WeiBlockCopyDataPerRead>,
+            dim3(GridSize),
+            dim3(BlockSize),
+            static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
+            static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
+            static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

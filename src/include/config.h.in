@@ -4,9 +4,10 @@
 
 #if DEVICE_BACKEND_HIP
 #include "hip/hip_runtime.h"
+#include "hip/hip_fp16.h"
 #elif DEVICE_BACKEND_CUDA
 #include "cuda_runtime.h"
+#include "cuda_fp16.h"
 #include "nvToolsExt.h"
 #include "helper_cuda.h"
-#include "cuda_fp16.h"
 #endif

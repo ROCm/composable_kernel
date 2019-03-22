@@ -34,10 +34,10 @@ template <unsigned GridSize,
           unsigned WeiBlockCopyThreadPerDim1,
           unsigned InBlockCopyDataPerRead,
           unsigned WeiBlockCopyDataPerRead>
-__global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer(
-    const Float* const __restrict__ p_in_global,
-    const Float* const __restrict__ p_wei_global,
-    Float* const __restrict__ p_out_global)
+__global__ void
+gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restrict__ p_in_global,
+                                                    const Float* const __restrict__ p_wei_global,
+                                                    Float* const __restrict__ p_out_global)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -178,19 +178,6 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_b
     constexpr auto c_kxb_thread_mtx_desc =
         make_ConstantMatrixDescriptor(Number<KPerThread>{}, Number<BPerThread>{});
 
-#if 0
-    const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadC<BlockSize,
-                                                                 decltype(a_cxk_block_mtx_desc),
-                                                                 decltype(b_cxb_block_mtx_desc),
-                                                                 decltype(c_kxb_thread_mtx_desc),
-                                                                 true,
-                                                                 false,
-                                                                 false,
-                                                                 GemmKPerThreadLoop,
-                                                                 GemmThreadPerColumnPerCluster,
-                                                                 GemmThreadPerRowPerCluster,
-                                                                 true>{};
-#else
     const auto blockwise_gemm =
         BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<BlockSize,
                                                                 decltype(a_cxk_block_mtx_desc),
@@ -203,7 +190,6 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_b
                                                                 GemmMLevel1Cluster,
                                                                 GemmNLevel1Cluster,
                                                                 GemmKPerThreadLoop>{};
-#endif
 
     // LDS: be careful of alignment
     constexpr unsigned in_block_size =
@@ -216,12 +202,9 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_b
                                        ? InBlockCopyDataPerRead
                                        : WeiBlockCopyDataPerRead;
 
-    // LDS double buffer
-    __shared__ Float p_in_block_0[max_align * ((in_block_size + max_align - 1) / max_align)];
-    __shared__ Float p_wei_block_0[max_align * ((wei_block_size + max_align - 1) / max_align)];
-
-    __shared__ Float p_in_block_1[max_align * ((in_block_size + max_align - 1) / max_align)];
-    __shared__ Float p_wei_block_1[max_align * ((wei_block_size + max_align - 1) / max_align)];
+    // LDS
+    __shared__ Float p_in_block[max_align * ((in_block_size + max_align - 1) / max_align)];
+    __shared__ Float p_wei_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
 
     const Float* p_in_global_block_offset =
         p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
@@ -229,49 +212,22 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_b
     const Float* p_wei_global_block_offset =
         p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
-    // preload data into LDS
-    blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_0);
-    blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_0);
-
-    p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0);
-    p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0);
-
     // register
     Float p_out_thread[out_kb_thread_desc.GetElementSpace()];
 
     // set threadwise output tensor to 0
     threadwise_2d_tensor_set_zero(out_kb_thread_desc, p_out_thread);
 
-    bool even_loop = true;
-
-    for(unsigned c_block_data_begin = 0; c_block_data_begin + CPerBlock < C;
-        c_block_data_begin += CPerBlock,
+    for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
                  p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
                  p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
-                 even_loop = !even_loop)
+                 __syncthreads())
     {
-        Float* p_in_block_now  = even_loop ? p_in_block_0 : p_in_block_1;
-        Float* p_wei_block_now = even_loop ? p_wei_block_0 : p_wei_block_1;
-
-        Float* p_in_block_next  = even_loop ? p_in_block_1 : p_in_block_0;
-        Float* p_wei_block_next = even_loop ? p_wei_block_1 : p_wei_block_0;
+        // load data
+        blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
+        blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
 
         __syncthreads();
-
-// load next data
-#if 0
-        blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_next);
-        blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_next);
-#elif 1
-        Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
-        Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
-
-        blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
-                                                   p_in_register_clipboard);
-
-        blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
-                                                    p_wei_register_clipboard);
-#endif
 
         // compute on current data
         //   a series of GEMM
@@ -285,40 +241,10 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_b
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                    (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                     p_in_block_now + y * Wi + x,
+                    (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block + y * Wi + x,
                      p_out_thread,
                      f_accum);
-            }
-        }
-
-#if 1
-        blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block_next);
-        blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block_next);
-#endif
-    }
-
-    // last computation
-    {
-        Float* p_in_block_now  = even_loop ? p_in_block_0 : p_in_block_1;
-        Float* p_wei_block_now = even_loop ? p_wei_block_0 : p_wei_block_1;
-
-        __syncthreads();
-
-        for(unsigned y = 0; y < Y; ++y)
-        {
-            for(unsigned x = 0; x < X; ++x)
-            {
-                auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
-#if 0
-                blockwise_gemm.Run
-#else
-                blockwise_gemm.Run_RegisterDoubleBuffer
-#endif
-                (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                 p_in_block_now + y * Wi + x,
-                 p_out_thread,
-                 f_accum);
             }
         }
     }
@@ -329,20 +255,6 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_b
 
     const unsigned k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
     const unsigned b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
-
-#if 0
-    if(get_block_1d_id() == 0)
-    {
-        printf("%u %u, row %u col %u, k_data_begin %u b_data_begin %u, %f %f %f %f\n",
-               get_block_1d_id(),
-               get_thread_local_1d_id(),
-               matrix_c_index.row,
-               matrix_c_index.col,
-               k_data_begin,
-               b_data_begin,
-               p_out_thread[0], p_out_thread[1], p_out_thread[2], p_out_thread[3]);
-    }
-#endif
 
     for(unsigned k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
     {

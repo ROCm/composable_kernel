@@ -131,11 +131,11 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
         did[3] = is / ref_desc.GetStride(I3);
 
-        const unsigned aindex = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+        const unsigned src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
-        const unsigned bindex = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
+        const unsigned dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
-        f(p_src[aindex], p_dst[bindex]);
+        f(p_src[src_index], p_dst[dst_index]);
     }
 
     constexpr bool has_tail = (ref_desc.GetElementSize() > NLoop * BlockSize);
@@ -162,11 +162,11 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
             did[3] = is / ref_desc.GetStride(I3);
 
-            const unsigned aindex = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+            const unsigned src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
-            const unsigned bindex = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
+            const unsigned dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
-            f(p_src[aindex], p_dst[bindex]);
+            f(p_src[src_index], p_dst[dst_index]);
         }
     }
 }
@@ -199,15 +199,110 @@ blockwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
 }
 
-template <unsigned BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
+template <unsigned BlockSize,
+          class Float,
+          class SrcDesc,
+          class DstDesc,
+          class CopyLengths,
+          unsigned DataPerRead>
 struct Blockwise4dTensorCopy1
 {
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
+
+    __device__ constexpr Blockwise4dTensorCopy1()
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        static_assert(DataPerRead == 1 ||
+                          (SrcDesc{}.GetStride(I3) == 1 && DstDesc{}.GetStride(I3) == 1),
+                      "wrong! only support stride3 == 1 if DataPerRead > 1!\n");
+
+        static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
+                      "wrong! only support DataPerRead == 1, 2 or 4!\n");
+
+        static_assert(SrcDesc{}.GetStride(I2) % DataPerRead == 0 &&
+                          DstDesc{}.GetStride(I2) % DataPerRead == 0,
+                      "src and dst stride2 should be multiple of DataPerRead to keep alignment");
+
+        // we allow out-of-bound read from src in D3 dimension,
+        //   but we need to make sure dst stride2 is big enough,
+        //   so that the out-of-bound write won't contaminate next line in dst
+        constexpr unsigned L3          = CopyLengths{}.Get(I3);
+        constexpr unsigned read_per_d3 = integer_divide_ceil(L3, DataPerRead);
+
+        static_assert(read_per_d3 * DataPerRead <= DstDesc{}.GetStride(I2),
+                      "wrong! out-of-bound write will contaminate next line!\n");
+    }
+
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        constexpr auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
 
-        blockwise_4d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
-            SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
+        constexpr auto src_desc = SrcDesc{};
+        constexpr auto dst_desc = DstDesc{};
+
+        constexpr unsigned L0 = CopyLengths{}.Get(I0);
+        constexpr unsigned L1 = CopyLengths{}.Get(I1);
+        constexpr unsigned L2 = CopyLengths{}.Get(I2);
+        constexpr unsigned L3 = CopyLengths{}.Get(I3);
+
+        constexpr unsigned read_per_d3 = integer_divide_ceil(L3, DataPerRead);
+
+        constexpr auto ref_desc =
+            make_ConstantTensorDescriptor(Sequence<L0, L1, L2, read_per_d3>{});
+
+        constexpr unsigned NLoop = ref_desc.GetElementSize() / BlockSize;
+
+        auto f_copy = [&](unsigned is) {
+            unsigned did[4];
+
+            did[0] = is / ref_desc.GetStride(I0);
+
+            is -= did[0] * ref_desc.GetStride(I0);
+
+            did[1] = is / ref_desc.GetStride(I1);
+
+            is -= did[1] * ref_desc.GetStride(I1);
+
+            did[2] = is / ref_desc.GetStride(I2);
+
+            is -= did[2] * ref_desc.GetStride(I2);
+
+            did[3] = is / ref_desc.GetStride(I3);
+
+            const unsigned src_index =
+                src_desc.Get1dIndex(did[0], did[1], did[2], did[3] * DataPerRead);
+            const unsigned dst_index =
+                dst_desc.Get1dIndex(did[0], did[1], did[2], did[3] * DataPerRead);
+
+            *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
+                *(reinterpret_cast<const vector_t*>(p_src + src_index));
+        };
+
+        for(unsigned iloop = 0; iloop < NLoop; ++iloop)
+        {
+            unsigned is = threadIdx.x + iloop * BlockSize;
+
+            f_copy(is);
+        }
+
+        constexpr bool has_tail = (ref_desc.GetElementSize() > NLoop * BlockSize);
+
+        if(has_tail)
+        {
+            unsigned is = threadIdx.x + NLoop * BlockSize;
+
+            if(is < ref_desc.GetElementSize())
+            {
+                f_copy(is);
+            }
+        }
     }
 };
 
@@ -350,7 +445,7 @@ template <unsigned BlockSize,
           unsigned DataPerRead>
 struct Blockwise4dTensorCopy3
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::type;
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     unsigned mSrcMyThreadOffset;
     unsigned mDstMyThreadOffset;
@@ -362,8 +457,9 @@ struct Blockwise4dTensorCopy3
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
 
-        static_assert(SrcDesc{}.GetStride(I3) == 1 && DstDesc{}.GetStride(I3) == 1,
-                      "wrong! only support stride3 == 1!\n");
+        static_assert(DataPerRead == 1 ||
+                          (SrcDesc{}.GetStride(I3) == 1 && DstDesc{}.GetStride(I3) == 1),
+                      "wrong! only support stride3 == 1 if DataPerRead > 1!\n");
 
         static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
                       "wrong! only support DataPerRead == 1, 2 or 4!\n");
@@ -371,7 +467,7 @@ struct Blockwise4dTensorCopy3
         static_assert(
             SrcDesc{}.GetStride(I2) % DataPerRead == 0 &&
                 DstDesc{}.GetStride(I2) % DataPerRead == 0,
-            "wrong! src and dst stride should be multiple of DataPerRead to keep alignment");
+            "wrong! src and dst stride2 should be multiple of DataPerRead to keep alignment");
 
         constexpr unsigned L0 = CopyLengths{}.Get(I0);
         constexpr unsigned L1 = CopyLengths{}.Get(I1);
