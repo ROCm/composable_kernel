@@ -7,10 +7,11 @@
 #include "tensor.hpp"
 #include "ConstantTensorDescriptor.hip.hpp"
 #include "conv_common.hip.hpp"
-#include "device_direct_convolution_1.hpp"
-#include "device_direct_convolution_2.hpp"
+//#include "device_direct_convolution_1.hpp"
+#include "device_direct_convolution_2_nchw_kcyx_nkhw.hpp"
+//#include "device_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hpp"
 #include "device_implicit_gemm_convolution_1_chwn_cyxk_khwn.hpp"
-#include "device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
+//#include "device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
 #include "device_implicit_gemm_convolution_2_chwn_cyxk_khwn.hpp"
 
 struct GeneratorTensor_1
@@ -31,25 +32,6 @@ struct GeneratorTensor_2
     double operator()(Is...)
     {
         return (std::rand() % (max_value - min_value)) + min_value;
-    }
-};
-
-struct GeneratorTensor_3
-{
-    template <class... Is>
-    double operator()(Is... is)
-    {
-#if 0
-        std::initializer_list<std::size_t> ls = {static_cast<std::size_t>(is)...};
-        return std::accumulate(ls.begin(), ls.end(), std::size_t(0));
-#elif 1
-        assert(sizeof...(Is) > 0);
-        std::initializer_list<std::size_t> ids = {static_cast<std::size_t>(is)...};
-        std::vector<std::size_t> lens(sizeof...(Is), 100);
-        std::vector<std::size_t> strides(sizeof...(Is), 1);
-        std::partial_sum(lens.rbegin(), lens.rbegin() + (sizeof...(Is)-1), strides.rbegin() + 1);
-        return std::inner_product(ids.begin(), ids.end(), strides.begin(), std::size_t(0)) + 1;
-#endif
     }
 };
 
@@ -106,9 +88,12 @@ auto make_TensorDescriptor(TConstTensorDesc)
     return TensorDescriptor(lengths, strides);
 }
 
-template <class T, class LowerPads, class UpperPads>
-void host_direct_convolution(
-    const Tensor<T>& in_nchw, const Tensor<T>& wei_kcyx, Tensor<T>& out, LowerPads, UpperPads)
+template <class TIn, class TWei, class TOut, class LowerPads, class UpperPads>
+void host_direct_convolution(const Tensor<TIn>& in_nchw,
+                             const Tensor<TWei>& wei_kcyx,
+                             Tensor<TOut>& out_nkhw,
+                             LowerPads,
+                             UpperPads)
 {
     unsigned h_pad_low = LowerPads{}.Get(Number<0>{});
     unsigned w_pad_low = LowerPads{}.Get(Number<1>{});
@@ -129,26 +114,29 @@ void host_direct_convolution(
                     if(hi >= 0 && hi < in_nchw.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in_nchw.mDesc.GetLengths()[3])
                     {
-                        v += in_nchw(n, c, hi, wi) * wei_kcyx(k, c, y, x);
+                        v += double(in_nchw(n, c, hi, wi)) * double(wei_kcyx(k, c, y, x));
                     }
                 }
             }
         }
-        out(n, k, ho, wo) = v;
+        out_nkhw(n, k, ho, wo) = v;
     };
 
     auto f_par = make_ParallelTensorFunctor(f,
-                                            out.mDesc.GetLengths()[0],
-                                            out.mDesc.GetLengths()[1],
-                                            out.mDesc.GetLengths()[2],
-                                            out.mDesc.GetLengths()[3]);
+                                            out_nkhw.mDesc.GetLengths()[0],
+                                            out_nkhw.mDesc.GetLengths()[1],
+                                            out_nkhw.mDesc.GetLengths()[2],
+                                            out_nkhw.mDesc.GetLengths()[3]);
 
     f_par(std::thread::hardware_concurrency());
 }
 
-template <class T, class LowerPads, class UpperPads>
-void host_winograd_3x3_convolution(
-    const Tensor<T>& in_nchw, const Tensor<T>& wei_kcyx, Tensor<T>& out, LowerPads, UpperPads)
+template <class TIn, class TWei, class TOut, class LowerPads, class UpperPads>
+void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
+                                   const Tensor<TWei>& wei_kcyx,
+                                   Tensor<TOut>& out_nkhw,
+                                   LowerPads,
+                                   UpperPads)
 {
     constexpr std::size_t HoPerTile = 2;
     constexpr std::size_t WoPerTile = 2;
@@ -162,8 +150,8 @@ void host_winograd_3x3_convolution(
     std::size_t Y = wei_kcyx.mDesc.GetLengths()[2];
     std::size_t X = wei_kcyx.mDesc.GetLengths()[3];
 
-    std::size_t HO = out.mDesc.GetLengths()[2];
-    std::size_t WO = out.mDesc.GetLengths()[3];
+    std::size_t HO = out_nkhw.mDesc.GetLengths()[2];
+    std::size_t WO = out_nkhw.mDesc.GetLengths()[3];
 
     unsigned h_pad_low = LowerPads{}.Get(Number<0>{});
     unsigned w_pad_low = LowerPads{}.Get(Number<1>{});
@@ -177,11 +165,11 @@ void host_winograd_3x3_convolution(
     std::size_t HTile = (HO + HoPerTile - 1) / HoPerTile;
     std::size_t WTile = (WO + WoPerTile - 1) / WoPerTile;
 
-    Tensor<T> in_hold({N, C, HTile, WTile, HiPerTile, WiPerTile});
-    Tensor<T> in_transform({N, C, HTile, WTile, HiPerTile, WiPerTile});
-    Tensor<T> wei_transform({K, C, HiPerTile, WiPerTile});
-    Tensor<T> out_transform({N, K, HTile, WTile, HiPerTile, HiPerTile});
-    Tensor<T> out_hold({N, K, HTile, WTile, HoPerTile, WoPerTile});
+    Tensor<double> in_hold({N, C, HTile, WTile, HiPerTile, WiPerTile});
+    Tensor<double> in_transform({N, C, HTile, WTile, HiPerTile, WiPerTile});
+    Tensor<double> wei_transform({K, C, HiPerTile, WiPerTile});
+    Tensor<double> out_transform({N, K, HTile, WTile, HiPerTile, HiPerTile});
+    Tensor<double> out_hold({N, K, HTile, WTile, HoPerTile, WoPerTile});
 
     auto f_in_hold = [&](auto n, auto c, auto htile, auto wtile) {
         for(int j = 0; j < HiPerTile; ++j)
@@ -198,7 +186,7 @@ void host_winograd_3x3_convolution(
                 }
                 else
                 {
-                    in_hold(n, c, htile, wtile, j, i) = T(0);
+                    in_hold(n, c, htile, wtile, j, i) = TIn(0);
                 }
             }
         }
@@ -259,49 +247,61 @@ void host_winograd_3x3_convolution(
     };
 
     auto f_wei_transform = [&](auto k, auto c) {
-        wei_transform(k, c, 0, 0) = wei_kcyx(k, c, 0, 0);
-        wei_transform(k, c, 0, 1) =
-            0.5 * wei_kcyx(k, c, 0, 0) + 0.5 * wei_kcyx(k, c, 0, 1) + 0.5 * wei_kcyx(k, c, 0, 2);
-        wei_transform(k, c, 0, 2) =
-            0.5 * wei_kcyx(k, c, 0, 0) - 0.5 * wei_kcyx(k, c, 0, 1) + 0.5 * wei_kcyx(k, c, 0, 2);
-        wei_transform(k, c, 0, 3) = wei_kcyx(k, c, 0, 2);
+        wei_transform(k, c, 0, 0) = double(wei_kcyx(k, c, 0, 0));
+        wei_transform(k, c, 0, 1) = 0.5 * double(wei_kcyx(k, c, 0, 0)) +
+                                    0.5 * double(wei_kcyx(k, c, 0, 1)) +
+                                    0.5 * double(wei_kcyx(k, c, 0, 2));
+        wei_transform(k, c, 0, 2) = 0.5 * double(wei_kcyx(k, c, 0, 0)) -
+                                    0.5 * double(wei_kcyx(k, c, 0, 1)) +
+                                    0.5 * double(wei_kcyx(k, c, 0, 2));
+        wei_transform(k, c, 0, 3) = double(wei_kcyx(k, c, 0, 2));
 
-        wei_transform(k, c, 1, 0) =
-            0.5 * wei_kcyx(k, c, 0, 0) + 0.5 * wei_kcyx(k, c, 1, 0) + 0.5 * wei_kcyx(k, c, 2, 0);
-        wei_transform(k, c, 1, 1) = 0.25 * wei_kcyx(k, c, 0, 0) + 0.25 * wei_kcyx(k, c, 0, 1) +
-                                    0.25 * wei_kcyx(k, c, 0, 2) + 0.25 * wei_kcyx(k, c, 1, 0) +
-                                    0.25 * wei_kcyx(k, c, 1, 1) + 0.25 * wei_kcyx(k, c, 1, 2) +
-                                    0.25 * wei_kcyx(k, c, 2, 0) + 0.25 * wei_kcyx(k, c, 2, 1) +
-                                    0.25 * wei_kcyx(k, c, 2, 2);
-        wei_transform(k, c, 1, 2) = 0.25 * wei_kcyx(k, c, 0, 0) - 0.25 * wei_kcyx(k, c, 0, 1) +
-                                    0.25 * wei_kcyx(k, c, 0, 2) + 0.25 * wei_kcyx(k, c, 1, 0) -
-                                    0.25 * wei_kcyx(k, c, 1, 1) + 0.25 * wei_kcyx(k, c, 1, 2) +
-                                    0.25 * wei_kcyx(k, c, 2, 0) - 0.25 * wei_kcyx(k, c, 2, 1) +
-                                    0.25 * wei_kcyx(k, c, 2, 2);
-        wei_transform(k, c, 1, 3) =
-            0.5 * wei_kcyx(k, c, 0, 2) + 0.5 * wei_kcyx(k, c, 1, 2) + 0.5 * wei_kcyx(k, c, 2, 2);
+        wei_transform(k, c, 1, 0) = 0.5 * double(wei_kcyx(k, c, 0, 0)) +
+                                    0.5 * double(wei_kcyx(k, c, 1, 0)) +
+                                    0.5 * double(wei_kcyx(k, c, 2, 0));
+        wei_transform(k, c, 1, 1) =
+            0.25 * double(wei_kcyx(k, c, 0, 0)) + 0.25 * double(wei_kcyx(k, c, 0, 1)) +
+            0.25 * double(wei_kcyx(k, c, 0, 2)) + 0.25 * double(wei_kcyx(k, c, 1, 0)) +
+            0.25 * double(wei_kcyx(k, c, 1, 1)) + 0.25 * double(wei_kcyx(k, c, 1, 2)) +
+            0.25 * double(wei_kcyx(k, c, 2, 0)) + 0.25 * double(wei_kcyx(k, c, 2, 1)) +
+            0.25 * double(wei_kcyx(k, c, 2, 2));
+        wei_transform(k, c, 1, 2) =
+            0.25 * double(wei_kcyx(k, c, 0, 0)) - 0.25 * double(wei_kcyx(k, c, 0, 1)) +
+            0.25 * double(wei_kcyx(k, c, 0, 2)) + 0.25 * double(wei_kcyx(k, c, 1, 0)) -
+            0.25 * double(wei_kcyx(k, c, 1, 1)) + 0.25 * double(wei_kcyx(k, c, 1, 2)) +
+            0.25 * double(wei_kcyx(k, c, 2, 0)) - 0.25 * double(wei_kcyx(k, c, 2, 1)) +
+            0.25 * double(wei_kcyx(k, c, 2, 2));
+        wei_transform(k, c, 1, 3) = 0.5 * double(wei_kcyx(k, c, 0, 2)) +
+                                    0.5 * double(wei_kcyx(k, c, 1, 2)) +
+                                    0.5 * double(wei_kcyx(k, c, 2, 2));
 
-        wei_transform(k, c, 2, 0) =
-            0.5 * wei_kcyx(k, c, 0, 0) - 0.5 * wei_kcyx(k, c, 1, 0) + 0.5 * wei_kcyx(k, c, 2, 0);
-        wei_transform(k, c, 2, 1) = 0.25 * wei_kcyx(k, c, 0, 0) + 0.25 * wei_kcyx(k, c, 0, 1) +
-                                    0.25 * wei_kcyx(k, c, 0, 2) - 0.25 * wei_kcyx(k, c, 1, 0) -
-                                    0.25 * wei_kcyx(k, c, 1, 1) - 0.25 * wei_kcyx(k, c, 1, 2) +
-                                    0.25 * wei_kcyx(k, c, 2, 0) + 0.25 * wei_kcyx(k, c, 2, 1) +
-                                    0.25 * wei_kcyx(k, c, 2, 2);
-        wei_transform(k, c, 2, 2) = 0.25 * wei_kcyx(k, c, 0, 0) - 0.25 * wei_kcyx(k, c, 0, 1) +
-                                    0.25 * wei_kcyx(k, c, 0, 2) - 0.25 * wei_kcyx(k, c, 1, 0) +
-                                    0.25 * wei_kcyx(k, c, 1, 1) - 0.25 * wei_kcyx(k, c, 1, 2) +
-                                    0.25 * wei_kcyx(k, c, 2, 0) - 0.25 * wei_kcyx(k, c, 2, 1) +
-                                    0.25 * wei_kcyx(k, c, 2, 2);
-        wei_transform(k, c, 2, 3) =
-            0.5 * wei_kcyx(k, c, 0, 2) - 0.5 * wei_kcyx(k, c, 1, 2) + 0.5 * wei_kcyx(k, c, 2, 2);
+        wei_transform(k, c, 2, 0) = 0.5 * double(wei_kcyx(k, c, 0, 0)) -
+                                    0.5 * double(wei_kcyx(k, c, 1, 0)) +
+                                    0.5 * double(wei_kcyx(k, c, 2, 0));
+        wei_transform(k, c, 2, 1) =
+            0.25 * double(wei_kcyx(k, c, 0, 0)) + 0.25 * double(wei_kcyx(k, c, 0, 1)) +
+            0.25 * double(wei_kcyx(k, c, 0, 2)) - 0.25 * double(wei_kcyx(k, c, 1, 0)) -
+            0.25 * double(wei_kcyx(k, c, 1, 1)) - 0.25 * double(wei_kcyx(k, c, 1, 2)) +
+            0.25 * double(wei_kcyx(k, c, 2, 0)) + 0.25 * double(wei_kcyx(k, c, 2, 1)) +
+            0.25 * double(wei_kcyx(k, c, 2, 2));
+        wei_transform(k, c, 2, 2) =
+            0.25 * double(wei_kcyx(k, c, 0, 0)) - 0.25 * double(wei_kcyx(k, c, 0, 1)) +
+            0.25 * double(wei_kcyx(k, c, 0, 2)) - 0.25 * double(wei_kcyx(k, c, 1, 0)) +
+            0.25 * double(wei_kcyx(k, c, 1, 1)) - 0.25 * double(wei_kcyx(k, c, 1, 2)) +
+            0.25 * double(wei_kcyx(k, c, 2, 0)) - 0.25 * double(wei_kcyx(k, c, 2, 1)) +
+            0.25 * double(wei_kcyx(k, c, 2, 2));
+        wei_transform(k, c, 2, 3) = 0.5 * double(wei_kcyx(k, c, 0, 2)) -
+                                    0.5 * double(wei_kcyx(k, c, 1, 2)) +
+                                    0.5 * double(wei_kcyx(k, c, 2, 2));
 
-        wei_transform(k, c, 3, 0) = wei_kcyx(k, c, 2, 0);
-        wei_transform(k, c, 3, 1) =
-            0.5 * wei_kcyx(k, c, 2, 0) + 0.5 * wei_kcyx(k, c, 2, 1) + 0.5 * wei_kcyx(k, c, 2, 2);
-        wei_transform(k, c, 3, 2) =
-            0.5 * wei_kcyx(k, c, 2, 0) - 0.5 * wei_kcyx(k, c, 2, 1) + 0.5 * wei_kcyx(k, c, 2, 2);
-        wei_transform(k, c, 3, 3) = wei_kcyx(k, c, 2, 2);
+        wei_transform(k, c, 3, 0) = double(wei_kcyx(k, c, 2, 0));
+        wei_transform(k, c, 3, 1) = 0.5 * double(wei_kcyx(k, c, 2, 0)) +
+                                    0.5 * double(wei_kcyx(k, c, 2, 1)) +
+                                    0.5 * double(wei_kcyx(k, c, 2, 2));
+        wei_transform(k, c, 3, 2) = 0.5 * double(wei_kcyx(k, c, 2, 0)) -
+                                    0.5 * double(wei_kcyx(k, c, 2, 1)) +
+                                    0.5 * double(wei_kcyx(k, c, 2, 2));
+        wei_transform(k, c, 3, 3) = double(wei_kcyx(k, c, 2, 2));
     };
 
     auto f_out_transform = [&](auto n, auto k, auto htile, auto wtile) {
@@ -354,7 +354,7 @@ void host_winograd_3x3_convolution(
             for(int i = 0; i < WoPerTile; ++i)
             {
                 std::size_t wo = WoPerTile * wtile + i;
-                out(n, k, ho, wo) = out_hold(n, k, htile, wtile, j, i);
+                out_nkhw(n, k, ho, wo) = out_hold(n, k, htile, wtile, j, i);
             }
         }
     };
@@ -372,20 +372,25 @@ void host_winograd_3x3_convolution(
 template <class T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
+    // printf("\n");
+
     float error     = 0;
     float max_diff  = -1;
     float ref_value = 0, result_value = 0;
     for(int i = 0; i < ref.mData.size(); ++i)
     {
-        error += std::abs(ref.mData[i] - result.mData[i]);
-        float diff = std::abs(ref.mData[i] - result.mData[i]);
+        error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
+        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
         if(max_diff < diff)
         {
             max_diff     = diff;
             ref_value    = ref.mData[i];
             result_value = result.mData[i];
         }
+
+        // printf("{%f, %f}", double(ref.mData[i]), double(result.mData[i]));
     }
+    // printf("\n");
 
     std::cout << "error: " << error << std::endl;
     std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
@@ -404,7 +409,7 @@ int main(int argc, char* argv[])
 
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
-#elif 1
+#elif 0
     // 3x3, 34x34
     constexpr unsigned N  = 64;
     constexpr unsigned C  = 256;
@@ -563,6 +568,30 @@ int main(int argc, char* argv[])
 
     constexpr unsigned HPad = 2;
     constexpr unsigned WPad = 2;
+#elif 0
+    // 1x1 filter, 32x32 image
+    constexpr unsigned N  = 64;
+    constexpr unsigned C  = 256;
+    constexpr unsigned HI = 32;
+    constexpr unsigned WI = 32;
+    constexpr unsigned K  = 512;
+    constexpr unsigned Y  = 1;
+    constexpr unsigned X  = 1;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
+#elif 1
+    // 1x1 filter, 14x14 image
+    constexpr unsigned N  = 128;
+    constexpr unsigned C  = 2048;
+    constexpr unsigned HI = 14;
+    constexpr unsigned WI = 14;
+    constexpr unsigned K  = 512;
+    constexpr unsigned Y  = 1;
+    constexpr unsigned X  = 1;
+
+    constexpr unsigned HPad = 0;
+    constexpr unsigned WPad = 0;
 #endif
 
     auto lower_pads = Sequence<HPad, WPad>{};
@@ -577,10 +606,12 @@ int main(int argc, char* argv[])
     ostream_ConstantTensorDescriptor(wei_kcyx_desc, std::cout << "wei_kcyx_desc: ");
     ostream_ConstantTensorDescriptor(out_nkhw_desc, std::cout << "out_nkhw_desc: ");
 
-    Tensor<float> in_nchw(make_TensorDescriptor(in_nchw_desc));
-    Tensor<float> wei_kcyx(make_TensorDescriptor(wei_kcyx_desc));
-    Tensor<float> out_nkhw_host(make_TensorDescriptor(out_nkhw_desc));
-    Tensor<float> out_nkhw_device(make_TensorDescriptor(out_nkhw_desc));
+    using in_data_t  = float;
+    using out_data_t = float;
+    Tensor<in_data_t> in_nchw(make_TensorDescriptor(in_nchw_desc));
+    Tensor<in_data_t> wei_kcyx(make_TensorDescriptor(wei_kcyx_desc));
+    Tensor<out_data_t> out_nkhw_host(make_TensorDescriptor(out_nkhw_desc));
+    Tensor<out_data_t> out_nkhw_device(make_TensorDescriptor(out_nkhw_desc));
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
@@ -601,9 +632,13 @@ int main(int argc, char* argv[])
 #elif 1
         in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-#elif 1
-        in_nchw.GenerateTensorValue(GeneratorTensor_2{-2, 2}, num_thread);
-        wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+#elif 0
+        in_nchw.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
+
+        auto gen_wei = [](auto... is) {
+            return GeneratorTensor_2{1, 5}(is...) * GeneratorTensor_Checkboard{}(is...);
+        };
+        wei_kcyx.GenerateTensorValue(gen_wei, num_thread);
 #endif
     }
 
@@ -611,7 +646,9 @@ int main(int argc, char* argv[])
 #if 0
     device_direct_convolution_1
 #elif 0
-    device_direct_convolution_2
+    device_direct_convolution_2_nchw_kcyx_nkhw
+#elif 0
+    device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
 #elif 1
     device_implicit_gemm_convolution_1_chwn_cyxk_khwn
 #elif 0
@@ -633,7 +670,6 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-#if 1
         if(Y == 3 && X == 3)
         {
             host_winograd_3x3_convolution(in_nchw, wei_kcyx, out_nkhw_host, lower_pads, upper_pads);
@@ -643,7 +679,6 @@ int main(int argc, char* argv[])
             host_direct_convolution(in_nchw, wei_kcyx, out_nkhw_host, lower_pads, upper_pads);
         }
         check_error(out_nkhw_host, out_nkhw_device);
-#endif
 
 #if 0
         LogRange(std::cout << "in_nchw : ", in_nchw.mData, ",") << std::endl;

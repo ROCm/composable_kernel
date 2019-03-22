@@ -10,7 +10,7 @@ __device__ void threadwise_6d_tensor_copy(SrcDesc,
                                           SrcOpLengths,
                                           Number<DataPerRead>)
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::type;
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     static_assert(SrcDesc{}.GetDimension() == 6 && DstDesc{}.GetDimension() == 6 &&
                       SrcOpLengths::nDim == 6,
@@ -80,7 +80,7 @@ __device__ void threadwise_8d_tensor_copy(SrcDesc,
                                           SrcOpLengths,
                                           Number<DataPerRead>)
 {
-    using vector_t = typename vector_type<Float, DataPerRead>::type;
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     static_assert(SrcDesc{}.GetDimension() == 8 && DstDesc{}.GetDimension() == 8 &&
                       SrcOpLengths::nDim == 8,
