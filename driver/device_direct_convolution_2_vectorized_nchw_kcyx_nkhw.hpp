@@ -51,7 +51,7 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
         in_nchw_vec(n, c, h, w) =
             vector_t::Pack(in_nchw(n, 2 * c, h, w), in_nchw(n, 2 * c + 1, h, w));
 #elif 1
-        in_nchw_vec(n, c, h, w)  = vector_t::Pack(in_nchw(n, 4 * c, h, w),
+        in_nchw_vec(n, c, h, w) = vector_t::Pack(in_nchw(n, 4 * c, h, w),
                                                  in_nchw(n, 4 * c + 1, h, w),
                                                  in_nchw(n, 4 * c + 2, h, w),
                                                  in_nchw(n, 4 * c + 3, h, w));
@@ -113,37 +113,37 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     constexpr unsigned BlockSize = 128;
 #elif 0
     // 3x3, 34x34, 128 thread, fp32, vector = 2
-    constexpr unsigned NPerBlock = 2;
-    constexpr unsigned KPerBlock = 32;
-    constexpr unsigned CPerBlock = 2;
+    constexpr unsigned NPerBlock  = 2;
+    constexpr unsigned KPerBlock  = 32;
+    constexpr unsigned CPerBlock  = 2;
     constexpr unsigned HoPerBlock = 2;
     constexpr unsigned WoPerBlock = 32;
 
-    constexpr unsigned NPerThread = 2;
-    constexpr unsigned KPerThread = 4;
-    constexpr unsigned CPerThread = 1;
+    constexpr unsigned NPerThread  = 2;
+    constexpr unsigned KPerThread  = 4;
+    constexpr unsigned CPerThread  = 1;
     constexpr unsigned HoPerThread = 2;
     constexpr unsigned WoPerThread = 2;
 
-    constexpr unsigned InBlockCopyDataPerRead = 2;
+    constexpr unsigned InBlockCopyDataPerRead  = 2;
     constexpr unsigned WeiBlockCopyDataPerRead = 2;
 
     constexpr unsigned BlockSize = 128;
 #elif 0
     // 3x3, 34x34, 128 thread, int8, vector = 4
-    constexpr unsigned NPerBlock = 2;
-    constexpr unsigned KPerBlock = 32;
-    constexpr unsigned CPerBlock = 8;
+    constexpr unsigned NPerBlock  = 2;
+    constexpr unsigned KPerBlock  = 32;
+    constexpr unsigned CPerBlock  = 8;
     constexpr unsigned HoPerBlock = 4;
     constexpr unsigned WoPerBlock = 32;
 
-    constexpr unsigned NPerThread = 1;
-    constexpr unsigned KPerThread = 8;
-    constexpr unsigned CPerThread = 2;
+    constexpr unsigned NPerThread  = 1;
+    constexpr unsigned KPerThread  = 8;
+    constexpr unsigned CPerThread  = 2;
     constexpr unsigned HoPerThread = 4;
     constexpr unsigned WoPerThread = 2;
 
-    constexpr unsigned InBlockCopyDataPerRead = 2;
+    constexpr unsigned InBlockCopyDataPerRead  = 2;
     constexpr unsigned WeiBlockCopyDataPerRead = 2;
 
     constexpr unsigned BlockSize = 128;

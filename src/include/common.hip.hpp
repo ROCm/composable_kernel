@@ -21,6 +21,7 @@ struct is_same<T, T>
     static const bool value = true;
 };
 
+#if 0
 template <typename T>
 __host__ __device__ constexpr T max(T a, T b)
 {
@@ -32,6 +33,7 @@ __host__ __device__ constexpr T min(T a, T b)
 {
     return a < b ? a : b;
 }
+#endif
 
 __host__ __device__ constexpr unsigned integer_divide_ceil(unsigned a, unsigned b)
 {

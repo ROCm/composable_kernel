@@ -10,7 +10,7 @@ struct Array
     unsigned mData[nSize];
 
     template <class... Xs>
-    __host__ __device__ Array(Xs... xs) : mData({static_cast<TData>(xs)...})
+    __host__ __device__ Array(Xs... xs) : mData{static_cast<TData>(xs)...}
     {
     }
 
