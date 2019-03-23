@@ -593,9 +593,9 @@ int main(int argc, char* argv[])
     constexpr unsigned HPad = 0;
     constexpr unsigned WPad = 0;
 #elif 1
-    // 1x1 filter, 14x14 image, C = 256
+    // 1x1 filter, 14x14 image, C = 512
     constexpr unsigned N  = 128;
-    constexpr unsigned C  = 256;
+    constexpr unsigned C  = 512;
     constexpr unsigned HI = 14;
     constexpr unsigned WI = 14;
     constexpr unsigned K  = 512;
