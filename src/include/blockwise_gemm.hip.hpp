@@ -435,12 +435,11 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 #pragma unroll
         for(unsigned k_begin = 0; k_begin < KPerBlock; k_begin += KPerThreadLoop)
         {
-            // read first batch of A, B
-            //   copy A-sub to form A
-            //#pragma unroll
+// read first batch of A, B
+//   copy A-sub to form A
+#pragma unroll
             for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
             {
-#if 0
                 threadwise_matrix_copy(
                     a_block_mtx,
                     p_a_block + a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
@@ -448,25 +447,12 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     a_thread_mtx,
                     p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
                     a_thread_sub_mtx.GetLengths());
-#else
-                for(unsigned i = 0; i < a_thread_mtx.NRow(); ++i)
-                {
-                    for(unsigned j = 0; j < a_thread_mtx.NCol(); ++j)
-                    {
-                        p_a_thread[a_thread_mtx.Get1dIndex(i, m_repeat * MPerThreadSubC + j)] =
-                            p_a_block[a_block_mtx.Get1dIndex(k_begin + i,
-                                                             m_repeat * MPerLevel1Cluster + j) +
-                                      mMyThreadOffsetA];
-                    }
-                }
-#endif
             }
 
-            //   copy B-sub to form B
-            //#pragma unroll
+//   copy B-sub to form B
+#pragma unroll
             for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
             {
-#if 0
                 threadwise_matrix_copy(
                     b_block_mtx,
                     p_b_block + b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
@@ -474,26 +460,13 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     b_thread_mtx,
                     p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
                     b_thread_sub_mtx.GetLengths());
-#else
-                for(unsigned i = 0; i < b_thread_mtx.NRow(); ++i)
-                {
-                    for(unsigned j = 0; j < b_thread_mtx.NCol(); ++j)
-                    {
-                        p_b_thread[b_thread_mtx.Get1dIndex(i, n_repeat * NPerThreadSubC + j)] =
-                            p_b_block[b_block_mtx.Get1dIndex(k_begin + i,
-                                                             n_repeat * MPerLevel1Cluster + j) +
-                                      mMyThreadOffsetB];
-                    }
-                }
-#endif
             }
 
-            // loop over batch
-            //#pragma unroll
+// loop over batch
+#pragma unroll
             for(unsigned ib = 0; ib + 1 < BatchPerThread; ++ib)
             {
-// do current batch of gemm
-#if 0
+                // do current batch of gemm
                 threadwise_gemm(a_thread_mtx,
                                 True,
                                 p_a_thread,
@@ -504,7 +477,140 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                                 False,
                                 p_c_thread + ib * ThreadMatrixStrideC,
                                 f_accum);
-#else
+
+                // read next batch of a, b
+                if(BlockMatrixStrideA != 0)
+                {
+#pragma unroll
+                    for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
+                    {
+                        threadwise_matrix_copy(
+                            a_block_mtx,
+                            p_a_block +
+                                a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
+                                (ib + 1) * BlockMatrixStrideA + mMyThreadOffsetA,
+                            a_thread_mtx,
+                            p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                            a_thread_sub_mtx.GetLengths());
+                    }
+                }
+
+                if(BlockMatrixStrideB != 0)
+                {
+#pragma unroll
+                    for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
+                    {
+                        threadwise_matrix_copy(
+                            b_block_mtx,
+                            p_b_block +
+                                b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
+                                (ib + 1) * BlockMatrixStrideB + mMyThreadOffsetB,
+                            b_thread_mtx,
+                            p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                            b_thread_sub_mtx.GetLengths());
+                    }
+                }
+            }
+
+            // do last batch of gemm
+            threadwise_gemm(a_thread_mtx,
+                            True,
+                            p_a_thread,
+                            b_thread_mtx,
+                            False,
+                            p_b_thread,
+                            c_thread_mtx,
+                            False,
+                            p_c_thread + (BatchPerThread - 1) * ThreadMatrixStrideC,
+                            f_accum);
+        }
+    }
+
+    // this version put copy and compute in same place, experimenting with compiler behaviour
+    template <class FloatA, class FloatB, class FloatC, class Accumulator>
+    __device__ void Run_v2(const FloatA* __restrict__ p_a_block,
+                           const FloatB* __restrict__ p_b_block,
+                           FloatC* __restrict__ p_c_thread,
+                           Accumulator f_accum) const
+    {
+        constexpr auto True  = integral_constant<bool, true>{};
+        constexpr auto False = integral_constant<bool, false>{};
+
+        constexpr auto a_block_mtx  = BlockMatrixA{};
+        constexpr auto b_block_mtx  = BlockMatrixB{};
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
+
+        constexpr unsigned KPerBlock = a_block_mtx.NRow(); // A is transposed
+
+        constexpr unsigned MPerThread = c_thread_mtx.NRow();
+        constexpr unsigned NPerThread = c_thread_mtx.NCol();
+
+        // thread A, B for GEMM
+        //   A is transposed, b is not
+        constexpr auto a_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
+
+        constexpr auto b_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
+
+        // thread A-sub, B-sub for copy
+        constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<MPerThreadSubC>{}, Number<MPerThread>{});
+
+        constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
+
+        FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
+        FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
+
+        constexpr unsigned MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
+        constexpr unsigned NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
+
+        constexpr unsigned MRepeat = MPerThread / MPerThreadSubC;
+        constexpr unsigned NRepeat = NPerThread / NPerThreadSubC;
+
+        // loop over k
+        //#pragma unroll
+        for(unsigned k_begin = 0; k_begin < KPerBlock; k_begin += KPerThreadLoop)
+        {
+            // read first batch of A, B
+            //   copy A-sub to form A
+            //#pragma unroll
+            for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
+            {
+                for(unsigned i = 0; i < a_thread_mtx.NRow(); ++i)
+                {
+                    for(unsigned j = 0; j < a_thread_mtx.NCol(); ++j)
+                    {
+                        p_a_thread[a_thread_mtx.Get1dIndex(i, m_repeat * MPerThreadSubC + j)] =
+                            p_a_block[a_block_mtx.Get1dIndex(k_begin + i,
+                                                             m_repeat * MPerLevel1Cluster + j) +
+                                      mMyThreadOffsetA];
+                    }
+                }
+            }
+
+            //   copy B-sub to form B
+            //#pragma unroll
+            for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
+            {
+                for(unsigned i = 0; i < b_thread_mtx.NRow(); ++i)
+                {
+                    for(unsigned j = 0; j < b_thread_mtx.NCol(); ++j)
+                    {
+                        p_b_thread[b_thread_mtx.Get1dIndex(i, n_repeat * NPerThreadSubC + j)] =
+                            p_b_block[b_block_mtx.Get1dIndex(k_begin + i,
+                                                             n_repeat * MPerLevel1Cluster + j) +
+                                      mMyThreadOffsetB];
+                    }
+                }
+            }
+
+            // loop over batch
+            //#pragma unroll
+            for(unsigned ib = 0; ib + 1 < BatchPerThread; ++ib)
+            {
+                // do current batch of gemm
                 for(unsigned k = 0; k < a_thread_mtx.NRow(); ++k)
                 {
                     for(unsigned i = 0; i < c_thread_mtx.NRow(); ++i)
@@ -521,7 +627,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                         }
                     }
                 }
-#endif
 
                 // read next batch of a, b
                 if(BlockMatrixStrideA != 0)
@@ -529,16 +634,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     //#pragma unroll
                     for(unsigned m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
                     {
-#if 0
-                        threadwise_matrix_copy(
-                            a_block_mtx,
-                            p_a_block +
-                                a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
-                                (ib + 1) * BlockMatrixStrideA + mMyThreadOffsetA,
-                            a_thread_mtx,
-                            p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
-                            a_thread_sub_mtx.GetLengths());
-#else
                         for(unsigned i = 0; i < a_thread_mtx.NRow(); ++i)
                         {
                             for(unsigned j = 0; j < a_thread_mtx.NCol(); ++j)
@@ -550,7 +645,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                                               (ib + 1) * BlockMatrixStrideA + mMyThreadOffsetA];
                             }
                         }
-#endif
                     }
                 }
 
@@ -559,16 +653,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     //#pragma unroll
                     for(unsigned n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
                     {
-#if 0
-                        threadwise_matrix_copy(
-                            b_block_mtx,
-                            p_b_block +
-                                b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
-                                (ib + 1) * BlockMatrixStrideB + mMyThreadOffsetB,
-                            b_thread_mtx,
-                            p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
-                            b_thread_sub_mtx.GetLengths());
-#else
                         for(unsigned i = 0; i < b_thread_mtx.NRow(); ++i)
                         {
                             for(unsigned j = 0; j < b_thread_mtx.NCol(); ++j)
@@ -580,24 +664,11 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                                               (ib + 1) * BlockMatrixStrideB + mMyThreadOffsetB];
                             }
                         }
-#endif
                     }
                 }
             }
 
-// do last batch of gemm
-#if 0
-            threadwise_gemm(a_thread_mtx,
-                            True,
-                            p_a_thread,
-                            b_thread_mtx,
-                            False,
-                            p_b_thread,
-                            c_thread_mtx,
-                            False,
-                            p_c_thread + (BatchPerThread - 1) * ThreadMatrixStrideC,
-                            f_accum);
-#else
+            // do last batch of gemm
             for(unsigned k = 0; k < a_thread_mtx.NRow(); ++k)
             {
                 for(unsigned i = 0; i < c_thread_mtx.NRow(); ++i)
@@ -613,7 +684,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     }
                 }
             }
-#endif
         }
     }
 
