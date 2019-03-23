@@ -209,15 +209,17 @@ gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn(const Float* const __restric
         {
             for(unsigned x = 0; x < X; ++x)
             {
-#if 1
+#if 0
                 blockwise_batch_gemm.Run
 #elif 0
                 blockwise_batch_gemm.Run_v2
+#elif 1
+                blockwise_batch_gemm.Run_v3
 #endif
-                    (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                     p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
-                     p_out_thread,
-                     [](auto& acc, const auto&& v) { acc += v; });
+                (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                 p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
+                 p_out_thread,
+                 [](auto& acc, const auto&& v) { acc += v; });
             }
         }
     }
