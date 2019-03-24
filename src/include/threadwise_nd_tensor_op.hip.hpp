@@ -2,7 +2,7 @@
 #include "ConstantTensorDescriptor.hip.hpp"
 
 // need to assume src and dst is aligned
-template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, unsigned DataPerRead>
+template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, index_t DataPerRead>
 __device__ void threadwise_6d_tensor_copy(SrcDesc,
                                           const Float* __restrict__ p_src,
                                           DstDesc,
@@ -37,28 +37,28 @@ __device__ void threadwise_6d_tensor_copy(SrcDesc,
                       DstDesc{}.GetStride(I4) % DataPerRead == 0,
                   "wrong! src and dst stride should be multiple of DataPerRead to keep alignment");
 
-    constexpr unsigned L5 = SrcOpLengths{}.Get(I5);
+    constexpr index_t L5 = SrcOpLengths{}.Get(I5);
 
     static_assert(L5 % DataPerRead == 0, "wrong! L5 should be evenly divided by DataPerRead");
 
-    constexpr unsigned nloop_d5 = L5 / DataPerRead;
+    constexpr index_t nloop_d5 = L5 / DataPerRead;
 
-    for(unsigned did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
+    for(index_t did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
     {
-        for(unsigned did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
+        for(index_t did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
         {
-            for(unsigned did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
+            for(index_t did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
             {
-                for(unsigned did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
+                for(index_t did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
                 {
-                    for(unsigned did4 = 0; did4 < ref_desc.GetLength(I4); ++did4)
+                    for(index_t did4 = 0; did4 < ref_desc.GetLength(I4); ++did4)
                     {
-                        for(unsigned iloop_d5 = 0; iloop_d5 < nloop_d5; ++iloop_d5)
+                        for(index_t iloop_d5 = 0; iloop_d5 < nloop_d5; ++iloop_d5)
                         {
-                            const unsigned src_index = src_desc.Get1dIndex(
+                            const index_t src_index = src_desc.Get1dIndex(
                                 did0, did1, did2, did3, did4, iloop_d5 * DataPerRead);
 
-                            const unsigned dst_index = dst_desc.Get1dIndex(
+                            const index_t dst_index = dst_desc.Get1dIndex(
                                 did0, did1, did2, did3, did4, iloop_d5 * DataPerRead);
 
                             *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
@@ -72,7 +72,7 @@ __device__ void threadwise_6d_tensor_copy(SrcDesc,
 }
 
 // need to assume src and dst is aligned
-template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, unsigned DataPerRead>
+template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, index_t DataPerRead>
 __device__ void threadwise_8d_tensor_copy(SrcDesc,
                                           const Float* __restrict__ p_src,
                                           DstDesc,
@@ -109,29 +109,29 @@ __device__ void threadwise_8d_tensor_copy(SrcDesc,
                       DstDesc{}.GetStride(I6) % DataPerRead == 0,
                   "wrong! src and dst stride should be multiple of DataPerRead to keep alignment");
 
-    constexpr unsigned L7 = SrcOpLengths{}.Get(I7);
+    constexpr index_t L7 = SrcOpLengths{}.Get(I7);
 
     static_assert(L7 % DataPerRead == 0, "wrong! L7 should be evenly divided by DataPerRead");
 
-    constexpr unsigned nloop_d7 = L7 / DataPerRead;
+    constexpr index_t nloop_d7 = L7 / DataPerRead;
 
-    for(unsigned did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
+    for(index_t did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
     {
-        for(unsigned did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
+        for(index_t did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
         {
-            for(unsigned did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
+            for(index_t did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
             {
-                for(unsigned did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
+                for(index_t did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
                 {
-                    for(unsigned did4 = 0; did4 < ref_desc.GetLength(I4); ++did4)
+                    for(index_t did4 = 0; did4 < ref_desc.GetLength(I4); ++did4)
                     {
-                        for(unsigned did5 = 0; did5 < ref_desc.GetLength(I5); ++did5)
+                        for(index_t did5 = 0; did5 < ref_desc.GetLength(I5); ++did5)
                         {
-                            for(unsigned did6 = 0; did6 < ref_desc.GetLength(I6); ++did6)
+                            for(index_t did6 = 0; did6 < ref_desc.GetLength(I6); ++did6)
                             {
-                                for(unsigned iloop_d7 = 0; iloop_d7 < nloop_d7; ++iloop_d7)
+                                for(index_t iloop_d7 = 0; iloop_d7 < nloop_d7; ++iloop_d7)
                                 {
-                                    const unsigned src_index =
+                                    const index_t src_index =
                                         src_desc.Get1dIndex(did0,
                                                             did1,
                                                             did2,
@@ -141,7 +141,7 @@ __device__ void threadwise_8d_tensor_copy(SrcDesc,
                                                             did6,
                                                             iloop_d7 * DataPerRead);
 
-                                    const unsigned dst_index =
+                                    const index_t dst_index =
                                         dst_desc.Get1dIndex(did0,
                                                             did1,
                                                             did2,

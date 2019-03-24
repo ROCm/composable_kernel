@@ -12,7 +12,7 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(InDesc,
                                                               Tensor<T>& out_nkhw,
                                                               LowerPads,
                                                               UpperPads,
-                                                              unsigned nrepeat)
+                                                              index_t nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -23,17 +23,17 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(InDesc,
     constexpr auto wei_kcyx_desc = WeiDesc{};
     constexpr auto out_nkhw_desc = OutDesc{};
 
-    constexpr unsigned Hi = in_nchw_desc.GetLength(I2);
-    constexpr unsigned Wi = in_nchw_desc.GetLength(I3);
+    constexpr index_t Hi = in_nchw_desc.GetLength(I2);
+    constexpr index_t Wi = in_nchw_desc.GetLength(I3);
 
-    constexpr unsigned N  = out_nkhw_desc.GetLength(I0);
-    constexpr unsigned Ho = out_nkhw_desc.GetLength(I2);
-    constexpr unsigned Wo = out_nkhw_desc.GetLength(I3);
+    constexpr index_t N  = out_nkhw_desc.GetLength(I0);
+    constexpr index_t Ho = out_nkhw_desc.GetLength(I2);
+    constexpr index_t Wo = out_nkhw_desc.GetLength(I3);
 
-    constexpr unsigned K = wei_kcyx_desc.GetLength(I0);
-    constexpr unsigned C = wei_kcyx_desc.GetLength(I1);
-    constexpr unsigned Y = wei_kcyx_desc.GetLength(I2);
-    constexpr unsigned X = wei_kcyx_desc.GetLength(I3);
+    constexpr index_t K = wei_kcyx_desc.GetLength(I0);
+    constexpr index_t C = wei_kcyx_desc.GetLength(I1);
+    constexpr index_t Y = wei_kcyx_desc.GetLength(I2);
+    constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     // reorder weight
     auto wei_cyxk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
@@ -77,177 +77,177 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(InDesc,
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
 #if 0
-    constexpr unsigned NPerBlock  = 1;
-    constexpr unsigned KPerBlock  = 1;
-    constexpr unsigned CPerBlock  = 1;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 1;
+    constexpr index_t KPerBlock  = 1;
+    constexpr index_t CPerBlock  = 1;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 1;
-    constexpr unsigned KPerThread  = 1;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 1;
+    constexpr index_t KPerThread  = 1;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 1;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 1;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 1;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 1;
 
-    constexpr unsigned BlockSize = 8;
+    constexpr index_t BlockSize = 8;
 #elif 1
     // for 3x3, 34x34 | 3x3 58x58, NKC = 64, 64, 256
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 4;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 32;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 3x3 58x58, NKC = 16,256,128
-    constexpr unsigned NPerBlock  = 8;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 8;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 5x5, 36x36
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 7x7, 38x38
-    constexpr unsigned NPerBlock  = 8;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 8;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 3x3, 56x56
-    constexpr unsigned NPerBlock  = 32;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 2;
+    constexpr index_t NPerBlock  = 32;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 4;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 2;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 1
     // 3x3 56x56, NKC = 16,256,128, with padding
     // 3x3 28x28, NKC = 16,512,256, with padding
     // 3x3 20x84, NKC = 16,256,256, with padding
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 2;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 64;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 2;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 64;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 5x5 filter, 20x84 image, 1x1 padding
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 1;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 1;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 5x5 filter, 28x28 image, 2x2 padding
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 32;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 32;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 1x1, 28x28
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 128;
-    constexpr unsigned CPerBlock  = 8;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 2;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 128;
+    constexpr index_t CPerBlock  = 8;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 2;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 2;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 32;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #endif
 
-    constexpr unsigned GridSize =
+    constexpr index_t GridSize =
         ((N + NPerBlock - 1) / NPerBlock) * ((K + KPerBlock - 1) / KPerBlock) *
         ((Ho + HoPerBlock - 1) / HoPerBlock) * ((Wo + WoPerBlock - 1) / WoPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    for(unsigned i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
             gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded<GridSize,

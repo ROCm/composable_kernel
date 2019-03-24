@@ -1,7 +1,7 @@
 #pragma once
 #include "constant_integral.hip.hpp"
 
-template <unsigned NLoop>
+template <index_t NLoop>
 struct static_loop_n
 {
     template <class F>
@@ -24,7 +24,7 @@ struct static_loop_n<1>
     }
 };
 
-template <unsigned NLoop>
+template <index_t NLoop>
 struct static_const_reduce_n
 {
     template <class F, class Reduce>

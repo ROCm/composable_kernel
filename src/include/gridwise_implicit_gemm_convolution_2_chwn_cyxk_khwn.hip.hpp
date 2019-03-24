@@ -8,32 +8,32 @@
 #include "blockwise_gemm.hip.hpp"
 
 // define B = flatten(N, Hi, Wi)
-template <unsigned GridSize,
-          unsigned BlockSize,
+template <index_t GridSize,
+          index_t BlockSize,
           class Float,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
-          unsigned BPerBlock,
-          unsigned KPerBlock,
-          unsigned CPerBlock,
-          unsigned BPerThread,
-          unsigned KPerThread,
-          unsigned GemmThreadPerColumnPerCluster,
-          unsigned GemmThreadPerRowPerCluster,
-          unsigned GemmMPerThreadSubC,
-          unsigned GemmNPerThreadSubC,
-          unsigned GemmMLevel0Cluster,
-          unsigned GemmNLevel0Cluster,
-          unsigned GemmMLevel1Cluster,
-          unsigned GemmNLevel1Cluster,
-          unsigned GemmKPerThreadLoop,
-          unsigned InBlockCopyThreadPerDim0,
-          unsigned InBlockCopyThreadPerDim1,
-          unsigned WeiBlockCopyThreadPerDim0,
-          unsigned WeiBlockCopyThreadPerDim1,
-          unsigned InBlockCopyDataPerRead,
-          unsigned WeiBlockCopyDataPerRead>
+          index_t BPerBlock,
+          index_t KPerBlock,
+          index_t CPerBlock,
+          index_t BPerThread,
+          index_t KPerThread,
+          index_t GemmThreadPerColumnPerCluster,
+          index_t GemmThreadPerRowPerCluster,
+          index_t GemmMPerThreadSubC,
+          index_t GemmNPerThreadSubC,
+          index_t GemmMLevel0Cluster,
+          index_t GemmNLevel0Cluster,
+          index_t GemmMLevel1Cluster,
+          index_t GemmNLevel1Cluster,
+          index_t GemmKPerThreadLoop,
+          index_t InBlockCopyThreadPerDim0,
+          index_t InBlockCopyThreadPerDim1,
+          index_t WeiBlockCopyThreadPerDim0,
+          index_t WeiBlockCopyThreadPerDim1,
+          index_t InBlockCopyDataPerRead,
+          index_t WeiBlockCopyDataPerRead>
 __global__ void
 gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restrict__ p_in_global,
                                                     const Float* const __restrict__ p_wei_global,
@@ -48,30 +48,30 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restric
     constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
     constexpr auto out_khwn_global_desc = OutGlobalDesc{};
 
-    constexpr unsigned C  = in_chwn_global_desc.GetLength(I0);
-    constexpr unsigned Hi = in_chwn_global_desc.GetLength(I1);
-    constexpr unsigned Wi = in_chwn_global_desc.GetLength(I2);
-    constexpr unsigned N  = in_chwn_global_desc.GetLength(I3);
+    constexpr index_t C  = in_chwn_global_desc.GetLength(I0);
+    constexpr index_t Hi = in_chwn_global_desc.GetLength(I1);
+    constexpr index_t Wi = in_chwn_global_desc.GetLength(I2);
+    constexpr index_t N  = in_chwn_global_desc.GetLength(I3);
 
-    constexpr unsigned K  = out_khwn_global_desc.GetLength(I0);
-    constexpr unsigned Ho = out_khwn_global_desc.GetLength(I1);
-    constexpr unsigned Wo = out_khwn_global_desc.GetLength(I2);
+    constexpr index_t K  = out_khwn_global_desc.GetLength(I0);
+    constexpr index_t Ho = out_khwn_global_desc.GetLength(I1);
+    constexpr index_t Wo = out_khwn_global_desc.GetLength(I2);
 
-    constexpr unsigned Y = wei_cyxk_global_desc.GetLength(I1);
-    constexpr unsigned X = wei_cyxk_global_desc.GetLength(I2);
+    constexpr index_t Y = wei_cyxk_global_desc.GetLength(I1);
+    constexpr index_t X = wei_cyxk_global_desc.GetLength(I2);
 
-    constexpr unsigned B          = N * Hi * Wi;
-    constexpr unsigned BGhostRead = (Y - 1) * Wi + (X - 1);
+    constexpr index_t B          = N * Hi * Wi;
+    constexpr index_t BGhostRead = (Y - 1) * Wi + (X - 1);
 
     // divide block work by 2d: [K, B]
-    constexpr unsigned KBlockWork = (K + KPerBlock - 1) / KPerBlock;
-    constexpr unsigned BBlockWork = (B + BPerBlock - 1) / BPerBlock;
+    constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
+    constexpr index_t BBlockWork = (B + BPerBlock - 1) / BPerBlock;
 
-    const unsigned k_block_work_id = get_block_1d_id() / BBlockWork;
-    const unsigned b_block_work_id = get_block_1d_id() - k_block_work_id * BBlockWork;
+    const index_t k_block_work_id = get_block_1d_id() / BBlockWork;
+    const index_t b_block_work_id = get_block_1d_id() - k_block_work_id * BBlockWork;
 
-    const unsigned k_block_data_begin = k_block_work_id * KPerBlock;
-    const unsigned b_block_data_begin = b_block_work_id * BPerBlock;
+    const index_t k_block_data_begin = k_block_work_id * KPerBlock;
+    const index_t b_block_data_begin = b_block_work_id * BPerBlock;
 
     // flattend (2d) tensor view of gridwise input
     constexpr auto in_cb_global_desc  = make_ConstantTensorDescriptor(Sequence<C, B>{});
@@ -192,15 +192,15 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restric
                                                                 GemmKPerThreadLoop>{};
 
     // LDS: be careful of alignment
-    constexpr unsigned in_block_size =
+    constexpr index_t in_block_size =
         in_cb_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
 
-    constexpr unsigned wei_block_size =
+    constexpr index_t wei_block_size =
         wei_cyxk_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 
-    constexpr unsigned max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
-                                       ? InBlockCopyDataPerRead
-                                       : WeiBlockCopyDataPerRead;
+    constexpr index_t max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
+                                      ? InBlockCopyDataPerRead
+                                      : WeiBlockCopyDataPerRead;
 
     // LDS
     __shared__ Float p_in_block[max_align * ((in_block_size + max_align - 1) / max_align)];
@@ -218,10 +218,10 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restric
     // set threadwise output tensor to 0
     threadwise_2d_tensor_set_zero(out_kb_thread_desc, p_out_thread);
 
-    for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
-                 p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
-                 p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
-                 __syncthreads())
+    for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
+                p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
+                p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
+                __syncthreads())
     {
         // load data
         blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
@@ -231,18 +231,16 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restric
 
         // compute on current data
         //   a series of GEMM
-        for(unsigned y = 0; y < Y; ++y)
+        for(index_t y = 0; y < Y; ++y)
         {
-            for(unsigned x = 0; x < X; ++x)
+            for(index_t x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 #if 0
                 blockwise_gemm.Run
-#elif 1
+#elif 0
                 blockwise_gemm.Run_asm
-#elif 0
-                blockwise_gemm.Run_v2
-#elif 0
+#elif 1
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
                 (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
@@ -257,23 +255,23 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restric
     const auto c_thread_mtx_begin =
         blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    const unsigned k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
-    const unsigned b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
+    const index_t k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
+    const index_t b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
 
-    for(unsigned k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
+    for(index_t k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
     {
-        for(unsigned b = 0; b < out_kb_thread_desc.GetLength(I1); ++b)
+        for(index_t b = 0; b < out_kb_thread_desc.GetLength(I1); ++b)
         {
             const auto c_thread_mtx_distance =
                 blockwise_gemm.GetDistanceFromBeginOfThreadMatrixC(k, b);
 
-            unsigned k_data = k_thread_data_begin + c_thread_mtx_distance.row;
-            unsigned b_data = b_thread_data_begin + c_thread_mtx_distance.col;
+            index_t k_data = k_thread_data_begin + c_thread_mtx_distance.row;
+            index_t b_data = b_thread_data_begin + c_thread_mtx_distance.col;
 
-            unsigned h_data = b_data / (Wi * N);
-            unsigned itmp   = b_data - h_data * (Wi * N);
-            unsigned w_data = itmp / N;
-            unsigned n_data = itmp - w_data * N;
+            index_t h_data = b_data / (Wi * N);
+            index_t itmp   = b_data - h_data * (Wi * N);
+            index_t w_data = itmp / N;
+            index_t n_data = itmp - w_data * N;
 
             if(n_data < N && h_data < Ho && w_data < Wo)
             {

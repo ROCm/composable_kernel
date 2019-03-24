@@ -1,7 +1,7 @@
 #pragma once
 #include "ConstantTensorDescriptor.hip.hpp"
 
-template <unsigned BlockSize, class Float, class DstDesc, class F>
+template <index_t BlockSize, class Float, class DstDesc, class F>
 __device__ void
 blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst, F f)
 {
@@ -22,27 +22,27 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
     }
 #endif
 
-    constexpr unsigned NLoop = desc.GetElementSize() / BlockSize;
+    constexpr index_t NLoop = desc.GetElementSize() / BlockSize;
 
-    for(unsigned iloop = 0; iloop < NLoop; ++iloop)
+    for(index_t iloop = 0; iloop < NLoop; ++iloop)
     {
-        unsigned is = threadIdx.x + iloop * BlockSize;
+        index_t is = threadIdx.x + iloop * BlockSize;
 
-        const unsigned did0 = is / desc.GetStride(I0);
+        const index_t did0 = is / desc.GetStride(I0);
 
         is -= did0 * desc.GetStride(I0);
 
-        const unsigned did1 = is / desc.GetStride(I1);
+        const index_t did1 = is / desc.GetStride(I1);
 
         is -= did1 * desc.GetStride(I1);
 
-        const unsigned did2 = is / desc.GetStride(I2);
+        const index_t did2 = is / desc.GetStride(I2);
 
         is -= did2 * desc.GetStride(I2);
 
-        const unsigned did3 = is / desc.GetStride(I3);
+        const index_t did3 = is / desc.GetStride(I3);
 
-        const unsigned dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
+        const index_t dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
 
         f(p_dst[dindex]);
     }
@@ -51,25 +51,25 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
     if(has_tail)
     {
-        unsigned is = threadIdx.x + NLoop * BlockSize;
+        index_t is = threadIdx.x + NLoop * BlockSize;
 
         if(is < desc.GetElementSize())
         {
-            const unsigned did0 = is / desc.GetStride(I0);
+            const index_t did0 = is / desc.GetStride(I0);
 
             is -= did0 * desc.GetStride(I0);
 
-            const unsigned did1 = is / desc.GetStride(I1);
+            const index_t did1 = is / desc.GetStride(I1);
 
             is -= did1 * desc.GetStride(I1);
 
-            const unsigned did2 = is / desc.GetStride(I2);
+            const index_t did2 = is / desc.GetStride(I2);
 
             is -= did2 * desc.GetStride(I2);
 
-            const unsigned did3 = is / desc.GetStride(I3);
+            const index_t did3 = is / desc.GetStride(I3);
 
-            const unsigned dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
+            const index_t dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
 
             f(p_dst[dindex]);
         }
@@ -79,7 +79,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 // Function: p_dst[reorder[i0], reorder[i1], reorder[i2], reorder[i3]] = p_src[i0,i1,i2,i3]
 // TODO: in order to optimize mem access for different mem type,
 // need to write specialized version
-template <unsigned BlockSize,
+template <index_t BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
@@ -100,22 +100,22 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr unsigned IR0 = DstFromSrcReorder{}.Get(I0);
-    constexpr unsigned IR1 = DstFromSrcReorder{}.Get(I1);
-    constexpr unsigned IR2 = DstFromSrcReorder{}.Get(I2);
-    constexpr unsigned IR3 = DstFromSrcReorder{}.Get(I3);
+    constexpr index_t IR0 = DstFromSrcReorder{}.Get(I0);
+    constexpr index_t IR1 = DstFromSrcReorder{}.Get(I1);
+    constexpr index_t IR2 = DstFromSrcReorder{}.Get(I2);
+    constexpr index_t IR3 = DstFromSrcReorder{}.Get(I3);
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
     constexpr auto ref_desc = make_ConstantTensorDescriptor(SrcOpLengths{});
 
-    constexpr unsigned NLoop = ref_desc.GetElementSize() / BlockSize;
+    constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
-    for(unsigned iloop = 0; iloop < NLoop; ++iloop)
+    for(index_t iloop = 0; iloop < NLoop; ++iloop)
     {
-        unsigned is = threadIdx.x + iloop * BlockSize;
+        index_t is = threadIdx.x + iloop * BlockSize;
 
-        unsigned did[4];
+        index_t did[4];
 
         did[0] = is / ref_desc.GetStride(I0);
 
@@ -131,9 +131,9 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
         did[3] = is / ref_desc.GetStride(I3);
 
-        const unsigned src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+        const index_t src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
-        const unsigned dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
+        const index_t dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
         f(p_src[src_index], p_dst[dst_index]);
     }
@@ -142,11 +142,11 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
     if(has_tail)
     {
-        unsigned is = threadIdx.x + NLoop * BlockSize;
+        index_t is = threadIdx.x + NLoop * BlockSize;
 
         if(is < ref_desc.GetElementSize())
         {
-            unsigned did[4];
+            index_t did[4];
 
             did[0] = is / ref_desc.GetStride(I0);
 
@@ -162,16 +162,16 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
             did[3] = is / ref_desc.GetStride(I3);
 
-            const unsigned src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+            const index_t src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
-            const unsigned dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
+            const index_t dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
             f(p_src[src_index], p_dst[dst_index]);
         }
     }
 }
 
-template <unsigned BlockSize, class Float, class DstDesc>
+template <index_t BlockSize, class Float, class DstDesc>
 __device__ void blockwise_4d_tensor_set_zero(DstDesc, Float* __restrict__ p_dst)
 {
     auto f_set_zero = [](Float& v) { v = Float(0); };
@@ -179,7 +179,7 @@ __device__ void blockwise_4d_tensor_set_zero(DstDesc, Float* __restrict__ p_dst)
     blockwise_4d_tensor_pointwise_operation_unary<BlockSize>(DstDesc{}, p_dst, f_set_zero);
 }
 
-template <unsigned BlockSize,
+template <index_t BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
@@ -199,12 +199,12 @@ blockwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
 }
 
-template <unsigned BlockSize,
+template <index_t BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
           class CopyLengths,
-          unsigned DataPerRead>
+          index_t DataPerRead>
 struct Blockwise4dTensorCopy1
 {
     using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
@@ -230,8 +230,8 @@ struct Blockwise4dTensorCopy1
         // we allow out-of-bound read from src in D3 dimension,
         //   but we need to make sure dst stride2 is big enough,
         //   so that the out-of-bound write won't contaminate next line in dst
-        constexpr unsigned L3          = CopyLengths{}.Get(I3);
-        constexpr unsigned read_per_d3 = integer_divide_ceil(L3, DataPerRead);
+        constexpr index_t L3          = CopyLengths{}.Get(I3);
+        constexpr index_t read_per_d3 = integer_divide_ceil(L3, DataPerRead);
 
         static_assert(read_per_d3 * DataPerRead <= DstDesc{}.GetStride(I2),
                       "wrong! out-of-bound write will contaminate next line!\n");
@@ -247,20 +247,20 @@ struct Blockwise4dTensorCopy1
         constexpr auto src_desc = SrcDesc{};
         constexpr auto dst_desc = DstDesc{};
 
-        constexpr unsigned L0 = CopyLengths{}.Get(I0);
-        constexpr unsigned L1 = CopyLengths{}.Get(I1);
-        constexpr unsigned L2 = CopyLengths{}.Get(I2);
-        constexpr unsigned L3 = CopyLengths{}.Get(I3);
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+        constexpr index_t L2 = CopyLengths{}.Get(I2);
+        constexpr index_t L3 = CopyLengths{}.Get(I3);
 
-        constexpr unsigned read_per_d3 = integer_divide_ceil(L3, DataPerRead);
+        constexpr index_t read_per_d3 = integer_divide_ceil(L3, DataPerRead);
 
         constexpr auto ref_desc =
             make_ConstantTensorDescriptor(Sequence<L0, L1, L2, read_per_d3>{});
 
-        constexpr unsigned NLoop = ref_desc.GetElementSize() / BlockSize;
+        constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
-        auto f_copy = [&](unsigned is) {
-            unsigned did[4];
+        auto f_copy = [&](index_t is) {
+            index_t did[4];
 
             did[0] = is / ref_desc.GetStride(I0);
 
@@ -276,18 +276,18 @@ struct Blockwise4dTensorCopy1
 
             did[3] = is / ref_desc.GetStride(I3);
 
-            const unsigned src_index =
+            const index_t src_index =
                 src_desc.Get1dIndex(did[0], did[1], did[2], did[3] * DataPerRead);
-            const unsigned dst_index =
+            const index_t dst_index =
                 dst_desc.Get1dIndex(did[0], did[1], did[2], did[3] * DataPerRead);
 
             *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
                 *(reinterpret_cast<const vector_t*>(p_src + src_index));
         };
 
-        for(unsigned iloop = 0; iloop < NLoop; ++iloop)
+        for(index_t iloop = 0; iloop < NLoop; ++iloop)
         {
-            unsigned is = threadIdx.x + iloop * BlockSize;
+            index_t is = threadIdx.x + iloop * BlockSize;
 
             f_copy(is);
         }
@@ -296,7 +296,7 @@ struct Blockwise4dTensorCopy1
 
         if(has_tail)
         {
-            unsigned is = threadIdx.x + NLoop * BlockSize;
+            index_t is = threadIdx.x + NLoop * BlockSize;
 
             if(is < ref_desc.GetElementSize())
             {
@@ -306,7 +306,7 @@ struct Blockwise4dTensorCopy1
     }
 };
 
-template <unsigned BlockSize,
+template <index_t BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
@@ -315,15 +315,15 @@ template <unsigned BlockSize,
 struct BlockwiseChwnTensorCopyPadded
 {
     __device__ void Run(const Float* __restrict__ p_src,
-                        unsigned c_block_data_begin,
-                        unsigned ho_block_data_begin,
-                        unsigned wo_block_data_begin,
-                        unsigned n_block_data_begin,
+                        index_t c_block_data_begin,
+                        index_t ho_block_data_begin,
+                        index_t wo_block_data_begin,
+                        index_t n_block_data_begin,
                         Float* __restrict__ p_dst,
-                        unsigned h_block_pad_low,
-                        unsigned w_block_pad_low,
-                        unsigned h_block_pad_up,
-                        unsigned w_block_pad_up) const
+                        index_t h_block_pad_low,
+                        index_t w_block_pad_low,
+                        index_t h_block_pad_up,
+                        index_t w_block_pad_up) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -337,7 +337,7 @@ struct BlockwiseChwnTensorCopyPadded
         constexpr auto h_global_pad_low = GlobalLowerPads{}.Get(I0);
         constexpr auto w_global_pad_low = GlobalLowerPads{}.Get(I1);
 
-        constexpr unsigned NLoop = ref_desc.GetElementSize() / BlockSize;
+        constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
         const Float* p_src_tmp =
             p_src +
@@ -368,11 +368,11 @@ struct BlockwiseChwnTensorCopyPadded
         }
 #endif
 
-        for(unsigned iloop = 0; iloop < NLoop; ++iloop)
+        for(index_t iloop = 0; iloop < NLoop; ++iloop)
         {
-            unsigned is = threadIdx.x + iloop * BlockSize;
+            index_t is = threadIdx.x + iloop * BlockSize;
 
-            unsigned did[4];
+            index_t did[4];
 
             did[0] = is / ref_desc.GetStride(I0);
 
@@ -388,7 +388,7 @@ struct BlockwiseChwnTensorCopyPadded
 
             did[3] = is / ref_desc.GetStride(I3);
 
-            const unsigned bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+            const index_t bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
             p_dst[bindex] =
                 (did[1] < h_block_pad_low || did[1] + h_block_pad_up >= ref_desc.GetLength(I1) ||
@@ -401,11 +401,11 @@ struct BlockwiseChwnTensorCopyPadded
 
         if(has_tail)
         {
-            unsigned is = threadIdx.x + NLoop * BlockSize;
+            index_t is = threadIdx.x + NLoop * BlockSize;
 
             if(is < ref_desc.GetElementSize())
             {
-                unsigned did[4];
+                index_t did[4];
 
                 did[0] = is / ref_desc.GetStride(I0);
 
@@ -421,7 +421,7 @@ struct BlockwiseChwnTensorCopyPadded
 
                 did[3] = is / ref_desc.GetStride(I3);
 
-                const unsigned bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+                const index_t bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
 
                 p_dst[bindex] =
                     (did[1] < h_block_pad_low ||
@@ -436,19 +436,19 @@ struct BlockwiseChwnTensorCopyPadded
 
 // starting point need to be aligned to float4 or float2 or float
 // stride3 need to be 1 for both source and destination
-template <unsigned BlockSize,
+template <index_t BlockSize,
           class Float,
           class SrcDesc,
           class DstDesc,
           class CopyLengths,
           class ThreadPerDims,
-          unsigned DataPerRead>
+          index_t DataPerRead>
 struct Blockwise4dTensorCopy3
 {
     using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
-    unsigned mSrcMyThreadOffset;
-    unsigned mDstMyThreadOffset;
+    index_t mSrcMyThreadOffset;
+    index_t mDstMyThreadOffset;
 
     __device__ Blockwise4dTensorCopy3()
     {
@@ -469,20 +469,20 @@ struct Blockwise4dTensorCopy3
                 DstDesc{}.GetStride(I2) % DataPerRead == 0,
             "wrong! src and dst stride2 should be multiple of DataPerRead to keep alignment");
 
-        constexpr unsigned L0 = CopyLengths{}.Get(I0);
-        constexpr unsigned L1 = CopyLengths{}.Get(I1);
-        constexpr unsigned L2 = CopyLengths{}.Get(I2);
-        constexpr unsigned L3 = CopyLengths{}.Get(I3);
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+        constexpr index_t L2 = CopyLengths{}.Get(I2);
+        constexpr index_t L3 = CopyLengths{}.Get(I3);
 
-        constexpr unsigned thread_per_d0 = ThreadPerDims{}.Get(I0);
-        constexpr unsigned thread_per_d1 = ThreadPerDims{}.Get(I1);
-        constexpr unsigned thread_per_d2 = ThreadPerDims{}.Get(I2);
-        constexpr unsigned thread_per_d3 = ThreadPerDims{}.Get(I3);
+        constexpr index_t thread_per_d0 = ThreadPerDims{}.Get(I0);
+        constexpr index_t thread_per_d1 = ThreadPerDims{}.Get(I1);
+        constexpr index_t thread_per_d2 = ThreadPerDims{}.Get(I2);
+        constexpr index_t thread_per_d3 = ThreadPerDims{}.Get(I3);
 
         // we allow out-of-bound read from src in D3 dimension,
         //   but we need to make sure dst stride is big enough,
         //   so that the out-of-bound write won't contaminate next line in dst
-        constexpr unsigned nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+        constexpr index_t nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
         static_assert(nloop_d3 * thread_per_d3 * DataPerRead <= DstDesc{}.GetStride(I2),
                       "wrong! out-of-bound write will contaminate next line!\n");
@@ -493,7 +493,7 @@ struct Blockwise4dTensorCopy3
         static_assert(BlockSize >= thread_per_d0 * thread_per_d1 * thread_per_d2 * thread_per_d3,
                       "wrrong! BlockSize is not big enough for ThreadPerDims!");
 
-        constexpr unsigned num_active_thread =
+        constexpr index_t num_active_thread =
             thread_per_d0 * thread_per_d1 * thread_per_d2 * thread_per_d3;
 
         if(BlockSize > num_active_thread)
@@ -504,14 +504,14 @@ struct Blockwise4dTensorCopy3
             }
         }
 
-        const unsigned thread_id_d0 =
+        const index_t thread_id_d0 =
             get_thread_local_1d_id() / (thread_per_d1 * thread_per_d2 * thread_per_d3);
-        unsigned itmp = get_thread_local_1d_id() -
-                        thread_id_d0 * (thread_per_d1 * thread_per_d2 * thread_per_d3);
-        const unsigned thread_id_d1 = itmp / (thread_per_d2 * thread_per_d3);
+        index_t itmp = get_thread_local_1d_id() -
+                       thread_id_d0 * (thread_per_d1 * thread_per_d2 * thread_per_d3);
+        const index_t thread_id_d1 = itmp / (thread_per_d2 * thread_per_d3);
         itmp -= thread_id_d1 * (thread_per_d2 * thread_per_d3);
-        const unsigned thread_id_d2 = itmp / thread_per_d3;
-        const unsigned thread_id_d3 = itmp - thread_id_d2 * thread_per_d3;
+        const index_t thread_id_d2 = itmp / thread_per_d3;
+        const index_t thread_id_d3 = itmp - thread_id_d2 * thread_per_d3;
 
         mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(
             thread_id_d0, thread_id_d1, thread_id_d2, thread_id_d3 * DataPerRead);
@@ -526,17 +526,17 @@ struct Blockwise4dTensorCopy3
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
 
-        constexpr unsigned L0 = CopyLengths{}.Get(I0);
-        constexpr unsigned L1 = CopyLengths{}.Get(I1);
-        constexpr unsigned L2 = CopyLengths{}.Get(I2);
-        constexpr unsigned L3 = CopyLengths{}.Get(I3);
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+        constexpr index_t L2 = CopyLengths{}.Get(I2);
+        constexpr index_t L3 = CopyLengths{}.Get(I3);
 
-        constexpr unsigned thread_per_d0 = ThreadPerDims{}.Get(I0);
-        constexpr unsigned thread_per_d1 = ThreadPerDims{}.Get(I1);
-        constexpr unsigned thread_per_d2 = ThreadPerDims{}.Get(I2);
-        constexpr unsigned thread_per_d3 = ThreadPerDims{}.Get(I3);
+        constexpr index_t thread_per_d0 = ThreadPerDims{}.Get(I0);
+        constexpr index_t thread_per_d1 = ThreadPerDims{}.Get(I1);
+        constexpr index_t thread_per_d2 = ThreadPerDims{}.Get(I2);
+        constexpr index_t thread_per_d3 = ThreadPerDims{}.Get(I3);
 
-        constexpr unsigned num_active_thread =
+        constexpr index_t num_active_thread =
             thread_per_d0 * thread_per_d1 * thread_per_d2 * thread_per_d3;
 
         if(BlockSize > num_active_thread)
@@ -547,30 +547,30 @@ struct Blockwise4dTensorCopy3
             }
         }
 
-        constexpr unsigned nloop_d0 = L0 / thread_per_d0;
-        constexpr unsigned nloop_d1 = L1 / thread_per_d1;
-        constexpr unsigned nloop_d2 = L2 / thread_per_d2;
-        constexpr unsigned nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+        constexpr index_t nloop_d0 = L0 / thread_per_d0;
+        constexpr index_t nloop_d1 = L1 / thread_per_d1;
+        constexpr index_t nloop_d2 = L2 / thread_per_d2;
+        constexpr index_t nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
 #pragma unroll
-        for(unsigned iloop_d0 = 0; iloop_d0 < nloop_d0; ++iloop_d0)
+        for(index_t iloop_d0 = 0; iloop_d0 < nloop_d0; ++iloop_d0)
         {
 #pragma unroll
-            for(unsigned iloop_d1 = 0; iloop_d1 < nloop_d1; ++iloop_d1)
+            for(index_t iloop_d1 = 0; iloop_d1 < nloop_d1; ++iloop_d1)
             {
 #pragma unroll
-                for(unsigned iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
+                for(index_t iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
                 {
 #pragma unroll
-                    for(unsigned iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
+                    for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
                     {
-                        const unsigned src_offset =
+                        const index_t src_offset =
                             SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
                                                  iloop_d1 * thread_per_d1,
                                                  iloop_d2 * thread_per_d2,
                                                  iloop_d3 * thread_per_d3 * DataPerRead);
 
-                        const unsigned dst_offset =
+                        const index_t dst_offset =
                             DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
                                                  iloop_d1 * thread_per_d1,
                                                  iloop_d2 * thread_per_d2,

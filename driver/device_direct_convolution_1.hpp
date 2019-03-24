@@ -10,7 +10,7 @@ void device_direct_convolution_1(InDesc,
                                  const Tensor<T>& wei,
                                  OutDesc,
                                  Tensor<T>& out,
-                                 unsigned nrepeat)
+                                 index_t nrepeat)
 {
     std::size_t data_sz = sizeof(T);
     DeviceMem in_device_buf(data_sz * in.mDesc.GetElementSpace());
@@ -34,28 +34,28 @@ void device_direct_convolution_1(InDesc,
 
 #if 1
     // 3x3, 34x34
-    constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 16;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 32;
+    constexpr index_t NPerBlock  = 2;
+    constexpr index_t KPerBlock  = 16;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 32;
 
-    constexpr unsigned NPerThread  = 2;
-    constexpr unsigned KPerThread  = 4;
-    constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 2;
-    constexpr unsigned WoPerThread = 2;
+    constexpr index_t NPerThread  = 2;
+    constexpr index_t KPerThread  = 4;
+    constexpr index_t CPerThread  = 2;
+    constexpr index_t HoPerThread = 2;
+    constexpr index_t WoPerThread = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #endif
 
-    constexpr unsigned GridSize =
+    constexpr index_t GridSize =
         (out_desc.GetLength(I0) / NPerBlock) * (out_desc.GetLength(I1) / KPerBlock) *
         (out_desc.GetLength(I2) / HoPerBlock) * (out_desc.GetLength(I3) / WoPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    for(unsigned i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(gridwise_direct_convolution_1<T,
                                                                  InDesc,
