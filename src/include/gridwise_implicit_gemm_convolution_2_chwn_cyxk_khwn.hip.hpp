@@ -236,15 +236,19 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restric
             for(unsigned x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
-#if 1
+#if 0
                 blockwise_gemm.Run
-#else
+#elif 1
+                blockwise_gemm.Run_asm
+#elif 0
+                blockwise_gemm.Run_v2
+#elif 0
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                    (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                     p_in_block + y * Wi + x,
-                     p_out_thread,
-                     f_accum);
+                (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                 p_in_block + y * Wi + x,
+                 p_out_thread,
+                 f_accum);
             }
         }
     }
