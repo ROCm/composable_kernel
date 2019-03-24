@@ -1,7 +1,7 @@
 #pragma once
 #include "config.h"
 
-template <class T, unsigned N>
+template <class T, index_t N>
 struct vector_type
 {
 };

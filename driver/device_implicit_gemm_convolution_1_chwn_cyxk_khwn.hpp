@@ -10,7 +10,7 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
                                                        const Tensor<T>& wei_kcyx,
                                                        OutDesc,
                                                        Tensor<T>& out_nkhw,
-                                                       unsigned nrepeat)
+                                                       index_t nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -21,17 +21,17 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
     constexpr auto wei_kcyx_desc = WeiDesc{};
     constexpr auto out_nkhw_desc = OutDesc{};
 
-    constexpr unsigned Hi = in_nchw_desc.GetLength(I2);
-    constexpr unsigned Wi = in_nchw_desc.GetLength(I3);
+    constexpr index_t Hi = in_nchw_desc.GetLength(I2);
+    constexpr index_t Wi = in_nchw_desc.GetLength(I3);
 
-    constexpr unsigned N  = out_nkhw_desc.GetLength(I0);
-    constexpr unsigned Ho = out_nkhw_desc.GetLength(I2);
-    constexpr unsigned Wo = out_nkhw_desc.GetLength(I3);
+    constexpr index_t N  = out_nkhw_desc.GetLength(I0);
+    constexpr index_t Ho = out_nkhw_desc.GetLength(I2);
+    constexpr index_t Wo = out_nkhw_desc.GetLength(I3);
 
-    constexpr unsigned K = wei_kcyx_desc.GetLength(I0);
-    constexpr unsigned C = wei_kcyx_desc.GetLength(I1);
-    constexpr unsigned Y = wei_kcyx_desc.GetLength(I2);
-    constexpr unsigned X = wei_kcyx_desc.GetLength(I3);
+    constexpr index_t K = wei_kcyx_desc.GetLength(I0);
+    constexpr index_t C = wei_kcyx_desc.GetLength(I1);
+    constexpr index_t Y = wei_kcyx_desc.GetLength(I2);
+    constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     // reorder weight
     auto wei_cyxk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
@@ -76,218 +76,218 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
 
 #if 0
     // for 3x3, 34x34
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 4;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 8;
-    constexpr unsigned KPerThread  = 8;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 8;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned InBlockCopy_ThreadPerDimC = 4;
-    constexpr unsigned InBlockCopy_ThreadPerDimH = 4;
-    constexpr unsigned InBlockCopy_ThreadPerDimW = 2;
-    constexpr unsigned InBlockCopy_ThreadPerDimN = 4;
-    constexpr unsigned InBlockCopyDataPerRead    = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimC = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimH = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimW = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimN = 4;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
 
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 2;
-    constexpr unsigned GemmNLevel1Cluster = 4;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned OutThreadCopyDataPerWrite = 2;
+    constexpr index_t OutThreadCopyDataPerWrite = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 5x5, 36x36
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 8;
-    constexpr unsigned KPerThread  = 8;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 8;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 32;
 
-    constexpr unsigned InBlockCopy_ThreadPerDimC = 2;
-    constexpr unsigned InBlockCopy_ThreadPerDimH = 2;
-    constexpr unsigned InBlockCopy_ThreadPerDimW = 4;
-    constexpr unsigned InBlockCopy_ThreadPerDimN = 4;
-    constexpr unsigned InBlockCopyDataPerRead    = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimC = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimH = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimW = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimN = 4;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
 
-    constexpr unsigned WeiBlockCopyDataPerRead = 2;
+    constexpr index_t WeiBlockCopyDataPerRead = 2;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 2;
-    constexpr unsigned GemmNLevel1Cluster = 4;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned OutThreadCopyDataPerWrite = 2;
+    constexpr index_t OutThreadCopyDataPerWrite = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 3x3 58x58, NKC = 64, 64, 256
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 4;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 32;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 2; // not used, yet
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead  = 2; // not used, yet
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 3x3 58x58, NKC = 16,256,128
-    constexpr unsigned NPerBlock  = 8;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 8;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 7x7, 38x38
-    constexpr unsigned NPerBlock  = 8;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 1;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 4;
+    constexpr index_t NPerBlock  = 8;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 1;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 4;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 32;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 32;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 4; // not used, yet
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead  = 4; // not used, yet
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 3x3, 56x56
-    constexpr unsigned NPerBlock  = 32;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 2;
+    constexpr index_t NPerBlock  = 32;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 4;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 2;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // for 1x1, 28x28
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 128;
-    constexpr unsigned CPerBlock  = 8;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 2;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 128;
+    constexpr index_t CPerBlock  = 8;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 2;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned InBlockCopy_ThreadPerDimC = 8;
-    constexpr unsigned InBlockCopy_ThreadPerDimH = 2;
-    constexpr unsigned InBlockCopy_ThreadPerDimW = 2;
-    constexpr unsigned InBlockCopy_ThreadPerDimN = 4;
-    constexpr unsigned InBlockCopyDataPerRead    = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimC = 8;
+    constexpr index_t InBlockCopy_ThreadPerDimH = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimW = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimN = 4;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
 
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 2;
-    constexpr unsigned GemmNLevel1Cluster = 4;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned OutThreadCopyDataPerWrite = 2;
+    constexpr index_t OutThreadCopyDataPerWrite = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 1
     // for 1x1, 14x14
-    constexpr unsigned NPerBlock  = 16;
-    constexpr unsigned KPerBlock  = 128;
-    constexpr unsigned CPerBlock  = 8;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 2;
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 128;
+    constexpr index_t CPerBlock  = 8;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 2;
 
-    constexpr unsigned NPerThread  = 4;
-    constexpr unsigned KPerThread  = 16;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 1;
-    constexpr unsigned WoPerThread = 1;
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 1;
 
-    constexpr unsigned InBlockCopy_ThreadPerDimC = 8;
-    constexpr unsigned InBlockCopy_ThreadPerDimH = 2;
-    constexpr unsigned InBlockCopy_ThreadPerDimW = 2;
-    constexpr unsigned InBlockCopy_ThreadPerDimN = 4;
-    constexpr unsigned InBlockCopyDataPerRead    = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimC = 8;
+    constexpr index_t InBlockCopy_ThreadPerDimH = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimW = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimN = 4;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
 
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 2;
-    constexpr unsigned GemmNLevel1Cluster = 4;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned OutThreadCopyDataPerWrite = 2;
+    constexpr index_t OutThreadCopyDataPerWrite = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #endif
 
-    constexpr unsigned GridSize =
+    constexpr index_t GridSize =
         ((N + NPerBlock - 1) / NPerBlock) * ((K + KPerBlock - 1) / KPerBlock) *
         ((Ho + HoPerBlock - 1) / HoPerBlock) * ((Wo + WoPerBlock - 1) / WoPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    for(unsigned i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
             gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn<GridSize,

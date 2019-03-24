@@ -10,13 +10,13 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
                                                            const Tensor<TInWei>& wei_kcyx,
                                                            OutDesc,
                                                            Tensor<TOut>& out_nkhw,
-                                                           unsigned nrepeat)
+                                                           index_t nrepeat)
 {
     // this suppose in / wei data type is int8x4
-    constexpr unsigned NVector = 4;
-    using accum_t              = int32_t;
-    using vector_t             = vector_type<TInWei, NVector>;
-    using vector_mem_t         = typename vector_t::MemoryType;
+    constexpr index_t NVector = 4;
+    using accum_t             = int32_t;
+    using vector_t            = vector_type<TInWei, NVector>;
+    using vector_mem_t        = typename vector_t::MemoryType;
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -27,17 +27,17 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     constexpr auto wei_kcyx_desc = WeiDesc{};
     constexpr auto out_nkhw_desc = OutDesc{};
 
-    constexpr unsigned Hi = in_nchw_desc.GetLength(I2);
-    constexpr unsigned Wi = in_nchw_desc.GetLength(I3);
+    constexpr index_t Hi = in_nchw_desc.GetLength(I2);
+    constexpr index_t Wi = in_nchw_desc.GetLength(I3);
 
-    constexpr unsigned N  = out_nkhw_desc.GetLength(I0);
-    constexpr unsigned Ho = out_nkhw_desc.GetLength(I2);
-    constexpr unsigned Wo = out_nkhw_desc.GetLength(I3);
+    constexpr index_t N  = out_nkhw_desc.GetLength(I0);
+    constexpr index_t Ho = out_nkhw_desc.GetLength(I2);
+    constexpr index_t Wo = out_nkhw_desc.GetLength(I3);
 
-    constexpr unsigned K = wei_kcyx_desc.GetLength(I0);
-    constexpr unsigned C = wei_kcyx_desc.GetLength(I1);
-    constexpr unsigned Y = wei_kcyx_desc.GetLength(I2);
-    constexpr unsigned X = wei_kcyx_desc.GetLength(I3);
+    constexpr index_t K = wei_kcyx_desc.GetLength(I0);
+    constexpr index_t C = wei_kcyx_desc.GetLength(I1);
+    constexpr index_t Y = wei_kcyx_desc.GetLength(I2);
+    constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     // vectorized input
     auto in_nchw_vec_desc = make_ConstantTensorDescriptor(Sequence<N, C / NVector, Hi, Wi>{});
@@ -96,84 +96,84 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
 
 #if 0
     // 3x3, 34x34, 128 thread, fp32, vector = 1
-    constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 32;
-    constexpr unsigned CPerBlock  = 4;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 32;
+    constexpr index_t NPerBlock  = 2;
+    constexpr index_t KPerBlock  = 32;
+    constexpr index_t CPerBlock  = 4;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 32;
 
-    constexpr unsigned NPerThread  = 2;
-    constexpr unsigned KPerThread  = 4;
-    constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 2;
-    constexpr unsigned WoPerThread = 2;
+    constexpr index_t NPerThread  = 2;
+    constexpr index_t KPerThread  = 4;
+    constexpr index_t CPerThread  = 2;
+    constexpr index_t HoPerThread = 2;
+    constexpr index_t WoPerThread = 2;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 2;
-    constexpr unsigned WeiBlockCopyDataPerRead = 2;
+    constexpr index_t InBlockCopyDataPerRead  = 2;
+    constexpr index_t WeiBlockCopyDataPerRead = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 3x3, 34x34, 128 thread, fp32, vector = 2
-    constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 32;
-    constexpr unsigned CPerBlock  = 2;
-    constexpr unsigned HoPerBlock = 2;
-    constexpr unsigned WoPerBlock = 32;
+    constexpr index_t NPerBlock  = 2;
+    constexpr index_t KPerBlock  = 32;
+    constexpr index_t CPerBlock  = 2;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 32;
 
-    constexpr unsigned NPerThread  = 2;
-    constexpr unsigned KPerThread  = 4;
-    constexpr unsigned CPerThread  = 1;
-    constexpr unsigned HoPerThread = 2;
-    constexpr unsigned WoPerThread = 2;
+    constexpr index_t NPerThread  = 2;
+    constexpr index_t KPerThread  = 4;
+    constexpr index_t CPerThread  = 1;
+    constexpr index_t HoPerThread = 2;
+    constexpr index_t WoPerThread = 2;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 2;
-    constexpr unsigned WeiBlockCopyDataPerRead = 2;
+    constexpr index_t InBlockCopyDataPerRead  = 2;
+    constexpr index_t WeiBlockCopyDataPerRead = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 3x3, 34x34, 128 thread, int8, vector = 4
-    constexpr unsigned NPerBlock  = 2;
-    constexpr unsigned KPerBlock  = 32;
-    constexpr unsigned CPerBlock  = 8;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 32;
+    constexpr index_t NPerBlock  = 2;
+    constexpr index_t KPerBlock  = 32;
+    constexpr index_t CPerBlock  = 8;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 32;
 
-    constexpr unsigned NPerThread  = 1;
-    constexpr unsigned KPerThread  = 8;
-    constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 4;
-    constexpr unsigned WoPerThread = 2;
+    constexpr index_t NPerThread  = 1;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t CPerThread  = 2;
+    constexpr index_t HoPerThread = 4;
+    constexpr index_t WoPerThread = 2;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 2;
-    constexpr unsigned WeiBlockCopyDataPerRead = 2;
+    constexpr index_t InBlockCopyDataPerRead  = 2;
+    constexpr index_t WeiBlockCopyDataPerRead = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 1
     // 1x1, 32x32, 128 thread, int8, vector = 4
-    constexpr unsigned NPerBlock  = 1;
-    constexpr unsigned KPerBlock  = 64;
-    constexpr unsigned CPerBlock  = 16;
-    constexpr unsigned HoPerBlock = 4;
-    constexpr unsigned WoPerBlock = 32;
+    constexpr index_t NPerBlock  = 1;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 16;
+    constexpr index_t HoPerBlock = 4;
+    constexpr index_t WoPerBlock = 32;
 
-    constexpr unsigned NPerThread  = 1;
-    constexpr unsigned KPerThread  = 8;
-    constexpr unsigned CPerThread  = 2;
-    constexpr unsigned HoPerThread = 4;
-    constexpr unsigned WoPerThread = 2;
+    constexpr index_t NPerThread  = 1;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t CPerThread  = 2;
+    constexpr index_t HoPerThread = 4;
+    constexpr index_t WoPerThread = 2;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 2;
-    constexpr unsigned WeiBlockCopyDataPerRead = 2;
+    constexpr index_t InBlockCopyDataPerRead  = 2;
+    constexpr index_t WeiBlockCopyDataPerRead = 2;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #endif
 
-    constexpr unsigned GridSize =
+    constexpr index_t GridSize =
         (N / NPerBlock) * (K / KPerBlock) * (Ho / HoPerBlock) * (Wo / WoPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    for(unsigned i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
             gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw<TInWei,

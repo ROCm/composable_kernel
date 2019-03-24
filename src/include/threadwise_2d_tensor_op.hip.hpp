@@ -16,11 +16,11 @@ __device__ void threadwise_2d_tensor_pointwise_operation_unary(Desc, Float* __re
     }
 #endif
 
-    for(unsigned did0 = 0; did0 < desc.GetLength(I0); ++did0)
+    for(index_t did0 = 0; did0 < desc.GetLength(I0); ++did0)
     {
-        for(unsigned did1 = 0; did1 < desc.GetLength(I1); ++did1)
+        for(index_t did1 = 0; did1 < desc.GetLength(I1); ++did1)
         {
-            const unsigned dindex = desc.Get1dIndex(did0, did1);
+            const index_t dindex = desc.Get1dIndex(did0, did1);
 
             f(p[dindex]);
         }
@@ -47,22 +47,22 @@ __device__ void threadwise_2d_tensor_pointwise_operation_binary_reorder_by_get_d
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
-    constexpr unsigned IR0 = DstFromSrcReorder{}.Get(I0);
-    constexpr unsigned IR1 = DstFromSrcReorder{}.Get(I1);
+    constexpr index_t IR0 = DstFromSrcReorder{}.Get(I0);
+    constexpr index_t IR1 = DstFromSrcReorder{}.Get(I1);
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
     constexpr auto ref_desc = make_ConstantTensorDescriptor(SrcOpLengths{});
 
-    for(unsigned did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
+    for(index_t did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
     {
-        for(unsigned did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
+        for(index_t did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
         {
-            const unsigned aindex = src_desc.Get1dIndex(did0, did1);
+            const index_t aindex = src_desc.Get1dIndex(did0, did1);
 
-            const unsigned did[2] = {did0, did1};
+            const index_t did[2] = {did0, did1};
 
-            const unsigned bindex = dst_desc.Get1dIndex(did[IR0], did[IR1]);
+            const index_t bindex = dst_desc.Get1dIndex(did[IR0], did[IR1]);
 
             f(p_src[aindex], p_dst[bindex]);
         }
@@ -118,21 +118,21 @@ __device__ void threadwise_2d_tensor_shift_down(Desc, Float* __restrict__ p, IDi
     }
 #endif
 
-    constexpr unsigned nshift = NShift::mValue;
+    constexpr index_t nshift = NShift::mValue;
 
-    constexpr unsigned did0_end =
+    constexpr index_t did0_end =
         is_same<decltype(I0), IDim>::value ? desc.GetLength(I0) - nshift : desc.GetLength(I0);
 
-    constexpr unsigned did1_end =
+    constexpr index_t did1_end =
         is_same<decltype(I1), IDim>::value ? desc.GetLength(I1) - nshift : desc.GetLength(I1);
 
-    for(unsigned did0 = 0; did0 < did0_end; ++did0)
+    for(index_t did0 = 0; did0 < did0_end; ++did0)
     {
-        for(unsigned did1 = 0; did1 < did1_end; ++did1)
+        for(index_t did1 = 0; did1 < did1_end; ++did1)
         {
-            const unsigned dindex = desc.Get1dIndex(did0, did1);
+            const index_t dindex = desc.Get1dIndex(did0, did1);
 
-            const unsigned sindex = dindex + nshift * desc.GetStride(IDim{});
+            const index_t sindex = dindex + nshift * desc.GetStride(IDim{});
 
             p[dindex] = p[sindex];
         }

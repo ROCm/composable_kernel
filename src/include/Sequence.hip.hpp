@@ -2,38 +2,38 @@
 #include "constant_integral.hip.hpp"
 #include "functional.hip.hpp"
 
-template <unsigned... Is>
+template <index_t... Is>
 struct Sequence
 {
     using Type = Sequence<Is...>;
 
-    static constexpr unsigned nDim = sizeof...(Is);
+    static constexpr index_t nDim = sizeof...(Is);
 
-    const unsigned mData[nDim] = {Is...};
+    const index_t mData[nDim] = {Is...};
 
-    template <unsigned I>
-    __host__ __device__ constexpr unsigned Get(Number<I>) const
+    template <index_t I>
+    __host__ __device__ constexpr index_t Get(Number<I>) const
     {
         return mData[I];
     }
 
     // this is ugly, only for nDIm = 4
-    template <unsigned I0, unsigned I1, unsigned I2, unsigned I3>
+    template <index_t I0, index_t I1, index_t I2, index_t I3>
     __host__ __device__ constexpr auto ReorderByGetNewFromOld(Sequence<I0, I1, I2, I3>) const
     {
         static_assert(nDim == 4, "nDim != 4");
 
         constexpr auto old_sequence = Type{};
 
-        constexpr unsigned NR0 = old_sequence.mData[I0];
-        constexpr unsigned NR1 = old_sequence.mData[I1];
-        constexpr unsigned NR2 = old_sequence.mData[I2];
-        constexpr unsigned NR3 = old_sequence.mData[I3];
+        constexpr index_t NR0 = old_sequence.mData[I0];
+        constexpr index_t NR1 = old_sequence.mData[I1];
+        constexpr index_t NR2 = old_sequence.mData[I2];
+        constexpr index_t NR3 = old_sequence.mData[I3];
 
         return Sequence<NR0, NR1, NR2, NR3>{};
     }
 
-    template <unsigned I0, unsigned I1, unsigned I2, unsigned I3>
+    template <index_t I0, index_t I1, index_t I2, index_t I3>
     __host__ __device__ constexpr auto ReorderByPutOldToNew(Sequence<I0, I1, I2, I3>) const
     {
         // don't know how to implement this
@@ -41,7 +41,7 @@ struct Sequence
         assert(false);
     }
 
-    template <unsigned I>
+    template <index_t I>
     __host__ __device__ constexpr auto PushBack(Number<I>) const
     {
         return Sequence<Is..., I>{};
@@ -56,14 +56,14 @@ struct Sequence
     }
 };
 
-template <unsigned... Is, unsigned I>
+template <index_t... Is, index_t I>
 __host__ __device__ constexpr auto sequence_pop_back(Sequence<Is..., I>)
 {
     static_assert(sizeof...(Is) >= 1, "empty Sequence!");
     return Sequence<Is...>{};
 }
 
-template <class F, unsigned... Xs, unsigned... Ys>
+template <class F, index_t... Xs, index_t... Ys>
 __host__ __device__ constexpr auto sequence_sequence_op(Sequence<Xs...>, Sequence<Ys...>, F f)
 {
     static_assert(Sequence<Xs...>::nDim == Sequence<Ys...>::nDim, "Dim not the same");
@@ -71,12 +71,12 @@ __host__ __device__ constexpr auto sequence_sequence_op(Sequence<Xs...>, Sequenc
     return Sequence<f(Xs, Ys)...>{};
 }
 
-template <unsigned... Xs, unsigned... Ys>
+template <index_t... Xs, index_t... Ys>
 __host__ __device__ constexpr auto sequence_sequence_add(Sequence<Xs...>, Sequence<Ys...>)
 {
     struct add
     {
-        __host__ __device__ constexpr unsigned operator()(unsigned x, unsigned y) const
+        __host__ __device__ constexpr index_t operator()(index_t x, index_t y) const
         {
             return x + y;
         }
@@ -85,7 +85,7 @@ __host__ __device__ constexpr auto sequence_sequence_add(Sequence<Xs...>, Sequen
     return sequence_sequence_op(Sequence<Xs...>{}, Sequence<Ys...>{}, add{});
 }
 
-template <unsigned... Is>
+template <index_t... Is>
 __host__ __device__ constexpr auto Sequence<Is...>::PopBack() const
 {
     return sequence_pop_back(Type{});

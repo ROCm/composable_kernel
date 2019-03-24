@@ -18,15 +18,15 @@ __device__ void threadwise_4d_tensor_pointwise_operation_unary(Desc, Float* __re
     }
 #endif
 
-    for(unsigned did0 = 0; did0 < desc.GetLength(I0); ++did0)
+    for(index_t did0 = 0; did0 < desc.GetLength(I0); ++did0)
     {
-        for(unsigned did1 = 0; did1 < desc.GetLength(I1); ++did1)
+        for(index_t did1 = 0; did1 < desc.GetLength(I1); ++did1)
         {
-            for(unsigned did2 = 0; did2 < desc.GetLength(I2); ++did2)
+            for(index_t did2 = 0; did2 < desc.GetLength(I2); ++did2)
             {
-                for(unsigned did3 = 0; did3 < desc.GetLength(I3); ++did3)
+                for(index_t did3 = 0; did3 < desc.GetLength(I3); ++did3)
                 {
-                    const unsigned dindex = desc.Get1dIndex(did0, did1, did2, did3);
+                    const index_t dindex = desc.Get1dIndex(did0, did1, did2, did3);
 
                     f(p[dindex]);
                 }
@@ -58,28 +58,28 @@ __device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_d
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr unsigned IR0 = DstFromSrcReorder{}.Get(I0);
-    constexpr unsigned IR1 = DstFromSrcReorder{}.Get(I1);
-    constexpr unsigned IR2 = DstFromSrcReorder{}.Get(I2);
-    constexpr unsigned IR3 = DstFromSrcReorder{}.Get(I3);
+    constexpr index_t IR0 = DstFromSrcReorder{}.Get(I0);
+    constexpr index_t IR1 = DstFromSrcReorder{}.Get(I1);
+    constexpr index_t IR2 = DstFromSrcReorder{}.Get(I2);
+    constexpr index_t IR3 = DstFromSrcReorder{}.Get(I3);
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
     constexpr auto ref_desc = make_ConstantTensorDescriptor(SrcOpLengths{});
 
-    for(unsigned did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
+    for(index_t did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
     {
-        for(unsigned did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
+        for(index_t did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
         {
-            for(unsigned did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
+            for(index_t did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
             {
-                for(unsigned did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
+                for(index_t did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
                 {
-                    const unsigned aindex = src_desc.Get1dIndex(did0, did1, did2, did3);
+                    const index_t aindex = src_desc.Get1dIndex(did0, did1, did2, did3);
 
-                    const unsigned did[4] = {did0, did1, did2, did3};
+                    const index_t did[4] = {did0, did1, did2, did3};
 
-                    const unsigned bindex =
+                    const index_t bindex =
                         dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
                     f(p_src[aindex], p_dst[bindex]);
@@ -129,7 +129,7 @@ __device__ void threadwise_4d_tensor_copy(
 }
 
 // need to assume src and dst is aligned
-template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, unsigned DataPerRead>
+template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, index_t DataPerRead>
 __device__ void threadwise_4d_tensor_copy_v2(SrcDesc,
                                              const Float* __restrict__ p_src,
                                              DstDesc,
@@ -163,24 +163,24 @@ __device__ void threadwise_4d_tensor_copy_v2(SrcDesc,
                       DstDesc{}.GetStride(I2) % DataPerRead == 0,
                   "wrong! src and dst stride should be multiple of DataPerRead to keep alignment");
 
-    constexpr unsigned L3 = SrcOpLengths{}.Get(I3);
+    constexpr index_t L3 = SrcOpLengths{}.Get(I3);
 
     static_assert(L3 % DataPerRead == 0, "wrong! L3 should be evenly divided by DataPerRead");
 
-    constexpr unsigned nloop_d3 = L3 / DataPerRead;
+    constexpr index_t nloop_d3 = L3 / DataPerRead;
 
-    for(unsigned did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
+    for(index_t did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
     {
-        for(unsigned did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
+        for(index_t did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
         {
-            for(unsigned did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
+            for(index_t did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
             {
-                for(unsigned iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
+                for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
                 {
-                    const unsigned src_index =
+                    const index_t src_index =
                         src_desc.Get1dIndex(did0, did1, did2, iloop_d3 * DataPerRead);
 
-                    const unsigned dst_index =
+                    const index_t dst_index =
                         dst_desc.Get1dIndex(did0, did1, did2, iloop_d3 * DataPerRead);
 
                     if(DataPerRead == 1)
@@ -224,31 +224,31 @@ __device__ void threadwise_4d_tensor_shift_down(Desc, Float* __restrict__ p, IDi
     }
 #endif
 
-    constexpr unsigned nshift = NShift::mValue;
+    constexpr index_t nshift = NShift::mValue;
 
-    constexpr unsigned did0_end =
+    constexpr index_t did0_end =
         is_same<decltype(I0), IDim>::value ? desc.GetLength(I0) - nshift : desc.GetLength(I0);
 
-    constexpr unsigned did1_end =
+    constexpr index_t did1_end =
         is_same<decltype(I1), IDim>::value ? desc.GetLength(I1) - nshift : desc.GetLength(I1);
 
-    constexpr unsigned did2_end =
+    constexpr index_t did2_end =
         is_same<decltype(I2), IDim>::value ? desc.GetLength(I2) - nshift : desc.GetLength(I2);
 
-    constexpr unsigned did3_end =
+    constexpr index_t did3_end =
         is_same<decltype(I3), IDim>::value ? desc.GetLength(I3) - nshift : desc.GetLength(I3);
 
-    for(unsigned did0 = 0; did0 < did0_end; ++did0)
+    for(index_t did0 = 0; did0 < did0_end; ++did0)
     {
-        for(unsigned did1 = 0; did1 < did1_end; ++did1)
+        for(index_t did1 = 0; did1 < did1_end; ++did1)
         {
-            for(unsigned did2 = 0; did2 < did2_end; ++did2)
+            for(index_t did2 = 0; did2 < did2_end; ++did2)
             {
-                for(unsigned did3 = 0; did3 < did3_end; ++did3)
+                for(index_t did3 = 0; did3 < did3_end; ++did3)
                 {
-                    const unsigned dindex = desc.Get1dIndex(did0, did1, did2, did3);
+                    const index_t dindex = desc.Get1dIndex(did0, did1, did2, did3);
 
-                    const unsigned sindex = dindex + nshift * desc.GetStride(IDim{});
+                    const index_t sindex = dindex + nshift * desc.GetStride(IDim{});
 
                     p[dindex] = p[sindex];
                 }

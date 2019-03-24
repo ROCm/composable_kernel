@@ -13,21 +13,21 @@ template <class TInWei,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
-          unsigned ScalarPerVector,
-          unsigned NPerBlock,
-          unsigned KPerBlock,
-          unsigned CPerBlock,
-          unsigned HoPerBlock,
-          unsigned WoPerBlock,
-          unsigned NPerThread,
-          unsigned KPerThread,
-          unsigned CPerThread,
-          unsigned HoPerThread,
-          unsigned WoPerThread,
-          unsigned InBlockCopyDataPerRead,
-          unsigned WeiBlockCopyDataPerRead,
-          unsigned BlockSize,
-          unsigned GridSize>
+          index_t ScalarPerVector,
+          index_t NPerBlock,
+          index_t KPerBlock,
+          index_t CPerBlock,
+          index_t HoPerBlock,
+          index_t WoPerBlock,
+          index_t NPerThread,
+          index_t KPerThread,
+          index_t CPerThread,
+          index_t HoPerThread,
+          index_t WoPerThread,
+          index_t InBlockCopyDataPerRead,
+          index_t WeiBlockCopyDataPerRead,
+          index_t BlockSize,
+          index_t GridSize>
 __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
     const typename vector_type<TInWei,
                                ScalarPerVector>::MemoryType* const __restrict__ p_in_vec_global,
@@ -49,17 +49,17 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
     constexpr auto wei_kcyx_vec_global_desc = WeiGlobalDesc{};
     constexpr auto out_nkhw_global_desc     = OutGlobalDesc{};
 
-    constexpr unsigned N = in_nchw_vec_global_desc.GetLength(I0);
-    constexpr unsigned K = wei_kcyx_vec_global_desc.GetLength(I0);
-    constexpr unsigned C = wei_kcyx_vec_global_desc.GetLength(I1);
-    constexpr unsigned Y = wei_kcyx_vec_global_desc.GetLength(I2);
-    constexpr unsigned X = wei_kcyx_vec_global_desc.GetLength(I3);
+    constexpr index_t N = in_nchw_vec_global_desc.GetLength(I0);
+    constexpr index_t K = wei_kcyx_vec_global_desc.GetLength(I0);
+    constexpr index_t C = wei_kcyx_vec_global_desc.GetLength(I1);
+    constexpr index_t Y = wei_kcyx_vec_global_desc.GetLength(I2);
+    constexpr index_t X = wei_kcyx_vec_global_desc.GetLength(I3);
 
     constexpr auto wei_ke_vec_global_desc = make_ConstantTensorDescriptor(
         Sequence<K, C * Y * X>{}); // 2d view of wei for blockwise copy
 
-    constexpr unsigned HiPerBlock = HoPerBlock + Y - 1;
-    constexpr unsigned WiPerBlock = WoPerBlock + X - 1;
+    constexpr index_t HiPerBlock = HoPerBlock + Y - 1;
+    constexpr index_t WiPerBlock = WoPerBlock + X - 1;
 
     constexpr auto in_nchw_vec_block_desc = make_ConstantTensorDescriptor_aligned(
         Sequence<NPerBlock, CPerBlock, HiPerBlock, WiPerBlock>{}, Number<InBlockCopyDataPerRead>{});
@@ -73,15 +73,15 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
                                       Sequence<wei_ke_vec_block_desc.GetStride(I0), Y * X, X, 1>{});
 
     // shared mem
-    constexpr unsigned in_block_size =
+    constexpr index_t in_block_size =
         in_nchw_vec_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
 
-    constexpr unsigned wei_block_size =
+    constexpr index_t wei_block_size =
         wei_kcyx_vec_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 
-    constexpr unsigned max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
-                                       ? InBlockCopyDataPerRead
-                                       : WeiBlockCopyDataPerRead;
+    constexpr index_t max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
+                                      ? InBlockCopyDataPerRead
+                                      : WeiBlockCopyDataPerRead;
 
     __shared__ in_vector_mem_t
         p_in_vec_block[max_align * ((in_block_size + max_align - 1) / max_align)];
@@ -89,8 +89,8 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
         p_wei_vec_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
 
     // threadwise tensors
-    constexpr unsigned HiPerThread = HoPerThread + Y - 1;
-    constexpr unsigned WiPerThread = WoPerThread + X - 1;
+    constexpr index_t HiPerThread = HoPerThread + Y - 1;
+    constexpr index_t WiPerThread = WoPerThread + X - 1;
 
     constexpr auto in_nchw_vec_thread_block_desc =
         make_ConstantTensorDescriptor(Sequence<NPerThread, CPerThread, HiPerThread, WiPerThread>{},
@@ -106,56 +106,54 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
     out_scalar_t p_out_thread[out_nkhw_thread_desc.GetElementSpace()];
 
     // divide block work
-    constexpr unsigned NBlockWork =
-        (out_nkhw_global_desc.GetLength(I0) + NPerBlock - 1) / NPerBlock;
-    constexpr unsigned KBlockWork =
-        (out_nkhw_global_desc.GetLength(I1) + KPerBlock - 1) / KPerBlock;
-    constexpr unsigned HBlockWork =
+    constexpr index_t NBlockWork = (out_nkhw_global_desc.GetLength(I0) + NPerBlock - 1) / NPerBlock;
+    constexpr index_t KBlockWork = (out_nkhw_global_desc.GetLength(I1) + KPerBlock - 1) / KPerBlock;
+    constexpr index_t HBlockWork =
         (out_nkhw_global_desc.GetLength(I2) + HoPerBlock - 1) / HoPerBlock;
-    constexpr unsigned WBlockWork =
+    constexpr index_t WBlockWork =
         (out_nkhw_global_desc.GetLength(I3) + WoPerBlock - 1) / WoPerBlock;
 
-    const unsigned block_id = blockIdx.x;
+    const index_t block_id = blockIdx.x;
 
-    unsigned itmp                  = block_id;
-    const unsigned n_block_work_id = itmp / (KBlockWork * HBlockWork * WBlockWork);
+    index_t itmp                  = block_id;
+    const index_t n_block_work_id = itmp / (KBlockWork * HBlockWork * WBlockWork);
     itmp -= n_block_work_id * (KBlockWork * HBlockWork * WBlockWork);
-    const unsigned k_block_work_id = itmp / (HBlockWork * WBlockWork);
+    const index_t k_block_work_id = itmp / (HBlockWork * WBlockWork);
     itmp -= k_block_work_id * (HBlockWork * WBlockWork);
-    const unsigned h_block_work_id = itmp / WBlockWork;
-    const unsigned w_block_work_id = itmp - h_block_work_id * WBlockWork;
+    const index_t h_block_work_id = itmp / WBlockWork;
+    const index_t w_block_work_id = itmp - h_block_work_id * WBlockWork;
 
-    const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
-    const unsigned k_block_data_begin  = k_block_work_id * KPerBlock;
-    const unsigned ho_block_data_begin = h_block_work_id * HoPerBlock;
-    const unsigned wo_block_data_begin = w_block_work_id * WoPerBlock;
+    const index_t n_block_data_begin  = n_block_work_id * NPerBlock;
+    const index_t k_block_data_begin  = k_block_work_id * KPerBlock;
+    const index_t ho_block_data_begin = h_block_work_id * HoPerBlock;
+    const index_t wo_block_data_begin = w_block_work_id * WoPerBlock;
 
-    const unsigned hi_block_data_begin = ho_block_data_begin; // minus padding
-    const unsigned wi_block_data_begin = wo_block_data_begin; // minus padding
+    const index_t hi_block_data_begin = ho_block_data_begin; // minus padding
+    const index_t wi_block_data_begin = wo_block_data_begin; // minus padding
 
     // divide thread work
-    constexpr unsigned NThreadWork = (NPerBlock + NPerThread - 1) / NPerThread;
-    constexpr unsigned KThreadWork = (KPerBlock + KPerThread - 1) / KPerThread;
-    constexpr unsigned HThreadWork = (HoPerBlock + HoPerThread - 1) / HoPerThread;
-    constexpr unsigned WThreadWork = (WoPerBlock + WoPerThread - 1) / WoPerThread;
+    constexpr index_t NThreadWork = (NPerBlock + NPerThread - 1) / NPerThread;
+    constexpr index_t KThreadWork = (KPerBlock + KPerThread - 1) / KPerThread;
+    constexpr index_t HThreadWork = (HoPerBlock + HoPerThread - 1) / HoPerThread;
+    constexpr index_t WThreadWork = (WoPerBlock + WoPerThread - 1) / WoPerThread;
 
-    const unsigned thread_id = threadIdx.x;
+    const index_t thread_id = threadIdx.x;
 
-    itmp                            = thread_id;
-    const unsigned n_thread_work_id = itmp / (KThreadWork * HThreadWork * WThreadWork);
+    itmp                           = thread_id;
+    const index_t n_thread_work_id = itmp / (KThreadWork * HThreadWork * WThreadWork);
     itmp -= n_thread_work_id * (KThreadWork * HThreadWork * WThreadWork);
-    const unsigned k_thread_work_id = itmp / (HThreadWork * WThreadWork);
+    const index_t k_thread_work_id = itmp / (HThreadWork * WThreadWork);
     itmp -= k_thread_work_id * (HThreadWork * WThreadWork);
-    const unsigned h_thread_work_id = itmp / WThreadWork;
-    const unsigned w_thread_work_id = itmp - h_thread_work_id * WThreadWork;
+    const index_t h_thread_work_id = itmp / WThreadWork;
+    const index_t w_thread_work_id = itmp - h_thread_work_id * WThreadWork;
 
-    const unsigned n_thread_data_begin  = n_thread_work_id * NPerThread;
-    const unsigned k_thread_data_begin  = k_thread_work_id * KPerThread;
-    const unsigned ho_thread_data_begin = h_thread_work_id * HoPerThread;
-    const unsigned wo_thread_data_begin = w_thread_work_id * WoPerThread;
+    const index_t n_thread_data_begin  = n_thread_work_id * NPerThread;
+    const index_t k_thread_data_begin  = k_thread_work_id * KPerThread;
+    const index_t ho_thread_data_begin = h_thread_work_id * HoPerThread;
+    const index_t wo_thread_data_begin = w_thread_work_id * WoPerThread;
 
-    const unsigned hi_thread_data_begin = ho_thread_data_begin;
-    const unsigned wi_thread_data_begin = wo_thread_data_begin;
+    const index_t hi_thread_data_begin = ho_thread_data_begin;
+    const index_t wi_thread_data_begin = wo_thread_data_begin;
 
     constexpr auto blockwise_in_copy =
         Blockwise4dTensorCopy1<BlockSize,
@@ -188,7 +186,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
     threadwise_4d_tensor_set_zero(out_nkhw_thread_desc, p_out_thread);
 #endif
 
-    for(unsigned c_block_data_begin = 0; c_block_data_begin < C;
+    for(index_t c_block_data_begin = 0; c_block_data_begin < C;
         c_block_data_begin += CPerBlock, __syncthreads())
     {
         // copy input tensor to LDS
@@ -207,7 +205,7 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
 
         __syncthreads();
 
-        for(unsigned c_thread_data = 0; c_thread_data < CPerBlock; c_thread_data += CPerThread)
+        for(index_t c_thread_data = 0; c_thread_data < CPerBlock; c_thread_data += CPerThread)
         {
 // threadwise convolution
 #if 1

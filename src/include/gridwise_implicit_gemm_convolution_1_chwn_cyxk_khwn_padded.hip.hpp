@@ -7,26 +7,26 @@
 #include "threadwise_4d_tensor_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
 
-template <unsigned GridSize,
-          unsigned BlockSize,
+template <index_t GridSize,
+          index_t BlockSize,
           class Float,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
           class LowerPads,
           class UpperPads,
-          unsigned NPerBlock,
-          unsigned KPerBlock,
-          unsigned CPerBlock,
-          unsigned HoPerBlock,
-          unsigned WoPerBlock,
-          unsigned NPerThread,
-          unsigned KPerThread,
-          unsigned CPerThread,
-          unsigned HoPerThread,
-          unsigned WoPerThread,
-          unsigned WeiBlockCopyThreadPerDim0,
-          unsigned WeiBlockCopyThreadPerDim1>
+          index_t NPerBlock,
+          index_t KPerBlock,
+          index_t CPerBlock,
+          index_t HoPerBlock,
+          index_t WoPerBlock,
+          index_t NPerThread,
+          index_t KPerThread,
+          index_t CPerThread,
+          index_t HoPerThread,
+          index_t WoPerThread,
+          index_t WeiBlockCopyThreadPerDim0,
+          index_t WeiBlockCopyThreadPerDim1>
 __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
     const Float* const __restrict__ p_in_global,
     const Float* const __restrict__ p_wei_global,
@@ -48,42 +48,42 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
     constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
     constexpr auto out_khwn_global_desc = OutGlobalDesc{};
 
-    constexpr unsigned C = in_chwn_global_desc.GetLength(I0);
+    constexpr index_t C = in_chwn_global_desc.GetLength(I0);
 
-    constexpr unsigned K  = out_khwn_global_desc.GetLength(I0);
-    constexpr unsigned Ho = out_khwn_global_desc.GetLength(I1);
-    constexpr unsigned Wo = out_khwn_global_desc.GetLength(I2);
-    constexpr unsigned N  = out_khwn_global_desc.GetLength(I3);
+    constexpr index_t K  = out_khwn_global_desc.GetLength(I0);
+    constexpr index_t Ho = out_khwn_global_desc.GetLength(I1);
+    constexpr index_t Wo = out_khwn_global_desc.GetLength(I2);
+    constexpr index_t N  = out_khwn_global_desc.GetLength(I3);
 
-    constexpr unsigned Y = wei_cyxk_global_desc.GetLength(I1);
-    constexpr unsigned X = wei_cyxk_global_desc.GetLength(I2);
+    constexpr index_t Y = wei_cyxk_global_desc.GetLength(I1);
+    constexpr index_t X = wei_cyxk_global_desc.GetLength(I2);
 
-    constexpr unsigned HPadLow = LowerPads{}.Get(I0);
-    constexpr unsigned WPadLow = LowerPads{}.Get(I1);
+    constexpr index_t HPadLow = LowerPads{}.Get(I0);
+    constexpr index_t WPadLow = LowerPads{}.Get(I1);
 
-    constexpr unsigned HPadUp = UpperPads{}.Get(I0);
-    constexpr unsigned WPadUp = UpperPads{}.Get(I1);
+    constexpr index_t HPadUp = UpperPads{}.Get(I0);
+    constexpr index_t WPadUp = UpperPads{}.Get(I1);
 
-    constexpr unsigned HiPerBlock = HoPerBlock + Y - 1;
-    constexpr unsigned WiPerBlock = WoPerBlock + X - 1;
+    constexpr index_t HiPerBlock = HoPerBlock + Y - 1;
+    constexpr index_t WiPerBlock = WoPerBlock + X - 1;
 
     // divide block work: [K, Ho, Wo, N]
-    constexpr unsigned KBlockWork = (K + KPerBlock - 1) / KPerBlock;
-    constexpr unsigned HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
-    constexpr unsigned WBlockWork = (Wo + WoPerBlock - 1) / WoPerBlock;
-    constexpr unsigned NBlockWork = (N + NPerBlock - 1) / NPerBlock;
+    constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
+    constexpr index_t HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
+    constexpr index_t WBlockWork = (Wo + WoPerBlock - 1) / WoPerBlock;
+    constexpr index_t NBlockWork = (N + NPerBlock - 1) / NPerBlock;
 
-    const unsigned k_block_work_id = get_block_1d_id() / (HBlockWork * WBlockWork * NBlockWork);
-    unsigned itmp = get_block_1d_id() - k_block_work_id * (HBlockWork * WBlockWork * NBlockWork);
-    const unsigned h_block_work_id = itmp / (WBlockWork * NBlockWork);
+    const index_t k_block_work_id = get_block_1d_id() / (HBlockWork * WBlockWork * NBlockWork);
+    index_t itmp = get_block_1d_id() - k_block_work_id * (HBlockWork * WBlockWork * NBlockWork);
+    const index_t h_block_work_id = itmp / (WBlockWork * NBlockWork);
     itmp -= h_block_work_id * (WBlockWork * NBlockWork);
-    const unsigned w_block_work_id = itmp / NBlockWork;
-    const unsigned n_block_work_id = itmp - w_block_work_id * NBlockWork;
+    const index_t w_block_work_id = itmp / NBlockWork;
+    const index_t n_block_work_id = itmp - w_block_work_id * NBlockWork;
 
-    const unsigned k_block_data_begin  = k_block_work_id * KPerBlock;
-    const unsigned ho_block_data_begin = h_block_work_id * HoPerBlock;
-    const unsigned wo_block_data_begin = w_block_work_id * WoPerBlock;
-    const unsigned n_block_data_begin  = n_block_work_id * NPerBlock;
+    const index_t k_block_data_begin  = k_block_work_id * KPerBlock;
+    const index_t ho_block_data_begin = h_block_work_id * HoPerBlock;
+    const index_t wo_block_data_begin = w_block_work_id * WoPerBlock;
+    const index_t n_block_data_begin  = n_block_work_id * NPerBlock;
 
     // flattened (2d) tensor view of wei in global mem
     constexpr auto wei_ek_global_desc = make_ConstantTensorDescriptor(Sequence<C * Y * X, K>{});
@@ -114,11 +114,11 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
 
     // blockwise copy
     // input: format is [C, Hi, Wi, N]
-    const unsigned h_block_pad_low = h_block_work_id == 0 ? HPadLow : 0;
-    const unsigned w_block_pad_low = w_block_work_id == 0 ? WPadLow : 0;
+    const index_t h_block_pad_low = h_block_work_id == 0 ? HPadLow : 0;
+    const index_t w_block_pad_low = w_block_work_id == 0 ? WPadLow : 0;
 
-    const unsigned h_block_pad_up = h_block_work_id == HBlockWork - 1 ? HPadUp : 0;
-    const unsigned w_block_pad_up = w_block_work_id == WBlockWork - 1 ? WPadUp : 0;
+    const index_t h_block_pad_up = h_block_work_id == HBlockWork - 1 ? HPadUp : 0;
+    const index_t w_block_pad_up = w_block_work_id == WBlockWork - 1 ? WPadUp : 0;
 
 #if 0
     if(get_thread_local_1d_id() == 0)
@@ -204,8 +204,8 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
                                                          true>{};
 
     // LDS
-    constexpr unsigned in_block_size  = in_chwn_block_desc.GetElementSpace();
-    constexpr unsigned wei_block_size = wei_cyxk_block_desc.GetElementSpace();
+    constexpr index_t in_block_size  = in_chwn_block_desc.GetElementSpace();
+    constexpr index_t wei_block_size = wei_cyxk_block_desc.GetElementSpace();
 
     __shared__ Float p_in_block[in_block_size];
     __shared__ Float p_wei_block[wei_block_size];
@@ -219,9 +219,9 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
     const Float* p_wei_global_block_begin =
         p_wei_global + wei_ek_global_desc.Get1dIndex(0, k_block_data_begin);
 
-    for(unsigned c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
-                 p_wei_global_block_begin += CPerBlock * wei_ek_global_desc.GetStride(I0),
-                 __syncthreads())
+    for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
+                p_wei_global_block_begin += CPerBlock * wei_ek_global_desc.GetStride(I0),
+                __syncthreads())
     {
 #if 1
         // input: global mem to LDS,
@@ -245,9 +245,9 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
         __syncthreads();
 
         // a series of batched GEMM
-        for(unsigned y = 0; y < Y; ++y)
+        for(index_t y = 0; y < Y; ++y)
         {
-            for(unsigned x = 0; x < X; ++x)
+            for(index_t x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
@@ -262,10 +262,10 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
     const auto matrix_c_index =
         blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    const unsigned ho_thread_data_begin = matrix_c_index.batch;
-    const unsigned k_thread_data_begin  = matrix_c_index.row;
-    const unsigned wo_thread_data_begin = matrix_c_index.col / NPerBlock;
-    const unsigned n_thread_data_begin  = matrix_c_index.col - wo_thread_data_begin * NPerBlock;
+    const index_t ho_thread_data_begin = matrix_c_index.batch;
+    const index_t k_thread_data_begin  = matrix_c_index.row;
+    const index_t wo_thread_data_begin = matrix_c_index.col / NPerBlock;
+    const index_t n_thread_data_begin  = matrix_c_index.col - wo_thread_data_begin * NPerBlock;
 
 #if 0
     printf("block %u %u, %u %u %u %u, %u %u %u %u, %f \n", 

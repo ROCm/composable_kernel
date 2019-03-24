@@ -11,7 +11,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
                                                        const Tensor<T>& wei_kcyx,
                                                        OutDesc,
                                                        Tensor<T>& out_nkhw,
-                                                       unsigned nrepeat)
+                                                       index_t nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -22,19 +22,19 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr auto wei_kcyx_desc = WeiDesc{};
     constexpr auto out_nkhw_desc = OutDesc{};
 
-    constexpr unsigned N  = in_nchw_desc.GetLength(I0);
-    constexpr unsigned Hi = in_nchw_desc.GetLength(I2);
-    constexpr unsigned Wi = in_nchw_desc.GetLength(I3);
+    constexpr index_t N  = in_nchw_desc.GetLength(I0);
+    constexpr index_t Hi = in_nchw_desc.GetLength(I2);
+    constexpr index_t Wi = in_nchw_desc.GetLength(I3);
 
-    constexpr unsigned Ho = out_nkhw_desc.GetLength(I2);
-    constexpr unsigned Wo = out_nkhw_desc.GetLength(I3);
+    constexpr index_t Ho = out_nkhw_desc.GetLength(I2);
+    constexpr index_t Wo = out_nkhw_desc.GetLength(I3);
 
-    constexpr unsigned K = wei_kcyx_desc.GetLength(I0);
-    constexpr unsigned C = wei_kcyx_desc.GetLength(I1);
-    constexpr unsigned Y = wei_kcyx_desc.GetLength(I2);
-    constexpr unsigned X = wei_kcyx_desc.GetLength(I3);
+    constexpr index_t K = wei_kcyx_desc.GetLength(I0);
+    constexpr index_t C = wei_kcyx_desc.GetLength(I1);
+    constexpr index_t Y = wei_kcyx_desc.GetLength(I2);
+    constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
-    constexpr unsigned BGhostRead = (Y - 1) * Wi + (X - 1);
+    constexpr index_t BGhostRead = (Y - 1) * Wi + (X - 1);
 
     // convert in_nchw to in_cnhw
     auto in_chwn_desc = make_ConstantTensorDescriptor(Sequence<C, Hi, Wi, N>{});
@@ -71,128 +71,158 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 #if 0
     // 3x3, 34x34
     // need to use register double buffer for GEMM
-    constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 4;
+    constexpr index_t BPerBlock = 128;
+    constexpr index_t KPerBlock = 64;
+    constexpr index_t CPerBlock = 4;
 
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
+    constexpr index_t BPerThread = 8;
+    constexpr index_t KPerThread = 8;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 2;
-    constexpr unsigned GemmNLevel1Cluster = 8;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 8;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned GemmThreadPerColumnPerCluster = 8;
-    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
+    constexpr index_t GemmThreadPerColumnPerCluster = 8;
+    constexpr index_t GemmThreadPerRowPerCluster    = 8;
 
-    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
+    constexpr index_t InBlockCopyThreadPerDim0 = 4;
+    constexpr index_t InBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 4;
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead  = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 1x1, 28x28, 64 threads
-    constexpr unsigned BPerBlock = 64;
-    constexpr unsigned KPerBlock = 64;
-    constexpr unsigned CPerBlock = 8;
+    constexpr index_t BPerBlock = 64;
+    constexpr index_t KPerBlock = 64;
+    constexpr index_t CPerBlock = 8;
 
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
+    constexpr index_t BPerThread = 8;
+    constexpr index_t KPerThread = 8;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 2;
-    constexpr unsigned GemmNLevel1Cluster = 4;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned GemmThreadPerColumnPerCluster = 8;
-    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
+    constexpr index_t GemmThreadPerColumnPerCluster = 8;
+    constexpr index_t GemmThreadPerRowPerCluster    = 8;
 
-    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
+    constexpr index_t InBlockCopyThreadPerDim0 = 4;
+    constexpr index_t InBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 4;
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead  = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned BlockSize = 64;
-#elif 1
+    constexpr index_t BlockSize = 64;
+#elif 0
     // 1x1, 28x28, 128 threads, no lds-double-buffer
     // 1x1, 28x28, 128 threads, with lds-double-buffer, max_register = 128
-    constexpr unsigned BPerBlock = 64;
-    constexpr unsigned KPerBlock = 128;
-    constexpr unsigned CPerBlock = 8;
+    constexpr index_t BPerBlock = 64;
+    constexpr index_t KPerBlock = 128;
+    constexpr index_t CPerBlock = 8;
 
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
+    constexpr index_t BPerThread = 8;
+    constexpr index_t KPerThread = 8;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 2;
-    constexpr unsigned GemmMLevel1Cluster = 4;
-    constexpr unsigned GemmNLevel1Cluster = 4;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned GemmThreadPerColumnPerCluster = 8;
-    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
+    constexpr index_t GemmThreadPerColumnPerCluster = 8;
+    constexpr index_t GemmThreadPerRowPerCluster    = 8;
 
-    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
+    constexpr index_t InBlockCopyThreadPerDim0 = 4;
+    constexpr index_t InBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 4;
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead  = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned BlockSize = 128;
+    constexpr index_t BlockSize = 128;
 #elif 0
     // 1x1, 28x28, 256 thread
-    constexpr unsigned BPerBlock = 128;
-    constexpr unsigned KPerBlock = 128;
-    constexpr unsigned CPerBlock = 8;
+    constexpr index_t BPerBlock = 128;
+    constexpr index_t KPerBlock = 128;
+    constexpr index_t CPerBlock = 8;
 
-    constexpr unsigned BPerThread = 8;
-    constexpr unsigned KPerThread = 8;
+    constexpr index_t BPerThread = 8;
+    constexpr index_t KPerThread = 8;
 
-    constexpr unsigned GemmMPerThreadSubC = 4;
-    constexpr unsigned GemmNPerThreadSubC = 4;
-    constexpr unsigned GemmMLevel0Cluster = 4;
-    constexpr unsigned GemmNLevel0Cluster = 4;
-    constexpr unsigned GemmMLevel1Cluster = 4;
-    constexpr unsigned GemmNLevel1Cluster = 4;
-    constexpr unsigned GemmKPerThreadLoop = 1;
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 4;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr unsigned GemmThreadPerColumnPerCluster = 8;
-    constexpr unsigned GemmThreadPerRowPerCluster    = 8;
+    constexpr index_t GemmThreadPerColumnPerCluster = 8;
+    constexpr index_t GemmThreadPerRowPerCluster    = 8;
 
-    constexpr unsigned InBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned InBlockCopyThreadPerDim1 = 16;
+    constexpr index_t InBlockCopyThreadPerDim0 = 4;
+    constexpr index_t InBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned WeiBlockCopyThreadPerDim0 = 4;
-    constexpr unsigned WeiBlockCopyThreadPerDim1 = 16;
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
 
-    constexpr unsigned InBlockCopyDataPerRead  = 4;
-    constexpr unsigned WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead  = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
 
-    constexpr unsigned BlockSize = 256;
+    constexpr index_t BlockSize = 256;
+#elif 1
+    // 1x1, 14x14, Vega 10
+    constexpr index_t BPerBlock = 64;
+    constexpr index_t KPerBlock = 128;
+    constexpr index_t CPerBlock = 8;
+
+    constexpr index_t BPerThread = 8;
+    constexpr index_t KPerThread = 8;
+
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
+
+    constexpr index_t GemmThreadPerColumnPerCluster = 8;
+    constexpr index_t GemmThreadPerRowPerCluster    = 8;
+
+    constexpr index_t InBlockCopyThreadPerDim0 = 4;
+    constexpr index_t InBlockCopyThreadPerDim1 = 16;
+
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
+
+    constexpr index_t InBlockCopyDataPerRead  = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
+
+    constexpr index_t BlockSize = 128;
 #endif
 
-    constexpr unsigned GridSize =
+    constexpr index_t GridSize =
         ((N * Hi * Wi + BPerBlock - 1) / BPerBlock) * ((K + KPerBlock - 1) / KPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
@@ -208,7 +238,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
-    for(unsigned i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
 #if 1

@@ -11,3 +11,5 @@
 #include "nvToolsExt.h"
 #include "helper_cuda.h"
 #endif
+
+using index_t = uint32_t;
