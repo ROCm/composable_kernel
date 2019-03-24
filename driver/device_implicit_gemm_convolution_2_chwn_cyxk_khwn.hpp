@@ -160,7 +160,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr unsigned WeiBlockCopyDataPerRead = 4;
 
     constexpr unsigned BlockSize = 128;
-#elif 1
+#elif 0
     // 1x1, 28x28, 256 thread
     constexpr unsigned BPerBlock = 128;
     constexpr unsigned KPerBlock = 128;
@@ -211,7 +211,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     for(unsigned i = 0; i < nrepeat; ++i)
     {
         float time = launch_kernel(
-#if 0
+#if 1
             gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 #else
             gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer

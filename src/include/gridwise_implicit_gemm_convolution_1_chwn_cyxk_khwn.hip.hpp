@@ -6,7 +6,7 @@
 #include "blockwise_2d_tensor_op.hip.hpp"
 #include "threadwise_nd_tensor_op.hip.hpp"
 #include "threadwise_4d_tensor_op.hip.hpp"
-#include "blockwise_gemm.hip.hpp"
+#include "blockwise_batched_gemm.hip.hpp"
 
 template <unsigned GridSize,
           unsigned BlockSize,
@@ -211,8 +211,6 @@ gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn(const Float* const __restric
             {
 #if 0
                 blockwise_batch_gemm.Run
-#elif 0
-                blockwise_batch_gemm.Run_v2
 #elif 1
                 blockwise_batch_gemm.Run_v3
 #endif

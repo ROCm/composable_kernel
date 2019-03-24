@@ -34,7 +34,11 @@ template <unsigned GridSize,
           unsigned WeiBlockCopyThreadPerDim1,
           unsigned InBlockCopyDataPerRead,
           unsigned WeiBlockCopyDataPerRead>
-__global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer(
+__global__ void
+#if 0
+__launch_bounds__(256,2)
+#endif
+gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer(
     const Float* const __restrict__ p_in_global,
     const Float* const __restrict__ p_wei_global,
     Float* const __restrict__ p_out_global)
@@ -280,15 +284,15 @@ __global__ void gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_b
             for(unsigned x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
-#if 1
+#if 0
                 blockwise_gemm.Run
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                    (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                     p_in_block_now + y * Wi + x,
-                     p_out_thread,
-                     f_accum);
+                (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                 p_in_block_now + y * Wi + x,
+                 p_out_thread,
+                 f_accum);
             }
         }
 
