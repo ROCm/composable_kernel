@@ -379,8 +379,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         // loop over k
         for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
         {
-#pragma unroll
             // copy A-sub to form A
+#if 0
+#pragma unroll
+            // MRepeat = 2
             for(index_t m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
             {
                 threadwise_matrix_copy(
@@ -391,9 +393,22 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                     p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
                     a_thread_sub_mtx.GetLengths());
             }
+#else
+            {
+                auto src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
+                auto dst_index = a_thread_sub_mtx.Get1dIndex(0, 0);
 
-#pragma unroll
+                const float4* loc = (const float4 *)(p_a_block + src_index);
+                float4* reg = (float4 *)(p_a_thread + dst_index);
+
+                reg[0] = loc[0];
+                reg[MPerThreadSubC/4] = loc[MPerLevel1Cluster/4];
+            }
+#endif
+
+#if 0
             // copy B-sub to form B
+#pragma unroll
             for(index_t n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
             {
                 threadwise_matrix_copy(
@@ -404,8 +419,21 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                     p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
                     b_thread_sub_mtx.GetLengths());
             }
+#else
+            {
+                auto src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
+                auto dst_index = b_thread_sub_mtx.Get1dIndex(0, 0);
+
+                const float4* loc = (const float4 *)(p_b_block + src_index);
+                float4* reg = (float4 *)(p_b_thread + dst_index);
+
+                reg[0] = loc[0];
+                reg[NPerThreadSubC/4] = loc[NPerLevel1Cluster/4];
+            }
+#endif
 
             // C = A * B
+#if 0
             threadwise_gemm(a_thread_mtx,
                             True,
                             p_a_thread,
@@ -416,6 +444,24 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             False,
                             p_c_thread,
                             f_accum);
+#else
+            for(index_t k = 0; k < 1; ++k)
+            {
+                // M = 8
+                for(index_t i = 0; i < 8; ++i)
+                {
+                    // N = 8
+                    for(index_t j = 0; j < 8; ++j)
+                    {
+                        const index_t aindex = a_thread_sub_mtx.Get1dIndex(k, i); // A is transposed
+                        const index_t bindex = b_thread_sub_mtx.Get1dIndex(k, j);
+                        const index_t cindex = c_thread_mtx.Get1dIndex(i, j);
+
+                        p_c_thread[cindex] += p_a_thread[aindex] * p_b_thread[bindex];
+                    }
+                }
+            }
+#endif
         }
     }
 

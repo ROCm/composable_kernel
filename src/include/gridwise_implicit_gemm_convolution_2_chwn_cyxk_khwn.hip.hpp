@@ -236,7 +236,7 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn(const Float* const __restric
             for(index_t x = 0; x < X; ++x)
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
-#if 0
+#if 1
                 blockwise_gemm.Run
 #elif 0
                 blockwise_gemm.Run_asm
