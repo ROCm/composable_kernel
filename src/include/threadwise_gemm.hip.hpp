@@ -10,9 +10,11 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
     constexpr auto src_mtx = SrcMatrix{};
     constexpr auto dst_mtx = DstMatrix{};
 
-#if 0
+#if 1
+    //NRow = 1
     for(index_t i = 0; i < NRow; ++i)
     {
+        //NCol = 4
         for(index_t j = 0; j < NCol; ++j)
         {
             const index_t src_index = src_mtx.Get1dIndex(i, j);
@@ -76,10 +78,13 @@ __device__ void threadwise_gemm(MatrixA,
         constexpr index_t N = c_mtx.NCol();
         constexpr index_t K = a_mtx.NRow(); // A is transposed
 
+        // K = 1
         for(index_t k = 0; k < K; ++k)
         {
+            // M = 8
             for(index_t i = 0; i < M; ++i)
             {
+                // N = 8
                 for(index_t j = 0; j < N; ++j)
                 {
                     const index_t aindex = a_mtx.Get1dIndex(k, i); // A is transposed
