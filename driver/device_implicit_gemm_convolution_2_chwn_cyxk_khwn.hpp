@@ -190,11 +190,41 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead = 4;
 
     constexpr index_t BlockSize = 256;
-#elif 1
-    // 1x1, 14x14, Vega 10
+#elif 0
+    // 1x1, 14x14, Vega 20
     constexpr index_t BPerBlock = 64;
     constexpr index_t KPerBlock = 128;
     constexpr index_t CPerBlock = 8;
+
+    constexpr index_t BPerThread = 8;
+    constexpr index_t KPerThread = 8;
+
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
+
+    constexpr index_t GemmThreadPerColumnPerCluster = 8;
+    constexpr index_t GemmThreadPerRowPerCluster    = 8;
+
+    constexpr index_t InBlockCopyThreadPerDim0 = 4;
+    constexpr index_t InBlockCopyThreadPerDim1 = 16;
+
+    constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
+    constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
+
+    constexpr index_t InBlockCopyDataPerRead  = 4;
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
+
+    constexpr index_t BlockSize = 128;
+#elif 1
+    // 1x1, 14x14, Vega 20, hack CPerBlock = 1
+    constexpr index_t BPerBlock = 64;
+    constexpr index_t KPerBlock = 128;
+    constexpr index_t CPerBlock = 1;
 
     constexpr index_t BPerThread = 8;
     constexpr index_t KPerThread = 8;
