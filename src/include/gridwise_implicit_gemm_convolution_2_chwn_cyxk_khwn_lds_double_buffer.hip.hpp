@@ -289,10 +289,10 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer(
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                 p_in_block_now + y * Wi + x,
-                 p_out_thread,
-                 f_accum);
+                    (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block_now + y * Wi + x,
+                     p_out_thread,
+                     f_accum);
             }
         }
 
@@ -319,10 +319,10 @@ gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer(
 #else
                 blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                 p_in_block_now + y * Wi + x,
-                 p_out_thread,
-                 f_accum);
+                    (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block_now + y * Wi + x,
+                     p_out_thread,
+                     f_accum);
             }
         }
     }

@@ -420,9 +420,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
-                            const FloatB* __restrict__ p_b_block,
-                            FloatC* __restrict__ p_c_thread,
+    __device__ void Run_asm(const FloatA* const __restrict__ p_a_block,
+                            const FloatB* const __restrict__ p_b_block,
+                            FloatC* const __restrict__ p_c_thread,
                             Accumulator f_accum) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
@@ -462,11 +462,18 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr index_t MRepeat = MPerThread / MPerThreadSubC;
         constexpr index_t NRepeat = NPerThread / NPerThreadSubC;
 
+        static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && MRepeat == 2 && NRepeat == 2 &&
+                          KPerThreadLoop == 1 && K == 1,
+                      "asm is not for this mtx shape");
+
+        const FloatA* const p_a_block_thread_offset = p_a_block + mMyThreadOffsetA;
+
 #pragma unroll
         // loop over k
         for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
         {
-            //#pragma unroll
+#if 0
+#pragma unroll
             // copy A-sub to form A
             for(index_t m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
             {
@@ -475,9 +482,65 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                     p_a_block + a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
                         mMyThreadOffsetA,
                     a_thread_mtx,
-                    p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                    a_thread_sub_mtx.NCol(p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
                     a_thread_sub_mtx.GetLengths());
             }
+#elif 1
+            // this produce right result
+            using vectorA_t = typename vector_type<FloatA, 4>::MemoryType; // this is float4*
+
+            asm volatile(
+                "\n \
+                    ds_read_b128 %0, %1 \n \
+                    s_waitcnt lgkmcnt(0)"
+                : "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread + a_thread_mtx.Get1dIndex(0, 0))))
+                : "v"(__to_local(
+                    (void*)(p_a_block + a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA))));
+
+            asm volatile("\n \
+                    ds_read_b128 %0, %1 \n \
+                    s_waitcnt lgkmcnt(0)"
+                         : "=v"(*(reinterpret_cast<vectorA_t*>(
+                             p_a_thread + a_thread_mtx.Get1dIndex(0, MPerThreadSubC))))
+                         : "v"(__to_local((
+                             void*)(p_a_block + a_block_mtx.Get1dIndex(k_begin, MPerLevel1Cluster) +
+                                    mMyThreadOffsetA))));
+#elif 0
+            // this produce wrong result
+            using vectorA_t = typename vector_type<FloatA, 4>::MemoryType; // this is float4*
+
+            asm volatile(
+                "\n \
+                    ds_read_b128 %0, %2  \n \
+                    ds_read_b128 %1, %3  \n \
+                    s_waitcnt lgkmcnt(0)"
+                : "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread + a_thread_mtx.Get1dIndex(0, 0)))),
+                  "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread +
+                                                      a_thread_mtx.Get1dIndex(0, MPerThreadSubC))))
+                : "v"(__to_local(
+                      (void*)(p_a_block + a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA))),
+                  "v"(__to_local((void*)(p_a_block +
+                                         a_block_mtx.Get1dIndex(k_begin, MPerLevel1Cluster) +
+                                         mMyThreadOffsetA))));
+#elif 1
+            // this produce wrong result
+            using vectorA_t = typename vector_type<FloatA, 4>::MemoryType; // this is float4*
+
+            asm volatile(
+                "\n \
+                    ds_read_b128 %0, %1 \n \
+                    s_waitcnt lgkmcnt(0)"
+                : "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread + a_thread_mtx.Get1dIndex(0, 0))))
+                : "v"(__to_local((void*)(p_a_block_thread_offset))));
+
+            asm volatile("\n \
+                    ds_read_b128 %0, %1 offset:16 \n \
+                    s_waitcnt lgkmcnt(0)"
+                         : "=v"(*(reinterpret_cast<vectorA_t*>(
+                             p_a_thread + a_thread_mtx.Get1dIndex(0, MPerThreadSubC))))
+                         : "v"(__to_local((void*)(p_a_block_thread_offset))));
+
+#endif
 
             //#pragma unroll
             // copy B-sub to form B
