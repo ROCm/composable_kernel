@@ -383,79 +383,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         // loop over k
         for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
         {
-#if 0
-            // copy A-sub to form A
-#if 0
-#pragma unroll
-            // MRepeat = 2
-            for(index_t m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
-            {
-                threadwise_matrix_copy(
-                    a_block_mtx,
-                    //MPerLevel1Cluster = 4
-                    p_a_block + a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
-                        mMyThreadOffsetA,
-                    a_thread_mtx,
-                    //MPerThreadSubC = 4
-                    p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
-                    a_thread_sub_mtx.GetLengths());
-            }
-#else
-            {
-                auto src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
-                auto dst_index = a_thread_sub_mtx.Get1dIndex(0, 0);
-
-                const float4* loc = (const float4 *)(p_a_block + src_index);
-                float4* reg = (float4 *)(p_a_thread + dst_index);
-
-                reg[0] = loc[0];
-                reg[1] = loc[16];
-                //reg[MPerThreadSubC/4] = loc[MPerLevel1Cluster/4];
-                //asm volatile("\n \
-                        //ds_read2_b64 %0, %2 offset1:1 \n \
-                        //ds_read2_b64 %1, %2 offset0:32 offset1:33 \n \
-                        //s_waitcnt lgkmcnt(0)" 
-                        //: "=v"(reg[0]), "=v"(reg[1]) 
-                        //: "v"(__to_local((void *)(loc)))
-                        //);
-            }
-#endif
-
-#if 0
-            // copy B-sub to form B
-#pragma unroll
-            for(index_t n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
-            {
-                threadwise_matrix_copy(
-                    b_block_mtx,
-                    p_b_block + b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
-                        mMyThreadOffsetB,
-                    b_thread_mtx,
-                    p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
-                    b_thread_sub_mtx.GetLengths());
-            }
-#else
-            {
-                auto src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
-                auto dst_index = b_thread_sub_mtx.Get1dIndex(0, 0);
-
-                const float4* loc = (const float4 *)(p_b_block + src_index);
-                float4* reg = (float4 *)(p_b_thread + dst_index);
-
-                reg[0] = loc[0];
-                reg[1] = loc[8];
-                //reg[NPerThreadSubC/4] = loc[NPerLevel1Cluster/4];
-                //asm volatile("\n \
-                        //ds_read2_b64 %0, %2 offset1:1 \n \
-                        //ds_read2_b64 %1, %2 offset0:16 offset1:17 \n \
-                        //s_waitcnt lgkmcnt(0)" 
-                        //: "=v"(reg[0]), "=v"(reg[1]) 
-                        //: "v"(__to_local((void *)(loc)))
-                        //);
-            }
-#endif
-
-#else
+#if 1
             auto a_src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
             auto b_src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
 
@@ -549,89 +477,307 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             //);
 
 
-
-#endif
-
             // C = A * B
-#if 0
-            threadwise_gemm(a_thread_mtx,
-                            True,
-                            p_a_thread,
-                            b_thread_mtx,
-                            False,
-                            p_b_thread,
-                            c_thread_mtx,
-                            False,
-                            p_c_thread,
-                            f_accum);
+            asm volatile("\n \
+                    v_mac_f32 %0, %64, %72 \n \
+                    v_mac_f32 %1, %64, %73 \n \
+                    v_mac_f32 %2, %64, %74 \n \
+                    v_mac_f32 %3, %64, %75 \n \
+                    v_mac_f32 %4, %64, %76 \n \
+                    v_mac_f32 %5, %64, %77 \n \
+                    v_mac_f32 %6, %64, %78 \n \
+                    v_mac_f32 %7, %64, %79 \n \
+                    v_mac_f32 %8, %65, %72 \n \
+                    v_mac_f32 %9, %65, %73 \n \
+                    v_mac_f32 %10, %65, %74 \n \
+                    v_mac_f32 %11, %65, %75 \n \
+                    v_mac_f32 %12, %65, %76 \n \
+                    v_mac_f32 %13, %65, %77 \n \
+                    v_mac_f32 %14, %65, %78 \n \
+                    v_mac_f32 %15, %65, %79 \n \
+                    v_mac_f32 %16, %66, %72 \n \
+                    v_mac_f32 %17, %66, %73 \n \
+                    v_mac_f32 %18, %66, %74 \n \
+                    v_mac_f32 %19, %66, %75 \n \
+                    v_mac_f32 %20, %66, %76 \n \
+                    v_mac_f32 %21, %66, %77 \n \
+                    v_mac_f32 %22, %66, %78 \n \
+                    v_mac_f32 %23, %66, %79 \n \
+                    v_mac_f32 %24, %67, %72 \n \
+                    v_mac_f32 %25, %67, %73 \n \
+                    v_mac_f32 %26, %67, %74 \n \
+                    v_mac_f32 %27, %67, %75 \n \
+                    v_mac_f32 %28, %67, %76 \n \
+                    v_mac_f32 %29, %67, %77 \n \
+                    v_mac_f32 %30, %67, %78 \n \
+                    v_mac_f32 %31, %67, %79 \n \
+                    v_mac_f32 %32, %68, %72 \n \
+                    v_mac_f32 %33, %68, %73 \n \
+                    v_mac_f32 %34, %68, %74 \n \
+                    v_mac_f32 %35, %68, %75 \n \
+                    v_mac_f32 %36, %68, %76 \n \
+                    v_mac_f32 %37, %68, %77 \n \
+                    v_mac_f32 %38, %68, %78 \n \
+                    v_mac_f32 %39, %68, %79 \n \
+                    v_mac_f32 %40, %69, %72 \n \
+                    v_mac_f32 %41, %69, %73 \n \
+                    v_mac_f32 %42, %69, %74 \n \
+                    v_mac_f32 %43, %69, %75 \n \
+                    v_mac_f32 %44, %69, %76 \n \
+                    v_mac_f32 %45, %69, %77 \n \
+                    v_mac_f32 %46, %69, %78 \n \
+                    v_mac_f32 %47, %69, %79 \n \
+                    v_mac_f32 %48, %70, %72 \n \
+                    v_mac_f32 %49, %70, %73 \n \
+                    v_mac_f32 %50, %70, %74 \n \
+                    v_mac_f32 %51, %70, %75 \n \
+                    v_mac_f32 %52, %70, %76 \n \
+                    v_mac_f32 %53, %70, %77 \n \
+                    v_mac_f32 %54, %70, %78 \n \
+                    v_mac_f32 %55, %70, %79 \n \
+                    v_mac_f32 %56, %71, %72 \n \
+                    v_mac_f32 %57, %71, %73 \n \
+                    v_mac_f32 %58, %71, %74 \n \
+                    v_mac_f32 %59, %71, %75 \n \
+                    v_mac_f32 %60, %71, %76 \n \
+                    v_mac_f32 %61, %71, %77 \n \
+                    v_mac_f32 %62, %71, %78 \n \
+                    v_mac_f32 %63, %71, %79 \n \
+                    "
+                    :
+                    "=v"(p_c_thread[0]),
+                    "=v"(p_c_thread[1]),
+                    "=v"(p_c_thread[2]),
+                    "=v"(p_c_thread[3]),
+                    "=v"(p_c_thread[4]),
+                    "=v"(p_c_thread[5]),
+                    "=v"(p_c_thread[6]),
+                    "=v"(p_c_thread[7]),
+                    "=v"(p_c_thread[8]),
+                    "=v"(p_c_thread[9]),
+                    "=v"(p_c_thread[10]),
+                    "=v"(p_c_thread[11]),
+                    "=v"(p_c_thread[12]),
+                    "=v"(p_c_thread[13]),
+                    "=v"(p_c_thread[14]),
+                    "=v"(p_c_thread[15]),
+                    "=v"(p_c_thread[16]),
+                    "=v"(p_c_thread[17]),
+                    "=v"(p_c_thread[18]),
+                    "=v"(p_c_thread[19]),
+                    "=v"(p_c_thread[20]),
+                    "=v"(p_c_thread[21]),
+                    "=v"(p_c_thread[22]),
+                    "=v"(p_c_thread[23]),
+                    "=v"(p_c_thread[24]),
+                    "=v"(p_c_thread[25]),
+                    "=v"(p_c_thread[26]),
+                    "=v"(p_c_thread[27]),
+                    "=v"(p_c_thread[28]),
+                    "=v"(p_c_thread[29]),
+                    "=v"(p_c_thread[30]),
+                    "=v"(p_c_thread[31]),
+                    "=v"(p_c_thread[32]),
+                    "=v"(p_c_thread[33]),
+                    "=v"(p_c_thread[34]),
+                    "=v"(p_c_thread[35]),
+                    "=v"(p_c_thread[36]),
+                    "=v"(p_c_thread[37]),
+                    "=v"(p_c_thread[38]),
+                    "=v"(p_c_thread[39]),
+                    "=v"(p_c_thread[40]),
+                    "=v"(p_c_thread[41]),
+                    "=v"(p_c_thread[42]),
+                    "=v"(p_c_thread[43]),
+                    "=v"(p_c_thread[44]),
+                    "=v"(p_c_thread[45]),
+                    "=v"(p_c_thread[46]),
+                    "=v"(p_c_thread[47]),
+                    "=v"(p_c_thread[48]),
+                    "=v"(p_c_thread[49]),
+                    "=v"(p_c_thread[50]),
+                    "=v"(p_c_thread[51]),
+                    "=v"(p_c_thread[52]),
+                    "=v"(p_c_thread[53]),
+                    "=v"(p_c_thread[54]),
+                    "=v"(p_c_thread[55]),
+                    "=v"(p_c_thread[56]),
+                    "=v"(p_c_thread[57]),
+                    "=v"(p_c_thread[58]),
+                    "=v"(p_c_thread[59]),
+                    "=v"(p_c_thread[60]),
+                    "=v"(p_c_thread[61]),
+                    "=v"(p_c_thread[62]),
+                    "=v"(p_c_thread[63])
+                    : 
+                    "v"(p_a_thread[0]), 
+                    "v"(p_a_thread[1]), 
+                    "v"(p_a_thread[2]), 
+                    "v"(p_a_thread[3]), 
+                    "v"(p_a_thread[4]), 
+                    "v"(p_a_thread[5]), 
+                    "v"(p_a_thread[6]), 
+                    "v"(p_a_thread[7]), 
+                    "v"(p_b_thread[0]), 
+                    "v"(p_b_thread[1]),
+                    "v"(p_b_thread[2]),
+                    "v"(p_b_thread[3]),
+                    "v"(p_b_thread[4]),
+                    "v"(p_b_thread[5]),
+                    "v"(p_b_thread[6]),
+                    "v"(p_b_thread[7]),
+                    "0"(p_c_thread[0]),
+                    "1"(p_c_thread[1]),
+                    "2"(p_c_thread[2]),
+                    "3"(p_c_thread[3]),
+                    "4"(p_c_thread[4]),
+                    "5"(p_c_thread[5]),
+                    "6"(p_c_thread[6]),
+                    "7"(p_c_thread[7]),
+                    "8"(p_c_thread[8]),
+                    "9"(p_c_thread[9]),
+                    "10"(p_c_thread[10]),
+                    "11"(p_c_thread[11]),
+                    "12"(p_c_thread[12]),
+                    "13"(p_c_thread[13]),
+                    "14"(p_c_thread[14]),
+                    "15"(p_c_thread[15]),
+                    "16"(p_c_thread[16]),
+                    "17"(p_c_thread[17]),
+                    "18"(p_c_thread[18]),
+                    "19"(p_c_thread[19]),
+                    "20"(p_c_thread[20]),
+                    "21"(p_c_thread[21]),
+                    "22"(p_c_thread[22]),
+                    "23"(p_c_thread[23]),
+                    "24"(p_c_thread[24]),
+                    "25"(p_c_thread[25]),
+                    "26"(p_c_thread[26]),
+                    "27"(p_c_thread[27]),
+                    "28"(p_c_thread[28]),
+                    "29"(p_c_thread[29]),
+                    "30"(p_c_thread[30]),
+                    "31"(p_c_thread[31]),
+                    "32"(p_c_thread[32]),
+                    "33"(p_c_thread[33]),
+                    "34"(p_c_thread[34]),
+                    "35"(p_c_thread[35]),
+                    "36"(p_c_thread[36]),
+                    "37"(p_c_thread[37]),
+                    "38"(p_c_thread[38]),
+                    "39"(p_c_thread[39]),
+                    "40"(p_c_thread[40]),
+                    "41"(p_c_thread[41]),
+                    "42"(p_c_thread[42]),
+                    "43"(p_c_thread[43]),
+                    "44"(p_c_thread[44]),
+                    "45"(p_c_thread[45]),
+                    "46"(p_c_thread[46]),
+                    "47"(p_c_thread[47]),
+                    "48"(p_c_thread[48]),
+                    "49"(p_c_thread[49]),
+                    "50"(p_c_thread[50]),
+                    "51"(p_c_thread[51]),
+                    "52"(p_c_thread[52]),
+                    "53"(p_c_thread[53]),
+                    "54"(p_c_thread[54]),
+                    "55"(p_c_thread[55]),
+                    "56"(p_c_thread[56]),
+                    "57"(p_c_thread[57]),
+                    "58"(p_c_thread[58]),
+                    "59"(p_c_thread[59]),
+                    "60"(p_c_thread[60]),
+                    "61"(p_c_thread[61]),
+                    "62"(p_c_thread[62]),
+                    "63"(p_c_thread[63])
+                        );
+
 #else
+                        auto a_src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
+                        auto b_src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
+                        auto dst_index = a_thread_sub_mtx.Get1dIndex(0, 0);
+
+                        const float4* a_loc = (const float4 *)(p_a_block + a_src_index);
+                        const float4* b_loc = (const float4 *)(p_b_block + b_src_index);
+                        float4* reg = (float4 *)(p_a_thread + dst_index);
+
+
                         asm volatile("\n \
-                                v_mac_f32 %0, %64, %72 \n \
-                                v_mac_f32 %1, %64, %73 \n \
-                                v_mac_f32 %2, %64, %74 \n \
-                                v_mac_f32 %3, %64, %75 \n \
-                                v_mac_f32 %4, %64, %76 \n \
-                                v_mac_f32 %5, %64, %77 \n \
-                                v_mac_f32 %6, %64, %78 \n \
-                                v_mac_f32 %7, %64, %79 \n \
-                                v_mac_f32 %8, %65, %72 \n \
-                                v_mac_f32 %9, %65, %73 \n \
-                                v_mac_f32 %10, %65, %74 \n \
-                                v_mac_f32 %11, %65, %75 \n \
-                                v_mac_f32 %12, %65, %76 \n \
-                                v_mac_f32 %13, %65, %77 \n \
-                                v_mac_f32 %14, %65, %78 \n \
-                                v_mac_f32 %15, %65, %79 \n \
-                                v_mac_f32 %16, %66, %72 \n \
-                                v_mac_f32 %17, %66, %73 \n \
-                                v_mac_f32 %18, %66, %74 \n \
-                                v_mac_f32 %19, %66, %75 \n \
-                                v_mac_f32 %20, %66, %76 \n \
-                                v_mac_f32 %21, %66, %77 \n \
-                                v_mac_f32 %22, %66, %78 \n \
-                                v_mac_f32 %23, %66, %79 \n \
-                                v_mac_f32 %24, %67, %72 \n \
-                                v_mac_f32 %25, %67, %73 \n \
-                                v_mac_f32 %26, %67, %74 \n \
-                                v_mac_f32 %27, %67, %75 \n \
-                                v_mac_f32 %28, %67, %76 \n \
-                                v_mac_f32 %29, %67, %77 \n \
-                                v_mac_f32 %30, %67, %78 \n \
-                                v_mac_f32 %31, %67, %79 \n \
-                                v_mac_f32 %32, %68, %72 \n \
-                                v_mac_f32 %33, %68, %73 \n \
-                                v_mac_f32 %34, %68, %74 \n \
-                                v_mac_f32 %35, %68, %75 \n \
-                                v_mac_f32 %36, %68, %76 \n \
-                                v_mac_f32 %37, %68, %77 \n \
-                                v_mac_f32 %38, %68, %78 \n \
-                                v_mac_f32 %39, %68, %79 \n \
-                                v_mac_f32 %40, %69, %72 \n \
-                                v_mac_f32 %41, %69, %73 \n \
-                                v_mac_f32 %42, %69, %74 \n \
-                                v_mac_f32 %43, %69, %75 \n \
-                                v_mac_f32 %44, %69, %76 \n \
-                                v_mac_f32 %45, %69, %77 \n \
-                                v_mac_f32 %46, %69, %78 \n \
-                                v_mac_f32 %47, %69, %79 \n \
-                                v_mac_f32 %48, %70, %72 \n \
-                                v_mac_f32 %49, %70, %73 \n \
-                                v_mac_f32 %50, %70, %74 \n \
-                                v_mac_f32 %51, %70, %75 \n \
-                                v_mac_f32 %52, %70, %76 \n \
-                                v_mac_f32 %53, %70, %77 \n \
-                                v_mac_f32 %54, %70, %78 \n \
-                                v_mac_f32 %55, %70, %79 \n \
-                                v_mac_f32 %56, %71, %72 \n \
-                                v_mac_f32 %57, %71, %73 \n \
-                                v_mac_f32 %58, %71, %74 \n \
-                                v_mac_f32 %59, %71, %75 \n \
-                                v_mac_f32 %60, %71, %76 \n \
-                                v_mac_f32 %61, %71, %77 \n \
-                                v_mac_f32 %62, %71, %78 \n \
-                                v_mac_f32 %63, %71, %79 \n \
+                                ds_read2_b64 %0, %84 offset1:1 \n \
+                                ds_read2_b64 %1, %84 offset0:32 offset1:33 \n \
+                                ds_read2_b64 %2, %85 offset1:1 \n \
+                                ds_read2_b64 %3, %85 offset0:16 offset1:17 \n \
+                                s_waitcnt lgkmcnt(0) \n \
+                                v_mac_f32 %4, %68, %76 \n \
+                                v_mac_f32 %5, %68, %77 \n \
+                                v_mac_f32 %6, %68, %78 \n \
+                                v_mac_f32 %7, %68, %79 \n \
+                                v_mac_f32 %8, %68, %80 \n \
+                                v_mac_f32 %9, %68, %81 \n \
+                                v_mac_f32 %10, %68, %82 \n \
+                                v_mac_f32 %11, %68, %83 \n \
+                                v_mac_f32 %12, %69, %76 \n \
+                                v_mac_f32 %13, %69, %77 \n \
+                                v_mac_f32 %14, %69, %78 \n \
+                                v_mac_f32 %15, %69, %79 \n \
+                                v_mac_f32 %16, %69, %80 \n \
+                                v_mac_f32 %17, %69, %81 \n \
+                                v_mac_f32 %18, %69, %82 \n \
+                                v_mac_f32 %19, %69, %83 \n \
+                                v_mac_f32 %20, %70, %76 \n \
+                                v_mac_f32 %21, %70, %77 \n \
+                                v_mac_f32 %22, %70, %78 \n \
+                                v_mac_f32 %23, %70, %79 \n \
+                                v_mac_f32 %24, %70, %80 \n \
+                                v_mac_f32 %25, %70, %81 \n \
+                                v_mac_f32 %26, %70, %82 \n \
+                                v_mac_f32 %27, %70, %83 \n \
+                                v_mac_f32 %28, %71, %76 \n \
+                                v_mac_f32 %29, %71, %77 \n \
+                                v_mac_f32 %30, %71, %78 \n \
+                                v_mac_f32 %31, %71, %79 \n \
+                                v_mac_f32 %32, %71, %80 \n \
+                                v_mac_f32 %33, %71, %81 \n \
+                                v_mac_f32 %34, %71, %82 \n \
+                                v_mac_f32 %35, %71, %83 \n \
+                                v_mac_f32 %36, %72, %76 \n \
+                                v_mac_f32 %37, %72, %77 \n \
+                                v_mac_f32 %38, %72, %78 \n \
+                                v_mac_f32 %39, %72, %79 \n \
+                                v_mac_f32 %40, %72, %80 \n \
+                                v_mac_f32 %41, %72, %81 \n \
+                                v_mac_f32 %42, %72, %82 \n \
+                                v_mac_f32 %43, %72, %83 \n \
+                                v_mac_f32 %44, %73, %76 \n \
+                                v_mac_f32 %45, %73, %77 \n \
+                                v_mac_f32 %46, %73, %78 \n \
+                                v_mac_f32 %47, %73, %79 \n \
+                                v_mac_f32 %48, %73, %80 \n \
+                                v_mac_f32 %49, %73, %81 \n \
+                                v_mac_f32 %50, %73, %82 \n \
+                                v_mac_f32 %51, %73, %83 \n \
+                                v_mac_f32 %52, %74, %76 \n \
+                                v_mac_f32 %53, %74, %77 \n \
+                                v_mac_f32 %54, %74, %78 \n \
+                                v_mac_f32 %55, %74, %79 \n \
+                                v_mac_f32 %56, %74, %80 \n \
+                                v_mac_f32 %57, %74, %81 \n \
+                                v_mac_f32 %58, %74, %82 \n \
+                                v_mac_f32 %59, %74, %83 \n \
+                                v_mac_f32 %60, %75, %76 \n \
+                                v_mac_f32 %61, %75, %77 \n \
+                                v_mac_f32 %62, %75, %78 \n \
+                                v_mac_f32 %63, %75, %79 \n \
+                                v_mac_f32 %64, %75, %80 \n \
+                                v_mac_f32 %65, %75, %81 \n \
+                                v_mac_f32 %66, %75, %82 \n \
+                                v_mac_f32 %67, %75, %83 \n \
                                 "
                                 :
+                                "=v"(reg[0]), 
+                                "=v"(reg[1]), 
+                                "=v"(reg[2]), 
+                                "=v"(reg[3]), 
                                 "=v"(p_c_thread[0]),
                                 "=v"(p_c_thread[1]),
                                 "=v"(p_c_thread[2]),
@@ -713,70 +859,72 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                 "v"(p_b_thread[5]),
                                 "v"(p_b_thread[6]),
                                 "v"(p_b_thread[7]),
-                                "0"(p_c_thread[0]),
-                                "1"(p_c_thread[1]),
-                                "2"(p_c_thread[2]),
-                                "3"(p_c_thread[3]),
-                                "4"(p_c_thread[4]),
-                                "5"(p_c_thread[5]),
-                                "6"(p_c_thread[6]),
-                                "7"(p_c_thread[7]),
-                                "8"(p_c_thread[8]),
-                                "9"(p_c_thread[9]),
-                                "10"(p_c_thread[10]),
-                                "11"(p_c_thread[11]),
-                                "12"(p_c_thread[12]),
-                                "13"(p_c_thread[13]),
-                                "14"(p_c_thread[14]),
-                                "15"(p_c_thread[15]),
-                                "16"(p_c_thread[16]),
-                                "17"(p_c_thread[17]),
-                                "18"(p_c_thread[18]),
-                                "19"(p_c_thread[19]),
-                                "20"(p_c_thread[20]),
-                                "21"(p_c_thread[21]),
-                                "22"(p_c_thread[22]),
-                                "23"(p_c_thread[23]),
-                                "24"(p_c_thread[24]),
-                                "25"(p_c_thread[25]),
-                                "26"(p_c_thread[26]),
-                                "27"(p_c_thread[27]),
-                                "28"(p_c_thread[28]),
-                                "29"(p_c_thread[29]),
-                                "30"(p_c_thread[30]),
-                                "31"(p_c_thread[31]),
-                                "32"(p_c_thread[32]),
-                                "33"(p_c_thread[33]),
-                                "34"(p_c_thread[34]),
-                                "35"(p_c_thread[35]),
-                                "36"(p_c_thread[36]),
-                                "37"(p_c_thread[37]),
-                                "38"(p_c_thread[38]),
-                                "39"(p_c_thread[39]),
-                                "40"(p_c_thread[40]),
-                                "41"(p_c_thread[41]),
-                                "42"(p_c_thread[42]),
-                                "43"(p_c_thread[43]),
-                                "44"(p_c_thread[44]),
-                                "45"(p_c_thread[45]),
-                                "46"(p_c_thread[46]),
-                                "47"(p_c_thread[47]),
-                                "48"(p_c_thread[48]),
-                                "49"(p_c_thread[49]),
-                                "50"(p_c_thread[50]),
-                                "51"(p_c_thread[51]),
-                                "52"(p_c_thread[52]),
-                                "53"(p_c_thread[53]),
-                                "54"(p_c_thread[54]),
-                                "55"(p_c_thread[55]),
-                                "56"(p_c_thread[56]),
-                                "57"(p_c_thread[57]),
-                                "58"(p_c_thread[58]),
-                                "59"(p_c_thread[59]),
-                                "60"(p_c_thread[60]),
-                                "61"(p_c_thread[61]),
-                                "62"(p_c_thread[62]),
-                                "63"(p_c_thread[63])
+                                "v"(__to_local((void *)(a_loc))), 
+                                "v"(__to_local((void *)(b_loc))),
+                                "4"(p_c_thread[0]),
+                                "5"(p_c_thread[1]),
+                                "6"(p_c_thread[2]),
+                                "7"(p_c_thread[3]),
+                                "8"(p_c_thread[4]),
+                                "9"(p_c_thread[5]),
+                                "10"(p_c_thread[6]),
+                                "11"(p_c_thread[7]),
+                                "12"(p_c_thread[8]),
+                                "13"(p_c_thread[9]),
+                                "14"(p_c_thread[10]),
+                                "15"(p_c_thread[11]),
+                                "16"(p_c_thread[12]),
+                                "17"(p_c_thread[13]),
+                                "18"(p_c_thread[14]),
+                                "19"(p_c_thread[15]),
+                                "20"(p_c_thread[16]),
+                                "21"(p_c_thread[17]),
+                                "22"(p_c_thread[18]),
+                                "23"(p_c_thread[19]),
+                                "24"(p_c_thread[20]),
+                                "25"(p_c_thread[21]),
+                                "26"(p_c_thread[22]),
+                                "27"(p_c_thread[23]),
+                                "28"(p_c_thread[24]),
+                                "29"(p_c_thread[25]),
+                                "30"(p_c_thread[26]),
+                                "31"(p_c_thread[27]),
+                                "32"(p_c_thread[28]),
+                                "33"(p_c_thread[29]),
+                                "34"(p_c_thread[30]),
+                                "35"(p_c_thread[31]),
+                                "36"(p_c_thread[32]),
+                                "37"(p_c_thread[33]),
+                                "38"(p_c_thread[34]),
+                                "39"(p_c_thread[35]),
+                                "40"(p_c_thread[36]),
+                                "41"(p_c_thread[37]),
+                                "42"(p_c_thread[38]),
+                                "43"(p_c_thread[39]),
+                                "44"(p_c_thread[40]),
+                                "45"(p_c_thread[41]),
+                                "46"(p_c_thread[42]),
+                                "47"(p_c_thread[43]),
+                                "48"(p_c_thread[44]),
+                                "49"(p_c_thread[45]),
+                                "50"(p_c_thread[46]),
+                                "51"(p_c_thread[47]),
+                                "52"(p_c_thread[48]),
+                                "53"(p_c_thread[49]),
+                                "54"(p_c_thread[50]),
+                                "55"(p_c_thread[51]),
+                                "56"(p_c_thread[52]),
+                                "57"(p_c_thread[53]),
+                                "58"(p_c_thread[54]),
+                                "59"(p_c_thread[55]),
+                                "60"(p_c_thread[56]),
+                                "61"(p_c_thread[57]),
+                                "62"(p_c_thread[58]),
+                                "63"(p_c_thread[59]),
+                                "64"(p_c_thread[60]),
+                                "65"(p_c_thread[61]),
+                                "66"(p_c_thread[62]),
+                                "67"(p_c_thread[63])
                                 );
 #endif
         }
