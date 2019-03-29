@@ -5,6 +5,8 @@
 #include "Array.hip.hpp"
 #include "functional.hip.hpp"
 
+extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
+
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
 
 __device__ index_t get_block_1d_id() { return blockIdx.x; }

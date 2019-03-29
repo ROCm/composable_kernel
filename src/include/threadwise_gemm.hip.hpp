@@ -23,7 +23,7 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
             p_dst[dst_index] = p_src[src_index];
         }
     }
-#elif 1
+#elif 0
     static_assert(NCol == 4, "only for NCol == 4");
 
     using vector_t = typename vector_type<Float, 4>::MemoryType;
@@ -33,15 +33,21 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
         const index_t src_index = src_mtx.Get1dIndex(i, 0);
         const index_t dst_index = dst_mtx.Get1dIndex(i, 0);
 
-#if 1
-        *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
-            *(reinterpret_cast<const vector_t*>(p_src + src_index));
+#if 0
+        *(reinterpret_cast<vector_t*>(&p_dst[dst_index]) =
+            *(reinterpret_cast<const vector_t*>(&p_src[src_index]));
+#elif 0
+        asm volatile("\n \
+                ds_read2_b64 %0, %1 offset1:1 \n \
+                s_waitcnt lgkmcnt(0)"
+                     : "=v"(*(reinterpret_cast<vector_t*>(&p_dst[dst_index])))
+                     : "v"(__to_local((void*)(&p_src[src_index]))));
 #elif 1
         asm volatile("\n \
-                    ds_read_b128 %0, %1, offset:0 \n \
-                    "
-                     : "=v"(*(reinterpret_cast<vector_t*>(p_dst+dst_index)))
-                     : "v"((uint32_t)(p_src + src_index)));
+                ds_read_b128 %0, %1 \n \
+                s_waitcnt lgkmcnt(0)"
+                     : "=v"(*(reinterpret_cast<vector_t*>(&p_dst[dst_index])))
+                     : "v"(__to_local((void*)(&p_src[src_index]))));
 #endif
     }
 #endif
