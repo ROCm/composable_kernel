@@ -164,18 +164,19 @@ gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn(const Float* const __restric
         HoPerThread>{};
 
     // LDS: be careful of alignment
-    constexpr index_t in_block_size =
+    constexpr index_t in_block_element_size =
         in_chwn_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
 
-    constexpr index_t wei_block_size =
+    constexpr index_t wei_block_element_size =
         wei_cyxk_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 
     constexpr index_t max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
                                       ? InBlockCopyDataPerRead
                                       : WeiBlockCopyDataPerRead;
 
-    __shared__ Float p_in_block[max_align * ((in_block_size + max_align - 1) / max_align)];
-    __shared__ Float p_wei_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
+    __shared__ Float p_in_block[max_align * ((in_block_element_size + max_align - 1) / max_align)];
+    __shared__ Float
+        p_wei_block[max_align * ((wei_block_element_size + max_align - 1) / max_align)];
 
     // register
     Float p_out_thread[out_khwn_thread_desc.GetElementSpace()];

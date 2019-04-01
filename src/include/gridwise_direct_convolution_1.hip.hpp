@@ -59,12 +59,12 @@ __global__ void gridwise_direct_convolution_1(const Float* const __restrict__ p_
     constexpr auto out_block_desc =
         make_ConstantTensorDescriptor(out_block_global_desc.GetLengths());
 
-    constexpr index_t in_block_size  = in_block_desc.GetElementSpace();
-    constexpr index_t wei_block_size = wei_block_desc.GetElementSpace();
-    constexpr index_t out_block_size = out_block_desc.GetElementSpace();
+    constexpr index_t in_block_element_size  = in_block_desc.GetElementSpace();
+    constexpr index_t wei_block_element_size = wei_block_desc.GetElementSpace();
+    constexpr index_t out_block_size         = out_block_desc.GetElementSpace();
 
-    __shared__ Float p_in_block[in_block_size];
-    __shared__ Float p_wei_block[wei_block_size];
+    __shared__ Float p_in_block[in_block_element_size];
+    __shared__ Float p_wei_block[wei_block_element_size];
     __shared__ Float p_out_block[out_block_size];
 
     const index_t block_id = blockIdx.x;
