@@ -1,7 +1,7 @@
 #pragma once
 #include "threadwise_gemm.hip.hpp"
 
-extern "C" __attribute__((address_space(3))) void* __to_local(void* p) [[hc]];
+extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
 
 template <index_t BlockSize,
           class BlockMatrixA,
@@ -335,10 +335,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void Run(const FloatA* __restrict__ p_a_block,
-                        const FloatB* __restrict__ p_b_block,
-                        FloatC* __restrict__ p_c_thread,
-                        Accumulator f_accum) const
+    __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
+                            const FloatB* __restrict__ p_b_block,
+                            FloatC* __restrict__ p_c_thread,
+                            Accumulator f_accum) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -368,10 +368,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
             Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
 
-        float p_thread[a_thread_mtx.GetElementSpace() + b_thread_mtx.GetElementSpace()]; 
+        float p_thread[a_thread_mtx.GetElementSpace() + b_thread_mtx.GetElementSpace()];
 
-        FloatA *p_a_thread = p_thread;
-        FloatB *p_b_thread = p_thread + a_thread_mtx.GetElementSpace();
+        FloatA* p_a_thread = p_thread;
+        FloatB* p_b_thread = p_thread + a_thread_mtx.GetElementSpace();
 
         constexpr index_t MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
         constexpr index_t NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
@@ -387,9 +387,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             auto a_src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
             auto b_src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
 
-            const float4* a_loc = (const float4 *)(p_a_block + a_src_index);
-            const float4* b_loc = (const float4 *)(p_b_block + b_src_index);
-            float4* reg = (float4 *)(p_thread);
+            const float4* a_loc = (const float4*)(p_a_block + a_src_index);
+            const float4* b_loc = (const float4*)(p_b_block + b_src_index);
+            float4* reg         = (float4*)(p_thread);
 
             reg[0] = a_loc[0];
             reg[1] = a_loc[16];
@@ -398,41 +398,41 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
             //asm volatile("\n \
                     //ds_read2_b64 %0, %1 offset1:1 \n \
-                    //s_waitcnt lgkmcnt(0)" 
-                    //: "=v"(reg[0])
-                    //: "v"(__to_local((void *)(a_loc)))
-                    //);
+                    //s_waitcnt lgkmcnt(0)"
+            //: "=v"(reg[0])
+            //: "v"(__to_local((void *)(a_loc)))
+            //);
 
             //asm volatile("\n \
                     //ds_read2_b64 %0, %1 offset1:1 \n \
-                    //s_waitcnt lgkmcnt(0)" 
-                    //: "=v"(reg[1])
-                    //: "v"(__to_local((void *)(a_loc + 16)))
-                    //);
+                    //s_waitcnt lgkmcnt(0)"
+            //: "=v"(reg[1])
+            //: "v"(__to_local((void *)(a_loc + 16)))
+            //);
 
             //asm volatile("\n \
                     //ds_read2_b64 %0, %1 offset1:1 \n \
-                    //s_waitcnt lgkmcnt(0)" 
-                    //: "=v"(reg[2])
-                    //: "v"(__to_local((void *)(b_loc)))
-                    //);
+                    //s_waitcnt lgkmcnt(0)"
+            //: "=v"(reg[2])
+            //: "v"(__to_local((void *)(b_loc)))
+            //);
 
             //asm volatile("\n \
                     //ds_read2_b64 %0, %1 offset1:1 \n \
-                    //s_waitcnt lgkmcnt(0)" 
-                    //: "=v"(reg[3])
-                    //: "v"(__to_local((void *)(b_loc + 8)))
-                    //);
-            
+                    //s_waitcnt lgkmcnt(0)"
+            //: "=v"(reg[3])
+            //: "v"(__to_local((void *)(b_loc + 8)))
+            //);
+
             //asm volatile("\n \
                     //ds_read2_b64 %0, %4 offset1:1 \n \
                     //ds_read2_b64 %1, %4 offset0:32 offset1:33 \n \
                     //ds_read2_b64 %2, %5 offset1:1 \n \
                     //ds_read2_b64 %3, %5 offset0:16 offset1:17 \n \
-                    //s_waitcnt lgkmcnt(0)" 
-                    //: "=v"(reg[0]), "=v"(reg[1]), "=v"(reg[2]), "=v"(reg[3]) 
-                    //: "v"(__to_local((void *)(a_loc))), "v"(__to_local((void *)(b_loc)))
-                    //);
+                    //s_waitcnt lgkmcnt(0)"
+            //: "=v"(reg[0]), "=v"(reg[1]), "=v"(reg[2]), "=v"(reg[3])
+            //: "v"(__to_local((void *)(a_loc))), "v"(__to_local((void *)(b_loc)))
+            //);
 
             //asm volatile("\n \
                     //ds_read_b32  %0, %16 \n \
@@ -451,31 +451,30 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                     //ds_read_b32 %13, %19 offset:1\n \
                     //ds_read_b32 %14, %19 offset:2\n \
                     //ds_read_b32 %15, %19 offset:3\n \
-                    //s_waitcnt lgkmcnt(0)" 
-                    //: 
-                    //"=v"(p_a_thread[0]), 
-                    //"=v"(p_a_thread[1]), 
-                    //"=v"(p_a_thread[2]), 
-                    //"=v"(p_a_thread[3]), 
-                    //"=v"(p_a_thread[4]), 
-                    //"=v"(p_a_thread[5]), 
-                    //"=v"(p_a_thread[6]), 
-                    //"=v"(p_a_thread[7]), 
-                    //"=v"(p_b_thread[0]), 
-                    //"=v"(p_b_thread[1]), 
-                    //"=v"(p_b_thread[2]), 
-                    //"=v"(p_b_thread[3]), 
-                    //"=v"(p_b_thread[4]), 
-                    //"=v"(p_b_thread[5]), 
-                    //"=v"(p_b_thread[6]), 
-                    //"=v"(p_b_thread[7])
-                    //: 
-                    //"v"(__to_local((void *)(&p_a_block[0]))), 
-                    //"v"(__to_local((void *)(&p_a_block[64]))),
-                    //"v"(__to_local((void *)(&p_b_block[0]))),
-                    //"v"(__to_local((void *)(&p_b_block[32])))
+                    //s_waitcnt lgkmcnt(0)"
+            //:
+            //"=v"(p_a_thread[0]),
+            //"=v"(p_a_thread[1]),
+            //"=v"(p_a_thread[2]),
+            //"=v"(p_a_thread[3]),
+            //"=v"(p_a_thread[4]),
+            //"=v"(p_a_thread[5]),
+            //"=v"(p_a_thread[6]),
+            //"=v"(p_a_thread[7]),
+            //"=v"(p_b_thread[0]),
+            //"=v"(p_b_thread[1]),
+            //"=v"(p_b_thread[2]),
+            //"=v"(p_b_thread[3]),
+            //"=v"(p_b_thread[4]),
+            //"=v"(p_b_thread[5]),
+            //"=v"(p_b_thread[6]),
+            //"=v"(p_b_thread[7])
+            //:
+            //"v"(__to_local((void *)(&p_a_block[0]))),
+            //"v"(__to_local((void *)(&p_a_block[64]))),
+            //"v"(__to_local((void *)(&p_b_block[0]))),
+            //"v"(__to_local((void *)(&p_b_block[32])))
             //);
-
 
             // C = A * B
             asm volatile("\n \
@@ -544,165 +543,161 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                     v_mac_f32 %62, %71, %78 \n \
                     v_mac_f32 %63, %71, %79 \n \
                     "
-                    :
-                    "=v"(p_c_thread[0]),
-                    "=v"(p_c_thread[1]),
-                    "=v"(p_c_thread[2]),
-                    "=v"(p_c_thread[3]),
-                    "=v"(p_c_thread[4]),
-                    "=v"(p_c_thread[5]),
-                    "=v"(p_c_thread[6]),
-                    "=v"(p_c_thread[7]),
-                    "=v"(p_c_thread[8]),
-                    "=v"(p_c_thread[9]),
-                    "=v"(p_c_thread[10]),
-                    "=v"(p_c_thread[11]),
-                    "=v"(p_c_thread[12]),
-                    "=v"(p_c_thread[13]),
-                    "=v"(p_c_thread[14]),
-                    "=v"(p_c_thread[15]),
-                    "=v"(p_c_thread[16]),
-                    "=v"(p_c_thread[17]),
-                    "=v"(p_c_thread[18]),
-                    "=v"(p_c_thread[19]),
-                    "=v"(p_c_thread[20]),
-                    "=v"(p_c_thread[21]),
-                    "=v"(p_c_thread[22]),
-                    "=v"(p_c_thread[23]),
-                    "=v"(p_c_thread[24]),
-                    "=v"(p_c_thread[25]),
-                    "=v"(p_c_thread[26]),
-                    "=v"(p_c_thread[27]),
-                    "=v"(p_c_thread[28]),
-                    "=v"(p_c_thread[29]),
-                    "=v"(p_c_thread[30]),
-                    "=v"(p_c_thread[31]),
-                    "=v"(p_c_thread[32]),
-                    "=v"(p_c_thread[33]),
-                    "=v"(p_c_thread[34]),
-                    "=v"(p_c_thread[35]),
-                    "=v"(p_c_thread[36]),
-                    "=v"(p_c_thread[37]),
-                    "=v"(p_c_thread[38]),
-                    "=v"(p_c_thread[39]),
-                    "=v"(p_c_thread[40]),
-                    "=v"(p_c_thread[41]),
-                    "=v"(p_c_thread[42]),
-                    "=v"(p_c_thread[43]),
-                    "=v"(p_c_thread[44]),
-                    "=v"(p_c_thread[45]),
-                    "=v"(p_c_thread[46]),
-                    "=v"(p_c_thread[47]),
-                    "=v"(p_c_thread[48]),
-                    "=v"(p_c_thread[49]),
-                    "=v"(p_c_thread[50]),
-                    "=v"(p_c_thread[51]),
-                    "=v"(p_c_thread[52]),
-                    "=v"(p_c_thread[53]),
-                    "=v"(p_c_thread[54]),
-                    "=v"(p_c_thread[55]),
-                    "=v"(p_c_thread[56]),
-                    "=v"(p_c_thread[57]),
-                    "=v"(p_c_thread[58]),
-                    "=v"(p_c_thread[59]),
-                    "=v"(p_c_thread[60]),
-                    "=v"(p_c_thread[61]),
-                    "=v"(p_c_thread[62]),
-                    "=v"(p_c_thread[63])
-                    : 
-                    "v"(p_a_thread[0]), 
-                    "v"(p_a_thread[1]), 
-                    "v"(p_a_thread[2]), 
-                    "v"(p_a_thread[3]), 
-                    "v"(p_a_thread[4]), 
-                    "v"(p_a_thread[5]), 
-                    "v"(p_a_thread[6]), 
-                    "v"(p_a_thread[7]), 
-                    "v"(p_b_thread[0]), 
-                    "v"(p_b_thread[1]),
-                    "v"(p_b_thread[2]),
-                    "v"(p_b_thread[3]),
-                    "v"(p_b_thread[4]),
-                    "v"(p_b_thread[5]),
-                    "v"(p_b_thread[6]),
-                    "v"(p_b_thread[7]),
-                    "0"(p_c_thread[0]),
-                    "1"(p_c_thread[1]),
-                    "2"(p_c_thread[2]),
-                    "3"(p_c_thread[3]),
-                    "4"(p_c_thread[4]),
-                    "5"(p_c_thread[5]),
-                    "6"(p_c_thread[6]),
-                    "7"(p_c_thread[7]),
-                    "8"(p_c_thread[8]),
-                    "9"(p_c_thread[9]),
-                    "10"(p_c_thread[10]),
-                    "11"(p_c_thread[11]),
-                    "12"(p_c_thread[12]),
-                    "13"(p_c_thread[13]),
-                    "14"(p_c_thread[14]),
-                    "15"(p_c_thread[15]),
-                    "16"(p_c_thread[16]),
-                    "17"(p_c_thread[17]),
-                    "18"(p_c_thread[18]),
-                    "19"(p_c_thread[19]),
-                    "20"(p_c_thread[20]),
-                    "21"(p_c_thread[21]),
-                    "22"(p_c_thread[22]),
-                    "23"(p_c_thread[23]),
-                    "24"(p_c_thread[24]),
-                    "25"(p_c_thread[25]),
-                    "26"(p_c_thread[26]),
-                    "27"(p_c_thread[27]),
-                    "28"(p_c_thread[28]),
-                    "29"(p_c_thread[29]),
-                    "30"(p_c_thread[30]),
-                    "31"(p_c_thread[31]),
-                    "32"(p_c_thread[32]),
-                    "33"(p_c_thread[33]),
-                    "34"(p_c_thread[34]),
-                    "35"(p_c_thread[35]),
-                    "36"(p_c_thread[36]),
-                    "37"(p_c_thread[37]),
-                    "38"(p_c_thread[38]),
-                    "39"(p_c_thread[39]),
-                    "40"(p_c_thread[40]),
-                    "41"(p_c_thread[41]),
-                    "42"(p_c_thread[42]),
-                    "43"(p_c_thread[43]),
-                    "44"(p_c_thread[44]),
-                    "45"(p_c_thread[45]),
-                    "46"(p_c_thread[46]),
-                    "47"(p_c_thread[47]),
-                    "48"(p_c_thread[48]),
-                    "49"(p_c_thread[49]),
-                    "50"(p_c_thread[50]),
-                    "51"(p_c_thread[51]),
-                    "52"(p_c_thread[52]),
-                    "53"(p_c_thread[53]),
-                    "54"(p_c_thread[54]),
-                    "55"(p_c_thread[55]),
-                    "56"(p_c_thread[56]),
-                    "57"(p_c_thread[57]),
-                    "58"(p_c_thread[58]),
-                    "59"(p_c_thread[59]),
-                    "60"(p_c_thread[60]),
-                    "61"(p_c_thread[61]),
-                    "62"(p_c_thread[62]),
-                    "63"(p_c_thread[63])
-                        );
+                         : "=v"(p_c_thread[0]),
+                           "=v"(p_c_thread[1]),
+                           "=v"(p_c_thread[2]),
+                           "=v"(p_c_thread[3]),
+                           "=v"(p_c_thread[4]),
+                           "=v"(p_c_thread[5]),
+                           "=v"(p_c_thread[6]),
+                           "=v"(p_c_thread[7]),
+                           "=v"(p_c_thread[8]),
+                           "=v"(p_c_thread[9]),
+                           "=v"(p_c_thread[10]),
+                           "=v"(p_c_thread[11]),
+                           "=v"(p_c_thread[12]),
+                           "=v"(p_c_thread[13]),
+                           "=v"(p_c_thread[14]),
+                           "=v"(p_c_thread[15]),
+                           "=v"(p_c_thread[16]),
+                           "=v"(p_c_thread[17]),
+                           "=v"(p_c_thread[18]),
+                           "=v"(p_c_thread[19]),
+                           "=v"(p_c_thread[20]),
+                           "=v"(p_c_thread[21]),
+                           "=v"(p_c_thread[22]),
+                           "=v"(p_c_thread[23]),
+                           "=v"(p_c_thread[24]),
+                           "=v"(p_c_thread[25]),
+                           "=v"(p_c_thread[26]),
+                           "=v"(p_c_thread[27]),
+                           "=v"(p_c_thread[28]),
+                           "=v"(p_c_thread[29]),
+                           "=v"(p_c_thread[30]),
+                           "=v"(p_c_thread[31]),
+                           "=v"(p_c_thread[32]),
+                           "=v"(p_c_thread[33]),
+                           "=v"(p_c_thread[34]),
+                           "=v"(p_c_thread[35]),
+                           "=v"(p_c_thread[36]),
+                           "=v"(p_c_thread[37]),
+                           "=v"(p_c_thread[38]),
+                           "=v"(p_c_thread[39]),
+                           "=v"(p_c_thread[40]),
+                           "=v"(p_c_thread[41]),
+                           "=v"(p_c_thread[42]),
+                           "=v"(p_c_thread[43]),
+                           "=v"(p_c_thread[44]),
+                           "=v"(p_c_thread[45]),
+                           "=v"(p_c_thread[46]),
+                           "=v"(p_c_thread[47]),
+                           "=v"(p_c_thread[48]),
+                           "=v"(p_c_thread[49]),
+                           "=v"(p_c_thread[50]),
+                           "=v"(p_c_thread[51]),
+                           "=v"(p_c_thread[52]),
+                           "=v"(p_c_thread[53]),
+                           "=v"(p_c_thread[54]),
+                           "=v"(p_c_thread[55]),
+                           "=v"(p_c_thread[56]),
+                           "=v"(p_c_thread[57]),
+                           "=v"(p_c_thread[58]),
+                           "=v"(p_c_thread[59]),
+                           "=v"(p_c_thread[60]),
+                           "=v"(p_c_thread[61]),
+                           "=v"(p_c_thread[62]),
+                           "=v"(p_c_thread[63])
+                         : "v"(p_a_thread[0]),
+                           "v"(p_a_thread[1]),
+                           "v"(p_a_thread[2]),
+                           "v"(p_a_thread[3]),
+                           "v"(p_a_thread[4]),
+                           "v"(p_a_thread[5]),
+                           "v"(p_a_thread[6]),
+                           "v"(p_a_thread[7]),
+                           "v"(p_b_thread[0]),
+                           "v"(p_b_thread[1]),
+                           "v"(p_b_thread[2]),
+                           "v"(p_b_thread[3]),
+                           "v"(p_b_thread[4]),
+                           "v"(p_b_thread[5]),
+                           "v"(p_b_thread[6]),
+                           "v"(p_b_thread[7]),
+                           "0"(p_c_thread[0]),
+                           "1"(p_c_thread[1]),
+                           "2"(p_c_thread[2]),
+                           "3"(p_c_thread[3]),
+                           "4"(p_c_thread[4]),
+                           "5"(p_c_thread[5]),
+                           "6"(p_c_thread[6]),
+                           "7"(p_c_thread[7]),
+                           "8"(p_c_thread[8]),
+                           "9"(p_c_thread[9]),
+                           "10"(p_c_thread[10]),
+                           "11"(p_c_thread[11]),
+                           "12"(p_c_thread[12]),
+                           "13"(p_c_thread[13]),
+                           "14"(p_c_thread[14]),
+                           "15"(p_c_thread[15]),
+                           "16"(p_c_thread[16]),
+                           "17"(p_c_thread[17]),
+                           "18"(p_c_thread[18]),
+                           "19"(p_c_thread[19]),
+                           "20"(p_c_thread[20]),
+                           "21"(p_c_thread[21]),
+                           "22"(p_c_thread[22]),
+                           "23"(p_c_thread[23]),
+                           "24"(p_c_thread[24]),
+                           "25"(p_c_thread[25]),
+                           "26"(p_c_thread[26]),
+                           "27"(p_c_thread[27]),
+                           "28"(p_c_thread[28]),
+                           "29"(p_c_thread[29]),
+                           "30"(p_c_thread[30]),
+                           "31"(p_c_thread[31]),
+                           "32"(p_c_thread[32]),
+                           "33"(p_c_thread[33]),
+                           "34"(p_c_thread[34]),
+                           "35"(p_c_thread[35]),
+                           "36"(p_c_thread[36]),
+                           "37"(p_c_thread[37]),
+                           "38"(p_c_thread[38]),
+                           "39"(p_c_thread[39]),
+                           "40"(p_c_thread[40]),
+                           "41"(p_c_thread[41]),
+                           "42"(p_c_thread[42]),
+                           "43"(p_c_thread[43]),
+                           "44"(p_c_thread[44]),
+                           "45"(p_c_thread[45]),
+                           "46"(p_c_thread[46]),
+                           "47"(p_c_thread[47]),
+                           "48"(p_c_thread[48]),
+                           "49"(p_c_thread[49]),
+                           "50"(p_c_thread[50]),
+                           "51"(p_c_thread[51]),
+                           "52"(p_c_thread[52]),
+                           "53"(p_c_thread[53]),
+                           "54"(p_c_thread[54]),
+                           "55"(p_c_thread[55]),
+                           "56"(p_c_thread[56]),
+                           "57"(p_c_thread[57]),
+                           "58"(p_c_thread[58]),
+                           "59"(p_c_thread[59]),
+                           "60"(p_c_thread[60]),
+                           "61"(p_c_thread[61]),
+                           "62"(p_c_thread[62]),
+                           "63"(p_c_thread[63]));
 
 #else
-                        auto a_src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
-                        auto b_src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
-                        auto dst_index = a_thread_sub_mtx.Get1dIndex(0, 0);
+            auto a_src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
+            auto b_src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
+            auto dst_index   = a_thread_sub_mtx.Get1dIndex(0, 0);
 
-                        const float4* a_loc = (const float4 *)(p_a_block + a_src_index);
-                        const float4* b_loc = (const float4 *)(p_b_block + b_src_index);
-                        float4* reg = (float4 *)(p_a_thread + dst_index);
+            const float4* a_loc = (const float4*)(p_a_block + a_src_index);
+            const float4* b_loc = (const float4*)(p_b_block + b_src_index);
+            float4* reg         = (float4*)(p_a_thread + dst_index);
 
-
-                        asm volatile("\n \
+            asm volatile("\n \
                                 ds_read2_b64 %0, %84 offset1:1 \n \
                                 ds_read2_b64 %1, %84 offset0:32 offset1:33 \n \
                                 ds_read2_b64 %2, %85 offset1:1 \n \
@@ -773,168 +768,165 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                 v_mac_f32 %66, %75, %82 \n \
                                 v_mac_f32 %67, %75, %83 \n \
                                 "
-                                :
-                                "=v"(reg[0]), 
-                                "=v"(reg[1]), 
-                                "=v"(reg[2]), 
-                                "=v"(reg[3]), 
-                                "=v"(p_c_thread[0]),
-                                "=v"(p_c_thread[1]),
-                                "=v"(p_c_thread[2]),
-                                "=v"(p_c_thread[3]),
-                                "=v"(p_c_thread[4]),
-                                "=v"(p_c_thread[5]),
-                                "=v"(p_c_thread[6]),
-                                "=v"(p_c_thread[7]),
-                                "=v"(p_c_thread[8]),
-                                "=v"(p_c_thread[9]),
-                                "=v"(p_c_thread[10]),
-                                "=v"(p_c_thread[11]),
-                                "=v"(p_c_thread[12]),
-                                "=v"(p_c_thread[13]),
-                                "=v"(p_c_thread[14]),
-                                "=v"(p_c_thread[15]),
-                                "=v"(p_c_thread[16]),
-                                "=v"(p_c_thread[17]),
-                                "=v"(p_c_thread[18]),
-                                "=v"(p_c_thread[19]),
-                                "=v"(p_c_thread[20]),
-                                "=v"(p_c_thread[21]),
-                                "=v"(p_c_thread[22]),
-                                "=v"(p_c_thread[23]),
-                                "=v"(p_c_thread[24]),
-                                "=v"(p_c_thread[25]),
-                                "=v"(p_c_thread[26]),
-                                "=v"(p_c_thread[27]),
-                                "=v"(p_c_thread[28]),
-                                "=v"(p_c_thread[29]),
-                                "=v"(p_c_thread[30]),
-                                "=v"(p_c_thread[31]),
-                                "=v"(p_c_thread[32]),
-                                "=v"(p_c_thread[33]),
-                                "=v"(p_c_thread[34]),
-                                "=v"(p_c_thread[35]),
-                                "=v"(p_c_thread[36]),
-                                "=v"(p_c_thread[37]),
-                                "=v"(p_c_thread[38]),
-                                "=v"(p_c_thread[39]),
-                                "=v"(p_c_thread[40]),
-                                "=v"(p_c_thread[41]),
-                                "=v"(p_c_thread[42]),
-                                "=v"(p_c_thread[43]),
-                                "=v"(p_c_thread[44]),
-                                "=v"(p_c_thread[45]),
-                                "=v"(p_c_thread[46]),
-                                "=v"(p_c_thread[47]),
-                                "=v"(p_c_thread[48]),
-                                "=v"(p_c_thread[49]),
-                                "=v"(p_c_thread[50]),
-                                "=v"(p_c_thread[51]),
-                                "=v"(p_c_thread[52]),
-                                "=v"(p_c_thread[53]),
-                                "=v"(p_c_thread[54]),
-                                "=v"(p_c_thread[55]),
-                                "=v"(p_c_thread[56]),
-                                "=v"(p_c_thread[57]),
-                                "=v"(p_c_thread[58]),
-                                "=v"(p_c_thread[59]),
-                                "=v"(p_c_thread[60]),
-                                "=v"(p_c_thread[61]),
-                                "=v"(p_c_thread[62]),
-                                "=v"(p_c_thread[63])
-                                : 
-                                "v"(p_a_thread[0]), 
-                                "v"(p_a_thread[1]), 
-                                "v"(p_a_thread[2]), 
-                                "v"(p_a_thread[3]), 
-                                "v"(p_a_thread[4]), 
-                                "v"(p_a_thread[5]), 
-                                "v"(p_a_thread[6]), 
-                                "v"(p_a_thread[7]), 
-                                "v"(p_b_thread[0]), 
-                                "v"(p_b_thread[1]),
-                                "v"(p_b_thread[2]),
-                                "v"(p_b_thread[3]),
-                                "v"(p_b_thread[4]),
-                                "v"(p_b_thread[5]),
-                                "v"(p_b_thread[6]),
-                                "v"(p_b_thread[7]),
-                                "v"(__to_local((void *)(a_loc))), 
-                                "v"(__to_local((void *)(b_loc))),
-                                "4"(p_c_thread[0]),
-                                "5"(p_c_thread[1]),
-                                "6"(p_c_thread[2]),
-                                "7"(p_c_thread[3]),
-                                "8"(p_c_thread[4]),
-                                "9"(p_c_thread[5]),
-                                "10"(p_c_thread[6]),
-                                "11"(p_c_thread[7]),
-                                "12"(p_c_thread[8]),
-                                "13"(p_c_thread[9]),
-                                "14"(p_c_thread[10]),
-                                "15"(p_c_thread[11]),
-                                "16"(p_c_thread[12]),
-                                "17"(p_c_thread[13]),
-                                "18"(p_c_thread[14]),
-                                "19"(p_c_thread[15]),
-                                "20"(p_c_thread[16]),
-                                "21"(p_c_thread[17]),
-                                "22"(p_c_thread[18]),
-                                "23"(p_c_thread[19]),
-                                "24"(p_c_thread[20]),
-                                "25"(p_c_thread[21]),
-                                "26"(p_c_thread[22]),
-                                "27"(p_c_thread[23]),
-                                "28"(p_c_thread[24]),
-                                "29"(p_c_thread[25]),
-                                "30"(p_c_thread[26]),
-                                "31"(p_c_thread[27]),
-                                "32"(p_c_thread[28]),
-                                "33"(p_c_thread[29]),
-                                "34"(p_c_thread[30]),
-                                "35"(p_c_thread[31]),
-                                "36"(p_c_thread[32]),
-                                "37"(p_c_thread[33]),
-                                "38"(p_c_thread[34]),
-                                "39"(p_c_thread[35]),
-                                "40"(p_c_thread[36]),
-                                "41"(p_c_thread[37]),
-                                "42"(p_c_thread[38]),
-                                "43"(p_c_thread[39]),
-                                "44"(p_c_thread[40]),
-                                "45"(p_c_thread[41]),
-                                "46"(p_c_thread[42]),
-                                "47"(p_c_thread[43]),
-                                "48"(p_c_thread[44]),
-                                "49"(p_c_thread[45]),
-                                "50"(p_c_thread[46]),
-                                "51"(p_c_thread[47]),
-                                "52"(p_c_thread[48]),
-                                "53"(p_c_thread[49]),
-                                "54"(p_c_thread[50]),
-                                "55"(p_c_thread[51]),
-                                "56"(p_c_thread[52]),
-                                "57"(p_c_thread[53]),
-                                "58"(p_c_thread[54]),
-                                "59"(p_c_thread[55]),
-                                "60"(p_c_thread[56]),
-                                "61"(p_c_thread[57]),
-                                "62"(p_c_thread[58]),
-                                "63"(p_c_thread[59]),
-                                "64"(p_c_thread[60]),
-                                "65"(p_c_thread[61]),
-                                "66"(p_c_thread[62]),
-                                "67"(p_c_thread[63])
-                                );
+                         : "=v"(reg[0]),
+                           "=v"(reg[1]),
+                           "=v"(reg[2]),
+                           "=v"(reg[3]),
+                           "=v"(p_c_thread[0]),
+                           "=v"(p_c_thread[1]),
+                           "=v"(p_c_thread[2]),
+                           "=v"(p_c_thread[3]),
+                           "=v"(p_c_thread[4]),
+                           "=v"(p_c_thread[5]),
+                           "=v"(p_c_thread[6]),
+                           "=v"(p_c_thread[7]),
+                           "=v"(p_c_thread[8]),
+                           "=v"(p_c_thread[9]),
+                           "=v"(p_c_thread[10]),
+                           "=v"(p_c_thread[11]),
+                           "=v"(p_c_thread[12]),
+                           "=v"(p_c_thread[13]),
+                           "=v"(p_c_thread[14]),
+                           "=v"(p_c_thread[15]),
+                           "=v"(p_c_thread[16]),
+                           "=v"(p_c_thread[17]),
+                           "=v"(p_c_thread[18]),
+                           "=v"(p_c_thread[19]),
+                           "=v"(p_c_thread[20]),
+                           "=v"(p_c_thread[21]),
+                           "=v"(p_c_thread[22]),
+                           "=v"(p_c_thread[23]),
+                           "=v"(p_c_thread[24]),
+                           "=v"(p_c_thread[25]),
+                           "=v"(p_c_thread[26]),
+                           "=v"(p_c_thread[27]),
+                           "=v"(p_c_thread[28]),
+                           "=v"(p_c_thread[29]),
+                           "=v"(p_c_thread[30]),
+                           "=v"(p_c_thread[31]),
+                           "=v"(p_c_thread[32]),
+                           "=v"(p_c_thread[33]),
+                           "=v"(p_c_thread[34]),
+                           "=v"(p_c_thread[35]),
+                           "=v"(p_c_thread[36]),
+                           "=v"(p_c_thread[37]),
+                           "=v"(p_c_thread[38]),
+                           "=v"(p_c_thread[39]),
+                           "=v"(p_c_thread[40]),
+                           "=v"(p_c_thread[41]),
+                           "=v"(p_c_thread[42]),
+                           "=v"(p_c_thread[43]),
+                           "=v"(p_c_thread[44]),
+                           "=v"(p_c_thread[45]),
+                           "=v"(p_c_thread[46]),
+                           "=v"(p_c_thread[47]),
+                           "=v"(p_c_thread[48]),
+                           "=v"(p_c_thread[49]),
+                           "=v"(p_c_thread[50]),
+                           "=v"(p_c_thread[51]),
+                           "=v"(p_c_thread[52]),
+                           "=v"(p_c_thread[53]),
+                           "=v"(p_c_thread[54]),
+                           "=v"(p_c_thread[55]),
+                           "=v"(p_c_thread[56]),
+                           "=v"(p_c_thread[57]),
+                           "=v"(p_c_thread[58]),
+                           "=v"(p_c_thread[59]),
+                           "=v"(p_c_thread[60]),
+                           "=v"(p_c_thread[61]),
+                           "=v"(p_c_thread[62]),
+                           "=v"(p_c_thread[63])
+                         : "v"(p_a_thread[0]),
+                           "v"(p_a_thread[1]),
+                           "v"(p_a_thread[2]),
+                           "v"(p_a_thread[3]),
+                           "v"(p_a_thread[4]),
+                           "v"(p_a_thread[5]),
+                           "v"(p_a_thread[6]),
+                           "v"(p_a_thread[7]),
+                           "v"(p_b_thread[0]),
+                           "v"(p_b_thread[1]),
+                           "v"(p_b_thread[2]),
+                           "v"(p_b_thread[3]),
+                           "v"(p_b_thread[4]),
+                           "v"(p_b_thread[5]),
+                           "v"(p_b_thread[6]),
+                           "v"(p_b_thread[7]),
+                           "v"(__to_local((void*)(a_loc))),
+                           "v"(__to_local((void*)(b_loc))),
+                           "4"(p_c_thread[0]),
+                           "5"(p_c_thread[1]),
+                           "6"(p_c_thread[2]),
+                           "7"(p_c_thread[3]),
+                           "8"(p_c_thread[4]),
+                           "9"(p_c_thread[5]),
+                           "10"(p_c_thread[6]),
+                           "11"(p_c_thread[7]),
+                           "12"(p_c_thread[8]),
+                           "13"(p_c_thread[9]),
+                           "14"(p_c_thread[10]),
+                           "15"(p_c_thread[11]),
+                           "16"(p_c_thread[12]),
+                           "17"(p_c_thread[13]),
+                           "18"(p_c_thread[14]),
+                           "19"(p_c_thread[15]),
+                           "20"(p_c_thread[16]),
+                           "21"(p_c_thread[17]),
+                           "22"(p_c_thread[18]),
+                           "23"(p_c_thread[19]),
+                           "24"(p_c_thread[20]),
+                           "25"(p_c_thread[21]),
+                           "26"(p_c_thread[22]),
+                           "27"(p_c_thread[23]),
+                           "28"(p_c_thread[24]),
+                           "29"(p_c_thread[25]),
+                           "30"(p_c_thread[26]),
+                           "31"(p_c_thread[27]),
+                           "32"(p_c_thread[28]),
+                           "33"(p_c_thread[29]),
+                           "34"(p_c_thread[30]),
+                           "35"(p_c_thread[31]),
+                           "36"(p_c_thread[32]),
+                           "37"(p_c_thread[33]),
+                           "38"(p_c_thread[34]),
+                           "39"(p_c_thread[35]),
+                           "40"(p_c_thread[36]),
+                           "41"(p_c_thread[37]),
+                           "42"(p_c_thread[38]),
+                           "43"(p_c_thread[39]),
+                           "44"(p_c_thread[40]),
+                           "45"(p_c_thread[41]),
+                           "46"(p_c_thread[42]),
+                           "47"(p_c_thread[43]),
+                           "48"(p_c_thread[44]),
+                           "49"(p_c_thread[45]),
+                           "50"(p_c_thread[46]),
+                           "51"(p_c_thread[47]),
+                           "52"(p_c_thread[48]),
+                           "53"(p_c_thread[49]),
+                           "54"(p_c_thread[50]),
+                           "55"(p_c_thread[51]),
+                           "56"(p_c_thread[52]),
+                           "57"(p_c_thread[53]),
+                           "58"(p_c_thread[54]),
+                           "59"(p_c_thread[55]),
+                           "60"(p_c_thread[56]),
+                           "61"(p_c_thread[57]),
+                           "62"(p_c_thread[58]),
+                           "63"(p_c_thread[59]),
+                           "64"(p_c_thread[60]),
+                           "65"(p_c_thread[61]),
+                           "66"(p_c_thread[62]),
+                           "67"(p_c_thread[63]));
 #endif
         }
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>
-    __device__ void Run_asm(const FloatA* const __restrict__ p_a_block,
-                            const FloatB* const __restrict__ p_b_block,
-                            FloatC* const __restrict__ p_c_thread,
-                            Accumulator f_accum) const
+    __device__ void Run(const FloatA* const __restrict__ p_a_block,
+                        const FloatB* const __restrict__ p_b_block,
+                        FloatC* const __restrict__ p_c_thread,
+                        Accumulator f_accum) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -973,17 +965,12 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr index_t MRepeat = MPerThread / MPerThreadSubC;
         constexpr index_t NRepeat = NPerThread / NPerThreadSubC;
 
-        static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && MRepeat == 2 && NRepeat == 2 &&
-                          KPerThreadLoop == 1 && K == 1,
-                      "asm is not for this mtx shape");
-
         const FloatA* const p_a_block_thread_offset = p_a_block + mMyThreadOffsetA;
 
 #pragma unroll
         // loop over k
         for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
         {
-#if 0
 #pragma unroll
             // copy A-sub to form A
             for(index_t m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
@@ -993,67 +980,11 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                     p_a_block + a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
                         mMyThreadOffsetA,
                     a_thread_mtx,
-                    a_thread_sub_mtx.NCol(p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                    p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
                     a_thread_sub_mtx.GetLengths());
             }
-#elif 1
-            // this produce right result
-            using vectorA_t = typename vector_type<FloatA, 4>::MemoryType; // this is float4*
 
-            asm volatile(
-                "\n \
-                    ds_read_b128 %0, %1 \n \
-                    s_waitcnt lgkmcnt(0)"
-                : "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread + a_thread_mtx.Get1dIndex(0, 0))))
-                : "v"(__to_local(
-                    (void*)(p_a_block + a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA))));
-
-            asm volatile("\n \
-                    ds_read_b128 %0, %1 \n \
-                    s_waitcnt lgkmcnt(0)"
-                         : "=v"(*(reinterpret_cast<vectorA_t*>(
-                             p_a_thread + a_thread_mtx.Get1dIndex(0, MPerThreadSubC))))
-                         : "v"(__to_local((
-                             void*)(p_a_block + a_block_mtx.Get1dIndex(k_begin, MPerLevel1Cluster) +
-                                    mMyThreadOffsetA))));
-#elif 0
-            // this produce wrong result
-            using vectorA_t = typename vector_type<FloatA, 4>::MemoryType; // this is float4*
-
-            asm volatile(
-                "\n \
-                    ds_read_b128 %0, %2  \n \
-                    ds_read_b128 %1, %3  \n \
-                    s_waitcnt lgkmcnt(0)"
-                : "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread + a_thread_mtx.Get1dIndex(0, 0)))),
-                  "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread +
-                                                      a_thread_mtx.Get1dIndex(0, MPerThreadSubC))))
-                : "v"(__to_local(
-                      (void*)(p_a_block + a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA))),
-                  "v"(__to_local((void*)(p_a_block +
-                                         a_block_mtx.Get1dIndex(k_begin, MPerLevel1Cluster) +
-                                         mMyThreadOffsetA))));
-#elif 1
-            // this produce wrong result
-            using vectorA_t = typename vector_type<FloatA, 4>::MemoryType; // this is float4*
-
-            asm volatile(
-                "\n \
-                    ds_read_b128 %0, %1 \n \
-                    s_waitcnt lgkmcnt(0)"
-                : "=v"(*(reinterpret_cast<vectorA_t*>(p_a_thread + a_thread_mtx.Get1dIndex(0, 0))))
-                : "v"(__to_local((void*)(p_a_block_thread_offset))));
-
-            asm volatile("\n \
-                    ds_read_b128 %0, %1 offset:16 \n \
-                    s_waitcnt lgkmcnt(0)"
-                         : "=v"(*(reinterpret_cast<vectorA_t*>(
-                             p_a_thread + a_thread_mtx.Get1dIndex(0, MPerThreadSubC))))
-                         : "v"(__to_local((void*)(p_a_block_thread_offset))));
-
-#endif
-
-            //#pragma unroll
+#pragma unroll
             // copy B-sub to form B
             for(index_t n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
             {
@@ -1066,8 +997,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                     b_thread_sub_mtx.GetLengths());
             }
 
-// C = A * B
-#if 1
+            // C = A * B
             threadwise_gemm(a_thread_mtx,
                             True,
                             p_a_thread,
@@ -1078,58 +1008,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             False,
                             p_c_thread,
                             f_accum);
-#elif 0
-            // inline asm
-            static_assert(c_thread_mtx.NRow() == 8 && c_thread_mtx.NCol() == 8,
-                          "asm is only for 8x8");
-
-            for(index_t k = 0; k < a_thread_mtx.NRow(); ++k) // A is transposed
-            {
-                const index_t bindex = b_thread_mtx.Get1dIndex(k, 0);
-
-                for(index_t i = 0; i < c_thread_mtx.NRow(); ++i)
-                {
-                    const index_t aindex = a_thread_mtx.Get1dIndex(k, i); // A is transposed
-                    const index_t cindex = c_thread_mtx.Get1dIndex(i, 0);
-
-                    asm volatile("\n \
-                                v_mac_f32 %0, %8, %9 \n \
-                                v_mac_f32 %1, %8, %10 \n \
-                                v_mac_f32 %2, %8, %11 \n \
-                                v_mac_f32 %3, %8, %12 \n \
-                                v_mac_f32 %4, %8, %13 \n \
-                                v_mac_f32 %5, %8, %14 \n \
-                                v_mac_f32 %6, %8, %15 \n \
-                                v_mac_f32 %7, %8, %16 \n \
-                                "
-                                 : "=v"(p_c_thread[cindex + 0]),
-                                   "=v"(p_c_thread[cindex + 1]),
-                                   "=v"(p_c_thread[cindex + 2]),
-                                   "=v"(p_c_thread[cindex + 3]),
-                                   "=v"(p_c_thread[cindex + 4]),
-                                   "=v"(p_c_thread[cindex + 5]),
-                                   "=v"(p_c_thread[cindex + 6]),
-                                   "=v"(p_c_thread[cindex + 7])
-                                 : "v"(p_a_thread[aindex]),
-                                   "v"(p_b_thread[bindex + 0]),
-                                   "v"(p_b_thread[bindex + 1]),
-                                   "v"(p_b_thread[bindex + 2]),
-                                   "v"(p_b_thread[bindex + 3]),
-                                   "v"(p_b_thread[bindex + 4]),
-                                   "v"(p_b_thread[bindex + 5]),
-                                   "v"(p_b_thread[bindex + 6]),
-                                   "v"(p_b_thread[bindex + 7]),
-                                   "0"(p_c_thread[cindex + 0]),
-                                   "1"(p_c_thread[cindex + 1]),
-                                   "2"(p_c_thread[cindex + 2]),
-                                   "3"(p_c_thread[cindex + 3]),
-                                   "4"(p_c_thread[cindex + 4]),
-                                   "5"(p_c_thread[cindex + 5]),
-                                   "6"(p_c_thread[cindex + 6]),
-                                   "7"(p_c_thread[cindex + 7]));
-                }
-            }
-#endif
         }
     }
 

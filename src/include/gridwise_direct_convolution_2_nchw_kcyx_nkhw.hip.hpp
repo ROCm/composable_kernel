@@ -63,17 +63,18 @@ gridwise_direct_convolution_2_nchw_kcyx_nkhw(const Float* const __restrict__ p_i
                                       Sequence<wei_ke_block_desc.GetStride(I0), Y * X, X, 1>{});
 
     // shared mem
-    constexpr index_t in_block_size =
+    constexpr index_t in_block_element_size =
         in_nchw_block_desc.GetElementSpace(Number<InBlockCopyDataPerRead>{});
-    constexpr index_t wei_block_size =
+    constexpr index_t wei_block_element_size =
         wei_kcyx_block_desc.GetElementSpace(Number<WeiBlockCopyDataPerRead>{});
 
     constexpr index_t max_align = InBlockCopyDataPerRead > WeiBlockCopyDataPerRead
                                       ? InBlockCopyDataPerRead
                                       : WeiBlockCopyDataPerRead;
 
-    __shared__ Float p_in_block[max_align * ((in_block_size + max_align - 1) / max_align)];
-    __shared__ Float p_wei_block[max_align * ((wei_block_size + max_align - 1) / max_align)];
+    __shared__ Float p_in_block[max_align * ((in_block_element_size + max_align - 1) / max_align)];
+    __shared__ Float
+        p_wei_block[max_align * ((wei_block_element_size + max_align - 1) / max_align)];
 
     // threadwise tensors
     constexpr index_t HiPerThread = HoPerThread + Y - 1;

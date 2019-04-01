@@ -204,11 +204,11 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
                                                          true>{};
 
     // LDS
-    constexpr index_t in_block_size  = in_chwn_block_desc.GetElementSpace();
-    constexpr index_t wei_block_size = wei_cyxk_block_desc.GetElementSpace();
+    constexpr index_t in_block_element_size  = in_chwn_block_desc.GetElementSpace();
+    constexpr index_t wei_block_element_size = wei_cyxk_block_desc.GetElementSpace();
 
-    __shared__ Float p_in_block[in_block_size];
-    __shared__ Float p_wei_block[wei_block_size];
+    __shared__ Float p_in_block[in_block_element_size];
+    __shared__ Float p_wei_block[wei_block_element_size];
 
     // register
     Float p_out_thread[out_hkwn_thread_desc.GetElementSpace()];

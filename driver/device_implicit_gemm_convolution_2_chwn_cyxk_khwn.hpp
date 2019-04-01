@@ -270,7 +270,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(
+        constexpr auto gridwise_conv =
 #if 1
             gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 #else
@@ -301,12 +301,14 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
              WeiBlockCopyThreadPerDim0,
              WeiBlockCopyThreadPerDim1,
              InBlockCopyDataPerRead,
-             WeiBlockCopyDataPerRead>,
-            dim3(GridSize),
-            dim3(BlockSize),
-            static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
+             WeiBlockCopyDataPerRead>();
+
+        float time = launch_kernel(gridwise_conv.Run,
+                                   dim3(GridSize),
+                                   dim3(BlockSize),
+                                   static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
+                                   static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
+                                   static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

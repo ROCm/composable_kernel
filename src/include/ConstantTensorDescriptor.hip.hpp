@@ -137,7 +137,10 @@ struct ConstantTensorDescriptor
             }
         };
 
-        return static_const_reduce_n<nDim>{}(GetElementSpace_f{}, add{}) + align.Get();
+        index_t element_space_unaligned =
+            static_const_reduce_n<nDim>{}(GetElementSpace_f{}, add{}) + 1;
+
+        return align.Get() * ((element_space_unaligned + align.Get() - 1) / align.Get());
     }
 
     template <class... Is>
