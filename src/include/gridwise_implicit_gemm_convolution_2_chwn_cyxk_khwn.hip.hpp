@@ -315,7 +315,7 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
                     auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 #if 0
                     blockwise_gemm.Run
-#elif 1
+#elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 1
                     blockwise_gemm.Run_asm
