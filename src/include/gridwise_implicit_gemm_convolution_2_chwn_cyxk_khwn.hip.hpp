@@ -37,7 +37,7 @@ template <index_t GridSize,
 class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 {
     public:
-    __host__ __device__ static index_t GetSharedMemorySize()
+    __host__ __device__ constexpr index_t GetInputBlockElementSpace() const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -46,7 +46,6 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 
         constexpr auto in_chwn_global_desc  = InGlobalDesc{};
         constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
-        constexpr auto out_khwn_global_desc = OutGlobalDesc{};
 
         constexpr index_t Hi = in_chwn_global_desc.GetLength(I1);
         constexpr index_t Wi = in_chwn_global_desc.GetLength(I2);
@@ -56,29 +55,59 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 
         constexpr index_t BGhostRead = (Y - 1) * Wi + (X - 1);
 
-        // tensor view of blockwise input and weight
+        // tensor view of blockwise input
         //   be careful of alignment
         constexpr auto in_cb_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, BPerBlock + BGhostRead>{}, Number<InBlockCopyDataPerRead>{});
 
-        constexpr auto wei_cyxk_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, Y, X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
-
-        // tensor view of threadwise output in register
-        constexpr auto out_kb_thread_desc =
-            make_ConstantTensorDescriptor(Sequence<KPerThread, BPerThread>{});
-
+        // LDS: be careful of alignment
         constexpr index_t max_align =
             mod_conv::max(InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
+        return in_cb_block_desc.GetElementSpace(Number<max_align>{});
+    }
+
+    __host__ __device__ constexpr index_t GetWeightBlockElementSpace() const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        constexpr auto in_chwn_global_desc  = InGlobalDesc{};
+        constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
+
+        constexpr index_t Hi = in_chwn_global_desc.GetLength(I1);
+        constexpr index_t Wi = in_chwn_global_desc.GetLength(I2);
+
+        constexpr index_t Y = wei_cyxk_global_desc.GetLength(I1);
+        constexpr index_t X = wei_cyxk_global_desc.GetLength(I2);
+
+        constexpr index_t BGhostRead = (Y - 1) * Wi + (X - 1);
+
+        // tensor view of blockwise weight
+        //   be careful of alignment
+        constexpr auto wei_cyxk_block_desc = make_ConstantTensorDescriptor_aligned(
+            Sequence<CPerBlock, Y, X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
+
         // LDS: be careful of alignment
-        constexpr index_t in_block_element_space =
-            in_cb_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t max_align =
+            mod_conv::max(InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
-        constexpr index_t wei_block_element_space =
-            wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
+        return wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
+    }
 
-        return (in_block_element_space + wei_block_element_space) * sizeof(Float);
+    __host__ __device__ constexpr index_t GetSharedMemoryUsage() const
+    {
+
+        return (GetInputBlockElementSpace() + GetWeightBlockElementSpace()) * sizeof(Float);
+    }
+
+    __device__ constexpr static Float* GetSharedMemoryBegin()
+    {
+        extern __shared__ Float s[];
+
+        return s;
     }
 
     __global__ static void Run(const Float* const __restrict__ p_in_global,
@@ -251,8 +280,8 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
         constexpr index_t wei_block_element_space =
             wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
 
-        __shared__ Float p_in_block[in_block_element_space];
-        __shared__ Float p_wei_block[wei_block_element_space];
+        Float* const p_in_block  = GetSharedMemoryBegin();
+        Float* const p_wei_block = GetSharedMemoryBegin() + in_block_element_space;
 
         const Float* p_in_global_block_offset =
             p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
@@ -288,7 +317,7 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
                     blockwise_gemm.Run
 #elif 1
                     blockwise_gemm.Run_RegisterDoubleBuffer
-#elif 0
+#elif 1
                     blockwise_gemm.Run_asm
 #endif
                     (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),

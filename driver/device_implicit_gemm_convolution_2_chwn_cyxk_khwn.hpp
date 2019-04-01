@@ -220,7 +220,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead = 4;
 
     constexpr index_t BlockSize = 128;
-#elif 0
+#elif 1
     // 1x1, 14x14, Vega 20, hack CPerBlock = 1
     constexpr index_t BPerBlock = 64;
     constexpr index_t KPerBlock = 128;
@@ -306,6 +306,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
         float time = launch_kernel(gridwise_conv.Run,
                                    dim3(GridSize),
                                    dim3(BlockSize),
+                                   gridwise_conv.GetSharedMemoryUsage(),
                                    static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
