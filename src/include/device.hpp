@@ -29,14 +29,14 @@ struct KernelTimer
 };
 
 template <typename... Args, typename F>
-float launch_kernel(F kernel, dim3 grid_dim, dim3 block_dim, Args... args)
+float launch_kernel(F kernel, dim3 grid_dim, dim3 block_dim, std::size_t lds_byte, Args... args)
 {
     KernelTimer timer;
 
 #if DEVICE_BACKEND_HIP
     timer.Start();
 
-    hipLaunchKernelGGL(kernel, grid_dim, block_dim, 0, 0, args...);
+    hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, 0, args...);
 
     timer.End();
 
@@ -47,7 +47,7 @@ float launch_kernel(F kernel, dim3 grid_dim, dim3 block_dim, Args... args)
 
     timer.Start();
 
-    cudaError_t error = cudaLaunchKernel(f, grid_dim, block_dim, p_args, 0, 0);
+    cudaError_t error = cudaLaunchKernel(f, grid_dim, block_dim, p_args, lds_byte, 0);
 
     timer.End();
 
