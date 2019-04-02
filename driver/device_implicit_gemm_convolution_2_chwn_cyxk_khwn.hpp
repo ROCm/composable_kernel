@@ -221,7 +221,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     constexpr index_t BlockSize = 128;
 #elif 0
-    // 1x1, 14x14, Vega 20, hack CPerBlock = 1
+    // 1x1, 14x14, Vega 20, hack CPerBlock = 1 for debugging
     constexpr index_t BPerBlock = 64;
     constexpr index_t KPerBlock = 128;
     constexpr index_t CPerBlock = 1;
