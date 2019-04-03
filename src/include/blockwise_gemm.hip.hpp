@@ -404,10 +404,14 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
 #else
             int k = k_begin;
-            ds_read_b128(reg_a[0], a_loc, k * 512);
-            ds_read_b128(reg_b[0], b_loc, k * 256);
-            ds_read_b128(reg_b[1], b_loc, 128 + k * 256);
-            ds_read_b128(reg_a[1], a_loc, 256 + k * 512);
+            int lds_a_block_off = sizeof(Float) * M;
+            int lds_b_block_off = sizeof(Float) * N;
+            int lds_a_block_off_1 = MPerLevel1Cluster * sizeof(Float);
+            int lds_b_block_off_1 = NPerLevel1Cluster * sizeof(Float);
+            ds_read_b128(reg_a[0], a_loc, k * lds_a_block_off);
+            ds_read_b128(reg_b[0], b_loc, k * lds_b_block_off);
+            ds_read_b128(reg_b[1], b_loc, lds_b_block_off_1 + k * lds_b_block_off);
+            ds_read_b128(reg_a[1], a_loc, lds_a_block_off_1 + k * lds_a_block_off);
             lgkmcnt(2);
             outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
             lgkmcnt(1);
@@ -416,12 +420,12 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             for(int i = 0; i < k_chunk - 1; i++)
             {
                 k = k + 1;
-                ds_read_b128(reg_a[0], a_loc, k * 512);
+                ds_read_b128(reg_a[0], a_loc, k * lds_a_block_off);
                 outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
-                ds_read_b128(reg_b[0], b_loc, k * 256);
+                ds_read_b128(reg_b[0], b_loc, k * lds_b_block_off);
                 outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
-                ds_read_b128(reg_b[1], b_loc, 128 + k * 256);
-                ds_read_b128(reg_a[1], a_loc, 256 + k * 512);
+                ds_read_b128(reg_b[1], b_loc, lds_b_block_off_1 + k * lds_b_block_off);
+                ds_read_b128(reg_a[1], a_loc, lds_a_block_off_1 + k * lds_a_block_off);
                 lgkmcnt(2);
                 outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
                 lgkmcnt(1);
