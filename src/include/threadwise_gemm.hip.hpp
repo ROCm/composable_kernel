@@ -73,20 +73,16 @@ __device__ void threadwise_gemm(MatrixA,
         for(index_t k = 0; k < K; ++k)
         {
 #if 1
-            for(index_t i = 0; i < M; i+=4)
+            for(index_t i = 0; i < M; i++)
             {
                 const index_t aindex = a_mtx.Get1dIndex(k, i); // A is transposed
-                const Float4 *a_vec = (const Float4 *)&p_a_thread[aindex];
 
-                for(index_t j = 0; j < N; j+=4)
+                for(index_t j = 0; j < N; j++)
                 {
                     const index_t bindex = b_mtx.Get1dIndex(k, j);
                     const index_t cindex = c_mtx.Get1dIndex(i, j);
 
-                    const Float4 *b_vec = (const Float4 *)&p_b_thread[bindex];
-                    Float4 *c_vec = (Float4 *)&p_c_thread[cindex];
-
-                    outerProduct4x4(a_vec[0], b_vec[0], c_vec[0], c_vec[2], c_vec[4], c_vec[6]);
+                    p_c_thread[cindex] += p_a_thread[aindex] * p_b_thread[bindex];
                 }
             }
 #else
