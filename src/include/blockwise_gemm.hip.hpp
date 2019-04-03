@@ -1,8 +1,6 @@
 #pragma once
 #include "threadwise_gemm.hip.hpp"
 
-extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
-
 // if following number are power of 2, index calculation shall be greatly reduced:
 //    MPerThreadSubC, NPerThreadSubC, MLevel0Cluster, NLevel0Cluster, MLevel1Cluster, NLevel1Cluster
 template <index_t BlockSize,
@@ -131,6 +129,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             FloatC* __restrict__ p_c_thread,
                             Accumulator f_accum) const
     {
+#if DEVICE_BACKEND_HIP
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
 
@@ -711,6 +710,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                            "67"(p_c_thread[63]));
 #endif
         }
+#else
+        printf("asm only support on HIP backend\n");
+        assert(false);
+#endif
     }
 
     template <class FloatA, class FloatB, class FloatC, class Accumulator>

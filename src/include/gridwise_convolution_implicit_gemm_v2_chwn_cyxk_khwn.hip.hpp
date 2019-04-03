@@ -280,9 +280,9 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
                 for(index_t x = 0; x < X; ++x)
                 {
                     auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
-#if 0
+#if 1
                     blockwise_gemm.Run
-#elif 1
+#elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 0
                     blockwise_gemm.Run_asm
