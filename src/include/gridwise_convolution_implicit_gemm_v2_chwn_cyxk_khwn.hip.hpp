@@ -34,10 +34,11 @@ template <index_t GridSize,
           index_t WeiBlockCopyThreadPerDim1,
           index_t InBlockCopyDataPerRead,
           index_t WeiBlockCopyDataPerRead>
-class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
+struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 {
-    public:
-    __host__ __device__ static index_t GetSharedMemorySize()
+    __host__ __device__ constexpr GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn() {}
+
+    __host__ __device__ constexpr index_t GetSharedMemoryUsage() const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -46,7 +47,6 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 
         constexpr auto in_chwn_global_desc  = InGlobalDesc{};
         constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
-        constexpr auto out_khwn_global_desc = OutGlobalDesc{};
 
         constexpr index_t Hi = in_chwn_global_desc.GetLength(I1);
         constexpr index_t Wi = in_chwn_global_desc.GetLength(I2);
@@ -64,10 +64,6 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
         constexpr auto wei_cyxk_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, Y, X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
 
-        // tensor view of threadwise output in register
-        constexpr auto out_kb_thread_desc =
-            make_ConstantTensorDescriptor(Sequence<KPerThread, BPerThread>{});
-
         constexpr index_t max_align =
             mod_conv::max(InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
@@ -81,9 +77,9 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
         return (in_block_element_space + wei_block_element_space) * sizeof(Float);
     }
 
-    __global__ static void Run(const Float* const __restrict__ p_in_global,
-                               const Float* const __restrict__ p_wei_global,
-                               Float* const __restrict__ p_out_global)
+    __device__ void Run(const Float* const __restrict__ p_in_global,
+                        const Float* const __restrict__ p_wei_global,
+                        Float* const __restrict__ p_out_global) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
