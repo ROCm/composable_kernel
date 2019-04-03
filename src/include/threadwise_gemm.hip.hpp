@@ -10,7 +10,7 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
     constexpr auto src_mtx = SrcMatrix{};
     constexpr auto dst_mtx = DstMatrix{};
 
-#if 0
+#if 1
     for(index_t i = 0; i < NRow; ++i)
     {
         for(index_t j = 0; j < NCol; ++j)
@@ -78,9 +78,7 @@ __device__ void threadwise_gemm(MatrixA,
                     const index_t bindex = b_mtx.Get1dIndex(k, j);
                     const index_t cindex = c_mtx.Get1dIndex(i, j);
 
-#if 0
-                    f_accum(p_c_thread[cindex], p_a_thread[aindex] * p_b_thread[bindex]);
-#elif 1
+#if DEVICE_BACKEND_HIP // this only does c += a * b
                     asm volatile("\n \
                                 v_mac_f32 %0, %1, %2 \n \
                                 "
@@ -88,6 +86,8 @@ __device__ void threadwise_gemm(MatrixA,
                                  : "v"(p_a_thread[aindex]),
                                    "v"(p_b_thread[bindex]),
                                    "0"(p_c_thread[cindex]));
+#else // this does general accumulation defined by f_accum
+                    f_accum(p_c_thread[cindex], p_a_thread[aindex] * p_b_thread[bindex]);
 #endif
                 }
             }
