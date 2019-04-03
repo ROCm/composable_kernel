@@ -5,41 +5,36 @@ typedef float Float4 __attribute__((ext_vector_type(4)));
 extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
 
 inline __device__ void lgkmcnt(int cnt){
+#if 1
     if(cnt == 0) {
         asm volatile("\n \
                 s_waitcnt lgkmcnt(0) \n \
                 "::);
     }
-    if(cnt == 1) {
+    else if(cnt == 1) {
         asm volatile("\n \
                 s_waitcnt lgkmcnt(1) \n \
                 "::);
     }
-    if(cnt == 2) {
+    else if(cnt == 2) {
         asm volatile("\n \
                 s_waitcnt lgkmcnt(2) \n \
                 "::);
     }
-    if(cnt == 3) {
+    else if(cnt == 3) {
         asm volatile("\n \
                 s_waitcnt lgkmcnt(3) \n \
                 "::);
     }
-    if(cnt == 4) {
+    else if(cnt == 4) {
         asm volatile("\n \
                 s_waitcnt lgkmcnt(4) \n \
                 "::);
     }
-    if(cnt == 5) {
-        asm volatile("\n \
-                s_waitcnt lgkmcnt(5) \n \
-                "::);
+    else {
+        assert(0);
     }
-    if(cnt == 6) {
-        asm volatile("\n \
-                s_waitcnt lgkmcnt(6) \n \
-                "::);
-    }
+#endif
 }
 
 inline __device__ void outerProduct1x4(const float *a, const float *b, float *c) {
