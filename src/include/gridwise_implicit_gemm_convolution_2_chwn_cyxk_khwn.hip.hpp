@@ -297,8 +297,7 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 
         for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
                     p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
-                    p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
-                    __syncthreads())
+                    p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0), __syncthreads())
         {
             // load data
             blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
