@@ -384,9 +384,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         Float4* reg_c = (Float4*)(p_c_thread);
         void* a_loc = (void *)(p_a_block + mMyThreadOffsetA); 
         void* b_loc = (void *)(p_b_block + mMyThreadOffsetB); 
-#pragma unroll
         // loop over k
-        for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
+        int k_chunk = 2;
+#pragma unroll
+        for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop * k_chunk)
         {
 
 #if 0
@@ -402,15 +403,31 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
             outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
 #else
-            ds_read_b128(reg_a[0], a_loc, k_begin * 512);
-            ds_read_b128(reg_b[0], b_loc, k_begin * 256);
-            ds_read_b128(reg_b[1], b_loc, 128 + k_begin * 256);
-            ds_read_b128(reg_a[1], a_loc, 256 + k_begin * 512);
+            int k = k_begin;
+            ds_read_b128(reg_a[0], a_loc, k * 512);
+            ds_read_b128(reg_b[0], b_loc, k * 256);
+            ds_read_b128(reg_b[1], b_loc, 128 + k * 256);
+            ds_read_b128(reg_a[1], a_loc, 256 + k * 512);
             lgkmcnt(2);
             outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
             lgkmcnt(1);
             outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
             lgkmcnt(0);
+            for(int i = 0; i < k_chunk - 1; i++)
+            {
+                k = k + 1;
+                ds_read_b128(reg_a[0], a_loc, k * 512);
+                outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
+                ds_read_b128(reg_b[0], b_loc, k * 256);
+                outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
+                ds_read_b128(reg_b[1], b_loc, 128 + k * 256);
+                ds_read_b128(reg_a[1], a_loc, 256 + k * 512);
+                lgkmcnt(2);
+                outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
+                lgkmcnt(1);
+                outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
+                lgkmcnt(0);
+            }
             outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
             outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
 #endif
