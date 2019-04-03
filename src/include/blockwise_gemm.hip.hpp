@@ -332,12 +332,11 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                            n_repeat * NPerLevel1Cluster + n_in_sub_c};
     }
 
-    template <class FloatA, class FloatB, class FloatC, class Accumulator, index_t block_off>
+    template <class FloatA, class FloatB, class FloatC, class Accumulator>
     __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
                             const FloatB* __restrict__ p_b_block,
                             FloatC* __restrict__ p_c_thread,
-                            Accumulator f_accum,
-                            Number<block_off>) const
+                            Accumulator f_accum) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -378,45 +377,43 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr index_t MRepeat = MPerThread / MPerThreadSubC;
         constexpr index_t NRepeat = NPerThread / NPerThreadSubC;
 
+        //auto a_src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
+        //auto b_src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
+        Float4* reg_a = (Float4*)(p_a_thread);
+        Float4* reg_b = (Float4*)(p_b_thread);
+        Float4* reg_c = (Float4*)(p_c_thread);
+        void* a_loc = (void *)(p_a_block + mMyThreadOffsetA); 
+        void* b_loc = (void *)(p_b_block + mMyThreadOffsetB); 
 #pragma unroll
         // loop over k
         for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop)
         {
-         
 
-            auto a_src_index = a_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetA;
-            auto b_src_index = b_block_mtx.Get1dIndex(k_begin, 0) + mMyThreadOffsetB;
-            Float4* reg_a = (Float4*)(p_a_thread);
-            Float4* reg_b = (Float4*)(p_b_thread);
-            void* a_loc = (void *)(p_a_block + a_src_index); 
-            void* b_loc = (void *)(p_b_block + b_src_index); 
-
-            //asm volatile("\n \
-                    //ds_read_b128 %0, %2 \n \
-                    //ds_read_b128 %1, %2 offset:256\n \
-                    //"
-                    //: "=v"(reg_a[0]), "=v"(reg_a[1])
-                    //: "v"(__to_local(a_loc))
-                    //);
-
+#if 0
             ds_read_b128(reg_a[0], a_loc, 0);
             ds_read_b128(reg_a[1], a_loc, 256);
-
             ds_read_b128(reg_b[0], b_loc, 0);
             ds_read_b128(reg_b[1], b_loc, 128);
 
             lgkmcnt(0);
 
-            threadwise_gemm(a_thread_mtx,
-                            True,
-                            p_a_thread,
-                            b_thread_mtx,
-                            False,
-                            p_b_thread,
-                            c_thread_mtx,
-                            False,
-                            p_c_thread,
-                            f_accum);
+            outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
+            outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
+            outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
+            outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
+#else
+            ds_read_b128(reg_a[0], a_loc, k_begin * 512);
+            ds_read_b128(reg_b[0], b_loc, k_begin * 256);
+            ds_read_b128(reg_b[1], b_loc, 128 + k_begin * 256);
+            ds_read_b128(reg_a[1], a_loc, 256 + k_begin * 512);
+            lgkmcnt(2);
+            outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
+            lgkmcnt(1);
+            outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
+            lgkmcnt(0);
+            outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
+            outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
+#endif
         }
     }
 

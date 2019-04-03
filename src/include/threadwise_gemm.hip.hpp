@@ -12,7 +12,7 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
     constexpr auto src_mtx = SrcMatrix{};
     constexpr auto dst_mtx = DstMatrix{};
 
-#if 0
+#if 1
     for(index_t i = 0; i < NRow; ++i)
     {
         for(index_t j = 0; j < NCol; ++j)
@@ -72,6 +72,7 @@ __device__ void threadwise_gemm(MatrixA,
 
         for(index_t k = 0; k < K; ++k)
         {
+#if 1
             for(index_t i = 0; i < M; i+=4)
             {
                 const index_t aindex = a_mtx.Get1dIndex(k, i); // A is transposed
@@ -88,6 +89,13 @@ __device__ void threadwise_gemm(MatrixA,
                     outerProduct4x4(a_vec[0], b_vec[0], c_vec[0], c_vec[2], c_vec[4], c_vec[6]);
                 }
             }
+#else
+            const Float4 *a_vec = (const Float4 *)p_a_thread;
+            const Float4 *b_vec = (const Float4 *)p_b_thread;
+            Float4 *c_vec = (Float4 *)p_c_thread;
+
+            outerProduct8x8(a_vec, b_vec, c_vec);
+#endif
         }
     }
     else
