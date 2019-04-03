@@ -62,10 +62,9 @@ __host__ __device__ constexpr T min(T x, Ts... xs)
 
     return x < y ? x : y;
 }
-}// namespace mod_conv
+} // namespace mod_conv
 
 #if DEVICE_BACKEND_HIP
 // cast a pointer of LDS to its address
 extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
 #endif
-
