@@ -385,9 +385,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         void* a_loc   = (void*)(p_a_block + mMyThreadOffsetA);
         void* b_loc   = (void*)(p_b_block + mMyThreadOffsetB);
         // loop over k
-        int k_chunk = 2;
-#pragma unroll
-        for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop * k_chunk)
+        int k_chunk = K;
+        //for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop * k_chunk)
+        index_t k_begin = 0;
         {
 
 #if 0
@@ -417,6 +417,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             lgkmcnt(1);
             outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
             lgkmcnt(0);
+#pragma unroll
             for(int i = 0; i < k_chunk - 1; i++)
             {
                 k = k + 1;
