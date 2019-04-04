@@ -271,7 +271,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     for(index_t i = 0; i < nrepeat; ++i)
     {
         constexpr auto gridwise_conv =
-#if 1
+#if 0
             gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 #else
             gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer
@@ -306,7 +306,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
         float time = launch_kernel(gridwise_conv.Run,
                                    dim3(GridSize),
                                    dim3(BlockSize),
-                                   gridwise_conv.GetSharedMemoryUsage(),
+                                   gridwise_conv.GetDynamicSharedMemoryUsage(),
                                    static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
