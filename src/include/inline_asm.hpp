@@ -4,8 +4,15 @@ typedef float Float4 __attribute__((ext_vector_type(4)));
 
 extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
 
+#define NO_VM_WAIT 0
+#define NO_LGKM_WAIT 0
+#define NO_DS_READ 0
+#define NO_DS_WRITE 0
+#define NO_GLB_READ 0
+
 inline __device__ void vmcnt(int cnt)
 {
+#if !NO_VM_WAIT
     if(cnt == 0)
     {
         asm volatile("\n \
@@ -34,11 +41,12 @@ inline __device__ void vmcnt(int cnt)
     {
         assert(0);
     }
+#endif
 }
 
 inline __device__ void lgkmcnt(int cnt)
 {
-#if 1
+#if !NO_LGKM_WAIT
     if(cnt == 0)
     {
         asm volatile("\n \
@@ -181,6 +189,7 @@ inline __device__ void outerProduct8x8(const Float4* a, const Float4* b, Float4*
 
 inline __device__ void ds_read_b128(Float4& r, void* lds, int offset = 0)
 {
+#if !NO_DS_READ
     if(offset == 0)
     {
         asm volatile("\n \
@@ -401,22 +410,27 @@ inline __device__ void ds_read_b128(Float4& r, void* lds, int offset = 0)
     {
         assert(0);
     }
+#endif
 }
 
 inline __device__ void global_load(Float4& r, Float4* ptr)
 {
+#if !NO_GLB_READ
     asm volatile("\n \
 			global_load_dwordx4 %0, %1, off \n \
 			"
                  : "=v"(r)
                  : "v"(ptr));
+#endif
 }
 
 inline __device__ void ds_write_b128(Float4& r, void* lds, int offset = 0)
 {
+#if !NO_DS_WRITE
     asm volatile("\n \
             ds_write_b128 %0, %1 \n \
             "
                  :
                  : "v"(__to_local(lds)), "v"(r));
+#endif
 }
