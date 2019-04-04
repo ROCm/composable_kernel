@@ -4,28 +4,34 @@ typedef float Float4 __attribute__((ext_vector_type(4)));
 
 extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
 
-inline __device__ void vmcnt(int cnt) {
-    if(cnt == 0) {
-        asm volatile ("\n \
+inline __device__ void vmcnt(int cnt)
+{
+    if(cnt == 0)
+    {
+        asm volatile("\n \
                 s_waitcnt vmcnt(0) \n \
-                "::);
+                " ::);
     }
-    else if(cnt == 1) {
-        asm volatile ("\n \
+    else if(cnt == 1)
+    {
+        asm volatile("\n \
                 s_waitcnt vmcnt(1) \n \
-                "::);
+                " ::);
     }
-    else if(cnt == 2) {
-        asm volatile ("\n \
+    else if(cnt == 2)
+    {
+        asm volatile("\n \
                 s_waitcnt vmcnt(2) \n \
-                "::);
+                " ::);
     }
-    else if(cnt == 4) {
-        asm volatile ("\n \
+    else if(cnt == 4)
+    {
+        asm volatile("\n \
                 s_waitcnt vmcnt(2) \n \
-                "::);
+                " ::);
     }
-    else {
+    else
+    {
         assert(0);
     }
 }
@@ -397,13 +403,13 @@ inline __device__ void ds_read_b128(Float4& r, void* lds, int offset = 0)
     }
 }
 
-inline __device__ void global_load(Float4 &r, Float4* ptr) {
-	asm volatile("\n \
+inline __device__ void global_load(Float4& r, Float4* ptr)
+{
+    asm volatile("\n \
 			global_load_dwordx4 %0, %1, off \n \
 			"
-			:"=v"(r)
-			:"v"(ptr)
-			);
+                 : "=v"(r)
+                 : "v"(ptr));
 }
 
 inline __device__ void ds_write_b128(Float4& r, void* lds, int offset = 0)
@@ -411,8 +417,6 @@ inline __device__ void ds_write_b128(Float4& r, void* lds, int offset = 0)
     asm volatile("\n \
             ds_write_b128 %0, %1 \n \
             "
-            :
-            : "v"(__to_local(lds)), "v"(r)
-            );
+                 :
+                 : "v"(__to_local(lds)), "v"(r));
 }
-

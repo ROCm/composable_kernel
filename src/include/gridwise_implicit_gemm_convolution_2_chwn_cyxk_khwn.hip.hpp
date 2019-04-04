@@ -34,9 +34,8 @@ template <index_t GridSize,
           index_t WeiBlockCopyThreadPerDim1,
           index_t InBlockCopyDataPerRead,
           index_t WeiBlockCopyDataPerRead>
-class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
+struct gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 {
-    public:
     __host__ __device__ constexpr index_t GetInputBlockElementSpace() const
     {
         constexpr auto I0 = Number<0>{};
@@ -97,7 +96,7 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
         return wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
     }
 
-    __host__ __device__ constexpr index_t GetSharedMemoryUsage() const
+    __host__ __device__ constexpr index_t GetDynamicSharedMemoryUsage() const
     {
 
         return (GetInputBlockElementSpace() + GetWeightBlockElementSpace()) * sizeof(Float);
@@ -300,22 +299,38 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
                     p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
                     __syncthreads())
         {
-            // load data
-            //blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
-            //blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+// load data
+#if 0
+            blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
+            blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+#elif 0
+            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
 
+            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                       p_in_register_clipboard);
+
+            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                        p_wei_register_clipboard);
+
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block);
+            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block);
+#elif 1
             Float4 tmp_in, tmp_wei;
-            Float4* glb_in_p = (Float4 *)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
-            Float4* loc_in_p = (Float4 *)(p_in_block + blockwise_in_copy.mDstMyThreadOffset);
+            Float4* glb_in_p =
+                (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
+            Float4* loc_in_p = (Float4*)(p_in_block + blockwise_in_copy.mDstMyThreadOffset);
 
-            Float4* glb_wei_p = (Float4 *)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
-            Float4* loc_wei_p = (Float4 *)(p_wei_block + blockwise_wei_copy.mDstMyThreadOffset);
+            Float4* glb_wei_p =
+                (Float4*)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
+            Float4* loc_wei_p = (Float4*)(p_wei_block + blockwise_wei_copy.mDstMyThreadOffset);
 
             global_load(tmp_in, glb_in_p);
             global_load(tmp_wei, glb_wei_p);
             vmcnt(0);
             ds_write_b128(tmp_in, loc_in_p);
             ds_write_b128(tmp_wei, loc_wei_p);
+#endif
 
             __syncthreads();
 
