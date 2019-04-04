@@ -386,7 +386,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         void* b_loc   = (void*)(p_b_block + mMyThreadOffsetB);
         // loop over k
         int k_chunk = K;
-        //for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop * k_chunk)
+        // for(index_t k_begin = 0; k_begin < K; k_begin += KPerThreadLoop * k_chunk)
         index_t k_begin = 0;
         {
 

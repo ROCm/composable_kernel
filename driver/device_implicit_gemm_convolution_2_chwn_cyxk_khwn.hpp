@@ -311,7 +311,10 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
                                    static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
 
-        printf("Elapsed time : %f ms\n", time);
+        printf("Elapsed time : %f ms, %f TFlop/s\n",
+               time,
+               (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
+                   (std::size_t(1024) * 1024 * 1024 * 1024) / (time / 1000));
         usleep(std::min(time * 1000, float(10000)));
     }
 
