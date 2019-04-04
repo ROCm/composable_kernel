@@ -1,8 +1,9 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn.hip.hpp"
-#include "gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer.hip.hpp"
+#include "gridwise_convolution_wrapper.hip.hpp"
+#include "gridwise_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hip.hpp"
+#include "gridwise_convolution_implicit_gemm_v2_chwn_cyxk_khwn_lds_double_buffer.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
@@ -221,7 +222,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     constexpr index_t BlockSize = 128;
 #elif 1
-    // 1x1, 14x14, Vega 20, try
+    // 1x1, 14x14, Vega 20, enable lds_double_buffer, disable register_double_buffer
     constexpr index_t BPerBlock = 128;
     constexpr index_t KPerBlock = 128;
     constexpr index_t CPerBlock = 8;
@@ -271,10 +272,10 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     for(index_t i = 0; i < nrepeat; ++i)
     {
         constexpr auto gridwise_conv =
-#if 0
-            gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
+#if 1
+            GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 #else
-            gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn_lds_double_buffer
+            GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 #endif
             <GridSize,
              BlockSize,
@@ -301,12 +302,12 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
              WeiBlockCopyThreadPerDim0,
              WeiBlockCopyThreadPerDim1,
              InBlockCopyDataPerRead,
-             WeiBlockCopyDataPerRead>();
+             WeiBlockCopyDataPerRead>{};
 
-        float time = launch_kernel(gridwise_conv.Run,
+        float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
-                                   gridwise_conv.GetDynamicSharedMemoryUsage(),
+                                   0,
                                    static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
