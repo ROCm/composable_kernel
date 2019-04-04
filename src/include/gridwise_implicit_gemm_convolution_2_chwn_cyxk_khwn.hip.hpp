@@ -301,8 +301,21 @@ class gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
                     __syncthreads())
         {
             // load data
-            blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
-            blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+            //blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
+            //blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+
+            Float4 tmp_in, tmp_wei;
+            Float4* glb_in_p = (Float4 *)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
+            Float4* loc_in_p = (Float4 *)(p_in_block + blockwise_in_copy.mDstMyThreadOffset);
+
+            Float4* glb_wei_p = (Float4 *)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
+            Float4* loc_wei_p = (Float4 *)(p_wei_block + blockwise_wei_copy.mDstMyThreadOffset);
+
+            global_load(tmp_in, glb_in_p);
+            global_load(tmp_wei, glb_wei_p);
+            vmcnt(0);
+            ds_write_b128(tmp_in, loc_in_p);
+            ds_write_b128(tmp_wei, loc_wei_p);
 
             __syncthreads();
 
