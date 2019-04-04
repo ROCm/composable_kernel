@@ -31,10 +31,10 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
         const index_t src_index = src_mtx.Get1dIndex(i, 0);
         const index_t dst_index = dst_mtx.Get1dIndex(i, 0);
 
-        Float4 *reg_p = (Float4 *)&p_dst[dst_index];
-        Float4 *loc_p = (Float4 *)&p_src[src_index];
+        Float4* reg_p = (Float4*)&p_dst[dst_index];
+        Float4* loc_p = (Float4*)&p_src[src_index];
 
-        ds_read_b128(reg_p[0], (void *)&loc_p[0]);
+        ds_read_b128(reg_p[0], (void*)&loc_p[0]);
     }
 #endif
 }
@@ -86,9 +86,9 @@ __device__ void threadwise_gemm(MatrixA,
                 }
             }
 #else
-            const Float4 *a_vec = (const Float4 *)p_a_thread;
-            const Float4 *b_vec = (const Float4 *)p_b_thread;
-            Float4 *c_vec = (Float4 *)p_c_thread;
+            const Float4* a_vec = (const Float4*)p_a_thread;
+            const Float4* b_vec = (const Float4*)p_b_thread;
+            Float4* c_vec       = (Float4*)p_c_thread;
 
             outerProduct8x8(a_vec, b_vec, c_vec);
 #endif
