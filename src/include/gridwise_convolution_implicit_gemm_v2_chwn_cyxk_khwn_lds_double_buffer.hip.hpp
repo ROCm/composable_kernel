@@ -34,84 +34,16 @@ template <index_t GridSize,
           index_t WeiBlockCopyThreadPerDim1,
           index_t InBlockCopyDataPerRead,
           index_t WeiBlockCopyDataPerRead>
-struct gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
+struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 {
-    __host__ __device__ constexpr index_t GetInputBlockElementSpace() const
+    __host__
+        __device__ constexpr GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer()
     {
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
-
-        constexpr auto in_chwn_global_desc  = InGlobalDesc{};
-        constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
-
-        constexpr index_t Hi = in_chwn_global_desc.GetLength(I1);
-        constexpr index_t Wi = in_chwn_global_desc.GetLength(I2);
-
-        constexpr index_t Y = wei_cyxk_global_desc.GetLength(I1);
-        constexpr index_t X = wei_cyxk_global_desc.GetLength(I2);
-
-        constexpr index_t BGhostRead = (Y - 1) * Wi + (X - 1);
-
-        // tensor view of blockwise input
-        //   be careful of alignment
-        constexpr auto in_cb_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, BPerBlock + BGhostRead>{}, Number<InBlockCopyDataPerRead>{});
-
-        // LDS: be careful of alignment
-        constexpr index_t max_align =
-            mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
-
-        return in_cb_block_desc.GetElementSpace(Number<max_align>{});
     }
 
-    __host__ __device__ constexpr index_t GetWeightBlockElementSpace() const
-    {
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
-
-        constexpr auto in_chwn_global_desc  = InGlobalDesc{};
-        constexpr auto wei_cyxk_global_desc = WeiGlobalDesc{};
-
-        constexpr index_t Hi = in_chwn_global_desc.GetLength(I1);
-        constexpr index_t Wi = in_chwn_global_desc.GetLength(I2);
-
-        constexpr index_t Y = wei_cyxk_global_desc.GetLength(I1);
-        constexpr index_t X = wei_cyxk_global_desc.GetLength(I2);
-
-        constexpr index_t BGhostRead = (Y - 1) * Wi + (X - 1);
-
-        // tensor view of blockwise weight
-        //   be careful of alignment
-        constexpr auto wei_cyxk_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, Y, X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
-
-        // LDS: be careful of alignment
-        constexpr index_t max_align =
-            mod_conv::max(InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
-
-        return wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
-    }
-
-    __host__ __device__ constexpr index_t GetDynamicSharedMemoryUsage() const
-    {
-
-        return (GetInputBlockElementSpace() + GetWeightBlockElementSpace()) * sizeof(Float);
-    }
-
-    __device__ constexpr static Float* GetSharedMemoryBegin()
-    {
-        extern __shared__ Float s[];
-
-        return s;
-    }
-
-    __global__ static void Run(const Float* const __restrict__ p_in_global,
-                               const Float* const __restrict__ p_wei_global,
-                               Float* const __restrict__ p_out_global)
+    __device__ void Run(const Float* const __restrict__ p_in_global,
+                        const Float* const __restrict__ p_wei_global,
+                        Float* const __restrict__ p_out_global) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -256,6 +188,19 @@ struct gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
         constexpr auto c_kxb_thread_mtx_desc =
             make_ConstantMatrixDescriptor(Number<KPerThread>{}, Number<BPerThread>{});
 
+#if 0
+    const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadC<BlockSize,
+                                                                 decltype(a_cxk_block_mtx_desc),
+                                                                 decltype(b_cxb_block_mtx_desc),
+                                                                 decltype(c_kxb_thread_mtx_desc),
+                                                                 true,
+                                                                 false,
+                                                                 false,
+                                                                 GemmKPerThreadLoop,
+                                                                 GemmThreadPerColumnPerCluster,
+                                                                 GemmThreadPerRowPerCluster,
+                                                                 true>{};
+#else
         const auto blockwise_gemm =
             BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<BlockSize,
                                                                     decltype(a_cxk_block_mtx_desc),
@@ -268,6 +213,7 @@ struct gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
                                                                     GemmMLevel1Cluster,
                                                                     GemmNLevel1Cluster,
                                                                     GemmKPerThreadLoop>{};
+#endif
 
         // LDS: be careful of alignment
         constexpr index_t max_align =
@@ -279,8 +225,9 @@ struct gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
         constexpr index_t wei_block_element_space =
             wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
 
-        Float* const p_in_block  = GetSharedMemoryBegin();
-        Float* const p_wei_block = GetSharedMemoryBegin() + in_block_element_space;
+        // LDS double buffer
+        __shared__ Float p_in_block_double[2 * in_block_element_space];
+        __shared__ Float p_wei_block_double[2 * wei_block_element_space];
 
         const Float* p_in_global_block_offset =
             p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
@@ -288,72 +235,185 @@ struct gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
         const Float* p_wei_global_block_offset =
             p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
+// preload data into LDS
+#if 0
+        blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_0);
+        blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_0);
+#else
+        Float4 tmp_in, tmp_wei;
+        Float4* glb_in_p =
+            (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
+        Float4* glb_wei_p =
+            (Float4*)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
+
+        global_load(tmp_in, glb_in_p);
+        global_load(tmp_wei, glb_wei_p);
+
+        Float4* loc_in_p  = (Float4*)(p_in_block_double + blockwise_in_copy.mDstMyThreadOffset);
+        Float4* loc_wei_p = (Float4*)(p_wei_block_double + blockwise_wei_copy.mDstMyThreadOffset);
+
+        vmcnt(0);
+        ds_write_b128(tmp_in, loc_in_p);
+        ds_write_b128(tmp_wei, loc_wei_p);
+#endif
+
         // register
         Float p_out_thread[out_kb_thread_desc.GetElementSpace()];
 
         // set threadwise output tensor to 0
         threadwise_2d_tensor_set_zero(out_kb_thread_desc, p_out_thread);
 
-        for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
-                    p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
-                    p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
-                    __syncthreads())
+        for(index_t c_block_data_begin = 0; c_block_data_begin + 2 * CPerBlock < C;
+            c_block_data_begin += 2 * CPerBlock)
         {
-// load data
+#pragma unroll
+            for(index_t iloop = 0; iloop < 2; ++iloop)
+            {
+                const bool even_loop = (iloop % 2 == 0);
+
+                Float* p_in_block_now =
+                    even_loop ? p_in_block_double : p_in_block_double + in_block_element_space;
+                Float* p_wei_block_now =
+                    even_loop ? p_wei_block_double : p_wei_block_double + wei_block_element_space;
+
+                Float* p_in_block_next =
+                    even_loop ? p_in_block_double + in_block_element_space : p_in_block_double;
+                Float* p_wei_block_next =
+                    even_loop ? p_wei_block_double + wei_block_element_space : p_wei_block_double;
+
+                p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0);
+                p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0);
+
+// load next data
 #if 0
-            blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
-            blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
-#elif 0
             Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
             Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+            __syncthreads();
 
             blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
                                                        p_in_register_clipboard);
 
             blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                         p_wei_register_clipboard);
-
-            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block);
-            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block);
 #elif 1
+                Float4 tmp_in, tmp_wei;
+                Float4* glb_in_p =
+                    (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
+                Float4* glb_wei_p =
+                    (Float4*)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
+
+                __syncthreads();
+
+                global_load(tmp_in, glb_in_p);
+                global_load(tmp_wei, glb_wei_p);
+#endif
+
+                // compute on current data
+                //   a series of GEMM
+                for(index_t y = 0; y < Y; ++y)
+                {
+                    for(index_t x = 0; x < X; ++x)
+                    {
+#if 0
+                    blockwise_gemm.Run
+#elif 0
+                        blockwise_gemm.Run_RegisterDoubleBuffer
+#elif 1
+                        blockwise_gemm.Run_asm
+#endif
+                        (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                         p_in_block_now + y * Wi + x,
+                         p_out_thread);
+                    }
+                }
+
+#if 0
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block_next);
+            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
+                                                         p_wei_block_next);
+#elif 1
+                Float4* loc_in_p =
+                    (Float4*)(p_in_block_next + blockwise_in_copy.mDstMyThreadOffset);
+                Float4* loc_wei_p =
+                    (Float4*)(p_wei_block_next + blockwise_wei_copy.mDstMyThreadOffset);
+
+                vmcnt(0);
+                ds_write_b128(tmp_in, loc_in_p);
+                ds_write_b128(tmp_wei, loc_wei_p);
+#endif
+            }
+        }
+
+        // tail
+        if(C % 2 == 0)
+        {
+            // even
+            p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0);
+            p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0);
+
             Float4 tmp_in, tmp_wei;
             Float4* glb_in_p =
                 (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
-            Float4* loc_in_p = (Float4*)(p_in_block + blockwise_in_copy.mDstMyThreadOffset);
-
             Float4* glb_wei_p =
                 (Float4*)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
-            Float4* loc_wei_p = (Float4*)(p_wei_block + blockwise_wei_copy.mDstMyThreadOffset);
-
-            global_load(tmp_in, glb_in_p);
-            global_load(tmp_wei, glb_wei_p);
-            vmcnt(0);
-            ds_write_b128(tmp_in, loc_in_p);
-            ds_write_b128(tmp_wei, loc_wei_p);
-#endif
 
             __syncthreads();
 
-            // compute on current data
-            //   a series of GEMM
+            global_load(tmp_in, glb_in_p);
+            global_load(tmp_wei, glb_wei_p);
+
             for(index_t y = 0; y < Y; ++y)
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-                    auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 #if 0
                     blockwise_gemm.Run
-#elif 0
-                    blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 1
                     blockwise_gemm.Run_asm
+#elif 0
+                    blockwise_gemm.Run_RegisterDoubleBuffer
 #endif
-                    (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                     p_in_block + y * Wi + x,
-                     p_out_thread,
-                     f_accum);
+                    (p_wei_block_double + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block_double + y * Wi + x,
+                     p_out_thread);
                 }
             }
+
+            Float4* loc_in_p = (Float4*)(p_in_block_double + in_block_element_space +
+                                         blockwise_in_copy.mDstMyThreadOffset);
+            Float4* loc_wei_p = (Float4*)(p_wei_block_double + wei_block_element_space +
+                                          blockwise_wei_copy.mDstMyThreadOffset);
+
+            vmcnt(0);
+            ds_write_b128(tmp_in, loc_in_p);
+            ds_write_b128(tmp_wei, loc_wei_p);
+
+            // odd
+            __syncthreads();
+
+            for(index_t y = 0; y < Y; ++y)
+            {
+                for(index_t x = 0; x < X; ++x)
+                {
+#if 0
+                    blockwise_gemm.Run
+#elif 1
+                    blockwise_gemm.Run_asm
+#elif 0
+                    blockwise_gemm.Run_RegisterDoubleBuffer
+#endif
+                    (p_wei_block_double + in_block_element_space +
+                         wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block_double + wei_block_element_space + y * Wi + x,
+                     p_out_thread);
+                }
+            }
+        }
+        else
+        {
+            // not implemented
+            assert(false);
         }
 
         // output: register to global mem,
@@ -362,6 +422,20 @@ struct gridwise_implicit_gemm_convolution_2_chwn_cyxk_khwn
 
         const index_t k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
         const index_t b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
+
+#if 0
+    if(get_block_1d_id() == 0)
+    {
+        printf("%u %u, row %u col %u, k_data_begin %u b_data_begin %u, %f %f %f %f\n",
+               get_block_1d_id(),
+               get_thread_local_1d_id(),
+               matrix_c_index.row,
+               matrix_c_index.col,
+               k_data_begin,
+               b_data_begin,
+               p_out_thread[0], p_out_thread[1], p_out_thread[2], p_out_thread[3]);
+    }
+#endif
 
         for(index_t k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
         {
