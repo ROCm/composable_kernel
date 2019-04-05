@@ -19,8 +19,6 @@ template <index_t GridSize,
           index_t CPerBlock,
           index_t BPerThread,
           index_t KPerThread,
-          index_t GemmThreadPerColumnPerCluster,
-          index_t GemmThreadPerRowPerCluster,
           index_t GemmMPerThreadSubC,
           index_t GemmNPerThreadSubC,
           index_t GemmMLevel0Cluster,
@@ -98,34 +96,15 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         constexpr auto out_kb_thread_desc =
             make_ConstantTensorDescriptor(Sequence<KPerThread, BPerThread>{});
 
-#if 0
-    if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-    {
-        print_ConstantTensorDescriptor(in_chwn_global_desc, "in_chwn_global_desc");
-        print_ConstantTensorDescriptor(wei_cyxk_global_desc, "wei_cyxk_global_desc");
-        print_ConstantTensorDescriptor(out_khwn_global_desc, "out_khwn_global_desc");
-
-        print_ConstantTensorDescriptor(in_cb_global_desc, "in_cb_global_desc");
-        print_ConstantTensorDescriptor(wei_ek_global_desc, "wei_ek_global_desc");
-
-        print_ConstantTensorDescriptor(in_cb_block_desc, "in_cb_block_desc");
-        print_ConstantTensorDescriptor(wei_cyxk_block_desc, "wei_cyxk_block_desc");
-        print_ConstantTensorDescriptor(wei_ek_block_desc, "wei_ek_block_desc");
-        print_ConstantTensorDescriptor(out_kb_thread_desc, "out_kb_thread_desc");
-
-        printf("KPerBlock %u\n", KPerBlock);
-    }
-#endif
-
 // blockwise in copy
 //   formmat is [CPerBlock,BPerBlock + BGhostRead]
 #if 0
-    const auto blockwise_in_copy =
-        Blockwise2dTensorCopy1<BlockSize,
-                               Float,
-                               decltype(in_cb_global_desc),
-                               decltype(in_cb_block_desc),
-                               decltype(in_cb_block_desc.GetLengths())>{};
+        const auto blockwise_in_copy =
+            Blockwise2dTensorCopy1<BlockSize,
+                                   Float,
+                                   decltype(in_cb_global_desc),
+                                   decltype(in_cb_block_desc),
+                                   decltype(in_cb_block_desc.GetLengths())>{};
 #elif 0
         const auto blockwise_in_copy =
             Blockwise2dTensorCopy2<BlockSize,
@@ -148,12 +127,12 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 // blockwise wei copy
 //   format is [CPerBlock*Y*X,KPerBlock]
 #if 0
-    const auto blockwise_wei_copy =
-        Blockwise2dTensorCopy1<BlockSize,
-                               Float,
-                               decltype(wei_ek_global_desc),
-                               decltype(wei_ek_block_desc),
-                               decltype(wei_ek_block_desc.GetLengths())>{};
+        const auto blockwise_wei_copy =
+            Blockwise2dTensorCopy1<BlockSize,
+                                   Float,
+                                   decltype(wei_ek_global_desc),
+                                   decltype(wei_ek_block_desc),
+                                   decltype(wei_ek_block_desc.GetLengths())>{};
 #elif 0
         const auto blockwise_wei_copy =
             Blockwise2dTensorCopy2<BlockSize,
@@ -188,19 +167,6 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         constexpr auto c_kxb_thread_mtx_desc =
             make_ConstantMatrixDescriptor(Number<KPerThread>{}, Number<BPerThread>{});
 
-#if 0
-    const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadC<BlockSize,
-                                                                 decltype(a_cxk_block_mtx_desc),
-                                                                 decltype(b_cxb_block_mtx_desc),
-                                                                 decltype(c_kxb_thread_mtx_desc),
-                                                                 true,
-                                                                 false,
-                                                                 false,
-                                                                 GemmKPerThreadLoop,
-                                                                 GemmThreadPerColumnPerCluster,
-                                                                 GemmThreadPerRowPerCluster,
-                                                                 true>{};
-#else
         const auto blockwise_gemm =
             BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<BlockSize,
                                                                     decltype(a_cxk_block_mtx_desc),
@@ -213,7 +179,6 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                                                                     GemmMLevel1Cluster,
                                                                     GemmNLevel1Cluster,
                                                                     GemmKPerThreadLoop>{};
-#endif
 
         // LDS: be careful of alignment
         constexpr index_t max_align =
@@ -235,27 +200,9 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         const Float* p_wei_global_block_offset =
             p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
-// preload data into LDS
-#if 0
-        blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_0);
-        blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_0);
-#else
-        Float4 tmp_in, tmp_wei;
-        Float4* glb_in_p =
-            (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
-        Float4* glb_wei_p =
-            (Float4*)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
-
-        global_load(tmp_in, glb_in_p);
-        global_load(tmp_wei, glb_wei_p);
-
-        Float4* loc_in_p  = (Float4*)(p_in_block_double + blockwise_in_copy.mDstMyThreadOffset);
-        Float4* loc_wei_p = (Float4*)(p_wei_block_double + blockwise_wei_copy.mDstMyThreadOffset);
-
-        vmcnt(0);
-        ds_write_b128(tmp_in, loc_in_p);
-        ds_write_b128(tmp_wei, loc_wei_p);
-#endif
+        // preload data into LDS
+        blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_double);
+        blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_double);
 
         // register
         Float p_out_thread[out_kb_thread_desc.GetElementSpace()];
@@ -285,18 +232,18 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                 p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0);
 
 // load next data
-#if 0
-            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
-            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+#if 1
+                Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+                Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
 
-            __syncthreads();
+                __syncthreads();
 
-            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
-                                                       p_in_register_clipboard);
+                blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                           p_in_register_clipboard);
 
-            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
-                                                        p_wei_register_clipboard);
-#elif 1
+                blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                            p_wei_register_clipboard);
+#elif 0
                 Float4 tmp_in, tmp_wei;
                 Float4* glb_in_p =
                     (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
@@ -316,7 +263,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                     for(index_t x = 0; x < X; ++x)
                     {
 #if 0
-                    blockwise_gemm.Run
+                        blockwise_gemm.Run
 #elif 0
                         blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 1
@@ -328,11 +275,20 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                     }
                 }
 
-#if 0
-            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block_next);
-            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
-                                                         p_wei_block_next);
-#elif 1
+#if 1
+                blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
+                                                            p_in_block_next);
+                blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
+                                                             p_wei_block_next);
+#elif 0
+                // if work with RunLoadRegisterClipboard_asm, need to wait
+                vmcnt(0);
+
+                blockwise_in_copy.RunStoreRegisterClipboard_asm(p_in_register_clipboard,
+                                                                p_in_block_next);
+                blockwise_wei_copy.RunStoreRegisterClipboard_asm(p_wei_register_clipboard,
+                                                                 p_wei_block_next);
+#elif 0
                 Float4* loc_in_p =
                     (Float4*)(p_in_block_next + blockwise_in_copy.mDstMyThreadOffset);
                 Float4* loc_wei_p =
@@ -352,16 +308,16 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
             p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0);
             p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0);
 
-            Float4 tmp_in, tmp_wei;
-            Float4* glb_in_p =
-                (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
-            Float4* glb_wei_p =
-                (Float4*)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
-
             __syncthreads();
 
-            global_load(tmp_in, glb_in_p);
-            global_load(tmp_wei, glb_wei_p);
+            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                       p_in_register_clipboard);
+
+            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                        p_wei_register_clipboard);
 
             for(index_t y = 0; y < Y; ++y)
             {
@@ -369,10 +325,10 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                 {
 #if 0
                     blockwise_gemm.Run
-#elif 1
-                    blockwise_gemm.Run_asm
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
+#elif 1
+                    blockwise_gemm.Run_asm
 #endif
                     (p_wei_block_double + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
                      p_in_block_double + y * Wi + x,
@@ -380,14 +336,22 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                 }
             }
 
-            Float4* loc_in_p = (Float4*)(p_in_block_double + in_block_element_space +
-                                         blockwise_in_copy.mDstMyThreadOffset);
-            Float4* loc_wei_p = (Float4*)(p_wei_block_double + wei_block_element_space +
-                                          blockwise_wei_copy.mDstMyThreadOffset);
+#if 1
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
+                                                        p_in_block_double + in_block_element_space);
 
+            blockwise_wei_copy.RunStoreRegisterClipboard(
+                p_wei_register_clipboard, p_wei_block_double + wei_block_element_space);
+#else
+            // if work with RunLoadRegisterClipboard_asm, need to wait
             vmcnt(0);
-            ds_write_b128(tmp_in, loc_in_p);
-            ds_write_b128(tmp_wei, loc_wei_p);
+
+            blockwise_in_copy.RunStoreRegisterClipboard_asm(
+                p_in_register_clipboard, p_in_block_double + in_block_element_space);
+
+            blockwise_wei_copy.RunStoreRegisterClipboard_asm(
+                p_wei_register_clipboard, p_wei_block_double + wei_block_element_space);
+#endif
 
             // odd
             __syncthreads();
@@ -398,10 +362,10 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                 {
 #if 0
                     blockwise_gemm.Run
-#elif 1
-                    blockwise_gemm.Run_asm
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
+#elif 1
+                    blockwise_gemm.Run_asm
 #endif
                     (p_wei_block_double + in_block_element_space +
                          wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
@@ -422,20 +386,6 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 
         const index_t k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
         const index_t b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
-
-#if 0
-    if(get_block_1d_id() == 0)
-    {
-        printf("%u %u, row %u col %u, k_data_begin %u b_data_begin %u, %f %f %f %f\n",
-               get_block_1d_id(),
-               get_thread_local_1d_id(),
-               matrix_c_index.row,
-               matrix_c_index.col,
-               k_data_begin,
-               b_data_begin,
-               p_out_thread[0], p_out_thread[1], p_out_thread[2], p_out_thread[3]);
-    }
-#endif
 
         for(index_t k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
         {

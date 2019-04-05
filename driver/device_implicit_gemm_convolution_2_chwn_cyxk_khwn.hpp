@@ -238,9 +238,6 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t GemmNLevel1Cluster = 4;
     constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr index_t GemmThreadPerColumnPerCluster = 8;
-    constexpr index_t GemmThreadPerRowPerCluster    = 8;
-
     constexpr index_t InBlockCopyThreadPerDim0 = 4;
     constexpr index_t InBlockCopyThreadPerDim1 = 16;
 
@@ -272,7 +269,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     for(index_t i = 0; i < nrepeat; ++i)
     {
         constexpr auto gridwise_conv =
-#if 1
+#if 0
             GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 #else
             GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
@@ -288,8 +285,6 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
              CPerBlock,
              BPerThread,
              KPerThread,
-             GemmThreadPerColumnPerCluster,
-             GemmThreadPerRowPerCluster,
              GemmMPerThreadSubC,
              GemmNPerThreadSubC,
              GemmMLevel0Cluster,

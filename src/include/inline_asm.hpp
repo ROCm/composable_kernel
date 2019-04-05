@@ -10,7 +10,7 @@ extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
 #define NO_DS_WRITE 0
 #define NO_GLB_READ 0
 
-inline __device__ void vmcnt(int cnt)
+inline __device__ void vmcnt(index_t cnt)
 {
 #if !NO_VM_WAIT
     if(cnt == 0)
@@ -39,12 +39,12 @@ inline __device__ void vmcnt(int cnt)
     }
     else
     {
-        assert(0);
+        assert(false);
     }
 #endif
 }
 
-inline __device__ void lgkmcnt(int cnt)
+inline __device__ void lgkmcnt(index_t cnt)
 {
 #if !NO_LGKM_WAIT
     if(cnt == 0)
@@ -79,7 +79,7 @@ inline __device__ void lgkmcnt(int cnt)
     }
     else
     {
-        assert(0);
+        assert(false);
     }
 #endif
 }
@@ -187,7 +187,7 @@ inline __device__ void outerProduct8x8(const Float4* a, const Float4* b, Float4*
     outerProduct4x4(a[1], b[1], c[9], c[11], c[13], c[15]);
 }
 
-inline __device__ void ds_read_b128(Float4& r, void* lds, int offset = 0)
+inline __device__ void ds_read_b128(Float4& r, void* lds, index_t offset = 0)
 {
 #if !NO_DS_READ
     if(offset == 0)
@@ -408,29 +408,43 @@ inline __device__ void ds_read_b128(Float4& r, void* lds, int offset = 0)
     }
     else
     {
-        assert(0);
+        assert(false);
     }
 #endif
 }
 
-inline __device__ void global_load(Float4& r, Float4* ptr)
+inline __device__ void global_load(Float4& r, const Float4* ptr, index_t offset = 0)
 {
 #if !NO_GLB_READ
-    asm volatile("\n \
-			global_load_dwordx4 %0, %1, off \n \
-			"
-                 : "=v"(r)
-                 : "v"(ptr));
+    if(offset == 0)
+    {
+        asm volatile("\n \
+                global_load_dwordx4 %0, %1, off \n \
+                "
+                     : "=v"(r)
+                     : "v"(ptr));
+    }
+    else
+    {
+        assert(false);
+    }
 #endif
 }
 
-inline __device__ void ds_write_b128(Float4& r, void* lds, int offset = 0)
+inline __device__ void ds_write_b128(const Float4& r, void* lds, index_t offset = 0)
 {
 #if !NO_DS_WRITE
-    asm volatile("\n \
+    if(offset == 0)
+    {
+        asm volatile("\n \
             ds_write_b128 %0, %1 \n \
             "
-                 :
-                 : "v"(__to_local(lds)), "v"(r));
+                     :
+                     : "v"(__to_local(lds)), "v"(r));
+    }
+    else
+    {
+        assert(false);
+    }
 #endif
 }
