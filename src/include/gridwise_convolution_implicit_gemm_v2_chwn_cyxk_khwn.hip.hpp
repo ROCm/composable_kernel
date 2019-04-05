@@ -19,8 +19,6 @@ template <index_t GridSize,
           index_t CPerBlock,
           index_t BPerThread,
           index_t KPerThread,
-          index_t GemmThreadPerColumnPerCluster,
-          index_t GemmThreadPerRowPerCluster,
           index_t GemmMPerThreadSubC,
           index_t GemmNPerThreadSubC,
           index_t GemmMLevel0Cluster,
@@ -95,34 +93,15 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
         constexpr auto out_kb_thread_desc =
             make_ConstantTensorDescriptor(Sequence<KPerThread, BPerThread>{});
 
-#if 0
-    if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-    {
-        print_ConstantTensorDescriptor(in_chwn_global_desc, "in_chwn_global_desc");
-        print_ConstantTensorDescriptor(wei_cyxk_global_desc, "wei_cyxk_global_desc");
-        print_ConstantTensorDescriptor(out_khwn_global_desc, "out_khwn_global_desc");
-
-        print_ConstantTensorDescriptor(in_cb_global_desc, "in_cb_global_desc");
-        print_ConstantTensorDescriptor(wei_ek_global_desc, "wei_ek_global_desc");
-
-        print_ConstantTensorDescriptor(in_cb_block_desc, "in_cb_block_desc");
-        print_ConstantTensorDescriptor(wei_cyxk_block_desc, "wei_cyxk_block_desc");
-        print_ConstantTensorDescriptor(wei_ek_block_desc, "wei_ek_block_desc");
-        print_ConstantTensorDescriptor(out_kb_thread_desc, "out_kb_thread_desc");
-
-        printf("KPerBlock %u\n", KPerBlock);
-    }
-#endif
-
 // blockwise in copy
 //   formmat is [CPerBlock,BPerBlock + BGhostRead]
 #if 0
-    const auto blockwise_in_copy =
-        Blockwise2dTensorCopy1<BlockSize,
-                               Float,
-                               decltype(in_cb_global_desc),
-                               decltype(in_cb_block_desc),
-                               decltype(in_cb_block_desc.GetLengths())>{};
+        const auto blockwise_in_copy =
+            Blockwise2dTensorCopy1<BlockSize,
+                                   Float,
+                                   decltype(in_cb_global_desc),
+                                   decltype(in_cb_block_desc),
+                                   decltype(in_cb_block_desc.GetLengths())>{};
 #elif 0
         const auto blockwise_in_copy =
             Blockwise2dTensorCopy2<BlockSize,
@@ -145,12 +124,12 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 // blockwise wei copy
 //   format is [CPerBlock*Y*X,KPerBlock]
 #if 0
-    const auto blockwise_wei_copy =
-        Blockwise2dTensorCopy1<BlockSize,
-                               Float,
-                               decltype(wei_ek_global_desc),
-                               decltype(wei_ek_block_desc),
-                               decltype(wei_ek_block_desc.GetLengths())>{};
+        const auto blockwise_wei_copy =
+            Blockwise2dTensorCopy1<BlockSize,
+                                   Float,
+                                   decltype(wei_ek_global_desc),
+                                   decltype(wei_ek_block_desc),
+                                   decltype(wei_ek_block_desc.GetLengths())>{};
 #elif 0
         const auto blockwise_wei_copy =
             Blockwise2dTensorCopy2<BlockSize,
@@ -202,14 +181,13 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
         constexpr index_t max_align =
             mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
-        constexpr index_t in_block_element_space =
-            in_cb_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t in_block_space = in_cb_block_desc.GetElementSpace(Number<max_align>{});
 
-        constexpr index_t wei_block_element_space =
+        constexpr index_t wei_block_space =
             wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
 
-        __shared__ Float p_in_block[in_block_element_space];
-        __shared__ Float p_wei_block[wei_block_element_space];
+        __shared__ Float p_in_block[in_block_space];
+        __shared__ Float p_wei_block[wei_block_space];
 
         const Float* p_in_global_block_offset =
             p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
@@ -229,7 +207,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
                     __syncthreads())
         {
 // load data
-#if 0
+#if 1
             blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
             blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
 #elif 0

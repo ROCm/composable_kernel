@@ -14,29 +14,12 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
 
     for(index_t i = 0; i < NRow; ++i)
     {
-        // optimize for vector-4 load
-        if(NCol % 4 == 0)
+        for(index_t j = 0; j < NCol; ++j)
         {
-            using vector_t = typename vector_type<Float, 4>::MemoryType;
+            const index_t src_index = src_mtx.Get1dIndex(i, j);
+            const index_t dst_index = dst_mtx.Get1dIndex(i, j);
 
-            for(index_t j = 0; j < NCol / 4; ++j)
-            {
-                const index_t src_index = src_mtx.Get1dIndex(i, 4 * j);
-                const index_t dst_index = dst_mtx.Get1dIndex(i, 4 * j);
-
-                *reinterpret_cast<vector_t*>(&p_dst[dst_index]) =
-                    *reinterpret_cast<const vector_t*>(&p_src[src_index]);
-            }
-        }
-        else
-        {
-            for(index_t j = 0; j < NCol; ++j)
-            {
-                const index_t src_index = src_mtx.Get1dIndex(i, j);
-                const index_t dst_index = dst_mtx.Get1dIndex(i, j);
-
-                p_dst[dst_index] = p_src[src_index];
-            }
+            p_dst[dst_index] = p_src[src_index];
         }
     }
 }

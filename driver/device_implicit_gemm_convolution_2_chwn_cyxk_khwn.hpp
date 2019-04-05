@@ -191,7 +191,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead = 4;
 
     constexpr index_t BlockSize = 256;
-#elif 0
+#elif 1
     // 1x1, 14x14, Vega 20, disable lds_double_buffer, enable register double buffer
     constexpr index_t BPerBlock = 64;
     constexpr index_t KPerBlock = 128;
@@ -207,9 +207,6 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t GemmMLevel1Cluster = 4;
     constexpr index_t GemmNLevel1Cluster = 4;
     constexpr index_t GemmKPerThreadLoop = 1;
-
-    constexpr index_t GemmThreadPerColumnPerCluster = 8;
-    constexpr index_t GemmThreadPerRowPerCluster    = 8;
 
     constexpr index_t InBlockCopyThreadPerDim0 = 4;
     constexpr index_t InBlockCopyThreadPerDim1 = 16;
