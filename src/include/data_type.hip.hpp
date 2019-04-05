@@ -9,13 +9,13 @@ struct vector_type
 template <>
 struct vector_type<float, 1>
 {
-    using MemoryType = float;
+    typedef float MemoryType;
 };
 
 template <>
 struct vector_type<float, 2>
 {
-    using MemoryType = float2;
+    typedef float MemoryType __attribute__((ext_vector_type(2)));
 
     __host__ __device__ static MemoryType Pack(float s0, float s1)
     {
@@ -34,13 +34,7 @@ struct vector_type<float, 2>
 template <>
 struct vector_type<float, 4>
 {
-    using MemoryType = float4;
-};
-
-template <>
-struct vector_type<float2, 2>
-{
-    using MemoryType = float4;
+    typedef float MemoryType __attribute__((ext_vector_type(4)));
 };
 
 #if 0

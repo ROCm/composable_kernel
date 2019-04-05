@@ -1,5 +1,6 @@
 #pragma once
 #include "ConstantTensorDescriptor.hip.hpp"
+#include "inline_asm.hpp"
 
 template <index_t BlockSize, class Float, class DstDesc, class F>
 __device__ void
@@ -517,9 +518,9 @@ struct Blockwise2dTensorCopy3
         constexpr index_t dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
         auto f_copy = [&](index_t iloop) {
-            *(reinterpret_cast<vector_t*>(p_clipboard + iloop * 4)) =
-                *(reinterpret_cast<const vector_t*>(p_src + mSrcMyThreadOffset +
-                                                    iloop * src_loop_stride));
+            *(reinterpret_cast<vector_t*>(&p_clipboard[iloop * DataPerRead])) =
+                *(reinterpret_cast<const vector_t*>(
+                    &p_src[mSrcMyThreadOffset + iloop * src_loop_stride]));
         };
 
         for(index_t iloop = 0; iloop < nloop_d0; ++iloop)
@@ -568,8 +569,8 @@ struct Blockwise2dTensorCopy3
         constexpr index_t dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
 
         auto f_copy = [&](index_t iloop) {
-            *(reinterpret_cast<vector_t*>(p_dst + mDstMyThreadOffset + iloop * dst_loop_stride)) =
-                *(reinterpret_cast<const vector_t*>(p_clipboard + iloop * 4));
+            *(reinterpret_cast<vector_t*>(&p_dst[mDstMyThreadOffset + iloop * dst_loop_stride])) =
+                *(reinterpret_cast<const vector_t*>(&p_clipboard[iloop * DataPerRead]));
         };
 
         for(index_t iloop = 0; iloop < nloop_d0; ++iloop)
@@ -589,4 +590,124 @@ struct Blockwise2dTensorCopy3
             }
         }
     }
+
+#if DEVICE_BACKEND_HIP
+    __device__ void RunLoadRegisterClipboard_asm(const Float* __restrict__ p_src,
+                                                 Float* p_clipboard) const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+
+        constexpr index_t thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;
+        constexpr index_t thread_per_d0 = BlockSize / thread_per_d1;
+
+        constexpr index_t num_active_thread = thread_per_d0 * thread_per_d1;
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
+
+        constexpr index_t nloop_d0 = L0 / thread_per_d0;
+
+        constexpr index_t src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
+        constexpr index_t dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
+
+        auto f_copy = [&](index_t iloop) {
+#if 0
+            *(reinterpret_cast<vector_t*>(&p_clipboard[iloop * DataPerRead])) =
+                *(reinterpret_cast<const vector_t*>(&p_src[mSrcMyThreadOffset +
+                                                    iloop * src_loop_stride]));
+#else
+            static_assert(is_same<float, Float>::value && DataPerRead == 4,
+                          "global_load is only for float4");
+
+            global_load(reinterpret_cast<vector_t&>(p_clipboard[iloop * DataPerRead]),
+                        reinterpret_cast<const vector_t*>(
+                            &p_src[mSrcMyThreadOffset + iloop * src_loop_stride]));
+#endif
+        };
+
+        for(index_t iloop = 0; iloop < nloop_d0; ++iloop)
+        {
+            f_copy(iloop);
+        }
+
+        constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
+
+        if(has_tail_d0)
+        {
+            constexpr index_t tail_d0 = L0 - nloop_d0 * thread_per_d0;
+
+            if(get_thread_local_1d_id() < tail_d0 * thread_per_d1)
+            {
+                f_copy(nloop_d0);
+            }
+        }
+    }
+
+    __device__ void RunStoreRegisterClipboard_asm(const Float* __restrict__ p_clipboard,
+                                                  Float* __restrict__ p_dst) const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+
+        constexpr index_t thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;
+        constexpr index_t thread_per_d0 = BlockSize / thread_per_d1;
+
+        constexpr index_t num_active_thread = thread_per_d0 * thread_per_d1;
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
+
+        constexpr index_t nloop_d0 = L0 / thread_per_d0;
+
+        constexpr index_t src_loop_stride = SrcDesc{}.GetStride(I0) * thread_per_d0;
+        constexpr index_t dst_loop_stride = DstDesc{}.GetStride(I0) * thread_per_d0;
+
+        auto f_copy = [&](index_t iloop) {
+#if 0
+            *(reinterpret_cast<vector_t*>(&p_dst[mDstMyThreadOffset + iloop * dst_loop_stride]) =
+                *(reinterpret_cast<const vector_t*>(&p_clipboard[iloop * DataPerRead]);
+#else
+            static_assert(is_same<float, Float>::value && DataPerRead == 4,
+                          "ds_write_b128 is only for float4");
+
+            ds_write_b128(reinterpret_cast<const vector_t&>(p_clipboard[iloop * DataPerRead]),
+                          &p_dst[mDstMyThreadOffset + iloop * dst_loop_stride]);
+#endif
+        };
+
+        for(index_t iloop = 0; iloop < nloop_d0; ++iloop)
+        {
+            f_copy(iloop);
+        }
+
+        constexpr bool has_tail_d0 = (L0 > nloop_d0 * thread_per_d0);
+
+        if(has_tail_d0)
+        {
+            constexpr index_t tail_d0 = L0 - nloop_d0 * thread_per_d0;
+
+            if(get_thread_local_1d_id() < tail_d0 * thread_per_d1)
+            {
+                f_copy(nloop_d0);
+            }
+        }
+    }
+#endif
 };
