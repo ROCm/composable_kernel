@@ -16,12 +16,14 @@ template <>
 struct vector_type<float, 2>
 {
 #if DEVICE_BACKEND_HIP
-    // For some reason, HIP compiler need this definition to generate optimal load and store instruction
+    // For some reason, HIP compiler need this definition to generate optimal load and store
+    // instruction
     typedef float MemoryType __attribute__((ext_vector_type(2)));
 #elif DEVICE_BACKEND_CUDA
     // For some reason, CUDA need this definition to, otherwise
     //   compiler won't generate optimal load and store instruction, and
-    //   kernel would produce wrong result, indicating the compiler fail to generate correct instruction, 
+    //   kernel would produce wrong result, indicating the compiler fail to generate correct
+    //   instruction,
     using MemoryType = float2;
 #endif
 
@@ -43,12 +45,14 @@ template <>
 struct vector_type<float, 4>
 {
 #if DEVICE_BACKEND_HIP
-    // For some reason, HIP compiler need this definition to generate optimal load and store instruction
+    // For some reason, HIP compiler need this definition to generate optimal load and store
+    // instruction
     typedef float MemoryType __attribute__((ext_vector_type(4)));
 #elif DEVICE_BACKEND_CUDA
     // For some reason, CUDA need this definition to, otherwise
     //   compiler won't generate optimal load and store instruction, and
-    //   kernel would produce wrong result, indicating the compiler fail to generate correct instruction, 
+    //   kernel would produce wrong result, indicating the compiler fail to generate correct
+    //   instruction,
     using MemoryType = float4;
 #endif
 };

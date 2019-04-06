@@ -1,8 +1,5 @@
 #pragma once
-
-typedef float Float4 __attribute__((ext_vector_type(4)));
-
-extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
+#include "common.hip.hpp"
 
 #define NO_VM_WAIT 0
 #define NO_LGKM_WAIT 0
@@ -10,7 +7,10 @@ extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
 #define NO_DS_WRITE 0
 #define NO_GLB_READ 0
 
-inline __device__ void vmcnt(index_t cnt)
+// cast a pointer of LDS to its address
+extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
+
+__device__ void vmcnt(index_t cnt)
 {
 #if !NO_VM_WAIT
     if(cnt == 0)
@@ -44,7 +44,7 @@ inline __device__ void vmcnt(index_t cnt)
 #endif
 }
 
-inline __device__ void lgkmcnt(index_t cnt)
+__device__ void lgkmcnt(index_t cnt)
 {
 #if !NO_LGKM_WAIT
     if(cnt == 0)
@@ -84,7 +84,7 @@ inline __device__ void lgkmcnt(index_t cnt)
 #endif
 }
 
-inline __device__ void outerProduct1x4(const float* a, const float* b, float* c)
+__device__ void outerProduct1x4(const float* a, const float* b, float* c)
 {
     asm volatile("\n \
             v_mac_f32 %0, %4, %5 \n \
@@ -104,7 +104,9 @@ inline __device__ void outerProduct1x4(const float* a, const float* b, float* c)
                    "3"(c[3]));
 }
 
-inline __device__ void outerProduct1x4(const float& a, const Float4& b, Float4& c)
+__device__ void outerProduct1x4(const float& a,
+                                const vector_type<float, 4>::MemoryType& b,
+                                vector_type<float, 4>::MemoryType& c)
 {
 #if 0
     asm volatile(
@@ -123,8 +125,12 @@ inline __device__ void outerProduct1x4(const float& a, const Float4& b, Float4& 
 #endif
 }
 
-inline __device__ void
-outerProduct4x4(const Float4& a, const Float4& b, Float4& c0, Float4& c1, Float4& c2, Float4& c3)
+__device__ void outerProduct4x4(const vector_type<float, 4>::MemoryType& a,
+                                const vector_type<float, 4>::MemoryType& b,
+                                vector_type<float, 4>::MemoryType& c0,
+                                vector_type<float, 4>::MemoryType& c1,
+                                vector_type<float, 4>::MemoryType& c2,
+                                vector_type<float, 4>::MemoryType& c3)
 {
 #if 0
     asm volatile(
@@ -179,7 +185,9 @@ outerProduct4x4(const Float4& a, const Float4& b, Float4& c0, Float4& c1, Float4
 #endif
 }
 
-inline __device__ void outerProduct8x8(const Float4* a, const Float4* b, Float4* c)
+__device__ void outerProduct8x8(const vector_type<float, 4>::MemoryType* a,
+                                const vector_type<float, 4>::MemoryType* b,
+                                vector_type<float, 4>::MemoryType* c)
 {
     outerProduct4x4(a[0], b[0], c[0], c[2], c[4], c[6]);
     outerProduct4x4(a[0], b[1], c[1], c[3], c[5], c[7]);
@@ -187,7 +195,7 @@ inline __device__ void outerProduct8x8(const Float4* a, const Float4* b, Float4*
     outerProduct4x4(a[1], b[1], c[9], c[11], c[13], c[15]);
 }
 
-inline __device__ void ds_read_b128(Float4& r, void* lds, index_t offset = 0)
+__device__ void ds_read_b128(vector_type<float, 4>::MemoryType& r, void* lds, index_t offset = 0)
 {
 #if !NO_DS_READ
     if(offset == 0)
@@ -413,7 +421,9 @@ inline __device__ void ds_read_b128(Float4& r, void* lds, index_t offset = 0)
 #endif
 }
 
-inline __device__ void global_load(Float4& r, const Float4* ptr, index_t offset = 0)
+__device__ void global_load(vector_type<float, 4>::MemoryType& r,
+                            const vector_type<float, 4>::MemoryType* ptr,
+                            index_t offset = 0)
 {
 #if !NO_GLB_READ
     if(offset == 0)
@@ -431,7 +441,8 @@ inline __device__ void global_load(Float4& r, const Float4* ptr, index_t offset 
 #endif
 }
 
-inline __device__ void ds_write_b128(const Float4& r, void* lds, index_t offset = 0)
+__device__ void
+ds_write_b128(const vector_type<float, 4>::MemoryType& r, void* lds, index_t offset = 0)
 {
 #if !NO_DS_WRITE
     if(offset == 0)

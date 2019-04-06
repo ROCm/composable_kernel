@@ -5,8 +5,8 @@
 #include "Array.hip.hpp"
 #include "functional.hip.hpp"
 
-#if DEVICE_BACKEDN_HIP
-#include "inline_asm.hpp"
+#if DEVICE_BACKEND_HIP
+#include "amd_inline_asm.hip.hpp"
 #endif
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
@@ -67,8 +67,3 @@ __host__ __device__ constexpr T min(T x, Ts... xs)
     return x < y ? x : y;
 }
 } // namespace mod_conv
-
-#if DEVICE_BACKEND_HIP
-// cast a pointer of LDS to its address
-extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
-#endif

@@ -34,11 +34,6 @@ template <index_t GridSize,
           index_t WeiBlockCopyDataPerRead>
 struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 {
-    __host__
-        __device__ constexpr GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer()
-    {
-    }
-
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
@@ -203,7 +198,6 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 
         // preload data into LDS
         {
-#if 1
             Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
             Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
 
@@ -212,19 +206,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
             blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                         p_wei_register_clipboard);
 
-            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
-                                                            p_in_block_double);
+#if 0
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block_double);
             blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
-                                                             p_wei_block_double);
-#elif 0
-            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
-            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
-
-            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
-                                                       p_in_register_clipboard);
-            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
-                                                        p_wei_register_clipboard);
-
+                                                         p_wei_block_double);
+#elif 1
             vmcnt(0);
             blockwise_in_copy.RunStoreRegisterClipboard_asm(p_in_register_clipboard,
                                                             p_in_block_double);
@@ -278,28 +264,26 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                 {
                     for(index_t x = 0; x < X; ++x)
                     {
-#if 1
+#if 0
                         blockwise_gemm.Run
 #elif 0
                         blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 1
                         blockwise_gemm.Run_asm
 #endif
-                            (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                             p_in_block_now + y * Wi + x,
-                             p_out_thread);
+                        (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                         p_in_block_now + y * Wi + x,
+                         p_out_thread);
                     }
                 }
 
-#if 1
+#if 0
                 blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
                                                             p_in_block_next);
                 blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
                                                              p_wei_block_next);
-#elif 0
-                // if work with RunLoadRegisterClipboard_asm, need to wait
+#elif 1
                 vmcnt(0);
-
                 blockwise_in_copy.RunStoreRegisterClipboard_asm(p_in_register_clipboard,
                                                                 p_in_block_next);
                 blockwise_wei_copy.RunStoreRegisterClipboard_asm(p_wei_register_clipboard,
@@ -329,32 +313,29 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-#if 1
+#if 0
                     blockwise_gemm.Run
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 1
                     blockwise_gemm.Run_asm
 #endif
-                        (p_wei_block_double + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                         p_in_block_double + y * Wi + x,
-                         p_out_thread);
+                    (p_wei_block_double + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block_double + y * Wi + x,
+                     p_out_thread);
                 }
             }
 
-#if 1
+#if 0
             blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
                                                         p_in_block_double + in_block_space);
 
             blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
                                                          p_wei_block_double + wei_block_space);
 #else
-            // if work with RunLoadRegisterClipboard_asm, need to wait
             vmcnt(0);
-
             blockwise_in_copy.RunStoreRegisterClipboard_asm(p_in_register_clipboard,
                                                             p_in_block_double + in_block_space);
-
             blockwise_wei_copy.RunStoreRegisterClipboard_asm(p_wei_register_clipboard,
                                                              p_wei_block_double + wei_block_space);
 #endif
@@ -366,17 +347,17 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-#if 1
+#if 0
                     blockwise_gemm.Run
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 1
                     blockwise_gemm.Run_asm
 #endif
-                        (p_wei_block_double + wei_block_space +
-                             wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                         p_in_block_double + in_block_space + y * Wi + x,
-                         p_out_thread);
+                    (p_wei_block_double + wei_block_space +
+                         wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block_double + in_block_space + y * Wi + x,
+                     p_out_thread);
                 }
             }
         }
