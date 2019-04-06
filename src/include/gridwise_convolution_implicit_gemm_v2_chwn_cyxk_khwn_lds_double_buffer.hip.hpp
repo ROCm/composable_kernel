@@ -204,8 +204,18 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         // preload data into LDS
         {
 #if 1
-            blockwise_in_copy.Run(p_in_global_block_offset, p_in_block_double);
-            blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block_double);
+            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                       p_in_register_clipboard);
+            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                        p_wei_register_clipboard);
+
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
+                                                            p_in_block_double);
+            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
+                                                             p_wei_block_double);
 #elif 0
             Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
             Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
@@ -363,9 +373,9 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 #elif 1
                     blockwise_gemm.Run_asm
 #endif
-                        (p_wei_block_double + in_block_space +
+                        (p_wei_block_double + wei_block_space +
                              wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                         p_in_block_double + wei_block_space + y * Wi + x,
+                         p_in_block_double + in_block_space + y * Wi + x,
                          p_out_thread);
                 }
             }
