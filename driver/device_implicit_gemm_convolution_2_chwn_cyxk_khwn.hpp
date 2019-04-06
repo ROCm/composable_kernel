@@ -193,6 +193,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t BlockSize = 256;
 #elif 0
     // 1x1, 14x14, Vega 20, disable lds_double_buffer, enable register double buffer
+    // 1x1, 14x14, Pascal, enable lds_double_buffer, disable register double buffer
     constexpr index_t BPerBlock = 64;
     constexpr index_t KPerBlock = 128;
     constexpr index_t CPerBlock = 8;
@@ -266,7 +267,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     for(index_t i = 0; i < nrepeat; ++i)
     {
         constexpr auto gridwise_conv =
-#if 1
+#if 0
             GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 #else
             GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
