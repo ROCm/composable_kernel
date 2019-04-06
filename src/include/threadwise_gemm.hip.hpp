@@ -1,7 +1,5 @@
 #pragma once
 
-#include "inline_asm.hpp"
-
 template <class Float, class SrcMatrix, class DstMatrix, index_t NRow, index_t NCol>
 __device__ void threadwise_matrix_copy(SrcMatrix,
                                        const Float* __restrict__ p_src,

@@ -5,6 +5,10 @@
 #include "Array.hip.hpp"
 #include "functional.hip.hpp"
 
+#if DEVICE_BACKEDN_HIP
+#include "inline_asm.hpp"
+#endif
+
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
 
 __device__ index_t get_block_1d_id() { return blockIdx.x; }

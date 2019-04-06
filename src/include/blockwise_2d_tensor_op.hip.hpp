@@ -1,6 +1,6 @@
 #pragma once
+#include "common.hip.hpp"
 #include "ConstantTensorDescriptor.hip.hpp"
-#include "inline_asm.hpp"
 
 template <index_t BlockSize, class Float, class DstDesc, class F>
 __device__ void
