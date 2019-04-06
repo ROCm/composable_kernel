@@ -192,7 +192,6 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     constexpr index_t BlockSize = 256;
 #elif 0
-    // 1x1, 14x14, Vega 20, disable lds_double_buffer, enable register double buffer
     // 1x1, 14x14, Pascal, enable lds_double_buffer, disable register double buffer
     constexpr index_t BPerBlock = 64;
     constexpr index_t KPerBlock = 128;
@@ -245,6 +244,8 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t InBlockCopyDataPerRead  = 4;
     constexpr index_t WeiBlockCopyDataPerRead = 4;
 
+    constexpr index_t OutThreadCopyDataPerWrite = 4;
+
     constexpr index_t BlockSize = 256;
 #endif
 
@@ -295,7 +296,8 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
              WeiBlockCopyThreadPerDim0,
              WeiBlockCopyThreadPerDim1,
              InBlockCopyDataPerRead,
-             WeiBlockCopyDataPerRead>{};
+             WeiBlockCopyDataPerRead,
+             OutThreadCopyDataPerWrite>{};
 
         float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,
                                    dim3(GridSize),

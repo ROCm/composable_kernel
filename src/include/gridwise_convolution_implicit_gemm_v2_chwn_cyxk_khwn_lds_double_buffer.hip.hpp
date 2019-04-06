@@ -5,6 +5,7 @@
 #include "blockwise_4d_tensor_op.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
 #include "threadwise_2d_tensor_op.hip.hpp"
+#include "threadwise_nd_tensor_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
 
 // define B = flatten(N, Hi, Wi)
@@ -31,7 +32,8 @@ template <index_t GridSize,
           index_t WeiBlockCopyThreadPerDim0,
           index_t WeiBlockCopyThreadPerDim1,
           index_t InBlockCopyDataPerRead,
-          index_t WeiBlockCopyDataPerRead>
+          index_t WeiBlockCopyDataPerRead,
+          index_t OutThreadCopyDataPerWrite>
 struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
@@ -369,25 +371,55 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         const index_t k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
         const index_t b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
 
-        for(index_t k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
+#if 1
+        if(Y == 1 && X == 1)
+        { // pure 1x1 conv
+            constexpr index_t K2_ = GemmMPerThreadSubC;
+            constexpr index_t K1_ = KPerBlock / KPerThread;
+            constexpr index_t B2_ = GemmNPerThreadSubC;
+            constexpr index_t B1_ = BPerBlock / BPerThread;
+
+            constexpr auto out_6d_global_desc = make_ConstantTensorDescriptor(
+                Sequence<K / (K1_ * K2_), K1_, K2_, B / (B1_ * B2_), B1_, B2_>{});
+
+            constexpr auto out_6d_thread_desc = make_ConstantTensorDescriptor(
+                Sequence<KPerBlock / (K1_ * K2_), 1, K2_, BPerBlock / (B1_ * B2_), 1, B2_>{});
+
+            constexpr auto out_kb_global_desc = make_ConstantTensorDescriptor(Sequence<K, B>{});
+
+            threadwise_6d_tensor_copy(
+                out_6d_thread_desc,
+                p_out_thread,
+                out_6d_global_desc,
+                p_out_global +
+                    out_kb_global_desc.Get1dIndex(k_thread_data_begin, b_thread_data_begin),
+                out_6d_thread_desc.GetLengths(),
+                Number<OutThreadCopyDataPerWrite>{});
+        }
+        else
+#endif
         {
-            for(index_t b = 0; b < out_kb_thread_desc.GetLength(I1); ++b)
+            for(index_t k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
             {
-                const auto c_thread_mtx_distance =
-                    blockwise_gemm.GetDistanceFromBeginOfThreadMatrixC(k, b);
-
-                index_t k_data = k_thread_data_begin + c_thread_mtx_distance.row;
-                index_t b_data = b_thread_data_begin + c_thread_mtx_distance.col;
-
-                index_t h_data = b_data / (Wi * N);
-                index_t itmp   = b_data - h_data * (Wi * N);
-                index_t w_data = itmp / N;
-                index_t n_data = itmp - w_data * N;
-
-                if(n_data < N && h_data < Ho && w_data < Wo)
+                for(index_t b = 0; b < out_kb_thread_desc.GetLength(I1); ++b)
                 {
-                    p_out_global[out_khwn_global_desc.Get1dIndex(k_data, h_data, w_data, n_data)] =
-                        p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)];
+                    const auto c_thread_mtx_distance =
+                        blockwise_gemm.GetDistanceFromBeginOfThreadMatrixC(k, b);
+
+                    index_t k_data = k_thread_data_begin + c_thread_mtx_distance.row;
+                    index_t b_data = b_thread_data_begin + c_thread_mtx_distance.col;
+
+                    index_t h_data = b_data / (Wi * N);
+                    index_t itmp   = b_data - h_data * (Wi * N);
+                    index_t w_data = itmp / N;
+                    index_t n_data = itmp - w_data * N;
+
+                    if(n_data < N && h_data < Ho && w_data < Wo)
+                    {
+                        p_out_global[out_khwn_global_desc.Get1dIndex(
+                            k_data, h_data, w_data, n_data)] =
+                            p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)];
+                    }
                 }
             }
         }

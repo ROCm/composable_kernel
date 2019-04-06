@@ -206,11 +206,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
                     p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
                     __syncthreads())
         {
-// load data
-#if 1
-            blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
-            blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
-#elif 0
+            // load data
             Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
             Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
 
@@ -219,9 +215,13 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 
             blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                         p_wei_register_clipboard);
-
+#if 1
             blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block);
             blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block);
+#else
+            vmcnt(0);
+            blockwise_in_copy.RunStoreRegisterClipboard_asm(p_in_register_clipboard, p_in_block);
+            blockwise_wei_copy.RunStoreRegisterClipboard_asm(p_wei_register_clipboard, p_wei_block);
 #endif
 
             __syncthreads();
@@ -232,16 +232,16 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-#if 1
+#if 0
                     blockwise_gemm.Run
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
-#elif 0
+#elif 1
                     blockwise_gemm.Run_asm
 #endif
-                        (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                         p_in_block + y * Wi + x,
-                         p_out_thread);
+                    (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                     p_in_block + y * Wi + x,
+                     p_out_thread);
                 }
             }
         }
