@@ -130,6 +130,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             const FloatB* __restrict__ p_b_block,
                             FloatC* __restrict__ p_c_thread) const
     {
+        static_assert(is_same<FloatA, float>::value && is_same<FloatB, float>::value &&
+                          is_same<FloatC, float>::value,
+                      "Run_asm only deal with float\n");
+
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
 
@@ -157,6 +161,12 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
             Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
+
+        static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && KPerThreadLoop == 1 &&
+                          MPerThread == 8 && NPerThread == 8,
+                      "Run_asm cannot deal with this GEMM shape yet\n");
+
+        using Float4 = vector_type<float, 4>::MemoryType;
 
         float p_thread[a_thread_mtx.GetElementSpace() + b_thread_mtx.GetElementSpace()];
 
