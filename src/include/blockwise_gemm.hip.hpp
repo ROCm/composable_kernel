@@ -1,4 +1,5 @@
 #pragma once
+#include "common.hip.hpp"
 #include "threadwise_gemm.hip.hpp"
 
 // if following number are power of 2, index calculation shall be greatly reduced:

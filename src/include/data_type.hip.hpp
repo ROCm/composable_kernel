@@ -15,7 +15,11 @@ struct vector_type<float, 1>
 template <>
 struct vector_type<float, 2>
 {
+#if 1
     typedef float MemoryType __attribute__((ext_vector_type(2)));
+#else
+    using MemoryType = float2;
+#endif
 
     __host__ __device__ static MemoryType Pack(float s0, float s1)
     {
@@ -34,7 +38,11 @@ struct vector_type<float, 2>
 template <>
 struct vector_type<float, 4>
 {
+#if 1
     typedef float MemoryType __attribute__((ext_vector_type(4)));
+#else
+    using MemoryType = float4;
+#endif
 };
 
 #if 0

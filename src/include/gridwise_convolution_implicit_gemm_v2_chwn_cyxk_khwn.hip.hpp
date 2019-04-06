@@ -222,21 +222,6 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 
             blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block);
             blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block);
-#elif 1
-            Float4 tmp_in, tmp_wei;
-            Float4* glb_in_p =
-                (Float4*)(p_in_global_block_offset + blockwise_in_copy.mSrcMyThreadOffset);
-            Float4* loc_in_p = (Float4*)(p_in_block + blockwise_in_copy.mDstMyThreadOffset);
-
-            Float4* glb_wei_p =
-                (Float4*)(p_wei_global_block_offset + blockwise_wei_copy.mSrcMyThreadOffset);
-            Float4* loc_wei_p = (Float4*)(p_wei_block + blockwise_wei_copy.mDstMyThreadOffset);
-
-            global_load(tmp_in, glb_in_p);
-            global_load(tmp_wei, glb_wei_p);
-            vmcnt(0);
-            ds_write_b128(tmp_in, loc_in_p);
-            ds_write_b128(tmp_wei, loc_wei_p);
 #endif
 
             __syncthreads();
@@ -247,11 +232,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-#if 0
+#if 1
                     blockwise_gemm.Run
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
-#elif 1
+#elif 0
                     blockwise_gemm.Run_asm
 #endif
                     (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
