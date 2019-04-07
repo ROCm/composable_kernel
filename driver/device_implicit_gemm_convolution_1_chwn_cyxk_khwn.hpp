@@ -1,7 +1,8 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn.hip.hpp"
+#include "gridwise_convolution_wrapper.hip.hpp"
+#include "gridwise_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
@@ -260,14 +261,6 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
     constexpr index_t HoPerThread = 1;
     constexpr index_t WoPerThread = 1;
 
-    constexpr index_t InBlockCopy_ThreadPerDimC = 8;
-    constexpr index_t InBlockCopy_ThreadPerDimH = 2;
-    constexpr index_t InBlockCopy_ThreadPerDimW = 2;
-    constexpr index_t InBlockCopy_ThreadPerDimN = 4;
-    constexpr index_t InBlockCopyDataPerRead    = 4;
-
-    constexpr index_t WeiBlockCopyDataPerRead = 4;
-
     constexpr index_t GemmMPerThreadSubC = 4;
     constexpr index_t GemmNPerThreadSubC = 4;
     constexpr index_t GemmMLevel0Cluster = 4;
@@ -276,6 +269,13 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
     constexpr index_t GemmNLevel1Cluster = 4;
     constexpr index_t GemmKPerThreadLoop = 1;
 
+    constexpr index_t InBlockCopy_ThreadPerDimC = 8;
+    constexpr index_t InBlockCopy_ThreadPerDimH = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimW = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimN = 4;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
+
+    constexpr index_t WeiBlockCopyDataPerRead   = 4;
     constexpr index_t OutThreadCopyDataPerWrite = 2;
 
     constexpr index_t BlockSize = 128;
@@ -289,43 +289,49 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(
-            gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn<GridSize,
-                                                                BlockSize,
-                                                                T,
-                                                                decltype(in_chwn_desc),
-                                                                decltype(wei_cyxk_desc),
-                                                                decltype(out_khwn_desc),
-                                                                NPerBlock,
-                                                                KPerBlock,
-                                                                CPerBlock,
-                                                                HoPerBlock,
-                                                                WoPerBlock,
-                                                                NPerThread,
-                                                                KPerThread,
-                                                                HoPerThread,
-                                                                WoPerThread,
-                                                                Sequence<InBlockCopy_ThreadPerDimC,
-                                                                         InBlockCopy_ThreadPerDimH,
-                                                                         InBlockCopy_ThreadPerDimW,
-                                                                         InBlockCopy_ThreadPerDimN>,
-                                                                InBlockCopyDataPerRead,
-                                                                WeiBlockCopyDataPerRead,
-                                                                GemmMPerThreadSubC,
-                                                                GemmNPerThreadSubC,
-                                                                GemmMLevel0Cluster,
-                                                                GemmNLevel0Cluster,
-                                                                GemmMLevel1Cluster,
-                                                                GemmNLevel1Cluster,
-                                                                GemmKPerThreadLoop,
-                                                                OutThreadCopyDataPerWrite>,
-            dim3(GridSize),
-            dim3(BlockSize),
-            static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
-            static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
+        constexpr auto gridwise_conv =
+            GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn<GridSize,
+                                                              BlockSize,
+                                                              T,
+                                                              decltype(in_chwn_desc),
+                                                              decltype(wei_cyxk_desc),
+                                                              decltype(out_khwn_desc),
+                                                              NPerBlock,
+                                                              KPerBlock,
+                                                              CPerBlock,
+                                                              HoPerBlock,
+                                                              WoPerBlock,
+                                                              NPerThread,
+                                                              KPerThread,
+                                                              HoPerThread,
+                                                              WoPerThread,
+                                                              GemmMPerThreadSubC,
+                                                              GemmNPerThreadSubC,
+                                                              GemmMLevel0Cluster,
+                                                              GemmNLevel0Cluster,
+                                                              GemmMLevel1Cluster,
+                                                              GemmNLevel1Cluster,
+                                                              GemmKPerThreadLoop,
+                                                              Sequence<InBlockCopy_ThreadPerDimC,
+                                                                       InBlockCopy_ThreadPerDimH,
+                                                                       InBlockCopy_ThreadPerDimW,
+                                                                       InBlockCopy_ThreadPerDimN>,
+                                                              InBlockCopyDataPerRead,
+                                                              WeiBlockCopyDataPerRead,
+                                                              OutThreadCopyDataPerWrite>{};
 
-        printf("Elapsed time : %f ms\n", time);
+        float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,
+                                   dim3(GridSize),
+                                   dim3(BlockSize),
+                                   0,
+                                   static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
+                                   static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
+                                   static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
+
+        printf("Elapsed time : %f ms, %f TFlop/s\n",
+               time,
+               (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
+                   (std::size_t(1024) * 1024 * 1024 * 1024) / (time / 1000));
         usleep(std::min(time * 1000, float(10000)));
     }
 

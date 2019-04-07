@@ -164,11 +164,10 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                            n_repeat * NPerLevel1Cluster + n_in_sub_c};
     }
 
-    template <class FloatA, class FloatB, class FloatC, class Accumulator>
+    template <class FloatA, class FloatB, class FloatC>
     __device__ void Run(const FloatA* __restrict__ p_a_block,
                         const FloatB* __restrict__ p_b_block,
-                        FloatC* __restrict__ p_c_thread,
-                        Accumulator f_accum) const
+                        FloatC* __restrict__ p_c_thread) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -250,8 +249,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                                 p_b_thread,
                                 c_thread_mtx,
                                 False,
-                                p_c_thread + ib * ThreadMatrixStrideC,
-                                f_accum);
+                                p_c_thread + ib * ThreadMatrixStrideC);
 
                 // read next batch of a, b
                 if(BlockMatrixStrideA != 0)
@@ -296,8 +294,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                             p_b_thread,
                             c_thread_mtx,
                             False,
-                            p_c_thread + (BatchPerThread - 1) * ThreadMatrixStrideC,
-                            f_accum);
+                            p_c_thread + (BatchPerThread - 1) * ThreadMatrixStrideC);
         }
     }
 
