@@ -41,7 +41,8 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
                         Float* const __restrict__ p_out_global) const
     {
         // be careful of this assertion
-        static_assert(NPerBlock % NPerThread == 0, "wrong! NPerBlock % NPerThread !=0");
+        static_assert(NPerThread <= NPerBlock && NPerBlock % NPerThread == 0,
+                "wrong! should satisfy: NPerThread <= NPerBlock && NPerBlock % NPerThread == 0");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -66,6 +67,9 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         constexpr index_t WiPerBlock = WoPerBlock + X - 1;
 
         // divide block work: [K, Ho, Wo, N]
+        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 && Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0, 
+                "wrong! cannot evenly divide work for workgroup ");
+
         constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
         constexpr index_t HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
         constexpr index_t WBlockWork = (Wo + WoPerBlock - 1) / WoPerBlock;
@@ -218,39 +222,39 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
 
 // output: register to global mem,
 #if 0
-    const auto c_thread_mtx_begin =
-        blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
+        const auto c_thread_mtx_begin =
+            blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-    for(index_t k = 0; k < out_khwn_thread_desc.GetLength(I0); ++k)
-    {
-        for(index_t ho = 0; ho < out_khwn_thread_desc.GetLength(I1); ++ho)
+        for(index_t k = 0; k < out_khwn_thread_desc.GetLength(I0); ++k)
         {
-            for(index_t wo = 0; wo < out_khwn_thread_desc.GetLength(I2); ++wo)
+            for(index_t ho = 0; ho < out_khwn_thread_desc.GetLength(I1); ++ho)
             {
-                for(index_t n = 0; n < out_khwn_thread_desc.GetLength(I3); ++n)
+                for(index_t wo = 0; wo < out_khwn_thread_desc.GetLength(I2); ++wo)
                 {
-                    const index_t b = out_khwn_thread_desc.Get1dIndex(0, 0, wo, n);
+                    for(index_t n = 0; n < out_khwn_thread_desc.GetLength(I3); ++n)
+                    {
+                        const index_t b = out_khwn_thread_desc.Get1dIndex(0, 0, wo, n);
 
-                    const auto c_thread_mtx_distance =
-                        blockwise_batch_gemm.GetDistanceFromBeginOfThreadMatrixC(ho, k, b);
+                        const auto c_thread_mtx_distance =
+                            blockwise_batch_gemm.GetDistanceFromBeginOfThreadMatrixC(ho, k, b);
 
-                    const index_t ho_thread =
-                        c_thread_mtx_begin.batch + c_thread_mtx_distance.batch;
-                    const index_t k_thread = c_thread_mtx_begin.row + c_thread_mtx_distance.row;
-                    const index_t b_thread = c_thread_mtx_begin.col + c_thread_mtx_distance.col;
+                        const index_t ho_thread =
+                            c_thread_mtx_begin.batch + c_thread_mtx_distance.batch;
+                        const index_t k_thread = c_thread_mtx_begin.row + c_thread_mtx_distance.row;
+                        const index_t b_thread = c_thread_mtx_begin.col + c_thread_mtx_distance.col;
 
-                    const index_t wo_thread = b_thread / NPerBlock;
-                    const index_t n_thread  = b_thread % NPerBlock;
+                        const index_t wo_thread = b_thread / NPerBlock;
+                        const index_t n_thread  = b_thread % NPerBlock;
 
-                    p_out_global[out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread,
-                                                                 ho_block_data_begin + ho_thread,
-                                                                 wo_block_data_begin + wo_thread,
-                                                                 n_block_data_begin + n_thread)] =
-                        p_out_thread[out_khwn_thread_desc.Get1dIndex(k, ho, wo, n)];
+                        p_out_global[out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread,
+                                                                     ho_block_data_begin + ho_thread,
+                                                                     wo_block_data_begin + wo_thread,
+                                                                     n_block_data_begin + n_thread)] =
+                            p_out_thread[out_khwn_thread_desc.Get1dIndex(k, ho, wo, n)];
+                    }
                 }
             }
         }
-    }
 #elif 1
         const auto c_thread_mtx_begin =
             blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
@@ -261,63 +265,54 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         const index_t n_thread_data_begin =
             c_thread_mtx_begin.col - NPerBlock * wo_thread_data_begin;
 
-        // this is for v2 GEMM
         // output is a 10d tensor
-        if(NPerThread <= NPerBlock)
-        {
-            constexpr index_t N2 = GemmNPerThreadSubC;
-            constexpr index_t N1 = NPerBlock / N2;
+        constexpr index_t N2 = GemmNPerThreadSubC;
+        constexpr index_t N1 = NPerBlock / N2;
 
-            constexpr index_t W2 =
-                (GemmNLevel0Cluster * GemmNLevel1Cluster) / (NPerBlock / GemmNPerThreadSubC);
-            constexpr index_t W1 = WoPerBlock / W2;
+        constexpr index_t W2 =
+            (GemmNLevel0Cluster * GemmNLevel1Cluster) / (NPerBlock / GemmNPerThreadSubC);
+        constexpr index_t W1 = WoPerBlock / W2;
 
-            constexpr index_t K2 = GemmMPerThreadSubC;
-            constexpr index_t K1 = KPerBlock / KPerThread;
+        constexpr index_t K2 = GemmMPerThreadSubC;
+        constexpr index_t K1 = KPerBlock / KPerThread;
 
-            constexpr auto out_10d_global_desc =
-                make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
-                                                       K1,
-                                                       K2,
-                                                       Ho,
-                                                       Wo / (W1 * W2),
-                                                       W1,
-                                                       W2,
-                                                       N / (N1 * N2),
-                                                       N1,
-                                                       N2>{});
+        constexpr auto out_10d_global_desc =
+            make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
+                                                   K1,
+                                                   K2,
+                                                   Ho,
+                                                   Wo / (W1 * W2),
+                                                   W1,
+                                                   W2,
+                                                   N / (N1 * N2),
+                                                   N1,
+                                                   N2>{});
 
-            constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
-                Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, 1, 1, N2>{});
+        constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
+            Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, 1, 1, N2>{});
 
 #if 0
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
             print_ConstantTensorDescriptor(out_khwn_thread_desc, "out_khwn_thread_desc");
-            print_ConstantTensorDescriptor(out_8d_thread_desc, "out_8d_thread_desc");
+            print_ConstantTensorDescriptor(out_10d_thread_desc, "out_10d_thread_desc");
 
             print_ConstantTensorDescriptor(out_khwn_global_desc, "out_khwn_global_desc");
-            print_ConstantTensorDescriptor(out_8d_global_desc, "out_8d_global_desc");
+            print_ConstantTensorDescriptor(out_10d_global_desc, "out_10d_global_desc");
         }
 #endif
 
-            threadwise_10d_tensor_copy(
-                out_10d_thread_desc,
-                p_out_thread,
-                out_10d_global_desc,
-                p_out_global +
-                    out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                                    ho_block_data_begin + ho_thread_data_begin,
-                                                    wo_block_data_begin + wo_thread_data_begin,
-                                                    n_block_data_begin + n_thread_data_begin),
-                out_10d_thread_desc.GetLengths(),
-                Number<OutThreadCopyDataPerWrite>{});
-        }
-        else
-        {
-            // no implemented yet
-            assert(false);
-        }
+        threadwise_10d_tensor_copy(
+            out_10d_thread_desc,
+            p_out_thread,
+            out_10d_global_desc,
+            p_out_global +
+                out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
+                                                ho_block_data_begin + ho_thread_data_begin,
+                                                wo_block_data_begin + wo_thread_data_begin,
+                                                n_block_data_begin + n_thread_data_begin),
+            out_10d_thread_desc.GetLengths(),
+            Number<OutThreadCopyDataPerWrite>{});
 #endif
     }
 };

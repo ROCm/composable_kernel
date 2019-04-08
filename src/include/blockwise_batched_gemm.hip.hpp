@@ -138,7 +138,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                            level1_n_id * NPerLevel0Cluster + level0_n_id * NPerThreadSubC};
     }
 
-    // this should be optimized away if input is known
+    // this should be optimized away because input will be known at compile time
     __device__ static MatrixIndex
     GetDistanceFromBeginOfThreadMatrixC(index_t batch_in_c, index_t m_in_c, index_t n_in_c)
     {

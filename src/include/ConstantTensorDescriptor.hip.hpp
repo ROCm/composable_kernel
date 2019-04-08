@@ -229,7 +229,7 @@ __host__ __device__ void print_ConstantTensorDescriptor(TDesc, const char* s)
     constexpr auto desc    = TDesc{};
     constexpr index_t ndim = desc.GetDimension();
 
-    static_assert(ndim >= 2 && ndim <= 8, "wrong!");
+    static_assert(ndim >= 2 && ndim <= 10, "wrong!");
 
     if(ndim == 2)
     {
@@ -368,5 +368,76 @@ __host__ __device__ void print_ConstantTensorDescriptor(TDesc, const char* s)
                desc.GetStride(I5),
                desc.GetStride(I6),
                desc.GetStride(I7));
+    }
+    else if(ndim == 9)
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
+        constexpr auto I5 = Number<5>{};
+        constexpr auto I6 = Number<6>{};
+        constexpr auto I7 = Number<7>{};
+        constexpr auto I8 = Number<8>{};
+
+        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u %u %u}\n",
+               s,
+               desc.GetDimension(),
+               desc.GetLength(I0),
+               desc.GetLength(I1),
+               desc.GetLength(I2),
+               desc.GetLength(I3),
+               desc.GetLength(I4),
+               desc.GetLength(I5),
+               desc.GetLength(I6),
+               desc.GetLength(I7),
+               desc.GetLength(I8),
+               desc.GetStride(I0),
+               desc.GetStride(I1),
+               desc.GetStride(I2),
+               desc.GetStride(I3),
+               desc.GetStride(I4),
+               desc.GetStride(I5),
+               desc.GetStride(I6),
+               desc.GetStride(I7),
+               desc.GetStride(I8));
+    }
+    else if(ndim == 10)
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
+        constexpr auto I5 = Number<5>{};
+        constexpr auto I6 = Number<6>{};
+        constexpr auto I7 = Number<7>{};
+        constexpr auto I8 = Number<8>{};
+        constexpr auto I9 = Number<9>{};
+
+        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u %u %u %u}\n",
+               s,
+               desc.GetDimension(),
+               desc.GetLength(I0),
+               desc.GetLength(I1),
+               desc.GetLength(I2),
+               desc.GetLength(I3),
+               desc.GetLength(I4),
+               desc.GetLength(I5),
+               desc.GetLength(I6),
+               desc.GetLength(I7),
+               desc.GetLength(I8),
+               desc.GetLength(I9),
+               desc.GetStride(I0),
+               desc.GetStride(I1),
+               desc.GetStride(I2),
+               desc.GetStride(I3),
+               desc.GetStride(I4),
+               desc.GetStride(I5),
+               desc.GetStride(I6),
+               desc.GetStride(I7),
+               desc.GetStride(I8),
+               desc.GetStride(I9));
     }
 }
