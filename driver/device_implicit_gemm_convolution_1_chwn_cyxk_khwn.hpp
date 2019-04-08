@@ -3,6 +3,7 @@
 #include "device.hpp"
 #include "gridwise_convolution_wrapper.hip.hpp"
 #include "gridwise_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hip.hpp"
+#include "gridwise_convolution_implicit_gemm_v1_chwn_cyxk_khwn_lds_double_buffer.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
@@ -289,7 +290,12 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
     for(index_t i = 0; i < nrepeat; ++i)
     {
         constexpr auto gridwise_conv =
-            GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn<GridSize,
+#if 0
+            GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
+#else
+            GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
+#endif
+                                                             <GridSize,
                                                               BlockSize,
                                                               T,
                                                               decltype(in_chwn_desc),

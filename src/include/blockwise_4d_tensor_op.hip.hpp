@@ -576,9 +576,168 @@ struct Blockwise4dTensorCopy3
                                                  iloop_d2 * thread_per_d2,
                                                  iloop_d3 * thread_per_d3 * DataPerRead);
 
-                        *(reinterpret_cast<vector_t*>(p_dst + dst_offset + mDstMyThreadOffset)) =
-                            *(reinterpret_cast<const vector_t*>(p_src + src_offset +
-                                                                mSrcMyThreadOffset));
+                        *(reinterpret_cast<vector_t*>(&p_dst[dst_offset + mDstMyThreadOffset])) =
+                            *(reinterpret_cast<const vector_t*>(&p_src[src_offset +
+                                                                mSrcMyThreadOffset]));
+                    }
+                }
+            }
+        }
+    }
+
+    __device__ constexpr index_t GetRegisterClipboardSize() const
+    {
+        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+        constexpr index_t L2 = CopyLengths{}.Get(I2);
+        constexpr index_t L3 = CopyLengths{}.Get(I3);
+
+        constexpr index_t thread_per_d0 = ThreadPerDims{}.Get(I0);
+        constexpr index_t thread_per_d1 = ThreadPerDims{}.Get(I1);
+        constexpr index_t thread_per_d2 = ThreadPerDims{}.Get(I2);
+        constexpr index_t thread_per_d3 = ThreadPerDims{}.Get(I3);
+
+        constexpr index_t nloop_d0 = L0 / thread_per_d0;
+        constexpr index_t nloop_d1 = L1 / thread_per_d1;
+        constexpr index_t nloop_d2 = L2 / thread_per_d2;
+        constexpr index_t nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+
+        return DataPerRead * nloop_d0 * nloop_d1 * nloop_d2 * nloop_d3;
+    }
+
+    __device__ void RunLoadRegisterClipboard(const Float* __restrict__ p_src, Float* __restrict__ p_clipboard) const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+        constexpr index_t L2 = CopyLengths{}.Get(I2);
+        constexpr index_t L3 = CopyLengths{}.Get(I3);
+
+        constexpr index_t thread_per_d0 = ThreadPerDims{}.Get(I0);
+        constexpr index_t thread_per_d1 = ThreadPerDims{}.Get(I1);
+        constexpr index_t thread_per_d2 = ThreadPerDims{}.Get(I2);
+        constexpr index_t thread_per_d3 = ThreadPerDims{}.Get(I3);
+
+        constexpr index_t num_active_thread =
+            thread_per_d0 * thread_per_d1 * thread_per_d2 * thread_per_d3;
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
+
+        constexpr index_t nloop_d0 = L0 / thread_per_d0;
+        constexpr index_t nloop_d1 = L1 / thread_per_d1;
+        constexpr index_t nloop_d2 = L2 / thread_per_d2;
+        constexpr index_t nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+
+#pragma unroll
+        for(index_t iloop_d0 = 0; iloop_d0 < nloop_d0; ++iloop_d0)
+        {
+#pragma unroll
+            for(index_t iloop_d1 = 0; iloop_d1 < nloop_d1; ++iloop_d1)
+            {
+#pragma unroll
+                for(index_t iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
+                {
+#pragma unroll
+                    for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
+                    {
+                        const index_t src_offset =
+                            SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
+                                                 iloop_d1 * thread_per_d1,
+                                                 iloop_d2 * thread_per_d2,
+                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+
+                        const index_t dst_offset =
+                            DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
+                                                 iloop_d1 * thread_per_d1,
+                                                 iloop_d2 * thread_per_d2,
+                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+
+                        *(reinterpret_cast<vector_t*>(&p_clipboard[dst_offset])) =
+                            *(reinterpret_cast<const vector_t*>(&p_src[src_offset +
+                                                                mSrcMyThreadOffset]));
+                    }
+                }
+            }
+        }
+    }
+
+    __device__ void RunStoreRegisterClipboard(const Float* __restrict__ p_clipboard,
+                                              Float* __restrict__ p_dst) const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+        constexpr index_t L2 = CopyLengths{}.Get(I2);
+        constexpr index_t L3 = CopyLengths{}.Get(I3);
+
+        constexpr index_t thread_per_d0 = ThreadPerDims{}.Get(I0);
+        constexpr index_t thread_per_d1 = ThreadPerDims{}.Get(I1);
+        constexpr index_t thread_per_d2 = ThreadPerDims{}.Get(I2);
+        constexpr index_t thread_per_d3 = ThreadPerDims{}.Get(I3);
+
+        constexpr index_t num_active_thread =
+            thread_per_d0 * thread_per_d1 * thread_per_d2 * thread_per_d3;
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
+
+        constexpr index_t nloop_d0 = L0 / thread_per_d0;
+        constexpr index_t nloop_d1 = L1 / thread_per_d1;
+        constexpr index_t nloop_d2 = L2 / thread_per_d2;
+        constexpr index_t nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+
+#pragma unroll
+        for(index_t iloop_d0 = 0; iloop_d0 < nloop_d0; ++iloop_d0)
+        {
+#pragma unroll
+            for(index_t iloop_d1 = 0; iloop_d1 < nloop_d1; ++iloop_d1)
+            {
+#pragma unroll
+                for(index_t iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
+                {
+#pragma unroll
+                    for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
+                    {
+                        const index_t src_offset =
+                            SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
+                                                 iloop_d1 * thread_per_d1,
+                                                 iloop_d2 * thread_per_d2,
+                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+
+                        const index_t dst_offset =
+                            DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
+                                                 iloop_d1 * thread_per_d1,
+                                                 iloop_d2 * thread_per_d2,
+                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+
+                        *(reinterpret_cast<vector_t*>(&p_dst[dst_offset + mDstMyThreadOffset])) =
+                            *(reinterpret_cast<const vector_t*>(&p_clipboard[src_offset]));
                     }
                 }
             }
