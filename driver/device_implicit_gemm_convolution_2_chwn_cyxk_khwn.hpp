@@ -69,7 +69,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     Tensor<T> out_khwn(make_TensorDescriptor(out_khwn_desc));
 
-#if 1
+#if 0
     // 3x3, 34x34
     // need to use register double buffer for GEMM
     constexpr index_t BPerBlock = 128;
@@ -189,7 +189,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead = 4;
 
     constexpr index_t BlockSize = 256;
-#elif 1
+#elif 0
     // 1x1, 14x14, Pascal, enable lds_double_buffer, disable register double buffer
     constexpr index_t BPerBlock = 64;
     constexpr index_t KPerBlock = 128;
@@ -217,7 +217,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t OutThreadCopyDataPerWrite = 4;
 
     constexpr index_t BlockSize = 128;
-#elif 0
+#elif 1
     // 1x1, 14x14, Vega 20, enable lds_double_buffer, disable register_double_buffer
     constexpr index_t BPerBlock = 128;
     constexpr index_t KPerBlock = 128;

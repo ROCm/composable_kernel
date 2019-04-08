@@ -183,8 +183,9 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         threadwise_4d_tensor_set_zero(out_khwn_thread_desc, p_out_thread);
 
         const Float* p_in_global_block_begin =
-            p_in_global + in_chwn_global_desc.Get1dIndex(
-                              0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
+            p_in_global +
+            in_chwn_global_desc.Get1dIndex(
+                0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
         const Float* p_wei_global_block_begin =
             p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
@@ -267,7 +268,8 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
             constexpr index_t N2 = GemmNPerThreadSubC;
             constexpr index_t N1 = NPerBlock / N2;
 
-            constexpr index_t W2 = (GemmNLevel0Cluster * GemmNLevel1Cluster) / (NPerBlock / GemmNPerThreadSubC);
+            constexpr index_t W2 =
+                (GemmNLevel0Cluster * GemmNLevel1Cluster) / (NPerBlock / GemmNPerThreadSubC);
             constexpr index_t W1 = WoPerBlock / W2;
 
             constexpr index_t K2 = GemmMPerThreadSubC;

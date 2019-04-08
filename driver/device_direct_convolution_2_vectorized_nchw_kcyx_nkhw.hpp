@@ -52,7 +52,7 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
         in_nchw_vec(n, c, h, w) =
             vector_t::Pack(in_nchw(n, 2 * c, h, w), in_nchw(n, 2 * c + 1, h, w));
 #elif 1
-        in_nchw_vec(n, c, h, w)  = vector_t::Pack(in_nchw(n, 4 * c, h, w),
+        in_nchw_vec(n, c, h, w) = vector_t::Pack(in_nchw(n, 4 * c, h, w),
                                                  in_nchw(n, 4 * c + 1, h, w),
                                                  in_nchw(n, 4 * c + 2, h, w),
                                                  in_nchw(n, 4 * c + 3, h, w));
@@ -114,37 +114,37 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
     constexpr index_t BlockSize = 128;
 #elif 0
     // 3x3, 34x34, 128 thread, fp32, vector = 2
-    constexpr index_t NPerBlock = 2;
-    constexpr index_t KPerBlock = 32;
-    constexpr index_t CPerBlock = 2;
+    constexpr index_t NPerBlock  = 2;
+    constexpr index_t KPerBlock  = 32;
+    constexpr index_t CPerBlock  = 2;
     constexpr index_t HoPerBlock = 2;
     constexpr index_t WoPerBlock = 32;
 
-    constexpr index_t NPerThread = 2;
-    constexpr index_t KPerThread = 4;
-    constexpr index_t CPerThread = 1;
+    constexpr index_t NPerThread  = 2;
+    constexpr index_t KPerThread  = 4;
+    constexpr index_t CPerThread  = 1;
     constexpr index_t HoPerThread = 2;
     constexpr index_t WoPerThread = 2;
 
-    constexpr index_t InBlockCopyDataPerRead = 2;
+    constexpr index_t InBlockCopyDataPerRead  = 2;
     constexpr index_t WeiBlockCopyDataPerRead = 2;
 
     constexpr index_t BlockSize = 128;
 #elif 0
     // 3x3, 34x34, 128 thread, int8, vector = 4
-    constexpr index_t NPerBlock = 2;
-    constexpr index_t KPerBlock = 32;
-    constexpr index_t CPerBlock = 8;
+    constexpr index_t NPerBlock  = 2;
+    constexpr index_t KPerBlock  = 32;
+    constexpr index_t CPerBlock  = 8;
     constexpr index_t HoPerBlock = 4;
     constexpr index_t WoPerBlock = 32;
 
-    constexpr index_t NPerThread = 1;
-    constexpr index_t KPerThread = 8;
-    constexpr index_t CPerThread = 2;
+    constexpr index_t NPerThread  = 1;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t CPerThread  = 2;
     constexpr index_t HoPerThread = 4;
     constexpr index_t WoPerThread = 2;
 
-    constexpr index_t InBlockCopyDataPerRead = 2;
+    constexpr index_t InBlockCopyDataPerRead  = 2;
     constexpr index_t WeiBlockCopyDataPerRead = 2;
 
     constexpr index_t BlockSize = 128;
