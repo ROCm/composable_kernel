@@ -64,6 +64,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         constexpr index_t B          = N * Hi * Wi;
         constexpr index_t BGhostRead = (Y - 1) * Wi + (X - 1);
 
+        // assert for LDS double buffer
         static_assert(C % (2 * CPerBlock) == 0, "C cannot be evenly divided");
 
         // divide block work by 2d: [K, B]

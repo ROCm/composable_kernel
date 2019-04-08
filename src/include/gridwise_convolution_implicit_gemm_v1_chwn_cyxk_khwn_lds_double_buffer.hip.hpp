@@ -34,7 +34,7 @@ template <index_t GridSize,
           index_t InBlockCopyDataPerRead,
           index_t WeiBlockCopyDataPerRead,
           index_t OutThreadCopyDataPerWrite>
-struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
+struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -65,6 +65,9 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
 
         constexpr index_t HiPerBlock = HoPerBlock + Y - 1;
         constexpr index_t WiPerBlock = WoPerBlock + X - 1;
+
+        // assert for LDS double buffer
+        static_assert(C % (2 * CPerBlock) == 0, "C cannot be evenly divided");
 
         // divide block work: [K, Ho, Wo, N]
         static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 && Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0, 
@@ -177,14 +180,9 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         constexpr index_t wei_block_space =
             wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
 
-        __shared__ Float p_in_block[in_block_space];
-        __shared__ Float p_wei_block[wei_block_space];
-
-        // register
-        Float p_out_thread[out_khwn_thread_desc.GetElementSpace()];
-
-        // set threadwise output tensor to 0
-        threadwise_4d_tensor_set_zero(out_khwn_thread_desc, p_out_thread);
+        // LDS double buffer
+        __shared__ Float p_in_block_double[2 * in_block_space];
+        __shared__ Float p_wei_block_double[2 * wei_block_space];
 
         const Float* p_in_global_block_offset =
             p_in_global +
@@ -194,27 +192,125 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         const Float* p_wei_global_block_offset =
             p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
 
-        for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
-                    p_in_global_block_offset += CPerBlock * in_chwn_global_desc.GetStride(I0),
-                    p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
-                    __syncthreads())
+        // preload data into LDS
         {
-            // input: global mem to LDS
-            blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
+            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
 
-            // weight: global mem to LDS
-            blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                       p_in_register_clipboard);
+            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                        p_wei_register_clipboard);
+
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block_double);
+            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
+                                                         p_wei_block_double);
+        }
+
+        // register
+        Float p_out_thread[out_khwn_thread_desc.GetElementSpace()];
+
+        // set threadwise output tensor to 0
+        threadwise_4d_tensor_set_zero(out_khwn_thread_desc, p_out_thread);
+
+        for(index_t c_block_data_begin = 0; c_block_data_begin + 2 * CPerBlock < C;
+            c_block_data_begin += 2 * CPerBlock)
+        {
+#pragma unroll
+            for(index_t iloop = 0; iloop < 2; ++iloop)
+            {
+                const bool even_loop = (iloop % 2 == 0);
+
+                Float* p_in_block_now =
+                    even_loop ? p_in_block_double : p_in_block_double + in_block_space;
+                Float* p_wei_block_now =
+                    even_loop ? p_wei_block_double : p_wei_block_double + wei_block_space;
+
+                Float* p_in_block_next =
+                    even_loop ? p_in_block_double + in_block_space : p_in_block_double;
+                Float* p_wei_block_next =
+                    even_loop ? p_wei_block_double + wei_block_space : p_wei_block_double;
+
+                // load next data
+                Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+                Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+                p_in_global_block_offset += CPerBlock * in_chwn_global_desc.GetStride(I0);
+                p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0);
+
+                __syncthreads();
+
+                blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                           p_in_register_clipboard);
+
+                blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                            p_wei_register_clipboard);
+
+
+                // a series of batched GEMM
+                for(index_t y = 0; y < Y; ++y)
+                {
+                    for(index_t x = 0; x < X; ++x)
+                    {
+                        blockwise_batch_gemm.Run(p_wei_block_now +
+                                                     wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                                                 p_in_block_now + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
+                                                 p_out_thread);
+                    }
+                }
+
+                blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
+                                                            p_in_block_next);
+                blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
+                                                             p_wei_block_next);
+            }
+        }
+
+        // tail
+        {
+            // even
+            p_in_global_block_offset += CPerBlock * in_chwn_global_desc.GetStride(I0);
+            p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0);
 
             __syncthreads();
 
-            // a series of batched GEMM
+            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                       p_in_register_clipboard);
+
+            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                        p_wei_register_clipboard);
+
             for(index_t y = 0; y < Y; ++y)
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-                    blockwise_batch_gemm.Run(p_wei_block +
+                    blockwise_batch_gemm.Run(p_wei_block_double +
                                                  wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                                             p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
+                                             p_in_block_double + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
+                                             p_out_thread);
+                }
+            }
+
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
+                                                        p_in_block_double + in_block_space);
+
+            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
+                                                         p_wei_block_double + wei_block_space);
+
+            // odd
+            __syncthreads();
+
+            for(index_t y = 0; y < Y; ++y)
+            {
+                for(index_t x = 0; x < X; ++x)
+                {
+                    blockwise_batch_gemm.Run(p_wei_block_double + wei_block_space +
+                                                 wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                                             p_in_block_double + in_block_space +
+                                                 in_chwn_block_desc.Get1dIndex(0, y, x, 0),
                                              p_out_thread);
                 }
             }
