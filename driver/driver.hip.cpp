@@ -421,7 +421,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 3x3, 56x56
     constexpr index_t N  = 64;
     constexpr index_t C  = 64;
@@ -430,6 +430,9 @@ int main(int argc, char* argv[])
     constexpr index_t K  = 64;
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
 #elif 0
     // 3x3, 58x58
     constexpr index_t N  = 64;
