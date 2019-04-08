@@ -22,7 +22,8 @@ std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
     return os;
 }
 
-typedef enum {
+typedef enum
+{
     Half  = 0,
     Float = 1,
 } DataType_t;

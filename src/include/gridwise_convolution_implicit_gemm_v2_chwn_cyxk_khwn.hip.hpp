@@ -31,11 +31,10 @@ template <index_t GridSize,
           index_t WeiBlockCopyThreadPerDim0,
           index_t WeiBlockCopyThreadPerDim1,
           index_t InBlockCopyDataPerRead,
-          index_t WeiBlockCopyDataPerRead>
+          index_t WeiBlockCopyDataPerRead,
+          index_t OutThreadCopyDataPerWrite>
 struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 {
-    __host__ __device__ constexpr GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn() {}
-
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
@@ -232,7 +231,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-#if 0
+#if 1
                     blockwise_gemm.Run
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
