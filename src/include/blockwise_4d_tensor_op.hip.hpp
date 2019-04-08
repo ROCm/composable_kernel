@@ -340,11 +340,10 @@ struct BlockwiseChwnTensorCopyPadded
         constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
         const Float* p_src_tmp =
-            p_src +
-            src_desc.Get1dIndex(c_block_data_begin,
-                                (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
-                                (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,
-                                n_block_data_begin);
+            p_src + src_desc.Get1dIndex(c_block_data_begin,
+                                        (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
+                                        (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,
+                                        n_block_data_begin);
 
 #if 0
         if(get_thread_local_1d_id() == 0)

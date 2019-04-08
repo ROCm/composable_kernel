@@ -40,12 +40,8 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
     {
-        // NPerThread == NPerBlock, because the format of input in LDS [C,Hi,Wi,N]
-        //   for GEMM trans([C,K]) * [C,Wo*N], we need a thread to do all the "N"
-        // if we use [C,Hi,N,Wi,N] in LDS, then NPerThread can be different from NPerBlock
+        // be careful of this assertion
         static_assert(NPerBlock % NPerThread == 0, "wrong! NPerBlock % NPerThread !=0");
-        static_assert((NPerThread < NPerBlock && WoPerThread == 1) || NPerThread == NPerBlock,
-                      "wrong!");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -172,16 +168,13 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         constexpr index_t max_align =
             mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
-        constexpr index_t in_block_space =
-            in_chwn_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t in_block_space = in_chwn_block_desc.GetElementSpace(Number<max_align>{});
 
         constexpr index_t wei_block_space =
             wei_cyxk_block_desc.GetElementSpace(Number<max_align>{});
 
-        __shared__ Float
-            p_in_block[in_block_space];
-        __shared__ Float
-            p_wei_block[wei_block_space];
+        __shared__ Float p_in_block[in_block_space];
+        __shared__ Float p_wei_block[wei_block_space];
 
         // register
         Float p_out_thread[out_khwn_thread_desc.GetElementSpace()];
@@ -190,9 +183,8 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         threadwise_4d_tensor_set_zero(out_khwn_thread_desc, p_out_thread);
 
         const Float* p_in_global_block_begin =
-            p_in_global +
-            in_chwn_global_desc.Get1dIndex(
-                0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
+            p_in_global + in_chwn_global_desc.Get1dIndex(
+                              0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
         const Float* p_wei_global_block_begin =
             p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
@@ -269,26 +261,32 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
             c_thread_mtx_begin.col - NPerBlock * wo_thread_data_begin;
 
         // this is for v2 GEMM
-        // output is a 8d tensor
-        if(NPerThread < NPerBlock && WoPerThread == 1)
+        // output is a 10d tensor
+        if(NPerThread <= NPerBlock)
         {
-            constexpr index_t N1_ = GemmNPerThreadSubC;
-            constexpr index_t W1_ = WoPerBlock / ((WoPerThread * NPerThread) / GemmNPerThreadSubC);
-            constexpr index_t K2_ = GemmMPerThreadSubC;
-            constexpr index_t K1_ = KPerBlock / KPerThread;
+            constexpr index_t N2 = GemmNPerThreadSubC;
+            constexpr index_t N1 = NPerBlock / N2;
 
-            constexpr auto out_8d_global_desc = make_ConstantTensorDescriptor(
-                Sequence<K / (K1_ * K2_), K1_, K2_, Ho, Wo / W1_, W1_, N / N1_, N1_>{});
+            constexpr index_t W2 = (GemmNLevel0Cluster * GemmNLevel1Cluster) / (NPerBlock / GemmNPerThreadSubC);
+            constexpr index_t W1 = WoPerBlock / W2;
 
-            constexpr auto out_8d_thread_desc =
-                make_ConstantTensorDescriptor(Sequence<KPerBlock / (K1_ * K2_),
-                                                       1,
-                                                       K2_,
-                                                       HoPerThread,
-                                                       WoPerBlock / W1_,
-                                                       1,
-                                                       1,
-                                                       N1_>{});
+            constexpr index_t K2 = GemmMPerThreadSubC;
+            constexpr index_t K1 = KPerBlock / KPerThread;
+
+            constexpr auto out_10d_global_desc =
+                make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
+                                                       K1,
+                                                       K2,
+                                                       Ho,
+                                                       Wo / (W1 * W2),
+                                                       W1,
+                                                       W2,
+                                                       N / (N1 * N2),
+                                                       N1,
+                                                       N2>{});
+
+            constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
+                Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, 1, 1, N2>{});
 
 #if 0
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
@@ -301,25 +299,21 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         }
 #endif
 
-            threadwise_8d_tensor_copy(
-                out_8d_thread_desc,
+            threadwise_10d_tensor_copy(
+                out_10d_thread_desc,
                 p_out_thread,
-                out_8d_global_desc,
+                out_10d_global_desc,
                 p_out_global +
                     out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
                                                     ho_block_data_begin + ho_thread_data_begin,
                                                     wo_block_data_begin + wo_thread_data_begin,
                                                     n_block_data_begin + n_thread_data_begin),
-                out_8d_thread_desc.GetLengths(),
+                out_10d_thread_desc.GetLengths(),
                 Number<OutThreadCopyDataPerWrite>{});
-        }
-        else if(NPerThread == NPerBlock)
-        {
-            // not implemented yet
-            assert(false);
         }
         else
         {
+            // no implemented yet
             assert(false);
         }
 #endif

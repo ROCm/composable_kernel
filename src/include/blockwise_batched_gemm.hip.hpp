@@ -329,9 +329,8 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
             {
                 threadwise_matrix_copy(
                     c_thread_sub_mtx,
-                    p_c_thread +
-                        c_thread_sub_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
-                                                    n_repeat * NPerLevel1Cluster),
+                    p_c_thread + c_thread_sub_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
+                                                             n_repeat * NPerLevel1Cluster),
                     c_block_mtx,
                     p_c_block +
                         c_block_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,

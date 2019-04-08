@@ -69,7 +69,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     Tensor<T> out_khwn(make_TensorDescriptor(out_khwn_desc));
 
-#if 0
+#if 1
     // 3x3, 34x34
     // need to use register double buffer for GEMM
     constexpr index_t BPerBlock = 128;
@@ -87,9 +87,6 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t GemmNLevel1Cluster = 8;
     constexpr index_t GemmKPerThreadLoop = 1;
 
-    constexpr index_t GemmThreadPerColumnPerCluster = 8;
-    constexpr index_t GemmThreadPerRowPerCluster    = 8;
-
     constexpr index_t InBlockCopyThreadPerDim0 = 4;
     constexpr index_t InBlockCopyThreadPerDim1 = 16;
 
@@ -98,6 +95,7 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
 
     constexpr index_t InBlockCopyDataPerRead  = 4;
     constexpr index_t WeiBlockCopyDataPerRead = 4;
+    constexpr index_t OutThreadCopyDataPerWrite = 4;
 
     constexpr index_t BlockSize = 128;
 #elif 0
@@ -214,8 +212,8 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
     constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
 
-    constexpr index_t InBlockCopyDataPerRead  = 4;
-    constexpr index_t WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
+    constexpr index_t WeiBlockCopyDataPerRead   = 4;
     constexpr index_t OutThreadCopyDataPerWrite = 4;
 
     constexpr index_t BlockSize = 128;
@@ -242,8 +240,8 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyThreadPerDim0 = 4;
     constexpr index_t WeiBlockCopyThreadPerDim1 = 16;
 
-    constexpr index_t InBlockCopyDataPerRead  = 4;
-    constexpr index_t WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
+    constexpr index_t WeiBlockCopyDataPerRead   = 4;
     constexpr index_t OutThreadCopyDataPerWrite = 4;
 
     constexpr index_t BlockSize = 256;
