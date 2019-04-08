@@ -278,37 +278,6 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
     constexpr index_t OutThreadCopyDataPerWrite = 2;
 
     constexpr index_t BlockSize = 128;
-#elif 1
-    // for 1x1, 14x14, Pascal, try
-    constexpr index_t NPerBlock  = 16;
-    constexpr index_t KPerBlock  = 128;
-    constexpr index_t CPerBlock  = 8;
-    constexpr index_t HoPerBlock = 1;
-    constexpr index_t WoPerBlock = 4;
-
-    constexpr index_t NPerThread  = 4;
-    constexpr index_t KPerThread  = 8;
-    constexpr index_t HoPerThread = 1;
-    constexpr index_t WoPerThread = 2;
-
-    constexpr index_t GemmMPerThreadSubC = 4;
-    constexpr index_t GemmNPerThreadSubC = 4;
-    constexpr index_t GemmMLevel0Cluster = 4;
-    constexpr index_t GemmNLevel0Cluster = 2;
-    constexpr index_t GemmMLevel1Cluster = 4;
-    constexpr index_t GemmNLevel1Cluster = 4;
-    constexpr index_t GemmKPerThreadLoop = 1;
-
-    constexpr index_t InBlockCopy_ThreadPerDimC = 8;
-    constexpr index_t InBlockCopy_ThreadPerDimH = 1;
-    constexpr index_t InBlockCopy_ThreadPerDimW = 4;
-    constexpr index_t InBlockCopy_ThreadPerDimN = 4;
-    constexpr index_t InBlockCopyDataPerRead    = 4;
-
-    constexpr index_t WeiBlockCopyDataPerRead   = 4;
-    constexpr index_t OutThreadCopyDataPerWrite = 4;
-
-    constexpr index_t BlockSize = 128;
 #endif
 
     constexpr index_t GridSize =
