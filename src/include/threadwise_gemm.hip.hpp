@@ -1,23 +1,29 @@
 #pragma once
 
-template <class Float, class SrcMatrix, class DstMatrix, index_t NRow, index_t NCol>
+template <class Float, class SrcMatrix, class DstMatrix, index_t NRow, index_t NCol, index_t DataPerRead>
 __device__ void threadwise_matrix_copy(SrcMatrix,
                                        const Float* __restrict__ p_src,
                                        DstMatrix,
                                        Float* __restrict__ p_dst,
-                                       Sequence<NRow, NCol>)
+                                       Sequence<NRow, NCol>,
+                                       Number<DataPerRead>)
 {
+    static_assert(NCol % DataPerRead == 0, "wrong! should be NCol % == DataPerRead == 0");
+
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
+
     constexpr auto src_mtx = SrcMatrix{};
     constexpr auto dst_mtx = DstMatrix{};
 
     for(index_t i = 0; i < NRow; ++i)
     {
-        for(index_t j = 0; j < NCol; ++j)
+        for(index_t j = 0; j < NCol; j += DataPerRead)
         {
             const index_t src_index = src_mtx.Get1dIndex(i, j);
             const index_t dst_index = dst_mtx.Get1dIndex(i, j);
 
-            p_dst[dst_index] = p_src[src_index];
+            *reinterpret_cast<vector_t*>(&p_dst[dst_index]) = 
+                *reinterpret_cast<const vector_t*>(&p_src[src_index]);
         }
     }
 }

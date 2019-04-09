@@ -27,6 +27,8 @@ template <index_t GridSize,
           index_t GemmMLevel1Cluster,
           index_t GemmNLevel1Cluster,
           index_t GemmKPerThreadLoop,
+          index_t GemmDataPerReadA,
+          index_t GemmDataPerReadB,
           index_t InBlockCopyThreadPerDim0,
           index_t InBlockCopyThreadPerDim1,
           index_t WeiBlockCopyThreadPerDim0,
@@ -178,7 +180,9 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                                                                     GemmNLevel0Cluster,
                                                                     GemmMLevel1Cluster,
                                                                     GemmNLevel1Cluster,
-                                                                    GemmKPerThreadLoop>{};
+                                                                    GemmKPerThreadLoop,
+                                                                    GemmDataPerReadA,
+                                                                    GemmDataPerReadB>{};
 
         // LDS: be careful of alignment
         constexpr index_t max_align =
