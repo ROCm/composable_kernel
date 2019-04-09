@@ -43,8 +43,9 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
                         Float* const __restrict__ p_out_global) const
     {
         // be careful of this assertion
-        static_assert(NPerThread <= NPerBlock && NPerBlock % NPerThread == 0,
-                "wrong! should satisfy: NPerThread <= NPerBlock && NPerBlock % NPerThread == 0");
+        static_assert(
+            NPerThread <= NPerBlock && NPerBlock % NPerThread == 0,
+            "wrong! should satisfy: NPerThread <= NPerBlock && NPerBlock % NPerThread == 0");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -69,8 +70,9 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         constexpr index_t WiPerBlock = WoPerBlock + X - 1;
 
         // divide block work: [K, Ho, Wo, N]
-        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 && Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0, 
-                "wrong! cannot evenly divide work for workgroup ");
+        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 &&
+                          Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
+                      "wrong! cannot evenly divide work for workgroup ");
 
         constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
         constexpr index_t HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
@@ -93,7 +95,8 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         const index_t wi_block_data_begin = wo_block_data_begin;
 
         // 2d tensor view of gridwise weight
-        constexpr auto wei_ck_global_desc = make_ConstantTensorDescriptor(Sequence<C, K>{}, Sequence<Y * X * K, 1>{});
+        constexpr auto wei_ck_global_desc =
+            make_ConstantTensorDescriptor(Sequence<C, K>{}, Sequence<Y * X * K, 1>{});
 
         // tensor view of blockwise input and weight in LDS
         //   be careful of alignment
@@ -124,7 +127,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         // blockwise wei copy
         //   format is [CPerBlock, KPerBlock]
         const auto blockwise_wei_copy =
-#if 0//debug
+#if 0 // debug
             Blockwise2dTensorCopy1<BlockSize,
                                    Float,
                                    decltype(wei_ck_global_desc),
@@ -139,14 +142,16 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
                                    WeiBlockCopyDataPerRead>{};
 #endif
 
-        // a series of blockwise batched GEMM
-        // C_matrix += transpose(A_matrix) * B_matrix
-        //   A_matrix and B_matrix saved in LDS, C_matrix saved in register
-        //   A_matrix[C,K] is a sub-matrix of wei_block[C,K]
-        //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
-        //   C_matrix[K,Wo*N] is a sub-matrix of out_block[K,Ho,Wo,N]
-        constexpr auto a_cxk_block_mtx_desc = make_ConstantMatrixDescriptor(
-            Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_ck_block_desc.GetStride(I0)>{});
+            // a series of blockwise batched GEMM
+            // C_matrix += transpose(A_matrix) * B_matrix
+            //   A_matrix and B_matrix saved in LDS, C_matrix saved in register
+            //   A_matrix[C,K] is a sub-matrix of wei_block[C,K]
+            //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
+            //   C_matrix[K,Wo*N] is a sub-matrix of out_block[K,Ho,Wo,N]
+            constexpr auto a_cxk_block_mtx_desc =
+                make_ConstantMatrixDescriptor(Number<CPerBlock>{},
+                                              Number<KPerBlock>{},
+                                              Number<wei_ck_block_desc.GetStride(I0)>{});
 
         constexpr auto b_cxwn_block_mtx_desc =
             make_ConstantMatrixDescriptor(Number<CPerBlock>{},
@@ -180,7 +185,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
                 GemmDataPerReadB>{};
 
         // LDS: be careful of alignment
-        constexpr index_t in_block_space = in_chwn_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t in_block_space  = in_chwn_block_desc.GetElementSpace(Number<max_align>{});
         constexpr index_t wei_block_space = wei_ck_block_desc.GetElementSpace(Number<max_align>{});
 
         __shared__ Float p_in_block[in_block_space];
@@ -227,8 +232,8 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
                 {
                     // weight: global mem to LDS
                     blockwise_wei_copy.Run(p_wei_global_block_offset +
-                            wei_cyxk_global_desc.Get1dIndex(0, y, x, 0),
-                            p_wei_block);
+                                               wei_cyxk_global_desc.Get1dIndex(0, y, x, 0),
+                                           p_wei_block);
 
                     __syncthreads();
 
@@ -297,17 +302,8 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         constexpr index_t K2 = GemmMPerThreadSubC;
         constexpr index_t K1 = KPerBlock / KPerThread;
 
-        constexpr auto out_10d_global_desc =
-            make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
-                                                   K1,
-                                                   K2,
-                                                   Ho,
-                                                   Wo / (W1 * W2),
-                                                   W1,
-                                                   W2,
-                                                   N / (N1 * N2),
-                                                   N1,
-                                                   N2>{});
+        constexpr auto out_10d_global_desc = make_ConstantTensorDescriptor(
+            Sequence<K / (K1 * K2), K1, K2, Ho, Wo / (W1 * W2), W1, W2, N / (N1 * N2), N1, N2>{});
 
         constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
             Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, 1, 1, N2>{});
