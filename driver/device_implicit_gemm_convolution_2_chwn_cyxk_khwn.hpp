@@ -205,6 +205,8 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t GemmMLevel1Cluster = 4;
     constexpr index_t GemmNLevel1Cluster = 4;
     constexpr index_t GemmKPerThreadLoop = 1;
+    constexpr index_t GemmDataPerReadA   = 4;
+    constexpr index_t GemmDataPerReadB   = 4;
 
     constexpr index_t InBlockCopyThreadPerDim0 = 4;
     constexpr index_t InBlockCopyThreadPerDim1 = 16;
@@ -233,6 +235,8 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
     constexpr index_t GemmMLevel1Cluster = 4;
     constexpr index_t GemmNLevel1Cluster = 4;
     constexpr index_t GemmKPerThreadLoop = 1;
+    constexpr index_t GemmDataPerReadA   = 4;
+    constexpr index_t GemmDataPerReadB   = 4;
 
     constexpr index_t InBlockCopyThreadPerDim0 = 4;
     constexpr index_t InBlockCopyThreadPerDim1 = 16;
@@ -289,6 +293,8 @@ void device_implicit_gemm_convolution_2_chwn_cyxk_khwn(InDesc,
              GemmMLevel1Cluster,
              GemmNLevel1Cluster,
              GemmKPerThreadLoop,
+             GemmDataPerReadA,
+             GemmDataPerReadB,
              InBlockCopyThreadPerDim0,
              InBlockCopyThreadPerDim1,
              WeiBlockCopyThreadPerDim0,

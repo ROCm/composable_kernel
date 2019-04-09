@@ -30,6 +30,8 @@ template <index_t GridSize,
           index_t GemmMLevel1Cluster,
           index_t GemmNLevel1Cluster,
           index_t GemmKPerThreadLoop,
+          index_t GemmDataPerReadA,
+          index_t GemmDataPerReadB,
           class InBlockCopyThreadPerDims,
           index_t InBlockCopyDataPerRead,
           index_t WeiBlockCopyDataPerRead,
@@ -172,7 +174,9 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
                 GemmMLevel1Cluster,
                 GemmNLevel1Cluster,
                 GemmKPerThreadLoop,
-                HoPerThread>{};
+                HoPerThread,
+                GemmDataPerReadA,
+                GemmDataPerReadB>{};
 
         // LDS: be careful of alignment
         constexpr index_t in_block_space = in_chwn_block_desc.GetElementSpace(Number<max_align>{});

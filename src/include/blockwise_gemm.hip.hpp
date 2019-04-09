@@ -14,7 +14,9 @@ template <index_t BlockSize,
           index_t NLevel0Cluster,
           index_t MLevel1Cluster,
           index_t NLevel1Cluster,
-          index_t KPerThreadLoop>
+          index_t KPerThreadLoop,
+          index_t DataPerReadA,
+          index_t DataPerReadB>
 struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 {
     struct MatrixIndex
@@ -276,7 +278,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                         mMyThreadOffsetA,
                     a_thread_mtx,
                     p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
-                    a_thread_sub_mtx.GetLengths());
+                    a_thread_sub_mtx.GetLengths(),
+                    Number<DataPerReadA>{});
             }
 
 #pragma unroll
@@ -289,7 +292,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                         mMyThreadOffsetB,
                     b_thread_mtx,
                     p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
-                    b_thread_sub_mtx.GetLengths());
+                    b_thread_sub_mtx.GetLengths(),
+                    Number<DataPerReadB>{});
             }
 
             // C = A * B
@@ -359,7 +363,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                    p_a_block + mMyThreadOffsetA + m_repeat * MPerLevel1Cluster,
                                    a_thread_sub_mtx,
                                    p_a_thread_0 + m_repeat * MPerThreadSubC,
-                                   a_thread_sub_mtx.GetLengths());
+                                   a_thread_sub_mtx.GetLengths(),
+                                   Number<DataPerReadA>{});
         }
 
 #pragma unroll
@@ -369,7 +374,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                    p_b_block + mMyThreadOffsetB + n_repeat * NPerLevel1Cluster,
                                    b_thread_sub_mtx,
                                    p_b_thread_0 + n_repeat * NPerThreadSubC,
-                                   b_thread_sub_mtx.GetLengths());
+                                   b_thread_sub_mtx.GetLengths(),
+                                   Number<DataPerReadB>{});
         }
 
         bool even_loop = true;
@@ -394,7 +400,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                            m_repeat * MPerLevel1Cluster,
                                        a_thread_sub_mtx,
                                        p_a_thread_next + m_repeat * MPerThreadSubC,
-                                       a_thread_sub_mtx.GetLengths());
+                                       a_thread_sub_mtx.GetLengths(),
+                                       Number<DataPerReadA>{});
             }
 
 #pragma unroll
@@ -406,7 +413,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                            n_repeat * NPerLevel1Cluster,
                                        b_thread_sub_mtx,
                                        p_b_thread_next + n_repeat * NPerThreadSubC,
-                                       b_thread_sub_mtx.GetLengths());
+                                       b_thread_sub_mtx.GetLengths(),
+                                       Number<DataPerReadB>{});
             }
 
             // C = A * B
