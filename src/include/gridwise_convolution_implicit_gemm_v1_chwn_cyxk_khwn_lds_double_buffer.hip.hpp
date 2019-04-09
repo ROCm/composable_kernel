@@ -43,8 +43,9 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
                         Float* const __restrict__ p_out_global) const
     {
         // be careful of this assertion
-        static_assert(NPerThread <= NPerBlock && NPerBlock % NPerThread == 0,
-                "wrong! should satisfy: NPerThread <= NPerBlock && NPerBlock % NPerThread == 0");
+        static_assert(
+            NPerThread <= NPerBlock && NPerBlock % NPerThread == 0,
+            "wrong! should satisfy: NPerThread <= NPerBlock && NPerBlock % NPerThread == 0");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -72,8 +73,9 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
         static_assert(C % (2 * CPerBlock) == 0, "C cannot be evenly divided");
 
         // divide block work: [K, Ho, Wo, N]
-        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 && Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0, 
-                "wrong! cannot evenly divide work for workgroup ");
+        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 &&
+                          Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
+                      "wrong! cannot evenly divide work for workgroup ");
 
         constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
         constexpr index_t HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
@@ -104,8 +106,7 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
             mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
         constexpr auto in_chwn_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{},
-            Number<max_align>{});
+            Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{}, Number<max_align>{});
 
         constexpr auto wei_ek_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock * Y * X, KPerBlock>{}, Number<max_align>{});
@@ -250,16 +251,15 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
                 blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                             p_wei_register_clipboard);
 
-
                 // a series of batched GEMM
                 for(index_t y = 0; y < Y; ++y)
                 {
                     for(index_t x = 0; x < X; ++x)
                     {
-                        blockwise_batch_gemm.Run(p_wei_block_now +
-                                                     wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                                                 p_in_block_now + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
-                                                 p_out_thread);
+                        blockwise_batch_gemm.Run(
+                            p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                            p_in_block_now + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
+                            p_out_thread);
                     }
                 }
 
@@ -291,10 +291,10 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-                    blockwise_batch_gemm.Run(p_wei_block_double +
-                                                 wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                                             p_in_block_double + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
-                                             p_out_thread);
+                    blockwise_batch_gemm.Run(
+                        p_wei_block_double + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                        p_in_block_double + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
+                        p_out_thread);
                 }
             }
 
@@ -376,17 +376,8 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn_lds_double_buffer
         constexpr index_t K2 = GemmMPerThreadSubC;
         constexpr index_t K1 = KPerBlock / KPerThread;
 
-        constexpr auto out_10d_global_desc =
-            make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
-                                                   K1,
-                                                   K2,
-                                                   Ho,
-                                                   Wo / (W1 * W2),
-                                                   W1,
-                                                   W2,
-                                                   N / (N1 * N2),
-                                                   N1,
-                                                   N2>{});
+        constexpr auto out_10d_global_desc = make_ConstantTensorDescriptor(
+            Sequence<K / (K1 * K2), K1, K2, Ho, Wo / (W1 * W2), W1, W2, N / (N1 * N2), N1, N2>{});
 
         constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
             Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, 1, 1, N2>{});

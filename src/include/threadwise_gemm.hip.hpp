@@ -1,6 +1,11 @@
 #pragma once
 
-template <class Float, class SrcMatrix, class DstMatrix, index_t NRow, index_t NCol, index_t DataPerRead>
+template <class Float,
+          class SrcMatrix,
+          class DstMatrix,
+          index_t NRow,
+          index_t NCol,
+          index_t DataPerRead>
 __device__ void threadwise_matrix_copy(SrcMatrix,
                                        const Float* __restrict__ p_src,
                                        DstMatrix,
@@ -22,7 +27,7 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
             const index_t src_index = src_mtx.Get1dIndex(i, j);
             const index_t dst_index = dst_mtx.Get1dIndex(i, j);
 
-            *reinterpret_cast<vector_t*>(&p_dst[dst_index]) = 
+            *reinterpret_cast<vector_t*>(&p_dst[dst_index]) =
                 *reinterpret_cast<const vector_t*>(&p_src[src_index]);
         }
     }

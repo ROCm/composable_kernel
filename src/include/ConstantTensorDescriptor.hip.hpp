@@ -381,7 +381,8 @@ __host__ __device__ void print_ConstantTensorDescriptor(TDesc, const char* s)
         constexpr auto I7 = Number<7>{};
         constexpr auto I8 = Number<8>{};
 
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u %u %u}\n",
+        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u %u "
+               "%u}\n",
                s,
                desc.GetDimension(),
                desc.GetLength(I0),
@@ -416,7 +417,8 @@ __host__ __device__ void print_ConstantTensorDescriptor(TDesc, const char* s)
         constexpr auto I8 = Number<8>{};
         constexpr auto I9 = Number<9>{};
 
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u %u %u %u}\n",
+        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u "
+               "%u %u %u}\n",
                s,
                desc.GetDimension(),
                desc.GetLength(I0),
