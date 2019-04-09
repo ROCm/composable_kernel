@@ -95,15 +95,18 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
 
         // tensor view of blockwise input and weight in LDS
         //   be careful of alignment
+        constexpr index_t max_align =
+            mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
+
         constexpr auto in_chwn_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{},
-            Number<InBlockCopyDataPerRead>{});
+            Number<max_align>{});
 
         constexpr auto wei_ek_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock * Y * X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
+            Sequence<CPerBlock * Y * X, KPerBlock>{}, Number<max_align>{});
 
         constexpr auto wei_cyxk_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, Y, X, KPerBlock>{}, Number<WeiBlockCopyDataPerRead>{});
+            Sequence<CPerBlock, Y, X, KPerBlock>{}, Number<max_align>{});
 
         // tensor view of threadwise output in register
         constexpr auto out_khwn_thread_desc = make_ConstantTensorDescriptor(
@@ -147,7 +150,7 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         constexpr auto c_kxwn_thread_mtx_desc =
             make_ConstantMatrixDescriptor(Number<KPerThread>{},
                                           Number<WoPerThread * NPerThread>{},
-                                          Number<out_khwn_thread_desc.GetStride(I1)>{});
+                                          Number<out_khwn_thread_desc.GetStride(I0)>{});
 
         const auto blockwise_batch_gemm =
             BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2<
@@ -169,9 +172,6 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
                 HoPerThread>{};
 
         // LDS: be careful of alignment
-        constexpr index_t max_align =
-            mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
-
         constexpr index_t in_block_space = in_chwn_block_desc.GetElementSpace(Number<max_align>{});
 
         constexpr index_t wei_block_space =
