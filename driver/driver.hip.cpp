@@ -421,13 +421,13 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3, 56x56
     constexpr index_t N  = 64;
     constexpr index_t C  = 64;
     constexpr index_t HI = 56;
     constexpr index_t WI = 56;
-    constexpr index_t K  = 64;
+    constexpr index_t K  = 128;
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
 
@@ -454,13 +454,13 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 7x7, 38x38
     constexpr index_t N  = 64;
     constexpr index_t C  = 256;
     constexpr index_t HI = 38;
     constexpr index_t WI = 38;
-    constexpr index_t K  = 64;
+    constexpr index_t K  = 128;
     constexpr index_t Y  = 7;
     constexpr index_t X  = 7;
 
@@ -644,6 +644,9 @@ int main(int argc, char* argv[])
 #if 0
         in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+#elif 0
+        in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #elif 1
         in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
@@ -666,7 +669,7 @@ int main(int argc, char* argv[])
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
 #elif 1
     device_implicit_gemm_convolution_1_chwn_cyxk_khwn
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_2_chwn_cyxk_khwn
 #endif
     (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
