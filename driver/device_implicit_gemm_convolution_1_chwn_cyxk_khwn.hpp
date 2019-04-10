@@ -77,7 +77,7 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
     wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
-#if 1
+#if 0
     // for 3x3, 34x34
     constexpr index_t NPerBlock  = 16;
     constexpr index_t KPerBlock  = 64;
@@ -230,7 +230,7 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
     constexpr index_t OutThreadCopyDataPerWrite = 2;
 
     constexpr index_t BlockSize = 128;
-#elif 1
+#elif 0
     // for 3x3, 56x56, v1r2, Pascal
     // for 3x3, 34x34, v1r2, Pascal
     constexpr index_t NPerBlock  = 16;
@@ -262,6 +262,40 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
 
     constexpr index_t WeiBlockCopyDataPerRead   = 4;
     constexpr index_t OutThreadCopyDataPerWrite = 4;
+
+    constexpr index_t BlockSize = 128;
+#elif 1
+    // for 3x3, 28x28, v1, Pacal
+    constexpr index_t NPerBlock  = 32;
+    constexpr index_t KPerBlock  = 64;
+    constexpr index_t CPerBlock  = 4;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 2;
+
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 2;
+
+    constexpr index_t InBlockCopy_ThreadPerDimC = 1;
+    constexpr index_t InBlockCopy_ThreadPerDimH = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimW = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimN = 8;
+    constexpr index_t InBlockCopyDataPerRead    = 4;
+
+    constexpr index_t WeiBlockCopyDataPerRead = 4;
+
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
+    constexpr index_t GemmDataPerReadA   = 4;
+    constexpr index_t GemmDataPerReadB   = 4;
+
+    constexpr index_t OutThreadCopyDataPerWrite = 2;
 
     constexpr index_t BlockSize = 128;
 #elif 0
