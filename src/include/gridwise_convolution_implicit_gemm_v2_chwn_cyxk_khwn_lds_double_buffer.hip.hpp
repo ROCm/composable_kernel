@@ -262,11 +262,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                 {
                     for(index_t x = 0; x < X; ++x)
                     {
-#if 0
+#if 1
                         blockwise_gemm.Run
 #elif 0
                         blockwise_gemm.Run_RegisterDoubleBuffer
-#elif 1
+#elif 0
                         blockwise_gemm.Run_asm
 #endif
                         (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
@@ -303,11 +303,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-#if 0
+#if 1
                     blockwise_gemm.Run
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
-#elif 1
+#elif 0
                     blockwise_gemm.Run_asm
 #endif
                     (p_wei_block_double + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
@@ -328,11 +328,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
             {
                 for(index_t x = 0; x < X; ++x)
                 {
-#if 0
+#if 1
                     blockwise_gemm.Run
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
-#elif 1
+#elif 0
                     blockwise_gemm.Run_asm
 #endif
                     (p_wei_block_double + wei_block_space +
@@ -350,9 +350,8 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         const index_t k_thread_data_begin = k_block_data_begin + c_thread_mtx_begin.row;
         const index_t b_thread_data_begin = b_block_data_begin + c_thread_mtx_begin.col;
 
-#if 1
         if(Y == 1 && X == 1)
-        { // pure 1x1 conv
+        { // pure 1x1 conv (non padding, 1x1 stride)
             constexpr index_t K2_ = GemmMPerThreadSubC;
             constexpr index_t K1_ = KPerBlock / KPerThread;
             constexpr index_t B2_ = GemmNPerThreadSubC;
@@ -376,7 +375,6 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                 Number<OutThreadCopyDataPerWrite>{});
         }
         else
-#endif
         {
             for(index_t k = 0; k < out_kb_thread_desc.GetLength(I0); ++k)
             {

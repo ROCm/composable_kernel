@@ -215,17 +215,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 
             blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
                                                        p_in_register_clipboard);
-
             blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                         p_wei_register_clipboard);
-#if 1
+
             blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block);
             blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block);
-#else
-            vmcnt(0);
-            blockwise_in_copy.RunStoreRegisterClipboard_asm(p_in_register_clipboard, p_in_block);
-            blockwise_wei_copy.RunStoreRegisterClipboard_asm(p_wei_register_clipboard, p_wei_block);
-#endif
 
             __syncthreads();
 
