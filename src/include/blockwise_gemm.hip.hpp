@@ -127,6 +127,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     }
 
 #if DEVICE_BACKEND_HIP
+    // TODO: this is not working correctly
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
                             const FloatB* __restrict__ p_b_block,

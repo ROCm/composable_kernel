@@ -204,23 +204,38 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
                     p_wei_global_block_offset += CPerBlock * wei_cyxk_global_desc.GetStride(I0),
                     __syncthreads())
         {
-            // input: global mem to LDS
+#if 1
             blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
-
-            // weight: global mem to LDS
             blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+#else
+            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
+            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                       p_in_register_clipboard);
+            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                        p_wei_register_clipboard);
+
+            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block);
+            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block);
+#endif
 
             __syncthreads();
 
-            // a series of batched GEMM
+#pragma unroll
             for(index_t y = 0; y < Y; ++y)
             {
+#pragma unroll
                 for(index_t x = 0; x < X; ++x)
                 {
-                    blockwise_batch_gemm.Run(p_wei_block +
-                                                 wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                                             p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
-                                             p_out_thread);
+#if 1
+                    blockwise_batch_gemm.Run
+#else
+                    blockwise_batch_gemm.Run_asm
+#endif
+                        (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                         p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
+                         p_out_thread);
                 }
             }
         }
