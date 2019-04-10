@@ -423,7 +423,7 @@ void device_implicit_gemm_convolution_1_chwn_cyxk_khwn(InDesc,
         printf("Elapsed time : %f ms, %f TFlop/s\n",
                time,
                (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
-                   (std::size_t(1024) * 1024 * 1024 * 1024) / (time / 1000));
+                   (std::size_t(1000) * 1000 * 1000) / time);
         usleep(std::min(time * 1000, float(10000)));
     }
 
