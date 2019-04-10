@@ -259,7 +259,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                                 c_thread_mtx,
                                 False,
                                 p_c_thread + ib * ThreadMatrixStrideC);
-
             }
         }
     }
