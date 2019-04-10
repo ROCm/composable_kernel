@@ -409,7 +409,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3, 34x34
     constexpr index_t N  = 64;
     constexpr index_t C  = 256;
@@ -583,7 +583,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 1x1 filter, 14x14 image, C = 2048
     constexpr index_t N  = 128;
     constexpr index_t C  = 2048;
@@ -667,9 +667,9 @@ int main(int argc, char* argv[])
     device_direct_convolution_2_nchw_kcyx_nkhw
 #elif 0
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
-#elif 1
-    device_implicit_gemm_convolution_1_chwn_cyxk_khwn
 #elif 0
+    device_implicit_gemm_convolution_1_chwn_cyxk_khwn
+#elif 1
     device_implicit_gemm_convolution_2_chwn_cyxk_khwn
 #endif
     (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
