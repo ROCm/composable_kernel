@@ -263,6 +263,94 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         }
     }
 
+#if DEVICE_BACKEND_HIP
+    template <class FloatA, class FloatB, class FloatC>
+    __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
+                            const FloatB* __restrict__ p_b_block,
+                            FloatC* __restrict__ p_c_thread) const
+    {
+        constexpr auto True  = integral_constant<bool, true>{};
+        constexpr auto False = integral_constant<bool, false>{};
+
+        constexpr auto a_block_mtx  = BlockMatrixA{};
+        constexpr auto b_block_mtx  = BlockMatrixB{};
+        constexpr auto c_thread_mtx = ThreadMatrixC{};
+
+        constexpr index_t M = a_block_mtx.NCol();
+        constexpr index_t N = b_block_mtx.NCol();
+        constexpr index_t K = a_block_mtx.NRow(); // A is transposed
+
+        constexpr index_t MPerThread = c_thread_mtx.NRow();
+        constexpr index_t NPerThread = c_thread_mtx.NCol();
+
+        // thread A, B for GEMM
+        //   A is transposed, b is not
+        constexpr auto a_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
+
+        constexpr auto b_thread_mtx =
+            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
+
+        // thread A-sub, B-sub for copy
+        constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<MPerThreadSubC>{}, Number<MPerThread>{});
+
+        constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
+            Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
+
+        FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
+        FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
+
+        constexpr index_t MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
+        constexpr index_t NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
+
+        // assertion for inline asm
+        static_assert(is_same<FloatA, float>::value && is_same<FloatB, float>::value &&
+                          is_same<FloatC, float>::value,
+                      "Run_asm only deal with float\n");
+
+        static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && KPerThreadLoop == 1 &&
+                          MPerThread == 8 && NPerThread == 8,
+                      "Run_asm cannot deal with this GEMM shape yet\n");
+
+        static_assert(
+            BlockMatrixStrideA == 0 && BatchPerThread == 1,
+            "Run_asm can only deal with BlockMatrixStrideA == 0 && BatchPerThread == 1 for now\n");
+
+        using Float4 = vector_type<float, 4>::MemoryType;
+
+        Float4* reg_a = (Float4*)(p_a_thread);
+        Float4* reg_b = (Float4*)(p_b_thread);
+        Float4* reg_c = (Float4*)(p_c_thread);
+
+        reg_a[0] = *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA]);
+        reg_b[0] = *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB]);
+        reg_b[1] =
+            *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB + NPerLevel1Cluster]);
+        reg_a[1] =
+            *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA + MPerLevel1Cluster]);
+        outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
+        outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
+
+#pragma unroll
+        for(index_t k = 1; k < K; ++k)
+        {
+            reg_a[0] = *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA + k * M]);
+            outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
+            reg_b[0] = *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB + k * N]);
+            outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
+            reg_b[1] = *reinterpret_cast<const Float4*>(
+                &p_b_block[mMyThreadOffsetB + k * N + NPerLevel1Cluster]);
+            reg_a[1] = *reinterpret_cast<const Float4*>(
+                &p_a_block[mMyThreadOffsetA + k * M + MPerLevel1Cluster]);
+            outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
+            outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
+        }
+        outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
+        outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
+    }
+#endif
+
     template <class BlockMatrixC, index_t BlockMatrixStrideC, class FloatC>
     __device__ void CopyThreadMatrixCToBlockMatrixC(const FloatC* __restrict__ p_c_thread,
                                                     FloatC* __restrict__ p_c_block) const

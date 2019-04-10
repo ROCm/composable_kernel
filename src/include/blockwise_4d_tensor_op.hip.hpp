@@ -646,6 +646,9 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
         constexpr index_t nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
+        constexpr auto clipboard_desc = make_ConstantTensorDescriptor(
+            Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
+
 #pragma unroll
         for(index_t iloop_d0 = 0; iloop_d0 < nloop_d0; ++iloop_d0)
         {
@@ -664,13 +667,10 @@ struct Blockwise4dTensorCopy3
                                                  iloop_d2 * thread_per_d2,
                                                  iloop_d3 * thread_per_d3 * DataPerRead);
 
-                        const index_t dst_offset =
-                            DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                                 iloop_d1 * thread_per_d1,
-                                                 iloop_d2 * thread_per_d2,
-                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+                        const index_t clipboard_offset = clipboard_desc.Get1dIndex(
+                            iloop_d0, iloop_d1, iloop_d2, iloop_d3 * DataPerRead);
 
-                        *(reinterpret_cast<vector_t*>(&p_clipboard[dst_offset])) =
+                        *(reinterpret_cast<vector_t*>(&p_clipboard[clipboard_offset])) =
                             *(reinterpret_cast<const vector_t*>(
                                 &p_src[src_offset + mSrcMyThreadOffset]));
                     }
@@ -713,6 +713,9 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
         constexpr index_t nloop_d3 = integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
+        constexpr auto clipboard_desc = make_ConstantTensorDescriptor(
+            Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
+
 #pragma unroll
         for(index_t iloop_d0 = 0; iloop_d0 < nloop_d0; ++iloop_d0)
         {
@@ -725,11 +728,8 @@ struct Blockwise4dTensorCopy3
 #pragma unroll
                     for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
                     {
-                        const index_t src_offset =
-                            SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                                 iloop_d1 * thread_per_d1,
-                                                 iloop_d2 * thread_per_d2,
-                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+                        const index_t clipboard_offset = clipboard_desc.Get1dIndex(
+                            iloop_d0, iloop_d1, iloop_d2, iloop_d3 * DataPerRead);
 
                         const index_t dst_offset =
                             DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
@@ -738,7 +738,7 @@ struct Blockwise4dTensorCopy3
                                                  iloop_d3 * thread_per_d3 * DataPerRead);
 
                         *(reinterpret_cast<vector_t*>(&p_dst[dst_offset + mDstMyThreadOffset])) =
-                            *(reinterpret_cast<const vector_t*>(&p_clipboard[src_offset]));
+                            *(reinterpret_cast<const vector_t*>(&p_clipboard[clipboard_offset]));
                     }
                 }
             }
