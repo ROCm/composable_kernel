@@ -125,7 +125,7 @@ gridwise_direct_convolution_2_nchw_kcyx_nkhw(const Float* const __restrict__ p_i
     constexpr index_t HThreadWork = (HoPerBlock + HoPerThread - 1) / HoPerThread;
     constexpr index_t WThreadWork = (WoPerBlock + WoPerThread - 1) / WoPerThread;
 
-    const index_t thread_id = threadIdx.x;
+    const index_t thread_id = get_thread_local_1d_id();
 
     itmp                           = thread_id;
     const index_t n_thread_work_id = itmp / (KThreadWork * HThreadWork * WThreadWork);

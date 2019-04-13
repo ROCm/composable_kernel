@@ -10,7 +10,7 @@ __device__ void threadwise_2d_tensor_pointwise_operation_unary(Desc, Float* __re
     constexpr auto desc = Desc{};
 
 #if 0
-    if(threadIdx.x == 0)
+    if(get_thread_local_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(desc, "threadwise_4d_tensor_op_unary: ");
     }
@@ -112,7 +112,7 @@ __device__ void threadwise_2d_tensor_shift_down(Desc, Float* __restrict__ p, IDi
     constexpr auto desc = Desc{};
 
 #if 0
-    if(threadIdx.x == 0)
+    if(get_thread_local_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(desc, "threadwise_4d_tensor_shift_down: ");
     }

@@ -14,7 +14,7 @@ blockwise_2d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
     constexpr auto desc = make_ConstantTensorDescriptor(dst_desc.GetLengths());
 
 #if 0
-    if(threadIdx.x == 0)
+    if(get_thread_local_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op_unary: dst_desc: ");
         print_ConstantTensorDescriptor(desc, "blockwise_4d_tensor_op_unary: desc: ");
@@ -25,7 +25,7 @@ blockwise_2d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
     for(index_t iloop = 0; iloop < NLoop; ++iloop)
     {
-        index_t is = threadIdx.x + iloop * BlockSize;
+        index_t is = get_thread_local_1d_id() + iloop * BlockSize;
 
         const index_t did0 = is / desc.GetStride(I0);
 
@@ -42,7 +42,7 @@ blockwise_2d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
     if(has_tail)
     {
-        index_t is = threadIdx.x + NLoop * BlockSize;
+        index_t is = get_thread_local_1d_id() + NLoop * BlockSize;
 
         if(is < desc.GetElementSize())
         {
@@ -59,7 +59,7 @@ blockwise_2d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
     }
 }
 
-// Function: p_dst[reorder[i0], reorder[i1], reorder[i2], reorder[i3]] = p_src[i0,i1,i2,i3]
+// Function: p_dst[reorder[i0], reorder[i1] = p_src[i0,i1]
 // TODO: in order to optimize mem access for different mem type,
 // need to write specialized version
 template <index_t BlockSize,
@@ -92,7 +92,7 @@ __device__ void blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
     for(index_t iloop = 0; iloop < NLoop; ++iloop)
     {
-        index_t is = threadIdx.x + iloop * BlockSize;
+        index_t is = get_thread_local_1d_id() + iloop * BlockSize;
 
         index_t did[2];
 
@@ -113,7 +113,7 @@ __device__ void blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
     if(has_tail)
     {
-        index_t is = threadIdx.x + NLoop * BlockSize;
+        index_t is = get_thread_local_1d_id() + NLoop * BlockSize;
 
         if(is < ref_desc.GetElementSize())
         {
@@ -162,15 +162,96 @@ blockwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
 }
 
-template <index_t BlockSize, class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
+template <index_t BlockSize,
+          class Float,
+          class SrcDesc,
+          class DstDesc,
+          class CopyLengths,
+          index_t DataPerRead>
 struct Blockwise2dTensorCopy1
 {
+    using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
+
+    __device__ constexpr Blockwise2dTensorCopy1()
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        static_assert(DataPerRead == 1 ||
+                          (SrcDesc{}.GetStride(I1) == 1 && DstDesc{}.GetStride(I1) == 1),
+                      "wrong! only support stride1 == 1 if DataPerRead > 1!\n");
+
+        static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
+                      "wrong! only support DataPerRead == 1, 2 or 4!\n");
+
+        static_assert(SrcDesc{}.GetStride(I0) % DataPerRead == 0 &&
+                          DstDesc{}.GetStride(I0) % DataPerRead == 0,
+                      "src and dst stride2 should be multiple of DataPerRead to keep alignment");
+
+        // we allow out-of-bound read from src in D1 dimension,
+        //   but we need to make sure dst stride0 is big enough,
+        //   so that the out-of-bound write won't contaminate next line in dst
+        constexpr index_t L1          = CopyLengths{}.Get(I1);
+        constexpr index_t read_per_d1 = integer_divide_ceil(L1, DataPerRead);
+
+        static_assert(read_per_d1 * DataPerRead <= DstDesc{}.GetStride(I0),
+                      "wrong! out-of-bound write will contaminate next line!\n");
+    }
+
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        constexpr auto dst_from_src_reorder = Sequence<0, 1>{};
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
 
-        blockwise_2d_tensor_copy_reorder_by_get_dst_from_src<BlockSize>(
-            SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
+        constexpr auto src_desc = SrcDesc{};
+        constexpr auto dst_desc = DstDesc{};
+
+        constexpr index_t L0 = CopyLengths{}.Get(I0);
+        constexpr index_t L1 = CopyLengths{}.Get(I1);
+
+        constexpr index_t read_per_d1 = integer_divide_ceil(L1, DataPerRead);
+
+        constexpr auto ref_desc =
+            make_ConstantTensorDescriptor(Sequence<L0, read_per_d1>{});
+
+        constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
+
+        auto f_copy = [&](index_t is) {
+            index_t did[4];
+
+            did[0] = is / ref_desc.GetStride(I0);
+
+            is -= did[0] * ref_desc.GetStride(I0);
+
+            did[1] = is / ref_desc.GetStride(I1);
+
+            const index_t src_index =
+                src_desc.Get1dIndex(did[0], did[1] * DataPerRead);
+            const index_t dst_index =
+                dst_desc.Get1dIndex(did[0], did[1] * DataPerRead);
+
+            *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
+                *(reinterpret_cast<const vector_t*>(p_src + src_index));
+        };
+
+        for(index_t iloop = 0; iloop < NLoop; ++iloop)
+        {
+            index_t is = get_thread_local_1d_id() + iloop * BlockSize;
+
+            f_copy(is);
+        }
+
+        constexpr bool has_tail = (ref_desc.GetElementSize() > NLoop * BlockSize);
+
+        if(has_tail)
+        {
+            index_t is = get_thread_local_1d_id() + NLoop * BlockSize;
+
+            if(is < ref_desc.GetElementSize())
+            {
+                f_copy(is);
+            }
+        }
     }
 };
 
