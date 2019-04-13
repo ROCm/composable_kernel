@@ -117,7 +117,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         // blockwise copy
         // input: format is [C, Hi, Wi, N]
         const auto blockwise_in_copy =
-#if 1
+#if 0
             Blockwise4dTensorCopy1<BlockSize,
                                    Float,
                                    decltype(in_c_h_w_n_global_desc),
