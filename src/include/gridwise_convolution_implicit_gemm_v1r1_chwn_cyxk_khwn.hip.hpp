@@ -36,7 +36,7 @@ template <index_t GridSize,
           index_t InBlockCopyDataPerRead,
           index_t WeiBlockCopyDataPerRead,
           index_t OutThreadCopyDataPerWrite>
-struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
+struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -100,7 +100,7 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         // tensor view of blockwise input and weight in LDS
         //   be careful of alignment
         constexpr index_t max_align =
-            mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
+            mod_conv::max(InBlockCopyDataPerRead, WeiBlockCopyDataPerRead, GemmDataPerReadA, GemmDataPerReadB);
 
         constexpr auto in_chwn_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{}, Number<max_align>{});
@@ -118,6 +118,14 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
         // blockwise copy
         // input: format is [C, Hi, Wi, N]
         const auto blockwise_in_copy =
+#if 1
+            Blockwise4dTensorCopy1<BlockSize,
+                                   Float,
+                                   decltype(in_chwn_global_desc),
+                                   decltype(in_chwn_block_desc),
+                                   decltype(in_chwn_block_desc.GetLengths()),
+                                   InBlockCopyDataPerRead>{};
+#else
             Blockwise4dTensorCopy3<BlockSize,
                                    Float,
                                    decltype(in_chwn_global_desc),
@@ -125,6 +133,8 @@ struct GridwiseConvolutionImplicitGemm_v1_chwn_cyxk_khwn
                                    decltype(in_chwn_block_desc.GetLengths()),
                                    InBlockCopyThreadPerDims,
                                    InBlockCopyDataPerRead>{};
+#endif
+
 
         // blockwise wei copy
         //   format is [CPerBlock*Y*X,KPerBlock]

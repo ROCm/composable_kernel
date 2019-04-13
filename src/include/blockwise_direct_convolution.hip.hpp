@@ -42,7 +42,7 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
     constexpr index_t XThreadWork = (out_block_desc.GetLength(I3) + WoPerThread - 1) / WoPerThread;
 
 #if 0
-    if(threadIdx.x == 0)
+    if(get_thread_local_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(in_block_desc);
         print_ConstantTensorDescriptor(wei_block_desc);
@@ -68,7 +68,7 @@ __device__ void blockwise_direct_convolution(InBlockDesc,
     constexpr auto out_thread_block_desc =
         make_ConstantTensorDescriptor(out_thread_desc.GetLengths(), out_block_desc.GetStrides());
 
-    const index_t thread_id = threadIdx.x;
+    const index_t thread_id = get_thread_local_1d_id();
 
     for(index_t thread_work_id = thread_id;
         thread_work_id < NThreadWork * KThreadWork * YThreadWork * XThreadWork;

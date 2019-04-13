@@ -15,7 +15,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
     constexpr auto desc = make_ConstantTensorDescriptor(dst_desc.GetLengths());
 
 #if 0
-    if(threadIdx.x == 0)
+    if(get_thread_local_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(dst_desc, "blockwise_4d_tensor_op_unary: dst_desc: ");
         print_ConstantTensorDescriptor(desc, "blockwise_4d_tensor_op_unary: desc: ");
@@ -26,7 +26,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
     for(index_t iloop = 0; iloop < NLoop; ++iloop)
     {
-        index_t is = threadIdx.x + iloop * BlockSize;
+        index_t is = get_thread_local_1d_id() + iloop * BlockSize;
 
         const index_t did0 = is / desc.GetStride(I0);
 
@@ -51,7 +51,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
     if(has_tail)
     {
-        index_t is = threadIdx.x + NLoop * BlockSize;
+        index_t is = get_thread_local_1d_id() + NLoop * BlockSize;
 
         if(is < desc.GetElementSize())
         {
@@ -113,7 +113,7 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
     for(index_t iloop = 0; iloop < NLoop; ++iloop)
     {
-        index_t is = threadIdx.x + iloop * BlockSize;
+        index_t is = get_thread_local_1d_id() + iloop * BlockSize;
 
         index_t did[4];
 
@@ -142,7 +142,7 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
     if(has_tail)
     {
-        index_t is = threadIdx.x + NLoop * BlockSize;
+        index_t is = get_thread_local_1d_id() + NLoop * BlockSize;
 
         if(is < ref_desc.GetElementSize())
         {
@@ -287,7 +287,7 @@ struct Blockwise4dTensorCopy1
 
         for(index_t iloop = 0; iloop < NLoop; ++iloop)
         {
-            index_t is = threadIdx.x + iloop * BlockSize;
+            index_t is = get_thread_local_1d_id() + iloop * BlockSize;
 
             f_copy(is);
         }
@@ -296,7 +296,7 @@ struct Blockwise4dTensorCopy1
 
         if(has_tail)
         {
-            index_t is = threadIdx.x + NLoop * BlockSize;
+            index_t is = get_thread_local_1d_id() + NLoop * BlockSize;
 
             if(is < ref_desc.GetElementSize())
             {
@@ -370,7 +370,7 @@ struct BlockwiseChwnTensorCopyPadded
 
         for(index_t iloop = 0; iloop < NLoop; ++iloop)
         {
-            index_t is = threadIdx.x + iloop * BlockSize;
+            index_t is = get_thread_local_1d_id() + iloop * BlockSize;
 
             index_t did[4];
 
@@ -401,7 +401,7 @@ struct BlockwiseChwnTensorCopyPadded
 
         if(has_tail)
         {
-            index_t is = threadIdx.x + NLoop * BlockSize;
+            index_t is = get_thread_local_1d_id() + NLoop * BlockSize;
 
             if(is < ref_desc.GetElementSize())
             {

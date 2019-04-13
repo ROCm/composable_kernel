@@ -176,6 +176,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                           MPerThread == 8 && NPerThread == 8,
                       "Run_asm cannot deal with this GEMM shape yet\n");
 
+        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_asm only do float4 read\n");
+
         using Float4 = vector_type<float, 4>::MemoryType;
 
         Float4* reg_a = (Float4*)(p_a_thread);

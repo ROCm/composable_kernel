@@ -35,6 +35,29 @@ struct GeneratorTensor_2
     }
 };
 
+struct GeneratorTensor_3
+{
+    int min_value = 0;
+    int max_value = 9;
+
+    template <class... Is>
+    double operator()(Is... is)
+    {
+        std::array<index_t, sizeof...(Is)> dims = {{static_cast<index_t>(is)...}};
+
+#if 0
+        auto f_acc = std::plus<index_t>{};
+#else
+        auto f_acc = [](auto a, auto b){ return 10*a + b;};
+#endif
+
+        return std::accumulate(dims.begin(),
+                               dims.end(),
+                               index_t(0),
+                               f_acc);
+    }
+};
+
 struct GeneratorTensor_Checkboard
 {
     template <class... Ts>
@@ -398,18 +421,7 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
 int main(int argc, char* argv[])
 {
-#if 0
-    constexpr index_t N  = 1;
-    constexpr index_t C  = 1;
-    constexpr index_t HI = 28;
-    constexpr index_t WI = 28;
-    constexpr index_t K  = 1;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
-
-    constexpr index_t HPad = 0;
-    constexpr index_t WPad = 0;
-#elif 1
+#if 1
     // 3x3, 34x34
     constexpr index_t N  = 64;
     constexpr index_t C  = 256;
@@ -656,13 +668,10 @@ int main(int argc, char* argv[])
 #if 0
         in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-#elif 0
-        in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #elif 1
         in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-#elif 0
+#elif 1
         in_nchw.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
 
         auto gen_wei = [](auto... is) {
@@ -681,7 +690,7 @@ int main(int argc, char* argv[])
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
 #elif 1
     device_implicit_gemm_convolution_1_chwn_cyxk_khwn
-#elif 1
+#elif 0
     device_implicit_gemm_convolution_2_chwn_cyxk_khwn
 #endif
     (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);

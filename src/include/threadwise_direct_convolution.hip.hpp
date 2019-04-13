@@ -20,7 +20,7 @@ __device__ void threadwise_direct_convolution_1(InDesc,
     constexpr auto out_desc = OutDesc{};
 
 #if 0
-    if(blockIdx.x == 0 && threadIdx.x == 0)
+    if(blockIdx.x == 0 && get_thread_local_1d_id() == 0)
     {
         print_ConstantTensorDescriptor(in_desc, "threadwise_direct_convolution: in_desc: ");
         print_ConstantTensorDescriptor(wei_desc, "threadwise_direct_convolution: wei_desc: ");
