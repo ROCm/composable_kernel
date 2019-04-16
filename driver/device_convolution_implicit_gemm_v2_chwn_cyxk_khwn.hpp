@@ -7,12 +7,12 @@
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_convolution_implicit_gemm_v2_chwn_cyxk_khwn(InDesc,
-                                                       const Tensor<T>& in_nchw,
-                                                       WeiDesc,
-                                                       const Tensor<T>& wei_kcyx,
-                                                       OutDesc,
-                                                       Tensor<T>& out_nkhw,
-                                                       index_t nrepeat)
+                                                        const Tensor<T>& in_nchw,
+                                                        WeiDesc,
+                                                        const Tensor<T>& wei_kcyx,
+                                                        OutDesc,
+                                                        Tensor<T>& out_nkhw,
+                                                        index_t nrepeat)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};

@@ -340,11 +340,10 @@ struct BlockwiseChwnTensorCopyPadded
         constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
         const Float* p_src_tmp =
-            p_src +
-            src_desc.Get1dIndex(c_block_data_begin,
-                                (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
-                                (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,
-                                n_block_data_begin);
+            p_src + src_desc.Get1dIndex(c_block_data_begin,
+                                        (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
+                                        (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,
+                                        n_block_data_begin);
 
 #if 0
         if(get_thread_local_1d_id() == 0)
@@ -494,7 +493,7 @@ struct Blockwise4dTensorCopy3
                       "wrrong! BlockSize is not big enough for ThreadPerDims!");
 
         constexpr index_t num_active_thread =
-            thread_per_d0 * thread_per_d1 * thread_per_d2 * thread_per_d3;
+            accumulate_on_sequence(ThreadPerDims{}, mod_conv::multiplies<index_t>{}, Number<1>{});
 
         if(BlockSize > num_active_thread)
         {
@@ -504,19 +503,18 @@ struct Blockwise4dTensorCopy3
             }
         }
 
-        const index_t thread_id_d0 =
-            get_thread_local_1d_id() / (thread_per_d1 * thread_per_d2 * thread_per_d3);
-        index_t itmp = get_thread_local_1d_id() -
-                       thread_id_d0 * (thread_per_d1 * thread_per_d2 * thread_per_d3);
-        const index_t thread_id_d1 = itmp / (thread_per_d2 * thread_per_d3);
-        itmp -= thread_id_d1 * (thread_per_d2 * thread_per_d3);
-        const index_t thread_id_d2 = itmp / thread_per_d3;
-        const index_t thread_id_d3 = itmp - thread_id_d2 * thread_per_d3;
+        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor(ThreadPerDims{});
+        const auto thread_multi_id = thread_cluster_desc.GetMultiIndex(get_thread_local_1d_id());
 
-        mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(
-            thread_id_d0, thread_id_d1, thread_id_d2, thread_id_d3 * DataPerRead);
-        mDstMyThreadOffset = DstDesc{}.Get1dIndex(
-            thread_id_d0, thread_id_d1, thread_id_d2, thread_id_d3 * DataPerRead);
+        mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(thread_multi_id[0],
+                                                  thread_multi_id[1],
+                                                  thread_multi_id[2],
+                                                  thread_multi_id[3] * DataPerRead);
+
+        mDstMyThreadOffset = DstDesc{}.Get1dIndex(thread_multi_id[0],
+                                                  thread_multi_id[1],
+                                                  thread_multi_id[2],
+                                                  thread_multi_id[3] * DataPerRead);
     }
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
@@ -745,3 +743,113 @@ struct Blockwise4dTensorCopy3
         }
     }
 };
+
+template <index_t BlockSize,
+          class Float,
+          class SrcDesc,
+          class DstDesc,
+          class SrcOpLengths,
+          class DstFromSrcReorder>
+struct Blockwise4dTensorCopyReorder1
+{
+    __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
+    {
+        auto f_copy = [](const Float& src, Float& dst) { dst = src; };
+
+        blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src<BlockSize>(
+            SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
+    }
+};
+
+#if 0
+template <index_t BlockSize,
+          class Float,
+          class SrcDesc,
+          class DstDesc,
+          class SrcLengths,
+          class SrcSubLengths,
+          class SrcThreadPerDims,
+          class DstFromSrcReorder,
+          index_t DataPerRead,
+          index_t DataPerWrite>
+struct Blockwise4dTensorCopyReorder3
+{
+    index_t mSrcMyThreadOffset;
+    index_t mDstMyThreadOffset;
+
+    __device__ Blockwise4dTensorCopyReorder3()
+    {
+        constexpr index_t nDim = SrcDesc{}.GetDimension();
+
+        static_assert(DstDesc{}.GetDimension() == nDim && SrcOpLengths::nDim == nDim &&
+                SrcOpThreadPerDims::nDim == nDim && DstFromSrcReorder::nDim == nDim,
+                "wrong! nDim is not consistent\n");
+
+        // Src
+        static_assert(DataPerRead == 1 || DataPerRead == 2 || DataPerRead == 4,
+                      "wrong! only support DataPerRead == 1, 2 or 4!\n");
+
+        static_assert(DataPerRead == 1 || SrcDesc{}.GetStride(Number<nDim-1>{}) == 1,
+                      "wrong! only support src.stride(nDim-1) == 1 if DataPerRead > 1!\n");
+
+        static_assert(
+            SrcDesc{}.GetStride(Number<nDim-2>{}) % DataPerRead == 0,
+            "wrong! src.stride(nDim-2) should be multiple of DataPerRead to keep alignment");
+
+        static_assert(SrcSubLengths{}.Get(Number<nDim-1>{}) % DataPerRead == 0, "wrong! SrcSubLengths[nDim-1] % DataPerRead != 0\n");
+
+        static_loop<nDim-1>([](auto I){
+            constexpr index_t src_len = SrcLengths{}.Get(I);
+            constexpr index_t src_sub_len = SrcSubLengths{}.Get(I);
+            constexpr index_t thread_per_dim = SrcThreadPerDims{}.Get(I);
+            static_assert(src_len % (src_sub_len * thread_per_dim) == 0,
+                    "wrong! cannot evenly divide tensor lengths");
+        });
+
+        constexpr index_t num_active_thread = accumulate_on_sequence(SrcOpThreadPerDims{}, mod_conv::multiplies<index_t>{}, Number<1>{});
+
+        static_assert(BlockSize >= num_active_thread,
+                      "wrong! BlockSize is not big enough for ThreadPerDims!");
+
+        if(BlockSize > num_active_thread)
+        {
+            if(get_thread_local_1d_id() >= num_active_thread)
+            {
+                return;
+            }
+        }
+
+        const auto thread_multi_id = SrcOpThreadPerDims::GetMultiIndex(get_thread_local_1d_id());
+
+
+        const index_t thread_id_d0 =
+            get_thread_local_1d_id() / (thread_per_d1 * thread_per_d2 * thread_per_d3);
+        index_t itmp = get_thread_local_1d_id() -
+                       thread_id_d0 * (thread_per_d1 * thread_per_d2 * thread_per_d3);
+        const index_t thread_id_d1 = itmp / (thread_per_d2 * thread_per_d3);
+        itmp -= thread_id_d1 * (thread_per_d2 * thread_per_d3);
+        const index_t thread_id_d2 = itmp / thread_per_d3;
+        const index_t thread_id_d3 = itmp - thread_id_d2 * thread_per_d3;
+
+
+        mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(
+            thread_id_d0, thread_id_d1, thread_id_d2, thread_id_d3 * DataPerRead);
+
+    }
+
+    __device__ static constexpr index_t GetRegisterClipboardSize()
+    {
+        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+    }
+
+    __device__ void RunLoadRegisterClipboard(const Float* __restrict__ p_src,
+                                             Float* __restrict__ p_clipboard) const
+    {
+    }
+
+    __device__ void RunStoreRegisterClipboard(const Float* __restrict__ p_clipboard,
+                                              Float* __restrict__ p_dst) const
+    {
+    }
+};
+#endif

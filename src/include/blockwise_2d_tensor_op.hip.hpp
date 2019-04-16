@@ -211,8 +211,7 @@ struct Blockwise2dTensorCopy1
 
         constexpr index_t read_per_d1 = integer_divide_ceil(L1, DataPerRead);
 
-        constexpr auto ref_desc =
-            make_ConstantTensorDescriptor(Sequence<L0, read_per_d1>{});
+        constexpr auto ref_desc = make_ConstantTensorDescriptor(Sequence<L0, read_per_d1>{});
 
         constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
@@ -225,10 +224,8 @@ struct Blockwise2dTensorCopy1
 
             did[1] = is / ref_desc.GetStride(I1);
 
-            const index_t src_index =
-                src_desc.Get1dIndex(did[0], did[1] * DataPerRead);
-            const index_t dst_index =
-                dst_desc.Get1dIndex(did[0], did[1] * DataPerRead);
+            const index_t src_index = src_desc.Get1dIndex(did[0], did[1] * DataPerRead);
+            const index_t dst_index = dst_desc.Get1dIndex(did[0], did[1] * DataPerRead);
 
             *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
                 *(reinterpret_cast<const vector_t*>(p_src + src_index));

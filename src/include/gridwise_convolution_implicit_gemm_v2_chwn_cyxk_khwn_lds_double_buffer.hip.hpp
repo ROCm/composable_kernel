@@ -365,14 +365,13 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 
             constexpr auto out_kb_global_desc = make_ConstantTensorDescriptor(Sequence<K, B>{});
 
-            threadwise_6d_tensor_copy(
-                out_6d_thread_desc,
-                p_out_thread,
-                out_6d_global_desc,
-                p_out_global +
-                    out_kb_global_desc.Get1dIndex(k_thread_data_begin, b_thread_data_begin),
-                out_6d_thread_desc.GetLengths(),
-                Number<OutThreadCopyDataPerWrite>{});
+            threadwise_6d_tensor_copy(out_6d_thread_desc,
+                                      p_out_thread,
+                                      out_6d_global_desc,
+                                      p_out_global + out_kb_global_desc.Get1dIndex(
+                                                         k_thread_data_begin, b_thread_data_begin),
+                                      out_6d_thread_desc.GetLengths(),
+                                      Number<OutThreadCopyDataPerWrite>{});
         }
         else
         {

@@ -14,5 +14,7 @@ struct Array
     {
     }
 
-    __host__ __device__ TData operator[](index_t i) const { return mData[i]; }
+    __host__ __device__ const TData& operator[](index_t i) const { return mData[i]; }
+
+    __host__ __device__ TData& operator[](index_t i) { return mData[i]; }
 };

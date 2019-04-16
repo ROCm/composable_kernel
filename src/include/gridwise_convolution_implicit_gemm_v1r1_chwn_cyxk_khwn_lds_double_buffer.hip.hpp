@@ -190,9 +190,8 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn_lds_double_buffer
         __shared__ Float p_wei_block_double[2 * wei_block_space];
 
         const Float* p_in_global_block_offset =
-            p_in_global +
-            in_chwn_global_desc.Get1dIndex(
-                0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
+            p_in_global + in_chwn_global_desc.Get1dIndex(
+                              0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
         const Float* p_wei_global_block_offset =
             p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
@@ -393,17 +392,16 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn_lds_double_buffer
         }
 #endif
 
-        threadwise_10d_tensor_copy(
-            out_10d_thread_desc,
-            p_out_thread,
-            out_10d_global_desc,
-            p_out_global +
-                out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                                ho_block_data_begin + ho_thread_data_begin,
-                                                wo_block_data_begin + wo_thread_data_begin,
-                                                n_block_data_begin + n_thread_data_begin),
-            out_10d_thread_desc.GetLengths(),
-            Number<OutThreadCopyDataPerWrite>{});
+        threadwise_10d_tensor_copy(out_10d_thread_desc,
+                                   p_out_thread,
+                                   out_10d_global_desc,
+                                   p_out_global + out_khwn_global_desc.Get1dIndex(
+                                                      k_block_data_begin + k_thread_data_begin,
+                                                      ho_block_data_begin + ho_thread_data_begin,
+                                                      wo_block_data_begin + wo_thread_data_begin,
+                                                      n_block_data_begin + n_thread_data_begin),
+                                   out_10d_thread_desc.GetLengths(),
+                                   Number<OutThreadCopyDataPerWrite>{});
 #endif
     }
 };
