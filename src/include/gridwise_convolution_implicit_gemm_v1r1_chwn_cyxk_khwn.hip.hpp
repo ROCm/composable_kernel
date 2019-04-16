@@ -99,8 +99,8 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 
         // tensor view of blockwise input and weight in LDS
         //   be careful of alignment
-        constexpr index_t max_align =
-            mod_conv::max(InBlockCopyDataPerRead, WeiBlockCopyDataPerRead, GemmDataPerReadA, GemmDataPerReadB);
+        constexpr index_t max_align = mod_conv::max(
+            InBlockCopyDataPerRead, WeiBlockCopyDataPerRead, GemmDataPerReadA, GemmDataPerReadB);
 
         constexpr auto in_chwn_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{}, Number<max_align>{});
@@ -135,16 +135,15 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
                                    InBlockCopyDataPerRead>{};
 #endif
 
-
-        // blockwise wei copy
-        //   format is [CPerBlock*Y*X,KPerBlock]
-        const auto blockwise_wei_copy =
-            Blockwise2dTensorCopy3<BlockSize,
-                                   Float,
-                                   decltype(wei_ek_global_desc),
-                                   decltype(wei_ek_block_desc),
-                                   decltype(wei_ek_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead>{};
+            // blockwise wei copy
+            //   format is [CPerBlock*Y*X,KPerBlock]
+            const auto blockwise_wei_copy =
+                Blockwise2dTensorCopy3<BlockSize,
+                                       Float,
+                                       decltype(wei_ek_global_desc),
+                                       decltype(wei_ek_block_desc),
+                                       decltype(wei_ek_block_desc.GetLengths()),
+                                       WeiBlockCopyDataPerRead>{};
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -202,9 +201,8 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
         threadwise_4d_tensor_set_zero(out_khwn_thread_desc, p_out_thread);
 
         const Float* p_in_global_block_offset =
-            p_in_global +
-            in_chwn_global_desc.Get1dIndex(
-                0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
+            p_in_global + in_chwn_global_desc.Get1dIndex(
+                              0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
 
         const Float* p_wei_global_block_offset =
             p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
@@ -323,17 +321,16 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
         }
 #endif
 
-        threadwise_10d_tensor_copy(
-            out_10d_thread_desc,
-            p_out_thread,
-            out_10d_global_desc,
-            p_out_global +
-                out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                                ho_block_data_begin + ho_thread_data_begin,
-                                                wo_block_data_begin + wo_thread_data_begin,
-                                                n_block_data_begin + n_thread_data_begin),
-            out_10d_thread_desc.GetLengths(),
-            Number<OutThreadCopyDataPerWrite>{});
+        threadwise_10d_tensor_copy(out_10d_thread_desc,
+                                   p_out_thread,
+                                   out_10d_global_desc,
+                                   p_out_global + out_khwn_global_desc.Get1dIndex(
+                                                      k_block_data_begin + k_thread_data_begin,
+                                                      ho_block_data_begin + ho_thread_data_begin,
+                                                      wo_block_data_begin + wo_thread_data_begin,
+                                                      n_block_data_begin + n_thread_data_begin),
+                                   out_10d_thread_desc.GetLengths(),
+                                   Number<OutThreadCopyDataPerWrite>{});
 #endif
     }
 };

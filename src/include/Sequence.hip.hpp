@@ -17,6 +17,8 @@ struct Sequence
         return mData[I];
     }
 
+    __host__ __device__ index_t operator[](index_t i) const { return mData[i]; }
+
     // this is ugly, only for nDIm = 4
     template <index_t I0, index_t I1, index_t I2, index_t I3>
     __host__ __device__ constexpr auto ReorderByGetNewFromOld(Sequence<I0, I1, I2, I3>) const
@@ -89,4 +91,22 @@ template <index_t... Is>
 __host__ __device__ constexpr auto Sequence<Is...>::PopBack() const
 {
     return sequence_pop_back(Type{});
+}
+
+template <class Seq>
+struct accumulate_on_sequence_f
+{
+    template <class IDim>
+    __host__ __device__ constexpr index_t operator()(IDim) const
+    {
+        return Seq{}.Get(IDim{});
+    }
+};
+
+template <class Seq, class Reduce, index_t I>
+__host__ __device__ constexpr index_t accumulate_on_sequence(Seq, Reduce, Number<I>)
+{
+    constexpr index_t a =
+        static_const_reduce_n<Seq::nDim>{}(accumulate_on_sequence_f<Seq>{}, Reduce{});
+    return Reduce{}(a, I);
 }
