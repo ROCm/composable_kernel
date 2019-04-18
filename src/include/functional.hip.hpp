@@ -70,18 +70,3 @@ __host__ __device__ constexpr auto unpacker(F f)
     return [=](auto xs_array){ f(xs...); };
 }
 #endif
-
-namespace mod_conv {
-template <class T>
-struct multiplies
-{
-    __host__ __device__ constexpr T operator()(T a, T b) const { return a * b; }
-};
-
-template <class T>
-struct plus
-{
-    __host__ __device__ constexpr T operator()(T a, T b) const { return a + b; }
-};
-
-} // namespace mod_conv

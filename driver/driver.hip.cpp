@@ -38,9 +38,6 @@ struct GeneratorTensor_2
 
 struct GeneratorTensor_3
 {
-    int min_value = 0;
-    int max_value = 9;
-
     template <class... Is>
     double operator()(Is... is)
     {
@@ -420,11 +417,10 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 int main(int argc, char* argv[])
 {
 #if 0
-    // 3x3, 34x34
-    constexpr index_t N  = 64;
-    constexpr index_t C  = 256;
-    constexpr index_t HI = 34;
-    constexpr index_t WI = 34;
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 8;
+    constexpr index_t HI = 28;
+    constexpr index_t WI = 28;
     constexpr index_t K  = 128;
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
@@ -432,14 +428,26 @@ int main(int argc, char* argv[])
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
 #elif 0
-    // 3x3, 56x56
+    // 3x3, 34x34
     constexpr index_t N = 64;
-    constexpr index_t C = 64;
-    constexpr index_t HI = 56;
-    constexpr index_t WI = 56;
+    constexpr index_t C = 256;
+    constexpr index_t HI = 34;
+    constexpr index_t WI = 34;
     constexpr index_t K = 128;
     constexpr index_t Y = 3;
     constexpr index_t X = 3;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 0
+    // 3x3, 56x56
+    constexpr index_t N  = 64;
+    constexpr index_t C  = 64;
+    constexpr index_t HI = 56;
+    constexpr index_t WI = 56;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 3;
+    constexpr index_t X  = 3;
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
@@ -642,6 +650,9 @@ int main(int argc, char* argv[])
 #if 0
         in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+#elif 0
+        in_nchw.GenerateTensorValue(GeneratorTensor_3{}, num_thread);
+        wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #elif 1
         in_nchw.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
@@ -664,7 +675,7 @@ int main(int argc, char* argv[])
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
 #elif 1
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v1_nchw_cyxk_khwn
 #elif 0
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn

@@ -67,7 +67,7 @@ template <index_t BlockSize,
           class SrcDesc,
           class DstDesc,
           class SrcOpLengths,
-          class DstFromSrcReorder,
+          class MapDst2Src,
           class F>
 __device__ void blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
     SrcDesc,
@@ -75,14 +75,14 @@ __device__ void blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_ds
     DstDesc,
     Float* __restrict__ p_dst,
     SrcOpLengths,
-    DstFromSrcReorder,
+    MapDst2Src,
     F f)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
-    constexpr index_t IR0 = DstFromSrcReorder{}.Get(I0);
-    constexpr index_t IR1 = DstFromSrcReorder{}.Get(I1);
+    constexpr index_t IR0 = MapDst2Src{}.Get(I0);
+    constexpr index_t IR1 = MapDst2Src{}.Get(I1);
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
@@ -147,19 +147,19 @@ template <index_t BlockSize,
           class SrcDesc,
           class DstDesc,
           class SrcOpLengths,
-          class DstFromSrcReorder>
+          class MapDst2Src>
 __device__ void
 blockwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
                                                      const Float* __restrict__ p_src,
                                                      DstDesc,
                                                      Float* __restrict__ p_dst,
                                                      SrcOpLengths,
-                                                     DstFromSrcReorder)
+                                                     MapDst2Src)
 {
     auto f_copy = [](const Float& src, Float& dst) { dst = src; };
 
     blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src<BlockSize>(
-        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
+        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, MapDst2Src{}, f_copy);
 }
 
 template <index_t BlockSize,
@@ -192,7 +192,7 @@ struct Blockwise2dTensorCopy1
         //   but we need to make sure dst stride0 is big enough,
         //   so that the out-of-bound write won't contaminate next line in dst
         constexpr index_t L1          = CopyLengths{}.Get(I1);
-        constexpr index_t read_per_d1 = integer_divide_ceil(L1, DataPerRead);
+        constexpr index_t read_per_d1 = mod_conv::integer_divide_ceil(L1, DataPerRead);
 
         static_assert(read_per_d1 * DataPerRead <= DstDesc{}.GetStride(I0),
                       "wrong! out-of-bound write will contaminate next line!\n");
@@ -209,7 +209,7 @@ struct Blockwise2dTensorCopy1
         constexpr index_t L0 = CopyLengths{}.Get(I0);
         constexpr index_t L1 = CopyLengths{}.Get(I1);
 
-        constexpr index_t read_per_d1 = integer_divide_ceil(L1, DataPerRead);
+        constexpr index_t read_per_d1 = mod_conv::integer_divide_ceil(L1, DataPerRead);
 
         constexpr auto ref_desc = make_ConstantTensorDescriptor(Sequence<L0, read_per_d1>{});
 

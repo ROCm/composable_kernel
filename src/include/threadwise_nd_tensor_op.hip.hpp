@@ -175,7 +175,7 @@ __device__ void threadwise_10d_tensor_copy(SrcDesc,
     using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     static_assert(SrcDesc{}.GetDimension() == 10 && DstDesc{}.GetDimension() == 10 &&
-                      SrcOpLengths::nDim == 10,
+                      SrcOpLengths::GetSize() == 10,
                   "wrong! should be 10 dimension");
 
     constexpr auto I0 = Number<0>{};

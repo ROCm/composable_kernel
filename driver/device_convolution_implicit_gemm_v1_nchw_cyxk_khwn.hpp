@@ -2,12 +2,10 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "gridwise_convolution_wrapper.hip.hpp"
-#include "gridwise_convolution_implicit_gemm_v1r1_chwn_cyxk_khwn.hip.hpp"
-#include "gridwise_convolution_implicit_gemm_v1r1_chwn_cyxk_khwn_lds_double_buffer.hip.hpp"
-#include "gridwise_convolution_implicit_gemm_v1r2_chwn_cyxk_khwn.hip.hpp"
+#include "gridwise_convolution_implicit_gemm_v1r2_nchw_cyxk_khwn.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
-void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
+void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
                                                         const Tensor<T>& in_nchw,
                                                         WeiDesc,
                                                         const Tensor<T>& wei_kcyx,
@@ -49,19 +47,6 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     make_ParallelTensorFunctor(f_reorder_kcyx2cyxk, K, C, Y, X)(
         std::thread::hardware_concurrency());
 
-    // reorder input
-    auto in_chwn_desc = make_ConstantTensorDescriptor(Sequence<C, Hi, Wi, N>{});
-    ostream_ConstantTensorDescriptor(in_chwn_desc, std::cout << "in_chwn_desc: ");
-
-    Tensor<T> in_chwn(make_TensorDescriptor(in_chwn_desc));
-
-    auto f_reorder_nchw2chwn = [&](auto n, auto c, auto hi, auto wi) {
-        in_chwn(c, hi, wi, n) = in_nchw(n, c, hi, wi);
-    };
-
-    make_ParallelTensorFunctor(f_reorder_nchw2chwn, N, C, Hi, Wi)(
-        std::thread::hardware_concurrency());
-
     // output
     auto out_khwn_desc = make_ConstantTensorDescriptor(Sequence<K, Ho, Wo, N>{});
     ostream_ConstantTensorDescriptor(out_khwn_desc, std::cout << "out_khwn_desc: ");
@@ -69,11 +54,11 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     Tensor<T> out_khwn(make_TensorDescriptor(out_khwn_desc));
 
     std::size_t data_sz = sizeof(T);
-    DeviceMem in_chwn_device_buf(data_sz * in_chwn.mDesc.GetElementSpace());
+    DeviceMem in_nchw_device_buf(data_sz * in_nchw.mDesc.GetElementSpace());
     DeviceMem wei_cyxk_device_buf(data_sz * wei_cyxk.mDesc.GetElementSpace());
     DeviceMem out_khwn_device_buf(data_sz * out_khwn.mDesc.GetElementSpace());
 
-    in_chwn_device_buf.ToDevice(in_chwn.mData.data());
+    in_nchw_device_buf.ToDevice(in_nchw.mData.data());
     wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
@@ -243,7 +228,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     constexpr index_t OutThreadCopyDataPerWrite = 4;
 
     constexpr index_t BlockSize = 128;
-#elif 1
+#elif 0
     // for 3x3, 28x28, v1r1, Pacal
     constexpr index_t NPerBlock  = 32;
     constexpr index_t KPerBlock  = 64;
@@ -290,11 +275,11 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     constexpr index_t HoPerThread = 1;
     constexpr index_t WoPerThread = 2;
 
-    constexpr index_t InBlockCopy_ThreadPerDimC = 4;
-    constexpr index_t InBlockCopy_ThreadPerDimH = 2;
-    constexpr index_t InBlockCopy_ThreadPerDimW = 4;
     constexpr index_t InBlockCopy_ThreadPerDimN = 4;
-    constexpr index_t InBlockCopyDataPerRead    = 4;
+    constexpr index_t InBlockCopy_ThreadPerDimC = 8;
+    constexpr index_t InBlockCopy_ThreadPerDimH = 2;
+    constexpr index_t InBlockCopy_ThreadPerDimW = 2;
+    constexpr index_t InBlockCopyDataPerRead    = 2;
 
     constexpr index_t WeiBlockCopyDataPerRead = 4;
 
@@ -387,16 +372,12 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     {
         constexpr auto gridwise_conv =
 #if 1
-            GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
-#elif 0
-            GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn_lds_double_buffer
-#elif 1
-            GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
+            GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
 #endif
             <GridSize,
              BlockSize,
              T,
-             decltype(in_chwn_desc),
+             decltype(in_nchw_desc),
              decltype(wei_cyxk_desc),
              decltype(out_khwn_desc),
              NPerBlock,
@@ -417,10 +398,10 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
              GemmKPerThreadLoop,
              GemmDataPerReadA,
              GemmDataPerReadB,
-             Sequence<InBlockCopy_ThreadPerDimC,
+             Sequence<InBlockCopy_ThreadPerDimN,
+                      InBlockCopy_ThreadPerDimC,
                       InBlockCopy_ThreadPerDimH,
-                      InBlockCopy_ThreadPerDimW,
-                      InBlockCopy_ThreadPerDimN>,
+                      InBlockCopy_ThreadPerDimW>,
              InBlockCopyDataPerRead,
              WeiBlockCopyDataPerRead,
              OutThreadCopyDataPerWrite>{};
@@ -429,7 +410,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
                                    dim3(GridSize),
                                    dim3(BlockSize),
                                    0,
-                                   static_cast<T*>(in_chwn_device_buf.GetDeviceBuffer()),
+                                   static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(wei_cyxk_device_buf.GetDeviceBuffer()),
                                    static_cast<T*>(out_khwn_device_buf.GetDeviceBuffer()));
 
