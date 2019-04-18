@@ -25,12 +25,38 @@ struct is_same<T, T>
     static const bool value = true;
 };
 
-__host__ __device__ constexpr index_t integer_divide_ceil(index_t a, index_t b)
+namespace mod_conv { // namespace mod_conv
+template <class T>
+struct multiplies
 {
+    __host__ __device__ constexpr T operator()(T a, T b) const { return a * b; }
+};
+
+template <class T>
+struct plus
+{
+    __host__ __device__ constexpr T operator()(T a, T b) const { return a + b; }
+};
+
+template <class T>
+struct integer_divide_ceiler
+{
+    __host__ __device__ constexpr T operator()(T a, T b) const
+    {
+        static_assert(is_same<T, index_t>::value || is_same<T, int>::value, "wrong type");
+
+        return (a + b - 1) / b;
+    }
+};
+
+template <class T>
+__host__ __device__ constexpr T integer_divide_ceil(T a, T b)
+{
+    static_assert(is_same<T, index_t>::value || is_same<T, int>::value, "wrong type");
+
     return (a + b - 1) / b;
 }
 
-namespace mod_conv { // namespace mod_conv
 template <class T>
 __host__ __device__ constexpr T max(T x, T y)
 {

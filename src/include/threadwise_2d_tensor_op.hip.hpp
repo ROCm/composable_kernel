@@ -29,26 +29,21 @@ __device__ void threadwise_2d_tensor_pointwise_operation_unary(Desc, Float* __re
 
 // TODO: in order to optimize mem access for different mem type,
 // need to write specialized version
-template <class Float,
-          class SrcDesc,
-          class DstDesc,
-          class SrcOpLengths,
-          class DstFromSrcReorder,
-          class F>
+template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, class MapDst2Src, class F>
 __device__ void threadwise_2d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
     SrcDesc,
     Float* const __restrict__ p_src,
     DstDesc,
     Float* __restrict__ p_dst,
     SrcOpLengths,
-    DstFromSrcReorder,
+    MapDst2Src,
     F f)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
-    constexpr index_t IR0 = DstFromSrcReorder{}.Get(I0);
-    constexpr index_t IR1 = DstFromSrcReorder{}.Get(I1);
+    constexpr index_t IR0 = MapDst2Src{}.Get(I0);
+    constexpr index_t IR1 = MapDst2Src{}.Get(I1);
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
@@ -78,19 +73,19 @@ __device__ void threadwise_2d_tensor_set_zero(Desc, Float* __restrict__ p)
         Desc{}, p, f_set_zero);
 }
 
-template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, class DstFromSrcReorder>
+template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, class MapDst2Src>
 __device__ void
 threadwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
                                                       Float* const __restrict__ p_src,
                                                       DstDesc,
                                                       Float* __restrict__ p_dst,
                                                       SrcOpLengths,
-                                                      DstFromSrcReorder)
+                                                      MapDst2Src)
 {
     auto f_copy = [](const Float& src, Float& dst) { dst = src; };
 
     threadwise_2d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
-        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, DstFromSrcReorder{}, f_copy);
+        SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, MapDst2Src{}, f_copy);
 }
 
 template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
