@@ -117,15 +117,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
         // blockwise copy
         // input: format is [C, Hi, Wi, N]
-#if 0
-        const auto blockwise_in_copy =
-            Blockwise4dTensorCopy1<BlockSize,
-                                   Float,
-                                   decltype(in_c_h_w_n_global_desc),
-                                   decltype(in_c_h_w_n_block_desc),
-                                   decltype(in_c_h_w_n_block_desc.GetLengths()),
-                                   InBlockCopyDataPerRead_N>{};
-#else
         const auto blockwise_in_copy =
             Blockwise4dTensorCopy3<BlockSize,
                                    Float,
@@ -134,12 +125,11 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                                    decltype(in_c_h_w_n_block_desc.GetLengths()),
                                    InBlockCopyClusterLengths_CHWN,
                                    InBlockCopyDataPerRead_N>{};
-#endif
 
         // blockwise wei copy
         //   format is [CPerBlock, X * KPerBlock]
         const auto blockwise_wei_copy =
-            Blockwise2dTensorCopy1<BlockSize,
+            Blockwise2dTensorCopy3<BlockSize,
                                    Float,
                                    decltype(wei_c_k_global_desc),
                                    decltype(wei_c_k_block_desc),
