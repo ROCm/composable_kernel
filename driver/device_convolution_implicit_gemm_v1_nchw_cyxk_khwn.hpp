@@ -87,13 +87,13 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     constexpr index_t GemmDataPerReadA   = 4;
     constexpr index_t GemmDataPerReadB   = 4;
 
-    using InBlockReorderSrcSubLengths_NCHW          = Sequence<4, 1, 1, 2>;
-    using InBlockReorderSrcClusterLengths_NCHW      = Sequence<4, 8, 2, 2>;
-    using InBlockReorderMapThreadCluster2SrcCluster = Sequence<1, 2, 3, 0>;
-    constexpr index_t InBlockReorderDataPerRead_W   = 2;
-    constexpr index_t InBlockReorderDataPerWrite_N  = 4;
+    using InBlockReorderSrcSubLengths_NCHW                    = Sequence<4, 1, 1, 2>;
+    using InBlockReorderSrcClusterLengths_NCHW                = Sequence<4, 8, 2, 2>;
+    using InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW = Sequence<1, 2, 0, 3>;
+    constexpr index_t InBlockReorderDataPerRead_W             = 2;
+    constexpr index_t InBlockReorderDataPerWrite_N            = 4;
 
-    using WeiBlockCopyClusterLengths            = Sequence<4, 1, 32>;
+    using WeiBlockCopyClusterLengths_CXK        = Sequence<4, 1, 32>;
     constexpr index_t WeiBlockCopyDataPerRead_C = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_N = 2;
@@ -137,10 +137,10 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
              GemmDataPerReadB,
              InBlockReorderSrcSubLengths_NCHW,
              InBlockReorderSrcClusterLengths_NCHW,
-             InBlockReorderMapThreadCluster2SrcCluster,
+             InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
              InBlockReorderDataPerRead_W,
              InBlockReorderDataPerWrite_N,
-             WeiBlockCopyClusterLengths,
+             WeiBlockCopyClusterLengths_CXK,
              WeiBlockCopyDataPerRead_C,
              OutThreadCopyDataPerWrite_N>{};
 
