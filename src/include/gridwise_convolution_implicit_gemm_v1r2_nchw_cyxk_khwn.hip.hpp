@@ -35,10 +35,10 @@ template <index_t GridSize,
           index_t GemmDataPerReadB,
           class InBlockReorderSrcSubLengths_NCHW,
           class InBlockReorderSrcClusterLengths_NCHW,
-          class InBlockReorderMapThreadCluster2SrcCluster,
+          class InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
           index_t InBlockReorderDataPerRead_W,
           index_t InBlockReorderDataPerWrite_N,
-          class WeiBlockCopyClusterLengths_KXC,
+          class WeiBlockCopyClusterLengths_CXK,
           index_t WeiBlockCopyDataPerRead_C,
           index_t OutThreadCopyDataPerWrite_N>
 struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
@@ -122,7 +122,8 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
 
         // blockwise copy
         // input: format is [N, C, Hi, Wi] to [C, Hi, Wi, N]
-        auto map_chwn2nchw = Sequence<1, 2, 3, 0>{};
+        constexpr auto map_chwn2nchw = Sequence<1, 2, 3, 0>{};
+
         const auto blockwise_in_copy_reorder =
             Blockwise4dTensorCopyReorder3<BlockSize,
                                           Float,
@@ -132,7 +133,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
                                           InBlockReorderSrcSubLengths_NCHW,
                                           InBlockReorderSrcClusterLengths_NCHW,
                                           decltype(map_chwn2nchw),
-                                          InBlockReorderMapThreadCluster2SrcCluster,
+                                          InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
                                           InBlockReorderDataPerRead_W,
                                           InBlockReorderDataPerWrite_N>{};
 
@@ -144,7 +145,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
                                    decltype(wei_c_x_k_global_desc),
                                    decltype(wei_c_x_k_block_desc),
                                    decltype(wei_c_x_k_block_desc.GetLengths()),
-                                   Sequence<4, 1, 32>,
+                                   WeiBlockCopyClusterLengths_CXK,
                                    WeiBlockCopyDataPerRead_C>{};
 
         // a series of blockwise batched GEMM

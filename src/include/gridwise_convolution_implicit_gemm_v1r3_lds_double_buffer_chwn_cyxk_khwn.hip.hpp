@@ -3,7 +3,6 @@
 #include "ConstantTensorDescriptor.hip.hpp"
 #include "ConstantMatrixDescriptor.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
-#include "blockwise_3d_tensor_op.hip.hpp"
 #include "blockwise_4d_tensor_op.hip.hpp"
 #include "threadwise_nd_tensor_op.hip.hpp"
 #include "threadwise_4d_tensor_op.hip.hpp"
@@ -33,11 +32,11 @@ template <index_t GridSize,
           index_t GemmKPerThreadLoop,
           index_t GemmDataPerReadA,
           index_t GemmDataPerReadB,
-          class InBlockCopyThreadPerDims,
-          index_t InBlockCopyDataPerRead,
-          index_t WeiBlockCopyDataPerRead,
-          index_t OutThreadCopyDataPerWrite>
-struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
+          class InBlockCopyClusterLengths_CHWN,
+          index_t InBlockCopyDataPerRead_N,
+          index_t WeiBlockCopyDataPerRead_K,
+          index_t OutThreadCopyDataPerWrite_N>
+struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -96,19 +95,21 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         const index_t wi_block_data_begin = wo_block_data_begin;
 
         // global tensor view
-        constexpr auto wei_c_x_k_global_desc =
-            make_ConstantTensorDescriptor(Sequence<C, X, K>{}, Sequence<Y * X * K, K, 1>{});
+        constexpr auto wei_c_k_global_desc =
+            make_ConstantTensorDescriptor(Sequence<C, K>{}, Sequence<Y * X * K, 1>{});
 
         // LDS tensor view
         //   be careful of alignment
-        constexpr index_t max_align = mod_conv::max(
-            InBlockCopyDataPerRead, WeiBlockCopyDataPerRead, GemmDataPerReadA, GemmDataPerReadB);
+        constexpr index_t max_align = mod_conv::max(InBlockCopyDataPerRead_N,
+                                                    WeiBlockCopyDataPerRead_K,
+                                                    GemmDataPerReadA,
+                                                    GemmDataPerReadB);
 
         constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, HoPerBlock, WiPerBlock, NPerBlock>{}, Number<max_align>{});
+            Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{}, Number<max_align>{});
 
-        constexpr auto wei_c_x_k_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, X, KPerBlock>{}, Number<max_align>{});
+        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
+            Sequence<CPerBlock, KPerBlock>{}, Number<max_align>{});
 
         // tensor view of threadwise output in register
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor(
@@ -123,7 +124,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
                                    decltype(in_c_h_w_n_global_desc),
                                    decltype(in_c_h_w_n_block_desc),
                                    decltype(in_c_h_w_n_block_desc.GetLengths()),
-                                   InBlockCopyDataPerRead>{};
+                                   InBlockCopyDataPerRead_N>{};
 #else
         const auto blockwise_in_copy =
             Blockwise4dTensorCopy3<BlockSize,
@@ -131,19 +132,19 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
                                    decltype(in_c_h_w_n_global_desc),
                                    decltype(in_c_h_w_n_block_desc),
                                    decltype(in_c_h_w_n_block_desc.GetLengths()),
-                                   InBlockCopyThreadPerDims,
-                                   InBlockCopyDataPerRead>{};
+                                   InBlockCopyClusterLengths_CHWN,
+                                   InBlockCopyDataPerRead_N>{};
 #endif
 
         // blockwise wei copy
         //   format is [CPerBlock, X * KPerBlock]
         const auto blockwise_wei_copy =
-            Blockwise3dTensorCopy1<BlockSize,
+            Blockwise2dTensorCopy1<BlockSize,
                                    Float,
-                                   decltype(wei_c_x_k_global_desc),
-                                   decltype(wei_c_x_k_block_desc),
-                                   decltype(wei_c_x_k_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead>{};
+                                   decltype(wei_c_k_global_desc),
+                                   decltype(wei_c_k_block_desc),
+                                   decltype(wei_c_k_block_desc.GetLengths()),
+                                   WeiBlockCopyDataPerRead_K>{};
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -152,7 +153,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
         //   C_matrix[K,Wo*N] is a sub-matrix of out_block[K,Ho,Wo,N]
         constexpr auto a_c_k_block_mtx_desc = make_ConstantMatrixDescriptor(
-            Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_c_x_k_block_desc.GetStride(I0)>{});
+            Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_c_k_block_desc.GetStride(I0)>{});
 
         constexpr auto b_c_wn_block_mtx_desc =
             make_ConstantMatrixDescriptor(Number<CPerBlock>{},
@@ -188,8 +189,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         // LDS: be careful of alignment
         constexpr index_t in_block_space =
             in_c_h_w_n_block_desc.GetElementSpace(Number<max_align>{});
-        constexpr index_t wei_block_space =
-            wei_c_x_k_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t wei_block_space = wei_c_k_block_desc.GetElementSpace(Number<max_align>{});
 
         __shared__ Float p_in_block[in_block_space];
         __shared__ Float p_wei_block[wei_block_space];
@@ -213,78 +213,37 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
         // set threadwise output tensor to 0
         threadwise_4d_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
 
-#if 1
-        const Float* p_in_global_block_offset =
-            p_in_global + in_c_h_w_n_global_desc.Get1dIndex(
-                              0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin);
-
-        const Float* p_wei_global_block_offset =
-            p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
-
-        for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
-                    p_in_global_block_offset += CPerBlock * in_c_h_w_n_global_desc.GetStride(I0),
-                    p_wei_global_block_offset += CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
-        {
-            for(index_t y = 0; y < Y; ++y)
-            {
-                blockwise_in_copy.Run(p_in_global_block_offset +
-                                          in_c_h_w_n_global_desc.Get1dIndex(0, y, 0, 0),
-                                      p_in_block);
-
-                blockwise_wei_copy.Run(p_wei_global_block_offset +
-                                           wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, 0),
-                                       p_wei_block);
-
-                __syncthreads();
-
-                for(index_t x = 0; x < X; ++x)
-                {
-                    blockwise_batch_gemm.Run(p_wei_block + wei_c_x_k_block_desc.Get1dIndex(0, x, 0),
-                                             p_in_block +
-                                                 in_c_h_w_n_block_desc.Get1dIndex(0, 0, x, 0),
-                                             p_out_thread);
-                }
-
-                __syncthreads();
-            }
-        }
-#else
-        // this use much more register, haven't figure out why?
         for(index_t y = 0; y < Y; ++y)
         {
-            const Float* p_in_global_block_offset =
-                p_in_global +
-                in_c_h_w_n_global_desc.Get1dIndex(
-                    0, hi_block_data_begin + y, wi_block_data_begin, n_block_data_begin);
-
-            const Float* p_wei_global_block_offset =
-                p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, k_block_data_begin);
-
-            for(index_t c_block_data_begin = 0; c_block_data_begin < C;
-                c_block_data_begin += CPerBlock,
-                        p_in_global_block_offset +=
-                        CPerBlock * in_c_h_w_n_global_desc.GetStride(I0),
-                        p_wei_global_block_offset +=
-                        CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
+            for(index_t x = 0; x < X; ++x)
             {
-                blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
+                const Float* p_in_global_block_offset =
+                    p_in_global +
+                    in_c_h_w_n_global_desc.Get1dIndex(
+                        0, hi_block_data_begin + y, wi_block_data_begin + x, n_block_data_begin);
 
-                blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+                const Float* p_wei_global_block_offset =
+                    p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, y, x, k_block_data_begin);
 
-                __syncthreads();
-
-                for(index_t x = 0; x < X; ++x)
+                for(index_t c_block_data_begin = 0; c_block_data_begin < C;
+                    c_block_data_begin += CPerBlock,
+                            p_in_global_block_offset +=
+                            CPerBlock * in_c_h_w_n_global_desc.GetStride(I0),
+                            p_wei_global_block_offset +=
+                            CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
                 {
-                    blockwise_batch_gemm.Run(p_wei_block + wei_c_x_k_block_desc.Get1dIndex(0, x, 0),
-                                             p_in_block +
-                                                 in_c_h_w_n_block_desc.Get1dIndex(0, 0, x, 0),
-                                             p_out_thread);
-                }
+                    blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
 
-                __syncthreads();
+                    blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
+
+                    __syncthreads();
+
+                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+
+                    __syncthreads();
+                }
             }
         }
-#endif
 
         // output: register to global mem,
         const auto c_thread_mtx_begin =
@@ -333,6 +292,6 @@ struct GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
                                                       wo_block_data_begin + wo_thread_data_begin,
                                                       n_block_data_begin + n_thread_data_begin),
                                    out_10d_thread_desc.GetLengths(),
-                                   Number<OutThreadCopyDataPerWrite>{});
+                                   Number<OutThreadCopyDataPerWrite_N>{});
     }
 };

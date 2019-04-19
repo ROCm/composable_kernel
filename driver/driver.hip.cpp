@@ -451,60 +451,6 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
-    // 3x3, 58x58
-    constexpr index_t N  = 64;
-    constexpr index_t C  = 64;
-    constexpr index_t HI = 58;
-    constexpr index_t WI = 58;
-    constexpr index_t K  = 64;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
-#elif 0
-    // 3x3, 58x58
-    constexpr index_t N  = 16;
-    constexpr index_t C  = 128;
-    constexpr index_t HI = 58;
-    constexpr index_t WI = 58;
-    constexpr index_t K  = 256;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
-#elif 0
-    // 3x3 filter, 58x58 image, 0x0 padding
-    constexpr index_t N  = 16;
-    constexpr index_t C  = 128;
-    constexpr index_t HI = 58;
-    constexpr index_t WI = 58;
-    constexpr index_t K  = 256;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
-
-    constexpr index_t HPad = 0;
-    constexpr index_t WPad = 0;
-#elif 0
-    // 3x3 filter, 56x56 image, 1x1 padding
-    constexpr index_t N  = 16;
-    constexpr index_t C  = 128;
-    constexpr index_t HI = 56;
-    constexpr index_t WI = 56;
-    constexpr index_t K  = 256;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
-
-    constexpr index_t HPad = 1;
-    constexpr index_t WPad = 1;
-#elif 0
-    // 3x3 filter, 28x28 image, 1x1 padding
-    constexpr index_t N  = 16;
-    constexpr index_t C  = 256;
-    constexpr index_t HI = 28;
-    constexpr index_t WI = 28;
-    constexpr index_t K  = 512;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
-
-    constexpr index_t HPad = 1;
-    constexpr index_t WPad = 1;
 #elif 1
     // 3x3 filter, 28x28 image
     constexpr index_t N  = 128;
@@ -578,31 +524,19 @@ int main(int argc, char* argv[])
     constexpr index_t HPad = 2;
     constexpr index_t WPad = 2;
 #elif 0
-    // 1x1 filter, 32x32 image
-    constexpr index_t N  = 64;
-    constexpr index_t C  = 256;
-    constexpr index_t HI = 32;
-    constexpr index_t WI = 32;
-    constexpr index_t K  = 512;
-    constexpr index_t Y  = 1;
-    constexpr index_t X  = 1;
-
-    constexpr index_t HPad = 0;
-    constexpr index_t WPad = 0;
-#elif 1
-    // 1x1 filter, 14x14 image, C = 2048
+    // 3x3 filter, 14x14 image
     constexpr index_t N  = 128;
-    constexpr index_t C  = 2048;
+    constexpr index_t C  = 256;
     constexpr index_t HI = 14;
     constexpr index_t WI = 14;
-    constexpr index_t K  = 512;
-    constexpr index_t Y  = 1;
-    constexpr index_t X  = 1;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 3;
+    constexpr index_t X  = 3;
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
-    // 1x1 filter, 14x14 image, C = 512
+#elif 0
+    // 1x1 filter, 14x14 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
     constexpr index_t HI = 14;
@@ -673,9 +607,9 @@ int main(int argc, char* argv[])
     device_direct_convolution_2_nchw_kcyx_nkhw
 #elif 0
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
-#elif 0
-    device_convolution_implicit_gemm_v1_chwn_cyxk_khwn
 #elif 1
+    device_convolution_implicit_gemm_v1_chwn_cyxk_khwn
+#elif 0
     device_convolution_implicit_gemm_v1_nchw_cyxk_khwn
 #elif 0
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn
