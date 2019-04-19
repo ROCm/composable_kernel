@@ -231,7 +231,7 @@ struct Blockwise3dTensorCopy3
         }
     }
 
-    __device__ constexpr index_t GetRegisterClipboardSize() const
+    __device__ static constexpr index_t GetRegisterClipboardSize()
     {
         static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
 

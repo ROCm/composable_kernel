@@ -673,7 +673,7 @@ int main(int argc, char* argv[])
     device_direct_convolution_2_nchw_kcyx_nkhw
 #elif 0
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn
 #elif 1
     device_convolution_implicit_gemm_v1_nchw_cyxk_khwn

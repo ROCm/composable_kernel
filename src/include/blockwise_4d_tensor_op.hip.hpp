@@ -761,7 +761,6 @@ struct Blockwise4dTensorCopyReorder1
     }
 };
 
-#if 1
 template <index_t BlockSize,
           class Float,
           class SrcDesc,
@@ -1070,36 +1069,17 @@ struct Blockwise4dTensorCopyReorder3
                         }
 #endif
 
-#if 1
-                        threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(
+                        threadwise_4d_tensor_copy_reorder_given_dst2src_v2(
                             thread_tensor_desc,
                             p_clipboard + clipboard_offset,
                             DstDesc{},
                             p_dst + dst_offset + mDstMyThreadOffset,
                             thread_sub_tensor_lengths,
                             MapDst2Src{});
-#endif
                     }
                 }
             }
         }
-
-#if 0
-        if(get_block_1d_id() == 0)
-        {
-            printf("tid %5u, "
-                   "data: %f %f %f %f %f %f %f %f\n",
-                   get_thread_local_1d_id(),
-                   p_clipboard[0],
-                   p_clipboard[1],
-                   p_clipboard[2],
-                   p_clipboard[3],
-                   p_clipboard[4],
-                   p_clipboard[5],
-                   p_clipboard[6],
-                   p_clipboard[7]);
-        }
-#endif
     }
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
@@ -1110,4 +1090,3 @@ struct Blockwise4dTensorCopyReorder3
         RunStoreRegisterClipboard(p_clipboard, p_dst);
     }
 };
-#endif

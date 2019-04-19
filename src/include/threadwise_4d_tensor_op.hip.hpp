@@ -44,7 +44,7 @@ template <class SrcData,
           class SrcOpLengths,
           class MapDst2Src,
           class F>
-__device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
+__device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_given_dst2src(
     SrcDesc,
     const SrcData* __restrict__ p_src,
     DstDesc,
@@ -82,9 +82,9 @@ __device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_d
                     const index_t bindex =
                         dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
-#if 1
                     f(p_src[aindex], p_dst[bindex]);
-#else
+
+#if 0
                     if(get_block_1d_id() == 0)
                     {
                         printf("tid %5u, "
@@ -126,17 +126,16 @@ template <class SrcData,
           class DstDesc,
           class SrcOpLengths,
           class MapDst2Src>
-__device__ void
-threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
-                                                      const SrcData* __restrict__ p_src,
-                                                      DstDesc,
-                                                      DstData* __restrict__ p_dst,
-                                                      SrcOpLengths,
-                                                      MapDst2Src)
+__device__ void threadwise_4d_tensor_copy_reorder_given_dst2src(SrcDesc,
+                                                                const SrcData* __restrict__ p_src,
+                                                                DstDesc,
+                                                                DstData* __restrict__ p_dst,
+                                                                SrcOpLengths,
+                                                                MapDst2Src)
 {
     auto f_copy = [](const SrcData& src, DstData& dst) { dst = static_cast<DstData>(src); };
 
-    threadwise_4d_tensor_pointwise_operation_binary_reorder_by_get_dst_from_src(
+    threadwise_4d_tensor_pointwise_operation_binary_reorder_given_dst2src(
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, MapDst2Src{}, f_copy);
 }
 
@@ -146,7 +145,7 @@ __device__ void threadwise_4d_tensor_copy(
 {
     auto dst_from_src_reorder = Sequence<0, 1, 2, 3>{};
 
-    threadwise_4d_tensor_copy_reorder_by_get_dst_from_src(
+    threadwise_4d_tensor_copy_reorder_given_dst2src(
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
 }
 
@@ -206,6 +205,61 @@ __device__ void threadwise_4d_tensor_copy_v2(SrcDesc,
 
                     *(reinterpret_cast<vector_t*>(&p_dst[dst_index])) =
                         *(reinterpret_cast<const vector_t*>(&p_src[src_index]));
+                }
+            }
+        }
+    }
+}
+
+template <class SrcData,
+          class DstData,
+          class SrcDesc,
+          class DstDesc,
+          class SrcOpLengths,
+          class MapDst2Src>
+__device__ void
+threadwise_4d_tensor_copy_reorder_given_dst2src_v2(SrcDesc,
+                                                   const SrcData* __restrict__ p_src,
+                                                   DstDesc,
+                                                   DstData* __restrict__ p_dst,
+                                                   SrcOpLengths,
+                                                   MapDst2Src)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+
+    constexpr index_t IR0 = MapDst2Src{}.Get(I0);
+    constexpr index_t IR1 = MapDst2Src{}.Get(I1);
+    constexpr index_t IR2 = MapDst2Src{}.Get(I2);
+    constexpr index_t IR3 = MapDst2Src{}.Get(I3);
+
+    constexpr auto src_desc = SrcDesc{};
+    constexpr auto dst_desc = DstDesc{};
+
+    // ref_desc has dst_desc's ordering
+    constexpr auto ref_desc =
+        make_ConstantTensorDescriptor(SrcOpLengths{}.ReorderGivenNew2Old(MapDst2Src{}));
+
+    for(index_t did0 = 0; did0 < ref_desc.GetLength(I0); ++did0)
+    {
+        for(index_t did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
+        {
+            for(index_t did2 = 0; did2 < ref_desc.GetLength(I2); ++did2)
+            {
+                for(index_t did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
+                {
+                    const auto dst_multi_id = Array<index_t, 4>{did0, did1, did2, did3};
+
+                    const auto src_multi_id =
+                        reorder_array_given_old2new(dst_multi_id, MapDst2Src{});
+
+                    const index_t dst_index = dst_desc.Get1dIndex(dst_multi_id);
+
+                    const index_t src_index = src_desc.Get1dIndex(src_multi_id);
+
+                    p_dst[dst_index] = p_src[src_index];
                 }
             }
         }

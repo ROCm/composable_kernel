@@ -111,7 +111,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     constexpr index_t OutThreadCopyDataPerWrite = 2;
 
     constexpr index_t BlockSize = 128;
-#elif 0
+#elif 1
     // for 3x3, 34x34, v1r2, Pascal, in-block-copy1
     constexpr index_t NPerBlock  = 4;
     constexpr index_t KPerBlock  = 64;

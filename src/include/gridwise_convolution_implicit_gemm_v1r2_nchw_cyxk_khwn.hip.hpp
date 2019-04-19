@@ -33,10 +33,14 @@ template <index_t GridSize,
           index_t GemmKPerThreadLoop,
           index_t GemmDataPerReadA,
           index_t GemmDataPerReadB,
-          class InBlockCopyThreadPerDims,
-          index_t InBlockCopyDataPerRead,
-          index_t WeiBlockCopyDataPerRead,
-          index_t OutThreadCopyDataPerWrite>
+          class InBlockReorderSrcSubLengths_NCHW,
+          class InBlockReorderSrcClusterLengths_NCHW,
+          class InBlockReorderMapThreadCluster2SrcCluster,
+          index_t InBlockReorderDataPerRead_W,
+          index_t InBlockReorderDataPerWrite_N,
+          class WeiBlockCopyClusterLengths_KXC,
+          index_t WeiBlockCopyDataPerRead_C,
+          index_t OutThreadCopyDataPerWrite_N>
 struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
@@ -101,8 +105,10 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
 
         // LDS tensor view
         //   be careful of alignment
-        constexpr index_t max_align = mod_conv::max(
-            InBlockCopyDataPerRead, WeiBlockCopyDataPerRead, GemmDataPerReadA, GemmDataPerReadB);
+        constexpr index_t max_align = mod_conv::max(InBlockReorderDataPerWrite_N,
+                                                    WeiBlockCopyDataPerRead_C,
+                                                    GemmDataPerReadA,
+                                                    GemmDataPerReadB);
 
         constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, HoPerBlock, WiPerBlock, NPerBlock>{}, Number<max_align>{});
@@ -117,68 +123,38 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
         // blockwise copy
         // input: format is [N, C, Hi, Wi] to [C, Hi, Wi, N]
         auto map_chwn2nchw = Sequence<1, 2, 3, 0>{};
-#if 0
-        const auto blockwise_in_copy_reorder =
-            Blockwise4dTensorCopyReorder1<BlockSize,
-                                          Float,
-                                          decltype(in_n_c_h_w_global_desc),
-                                          decltype(in_c_h_w_n_block_desc),
-                                          Sequence<NPerBlock, CPerBlock, HoPerBlock, WiPerBlock>,
-                                          decltype(map_chwn2nchw)>{};
-#else
-        auto map_thread_cluster_2_src_cluster = Sequence<1, 2, 0, 3>{};
-
         const auto blockwise_in_copy_reorder =
             Blockwise4dTensorCopyReorder3<BlockSize,
                                           Float,
                                           decltype(in_n_c_h_w_global_desc),
                                           decltype(in_c_h_w_n_block_desc),
                                           Sequence<NPerBlock, CPerBlock, HoPerBlock, WiPerBlock>,
-                                          Sequence<4, 1, 1, 2>,
-                                          Sequence<4, 8, 2, 2>,
+                                          InBlockReorderSrcSubLengths_NCHW,
+                                          InBlockReorderSrcClusterLengths_NCHW,
                                           decltype(map_chwn2nchw),
-                                          decltype(map_thread_cluster_2_src_cluster),
-                                          2,
-                                          4>{};
-
-#if 0
-        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-        {
-            printf("size %u\n", blockwise_in_copy_reorder.GetRegisterClipboardSize());
-        }
-#endif
-#endif
+                                          InBlockReorderMapThreadCluster2SrcCluster,
+                                          InBlockReorderDataPerRead_W,
+                                          InBlockReorderDataPerWrite_N>{};
 
         // blockwise wei copy
         //   format is [CPerBlock, X * KPerBlock]
         const auto blockwise_wei_copy =
-#if 0
-            Blockwise3dTensorCopy1<BlockSize,
-                                   Float,
-                                   decltype(wei_c_x_k_global_desc),
-                                   decltype(wei_c_x_k_block_desc),
-                                   decltype(wei_c_x_k_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead>{};
-#else
             Blockwise3dTensorCopy3<BlockSize,
                                    Float,
                                    decltype(wei_c_x_k_global_desc),
                                    decltype(wei_c_x_k_block_desc),
                                    decltype(wei_c_x_k_block_desc.GetLengths()),
                                    Sequence<4, 1, 32>,
-                                   WeiBlockCopyDataPerRead>{};
-#endif
+                                   WeiBlockCopyDataPerRead_C>{};
 
-            // a series of blockwise batched GEMM
-            // C_matrix += transpose(A_matrix) * B_matrix
-            //   A_matrix and B_matrix saved in LDS, C_matrix saved in register
-            //   A_matrix[C,K] is a sub-matrix of wei_block[C,K]
-            //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
-            //   C_matrix[K,Wo*N] is a sub-matrix of out_block[K,Ho,Wo,N]
-            constexpr auto a_c_k_block_mtx_desc =
-                make_ConstantMatrixDescriptor(Number<CPerBlock>{},
-                                              Number<KPerBlock>{},
-                                              Number<wei_c_x_k_block_desc.GetStride(I0)>{});
+        // a series of blockwise batched GEMM
+        // C_matrix += transpose(A_matrix) * B_matrix
+        //   A_matrix and B_matrix saved in LDS, C_matrix saved in register
+        //   A_matrix[C,K] is a sub-matrix of wei_block[C,K]
+        //   B_matrix[C,Wo*N] is a sub-matrix of in_block[C,Hi,Wi,N]
+        //   C_matrix[K,Wo*N] is a sub-matrix of out_block[K,Ho,Wo,N]
+        constexpr auto a_c_k_block_mtx_desc = make_ConstantMatrixDescriptor(
+            Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_c_x_k_block_desc.GetStride(I0)>{});
 
         constexpr auto b_c_wn_block_mtx_desc =
             make_ConstantMatrixDescriptor(Number<CPerBlock>{},
@@ -252,6 +228,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
         {
             for(index_t y = 0; y < Y; ++y)
             {
+#if 1
                 blockwise_in_copy_reorder.Run(p_in_global_block_offset +
                                                   in_n_c_h_w_global_desc.Get1dIndex(0, 0, y, 0),
                                               p_in_block);
@@ -259,6 +236,23 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
                 blockwise_wei_copy.Run(p_wei_global_block_offset +
                                            wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, 0),
                                        p_wei_block);
+#else
+                Float p_in_clipboard[blockwise_in_copy_reorder.GetRegisterClipboardSize()];
+                Float p_wei_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+                blockwise_in_copy_reorder.RunLoadRegisterClipboard(
+                    p_in_global_block_offset + in_n_c_h_w_global_desc.Get1dIndex(0, 0, y, 0),
+                    p_in_clipboard);
+
+                blockwise_wei_copy.RunLoadRegisterClipboard(
+                    p_wei_global_block_offset + wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, 0),
+                    p_wei_clipboard);
+
+                blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_clipboard, p_wei_block);
+
+                blockwise_in_copy_reorder.RunStoreRegisterClipboard(p_in_clipboard, p_in_block);
+
+#endif
 
                 __syncthreads();
 
@@ -274,42 +268,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
             }
         }
 
-// output: register to global mem,
-#if 0
-        const auto c_thread_mtx_begin =
-            blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
-
-        for(index_t k = 0; k < out_khwn_thread_desc.GetLength(I0); ++k)
-        {
-            for(index_t ho = 0; ho < out_khwn_thread_desc.GetLength(I1); ++ho)
-            {
-                for(index_t wo = 0; wo < out_khwn_thread_desc.GetLength(I2); ++wo)
-                {
-                    for(index_t n = 0; n < out_khwn_thread_desc.GetLength(I3); ++n)
-                    {
-                        const index_t b = out_khwn_thread_desc.Get1dIndex(0, 0, wo, n);
-
-                        const auto c_thread_mtx_distance =
-                            blockwise_batch_gemm.GetDistanceFromBeginOfThreadMatrixC(ho, k, b);
-
-                        const index_t ho_thread =
-                            c_thread_mtx_begin.batch + c_thread_mtx_distance.batch;
-                        const index_t k_thread = c_thread_mtx_begin.row + c_thread_mtx_distance.row;
-                        const index_t b_thread = c_thread_mtx_begin.col + c_thread_mtx_distance.col;
-
-                        const index_t wo_thread = b_thread / NPerBlock;
-                        const index_t n_thread  = b_thread % NPerBlock;
-
-                        p_out_global[out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread,
-                                                                     ho_block_data_begin + ho_thread,
-                                                                     wo_block_data_begin + wo_thread,
-                                                                     n_block_data_begin + n_thread)] =
-                            p_out_thread[out_khwn_thread_desc.Get1dIndex(k, ho, wo, n)];
-                    }
-                }
-            }
-        }
-#elif 1
+        // output: register to global mem,
         const auto c_thread_mtx_begin =
             blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
@@ -356,7 +315,6 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
                                                       wo_block_data_begin + wo_thread_data_begin,
                                                       n_block_data_begin + n_thread_data_begin),
                                    out_10d_thread_desc.GetLengths(),
-                                   Number<OutThreadCopyDataPerWrite>{});
-#endif
+                                   Number<OutThreadCopyDataPerWrite_N>{});
     }
 };
