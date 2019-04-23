@@ -88,6 +88,7 @@ threadwise_2d_tensor_copy_reorder_by_get_dst_from_src(SrcDesc,
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, MapDst2Src{}, f_copy);
 }
 
+#if 0 // replaced threadwise_nd_tensor_copy
 template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths>
 __device__ void threadwise_2d_tensor_copy(
     SrcDesc, Float* const __restrict__ p_src, DstDesc, Float* __restrict__ p_dst, SrcOpLengths)
@@ -97,6 +98,7 @@ __device__ void threadwise_2d_tensor_copy(
     threadwise_2d_tensor_copy_reorder_by_get_dst_from_src(
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, dst_from_src_reorder);
 }
+#endif
 
 template <class Float, class Desc, class IDim, class NShift>
 __device__ void threadwise_2d_tensor_shift_down(Desc, Float* __restrict__ p, IDim, NShift)

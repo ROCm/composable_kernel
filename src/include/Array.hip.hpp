@@ -19,6 +19,20 @@ struct Array
     __host__ __device__ const TData& operator[](index_t i) const { return mData[i]; }
 
     __host__ __device__ TData& operator[](index_t i) { return mData[i]; }
+
+    __host__ __device__ auto PushBack(TData x) const
+    {
+        Array<TData, NSize + 1> new_array;
+
+        static_for<0, NSize, 1>{}([=](auto I) {
+            constexpr index_t i = I.Get();
+            new_array[i]        = mData[i];
+        });
+
+        new_array[NSize] = x;
+
+        return new_array;
+    }
 };
 
 template <class TData, index_t NSize, index_t... IRs>

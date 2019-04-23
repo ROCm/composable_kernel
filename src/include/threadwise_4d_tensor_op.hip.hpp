@@ -139,6 +139,7 @@ __device__ void threadwise_4d_tensor_copy_reorder_given_dst2src(SrcDesc,
         SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, MapDst2Src{}, f_copy);
 }
 
+#if 0 // replaced threadwise_nd_tensor_copy
 template <class SrcData, class DstData, class SrcDesc, class DstDesc, class SrcOpLengths>
 __device__ void threadwise_4d_tensor_copy(
     SrcDesc, const SrcData* __restrict__ p_src, DstDesc, DstData* __restrict__ p_dst, SrcOpLengths)
@@ -210,6 +211,7 @@ __device__ void threadwise_4d_tensor_copy_v2(SrcDesc,
         }
     }
 }
+#endif
 
 template <class SrcData,
           class DstData,

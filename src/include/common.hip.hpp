@@ -4,6 +4,7 @@
 #include "Sequence.hip.hpp"
 #include "Array.hip.hpp"
 #include "functional.hip.hpp"
+#include "functional2.hip.hpp"
 
 #if DEVICE_BACKEND_HIP
 #include "amd_inline_asm.hip.hpp"
