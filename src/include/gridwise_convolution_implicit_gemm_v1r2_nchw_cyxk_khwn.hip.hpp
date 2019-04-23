@@ -39,7 +39,7 @@ template <index_t GridSize,
           index_t InBlockReorderDataPerRead_W,
           index_t InBlockReorderDataPerWrite_N,
           class WeiBlockCopyClusterLengths_CXK,
-          index_t WeiBlockCopyDataPerRead_C,
+          index_t WeiBlockCopyDataPerRead_K,
           index_t OutThreadCopyDataPerWrite_N>
 struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
 {
@@ -106,7 +106,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
         // LDS tensor view
         //   be careful of alignment
         constexpr index_t max_align = mod_conv::max(InBlockReorderDataPerWrite_N,
-                                                    WeiBlockCopyDataPerRead_C,
+                                                    WeiBlockCopyDataPerRead_K,
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
 
@@ -146,7 +146,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
                                    decltype(wei_c_x_k_block_desc),
                                    decltype(wei_c_x_k_block_desc.GetLengths()),
                                    WeiBlockCopyClusterLengths_CXK,
-                                   WeiBlockCopyDataPerRead_C>{};
+                                   WeiBlockCopyDataPerRead_K>{};
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -216,6 +216,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
         // set threadwise output tensor to 0
         threadwise_4d_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
 
+#if 0
         const Float* p_in_global_block_offset =
             p_in_global + in_n_c_h_w_global_desc.Get1dIndex(
                               n_block_data_begin, 0, hi_block_data_begin, wi_block_data_begin);
@@ -229,7 +230,6 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
         {
             for(index_t y = 0; y < Y; ++y)
             {
-#if 1
                 blockwise_in_copy_reorder.Run(p_in_global_block_offset +
                                                   in_n_c_h_w_global_desc.Get1dIndex(0, 0, y, 0),
                                               p_in_block);
@@ -237,23 +237,6 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
                 blockwise_wei_copy.Run(p_wei_global_block_offset +
                                            wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, 0),
                                        p_wei_block);
-#else
-                Float p_in_clipboard[blockwise_in_copy_reorder.GetRegisterClipboardSize()];
-                Float p_wei_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
-
-                blockwise_in_copy_reorder.RunLoadRegisterClipboard(
-                    p_in_global_block_offset + in_n_c_h_w_global_desc.Get1dIndex(0, 0, y, 0),
-                    p_in_clipboard);
-
-                blockwise_wei_copy.RunLoadRegisterClipboard(
-                    p_wei_global_block_offset + wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, 0),
-                    p_wei_clipboard);
-
-                blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_clipboard, p_wei_block);
-
-                blockwise_in_copy_reorder.RunStoreRegisterClipboard(p_in_clipboard, p_in_block);
-
-#endif
 
                 __syncthreads();
 
@@ -268,6 +251,49 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
                 __syncthreads();
             }
         }
+#else
+        for(index_t y = 0; y < Y; ++y)
+        {
+            const Float* p_in_global_block_offset =
+                p_in_global +
+                in_n_c_h_w_global_desc.Get1dIndex(
+                    n_block_data_begin, 0, hi_block_data_begin + y, wi_block_data_begin);
+
+            const Float* p_wei_global_block_offset =
+                p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, k_block_data_begin);
+
+            for(index_t c_block_data_begin = 0; c_block_data_begin < C;
+                c_block_data_begin += CPerBlock,
+                        p_in_global_block_offset +=
+                        CPerBlock * in_n_c_h_w_global_desc.GetStride(I1),
+                        p_wei_global_block_offset +=
+                        CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
+            {
+                Float p_in_clipboard[blockwise_in_copy_reorder.GetRegisterClipboardSize()];
+                Float p_wei_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+
+                blockwise_in_copy_reorder.RunLoadRegisterClipboard(p_in_global_block_offset,
+                                                                   p_in_clipboard);
+                blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
+                                                            p_wei_clipboard);
+
+                blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_clipboard, p_wei_block);
+                blockwise_in_copy_reorder.RunStoreRegisterClipboard(p_in_clipboard, p_in_block);
+
+                __syncthreads();
+
+                for(index_t x = 0; x < X; ++x)
+                {
+                    blockwise_batch_gemm.Run(p_wei_block + wei_c_x_k_block_desc.Get1dIndex(0, x, 0),
+                                             p_in_block +
+                                                 in_c_h_w_n_block_desc.Get1dIndex(0, 0, x, 0),
+                                             p_out_thread);
+                }
+
+                __syncthreads();
+            }
+        }
+#endif
 
         // output: register to global mem,
         const auto c_thread_mtx_begin =

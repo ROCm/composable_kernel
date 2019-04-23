@@ -21,7 +21,7 @@ struct static_for_impl<Iter, 0, Increment>
     template <class F>
     __host__ __device__ void operator()(F) const
     {
-        // do nothing
+        // no work left, just return
         return;
     }
 };
@@ -48,7 +48,7 @@ struct static_const_reduce_n
         static_assert(NLoop > 1, "out-of-range");
 
         constexpr auto a = f(Number<NLoop - 1>{});
-        auto b = static_const_reduce_n<NLoop - 1>{}(f, r); // cannot use constexpr here, weird
+        auto b = static_const_reduce_n<NLoop - 1>{}(f, r); // TODO: cannot use constexpr here, weird
         return r(a, b);
     }
 };
@@ -70,3 +70,65 @@ __host__ __device__ constexpr auto unpacker(F f)
     return [=](auto xs_array){ f(xs...); };
 }
 #endif
+
+struct forwarder
+{
+    template <typename T>
+    __host__ __device__ constexpr T operator()(T&& x) const
+    {
+        return std::forward<T>(x);
+    }
+};
+
+// Emulate compile time if statement for C++14
+//   Get the idea from
+//   "https://baptiste-wicht.com/posts/2015/07/simulate-static_if-with-c11c14.html"
+// TODO: use if constexpr, when C++17 is supported
+template <bool Predicate>
+struct static_if
+{
+};
+
+template <>
+struct static_if<true>
+{
+    using Type = static_if<true>;
+
+    template <class F>
+    __host__ __device__ constexpr auto operator()(F f) const
+    {
+        // This is a trick for compiler:
+        //   Pass forwarder to lambda "f" as "auto" argument, and maks sure "f" will use it,
+        //   this will make "f" a generic lambda, so that "f" won't be compiled until here
+        f(forwarder{});
+        return Type{};
+    }
+
+    template <class F>
+    __host__ __device__ static constexpr auto else_(F)
+    {
+        return Type{};
+    }
+};
+
+template <>
+struct static_if<false>
+{
+    using Type = static_if<false>;
+
+    template <class F>
+    __host__ __device__ constexpr auto operator()(F) const
+    {
+        return Type{};
+    }
+
+    template <class F>
+    __host__ __device__ static constexpr auto else_(F f)
+    {
+        // This is a trick for compiler:
+        //   Pass forwarder to lambda "f" as "auto" argument, and maks sure "f" will use it,
+        //   this will make "f" a generic lambda, so that "f" won't be compiled until here
+        f(forwarder{});
+        return Type{};
+    }
+};

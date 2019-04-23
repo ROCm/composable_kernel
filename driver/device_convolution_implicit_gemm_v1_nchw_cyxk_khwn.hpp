@@ -3,6 +3,8 @@
 #include "device.hpp"
 #include "gridwise_convolution_wrapper.hip.hpp"
 #include "gridwise_convolution_implicit_gemm_v1r2_nchw_cyxk_khwn.hip.hpp"
+#include "gridwise_convolution_implicit_gemm_v1r3_nchw_cyxk_khwn.hip.hpp"
+#include "gridwise_convolution_implicit_gemm_v1r3_lds_double_buffer_nchw_cyxk_khwn.hip.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
@@ -62,7 +64,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
-#if 1
+#if 0
     // for 3x3, 28x28, v1r2, Pascal
     constexpr index_t BlockSize = 128;
 
@@ -93,8 +95,78 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     constexpr index_t InBlockReorderDataPerRead_W             = 2;
     constexpr index_t InBlockReorderDataPerWrite_N            = 4;
 
-    using WeiBlockCopyClusterLengths_CXK        = Sequence<4, 1, 32>;
-    constexpr index_t WeiBlockCopyDataPerRead_C = 4;
+    using WeiBlockCopyClusterLengths            = Sequence<4, 1, 32>;
+    constexpr index_t WeiBlockCopyDataPerRead_K = 4;
+
+    constexpr index_t OutThreadCopyDataPerWrite_N = 2;
+#elif 0
+    // for 3x3, 28x28, v1r3, Pascal, bad
+    constexpr index_t BlockSize = 128;
+
+    constexpr index_t NPerBlock  = 16;
+    constexpr index_t KPerBlock  = 128;
+    constexpr index_t CPerBlock  = 8;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 2;
+
+    constexpr index_t NPerThread  = 4;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 2;
+
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 2;
+    constexpr index_t GemmKPerThreadLoop = 1;
+    constexpr index_t GemmDataPerReadA   = 4;
+    constexpr index_t GemmDataPerReadB   = 4;
+
+    using InBlockReorderSrcSubLengths_NCHW                    = Sequence<4, 1, 1, 1>;
+    using InBlockReorderSrcClusterLengths_NCHW                = Sequence<4, 8, 2, 2>;
+    using InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW = Sequence<1, 2, 0, 3>;
+    constexpr index_t InBlockReorderDataPerRead_W  = 1; // v1r3 cannot do vector load input for NCHW
+    constexpr index_t InBlockReorderDataPerWrite_N = 1; // not used yet
+
+    using WeiBlockCopyClusterLengths            = Sequence<0, 0>; // not used
+    constexpr index_t WeiBlockCopyDataPerRead_K = 4;
+
+    constexpr index_t OutThreadCopyDataPerWrite_N = 2;
+#elif 1
+    // for 3x3, 34x34, v1r3, Pascal
+    constexpr index_t BlockSize = 128;
+
+    constexpr index_t NPerBlock  = 2;
+    constexpr index_t KPerBlock  = 128;
+    constexpr index_t CPerBlock  = 8;
+    constexpr index_t HoPerBlock = 2;
+    constexpr index_t WoPerBlock = 16;
+
+    constexpr index_t NPerThread  = 2;
+    constexpr index_t KPerThread  = 8;
+    constexpr index_t HoPerThread = 1;
+    constexpr index_t WoPerThread = 4;
+
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 2;
+    constexpr index_t GemmKPerThreadLoop = 1;
+    constexpr index_t GemmDataPerReadA   = 4;
+    constexpr index_t GemmDataPerReadB   = 4;
+
+    using InBlockReorderSrcSubLengths_NCHW                    = Sequence<2, 1, 2, 1>;
+    using InBlockReorderSrcClusterLengths_NCHW                = Sequence<1, 8, 1, 16>;
+    using InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW = Sequence<1, 2, 0, 3>;
+    constexpr index_t InBlockReorderDataPerRead_W  = 1; // v1r3 cannot do vector load input for NCHW
+    constexpr index_t InBlockReorderDataPerWrite_N = 1; // not used yet
+
+    using WeiBlockCopyClusterLengths            = Sequence<0, 0>; // not used
+    constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_N = 2;
 #endif
@@ -108,8 +180,12 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     for(index_t i = 0; i < nrepeat; ++i)
     {
         constexpr auto gridwise_conv =
-#if 1
+#if 0
             GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
+#elif 1
+            GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
+#elif 1
+            GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
 #endif
             <GridSize,
              BlockSize,
@@ -140,8 +216,8 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
              InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
              InBlockReorderDataPerRead_W,
              InBlockReorderDataPerWrite_N,
-             WeiBlockCopyClusterLengths_CXK,
-             WeiBlockCopyDataPerRead_C,
+             WeiBlockCopyClusterLengths,
+             WeiBlockCopyDataPerRead_K,
              OutThreadCopyDataPerWrite_N>{};
 
         float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,

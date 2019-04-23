@@ -253,9 +253,23 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 #if 0
                 if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
                 {
-                        printf("a: %f %f %f %f %f %f %f %f, b: %f %f %f %f %f %f %f %f\n",
-                               p_a_thread[0], p_a_thread[1], p_a_thread[2], p_a_thread[3], p_a_thread[4], p_a_thread[5], p_a_thread[6], p_a_thread[7],
-                               p_b_thread[0], p_b_thread[1], p_b_thread[2], p_b_thread[3], p_b_thread[4], p_b_thread[5], p_b_thread[6], p_b_thread[7]);
+                    printf("a: %f %f %f %f %f %f %f %f, b: %f %f %f %f %f %f %f %f\n",
+                           p_a_thread[0],
+                           p_a_thread[1],
+                           p_a_thread[2],
+                           p_a_thread[3],
+                           p_a_thread[4],
+                           p_a_thread[5],
+                           p_a_thread[6],
+                           p_a_thread[7],
+                           p_b_thread[0],
+                           p_b_thread[1],
+                           p_b_thread[2],
+                           p_b_thread[3],
+                           p_b_thread[4],
+                           p_b_thread[5],
+                           p_b_thread[6],
+                           p_b_thread[7]);
                 }
 #endif
 

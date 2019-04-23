@@ -34,10 +34,14 @@ struct Sequence
     template <index_t... IRs>
     __host__ __device__ constexpr auto ReorderGivenOld2New(Sequence<IRs...> /*old2new*/) const
     {
-        // don't know how to implement this
+        // TODO: don't know how to implement this
         printf("Sequence::ReorderGivenOld2New not implemented");
         assert(false);
     }
+
+    __host__ __device__ constexpr index_t Front() const { return mData[0]; }
+
+    __host__ __device__ constexpr index_t Back() const { return mData[mSize - 1]; }
 
     template <index_t I>
     __host__ __device__ constexpr auto PushFront(Number<I>) const
@@ -69,15 +73,98 @@ __host__ __device__ constexpr auto sequence_pop_front(Sequence<I, Is...>)
     return Sequence<Is...>{};
 }
 
-template <index_t... Is, index_t I>
+#if 0
+// TODO: for some reason, compiler cannot instantiate this template
+template <index_t I, index_t... Is>
 __host__ __device__ constexpr auto sequence_pop_back(Sequence<Is..., I>)
 {
     static_assert(sizeof...(Is) > 0, "empty Sequence!");
     return Sequence<Is...>{};
 }
+#else
+// TODO: delete these very ugly mess
+template <index_t I0, index_t I1>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1>)
+{
+    return Sequence<I0>{};
+}
+
+template <index_t I0, index_t I1, index_t I2>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1, I2>)
+{
+    return Sequence<I0, I1>{};
+}
+
+template <index_t I0, index_t I1, index_t I2, index_t I3>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1, I2, I3>)
+{
+    return Sequence<I0, I1, I2>{};
+}
+
+template <index_t I0, index_t I1, index_t I2, index_t I3, index_t I4>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1, I2, I3, I4>)
+{
+    return Sequence<I0, I1, I2, I3>{};
+}
+
+template <index_t I0, index_t I1, index_t I2, index_t I3, index_t I4, index_t I5>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1, I2, I3, I4, I5>)
+{
+    return Sequence<I0, I1, I2, I3, I4>{};
+}
+
+template <index_t I0, index_t I1, index_t I2, index_t I3, index_t I4, index_t I5, index_t I6>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1, I2, I3, I4, I5, I6>)
+{
+    return Sequence<I0, I1, I2, I3, I4, I5>{};
+}
+
+template <index_t I0,
+          index_t I1,
+          index_t I2,
+          index_t I3,
+          index_t I4,
+          index_t I5,
+          index_t I6,
+          index_t I7>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1, I2, I3, I4, I5, I6, I7>)
+{
+    return Sequence<I0, I1, I2, I3, I4, I5, I6>{};
+}
+
+template <index_t I0,
+          index_t I1,
+          index_t I2,
+          index_t I3,
+          index_t I4,
+          index_t I5,
+          index_t I6,
+          index_t I7,
+          index_t I8>
+__host__ __device__ constexpr auto sequence_pop_back(Sequence<I0, I1, I2, I3, I4, I5, I6, I7, I8>)
+{
+    return Sequence<I0, I1, I2, I3, I4, I5, I6, I7>{};
+}
+
+template <index_t I0,
+          index_t I1,
+          index_t I2,
+          index_t I3,
+          index_t I4,
+          index_t I5,
+          index_t I6,
+          index_t I7,
+          index_t I8,
+          index_t I9>
+__host__ __device__ constexpr auto
+    sequence_pop_back(Sequence<I0, I1, I2, I3, I4, I5, I6, I7, I8, I9>)
+{
+    return Sequence<I0, I1, I2, I3, I4, I5, I6, I7, I8>{};
+}
+#endif
 
 #if 1
-// this is ugly, only for 2 sequences
+// TODO: fix these mess
 template <class F, index_t... Xs, index_t... Ys>
 __host__ __device__ constexpr auto transform_sequences(F f, Sequence<Xs...>, Sequence<Ys...>)
 {
@@ -86,7 +173,6 @@ __host__ __device__ constexpr auto transform_sequences(F f, Sequence<Xs...>, Seq
     return Sequence<f(Xs, Ys)...>{};
 }
 
-// this is ugly, only for 3 sequences
 template <class F, index_t... Xs, index_t... Ys, index_t... Zs>
 __host__ __device__ constexpr auto
 transform_sequences(F f, Sequence<Xs...>, Sequence<Ys...>, Sequence<Zs...>)
@@ -98,6 +184,7 @@ transform_sequences(F f, Sequence<Xs...>, Sequence<Ys...>, Sequence<Zs...>)
     return Sequence<f(Xs, Ys, Zs)...>{};
 }
 #else
+// TODO:: these doesn't compile
 template <index_t NRemain>
 struct transform_sequences_impl
 {

@@ -1,5 +1,6 @@
 #pragma once
 #include "ConstantTensorDescriptor.hip.hpp"
+#include "threadwise_nd_tensor_op.hip.hpp"
 
 template <index_t BlockSize, class Float, class DstDesc, class F>
 __device__ void
@@ -957,6 +958,7 @@ struct Blockwise4dTensorCopyReorder3
         constexpr auto thread_sub_tensor_desc =
             make_ConstantTensorDescriptor(SrcClusterLengths{}, thread_tensor_desc.GetStrides());
 
+#if 1
         for(index_t icluster_d0 = 0; icluster_d0 < cluster_per_dims.Get(I0); ++icluster_d0)
         {
             for(index_t icluster_d1 = 0; icluster_d1 < cluster_per_dims.Get(I1); ++icluster_d1)
@@ -978,16 +980,21 @@ struct Blockwise4dTensorCopyReorder3
                             icluster_d2 * thread_sub_tensor_lengths.Get(I2),
                             icluster_d3 * thread_sub_tensor_lengths.Get(I3));
 
-                        threadwise_4d_tensor_copy_v2(SrcDesc{},
-                                                     p_src + src_offset + mSrcMyThreadOffset,
-                                                     thread_tensor_desc,
-                                                     p_clipboard + clipboard_offset,
-                                                     thread_sub_tensor_lengths,
-                                                     Number<SrcDataPerRead>{});
+                        threadwise_nd_tensor_copy(SrcDesc{},
+                                                  p_src + src_offset + mSrcMyThreadOffset,
+                                                  thread_tensor_desc,
+                                                  p_clipboard + clipboard_offset,
+                                                  thread_sub_tensor_lengths,
+                                                  Number<SrcDataPerRead>{});
                     }
                 }
             }
         }
+#else
+        static_ford<decltype(cluster_per_dims)>{}([=](auto cluster_ids) {
+
+        });
+#endif
 
 #if 0
         if(get_block_1d_id() == 0)
