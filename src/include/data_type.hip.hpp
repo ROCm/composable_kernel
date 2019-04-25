@@ -1,5 +1,6 @@
 #pragma once
 #include "config.h"
+#include "constant_integral.hip.hpp"
 
 template <class T, index_t N>
 struct vector_type
@@ -10,6 +11,13 @@ template <>
 struct vector_type<float, 1>
 {
     typedef float MemoryType;
+
+    template <index_t I>
+    __host__ __device__ static void SetScalar(MemoryType& v, float s, Number<I>)
+    {
+        static_assert(I < 1, "wrong");
+        *(reinterpret_cast<float*>(&v) + I) = s;
+    }
 };
 
 template <>
@@ -20,21 +28,29 @@ struct vector_type<float, 2>
     // instruction
     typedef float MemoryType __attribute__((ext_vector_type(2)));
 #elif DEVICE_BACKEND_CUDA
-    // For some reason, CUDA need this definition to, otherwise
+    // For some reason, CUDA need this definition, otherwise
     //   compiler won't generate optimal load and store instruction, and
     //   kernel would produce wrong result, indicating the compiler fail to generate correct
     //   instruction,
     using MemoryType = float2;
 #endif
 
+    union Data
+    {
+        MemoryType vector;
+        float scalar[2];
+    };
+
+    template <index_t I>
+    __host__ __device__ static void SetScalar(MemoryType& v, float s, Number<I>)
+    {
+        static_assert(I < 2, "wrong");
+        *(reinterpret_cast<float*>(&v) + I) = s;
+    }
+
     __host__ __device__ static MemoryType Pack(float s0, float s1)
     {
-        union
-        {
-            MemoryType vector;
-            float scalar[2];
-        } data;
-
+        Data data;
         data.scalar[0] = s0;
         data.scalar[1] = s1;
         return data.vector;
@@ -49,12 +65,19 @@ struct vector_type<float, 4>
     // instruction
     typedef float MemoryType __attribute__((ext_vector_type(4)));
 #elif DEVICE_BACKEND_CUDA
-    // For some reason, CUDA need this definition to, otherwise
+    // For some reason, CUDA need this definition, otherwise
     //   compiler won't generate optimal load and store instruction, and
     //   kernel would produce wrong result, indicating the compiler fail to generate correct
     //   instruction,
     using MemoryType = float4;
 #endif
+
+    template <index_t I>
+    __host__ __device__ static void SetScalar(MemoryType& v, float s, Number<I>)
+    {
+        static_assert(I < 4, "wrong");
+        *(reinterpret_cast<float*>(&v) + I) = s;
+    }
 };
 
 #if 0

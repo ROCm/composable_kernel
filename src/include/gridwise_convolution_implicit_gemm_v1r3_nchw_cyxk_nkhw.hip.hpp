@@ -39,8 +39,8 @@ template <index_t GridSize,
           index_t InBlockReorderDataPerWrite_N,
           class WeiBlockCopyClusterLengths_CK, // not used
           index_t WeiBlockCopyDataPerRead_K,
-          index_t OutThreadCopyDataPerWrite_N>
-struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
+          index_t OutThreadCopyDataPerWrite_W>
+struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -60,14 +60,14 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
 
         constexpr auto in_n_c_h_w_global_desc  = InGlobalDesc{};
         constexpr auto wei_c_y_x_k_global_desc = WeiGlobalDesc{};
-        constexpr auto out_k_h_w_n_global_desc = OutGlobalDesc{};
+        constexpr auto out_n_k_h_w_global_desc = OutGlobalDesc{};
 
         constexpr index_t C = in_n_c_h_w_global_desc.GetLength(I1);
 
-        constexpr index_t K  = out_k_h_w_n_global_desc.GetLength(I0);
-        constexpr index_t Ho = out_k_h_w_n_global_desc.GetLength(I1);
-        constexpr index_t Wo = out_k_h_w_n_global_desc.GetLength(I2);
-        constexpr index_t N  = out_k_h_w_n_global_desc.GetLength(I3);
+        constexpr index_t N  = out_n_k_h_w_global_desc.GetLength(I0);
+        constexpr index_t K  = out_n_k_h_w_global_desc.GetLength(I1);
+        constexpr index_t Ho = out_n_k_h_w_global_desc.GetLength(I2);
+        constexpr index_t Wo = out_n_k_h_w_global_desc.GetLength(I3);
 
         constexpr index_t Y = wei_c_y_x_k_global_desc.GetLength(I1);
         constexpr index_t X = wei_c_y_x_k_global_desc.GetLength(I2);
@@ -77,7 +77,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                           Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
                       "wrong! cannot evenly divide work for workgroup ");
 
-        constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
+        // constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
         constexpr index_t HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
         constexpr index_t WBlockWork = (Wo + WoPerBlock - 1) / WoPerBlock;
         constexpr index_t NBlockWork = (N + NPerBlock - 1) / NPerBlock;
@@ -348,6 +348,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                 constexpr index_t K2 = GemmMPerThreadSubC;
                 constexpr index_t K1 = KPerBlock / KPerThread;
 
+#if 0
                 constexpr auto out_10d_global_desc =
                     make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
                                                            K1,
@@ -359,6 +360,19 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                                                            N / f_dummy(N1 * N2),
                                                            N1,
                                                            N2>{});
+#else
+                constexpr auto out_10d_global_desc =
+                    make_ConstantTensorDescriptor(Sequence<N / f_dummy(N1 * N2),
+                                                           N1,
+                                                           N2,
+                                                           K / (K1 * K2),
+                                                           K1,
+                                                           K2,
+                                                           Ho,
+                                                           Wo / (W1 * W2),
+                                                           W1,
+                                                           W2>{});
+#endif
 
                 constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
                     Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, 1, 1, N2>{});
@@ -376,6 +390,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                 }
 #endif
 
+#if 0
                 threadwise_nd_tensor_copy(out_10d_thread_desc,
                                           p_out_thread,
                                           out_10d_global_desc,
@@ -387,6 +402,22 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                                                   n_block_data_begin + n_thread_data_begin),
                                           out_10d_thread_desc.GetLengths(),
                                           Number<OutThreadCopyDataPerWrite_N>{});
+#else
+                constexpr auto map_out_global2thread = Sequence<7, 8, 9, 0, 1, 2, 6, 3, 4, 5>{};
+
+                threadwise_nd_tensor_copy_reorder_given_dst2src_v2(
+                    out_10d_thread_desc,
+                    p_out_thread,
+                    out_10d_global_desc,
+                    p_out_global + out_n_k_h_w_global_desc.Get1dIndex(
+                                       n_block_data_begin + n_thread_data_begin,
+                                       k_block_data_begin + k_thread_data_begin,
+                                       ho_block_data_begin + ho_thread_data_begin,
+                                       wo_block_data_begin + wo_thread_data_begin),
+                    out_10d_thread_desc.GetLengths(),
+                    map_out_global2thread);
+            // Number<OutThreadCopyDataPerWrite_W>{});
+#endif
             })
             .else_([&](auto f_dummy) {
                 static_assert(f_dummy(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
@@ -403,6 +434,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                 constexpr index_t K2 = GemmMPerThreadSubC;
                 constexpr index_t K1 = KPerBlock / KPerThread;
 
+#if 0
                 constexpr auto out_10d_global_desc =
                     make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
                                                            K1,
@@ -414,6 +446,19 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                                                            W3,
                                                            N / N1,
                                                            N1>{});
+#else
+                constexpr auto out_10d_global_desc =
+                    make_ConstantTensorDescriptor(Sequence<N / N1,
+                                                           N1,
+                                                           K / (K1 * K2),
+                                                           K1,
+                                                           K2,
+                                                           Ho,
+                                                           Wo / (W1 * W2 * W3),
+                                                           W1,
+                                                           W2,
+                                                           W3>{});
+#endif
 
                 constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
                     Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, W3, 1, N1>{});
@@ -436,6 +481,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                 }
 #endif
 
+#if 0
                 threadwise_nd_tensor_copy(out_10d_thread_desc,
                                           p_out_thread,
                                           out_10d_global_desc,
@@ -447,6 +493,22 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                                                   n_block_data_begin + n_thread_data_begin),
                                           out_10d_thread_desc.GetLengths(),
                                           Number<OutThreadCopyDataPerWrite_N>{});
+#else
+                constexpr auto map_out_global2thread = Sequence<8, 9, 0, 1, 2, 3, 4, 5, 6, 7>{};
+
+                threadwise_nd_tensor_copy_reorder_given_dst2src_v2(
+                    out_10d_thread_desc,
+                    p_out_thread,
+                    out_10d_global_desc,
+                    p_out_global + out_n_k_h_w_global_desc.Get1dIndex(
+                                       n_block_data_begin + n_thread_data_begin,
+                                       k_block_data_begin + k_thread_data_begin,
+                                       ho_block_data_begin + ho_thread_data_begin,
+                                       wo_block_data_begin + wo_thread_data_begin),
+                    out_10d_thread_desc.GetLengths(),
+                    map_out_global2thread);
+            // Number<OutThreadCopyDataPerWrite_W>{});
+#endif
             });
     }
 };

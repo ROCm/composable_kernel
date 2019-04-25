@@ -73,7 +73,6 @@ __host__ __device__ constexpr auto get_convolution_with_padding_output_default_4
 template <class InDesc, class WeiDesc, class OutDesc>
 __host__ __device__ constexpr std::size_t calculate_convolution_flops(InDesc, WeiDesc, OutDesc)
 {
-    constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 
