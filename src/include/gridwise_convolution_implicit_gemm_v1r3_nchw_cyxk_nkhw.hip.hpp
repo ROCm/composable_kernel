@@ -47,11 +47,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                         Float* const __restrict__ p_out_global) const
     {
         // be careful of this assertion
-        static_assert(NPerBlock % NPerThread == 0 && (GemmNPerThreadSubC <= NPerBlock &&
-                                                      NPerBlock % GemmNPerThreadSubC == 0) ||
-                          (GemmNPerThreadSubC >= NPerBlock && NPerThread == NPerBlock &&
-                           GemmNPerThreadSubC % NPerThread == 0),
-                      "wrong!");
+        static_assert(
+            NPerBlock % NPerThread == 0 &&
+                ((GemmNPerThreadSubC <= NPerBlock && NPerBlock % GemmNPerThreadSubC == 0) ||
+                 (GemmNPerThreadSubC >= NPerBlock && NPerThread == NPerBlock &&
+                  GemmNPerThreadSubC % NPerThread == 0)),
+            "wrong!");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -223,8 +224,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 
 #if 1
         const Float* p_in_global_block_offset =
-            p_in_global + in_n_c_h_w_global_desc.Get1dIndex(
-                              n_block_data_begin, 0, hi_block_data_begin, wi_block_data_begin);
+            p_in_global +
+            in_n_c_h_w_global_desc.Get1dIndex(
+                n_block_data_begin, 0, hi_block_data_begin, wi_block_data_begin);
 
         const Float* p_wei_global_block_offset =
             p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
@@ -409,14 +411,15 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                     out_10d_thread_desc,
                     p_out_thread,
                     out_10d_global_desc,
-                    p_out_global + out_n_k_h_w_global_desc.Get1dIndex(
-                                       n_block_data_begin + n_thread_data_begin,
-                                       k_block_data_begin + k_thread_data_begin,
-                                       ho_block_data_begin + ho_thread_data_begin,
-                                       wo_block_data_begin + wo_thread_data_begin),
+                    p_out_global +
+                        out_n_k_h_w_global_desc.Get1dIndex(
+                            n_block_data_begin + n_thread_data_begin,
+                            k_block_data_begin + k_thread_data_begin,
+                            ho_block_data_begin + ho_thread_data_begin,
+                            wo_block_data_begin + wo_thread_data_begin),
                     out_10d_thread_desc.GetLengths(),
                     map_out_global2thread);
-            // Number<OutThreadCopyDataPerWrite_W>{});
+// Number<OutThreadCopyDataPerWrite_W>{});
 #endif
             })
             .else_([&](auto f_dummy) {
@@ -500,14 +503,15 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                     out_10d_thread_desc,
                     p_out_thread,
                     out_10d_global_desc,
-                    p_out_global + out_n_k_h_w_global_desc.Get1dIndex(
-                                       n_block_data_begin + n_thread_data_begin,
-                                       k_block_data_begin + k_thread_data_begin,
-                                       ho_block_data_begin + ho_thread_data_begin,
-                                       wo_block_data_begin + wo_thread_data_begin),
+                    p_out_global +
+                        out_n_k_h_w_global_desc.Get1dIndex(
+                            n_block_data_begin + n_thread_data_begin,
+                            k_block_data_begin + k_thread_data_begin,
+                            ho_block_data_begin + ho_thread_data_begin,
+                            wo_block_data_begin + wo_thread_data_begin),
                     out_10d_thread_desc.GetLengths(),
                     map_out_global2thread);
-            // Number<OutThreadCopyDataPerWrite_W>{});
+// Number<OutThreadCopyDataPerWrite_W>{});
 #endif
             });
     }

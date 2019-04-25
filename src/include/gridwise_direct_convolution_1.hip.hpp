@@ -113,10 +113,11 @@ __global__ void gridwise_direct_convolution_1(const Float* const __restrict__ p_
         c_block_work_begin += CPerBlock)
     {
         // copy input tensor to LDS
-        blockwise_in_copy.Run(p_in_global + in_global_desc.Get1dIndex(n_block_work_begin,
-                                                                      c_block_work_begin,
-                                                                      hi_block_work_begin,
-                                                                      wi_block_work_begin),
+        blockwise_in_copy.Run(p_in_global +
+                                  in_global_desc.Get1dIndex(n_block_work_begin,
+                                                            c_block_work_begin,
+                                                            hi_block_work_begin,
+                                                            wi_block_work_begin),
                               p_in_block);
 
         // copy weight tensor to LDS
@@ -143,9 +144,9 @@ __global__ void gridwise_direct_convolution_1(const Float* const __restrict__ p_
     }
 
     // copy output tensor from LDS to device mem
-    blockwise_out_copy.Run(p_out_block,
-                           p_out_global + out_global_desc.Get1dIndex(n_block_work_begin,
-                                                                     k_block_work_begin,
-                                                                     ho_block_work_begin,
-                                                                     wo_block_work_begin));
+    blockwise_out_copy.Run(
+        p_out_block,
+        p_out_global +
+            out_global_desc.Get1dIndex(
+                n_block_work_begin, k_block_work_begin, ho_block_work_begin, wo_block_work_begin));
 }

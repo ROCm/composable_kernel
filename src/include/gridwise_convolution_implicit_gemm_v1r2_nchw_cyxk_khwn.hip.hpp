@@ -49,8 +49,11 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
     {
         // be careful of this assertion
         static_assert(
-            NPerThread <= NPerBlock && NPerBlock % NPerThread == 0,
-            "wrong! should satisfy: NPerThread <= NPerBlock && NPerBlock % NPerThread == 0");
+            NPerBlock % NPerThread == 0 &&
+                ((GemmNPerThreadSubC <= NPerBlock && NPerBlock % GemmNPerThreadSubC == 0) ||
+                 (GemmNPerThreadSubC >= NPerBlock && NPerThread == NPerBlock &&
+                  GemmNPerThreadSubC % NPerThread == 0)),
+            "wrong!");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -262,12 +265,12 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
             const Float* p_wei_global_block_offset =
                 p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, y, 0, k_block_data_begin);
 
-            for(index_t c_block_data_begin = 0; c_block_data_begin < C;
+            for(index_t
+                    c_block_data_begin = 0;
+                c_block_data_begin < C;
                 c_block_data_begin += CPerBlock,
-                        p_in_global_block_offset +=
-                        CPerBlock * in_n_c_h_w_global_desc.GetStride(I1),
-                        p_wei_global_block_offset +=
-                        CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
+                    p_in_global_block_offset += CPerBlock * in_n_c_h_w_global_desc.GetStride(I1),
+                    p_wei_global_block_offset += CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
             {
                 Float p_in_clipboard[blockwise_in_copy_reorder.GetRegisterClipboardSize()];
                 Float p_wei_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
@@ -333,15 +336,16 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
         }
 #endif
 
-        threadwise_10d_tensor_copy(out_10d_thread_desc,
-                                   p_out_thread,
-                                   out_10d_global_desc,
-                                   p_out_global + out_k_h_w_n_global_desc.Get1dIndex(
-                                                      k_block_data_begin + k_thread_data_begin,
-                                                      ho_block_data_begin + ho_thread_data_begin,
-                                                      wo_block_data_begin + wo_thread_data_begin,
-                                                      n_block_data_begin + n_thread_data_begin),
-                                   out_10d_thread_desc.GetLengths(),
-                                   Number<OutThreadCopyDataPerWrite_N>{});
+        threadwise_10d_tensor_copy(
+            out_10d_thread_desc,
+            p_out_thread,
+            out_10d_global_desc,
+            p_out_global +
+                out_k_h_w_n_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
+                                                   ho_block_data_begin + ho_thread_data_begin,
+                                                   wo_block_data_begin + wo_thread_data_begin,
+                                                   n_block_data_begin + n_thread_data_begin),
+            out_10d_thread_desc.GetLengths(),
+            Number<OutThreadCopyDataPerWrite_N>{});
     }
 };

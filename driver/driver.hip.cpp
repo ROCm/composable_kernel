@@ -371,7 +371,7 @@ void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
             std::size_t ho = HoPerTile * htile + j;
             for(int i = 0; i < WoPerTile; ++i)
             {
-                std::size_t wo         = WoPerTile * wtile + i;
+                std::size_t wo = WoPerTile * wtile + i;
                 out_nkhw(n, k, ho, wo) = out_hold(n, k, htile, wtile, j, i);
             }
         }
@@ -425,13 +425,13 @@ int main(int argc, char* argv[])
     constexpr index_t WPad = 0;
 #elif 0
     // 3x3, 56x56
-    constexpr index_t N = 64;
-    constexpr index_t C = 64;
+    constexpr index_t N  = 64;
+    constexpr index_t C  = 64;
     constexpr index_t HI = 56;
     constexpr index_t WI = 56;
-    constexpr index_t K = 128;
-    constexpr index_t Y = 3;
-    constexpr index_t X = 3;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 3;
+    constexpr index_t X  = 3;
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
@@ -603,9 +603,9 @@ int main(int argc, char* argv[])
     device_direct_convolution_2_nchw_kcyx_nkhw
 #elif 0
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v1_nchw_cyxk_khwn
 #elif 1
     device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw

@@ -116,11 +116,7 @@ struct ConstantTensorDescriptor
 
         static_for<0, nDim, 1>{}([&](auto IDim) {
             constexpr index_t idim = IDim.Get();
-#if DEVICE_BACKEND_HIP
-            id += __mul24(multi_id[idim], GetStride(IDim));
-#else
             id += multi_id[idim] * GetStride(IDim);
-#endif
         });
 
         return id;

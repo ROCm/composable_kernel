@@ -56,7 +56,7 @@ struct BlockwiseNdTensorCopyReorder_v3
                       "wrong! BlockSize is not big enough for ThreadPerDims!");
 
         // sanity check: work division
-        static_for<0, nDim, 1>{}([](auto IDim) {
+        static_for<0, nDim, 1>{}([&](auto IDim) {
             constexpr auto I                  = decltype(IDim){};
             constexpr index_t src_len         = src_lengths.Get(I);
             constexpr index_t src_sub_len     = src_sub_lengths.Get(I);
@@ -220,7 +220,7 @@ struct BlockwiseNdTensorCopyReorder_v3
 
             constexpr index_t dst_offset = DstDesc{}.Get1dIndex(dst_data_multi_id);
 
-            // write in the order of dst
+// write in the order of dst
 #if 1
             threadwise_nd_tensor_copy_reorder_given_dst2src_v2(thread_tensor_desc,
                                                                p_clipboard + clipboard_offset,
