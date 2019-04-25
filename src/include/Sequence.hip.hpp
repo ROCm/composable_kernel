@@ -246,7 +246,8 @@ struct accumulate_on_sequence_f
 };
 
 template <class Seq, class Reduce, index_t I>
-__host__ __device__ constexpr index_t accumulate_on_sequence(Seq, Reduce, Number<I>)
+__host__ __device__ constexpr index_t
+    accumulate_on_sequence(Seq, Reduce, Number<I> /*initial_value*/)
 {
     constexpr index_t a =
         static_const_reduce_n<Seq::mSize>{}(accumulate_on_sequence_f<Seq>{}, Reduce{});

@@ -24,7 +24,7 @@ struct Array
     {
         Array<TData, NSize + 1> new_array;
 
-        static_for<0, NSize, 1>{}([=](auto I) {
+        static_for<0, NSize, 1>{}([&](auto I) {
             constexpr index_t i = I.Get();
             new_array[i]        = mData[i];
         });

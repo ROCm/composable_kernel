@@ -137,11 +137,16 @@ struct ConstantTensorDescriptor
     }
 
     template <index_t... Is>
-    __host__ __device__ static constexpr index_t Get1dIndex(Sequence<Is...> multi_id)
+    __host__ __device__ static constexpr index_t Get1dIndex(Sequence<Is...> /*multi_id*/)
     {
         static_assert(sizeof...(Is) == nDim, "wrong! Dimension not consistent");
 
-        return Get1dIndex(Is...);
+        constexpr auto multi_id = Sequence<Is...>{};
+
+        constexpr auto seq_tmp =
+            transform_sequences(mod_conv::multiplies<index_t>{}, multi_id, GetStrides());
+
+        return accumulate_on_sequence(seq_tmp, mod_conv::plus<index_t>{}, Number<0>{});
     }
 
     __host__ __device__ static Array<index_t, nDim> GetMultiIndex(index_t id)

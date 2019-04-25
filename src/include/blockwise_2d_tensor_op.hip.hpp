@@ -471,7 +471,6 @@ struct Blockwise2dTensorCopy3
                           DstDesc{}.GetStride(I0) % DataPerRead == 0,
                       "src and dst stride should be multiple of DataPerRead to keep alignment");
 
-        constexpr index_t L0 = CopyLengths{}.Get(I0);
         constexpr index_t L1 = CopyLengths{}.Get(I1);
 
         constexpr index_t thread_per_d1 = (L1 + DataPerRead - 1) / DataPerRead;

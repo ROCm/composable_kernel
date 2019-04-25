@@ -53,7 +53,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 
         constexpr index_t M = a_block_mtx.NCol(); // A is transposed
         constexpr index_t N = b_block_mtx.NCol();
-        constexpr index_t K = a_block_mtx.NRow();
 
         constexpr index_t MPerThread = c_thread_mtx.NRow();
         constexpr index_t NPerThread = c_thread_mtx.NCol();
@@ -114,8 +113,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 
     __device__ MatrixIndex GetBeginOfThreadMatrixC(index_t thread_id) const
     {
-        constexpr index_t BatchThreadWork = BatchSize / BatchPerThread;
-
         constexpr index_t ThreadPerLevel1Cluster =
             MLevel0Cluster * NLevel0Cluster * MLevel1Cluster * NLevel1Cluster;
 
