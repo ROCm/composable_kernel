@@ -213,7 +213,6 @@ struct Blockwise3dTensorCopy3
 #pragma unroll
                 for(index_t iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
                 {
-#pragma unroll
                     const index_t src_offset =
                         SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
                                              iloop_d1 * thread_per_d1,
