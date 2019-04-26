@@ -196,6 +196,17 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
                 GemmDataPerReadA,
                 GemmDataPerReadB>{};
 
+        // choose GEMM implementation here
+        const auto run_blockwise_batch_gemm = [&](auto... Xs) {
+#if 0
+            return blockwise_batch_gemm.Run(Xs...);
+#elif 0
+            return blockwise_batch_gemm.Run_asm(Xs...);
+#else
+            return blockwise_batch_gemm.Run_asm_v2(Xs...);
+#endif
+        };
+
         // LDS: be careful of alignment
         constexpr index_t in_block_space =
             in_c_h_w_n_block_desc.GetElementSpace(Number<max_align>{});
@@ -293,7 +304,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
                                                                     p_wei_register_clipboard);
 
                         // LDS double buffer: GEMM on current data
-                        blockwise_batch_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
+                        run_blockwise_batch_gemm(p_wei_block_now, p_in_block_now, p_out_thread);
 
                         // LDS double buffer: store next data to LDS
                         blockwise_in_copy_reorder.RunStoreRegisterClipboard(p_in_register_clipboard,
@@ -322,7 +333,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
                                                                 p_wei_register_clipboard);
 
                     // LDS double buffer: GEMM on current data
-                    blockwise_batch_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
+                    run_blockwise_batch_gemm(p_wei_block_double, p_in_block_double, p_out_thread);
 
                     // LDS double buffer: store next data to LDS
                     blockwise_in_copy_reorder.RunStoreRegisterClipboard(
@@ -334,7 +345,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
                     __syncthreads();
 
                     // LDS double buffer: GEMM on current data
-                    blockwise_batch_gemm.Run(p_wei_block_double + wei_block_space,
+                    run_blockwise_batch_gemm(p_wei_block_double + wei_block_space,
                                              p_in_block_double + in_block_space,
                                              p_out_thread);
                 }

@@ -217,9 +217,9 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
         constexpr auto gridwise_conv =
 #if 0
             GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
-#elif 1
-            GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
 #elif 0
+            GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
+#elif 1
             GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
 #endif
             <GridSize,
