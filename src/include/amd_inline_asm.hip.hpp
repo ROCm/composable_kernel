@@ -203,520 +203,520 @@ __device__ void ds_read_b128(vector_type<float, 4>::MemoryType& r, void* lds, in
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:0\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 64)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:64\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 128)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:128\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 192)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:192\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 256)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:256\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 320)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:320\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 384)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:384\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 448)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:448\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 512)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:512\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 576)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:576\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 640)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:640\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 704)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:704\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 768)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:768\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 832)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:832\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 896)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:896\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 960)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:960\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1024)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1024\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1088)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1088\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1152)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1152\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1216)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1216\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1280)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1280\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1344)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1344\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1408)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1408\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1472)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1472\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1536)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1536\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1600)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1600\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1664)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1664\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1728)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1728\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1792)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1792\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1856)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1856\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1920)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1920\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 1984)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:1984\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2048)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2048\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2112)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2112\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2176)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2176\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2240)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2240\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2304)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2304\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2368)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2368\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2432)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2432\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2496)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2496\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2560)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2560\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2624)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2624\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2688)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2688\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2752)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2752\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2816)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2816\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2880)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2880\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 2944)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2944\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3008)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3008\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3072)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3072\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3136)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3136\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3200)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3200\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3264)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3264\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3328)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3328\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3392)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3392\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3456)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3456\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3520)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3520\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3584)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3584\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3648)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3648\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3712)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3712\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3776)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3776\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3840)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3840\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3904)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3904\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 3968)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3968\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 4032)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:4032\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
     if(offset == 4096)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:4096\n \
                 "
-                : "=v"(r)
-                : "v"(__to_local(lds)));
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
     }
 #endif
 }

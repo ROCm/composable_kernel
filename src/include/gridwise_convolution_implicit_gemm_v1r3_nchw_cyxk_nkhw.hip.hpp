@@ -78,22 +78,20 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                           Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
                       "wrong! cannot evenly divide work for workgroup ");
 
-        // constexpr index_t KBlockWork = (K + KPerBlock - 1) / KPerBlock;
-        constexpr index_t HBlockWork = (Ho + HoPerBlock - 1) / HoPerBlock;
-        constexpr index_t WBlockWork = (Wo + WoPerBlock - 1) / WoPerBlock;
-        constexpr index_t NBlockWork = (N + NPerBlock - 1) / NPerBlock;
+        constexpr index_t NBlockWork = mod_conv::integer_divide_ceil(N, NPerBlock);
+        constexpr index_t KBlockWork = mod_conv::integer_divide_ceil(K, KPerBlock);
+        constexpr index_t HBlockWork = mod_conv::integer_divide_ceil(Ho, HoPerBlock);
+        constexpr index_t WBlockWork = mod_conv::integer_divide_ceil(Wo, WoPerBlock);
 
-        const index_t k_block_work_id = get_block_1d_id() / (HBlockWork * WBlockWork * NBlockWork);
-        index_t itmp = get_block_1d_id() - k_block_work_id * (HBlockWork * WBlockWork * NBlockWork);
-        const index_t h_block_work_id = itmp / (WBlockWork * NBlockWork);
-        itmp -= h_block_work_id * (WBlockWork * NBlockWork);
-        const index_t w_block_work_id = itmp / NBlockWork;
-        const index_t n_block_work_id = itmp - w_block_work_id * NBlockWork;
+        constexpr auto block_work_desc = make_ConstantTensorDescriptor(
+            Sequence<NBlockWork, KBlockWork, HBlockWork, WBlockWork>{});
 
-        const index_t k_block_data_begin  = k_block_work_id * KPerBlock;
-        const index_t ho_block_data_begin = h_block_work_id * HoPerBlock;
-        const index_t wo_block_data_begin = w_block_work_id * WoPerBlock;
-        const index_t n_block_data_begin  = n_block_work_id * NPerBlock;
+        const auto block_work_multi_id = block_work_desc.GetMultiIndex(get_block_1d_id());
+
+        const index_t n_block_data_begin  = block_work_multi_id[0] * NPerBlock;
+        const index_t k_block_data_begin  = block_work_multi_id[1] * KPerBlock;
+        const index_t ho_block_data_begin = block_work_multi_id[2] * HoPerBlock;
+        const index_t wo_block_data_begin = block_work_multi_id[3] * WoPerBlock;
 
         const index_t hi_block_data_begin = ho_block_data_begin;
         const index_t wi_block_data_begin = wo_block_data_begin;
@@ -193,6 +191,17 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                 GemmDataPerReadA,
                 GemmDataPerReadB>{};
 
+        // choose GEMM implementation here
+        const auto run_blockwise_batch_gemm = [&](auto... Xs) {
+#if 1
+            return blockwise_batch_gemm.Run(Xs...);
+#elif 0
+            return blockwise_batch_gemm.Run_asm(Xs...);
+#else
+            return blockwise_batch_gemm.Run_asm_v2(Xs...);
+#endif
+        };
+
         // LDS: be careful of alignment
         constexpr index_t in_block_space =
             in_c_h_w_n_block_desc.GetElementSpace(Number<max_align>{});
@@ -222,7 +231,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
         // set threadwise output tensor to 0
         threadwise_4d_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
 
-#if 1
+#if 0
         const Float* p_in_global_block_offset =
             p_in_global +
             in_n_c_h_w_global_desc.Get1dIndex(
@@ -267,7 +276,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 
                     __syncthreads();
 
-                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
@@ -314,7 +323,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 
                     __syncthreads();
 
-                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
