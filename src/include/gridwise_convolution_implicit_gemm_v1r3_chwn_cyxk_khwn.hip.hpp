@@ -183,6 +183,17 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                 GemmDataPerReadA,
                 GemmDataPerReadB>{};
 
+        // choose GEMM implementation here
+        const auto run_blockwise_batch_gemm = [&](auto... Xs) {
+#if 1
+            return blockwise_batch_gemm.Run(Xs...);
+#elif 0
+            return blockwise_batch_gemm.Run_asm(Xs...);
+#else
+            return blockwise_batch_gemm.Run_asm_v2(Xs...);
+#endif
+        };
+
         // LDS: be careful of alignment
         // TODO:: need to properly implement tensor descriptor with alignment
         constexpr index_t in_block_space =
@@ -241,13 +252,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
                     __syncthreads();
 
-#if 1
-                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
-#elif 0
-                    blockwise_batch_gemm.Run_asm(p_wei_block, p_in_block, p_out_thread);
-#elif 1
-                    blockwise_batch_gemm.Run_asm_v2(p_wei_block, p_in_block, p_out_thread);
-#endif
+                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
@@ -279,13 +284,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
                     __syncthreads();
 
-#if 1
-                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
-#elif 0
-                    blockwise_batch_gemm.Run_asm(p_wei_block, p_in_block, p_out_thread);
-#elif 1
-                    blockwise_batch_gemm.Run_asm_v2(p_wei_block, p_in_block, p_out_thread);
-#endif
+                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }

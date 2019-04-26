@@ -193,6 +193,17 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
                 GemmDataPerReadA,
                 GemmDataPerReadB>{};
 
+        // choose GEMM implementation here
+        const auto run_blockwise_batch_gemm = [&](auto... Xs) {
+#if 0
+            return blockwise_batch_gemm.Run(Xs...);
+#elif 0
+            return blockwise_batch_gemm.Run_asm(Xs...);
+#else
+            return blockwise_batch_gemm.Run_asm_v2(Xs...);
+#endif
+        };
+
         // LDS: be careful of alignment
         constexpr index_t in_block_space =
             in_c_h_w_n_block_desc.GetElementSpace(Number<max_align>{});
@@ -267,7 +278,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
 
                     __syncthreads();
 
-                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
@@ -314,7 +325,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_khwn
 
                     __syncthreads();
 
-                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
