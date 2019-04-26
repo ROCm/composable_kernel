@@ -213,7 +213,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
         // set threadwise output tensor to 0
         threadwise_4d_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
 
-#if 0
+#if 1
         const Float* p_in_global_block_offset =
             p_in_global +
             in_c_h_w_n_global_desc.Get1dIndex(
@@ -241,7 +241,13 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
                     __syncthreads();
 
+#if 1
                     blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+#elif 0
+                    blockwise_batch_gemm.Run_asm(p_wei_block, p_in_block, p_out_thread);
+#elif 1
+                    blockwise_batch_gemm.Run_asm_v2(p_wei_block, p_in_block, p_out_thread);
+#endif
 
                     __syncthreads();
                 }
@@ -277,7 +283,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                     blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
 #elif 0
                     blockwise_batch_gemm.Run_asm(p_wei_block, p_in_block, p_out_thread);
-#elif 0
+#elif 1
                     blockwise_batch_gemm.Run_asm_v2(p_wei_block, p_in_block, p_out_thread);
 #endif
 
