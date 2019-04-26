@@ -293,8 +293,15 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
                         blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                                     p_wei_register_clipboard);
 
-                        // LDS double buffer: GEMM on current data
-                        blockwise_batch_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
+// LDS double buffer: GEMM on current data
+#if 1
+                        blockwise_batch_gemm.Run
+#elif 0
+                        blockwise_batch_gemm.Run_asm
+#else
+                        blockwise_batch_gemm.Run_asm_v2
+#endif
+                            (p_wei_block_now, p_in_block_now, p_out_thread);
 
                         // LDS double buffer: store next data to LDS
                         blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
@@ -321,8 +328,15 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
                     blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                                 p_wei_register_clipboard);
 
-                    // LDS double buffer: GEMM on current data
-                    blockwise_batch_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
+// LDS double buffer: GEMM on current data
+#if 1
+                    blockwise_batch_gemm.Run
+#elif 0
+                    blockwise_batch_gemm.Run_asm
+#else
+                    blockwise_batch_gemm.Run_asm_v2
+#endif
+                        (p_wei_block_double, p_in_block_double, p_out_thread);
 
                     // LDS double buffer: store next data to LDS
                     blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
@@ -333,10 +347,17 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
                     // odd iteration
                     __syncthreads();
 
-                    // LDS double buffer: GEMM on current data
-                    blockwise_batch_gemm.Run(p_wei_block_double + wei_block_space,
-                                             p_in_block_double + in_block_space,
-                                             p_out_thread);
+// LDS double buffer: GEMM on current data
+#if 1
+                    blockwise_batch_gemm.Run
+#elif 0
+                    blockwise_batch_gemm.Run_asm
+#else
+                    blockwise_batch_gemm.Run_asm_v2
+#endif
+                        (p_wei_block_double + wei_block_space,
+                         p_in_block_double + in_block_space,
+                         p_out_thread);
                 }
             }
         }

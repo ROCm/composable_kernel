@@ -293,8 +293,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         constexpr auto b_block_mtx  = BlockMatrixB{};
         constexpr auto c_thread_mtx = ThreadMatrixC{};
 
-        constexpr index_t M = a_block_mtx.NCol();
-        constexpr index_t N = b_block_mtx.NCol();
         constexpr index_t K = a_block_mtx.NRow(); // A is transposed
 
         constexpr index_t MPerThread = c_thread_mtx.NRow();
@@ -344,24 +342,26 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 
         reg_a[0] = *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA]);
         reg_b[0] = *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB]);
-        reg_b[1] =
-            *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB + NPerLevel1Cluster]);
-        reg_a[1] =
-            *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA + MPerLevel1Cluster]);
+        reg_b[1] = *reinterpret_cast<const Float4*>(
+            &p_b_block[b_block_mtx.Get1dIndex(0, NPerLevel1Cluster) + mMyThreadOffsetB]);
+        reg_a[1] = *reinterpret_cast<const Float4*>(
+            &p_a_block[a_block_mtx.Get1dIndex(0, MPerLevel1Cluster) + mMyThreadOffsetA]);
         outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
         outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
 
 #pragma unroll
         for(index_t k = 1; k < K; ++k)
         {
-            reg_a[0] = *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA + k * M]);
+            reg_a[0] = *reinterpret_cast<const Float4*>(
+                &p_a_block[a_block_mtx.Get1dIndex(k, 0) + mMyThreadOffsetA]);
             outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
-            reg_b[0] = *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB + k * N]);
+            reg_b[0] = *reinterpret_cast<const Float4*>(
+                &p_b_block[b_block_mtx.Get1dIndex(k, 0) + mMyThreadOffsetB]);
             outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
             reg_b[1] = *reinterpret_cast<const Float4*>(
-                &p_b_block[mMyThreadOffsetB + k * N + NPerLevel1Cluster]);
+                &p_b_block[b_block_mtx.Get1dIndex(k, NPerLevel1Cluster) + mMyThreadOffsetB]);
             reg_a[1] = *reinterpret_cast<const Float4*>(
-                &p_a_block[mMyThreadOffsetA + k * M + MPerLevel1Cluster]);
+                &p_a_block[a_block_mtx.Get1dIndex(k, MPerLevel1Cluster) + mMyThreadOffsetA]);
             outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
             outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
         }
@@ -430,10 +430,10 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         void* a_lds_loc = (void*)(p_a_block + mMyThreadOffsetA);
         void* b_lds_loc = (void*)(p_b_block + mMyThreadOffsetB);
 
-        constexpr index_t a_lds_row_stride         = sizeof(Float) * M;
-        constexpr index_t b_lds_row_stride         = sizeof(Float) * N;
-        constexpr index_t a_lds_cluster_col_stride = sizeof(Float) * MPerLevel1Cluster;
-        constexpr index_t b_lds_cluster_col_stride = sizeof(Float) * NPerLevel1Cluster;
+        constexpr index_t a_lds_row_stride         = sizeof(float) * a_block_mtx.RowStride();
+        constexpr index_t b_lds_row_stride         = sizeof(float) * b_block_mtx.RowStride();
+        constexpr index_t a_lds_cluster_col_stride = sizeof(float) * MPerLevel1Cluster;
+        constexpr index_t b_lds_cluster_col_stride = sizeof(float) * NPerLevel1Cluster;
 
         ds_read_b128(reg_a[0], a_lds_loc, 0);
         ds_read_b128(reg_b[0], b_lds_loc, 0);

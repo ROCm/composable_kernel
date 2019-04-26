@@ -201,7 +201,7 @@ __device__ void ds_read_b128(vector_type<float, 4>::MemoryType& r, void* lds, in
     if(offset == 0)
     {
         asm volatile("\n \
-                ds_read_b128 %0, %1 offset:0 \n \
+                ds_read_b128 %0, %1 \n \
                 "
                      : "=v"(r)
                      : "v"(__to_local(lds)));
@@ -350,10 +350,26 @@ __device__ void ds_read_b128(vector_type<float, 4>::MemoryType& r, void* lds, in
                      : "=v"(r)
                      : "v"(__to_local(lds)));
     }
+    else if(offset == 2432)
+    {
+        asm volatile("\n \
+                ds_read_b128 %0, %1 offset:2432 \n \
+                "
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
+    }
     else if(offset == 2560)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:2560 \n \
+                "
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
+    }
+    else if(offset == 2688)
+    {
+        asm volatile("\n \
+                ds_read_b128 %0, %1 offset:2688 \n \
                 "
                      : "=v"(r)
                      : "v"(__to_local(lds)));
@@ -366,10 +382,26 @@ __device__ void ds_read_b128(vector_type<float, 4>::MemoryType& r, void* lds, in
                      : "=v"(r)
                      : "v"(__to_local(lds)));
     }
+    else if(offset == 2944)
+    {
+        asm volatile("\n \
+                ds_read_b128 %0, %1 offset:2944 \n \
+                "
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
+    }
     else if(offset == 3072)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3072 \n \
+                "
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
+    }
+    else if(offset == 3200)
+    {
+        asm volatile("\n \
+                ds_read_b128 %0, %1 offset:3200 \n \
                 "
                      : "=v"(r)
                      : "v"(__to_local(lds)));
@@ -382,6 +414,14 @@ __device__ void ds_read_b128(vector_type<float, 4>::MemoryType& r, void* lds, in
                      : "=v"(r)
                      : "v"(__to_local(lds)));
     }
+    else if(offset == 3456)
+    {
+        asm volatile("\n \
+                ds_read_b128 %0, %1 offset:3456 \n \
+                "
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
+    }
     else if(offset == 3584)
     {
         asm volatile("\n \
@@ -390,10 +430,26 @@ __device__ void ds_read_b128(vector_type<float, 4>::MemoryType& r, void* lds, in
                      : "=v"(r)
                      : "v"(__to_local(lds)));
     }
+    else if(offset == 3712)
+    {
+        asm volatile("\n \
+                ds_read_b128 %0, %1 offset:3712 \n \
+                "
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
+    }
     else if(offset == 3840)
     {
         asm volatile("\n \
                 ds_read_b128 %0, %1 offset:3840 \n \
+                "
+                     : "=v"(r)
+                     : "v"(__to_local(lds)));
+    }
+    else if(offset == 3968)
+    {
+        asm volatile("\n \
+                ds_read_b128 %0, %1 offset:3968 \n \
                 "
                      : "=v"(r)
                      : "v"(__to_local(lds)));
