@@ -371,7 +371,7 @@ void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
             std::size_t ho = HoPerTile * htile + j;
             for(int i = 0; i < WoPerTile; ++i)
             {
-                std::size_t wo = WoPerTile * wtile + i;
+                std::size_t wo         = WoPerTile * wtile + i;
                 out_nkhw(n, k, ho, wo) = out_hold(n, k, htile, wtile, j, i);
             }
         }
@@ -413,13 +413,13 @@ int main(int argc, char* argv[])
 {
 #if 1
     // 3x3, 34x34
-    constexpr index_t N  = 64;
-    constexpr index_t C  = 256;
+    constexpr index_t N = 64;
+    constexpr index_t C = 256;
     constexpr index_t HI = 34;
     constexpr index_t WI = 34;
-    constexpr index_t K  = 128;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
+    constexpr index_t K = 128;
+    constexpr index_t Y = 3;
+    constexpr index_t X = 3;
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
@@ -597,6 +597,8 @@ int main(int argc, char* argv[])
         };
         wei_kcyx.GenerateTensorValue(gen_wei, num_thread);
 #endif
+
+        // out_nkhw_device.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     }
 
 #if 1
