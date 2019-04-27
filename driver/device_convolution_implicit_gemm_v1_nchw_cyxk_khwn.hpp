@@ -95,7 +95,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     constexpr index_t InBlockReorderDataPerRead_W  = 1; // v1r3 cannot do vector load input for NCHW
     constexpr index_t InBlockReorderDataPerWrite_N = 2;
 
-    using WeiBlockCopyClusterLengths            = Sequence<0, 0>; // not used
+    using WeiBlockCopyClusterLengths            = void;
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_N = 2;
@@ -130,7 +130,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     constexpr index_t InBlockReorderDataPerRead_W  = 1; // v1r3 cannot do vector load input for NCHW
     constexpr index_t InBlockReorderDataPerWrite_N = 2;
 
-    using WeiBlockCopyClusterLengths            = Sequence<0, 0>; // not used
+    using WeiBlockCopyClusterLengths            = void;
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_N = 2;
@@ -200,7 +200,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     constexpr index_t InBlockReorderDataPerRead_W  = 1; // v1r3 cannot do vector load input for NCHW
     constexpr index_t InBlockReorderDataPerWrite_N = 1;
 
-    using WeiBlockCopyClusterLengths            = Sequence<0, 0>; // not used
+    using WeiBlockCopyClusterLengths            = void;
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_N = 2;
