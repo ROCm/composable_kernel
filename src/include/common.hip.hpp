@@ -1,12 +1,12 @@
 #pragma once
-#include "data_type.hip.hpp"
+#include "vector_type.hip.hpp"
 #include "constant_integral.hip.hpp"
 #include "Sequence.hip.hpp"
 #include "Array.hip.hpp"
 #include "functional.hip.hpp"
 #include "functional2.hip.hpp"
 
-#if DEVICE_BACKEND_HIP
+#if USE_AMD_INLINE_ASM
 #include "amd_inline_asm.hip.hpp"
 #endif
 
