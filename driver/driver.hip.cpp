@@ -7,8 +7,7 @@
 #include "tensor.hpp"
 #include "ConstantTensorDescriptor.hip.hpp"
 #include "conv_common.hip.hpp"
-//#include "device_direct_convolution_1.hpp"
-#include "device_direct_convolution_2_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
 //#include "device_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hpp"
 #include "device_convolution_implicit_gemm_v1_nchw_cyxk_khwn.hpp"
@@ -604,15 +603,15 @@ int main(int argc, char* argv[])
 #if 1
 #if 0
     device_direct_convolution_1
-#elif 0
-    device_direct_convolution_2_nchw_kcyx_nkhw
+#elif 1
+    device_convolution_direct_v2_nchw_kcyx_nkhw
 #elif 0
     device_direct_convolution_2_vectorized_nchw_kcyx_nkhw
 #elif 0
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn
 #elif 0
     device_convolution_implicit_gemm_v1_nchw_cyxk_khwn
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw
 #elif 0
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn
