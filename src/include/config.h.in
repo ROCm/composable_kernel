@@ -5,11 +5,56 @@
 #if DEVICE_BACKEND_HIP
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
+#define USE_AMD_INLINE_ASM 1
+
+// For some reason, HIP compiler need this definition to generate optimal load and store
+// instruction
+typedef float float2_t __attribute__((ext_vector_type(2)));
+typedef float float4_t __attribute__((ext_vector_type(4)));
 #elif DEVICE_BACKEND_CUDA
 #include "cuda_runtime.h"
 #include "cuda_fp16.h"
 #include "nvToolsExt.h"
 #include "helper_cuda.h"
+#define USE_AMD_INLINE_ASM 0
+
+// For some reason, CUDA need this definition, otherwise
+//   compiler won't generate optimal load and store instruction, and
+//   kernel would produce wrong result, indicating the compiler fail to generate correct
+//   instruction,
+using float2_t = float2;
+using float4_t = float4;
 #endif
 
 using index_t = uint32_t;
+
+__device__ void fused_multiply_accumulate(float& d, const float& s0, const float& s1)
+{
+    d += s0 * s1;
+}
+
+#if 0
+__device__ void fused_multiply_accumulate(half& d, const half& s0, const half& s1) { d += s0 * s1; }
+
+__device__ void fused_multiply_accumulate(half& d, const half2& s0, const half2& s1)
+{
+    d += s0.x * s1.x;
+    d += s0.y * s1.y;
+}
+
+__device__ void fused_multiply_accumulate(float& d, const half2& s0, const half2& s1)
+{
+    d += s0.x * s1.x + s0.y * s1.y;
+}
+
+__device__ void fused_multiply_accumulate(char& d, const char& s0, const char& s1) { d += s0 * s1; }
+
+// TODO:: this interface is misleading, s0, s1 are actually int8x4
+//  need to make a better interface
+__device__ void fused_multiply_accumulate(int32_t& d, const int32_t& s0, const int32_t& s1)
+{
+#if DEVICE_BACKEND_CUDA
+    d = __dp4a(s0, s1, d);
+#endif
+}
+#endif

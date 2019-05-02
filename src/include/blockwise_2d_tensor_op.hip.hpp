@@ -668,7 +668,7 @@ struct Blockwise2dTensorCopy3
         }
     }
 
-#if DEVICE_BACKEND_HIP
+#if USE_AMD_INLINE_ASM
     __device__ void RunLoadRegisterClipboard_asm(const Float* __restrict__ p_src,
                                                  Float* p_clipboard) const
     {

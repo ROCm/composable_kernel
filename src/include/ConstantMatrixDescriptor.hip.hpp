@@ -23,11 +23,7 @@ struct ConstantMatrixDescriptor
 
     __host__ __device__ index_t Get1dIndex(index_t irow, index_t icol) const
     {
-#if DEVICE_BACKEND_HIP
-        return __mul24(irow, RowStride_) + icol;
-#else
         return irow * RowStride_ + icol;
-#endif
     }
 
     template <index_t SubNRow, index_t SubNCol>

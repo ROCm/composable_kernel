@@ -283,7 +283,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         }
     }
 
-#if DEVICE_BACKEND_HIP
+#if USE_AMD_INLINE_ASM
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
                             const FloatB* __restrict__ p_b_block,
