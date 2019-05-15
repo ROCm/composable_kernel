@@ -25,7 +25,7 @@ void TensorDescriptor::CalculateStrides()
         mLens.rbegin(), mLens.rend() - 1, mStrides.rbegin() + 1, std::multiplies<std::size_t>());
 }
 
-std::size_t TensorDescriptor::GetDimension() const { return mLens.size(); }
+std::size_t TensorDescriptor::GetNumOfDimension() const { return mLens.size(); }
 
 std::size_t TensorDescriptor::GetElementSize() const
 {

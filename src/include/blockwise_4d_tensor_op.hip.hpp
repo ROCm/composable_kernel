@@ -1,6 +1,6 @@
 #pragma once
 #include "ConstantTensorDescriptor.hip.hpp"
-#include "threadwise_nd_tensor_op.hip.hpp"
+#include "threadwise_tensor_slice_op.hip.hpp"
 
 template <index_t BlockSize, class Float, class DstDesc, class F>
 __device__ void

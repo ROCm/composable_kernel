@@ -4,7 +4,7 @@
 #include "ConstantMatrixDescriptor.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
 #include "blockwise_4d_tensor_op.hip.hpp"
-#include "threadwise_nd_tensor_op.hip.hpp"
+#include "threadwise_tensor_slice_op.hip.hpp"
 #include "threadwise_4d_tensor_op.hip.hpp"
 #include "blockwise_batched_gemm.hip.hpp"
 
@@ -347,7 +347,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                 }
 #endif
 
-            threadwise_nd_tensor_copy(
+            threadwise_tensor_slice_copy(
                 out_10d_thread_desc,
                 p_out_thread,
                 out_10d_global_desc,
@@ -397,7 +397,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                 }
 #endif
 
-            threadwise_nd_tensor_copy(
+            threadwise_tensor_slice_copy(
                 out_10d_thread_desc,
                 p_out_thread,
                 out_10d_global_desc,

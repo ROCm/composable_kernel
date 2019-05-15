@@ -7,7 +7,6 @@
 template <index_t BlockSize,
           class BlockMatrixA,
           class BlockMatrixB,
-          class ThreadMatrixC,
           index_t MPerThreadSubC,
           index_t NPerThreadSubC,
           index_t MLevel0Cluster,
@@ -35,51 +34,35 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         static_assert(BlockSize == ThreadPerLevel1Cluster, "wrong! wrong blocksize\n");
 
-        constexpr auto a_block_mtx  = BlockMatrixA{};
-        constexpr auto b_block_mtx  = BlockMatrixB{};
-        constexpr auto c_thread_mtx = ThreadMatrixC{};
-
-        static_assert(a_block_mtx.NRow() == b_block_mtx.NRow(),
+        static_assert(BlockMatrixA::NRow() == BlockMatrixB::NRow(),
                       "wrong! K dimension not consistent\n");
 
-        constexpr index_t M = a_block_mtx.NCol(); // A is transposed
-        constexpr index_t N = b_block_mtx.NCol();
-        constexpr index_t K = a_block_mtx.NRow();
+        constexpr index_t M = BlockMatrixA::NCol(); // A is transposed
+        constexpr index_t N = BlockMatrixB::NCol();
+        constexpr index_t K = BlockMatrixA::NRow();
 
-        constexpr index_t MPerThread = c_thread_mtx.NRow();
-        constexpr index_t NPerThread = c_thread_mtx.NCol();
+        static_assert(M % (MPerThreadSubC * MLevel0Cluster * MLevel1Cluster) == 0 &&
+                          N % (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster) == 0,
+                      "wrong! Cannot evenly divide work among\n");
 
-        static_assert((MPerThread % MPerThreadSubC == 0) && (NPerThread % NPerThreadSubC == 0),
-                      "wrong! Cannot evenly divide thread work among repeat \n");
-
-        constexpr index_t MRepeat = MPerThread / MPerThreadSubC;
-        constexpr index_t NRepeat = NPerThread / NPerThreadSubC;
-
-        static_assert((M % MRepeat == 0) && (N % NRepeat == 0),
-                      "wrong! Cannot evenly divide work among repeat\n");
-
-        constexpr index_t MPerLevel1Cluster = M / MRepeat;
-        constexpr index_t NPerLevel1Cluster = N / NRepeat;
-
-        static_assert((MPerLevel1Cluster % MLevel1Cluster == 0) &&
-                          (NPerLevel1Cluster % NLevel1Cluster == 0),
-                      "wrong! Cannot evenly divide work among Level1Cluster\n");
-
-        constexpr index_t MPerLevel0Cluster = MPerLevel1Cluster / MLevel1Cluster;
-        constexpr index_t NPerLevel0Cluster = NPerLevel1Cluster / NLevel1Cluster;
-
-        static_assert((MPerLevel0Cluster % MLevel0Cluster == 0) &&
-                          (NPerLevel0Cluster % NLevel0Cluster == 0),
-                      "wrong! Cannot evenly divide work among Level0Cluster\n");
-
-        static_assert((MPerThreadSubC == MPerLevel0Cluster / MLevel0Cluster) &&
-                          (NPerThreadSubC == NPerLevel0Cluster / NLevel0Cluster),
-                      "wrong! thread work size is wrong\n");
+        static_assert(ThreadMatrixC::GetLengths() == GetThreadMatrixCLengths,
+                      "wrong! ThreadMatrixC lengths is wrong");
 
         auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-        mMyThreadOffsetA = a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row);
-        mMyThreadOffsetB = b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col);
+        mMyThreadOffsetA = BlockMatrixA::Get1dIndex(0, c_thread_mtx_index.row);
+        mMyThreadOffsetB = BlockMatrixB::Get1dIndex(0, c_thread_mtx_index.col);
+    }
+
+    __device__ static auto GetThreadMatrixCLengths()
+    {
+        constexpr index_t M = BlockMatrixA::NCol(); // A is transposed
+        constexpr index_t N = BlockMatrixB::NCol();
+
+        constexpr index_t MRepeat = M / (MPerThreadSubC * MLevel0Cluster * MLevel1Cluster);
+        constexpr index_t NRepeat = N / (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster);
+
+        return Sequence<MRepeat * MPerThreadSubC, NRepeat * NPerThreadSubC>{};
     }
 
     __device__ static MatrixIndex GetBeginOfThreadMatrixC(index_t thread_id)
@@ -101,7 +84,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                            level1_n_id * NPerLevel0Cluster + level0_n_id * NPerThreadSubC};
     }
 
-    // this should be optimized away if input is known
     __device__ static MatrixIndex GetDistanceFromBeginOfThreadMatrixC(index_t m_in_c,
                                                                       index_t n_in_c)
     {

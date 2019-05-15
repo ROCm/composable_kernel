@@ -59,10 +59,22 @@ struct Sequence
 
     __host__ __device__ constexpr auto PopBack() const;
 
-    template <class F>
-    __host__ __device__ constexpr auto Transform(F f) const
+    template <index_t I, index_t X>
+    __host__ __device__ constexpr auto Insert(Number<I>, Number<X>) const
     {
-        return Sequence<f(Is)...>{};
+        index_t data[mSize + 1];
+
+        static_for<0, I, 1>{}([&](auto Iter) {
+            constexpr index_t iter = Iter.Get();
+            data[iter]             = mData[iter];
+        });
+
+        data[I] = X;
+
+        static_for<I, nSize, 1>{}([&](auto Iter) {
+            constexpr index_t iter = Iter.Get();
+            data[iter + 1]         = mData[iter];
+        });
     }
 };
 

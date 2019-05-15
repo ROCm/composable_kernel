@@ -5,7 +5,7 @@
 #include "blockwise_4d_tensor_op.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
 #include "threadwise_2d_tensor_op.hip.hpp"
-#include "threadwise_nd_tensor_op.hip.hpp"
+#include "threadwise_tensor_slice_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
 
 // define B = flatten(N, Hi, Wi)

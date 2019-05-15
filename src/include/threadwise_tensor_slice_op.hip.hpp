@@ -3,18 +3,18 @@
 
 // need to assume src and dst is aligned
 template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, index_t DataPerRead>
-__device__ void threadwise_nd_tensor_copy(SrcDesc,
-                                          const Float* __restrict__ p_src,
-                                          DstDesc,
-                                          Float* __restrict__ p_dst,
-                                          SrcOpLengths,
-                                          Number<DataPerRead>)
+__device__ void threadwise_tensor_slice_copy(SrcDesc,
+                                             const Float* __restrict__ p_src,
+                                             DstDesc,
+                                             Float* __restrict__ p_dst,
+                                             SrcOpLengths,
+                                             Number<DataPerRead>)
 {
     using vector_t = typename vector_type<Float, DataPerRead>::MemoryType;
 
     constexpr index_t nDim = SrcOpLengths::GetSize();
 
-    static_assert(SrcDesc{}.GetDimension() == nDim && DstDesc{}.GetDimension() == nDim,
+    static_assert(SrcDesc{}.GetNumOfDimension() == nDim && DstDesc{}.GetNumOfDimension() == nDim,
                   "wrong! dimension not consistent");
 
     constexpr auto src_desc = SrcDesc{};
@@ -63,7 +63,7 @@ __device__ void threadwise_nd_tensor_copy(SrcDesc,
     });
 }
 
-// write in order of src
+// access in order of src
 template <class SrcData,
           class DstData,
           class SrcDesc,
@@ -71,12 +71,12 @@ template <class SrcData,
           class SrcOpLengths,
           class MapDst2Src>
 __device__ void
-threadwise_nd_tensor_copy_reorder_given_dst2src_v1(SrcDesc,
-                                                   const SrcData* __restrict__ p_src,
-                                                   DstDesc,
-                                                   DstData* __restrict__ p_dst,
-                                                   SrcOpLengths,
-                                                   MapDst2Src)
+threadwise_tensor_slice_copy_reorder_given_dst2src_v1(SrcDesc,
+                                                      const SrcData* __restrict__ p_src,
+                                                      DstDesc,
+                                                      DstData* __restrict__ p_dst,
+                                                      SrcOpLengths,
+                                                      MapDst2Src)
 {
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
@@ -92,7 +92,7 @@ threadwise_nd_tensor_copy_reorder_given_dst2src_v1(SrcDesc,
     });
 }
 
-// write in order of dst
+// access in order of dst
 template <class SrcData,
           class DstData,
           class SrcDesc,
@@ -100,12 +100,12 @@ template <class SrcData,
           class SrcOpLengths,
           class MapDst2Src>
 __device__ void
-threadwise_nd_tensor_copy_reorder_given_dst2src_v2(SrcDesc,
-                                                   const SrcData* __restrict__ p_src,
-                                                   DstDesc,
-                                                   DstData* __restrict__ p_dst,
-                                                   SrcOpLengths,
-                                                   MapDst2Src)
+threadwise_tensor_slice_copy_reorder_given_dst2src_v2(SrcDesc,
+                                                      const SrcData* __restrict__ p_src,
+                                                      DstDesc,
+                                                      DstData* __restrict__ p_dst,
+                                                      SrcOpLengths,
+                                                      MapDst2Src)
 {
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
@@ -123,20 +123,22 @@ threadwise_nd_tensor_copy_reorder_given_dst2src_v2(SrcDesc,
     });
 }
 
-// write in order of dst
+// access in order of dst
+// manually pack data into vector before write
 template <class Float,
           class SrcDesc,
           class DstDesc,
           class SrcOpLengths,
           class MapDst2Src,
           index_t DstDataPerWrite>
-__device__ void threadwise_nd_tensor_copy_reorder_given_dst2src_v3(SrcDesc,
-                                                                   const Float* __restrict__ p_src,
-                                                                   DstDesc,
-                                                                   Float* __restrict__ p_dst,
-                                                                   SrcOpLengths,
-                                                                   MapDst2Src,
-                                                                   Number<DstDataPerWrite>)
+__device__ void
+threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
+                                                      const Float* __restrict__ p_src,
+                                                      DstDesc,
+                                                      Float* __restrict__ p_dst,
+                                                      SrcOpLengths,
+                                                      MapDst2Src,
+                                                      Number<DstDataPerWrite>)
 {
     using vector_t = typename vector_type<Float, DstDataPerWrite>::MemoryType;
 
@@ -189,4 +191,18 @@ __device__ void threadwise_nd_tensor_copy_reorder_given_dst2src_v3(SrcDesc,
             *(reinterpret_cast<vector_t*>(&p_dst[dst_index])) = dst_vec_data;
         });
     });
+}
+
+template <class Float, class SrcDesc, class DstDesc, class SliceLengths, class DimAccessOrder>
+__device__ void
+threadwise_tensor_slice_copy_generic(SrcDesc,
+                                     const Float* __restrict__ p_src,
+                                     Array<index_t, SrcDesc::GetNumOfDimension()> src_multi_offset,
+                                     DstDesc,
+                                     Float* __restrict__ p_dst,
+                                     Array<index_t, DstDesc::GetNumOfDimension()> dst_multi_offset,
+                                     SliceLengths,
+                                     DimAccessOrder)
+{
+    // not implemented
 }

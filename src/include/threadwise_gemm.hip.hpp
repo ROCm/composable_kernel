@@ -1,4 +1,19 @@
 #pragma once
+#include "common.hip.hpp"
+#include "ConstantMatrixDescriptor.hip.hpp"
+
+template <class Float, class Matrix>
+__device__ void threadwise_matrix_set_zero(Matrix, Float* __restrict__ p_thread)
+{
+    for(index_t i = 0; i < Matrix::NRow(); ++i)
+    {
+        for(index_t j = 0; j < Matrix::NCol(); ++j)
+        {
+            const index_t id = Matrix::Get1dIndex(i, j);
+            p_thread[id]     = 0;
+        }
+    }
+}
 
 template <class Float,
           class SrcMatrix,
@@ -64,9 +79,9 @@ __device__ void threadwise_gemm(MatrixA,
 
         for(index_t k = 0; k < K; ++k)
         {
-            for(index_t i = 0; i < M; i++)
+            for(index_t i = 0; i < M; ++i)
             {
-                for(index_t j = 0; j < N; j++)
+                for(index_t j = 0; j < N; ++j)
                 {
                     const index_t aindex = a_mtx.Get1dIndex(k, i); // A is transposed
                     const index_t bindex = b_mtx.Get1dIndex(k, j);

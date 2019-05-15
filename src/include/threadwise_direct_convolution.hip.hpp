@@ -1,6 +1,6 @@
 #pragma once
 #include "ConstantTensorDescriptor.hip.hpp"
-#include "threadwise_nd_tensor_op.hip.hpp"
+#include "threadwise_tensor_slice_op.hip.hpp"
 
 // optimized for scenario if p_in, p_wei, p_out are in register
 template <class TInWei, class TOut, class InDesc, class WeiDesc, class OutDesc>
@@ -85,11 +85,11 @@ __device__ void threadwise_direct_convolution_2(InDesc,
     TInWei p_wei_reg[wei_reg_desc.GetElementSpace()];
 
     // copy input tensor into register
-    threadwise_nd_tensor_copy(
+    threadwise_tensor_slice_copy(
         in_desc, p_in, in_reg_desc, p_in_reg, in_reg_desc.GetLengths(), Number<1>{});
 
     // copy input tensor into register
-    threadwise_nd_tensor_copy(
+    threadwise_tensor_slice_copy(
         wei_desc, p_wei, wei_reg_desc, p_wei_reg, wei_reg_desc.GetLengths(), Number<1>{});
 
     // do convolution
