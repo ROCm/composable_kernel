@@ -1,5 +1,5 @@
 #pragma once
-#include "threadwise_nd_tensor_op.hip.hpp"
+#include "threadwise_tensor_slice_op.hip.hpp"
 
 template <index_t BlockSize,
           class Float,
@@ -12,14 +12,16 @@ template <index_t BlockSize,
           class MapThreadCluster2SrcCluster,
           index_t SrcDataPerRead,
           index_t DstDataPerWrite>
-struct BlockwiseNdTensorCopyReorder_v3
+struct BlockwiseTensorSliceReorderCopy_v3
 {
     static constexpr index_t nDim = SrcLengths::GetSize();
 
     index_t mSrcMyThreadOffset;
     index_t mDstMyThreadOffset;
 
-    __device__ BlockwiseNdTensorCopyReorder_v3()
+    __device__
+    BlockwiseTensorSliceReorderCopy_v3(Array<index_t, nDim> src_block_data_multi_id_begin,
+                                       Array<index_t, nDim> dst_block_data_multi_id_begin)
     {
         constexpr auto src_desc = SrcDesc{};
         constexpr auto dst_desc = DstDesc{};
@@ -43,8 +45,9 @@ struct BlockwiseNdTensorCopyReorder_v3
         static_assert(is_same<Float, float>::value, "wrong! only support float for now!\n");
 
         // sanity check: nDim
-        static_assert(SrcDesc::GetDimension() == nDim && DstDesc::GetDimension() == nDim &&
-                          SrcLengths::GetSize() == nDim && SrcSubLengths::GetSize() == nDim &&
+        static_assert(SrcDesc::GetNumOfDimension() == nDim &&
+                          DstDesc::GetNumOfDimension() == nDim && SrcLengths::GetSize() == nDim &&
+                          SrcSubLengths::GetSize() == nDim &&
                           SrcClusterLengths::GetSize() == nDim && MapDst2Src::GetSize() == nDim &&
                           MapThreadCluster2SrcCluster::GetSize() == nDim,
                       "wrong! nDim is not consistent\n");
@@ -112,17 +115,17 @@ struct BlockwiseNdTensorCopyReorder_v3
         static_for<0, nDim, 1>{}([&](auto IDim) {
             constexpr auto I    = decltype(IDim){};
             constexpr index_t i = I.Get();
-            // compiler: will it really compute index here, or be associated with Get1dIndex and
+            // compiler: will it really compute index here, or be merged with Get1dIndex and
             // optimized away???
             src_data_multi_id[i] *= src_sub_lengths.Get(I);
         });
 
-        // compiler: will it really compute index here, or be associated with Get1dIndex and
+        // compiler: will it really compute index here, or be merged with Get1dIndex and
         // optimized away???
         const auto dst_data_multi_id = reorder_array_given_new2old(src_data_multi_id, map_dst2src);
 
-        mSrcMyThreadOffset = src_desc.Get1dIndex(src_data_multi_id);
-        mDstMyThreadOffset = dst_desc.Get1dIndex(dst_data_multi_id);
+        mSrcMyThreadOffset = src_desc.Get1dIndex(src_data_multi_id + src_block_data_multi_id_begin);
+        mDstMyThreadOffset = dst_desc.Get1dIndex(dst_data_multi_id + dst_block_data_multi_id_begin);
     }
 
     __device__ static constexpr index_t GetRegisterClipboardSize()
@@ -176,12 +179,12 @@ struct BlockwiseNdTensorCopyReorder_v3
             constexpr index_t clipboard_offset =
                 thread_tensor_desc.Get1dIndex(clipboard_data_multi_id);
 
-            threadwise_nd_tensor_copy(SrcDesc{},
-                                      p_src + src_offset + mSrcMyThreadOffset,
-                                      thread_tensor_desc,
-                                      p_clipboard + clipboard_offset,
-                                      thread_sub_tensor_lengths,
-                                      Number<SrcDataPerRead>{});
+            threadwise_tensor_slice_copy(SrcDesc{},
+                                         p_src + src_offset + mSrcMyThreadOffset,
+                                         thread_tensor_desc,
+                                         p_clipboard + clipboard_offset,
+                                         thread_sub_tensor_lengths,
+                                         Number<SrcDataPerRead>{});
         });
     }
 
@@ -222,22 +225,22 @@ struct BlockwiseNdTensorCopyReorder_v3
 
 // write in the order of dst
 #if 1
-            threadwise_nd_tensor_copy_reorder_given_dst2src_v2(thread_tensor_desc,
-                                                               p_clipboard + clipboard_offset,
-                                                               DstDesc{},
-                                                               p_dst + dst_offset +
-                                                                   mDstMyThreadOffset,
-                                                               thread_sub_tensor_lengths,
-                                                               MapDst2Src{});
+            threadwise_tensor_slice_copy_reorder_given_dst2src_v2(thread_tensor_desc,
+                                                                  p_clipboard + clipboard_offset,
+                                                                  DstDesc{},
+                                                                  p_dst + dst_offset +
+                                                                      mDstMyThreadOffset,
+                                                                  thread_sub_tensor_lengths,
+                                                                  MapDst2Src{});
 #else
-            threadwise_nd_tensor_copy_reorder_given_dst2src_v3(thread_tensor_desc,
-                                                               p_clipboard + clipboard_offset,
-                                                               DstDesc{},
-                                                               p_dst + dst_offset +
-                                                                   mDstMyThreadOffset,
-                                                               thread_sub_tensor_lengths,
-                                                               MapDst2Src{},
-                                                               Number<DstDataPerWrite>{});
+            threadwise_tensor_slice_copy_reorder_given_dst2src_v3(thread_tensor_desc,
+                                                                  p_clipboard + clipboard_offset,
+                                                                  DstDesc{},
+                                                                  p_dst + dst_offset +
+                                                                      mDstMyThreadOffset,
+                                                                  thread_sub_tensor_lengths,
+                                                                  MapDst2Src{},
+                                                                  Number<DstDataPerWrite>{});
 #endif
         });
     }

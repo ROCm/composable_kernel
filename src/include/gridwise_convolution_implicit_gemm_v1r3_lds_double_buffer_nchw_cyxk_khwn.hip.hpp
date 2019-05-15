@@ -3,8 +3,8 @@
 #include "ConstantTensorDescriptor.hip.hpp"
 #include "ConstantMatrixDescriptor.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
-#include "blockwise_nd_tensor_op.hip.hpp"
-#include "threadwise_nd_tensor_op.hip.hpp"
+#include "blockwise_tensor_slice_op.hip.hpp"
+#include "threadwise_tensor_slice_op.hip.hpp"
 #include "threadwise_4d_tensor_op.hip.hpp"
 #include "blockwise_batched_gemm.hip.hpp"
 
@@ -131,18 +131,18 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
         // input: format is [N, C, Hi, Wi] to [C, Hi, Wi, N]
         constexpr auto map_chwn2nchw = Sequence<1, 2, 3, 0>{};
 
-        const auto blockwise_in_copy_reorder =
-            BlockwiseNdTensorCopyReorder_v3<BlockSize,
-                                            Float,
-                                            decltype(in_n_c_h_w_global_desc),
-                                            decltype(in_c_h_w_n_block_desc),
-                                            Sequence<NPerBlock, CPerBlock, HoPerBlock, WoPerBlock>,
-                                            InBlockReorderSrcSubLengths_NCHW,
-                                            InBlockReorderSrcClusterLengths_NCHW,
-                                            decltype(map_chwn2nchw),
-                                            InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
-                                            InBlockReorderDataPerRead_W,
-                                            InBlockReorderDataPerWrite_N>{};
+        const auto blockwise_in_copy_reorder = BlockwiseTensorSliceReorderCopy_v3<
+            BlockSize,
+            Float,
+            decltype(in_n_c_h_w_global_desc),
+            decltype(in_c_h_w_n_block_desc),
+            Sequence<NPerBlock, CPerBlock, HoPerBlock, WoPerBlock>,
+            InBlockReorderSrcSubLengths_NCHW,
+            InBlockReorderSrcClusterLengths_NCHW,
+            decltype(map_chwn2nchw),
+            InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
+            InBlockReorderDataPerRead_W,
+            InBlockReorderDataPerWrite_N>{};
 
         // blockwise wei copy
         //   format is [CPerBlock, KPerBlock]
@@ -407,7 +407,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
                 }
 #endif
 
-            threadwise_nd_tensor_copy(
+            threadwise_tensor_slice_copy(
                 out_10d_thread_desc,
                 p_out_thread,
                 out_10d_global_desc,
@@ -457,7 +457,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
                 }
 #endif
 
-            threadwise_nd_tensor_copy(
+            threadwise_tensor_slice_copy(
                 out_10d_thread_desc,
                 p_out_thread,
                 out_10d_global_desc,

@@ -3,7 +3,7 @@
 #include "ConstantTensorDescriptor.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
 #include "blockwise_4d_tensor_op.hip.hpp"
-#include "threadwise_nd_tensor_op.hip.hpp"
+#include "threadwise_tensor_slice_op.hip.hpp"
 #include "threadwise_direct_convolution.hip.hpp"
 
 template <index_t GridSize,
@@ -229,7 +229,7 @@ struct GridwiseConvolutionDirect_v2_nchw_kcyx_nkhw
         }
 
         // copy output tensor from register to global mem
-        threadwise_nd_tensor_copy(
+        threadwise_tensor_slice_copy(
             out_nkhw_thread_desc,
             p_out_thread,
             out_nkhw_global_desc,

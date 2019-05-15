@@ -85,7 +85,7 @@ struct TensorDescriptor
     {
     }
 
-    std::size_t GetDimension() const;
+    std::size_t GetNumOfDimension() const;
     std::size_t GetElementSize() const;
     std::size_t GetElementSpace() const;
 
@@ -95,7 +95,7 @@ struct TensorDescriptor
     template <class... Is>
     std::size_t Get1dIndex(Is... is) const
     {
-        assert(sizeof...(Is) == this->GetDimension());
+        assert(sizeof...(Is) == this->GetNumOfDimension());
         std::initializer_list<std::size_t> iss{static_cast<std::size_t>(is)...};
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
@@ -206,7 +206,7 @@ struct Tensor
     template <class G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
-        switch(mDesc.GetDimension())
+        switch(mDesc.GetNumOfDimension())
         {
         case 1:
         {

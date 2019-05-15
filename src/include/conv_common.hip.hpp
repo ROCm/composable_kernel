@@ -14,8 +14,8 @@ __host__ __device__ constexpr auto get_convolution_output_default_4d_tensor_desc
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    static_assert(in_desc.GetDimension() == 4, "input nDim is not 4");
-    static_assert(wei_desc.GetDimension() == 4, "weight nDim is not 4");
+    static_assert(in_desc.GetNumOfDimension() == 4, "input nDim is not 4");
+    static_assert(wei_desc.GetNumOfDimension() == 4, "weight nDim is not 4");
     static_assert(in_desc.GetLength(I1) == wei_desc.GetLength(I1),
                   "input & weight dimension not consistent");
 
@@ -45,8 +45,8 @@ __host__ __device__ constexpr auto get_convolution_with_padding_output_default_4
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    static_assert(in_desc.GetDimension() == 4, "input nDim is not 4");
-    static_assert(wei_desc.GetDimension() == 4, "weight nDim is not 4");
+    static_assert(in_desc.GetNumOfDimension() == 4, "input nDim is not 4");
+    static_assert(wei_desc.GetNumOfDimension() == 4, "weight nDim is not 4");
     static_assert(in_desc.GetLength(I1) == wei_desc.GetLength(I1),
                   "input & weight dimension not consistent");
 
