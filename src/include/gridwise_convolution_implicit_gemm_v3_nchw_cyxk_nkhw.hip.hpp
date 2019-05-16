@@ -91,7 +91,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         // input tensor
         //     memory layout descriptor in device memory [N0, N1, N2, C, H, W]
         constexpr auto in_n0_n1_n2_c_h_w_global_mem_desc =
-            in_n_c_h_w_global_desc.Fold(I0, Sequence<N1, N2>{});
+            in_n_c_h_w_global_desc.Fold(I0, Number<N1>{}, Number<N2>{});
 
         //     merged tensor descriptor in device memory [N1, N2, C, B], src of blockwise copy
         constexpr auto in_n1_n2_c_b_global_merged_desc =
@@ -132,7 +132,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
 
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
-        constexpr auto wei_c_k_global_desc = wei_c_y_x_k_global_desc.Extract(Sequence<0, 3>{});
+        constexpr auto wei_c_k_global_desc = wei_c_y_x_k_global_desc.Extract(I0, I3);
 
         //     tensor descriptor in LDS, dst of blockwise copy
         //     be careful of LDS alignment
@@ -257,7 +257,8 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
 
             //     output memory layout descriptor in device memory
             constexpr auto out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc =
-                out_n_k_h_w_global.Fold(I1, Sequence<K1, K2>{}).Fold(I0, Sequence<N1, N2>{});
+                out_n_k_h_w_global.Fold(I1, Number<K1>{}, Number<K2>{})
+                    .Fold(I0, Number<N1>{}, Number<N2>{});
 
             //     output merged tensor descriptor in device memory, dst of threadwise copy
             constexpr auto out_k0_k1_k2_n1_b_n2_global_merged_desc =

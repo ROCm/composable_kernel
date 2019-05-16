@@ -10,6 +10,14 @@ struct forwarder
     }
 };
 
+#if 0
+template<class F>
+__host__ __device__ constexpr auto unpacker(F f)
+{
+    return [=](auto xs_array){ f(xs...); };
+}
+#endif
+
 // Emulate compile time if statement for C++14
 //   Get the idea from
 //   "https://baptiste-wicht.com/posts/2015/07/simulate-static_if-with-c11c14.html"
@@ -87,7 +95,7 @@ struct static_for_impl<Iter, 0, Increment>
     }
 };
 
-// F signature: F(Number<I>)
+// F signature: F(Number<Iter>)
 template <index_t NBegin, index_t NEnd, index_t Increment>
 struct static_for
 {
@@ -97,9 +105,8 @@ struct static_for
         static_assert((NEnd - NBegin) % Increment == 0,
                       "Wrong! should satisfy (NEnd - NBegin) % Increment == 0");
 
-        static_if < NBegin<End>{}([&](auto forwarder) {
-            static_for_impl<NBegin, NEnd - NBegin, forwarder(Increment)>{}(f);
-        });
+        static_if<(NBegin < End)>{}(
+            [&](auto fwd) { static_for_impl<NBegin, NEnd - NBegin, fwd(Increment)>{}(f); });
     }
 };
 
@@ -127,11 +134,3 @@ struct static_const_reduce_n<1>
         return f(Number<0>{});
     }
 };
-
-#if 0
-template<class F>
-__host__ __device__ constexpr auto unpacker(F f)
-{
-    return [=](auto xs_array){ f(xs...); };
-}
-#endif
