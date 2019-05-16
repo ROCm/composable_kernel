@@ -133,7 +133,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto thread_sub_tensor_lengths = SrcSubLengths{};
 
         constexpr auto src_data_per_cluster_per_dims = transform_sequences(
-            mod_conv::multiplies<index_t>{}, thread_sub_tensor_lengths, SrcClusterLengths{});
+            std::multiplies<index_t>{}, thread_sub_tensor_lengths, SrcClusterLengths{});
 
         constexpr auto repeat_lengths =
             transform_sequences(mod_conv::integer_divide_ceiler<index_t>{},
@@ -141,7 +141,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
                                 src_data_per_cluster_per_dims);
 
         constexpr auto thread_tensor_lengths = transform_sequences(
-            mod_conv::multiplies<index_t>{}, thread_sub_tensor_lengths, repeat_lengths);
+            std::multiplies<index_t>{}, thread_sub_tensor_lengths, repeat_lengths);
 
         constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor(thread_tensor_lengths);
 
@@ -154,7 +154,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto thread_sub_tensor_lengths = SrcSubLengths{};
 
         constexpr auto src_data_per_cluster_per_dims = transform_sequences(
-            mod_conv::multiplies<index_t>{}, thread_sub_tensor_lengths, SrcClusterLengths{});
+            std::multiplies<index_t>{}, thread_sub_tensor_lengths, SrcClusterLengths{});
 
         constexpr auto repeat_lengths =
             transform_sequences(mod_conv::integer_divide_ceiler<index_t>{},
@@ -162,7 +162,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
                                 src_data_per_cluster_per_dims);
 
         constexpr auto thread_tensor_lengths = transform_sequences(
-            mod_conv::multiplies<index_t>{}, thread_sub_tensor_lengths, repeat_lengths);
+            std::multiplies<index_t>{}, thread_sub_tensor_lengths, repeat_lengths);
 
         constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor(thread_tensor_lengths);
 
@@ -170,10 +170,10 @@ struct BlockwiseTensorSliceReorderCopy_v3
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
             constexpr auto src_data_multi_id = transform_sequences(
-                mod_conv::multiplies<index_t>{}, repeat_multi_id, src_data_per_cluster_per_dims);
+                std::multiplies<index_t>{}, repeat_multi_id, src_data_per_cluster_per_dims);
 
             constexpr auto clipboard_data_multi_id = transform_sequences(
-                mod_conv::multiplies<index_t>{}, repeat_multi_id, thread_sub_tensor_lengths);
+                std::multiplies<index_t>{}, repeat_multi_id, thread_sub_tensor_lengths);
 
             constexpr index_t src_offset = SrcDesc{}.Get1dIndex(src_data_multi_id);
             constexpr index_t clipboard_offset =
@@ -194,7 +194,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto thread_sub_tensor_lengths = SrcSubLengths{};
 
         constexpr auto src_data_per_cluster_per_dims = transform_sequences(
-            mod_conv::multiplies<index_t>{}, thread_sub_tensor_lengths, SrcClusterLengths{});
+            std::multiplies<index_t>{}, thread_sub_tensor_lengths, SrcClusterLengths{});
 
         constexpr auto repeat_lengths =
             transform_sequences(mod_conv::integer_divide_ceiler<index_t>{},
@@ -202,7 +202,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
                                 src_data_per_cluster_per_dims);
 
         constexpr auto thread_tensor_lengths = transform_sequences(
-            mod_conv::multiplies<index_t>{}, thread_sub_tensor_lengths, repeat_lengths);
+            std::multiplies<index_t>{}, thread_sub_tensor_lengths, repeat_lengths);
 
         constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor(thread_tensor_lengths);
 
@@ -210,10 +210,10 @@ struct BlockwiseTensorSliceReorderCopy_v3
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
             constexpr auto clipboard_data_multi_id = transform_sequences(
-                mod_conv::multiplies<index_t>{}, repeat_multi_id, thread_sub_tensor_lengths);
+                std::multiplies<index_t>{}, repeat_multi_id, thread_sub_tensor_lengths);
 
             constexpr auto src_data_multi_id = transform_sequences(
-                mod_conv::multiplies<index_t>{}, repeat_multi_id, src_data_per_cluster_per_dims);
+                std::multiplies<index_t>{}, repeat_multi_id, src_data_per_cluster_per_dims);
 
             // reorder src_data_multi_id to get dst_data_multi_id
             constexpr auto dst_data_multi_id = src_data_multi_id.ReorderGivenNew2Old(MapDst2Src{});

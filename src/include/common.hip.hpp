@@ -27,16 +27,10 @@ struct is_same<T, T>
 };
 
 namespace mod_conv { // namespace mod_conv
-template <class T>
-struct multiplies
+template <class T, T s>
+struct scales
 {
-    __host__ __device__ constexpr T operator()(T a, T b) const { return a * b; }
-};
-
-template <class T>
-struct plus
-{
-    __host__ __device__ constexpr T operator()(T a, T b) const { return a + b; }
+    __host__ __device__ constexpr T operator()(T a) const { return s * a; }
 };
 
 template <class T>

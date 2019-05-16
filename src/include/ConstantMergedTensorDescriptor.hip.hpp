@@ -30,11 +30,6 @@ struct ConstantMergedTensorDescriptor
         });
     }
 
-    __host__ __device__ static constexpr index_t GetNumOfOriginalDimension()
-    {
-        return TensorDesc::GetNumOfDimension();
-    }
-
     __host__ __device__ static constexpr index_t GetNumOfDimension()
     {
         constexpr auto merged_dim_ranges = std::make_tuple(MergedDimRanges...);
@@ -51,9 +46,14 @@ struct ConstantMergedTensorDescriptor
         };
 
         constexpr index_t num_lost_dim = static_const_reduce_n<sizeof...(MergedDimRanges)>{}(
-            f_calculate_num_of_lost_dim, mod_conv::plus<index_t>{});
+            f_calculate_num_of_lost_dim, std::plus<index_t>{});
 
         return TensorDesc::GetNumOfDimension() - num_lost_dim;
+    }
+
+    __host__ __device__ static constexpr index_t GetNumOfOriginalDimension()
+    {
+        return TensorDesc::GetNumOfDimension();
     }
 
     template <index_t IDim>
@@ -71,7 +71,7 @@ struct ConstantMergedTensorDescriptor
     template <index_t IDim>
     __host__ __device__ static constexpr bool GetStride(Number<IDim>)
     {
-        static_assert(!IsMergedDimension(Number<IDim>{}, "wrong! A merged dimension does not have uniform stride")
+        static_assert(!IsMergedDimension(Number<IDim>{}, "wrong! stride of a merged dimension is undefined")
         // not implemented
     }
 
