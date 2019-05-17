@@ -66,3 +66,17 @@ __host__ __device__ auto reorder_array_given_old2new(const Array<TData, NSize>& 
 
     return new_array;
 }
+
+template <class TData, index_t NSize>
+__host__ __device__ constexpr auto operator+(const Array<TData, NSize>& a,
+                                             const Array<TData, NSize>& b)
+{
+    Array<TData, NSize> result;
+
+    static_for<0, NSize, 1>{}([&](auto I) {
+        constexpr index_t i = I.Get();
+        result[i]           = a[i] + b[i];
+    });
+
+    return result;
+}

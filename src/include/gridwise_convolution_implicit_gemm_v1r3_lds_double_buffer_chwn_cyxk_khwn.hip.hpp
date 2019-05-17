@@ -201,7 +201,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
 
         // choose GEMM implementation here
         const auto run_blockwise_batch_gemm = [&](auto... Xs) {
-#if 0
+#if 1
             return blockwise_batch_gemm.Run(Xs...);
 #elif 0
             return blockwise_batch_gemm.Run_asm(Xs...);

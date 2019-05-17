@@ -7,6 +7,7 @@
 template <index_t BlockSize,
           class BlockMatrixA,
           class BlockMatrixB,
+          class ThreadMatrixC,
           index_t MPerThreadSubC,
           index_t NPerThreadSubC,
           index_t MLevel0Cluster,
@@ -45,7 +46,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                           N % (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster) == 0,
                       "wrong! Cannot evenly divide work among\n");
 
-        static_assert(ThreadMatrixC::GetLengths() == GetThreadMatrixCLengths,
+        static_assert(ThreadMatrixC::GetLengths() == GetThreadMatrixCLengths(),
                       "wrong! ThreadMatrixC lengths is wrong");
 
         auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());

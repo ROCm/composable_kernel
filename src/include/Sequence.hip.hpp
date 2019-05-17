@@ -2,14 +2,7 @@
 #include "constant_integral.hip.hpp"
 #include "functional.hip.hpp"
 
-struct EmptySequence
-{
-    template <class Seq>
-    __host__ __device__ constexpr Seq Append(Seq) const
-    {
-        return {};
-    }
-};
+struct EmptySequence;
 
 template <index_t... Is>
 struct Sequence
@@ -73,18 +66,18 @@ struct Sequence
 
     __host__ __device__ constexpr auto PopBack() const;
 
-    template <index_t Xs...>
+    template <index_t... Xs>
     __host__ __device__ constexpr auto Append(Sequence<Xs...>) const
     {
         return Sequence<Is..., Xs...>{};
     }
 
-    __host__ __device__ constexpr auto Append(EmptySequence) const { return Type{}; }
+    __host__ __device__ constexpr auto Append(EmptySequence) const;
 
     template <index_t... Ns>
     __host__ __device__ constexpr auto Extract(Number<Ns>...) const
     {
-        return Sequence<Type{}.Get(Number<Ns>)...>{};
+        return Sequence<Get(Number<Ns>{})...>{};
     }
 
     template <index_t N>
@@ -93,8 +86,8 @@ struct Sequence
         template <class FirstSeq, class SecondSeq>
         __host__ __device__ constexpr auto operator()(FirstSeq, SecondSeq) const
         {
-            constexpr new_first  = FirstSeq{}.PushBack(Number<Second{}.Front()>{});
-            constexpr new_second = SecondSeq{}.PopFront();
+            constexpr index_t new_first  = FirstSeq{}.PushBack(Number<SecondSeq{}.Front()>{});
+            constexpr index_t new_second = SecondSeq{}.PopFront();
 
             static_if<(N > 0)>{}([&](auto fwd) {
                 return split_impl<N - 1>{}(new_first, fwd(new_second));
@@ -102,26 +95,10 @@ struct Sequence
         }
     };
 
-    // split one sequence to two sequnces: [0, I) and [I, nSize)
+    // split one sequence to two sequnces: [0, I) and [I, mSize)
     // return type is std::pair
     template <index_t I>
-    __host__ __device__ constexpr auto Split(Number<I>) const
-    {
-        static_assert(I <= nSize, "wrong! split position is too high!");
-
-        static_if<(I == 0)>{}(
-            [&](auto fwd) { return std::make_pair(EmptySequence<>{}, fwd(Type{})); });
-
-        static_if<(I == nSize)>{}(
-            [&](auto fwd) { return std::make_pair(Type<>{}, fwd(EmptySequence<>{})); });
-
-        static_if<(I > 0 && I < nSize)>{}([&](auto fforwader) {
-            constexpr auto first  = Sequence<Type{}.Front()> {}
-            constexpr auto second = Type{}.PopFront();
-
-            return split_impl<I - 1>{}(first, fwd(second));
-        });
-    }
+    __host__ __device__ constexpr auto Split(Number<I>) const;
 
     template <index_t I, index_t X>
     __host__ __device__ constexpr auto Modify(Number<I>, Number<X>) const
@@ -135,6 +112,53 @@ struct Sequence
     }
 };
 
+struct EmptySequence
+{
+    __host__ __device__ static constexpr index_t GetSize() { return 0; }
+
+    template <index_t I>
+    __host__ __device__ constexpr auto PushFront(Number<I>) const
+    {
+        return Sequence<I>{};
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr auto PushBack(Number<I>) const
+    {
+        return Sequence<I>{};
+    }
+
+    template <class Seq>
+    __host__ __device__ constexpr Seq Append(Seq) const
+    {
+        return Seq{};
+    }
+};
+
+template <index_t... Is>
+__host__ __device__ constexpr auto Sequence<Is...>::Append(EmptySequence) const
+{
+    return Type{};
+}
+
+// split one sequence to two sequnces: [0, I) and [I, mSize)
+// return type is std::pair
+template <index_t... Is>
+template <index_t I>
+__host__ __device__ constexpr auto Sequence<Is...>::Split(Number<I>) const
+{
+    static_assert(I <= GetSize(), "wrong! split position is too high!");
+
+    static_if<(I == 0)>{}([&](auto fwd) { return std::make_pair(EmptySequence{}, fwd(Type{})); });
+
+    static_if<(I == GetSize())>{}(
+        [&](auto fwd) { return std::make_pair(Type{}, fwd(EmptySequence{})); });
+
+    static_if<(I > 0 && I < GetSize())>{}(
+        [&](auto fwd) { return split_impl<I>{}(EmptySequence{}, fwd(Type{})); });
+}
+
+#if 0
 template <index_t IBegin, index_t IEnd, index_t Increment>
 __host__ __device__ auto make_increasing_sequence(Number<IBegin>, Number<IEnd>, Number<Increment>)
 {
@@ -142,15 +166,10 @@ __host__ __device__ auto make_increasing_sequence(Number<IBegin>, Number<IEnd>, 
 
     // not implemented
 }
-
-template <index_t N, index_t X>
-__host__ __device__ auto make_uniform_sequence(Number<N>, Number<X>);
-{
-    // not implemented
-}
+#endif
 
 template <index_t... Xs, index_t... Ys>
-__host__ __device__ constexpr auto operator+(Sequence<Xs...>, Sequence<Ys...>) const
+__host__ __device__ constexpr auto operator+(Sequence<Xs...>, Sequence<Ys...>)
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
 
@@ -158,17 +177,18 @@ __host__ __device__ constexpr auto operator+(Sequence<Xs...>, Sequence<Ys...>) c
 }
 
 template <index_t... Xs, index_t... Ys>
-__host__ __device__ constexpr auto operator-(Sequence<Xs...> seq_x, Sequence<Ys...> seq_y) const
+__host__ __device__ constexpr auto operator-(Sequence<Xs...> seq_x, Sequence<Ys...> seq_y)
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
 
-    static_for<0, xs.GetSize(), 1>{}([&](auto I) { static_assert(seq_x.Get(I) >= seq_y.Get(I)); });
+    static_for<0, seq_x.GetSize(), 1>{}(
+        [&](auto I) { static_assert(seq_x.Get(I) >= seq_y.Get(I), "wrong! going to undeflow"); });
 
     return Sequence<(Xs - Ys)...>{};
 }
 
 template <index_t... Xs, index_t... Ys>
-__host__ __device__ constexpr auto operator*(Sequence<Xs...>, Sequence<Ys...>)const
+__host__ __device__ constexpr auto operator*(Sequence<Xs...>, Sequence<Ys...>)
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
 
@@ -176,7 +196,7 @@ __host__ __device__ constexpr auto operator*(Sequence<Xs...>, Sequence<Ys...>)co
 }
 
 template <index_t... Xs, index_t... Ys>
-__host__ __device__ constexpr auto operator/(Sequence<Xs...>, Sequence<Ys...>) const
+__host__ __device__ constexpr auto operator/(Sequence<Xs...>, Sequence<Ys...>)
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
 
@@ -184,15 +204,7 @@ __host__ __device__ constexpr auto operator/(Sequence<Xs...>, Sequence<Ys...>) c
 }
 
 template <index_t... Xs, index_t... Ys>
-__host__ __device__ constexpr auto operator%(Sequence<Xs...>, Sequence<Ys...>) const
-{
-    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
-
-    return Sequence<(Xs % Ys)...>{};
-}
-
-template <index_t... Xs, index_t... Ys>
-__host__ __device__ constexpr auto operator%(Sequence<Xs...>, Sequence<Ys...>) const
+__host__ __device__ constexpr auto operator%(Sequence<Xs...>, Sequence<Ys...>)
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
 
@@ -200,63 +212,79 @@ __host__ __device__ constexpr auto operator%(Sequence<Xs...>, Sequence<Ys...>) c
 }
 
 template <index_t... Xs, index_t Y>
-__host__ __device__ constexpr auto operator+(Sequence<Xs...>, Number<Y>) const
+__host__ __device__ constexpr auto operator+(Sequence<Xs...>, Number<Y>)
 {
-    return seq_x + make_uniform_sequence(Number<sizeof...(Xs)>, Number<Y>{});
+    return Sequence<(Xs + Y)...>{};
 }
 
 template <index_t... Xs, index_t Y>
-__host__ __device__ constexpr auto operator-(Sequence<Xs...>, Number<Y>) const
+__host__ __device__ constexpr auto operator-(Sequence<Xs...>, Number<Y>)
 {
-    return seq_x - make_uniform_sequence(Number<sizeof...(Xs)>, Number<Y>{});
+    constexpr auto seq_x = Sequence<Xs...>{};
+
+#if 0
+    static_for<0, sizeof...(Xs), 1>{}([&](auto Iter) {
+        constexpr auto I = decltype(Iter){};
+        static_assert(seq_x.Get(I) >= Y, "wrong! going to underflow");
+    });
+#endif
+
+    return Sequence<(Xs - Y)...>{};
 }
 
 template <index_t... Xs, index_t Y>
-__host__ __device__ constexpr auto operator*(Sequence<Xs...>, Number<Y>)const
+__host__ __device__ constexpr auto operator*(Sequence<Xs...>, Number<Y>)
 {
-    return seq_x * make_uniform_sequence(Number<sizeof...(Xs)>, Number<Y>{});
+    return Sequence<(Xs * Y)...>{};
 }
 
 template <index_t... Xs, index_t Y>
-__host__ __device__ constexpr auto operator/(Sequence<Xs...>, Number<Y>) const
+__host__ __device__ constexpr auto operator/(Sequence<Xs...>, Number<Y>)
 {
-    return seq_x / make_uniform_sequence(Number<sizeof...(Xs)>, Number<Y>{});
+    return Sequence<(Xs / Y)...>{};
 }
 
 template <index_t... Xs, index_t Y>
-__host__ __device__ constexpr auto operator%(Sequence<Xs...> seq_x, Number<Y> y) const
+__host__ __device__ constexpr auto operator%(Sequence<Xs...>, Number<Y>)
 {
-    return seq_x % make_uniform_sequence(Number<sizeof...(Xs)>, Number<Y>{});
+    return Sequence<(Xs % Y)...>{};
 }
 
-template <index_t X, index_t... Ys>
-__host__ __device__ constexpr auto operator+(Number<X>, Sequence<Ys...>) const
+template <index_t Y, index_t... Xs>
+__host__ __device__ constexpr auto operator+(Number<Y>, Sequence<Xs...>)
 {
-    return make_uniform_sequence(Number<sizeof...(Ys)>{}, Number<X>{}) + Sequence<Ys...>{};
+    return Sequence<(Y + Xs)...>{};
 }
 
-template <index_t X, index_t... Ys>
-__host__ __device__ constexpr auto operator-(Number<X>, Sequence<Ys...>) const
+template <index_t Y, index_t... Xs>
+__host__ __device__ constexpr auto operator-(Number<Y>, Sequence<Xs...>)
 {
-    return make_uniform_sequence(Number<sizeof...(Ys)>{}, Number<X>{}) - Sequence<Ys...>{};
+    constexpr auto seq_x = Sequence<Xs...>{};
+
+    static_for<0, sizeof...(Xs), 1>{}([&](auto Iter) {
+        constexpr auto I = decltype(Iter){};
+        static_assert(seq_x.Get(I) <= Y, "wrong! going to underflow");
+    });
+
+    return Sequence<(Y - Xs)...>{};
 }
 
-template <index_t X, index_t... Ys>
-__host__ __device__ constexpr auto operator*(Number<X>, Sequence<Ys...>)const
+template <index_t Y, index_t... Xs>
+__host__ __device__ constexpr auto operator*(Number<Y>, Sequence<Xs...>)
 {
-    return make_uniform_sequence(Number<sizeof...(Ys)>{}, Number<X>{}) * Sequence<Ys...>{};
+    return Sequence<(Y * Xs)...>{};
 }
 
-template <index_t X, index_t... Ys>
-__host__ __device__ constexpr auto operator/(Number<X>, Sequence<Ys...>) const
+template <index_t Y, index_t... Xs>
+__host__ __device__ constexpr auto operator/(Number<Y>, Sequence<Xs...>)
 {
-    return make_uniform_sequence(Number<sizeof...(Ys)>{}, Number<X>{}) / Sequence<Ys...>{};
+    return Sequence<(Y / Xs)...>{};
 }
 
-template <index_t X, index_t... Ys>
-__host__ __device__ constexpr auto operator%(Number<X>, Sequence<Ys...>) const
+template <index_t Y, index_t... Xs>
+__host__ __device__ constexpr auto operator%(Number<Y>, Sequence<Xs...>)
 {
-    return make_uniform_sequence(Number<sizeof...(Ys)>{}, Number<X>{}) % Sequence<Ys...>{};
+    return Sequence<(Y % Xs)...>{};
 }
 
 template <index_t I, index_t... Is>
@@ -268,7 +296,7 @@ __host__ __device__ constexpr auto sequence_pop_front(Sequence<I, Is...>)
 
 #if 0
 // TODO: for some reason, compiler cannot instantiate this template
-template <index_t I, index_t... Is>
+template <index_t... Is, index_t I>
 __host__ __device__ constexpr auto sequence_pop_back(Sequence<Is..., I>)
 {
     static_assert(sizeof...(Is) > 0, "empty Sequence!");
@@ -356,8 +384,6 @@ __host__ __device__ constexpr auto
 }
 #endif
 
-#if 1
-// TODO: fix these mess
 template <class F, index_t... Xs>
 __host__ __device__ constexpr auto transform_sequences(F f, Sequence<Xs...>)
 {
@@ -382,45 +408,6 @@ transform_sequences(F f, Sequence<Xs...>, Sequence<Ys...>, Sequence<Zs...>)
 
     return Sequence<f(Xs, Ys, Zs)...>{};
 }
-#else
-// TODO:: these doesn't compile
-template <index_t NRemain>
-struct transform_sequences_impl
-{
-    template <class F, class Y, class... Xs>
-    __host__ __device__ constexpr auto operator()(F f, Y y, Xs... xs) const
-    {
-        static_assert(NRemain > 1, "wrong! should have NRemain > 1");
-
-        constexpr index_t N  = f(Xs{}.Get(Number<0>{})...);
-        constexpr auto y_new = y.PushBack(Number<N>{});
-
-        return transform_sequences_impl<NRemain - 1>{}(f, y_new, xs.PopFront()...);
-    }
-};
-
-template <>
-struct transform_sequences_impl<1>
-{
-    template <class F, class Y, class... Xs>
-    __host__ __device__ constexpr auto operator()(F f, Y, Xs...) const
-    {
-        constexpr index_t N = f(Xs{}.Get(Number<0>{})...);
-        return Y{}.PushBack(Number<N>{});
-    }
-};
-
-template <class F, class X, class... Xs>
-__host__ __device__ constexpr auto transform_sequences(F f, X x, Xs... xs)
-{
-    constexpr index_t nSize = X::GetSize();
-    constexpr auto I0       = Number<0>{};
-
-    constexpr auto y0 = Sequence<f(X{}.Get(I0), Xs{}.Get(I0)...)>{};
-
-    return transform_sequences_impl<nSize - 1>{}(f, y0, x.PopFront(), xs.PopFront()...);
-}
-#endif
 
 template <index_t... Is>
 __host__ __device__ constexpr auto Sequence<Is...>::PopFront() const

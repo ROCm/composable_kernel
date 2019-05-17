@@ -37,7 +37,8 @@ struct static_if<true>
     {
         // This is a trick for compiler:
         //   Pass forwarder to lambda "f" as "auto" argument, and maks sure "f" will use it,
-        //   this will make "f" a generic lambda, so that "f" won't be compiled until here
+        //   this will make "f" a generic lambda, so that "f" won't be compiled until being
+        //   instantiated here
         f(forwarder{});
         return Type{};
     }
@@ -65,7 +66,8 @@ struct static_if<false>
     {
         // This is a trick for compiler:
         //   Pass forwarder to lambda "f" as "auto" argument, and maks sure "f" will use it,
-        //   this will make "f" a generic lambda, so that "f" won't be compiled until here
+        //   this will make "f" a generic lambda, so that "f" won't be compiled until being
+        //   instantiated here
         f(forwarder{});
         return Type{};
     }
@@ -105,7 +107,7 @@ struct static_for
         static_assert((NEnd - NBegin) % Increment == 0,
                       "Wrong! should satisfy (NEnd - NBegin) % Increment == 0");
 
-        static_if<(NBegin < End)>{}(
+        static_if<(NBegin < NEnd)>{}(
             [&](auto fwd) { static_for_impl<NBegin, NEnd - NBegin, fwd(Increment)>{}(f); });
     }
 };
