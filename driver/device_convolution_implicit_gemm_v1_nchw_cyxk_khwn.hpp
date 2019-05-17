@@ -64,7 +64,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_khwn_device_buf.ToDevice(out_khwn.mData.data());
 
-#if 0
+#if 1
     // for 3x3, 34x34, v1r3, Pascal
     constexpr index_t BlockSize = 128;
 

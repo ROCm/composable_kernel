@@ -142,7 +142,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
             decltype(map_chwn2nchw),
             InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
             InBlockReorderDataPerRead_W,
-            InBlockReorderDataPerWrite_N>{};
+            InBlockReorderDataPerWrite_N>({0, 0, 0, 0}, {0, 0, 0, 0});
 
         // blockwise wei copy
         //   format is [CPerBlock, KPerBlock]
@@ -196,7 +196,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
 
         // choose GEMM implementation here
         const auto run_blockwise_batch_gemm = [&](auto... Xs) {
-#if 0
+#if 1
             return blockwise_batch_gemm.Run(Xs...);
 #elif 0
             return blockwise_batch_gemm.Run_asm(Xs...);
