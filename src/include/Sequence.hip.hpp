@@ -2,12 +2,10 @@
 #include "constant_integral.hip.hpp"
 #include "functional.hip.hpp"
 
-struct EmptySequence;
-
 template <index_t... Is>
 struct Sequence
 {
-    using Type = Sequence<Is...>;
+    using Type = Sequence;
 
     static constexpr index_t mSize = sizeof...(Is);
 
@@ -72,101 +70,62 @@ struct Sequence
         return Sequence<Is..., Xs...>{};
     }
 
-    __host__ __device__ constexpr auto Append(EmptySequence) const;
-
     template <index_t... Ns>
     __host__ __device__ constexpr auto Extract(Number<Ns>...) const
     {
         return Sequence<Get(Number<Ns>{})...>{};
     }
 
-    template <index_t N>
-    struct split_impl
+    template <index_t... Ns>
+    __host__ __device__ constexpr auto Extract(Sequence<Ns...>) const
     {
-        template <class FirstSeq, class SecondSeq>
-        __host__ __device__ constexpr auto operator()(FirstSeq, SecondSeq) const
-        {
-            constexpr index_t new_first  = FirstSeq{}.PushBack(Number<SecondSeq{}.Front()>{});
-            constexpr index_t new_second = SecondSeq{}.PopFront();
-
-            static_if<(N > 0)>{}([&](auto fwd) {
-                return split_impl<N - 1>{}(new_first, fwd(new_second));
-            }).else_([&](auto fwd) { return std::make_pair(new_first, fwd(new_second)); });
-        }
-    };
-
-    // split one sequence to two sequnces: [0, I) and [I, mSize)
-    // return type is std::pair
-    template <index_t I>
-    __host__ __device__ constexpr auto Split(Number<I>) const;
-
-    template <index_t I, index_t X>
-    __host__ __device__ constexpr auto Modify(Number<I>, Number<X>) const
-    {
-        constexpr auto first_second = Split(Number<I>{});
-
-        constexpr auto left  = first_second.first;
-        constexpr auto right = first_second.second.PopFront();
-
-        return left.PushBack(Number<X>{}).Append(right);
+        return Sequence<Get(Number<Ns>{})...>{};
     }
 };
 
-struct EmptySequence
+template <class, class>
+struct sequence_merge;
+
+template <index_t... Xs, index_t... Ys>
+struct sequence_merge<Sequence<Xs...>, Sequence<Ys...>>
 {
-    __host__ __device__ static constexpr index_t GetSize() { return 0; }
-
-    template <index_t I>
-    __host__ __device__ constexpr auto PushFront(Number<I>) const
-    {
-        return Sequence<I>{};
-    }
-
-    template <index_t I>
-    __host__ __device__ constexpr auto PushBack(Number<I>) const
-    {
-        return Sequence<I>{};
-    }
-
-    template <class Seq>
-    __host__ __device__ constexpr Seq Append(Seq) const
-    {
-        return Seq{};
-    }
+    using Type = Sequence<Xs..., Ys...>;
 };
 
-template <index_t... Is>
-__host__ __device__ constexpr auto Sequence<Is...>::Append(EmptySequence) const
+template <index_t IBegin, index_t NSize, index_t Increment>
+struct increasing_sequence_gen
 {
-    return Type{};
-}
+    static constexpr index_t NSizeLeft = NSize / 2;
 
-// split one sequence to two sequnces: [0, I) and [I, mSize)
-// return type is std::pair
-template <index_t... Is>
-template <index_t I>
-__host__ __device__ constexpr auto Sequence<Is...>::Split(Number<I>) const
+    using Type =
+        sequence_merge<typename increasing_sequence_gen<IBegin, NSizeLeft, Increment>::Type,
+                       typename increasing_sequence_gen<IBegin + NSizeLeft * Increment,
+                                                        NSize - NSizeLeft,
+                                                        Increment>::Type>;
+};
+
+template <index_t IBegin, index_t Increment>
+struct increasing_sequence_gen<IBegin, 1, Increment>
 {
-    static_assert(I <= GetSize(), "wrong! split position is too high!");
+    using Type = Sequence<IBegin>;
+};
 
-    static_if<(I == 0)>{}([&](auto fwd) { return std::make_pair(EmptySequence{}, fwd(Type{})); });
+template <index_t IBegin, index_t Increment>
+struct increasing_sequence_gen<IBegin, 0, Increment>
+{
+    using Type = Sequence<>;
+};
 
-    static_if<(I == GetSize())>{}(
-        [&](auto fwd) { return std::make_pair(Type{}, fwd(EmptySequence{})); });
-
-    static_if<(I > 0 && I < GetSize())>{}(
-        [&](auto fwd) { return split_impl<I>{}(EmptySequence{}, fwd(Type{})); });
-}
-
-#if 0
 template <index_t IBegin, index_t IEnd, index_t Increment>
-__host__ __device__ auto make_increasing_sequence(Number<IBegin>, Number<IEnd>, Number<Increment>)
+__host__ __device__ constexpr auto
+    make_increasing_sequence(Number<IBegin>, Number<IEnd>, Number<Increment>)
 {
-    static_assert(IBegin < IEnd, (IEnd - IBegin) % Increment == 0, "wrong!");
+    static_assert(IBegin <= IEnd && Increment > 0, "wrong!");
 
-    // not implemented
+    constexpr index_t NSize = (IEnd - IBegin) / Increment;
+
+    return increasing_sequence_gen<IBegin, NSize, Increment>{};
 }
-#endif
 
 template <index_t... Xs, index_t... Ys>
 __host__ __device__ constexpr auto operator+(Sequence<Xs...>, Sequence<Ys...>)
@@ -222,7 +181,7 @@ __host__ __device__ constexpr auto operator-(Sequence<Xs...>, Number<Y>)
 {
     constexpr auto seq_x = Sequence<Xs...>{};
 
-#if 0
+#if 0 // doesn't compile
     static_for<0, sizeof...(Xs), 1>{}([&](auto Iter) {
         constexpr auto I = decltype(Iter){};
         static_assert(seq_x.Get(I) >= Y, "wrong! going to underflow");

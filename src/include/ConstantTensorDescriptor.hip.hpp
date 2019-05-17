@@ -57,7 +57,7 @@ __host__ __device__ constexpr auto calculate_default_strides_aligned(Sequence<L0
 template <class Lengths, class Strides>
 struct ConstantTensorDescriptor
 {
-    using Type                    = ConstantTensorDescriptor<Lengths, Strides>;
+    using Type                    = ConstantTensorDescriptor;
     static constexpr index_t nDim = Lengths::GetSize();
 
     __host__ __device__ constexpr ConstantTensorDescriptor()
@@ -195,19 +195,14 @@ struct ConstantTensorDescriptor
             Number<unfold_stride>{} *
             reverse_scan_sequence(fold_intervals.PushBack(Number<1>{}), std::multiplies<index_t>{});
 
-        // left and right lengths
-        constexpr auto lengths_pair  = GetLengths().Split(Number<IDim>{});
-        constexpr auto left_lengths  = lengths_pair.first;
-        constexpr auto right_lengths = lengths_pair.second.PopFront();
-
-        // left and right strides
-        constexpr auto strides_pair  = GetStrides().Split(Number<IDim>{});
-        constexpr auto left_strides  = strides_pair.first;
-        constexpr auto right_strides = strides_pair.second.PopFront();
+        // left and right
+        constexpr auto left  = make_increasing_sequence(Number<0>{}, Number<IDim>{}, Number<1>{});
+        constexpr auto right = make_increasing_sequence(
+            Number<IDim + 1>{}, Number<GetNumOfDimension()>{}, Number<1>{});
 
         return make_ConstantTensorDescriptor(
-            left_lengths.Append(fold_lengths).Append(right_lengths),
-            left_strides.Append(fold_strides).Append(right_strides));
+            GetLengths().Extract(left).Append(fold_lengths).Append(GetLengths().Extract(right)),
+            GetStrides().Extract(left).Append(fold_strides).Append(GetStrides().Extract(right)));
     }
 
     template <index_t FirstUnfoldDim, index_t LastUnfoldDim>
@@ -228,40 +223,28 @@ struct ConstantTensorDescriptor
                           "wrong! dimensions to be unfolded need to be packed");
         });
 
-        // lengths
-        constexpr auto lens_pair1 = Lengths{}.Split(Number<LastUnfoldDim + 1>{});
+        // left and right
+        constexpr auto left =
+            make_increasing_sequence(Number<0>{}, Number<FirstUnfoldDim>{}, Number<1>{});
+        constexpr auto middle = make_increasing_sequence(
+            Number<FirstUnfoldDim>{}, Number<LastUnfoldDim + 1>{}, Number<1>{});
+        constexpr auto right = make_increasing_sequence(
+            Number<LastUnfoldDim + 1>{}, Number<GetNumOfDimension()>{}, Number<1>{});
 
-        constexpr auto right_lengths = lens_pair1.second;
+        // length and stride
+        constexpr index_t unfold_length = accumulate_on_sequence(
+            GetLengths().Extract(middle), std::multiplies<index_t>{}, Number<1>{});
 
-        constexpr auto lens_pair2 = lens_pair1.first.Split(Number<FirstUnfoldDim>{});
+        constexpr index_t unfold_stride = GetStride(Number<LastUnfoldDim>{});
 
-        constexpr auto left_lengths = lens_pair2.first;
-
-        constexpr auto fold_lengths = lens_pair2.second;
-
-        constexpr index_t unfold_length =
-            accumulate_on_sequence(fold_lengths, std::multiplies<index_t>{}, Number<1>{});
-
-        constexpr auto new_lengths =
-            left_lengths.PopBack(Number<unfold_length>{}).Append(right_lengths);
-
-        // strides
-        constexpr auto strides_pair1 = Strides{}.Split(Number<LastUnfoldDim + 1>{});
-
-        constexpr auto right_strides = strides_pair1.second;
-
-        constexpr auto strides_pair2 = strides_pair1.first.Split(Number<FirstUnfoldDim>{});
-
-        constexpr auto left_strides = strides_pair2.first;
-
-        constexpr auto fold_strides = strides_pair2.second;
-
-        constexpr index_t unfold_stride = fold_strides.Back();
-
-        constexpr auto new_strides =
-            left_strides.PushBack(Number<unfold_stride>{}).Append(right_strides);
-
-        return make_ConstantTensorDescriptor(new_lengths, new_strides);
+        return make_ConstantTensorDescriptor(GetLengths()
+                                                 .Extract(left)
+                                                 .PushBack(Number<unfold_length>{})
+                                                 .Append(GetLengths().Extract(right)),
+                                             GetStrides()
+                                                 .Extract(left)
+                                                 .PushBack(Number<unfold_stride>{})
+                                                 .Append(GetStrides().Extract(right)));
     }
 
     template <index_t... IRs>
