@@ -190,18 +190,19 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
         c_block_data_begin += CPerBlock, __syncthreads())
     {
         // copy input tensor to LDS
-        blockwise_in_copy.Run(p_in_vec_global +
-                                  in_nchw_vec_global_desc.Get1dIndex(n_block_data_begin,
-                                                                     c_block_data_begin,
-                                                                     hi_block_data_begin,
-                                                                     wi_block_data_begin),
-                              p_in_vec_block);
+        blockwise_in_copy.Run(
+            p_in_vec_global +
+                in_nchw_vec_global_desc.GetOffsetFromMultiIndex(n_block_data_begin,
+                                                                c_block_data_begin,
+                                                                hi_block_data_begin,
+                                                                wi_block_data_begin),
+            p_in_vec_block);
 
         // copy weight tensor to LDS
-        blockwise_wei_copy.Run(
-            p_wei_vec_global +
-                wei_kcyx_vec_global_desc.Get1dIndex(k_block_data_begin, c_block_data_begin, 0, 0),
-            p_wei_vec_block);
+        blockwise_wei_copy.Run(p_wei_vec_global +
+                                   wei_kcyx_vec_global_desc.GetOffsetFromMultiIndex(
+                                       k_block_data_begin, c_block_data_begin, 0, 0),
+                               p_wei_vec_block);
 
         __syncthreads();
 
@@ -212,26 +213,28 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
             threadwise_direct_convolution_2(
                 in_nchw_vec_thread_block_desc,
                 p_in_vec_block +
-                    in_nchw_vec_block_desc.Get1dIndex(n_thread_data_begin,
-                                                      c_thread_data,
-                                                      hi_thread_data_begin,
-                                                      wi_thread_data_begin),
+                    in_nchw_vec_block_desc.GetOffsetFromMultiIndex(n_thread_data_begin,
+                                                                   c_thread_data,
+                                                                   hi_thread_data_begin,
+                                                                   wi_thread_data_begin),
                 wei_kcyx_vec_thread_block_desc,
                 p_wei_vec_block +
-                    wei_kcyx_vec_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
+                    wei_kcyx_vec_block_desc.GetOffsetFromMultiIndex(
+                        k_thread_data_begin, c_thread_data, 0, 0),
                 out_nkhw_thread_desc,
                 p_out_thread);
 #elif 0
             threadwise_direct_convolution_3(
                 in_nchw_vec_thread_block_desc,
                 p_in_vec_block +
-                    in_nchw_vec_block_desc.Get1dIndex(n_thread_data_begin,
-                                                      c_thread_data,
-                                                      hi_thread_data_begin,
-                                                      wi_thread_data_begin),
+                    in_nchw_vec_block_desc.GetOffsetFromMultiIndex(n_thread_data_begin,
+                                                                   c_thread_data,
+                                                                   hi_thread_data_begin,
+                                                                   wi_thread_data_begin),
                 wei_kcyx_vec_thread_block_desc,
                 p_wei_vec_block +
-                    wei_kcyx_vec_block_desc.Get1dIndex(k_thread_data_begin, c_thread_data, 0, 0),
+                    wei_kcyx_vec_block_desc.GetOffsetFromMultiIndex(
+                        k_thread_data_begin, c_thread_data, 0, 0),
                 out_nkhw_thread_desc,
                 p_out_thread);
 #endif
@@ -239,14 +242,14 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
     }
 
     // copy output tensor from register to global mem
-    threadwise_4d_tensor_copy(
-        out_nkhw_thread_desc,
-        p_out_thread,
-        out_nkhw_global_desc,
-        p_out_global +
-            out_nkhw_global_desc.Get1dIndex(n_block_data_begin + n_thread_data_begin,
-                                            k_block_data_begin + k_thread_data_begin,
-                                            ho_block_data_begin + ho_thread_data_begin,
-                                            wo_block_data_begin + wo_thread_data_begin),
-        out_nkhw_thread_desc.GetLengths());
+    threadwise_4d_tensor_copy(out_nkhw_thread_desc,
+                              p_out_thread,
+                              out_nkhw_global_desc,
+                              p_out_global +
+                                  out_nkhw_global_desc.GetOffsetFromMultiIndex(
+                                      n_block_data_begin + n_thread_data_begin,
+                                      k_block_data_begin + k_thread_data_begin,
+                                      ho_block_data_begin + ho_thread_data_begin,
+                                      wo_block_data_begin + wo_thread_data_begin),
+                              out_nkhw_thread_desc.GetLengths());
 }

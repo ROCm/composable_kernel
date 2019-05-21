@@ -33,7 +33,7 @@ blockwise_2d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
         const index_t did1 = is / desc.GetStride(I1);
 
-        const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+        const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
         f(p_dst[dindex]);
     }
@@ -52,7 +52,7 @@ blockwise_2d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
             const index_t did1 = is / desc.GetStride(I1);
 
-            const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+            const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
             f(p_dst[dindex]);
         }
@@ -102,9 +102,9 @@ __device__ void blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
         did[1] = is / ref_desc.GetStride(I1);
 
-        const index_t aindex = src_desc.Get1dIndex(did[0], did[1]);
+        const index_t aindex = src_desc.GetOffsetFromMultiIndex(did[0], did[1]);
 
-        const index_t bindex = dst_desc.Get1dIndex(did[IR0], did[IR1]);
+        const index_t bindex = dst_desc.GetOffsetFromMultiIndex(did[IR0], did[IR1]);
 
         f(p_src[aindex], p_dst[bindex]);
     }
@@ -125,9 +125,9 @@ __device__ void blockwise_2d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
             did[1] = is / ref_desc.GetStride(I1);
 
-            const index_t aindex = src_desc.Get1dIndex(did[0], did[1]);
+            const index_t aindex = src_desc.GetOffsetFromMultiIndex(did[0], did[1]);
 
-            const index_t bindex = dst_desc.Get1dIndex(did[IR0], did[IR1]);
+            const index_t bindex = dst_desc.GetOffsetFromMultiIndex(did[IR0], did[IR1]);
 
             f(p_src[aindex], p_dst[bindex]);
         }
@@ -224,8 +224,10 @@ struct Blockwise2dTensorCopy1
 
             did[1] = is / ref_desc.GetStride(I1);
 
-            const index_t src_index = src_desc.Get1dIndex(did[0], did[1] * DataPerRead);
-            const index_t dst_index = dst_desc.Get1dIndex(did[0], did[1] * DataPerRead);
+            const index_t src_index =
+                src_desc.GetOffsetFromMultiIndex(did[0], did[1] * DataPerRead);
+            const index_t dst_index =
+                dst_desc.GetOffsetFromMultiIndex(did[0], did[1] * DataPerRead);
 
             *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
                 *(reinterpret_cast<const vector_t*>(p_src + src_index));
@@ -328,8 +330,8 @@ struct Blockwise2dTensorCopy2
             {
                 index_t did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
 
-                const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                 *(reinterpret_cast<Float4*>(p_dst + dindex)) =
                     *(reinterpret_cast<const Float4*>(p_src + sindex));
@@ -341,8 +343,8 @@ struct Blockwise2dTensorCopy2
                 index_t did1 =
                     Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 + 2 * mThreadId1;
 
-                const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                 *(reinterpret_cast<Float2*>(p_dst + dindex)) =
                     *(reinterpret_cast<const Float2*>(p_src + sindex));
@@ -354,8 +356,8 @@ struct Blockwise2dTensorCopy2
                 index_t did1 = Dim1V4Loop * 4 * ThreadPerDim1 + Dim1V2Loop * 2 * ThreadPerDim1 +
                                d1v1loop * ThreadPerDim1 + mThreadId1;
 
-                const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                 p_dst[dindex] = p_src[sindex];
             }
@@ -368,8 +370,8 @@ struct Blockwise2dTensorCopy2
 
                 if(did1 < L1)
                 {
-                    const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                    const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                    const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                    const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                     p_dst[dindex] = p_src[sindex];
                 }
@@ -389,8 +391,8 @@ struct Blockwise2dTensorCopy2
                 {
                     index_t did1 = d1v4loop * 4 * ThreadPerDim1 + 4 * mThreadId1;
 
-                    const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                    const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                    const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                    const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                     *(reinterpret_cast<Float4*>(p_dst + dindex)) =
                         *(reinterpret_cast<const Float4*>(p_src + sindex));
@@ -402,8 +404,8 @@ struct Blockwise2dTensorCopy2
                     index_t did1 = Dim1V4Loop * 4 * ThreadPerDim1 + d1v2loop * 2 * ThreadPerDim1 +
                                    2 * mThreadId1;
 
-                    const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                    const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                    const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                    const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                     *(reinterpret_cast<Float2*>(p_dst + dindex)) =
                         *(reinterpret_cast<const Float2*>(p_src + sindex));
@@ -415,8 +417,8 @@ struct Blockwise2dTensorCopy2
                     index_t did1 = Dim1V4Loop * 4 * ThreadPerDim1 + Dim1V2Loop * 2 * ThreadPerDim1 +
                                    d1v1loop * ThreadPerDim1 + mThreadId1;
 
-                    const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                    const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                    const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                    const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                     p_dst[dindex] = p_src[sindex];
                 }
@@ -429,8 +431,8 @@ struct Blockwise2dTensorCopy2
 
                     if(did1 < L1)
                     {
-                        const index_t sindex = src_desc.Get1dIndex(did0, did1);
-                        const index_t dindex = dst_desc.Get1dIndex(did0, did1);
+                        const index_t sindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
+                        const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1);
 
                         p_dst[dindex] = p_src[sindex];
                     }
@@ -497,8 +499,10 @@ struct Blockwise2dTensorCopy3
         const index_t thread_id_d0 = get_thread_local_1d_id() / thread_per_d1;
         const index_t thread_id_d1 = get_thread_local_1d_id() - thread_id_d0 * thread_per_d1;
 
-        mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(thread_id_d0, thread_id_d1 * DataPerRead);
-        mDstMyThreadOffset = DstDesc{}.Get1dIndex(thread_id_d0, thread_id_d1 * DataPerRead);
+        mSrcMyThreadOffset =
+            SrcDesc{}.GetOffsetFromMultiIndex(thread_id_d0, thread_id_d1 * DataPerRead);
+        mDstMyThreadOffset =
+            DstDesc{}.GetOffsetFromMultiIndex(thread_id_d0, thread_id_d1 * DataPerRead);
     }
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const

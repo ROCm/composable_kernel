@@ -217,7 +217,7 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
     threadwise_4d_tensor_set_zero(out_hkwn_thread_desc, p_out_thread);
 
     const Float* p_wei_global_block_begin =
-        p_wei_global + wei_ek_global_desc.Get1dIndex(0, k_block_data_begin);
+        p_wei_global + wei_ek_global_desc.GetOffsetFromMultiIndex(0, k_block_data_begin);
 
     for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
                 p_wei_global_block_begin += CPerBlock * wei_ek_global_desc.GetStride(I0),
@@ -251,10 +251,11 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
             {
                 auto f_accum = [](auto& acc, const auto&& v) { acc += v; };
 
-                blockwise_batch_gemm.Run(p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
-                                         p_in_block + in_chwn_block_desc.Get1dIndex(0, y, x, 0),
-                                         p_out_thread,
-                                         f_accum);
+                blockwise_batch_gemm.Run(
+                    p_wei_block + wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
+                    p_in_block + in_chwn_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
+                    p_out_thread,
+                    f_accum);
             }
         }
     }
@@ -284,10 +285,10 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
         p_out_thread,
         out_khwn_global_desc,
         p_out_global +
-            out_khwn_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                            ho_block_data_begin + ho_thread_data_begin,
-                                            wo_block_data_begin + wo_thread_data_begin,
-                                            n_block_data_begin + n_thread_data_begin),
+            out_khwn_global_desc.GetOffsetFromMultiIndex(k_block_data_begin + k_thread_data_begin,
+                                                         ho_block_data_begin + ho_thread_data_begin,
+                                                         wo_block_data_begin + wo_thread_data_begin,
+                                                         n_block_data_begin + n_thread_data_begin),
         out_hkwn_thread_desc.GetLengths(),
         reorder_khwn_from_hkwn);
 }

@@ -51,8 +51,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-        mMyThreadOffsetA = BlockMatrixA::Get1dIndex(0, c_thread_mtx_index.row);
-        mMyThreadOffsetB = BlockMatrixB::Get1dIndex(0, c_thread_mtx_index.col);
+        mMyThreadOffsetA = BlockMatrixA::GetOffsetFromMultiIndex(0, c_thread_mtx_index.row);
+        mMyThreadOffsetB = BlockMatrixB::GetOffsetFromMultiIndex(0, c_thread_mtx_index.col);
     }
 
     __device__ static auto GetThreadMatrixCLengths()
@@ -248,10 +248,11 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             {
                 threadwise_matrix_copy(
                     a_block_mtx,
-                    p_a_block + a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
+                    p_a_block +
+                        a_block_mtx.GetOffsetFromMultiIndex(k_begin, m_repeat * MPerLevel1Cluster) +
                         mMyThreadOffsetA,
                     a_thread_mtx,
-                    p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                    p_a_thread + a_thread_mtx.GetOffsetFromMultiIndex(0, m_repeat * MPerThreadSubC),
                     a_thread_sub_mtx.GetLengths(),
                     Number<DataPerReadA>{});
             }
@@ -262,10 +263,11 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
             {
                 threadwise_matrix_copy(
                     b_block_mtx,
-                    p_b_block + b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
+                    p_b_block +
+                        b_block_mtx.GetOffsetFromMultiIndex(k_begin, n_repeat * NPerLevel1Cluster) +
                         mMyThreadOffsetB,
                     b_thread_mtx,
-                    p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                    p_b_thread + b_thread_mtx.GetOffsetFromMultiIndex(0, n_repeat * NPerThreadSubC),
                     b_thread_sub_mtx.GetLengths(),
                     Number<DataPerReadB>{});
             }

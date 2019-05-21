@@ -26,7 +26,7 @@ __device__ void threadwise_4d_tensor_pointwise_operation_unary(Desc, Float* __re
             {
                 for(index_t did3 = 0; did3 < desc.GetLength(I3); ++did3)
                 {
-                    const index_t dindex = desc.Get1dIndex(did0, did1, did2, did3);
+                    const index_t dindex = desc.GetOffsetFromMultiIndex(did0, did1, did2, did3);
 
                     f(p[dindex]);
                 }
@@ -75,12 +75,12 @@ __device__ void threadwise_4d_tensor_pointwise_operation_binary_reorder_given_ds
             {
                 for(index_t did3 = 0; did3 < ref_desc.GetLength(I3); ++did3)
                 {
-                    const index_t aindex = src_desc.Get1dIndex(did0, did1, did2, did3);
+                    const index_t aindex = src_desc.GetOffsetFromMultiIndex(did0, did1, did2, did3);
 
                     const index_t did[4] = {did0, did1, did2, did3};
 
                     const index_t bindex =
-                        dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
+                        dst_desc.GetOffsetFromMultiIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
                     f(p_src[aindex], p_dst[bindex]);
 
@@ -178,7 +178,7 @@ __device__ void threadwise_4d_tensor_shift_down(Desc, Float* __restrict__ p, IDi
             {
                 for(index_t did3 = 0; did3 < did3_end; ++did3)
                 {
-                    const index_t dindex = desc.Get1dIndex(did0, did1, did2, did3);
+                    const index_t dindex = desc.GetOffsetFromMultiIndex(did0, did1, did2, did3);
 
                     const index_t sindex = dindex + nshift * desc.GetStride(IDim{});
 

@@ -2,40 +2,25 @@
 #include "common.hip.hpp"
 
 template <class Lengths>
-__host__ __device__ constexpr auto calculate_default_strides(Lengths)
+__host__ __device__ constexpr auto calculate_packed_tensor_strides(Lengths)
 {
-    return reverse_inclusive_scan_sequence(Lengths{}.PopFront().PushBack(Number<1>{}),
-                                           std::multiplies<index_t>{});
+    return reverse_inclusive_scan_sequence(Lengths{}.PopFront(), std::multiplies<index_t>{})
+        .PushBack(Number<1>{});
 }
 
-// this is ugly, only for 2d
-template <index_t L0, index_t L1, index_t Align>
-__host__ __device__ constexpr auto calculate_default_strides_aligned(Sequence<L0, L1>,
-                                                                     Number<Align>)
+template <class Lengths, index_t Align>
+__host__ __device__ constexpr auto
+    calculate_rank_tensor_default_strides_with_alignment(Lengths, Number<Align>)
 {
-    constexpr index_t L1_align = Align * ((L1 + Align - 1) / Align);
-    return Sequence<L1_align, 1>{};
+    constexpr index_t L_back_align =
+        Align * mod_conv::integer_divide_ceiler<index_t>{}(Lengths{}.Back(), Align);
+
+    return calculate_packed_tensor_strides(
+        Lengths{}.Modify(Number<Lengths{}.GetSize() - 1>{}, Number<L_back_align>{}));
 }
 
-// this is ugly, only for 3d
-template <index_t L0, index_t L1, index_t L2, index_t Align>
-__host__ __device__ constexpr auto calculate_default_strides_aligned(Sequence<L0, L1, L2>,
-                                                                     Number<Align>)
-{
-    constexpr index_t L2_align = Align * ((L2 + Align - 1) / Align);
-    return Sequence<L1 * L2_align, L2_align, 1>{};
-}
-
-// this is ugly, only for 4d
-template <index_t L0, index_t L1, index_t L2, index_t L3, index_t Align>
-__host__ __device__ constexpr auto calculate_default_strides_aligned(Sequence<L0, L1, L2, L3>,
-                                                                     Number<Align>)
-{
-    constexpr index_t L3_align = Align * ((L3 + Align - 1) / Align);
-    return Sequence<L1 * L2 * L3_align, L2 * L3_align, L3_align, 1>{};
-}
-
-template <class Lengths, class Strides>
+// MemoryRanks of dimensions is for conversion from offset to multi-index
+template <class Lengths, class Strides, class MemoryRanks>
 struct ConstantTensorDescriptor
 {
     using Type = ConstantTensorDescriptor;
@@ -44,14 +29,24 @@ struct ConstantTensorDescriptor
 
     __host__ __device__ constexpr ConstantTensorDescriptor()
     {
-        static_assert(Lengths::GetSize() == Strides::GetSize(), "nDim not consistent");
+        static_assert(Lengths::GetSize() == Strides::GetSize() &&
+                          Lengths::GetSize() == MemoryRanks::GetSize(),
+                      "nDim not consistent");
+
+#if 0 // require sequence_sort, but it's not implemented yet
+        static_assert(is_same<typename sequence_sort<MemoryRanks>::SortedSeqType,
+                              typename arithmetic_sequence_gen<0, nDim, 1>::SeqType>::value,
+                      "wrong! invalid MemoryRanks");
+#endif
     }
 
     __host__ __device__ static constexpr index_t GetNumOfDimension() { return nDim; }
 
-    __host__ __device__ static constexpr Lengths GetLengths() { return Lengths{}; }
+    __host__ __device__ static constexpr auto GetLengths() { return Lengths{}; }
 
-    __host__ __device__ static constexpr Strides GetStrides() { return Strides{}; }
+    __host__ __device__ static constexpr auto GetStrides() { return Strides{}; }
+
+    __host__ __device__ static constexpr auto GetMemoryRanks() { return MemoryRanks{}; }
 
     template <index_t I>
     __host__ __device__ static constexpr index_t GetLength(Number<I>)
@@ -65,47 +60,58 @@ struct ConstantTensorDescriptor
         return Strides{}.Get(Number<I>{});
     }
 
+    template <index_t I>
+    __host__ __device__ static constexpr index_t GetMemoryRank(Number<I>)
+    {
+        return MemoryRanks{}.Get(Number<I>{});
+    }
+
     __host__ __device__ static constexpr index_t GetElementSize()
     {
         return accumulate_on_sequence(Lengths{}, std::multiplies<index_t>{}, Number<1>{});
     }
 
+    // WRONG! ReorderGivenOld2New is broken
     template <class Align = Number<1>>
     __host__ __device__ static constexpr index_t GetElementSpace(Align align = Align{})
     {
+#if 0
+        constexpr auto lengths_in_rank = GetLengths().ReorderGivenOld2New(MemoryRank{});
+        constexpr auto strides_in_rank = GetStrides().ReorderGivenOld2new(MemoryRank{});
+
+        constexpr index_t element_space_unaligned = accumulate_on_sequence(
+            (lengths_in_rank - Number<1>{}) * strides_in_rank, std::plus<index_t>{}, Number<1>{});
+#else // WRONG! align shouldbe applied to the last memory rank, not the last tensor dimension
         constexpr index_t element_space_unaligned = accumulate_on_sequence(
             (GetLengths() - Number<1>{}) * GetStrides(), std::plus<index_t>{}, Number<1>{});
+#endif
 
         return align.Get() * ((element_space_unaligned + align.Get() - 1) / align.Get());
     }
 
     template <index_t NSize>
-    __host__ __device__ static index_t Get1dIndex(Array<index_t, NSize> multi_id)
+    __host__ __device__ static index_t GetOffsetFromMultiIndex(Array<index_t, NSize> multi_id)
     {
         static_assert(NSize == nDim, "wrong! Dimension not consistent");
 
-        index_t id = 0;
+        index_t offset = 0;
 
         static_for<0, nDim, 1>{}([&](auto IDim) {
             constexpr index_t idim = IDim.Get();
-            id += multi_id[idim] * GetStride(IDim);
+            offset += multi_id[idim] * GetStride(IDim);
         });
 
-        return id;
+        return offset;
     }
 
     template <class... Is>
-    __host__ __device__ static index_t Get1dIndex(Is... is)
+    __host__ __device__ static index_t GetOffsetFromMultiIndex(Is... is)
     {
-        static_assert(sizeof...(Is) == nDim, "number of multi-index is wrong");
-
-        const auto multi_id = Array<index_t, nDim>(is...);
-
-        return Get1dIndex(multi_id);
+        return GetOffsetFromMultiIndex(Array<index_t, sizeof...(Is)>{is...});
     }
 
     template <index_t... Is>
-    __host__ __device__ static constexpr index_t Get1dIndex(Sequence<Is...> /*multi_id*/)
+    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(Sequence<Is...>)
     {
         static_assert(sizeof...(Is) == nDim, "wrong! Dimension not consistent");
 
@@ -114,43 +120,83 @@ struct ConstantTensorDescriptor
         return accumulate_on_sequence(multi_id * GetStrides(), std::plus<index_t>{}, Number<0>{});
     }
 
-    __host__ __device__ static Array<index_t, nDim> GetMultiIndex(index_t id)
+#if 0 // ReorderGivenOld2new is broken
+    __host__ __device__ static Array<index_t, nDim> GetMultiIndexFromOffset(index_t offset)
+    {
+        Array<index_t, nDim> ranked_multi_id;
+
+        constexpr auto ranked_strides =
+            GetStrides().ReorderGivenOld2new(MemoryRanks{}); // check this
+
+        // calculate index in each of the dimensions in the order of their rank (not dimension)
+        static_for<0, nDim - 1, 1>{}([&](auto IDim) {
+            constexpr index_t idim   = IDim.Get();
+            constexpr index_t stride = ranked_strides.Get(Number<idim>{});
+            ranked_multi_id[idim]    = offset / stride;
+            offset -= ranked_multi_id[idim] * stride;
+        });
+
+        ranked_multi_id[nDim - 1] = offset / ranked_strides.Get(Number<nDim - 1>{});
+
+        return reorder_array_given_new2old(ranked_multi_id, MemoryRanks{}); // check this
+    }
+#endif
+
+    __host__ __device__ static Array<index_t, nDim> GetMultiIndexFrom1dIndex(index_t id)
     {
         Array<index_t, nDim> multi_id;
 
+        constexpr auto dummy_strides = calculate_packed_tensor_strides(GetLengths());
+
+        // calculate index in each of the dimensions in the order of their dimension (not rank)
         static_for<0, nDim - 1, 1>{}([&](auto IDim) {
-            constexpr index_t idim = IDim.Get();
-            multi_id[idim]         = id / GetStride(IDim);
-            id -= multi_id[idim] * GetStride(IDim);
+            constexpr index_t idim   = IDim.Get();
+            constexpr index_t stride = dummy_strides.Get(Number<idim>{});
+            multi_id[idim]           = id / stride;
+            id -= multi_id[idim] * stride;
         });
 
-        multi_id[nDim - 1] = id / GetStride(Number<nDim - 1>{});
+        multi_id[nDim - 1] = id / dummy_strides.Get(Number<nDim - 1>{});
 
         return multi_id;
     }
 
-    __host__ __device__ static constexpr auto Pack()
-    {
-        constexpr auto default_strides = calculate_default_strides(Lengths{});
-        return ConstantTensorDescriptor<Lengths, decltype(default_strides)>{};
-    }
-
+    // WRONG! Ranks is broken
     template <index_t... IDims>
     __host__ __device__ static constexpr auto Extract(Number<IDims>... extract_dims)
     {
         static_assert(sizeof...(IDims) <= GetNumOfDimension(),
                       "wrong! too many number of dimensions to be extracted");
 
-        return make_ConstantTensorDescriptor(Lengths{}.Extract(extract_dims...),
-                                             Strides{}.Extract(extract_dims...));
+        using extract_lengths = decltype(Lengths{}.Extract(extract_dims...));
+        using extract_strides = decltype(Strides{}.Extract(extract_dims...));
+        using extract_ranks   = decltype(MemoryRanks{}.Extract(extract_dims...));
+
+#if 0
+        using new_ranks = typename sequence_sort<extract_ranks>::Original2SortedType;
+#else // WRONG! TODO:: implement sequence_sort
+        using new_ranks = typename arithmetic_sequence_gen<0, sizeof...(IDims), 1>::SeqType;
+#endif
+
+        return ConstantTensorDescriptor<extract_lengths, extract_strides, new_ranks>{};
     }
 
     template <index_t IDim, index_t SliceLen>
     __host__ __device__ static constexpr auto Slice(Number<IDim>, Number<SliceLen>)
     {
-        return make_ConstantTensorDescriptor(Lengths{}.Modify(Number<IDim>{}, Number<SliceLen>{}),
-                                             Strides{});
+        using slice_lengths = decltype(Lengths{}.Modify(Number<IDim>{}, Number<SliceLen>{}));
+
+        return ConstantTensorDescriptor<slice_lengths, Strides, MemoryRanks>{};
     }
+
+    template <index_t Threashold, index_t Delta>
+    struct f_fold_impl
+    {
+        __host__ __device__ constexpr index_t operator()(index_t x) const
+        {
+            return x > Threashold ? x + Delta : x;
+        }
+    };
 
     template <index_t IDim, index_t... FoldIntervals>
     __host__ __device__ static constexpr auto Fold(Number<IDim>, Number<FoldIntervals>...)
@@ -162,6 +208,7 @@ struct ConstantTensorDescriptor
 
         constexpr auto unfold_length = GetLength(Number<IDim>{});
         constexpr auto unfold_stride = GetStride(Number<IDim>{});
+        constexpr auto unfold_rank   = GetMemoryRank(Number<IDim>{});
 
         // length of the dimension to be folded needs to be dividable by fold_interval_product,
         // otherwise, folding is invalid
@@ -178,15 +225,44 @@ struct ConstantTensorDescriptor
             reverse_inclusive_scan_sequence(fold_intervals.PushBack(Number<1>{}),
                                             std::multiplies<index_t>{});
 
-        // left and right
-        constexpr auto left  = make_increasing_sequence(Number<0>{}, Number<IDim>{}, Number<1>{});
-        constexpr auto right = make_increasing_sequence(
-            Number<IDim + 1>{}, Number<GetNumOfDimension()>{}, Number<1>{});
+        // folded_ranks
+        constexpr auto fold_ranks =
+            typename arithmetic_sequence_gen<unfold_rank,
+                                             unfold_rank + fold_intervals.GetSize() + 1,
+                                             1>::SeqType{};
 
-        return make_ConstantTensorDescriptor(
-            GetLengths().Extract(left).Append(fold_lengths).Append(GetLengths().Extract(right)),
-            GetStrides().Extract(left).Append(fold_strides).Append(GetStrides().Extract(right)));
+        // increase the ranks that are larger than unfold_rank
+        constexpr auto tmp_ranks = transform_sequences(
+            f_fold_impl<unfold_rank, fold_intervals.GetSize()>{}, GetMemoryRanks());
+
+        // left and right
+        constexpr auto left = typename arithmetic_sequence_gen<0, IDim, 1>::SeqType{};
+        constexpr auto right =
+            typename arithmetic_sequence_gen<IDim + 1, GetNumOfDimension(), 1>::SeqType{};
+
+        constexpr auto new_lengths =
+            GetLengths().Extract(left).Append(fold_lengths).Append(GetLengths().Extract(right));
+        constexpr auto new_strides =
+            GetStrides().Extract(left).Append(fold_strides).Append(GetStrides().Extract(right));
+        constexpr auto new_ranks =
+            tmp_ranks.Extract(left).Append(fold_ranks).Append(tmp_ranks.Extract(right));
+
+        static_assert(new_ranks.GetSize() == new_lengths.GetSize(), "wrong!");
+        static_assert(fold_ranks.GetSize() == fold_lengths.GetSize(), "wrong!");
+
+        return ConstantTensorDescriptor<decltype(new_lengths),
+                                        decltype(new_strides),
+                                        decltype(new_ranks)>{};
     }
+
+    template <index_t Threashold, index_t Delta>
+    struct f_unfold_impl
+    {
+        __host__ __device__ constexpr index_t operator()(index_t x) const
+        {
+            return x > Threashold ? x - Delta : x;
+        }
+    };
 
     template <index_t FirstUnfoldDim, index_t LastUnfoldDim>
     __host__ __device__ static constexpr auto Unfold(Number<FirstUnfoldDim>, Number<LastUnfoldDim>)
@@ -198,66 +274,109 @@ struct ConstantTensorDescriptor
         // dimensions to be unfold need to be in descending order (w.r.t. strides), and need to be
         // packed in memory, otherwise, unfolding is invalid
         static_for<FirstUnfoldDim, LastUnfoldDim, 1>{}([&](auto IDim) {
+            constexpr auto IDim_p1 = IDim + Number<1>{};
+
+            // check stride
             static_assert(
-                GetStride(IDim) >= GetStride(Number<IDim.Get() + 1>{}),
+                GetStride(IDim) >= GetStride(IDim_p1),
                 "wrong! dimensions to be unfolded need to be in descending order w.r.t strides");
 
-            static_assert(GetStride(IDim + 1) * GetLength(IDim + 1) == GetStride(IDim),
+            // check if packed
+            static_assert(GetStride(IDim_p1) * GetLength(IDim_p1) == GetStride(IDim),
                           "wrong! dimensions to be unfolded need to be packed");
+
+            // checkt ranks
+            static_assert(GetMemoryRank(IDim_p1) = GetMemoryRank(IDim) + 1,
+                          "wrong! ranks of dimensions to be "
+                          "unfolded need to be in increasing "
+                          "and continuous ranks");
         });
 
         // left and right
-        constexpr auto left =
-            make_increasing_sequence(Number<0>{}, Number<FirstUnfoldDim>{}, Number<1>{});
-        constexpr auto middle = make_increasing_sequence(
-            Number<FirstUnfoldDim>{}, Number<LastUnfoldDim + 1>{}, Number<1>{});
-        constexpr auto right = make_increasing_sequence(
-            Number<LastUnfoldDim + 1>{}, Number<GetNumOfDimension()>{}, Number<1>{});
+        constexpr auto left = typename arithmetic_sequence_gen<0, FirstUnfoldDim, 1>::SeqType{};
+        constexpr auto middle =
+            typename arithmetic_sequence_gen<FirstUnfoldDim, LastUnfoldDim + 1, 1>::SeqType{};
+        constexpr auto right =
+            typename arithmetic_sequence_gen<LastUnfoldDim + 1, GetNumOfDimension(), 1>::SeqType{};
 
-        // length and stride
+        // unfolded length, stride and rank
         constexpr index_t unfold_length = accumulate_on_sequence(
             GetLengths().Extract(middle), std::multiplies<index_t>{}, Number<1>{});
 
         constexpr index_t unfold_stride = GetStride(Number<LastUnfoldDim>{});
 
-        return make_ConstantTensorDescriptor(GetLengths()
-                                                 .Extract(left)
-                                                 .PushBack(Number<unfold_length>{})
-                                                 .Append(GetLengths().Extract(right)),
-                                             GetStrides()
-                                                 .Extract(left)
-                                                 .PushBack(Number<unfold_stride>{})
-                                                 .Append(GetStrides().Extract(right)));
+        constexpr index_t unfold_rank = GetMemoryRank(Number<FirstUnfoldDim>{});
+
+        // decrease the ranks that are larger than the rank of LastUnfoldDim
+        constexpr auto tmp_ranks =
+            transform_sequences(GetMemoryRanks(),
+                                f_unfold_impl<GetMemoryRank(Number<LastUnfoldDim>{}),
+                                              LastUnfoldDim - FirstUnfoldDim + 1>{});
+
+        // new lengths, strides and ranks
+        constexpr auto new_lengths = GetLengths()
+                                         .Extract(left)
+                                         .PushBack(Number<unfold_length>{})
+                                         .Append(GetLengths().Extract(right));
+
+        constexpr auto new_strides = GetStrides()
+                                         .Extract(left)
+                                         .PushBack(Number<unfold_stride>{})
+                                         .Append(GetStrides().Extract(right));
+
+        constexpr auto new_ranks = tmp_ranks.Extract(left)
+                                       .PushBack(Number<unfold_rank>{})
+                                       .Append(tmp_ranks.Extract(right));
+
+        return ConstantTensorDescriptor<decltype(new_lengths),
+                                        decltype(new_strides),
+                                        decltype(new_ranks)>{};
     }
 
-    template <index_t... IRs>
-    __host__ __device__ static constexpr auto ReorderGivenNew2Old(Sequence<IRs...> /*new2old*/)
+    template <class MapNew2Old>
+    __host__ __device__ static constexpr auto ReorderGivenNew2Old(MapNew2Old)
     {
-        static_assert(sizeof...(IRs) == GetNumOfDimension(), "wrong! dimension is wrong");
-        constexpr auto map_new2old = Sequence<IRs...>{};
-        return make_ConstantTensorDescriptor(Lengths{}.ReorderGivenNew2Old(map_new2old),
-                                             Strides{}.ReorderGivenNew2Old(map_new2old));
+        return ConstantTensorDescriptor<decltype(Lengths{}.ReorderGivenNew2Old(MapNew2Old{})),
+                                        decltype(Strides{}.ReorderGivenNew2Old(MapNew2Old{})),
+                                        decltype(
+                                            MemoryRanks{}.ReorderGivenNew2Old(MapNew2Old{}))>{};
     }
+
+#if 0 // require sequence_sort, which is not implemented yet
+    template <class MapOld2New>
+    __host__ __device__ static constexpr auto ReorderGivenOld2New(MapOld2New)
+    {
+        return ConstantTensorDescriptor<decltype(Lengths{}.ReorderGivenOld2New(MapOld2New{})),
+                                        decltype(Strides{}.ReorderGivenOld2New(MapOld2New{})),
+                                        decltype(
+                                            MemoryRanks{}.ReorderGivenOld2New(MapOld2New{}))>{};
+    }
+#endif
 };
 
 template <class Lengths>
-__host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths)
+__host__ __device__ constexpr auto make_packed_ConstantTensorDescriptor(Lengths)
 {
-    using Strides = decltype(calculate_default_strides(Lengths{}));
-    return ConstantTensorDescriptor<Lengths, Strides>{};
+    using Strides     = decltype(calculate_packed_tensor_strides(Lengths{}));
+    using MemoryRanks = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::SeqType;
+    return ConstantTensorDescriptor<Lengths, Strides, MemoryRanks>{};
 }
 
 template <class Lengths, class Strides>
-__host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths, Strides)
+__host__ __device__ constexpr auto make_ranked_ConstantTensorDescriptor(Lengths, Strides)
 {
-    return ConstantTensorDescriptor<Lengths, Strides>{};
+    using MemoryRanks = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::SeqType;
+    return ConstantTensorDescriptor<Lengths, Strides, MemoryRanks>{};
 }
 
 template <class Lengths, index_t Align>
-__host__ __device__ constexpr auto make_ConstantTensorDescriptor_aligned(Lengths, Number<Align>)
+__host__ __device__ constexpr auto
+    make_ranked_ConstantTensorDescriptor_with_alignment(Lengths, Number<Align>)
 {
-    using Strides = decltype(calculate_default_strides_aligned(Lengths{}, Number<Align>{}));
-    return ConstantTensorDescriptor<Lengths, Strides>{};
+    using Strides =
+        decltype(calculate_rank_tensor_default_strides_with_alignment(Lengths{}, Number<Align>{}));
+    using MemoryRanks = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::SeqType;
+    return ConstantTensorDescriptor<Lengths, Strides, MemoryRanks>{};
 }
 
 template <class TDesc>

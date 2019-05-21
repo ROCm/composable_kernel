@@ -198,10 +198,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         __shared__ Float p_wei_block_double[2 * wei_block_space];
 
         const Float* p_in_global_block_offset =
-            p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
+            p_in_global + in_cb_global_desc.GetOffsetFromMultiIndex(0, b_block_data_begin);
 
         const Float* p_wei_global_block_offset =
-            p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
+            p_wei_global +
+            wei_cyxk_global_desc.GetOffsetFromMultiIndex(0, 0, 0, k_block_data_begin);
 
         // preload data into LDS
         {
@@ -269,7 +270,8 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 #elif 0
                         blockwise_gemm.Run_asm
 #endif
-                            (p_wei_block_now + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                            (p_wei_block_now +
+                                 wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
                              p_in_block_now + y * Wi + x,
                              p_out_thread);
                     }
@@ -310,7 +312,8 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 #elif 0
                     blockwise_gemm.Run_asm
 #endif
-                        (p_wei_block_double + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                        (p_wei_block_double +
+                             wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
                          p_in_block_double + y * Wi + x,
                          p_out_thread);
                 }
@@ -336,7 +339,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
                     blockwise_gemm.Run_asm
 #endif
                         (p_wei_block_double + wei_block_space +
-                             wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                             wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
                          p_in_block_double + in_block_space + y * Wi + x,
                          p_out_thread);
                 }
@@ -365,14 +368,14 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 
             constexpr auto out_kb_global_desc = make_ConstantTensorDescriptor(Sequence<K, B>{});
 
-            threadwise_6d_tensor_copy(
-                out_6d_thread_desc,
-                p_out_thread,
-                out_6d_global_desc,
-                p_out_global +
-                    out_kb_global_desc.Get1dIndex(k_thread_data_begin, b_thread_data_begin),
-                out_6d_thread_desc.GetLengths(),
-                Number<OutThreadCopyDataPerWrite>{});
+            threadwise_6d_tensor_copy(out_6d_thread_desc,
+                                      p_out_thread,
+                                      out_6d_global_desc,
+                                      p_out_global +
+                                          out_kb_global_desc.GetOffsetFromMultiIndex(
+                                              k_thread_data_begin, b_thread_data_begin),
+                                      out_6d_thread_desc.GetLengths(),
+                                      Number<OutThreadCopyDataPerWrite>{});
         }
         else
         {
@@ -393,9 +396,9 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 
                     if(n_data < N && h_data < Ho && w_data < Wo)
                     {
-                        p_out_global[out_khwn_global_desc.Get1dIndex(
+                        p_out_global[out_khwn_global_desc.GetOffsetFromMultiIndex(
                             k_data, h_data, w_data, n_data)] =
-                            p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)];
+                            p_out_thread[out_kb_thread_desc.GetOffsetFromMultiIndex(k, b)];
                     }
                 }
             }

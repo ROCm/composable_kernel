@@ -13,7 +13,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
     constexpr auto dst_desc = DstDesc{};
 
-    constexpr auto desc = make_ConstantTensorDescriptor(dst_desc.GetLengths());
+    constexpr auto desc = make_packed_ConstantTensorDescriptor(dst_desc.GetLengths());
 
 #if 0
     if(get_thread_local_1d_id() == 0)
@@ -43,7 +43,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
         const index_t did3 = is / desc.GetStride(I3);
 
-        const index_t dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
+        const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1, did2, did3);
 
         f(p_dst[dindex]);
     }
@@ -70,7 +70,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
             const index_t did3 = is / desc.GetStride(I3);
 
-            const index_t dindex = dst_desc.Get1dIndex(did0, did1, did2, did3);
+            const index_t dindex = dst_desc.GetOffsetFromMultiIndex(did0, did1, did2, did3);
 
             f(p_dst[dindex]);
         }
@@ -108,7 +108,7 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
-    constexpr auto ref_desc = make_ConstantTensorDescriptor(SrcOpLengths{});
+    constexpr auto ref_desc = make_packed_ConstantTensorDescriptor(SrcOpLengths{});
 
     constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
@@ -132,9 +132,10 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
         did[3] = is / ref_desc.GetStride(I3);
 
-        const index_t src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+        const index_t src_index = src_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2], did[3]);
 
-        const index_t dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
+        const index_t dst_index =
+            dst_desc.GetOffsetFromMultiIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
         f(p_src[src_index], p_dst[dst_index]);
     }
@@ -163,9 +164,11 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
             did[3] = is / ref_desc.GetStride(I3);
 
-            const index_t src_index = src_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+            const index_t src_index =
+                src_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2], did[3]);
 
-            const index_t dst_index = dst_desc.Get1dIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
+            const index_t dst_index =
+                dst_desc.GetOffsetFromMultiIndex(did[IR0], did[IR1], did[IR2], did[IR3]);
 
             f(p_src[src_index], p_dst[dst_index]);
         }
@@ -256,7 +259,7 @@ struct Blockwise4dTensorCopy1
         constexpr index_t read_per_d3 = mod_conv::integer_divide_ceil(L3, DataPerRead);
 
         constexpr auto ref_desc =
-            make_ConstantTensorDescriptor(Sequence<L0, L1, L2, read_per_d3>{});
+            make_packed_ConstantTensorDescriptor(Sequence<L0, L1, L2, read_per_d3>{});
 
         constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
@@ -278,9 +281,9 @@ struct Blockwise4dTensorCopy1
             did[3] = is / ref_desc.GetStride(I3);
 
             const index_t src_index =
-                src_desc.Get1dIndex(did[0], did[1], did[2], did[3] * DataPerRead);
+                src_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2], did[3] * DataPerRead);
             const index_t dst_index =
-                dst_desc.Get1dIndex(did[0], did[1], did[2], did[3] * DataPerRead);
+                dst_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2], did[3] * DataPerRead);
 
             *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
                 *(reinterpret_cast<const vector_t*>(p_src + src_index));
@@ -333,19 +336,19 @@ struct BlockwiseChwnTensorCopyPadded
 
         constexpr auto src_desc = SrcDesc{};
         constexpr auto dst_desc = DstDesc{};
-        constexpr auto ref_desc = make_ConstantTensorDescriptor(DstOpLengths{});
+        constexpr auto ref_desc = make_packed_ConstantTensorDescriptor(DstOpLengths{});
 
         constexpr auto h_global_pad_low = GlobalLowerPads{}.Get(I0);
         constexpr auto w_global_pad_low = GlobalLowerPads{}.Get(I1);
 
         constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
-        const Float* p_src_tmp =
-            p_src +
-            src_desc.Get1dIndex(c_block_data_begin,
-                                (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
-                                (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,
-                                n_block_data_begin);
+        const Float* p_src_tmp = p_src +
+                                 src_desc.GetOffsetFromMultiIndex(
+                                     c_block_data_begin,
+                                     (ho_block_data_begin + h_block_pad_low) - h_global_pad_low,
+                                     (wo_block_data_begin + w_block_pad_low) - w_global_pad_low,
+                                     n_block_data_begin);
 
 #if 0
         if(get_thread_local_1d_id() == 0)
@@ -389,13 +392,13 @@ struct BlockwiseChwnTensorCopyPadded
 
             did[3] = is / ref_desc.GetStride(I3);
 
-            const index_t bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+            const index_t bindex = dst_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2], did[3]);
 
             p_dst[bindex] =
                 (did[1] < h_block_pad_low || did[1] + h_block_pad_up >= ref_desc.GetLength(I1) ||
                  did[2] < w_block_pad_low || did[2] + w_block_pad_up >= ref_desc.GetLength(I2))
                     ? Float(0)
-                    : p_src_tmp[src_desc.Get1dIndex(did[0], did[1], did[2], did[3])];
+                    : p_src_tmp[src_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2], did[3])];
         }
 
         constexpr bool has_tail = (ref_desc.GetElementSize() > NLoop * BlockSize);
@@ -422,14 +425,16 @@ struct BlockwiseChwnTensorCopyPadded
 
                 did[3] = is / ref_desc.GetStride(I3);
 
-                const index_t bindex = dst_desc.Get1dIndex(did[0], did[1], did[2], did[3]);
+                const index_t bindex =
+                    dst_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2], did[3]);
 
                 p_dst[bindex] =
                     (did[1] < h_block_pad_low ||
                      did[1] + h_block_pad_up >= ref_desc.GetLength(I1) ||
                      did[2] < w_block_pad_low || did[2] + w_block_pad_up >= ref_desc.GetLength(I2))
                         ? Float(0)
-                        : p_src_tmp[src_desc.Get1dIndex(did[0], did[1], did[2], did[3])];
+                        : p_src_tmp[src_desc.GetOffsetFromMultiIndex(
+                              did[0], did[1], did[2], did[3])];
             }
         }
     }
@@ -505,18 +510,19 @@ struct Blockwise4dTensorCopy3
             }
         }
 
-        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor(ThreadPerDims{});
-        const auto thread_multi_id = thread_cluster_desc.GetMultiIndex(get_thread_local_1d_id());
+        constexpr auto thread_cluster_desc = make_packed_ConstantTensorDescriptor(ThreadPerDims{});
+        const auto thread_multi_id =
+            thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
 
-        mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(thread_multi_id[0],
-                                                  thread_multi_id[1],
-                                                  thread_multi_id[2],
-                                                  thread_multi_id[3] * DataPerRead);
+        mSrcMyThreadOffset = SrcDesc{}.GetOffsetFromMultiIndex(thread_multi_id[0],
+                                                               thread_multi_id[1],
+                                                               thread_multi_id[2],
+                                                               thread_multi_id[3] * DataPerRead);
 
-        mDstMyThreadOffset = DstDesc{}.Get1dIndex(thread_multi_id[0],
-                                                  thread_multi_id[1],
-                                                  thread_multi_id[2],
-                                                  thread_multi_id[3] * DataPerRead);
+        mDstMyThreadOffset = DstDesc{}.GetOffsetFromMultiIndex(thread_multi_id[0],
+                                                               thread_multi_id[1],
+                                                               thread_multi_id[2],
+                                                               thread_multi_id[3] * DataPerRead);
     }
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
@@ -564,17 +570,17 @@ struct Blockwise4dTensorCopy3
 #pragma unroll
                     for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
                     {
-                        const index_t src_offset =
-                            SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                                 iloop_d1 * thread_per_d1,
-                                                 iloop_d2 * thread_per_d2,
-                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+                        const index_t src_offset = SrcDesc{}.GetOffsetFromMultiIndex(
+                            iloop_d0 * thread_per_d0,
+                            iloop_d1 * thread_per_d1,
+                            iloop_d2 * thread_per_d2,
+                            iloop_d3 * thread_per_d3 * DataPerRead);
 
-                        const index_t dst_offset =
-                            DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                                 iloop_d1 * thread_per_d1,
-                                                 iloop_d2 * thread_per_d2,
-                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+                        const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(
+                            iloop_d0 * thread_per_d0,
+                            iloop_d1 * thread_per_d1,
+                            iloop_d2 * thread_per_d2,
+                            iloop_d3 * thread_per_d3 * DataPerRead);
 
                         *(reinterpret_cast<vector_t*>(&p_dst[dst_offset + mDstMyThreadOffset])) =
                             *(reinterpret_cast<const vector_t*>(
@@ -646,7 +652,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
         constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
-        constexpr auto clipboard_desc = make_ConstantTensorDescriptor(
+        constexpr auto clipboard_desc = make_packed_ConstantTensorDescriptor(
             Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
 
 #pragma unroll
@@ -661,13 +667,13 @@ struct Blockwise4dTensorCopy3
 #pragma unroll
                     for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
                     {
-                        const index_t src_offset =
-                            SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                                 iloop_d1 * thread_per_d1,
-                                                 iloop_d2 * thread_per_d2,
-                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+                        const index_t src_offset = SrcDesc{}.GetOffsetFromMultiIndex(
+                            iloop_d0 * thread_per_d0,
+                            iloop_d1 * thread_per_d1,
+                            iloop_d2 * thread_per_d2,
+                            iloop_d3 * thread_per_d3 * DataPerRead);
 
-                        const index_t clipboard_offset = clipboard_desc.Get1dIndex(
+                        const index_t clipboard_offset = clipboard_desc.GetOffsetFromMultiIndex(
                             iloop_d0, iloop_d1, iloop_d2, iloop_d3 * DataPerRead);
 
                         *(reinterpret_cast<vector_t*>(&p_clipboard[clipboard_offset])) =
@@ -713,7 +719,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
         constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
-        constexpr auto clipboard_desc = make_ConstantTensorDescriptor(
+        constexpr auto clipboard_desc = make_packed_ConstantTensorDescriptor(
             Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
 
 #pragma unroll
@@ -728,14 +734,14 @@ struct Blockwise4dTensorCopy3
 #pragma unroll
                     for(index_t iloop_d3 = 0; iloop_d3 < nloop_d3; ++iloop_d3)
                     {
-                        const index_t clipboard_offset = clipboard_desc.Get1dIndex(
+                        const index_t clipboard_offset = clipboard_desc.GetOffsetFromMultiIndex(
                             iloop_d0, iloop_d1, iloop_d2, iloop_d3 * DataPerRead);
 
-                        const index_t dst_offset =
-                            DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                                 iloop_d1 * thread_per_d1,
-                                                 iloop_d2 * thread_per_d2,
-                                                 iloop_d3 * thread_per_d3 * DataPerRead);
+                        const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(
+                            iloop_d0 * thread_per_d0,
+                            iloop_d1 * thread_per_d1,
+                            iloop_d2 * thread_per_d2,
+                            iloop_d3 * thread_per_d3 * DataPerRead);
 
                         *(reinterpret_cast<vector_t*>(&p_dst[dst_offset + mDstMyThreadOffset])) =
                             *(reinterpret_cast<const vector_t*>(&p_clipboard[clipboard_offset]));

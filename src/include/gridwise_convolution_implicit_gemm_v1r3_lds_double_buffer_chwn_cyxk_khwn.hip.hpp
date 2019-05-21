@@ -85,10 +85,11 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
         constexpr index_t WBlockWork = mod_conv::integer_divide_ceil(Wo, WoPerBlock);
         constexpr index_t NBlockWork = mod_conv::integer_divide_ceil(N, NPerBlock);
 
-        constexpr auto block_work_desc = make_ConstantTensorDescriptor(
+        constexpr auto block_work_desc = make_packed_ConstantTensorDescriptor(
             Sequence<KBlockWork, HBlockWork, WBlockWork, NBlockWork>{});
 
-        const auto block_work_multi_id = block_work_desc.GetMultiIndex(get_block_1d_id());
+        const auto block_work_multi_id =
+            block_work_desc.GetMultiIndexFrom1dIndex(get_block_1d_id());
 
         const index_t k_block_data_begin  = block_work_multi_id[0] * KPerBlock;
         const index_t ho_block_data_begin = block_work_multi_id[1] * HoPerBlock;
@@ -108,7 +109,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
 
-        constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
+        constexpr auto in_c_h_w_n_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
             Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{},
             Number<InBlockCopyDataPerRead_N>{});
 
@@ -117,12 +118,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
         static_assert(in_c_h_w_n_block_desc.GetStride(I1) % GemmDataPerReadB == 0,
                       "GemmDataPerReadB alignment requirement is not meet");
 
-        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
+        constexpr auto wei_c_k_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
             Sequence<CPerBlock, KPerBlock>{},
             Number<mod_conv::max(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         // tensor view of threadwise output in register
-        constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor(
+        constexpr auto out_k_h_w_n_thread_desc = make_packed_ConstantTensorDescriptor(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
 // blockwise copy
@@ -243,11 +244,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
             {
                 const Float* p_in_global_block_offset =
                     p_in_global +
-                    in_c_h_w_n_global_desc.Get1dIndex(
+                    in_c_h_w_n_global_desc.GetOffsetFromMultiIndex(
                         0, hi_block_data_begin + y, wi_block_data_begin + x, n_block_data_begin);
 
                 const Float* p_wei_global_block_offset =
-                    p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, y, x, k_block_data_begin);
+                    p_wei_global +
+                    wei_c_y_x_k_global_desc.GetOffsetFromMultiIndex(0, y, x, k_block_data_begin);
 
                 // LDS double buffer: preload data into LDS
                 {
@@ -399,17 +401,17 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
             }
 #endif
 
-            threadwise_tensor_slice_copy(
-                out_10d_thread_desc,
-                p_out_thread,
-                out_10d_global_desc,
-                p_out_global +
-                    out_k_h_w_n_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                                       ho_block_data_begin + ho_thread_data_begin,
-                                                       wo_block_data_begin + wo_thread_data_begin,
-                                                       n_block_data_begin + n_thread_data_begin),
-                out_10d_thread_desc.GetLengths(),
-                Number<OutThreadCopyDataPerWrite_N>{});
+            threadwise_tensor_slice_copy(out_10d_thread_desc,
+                                         p_out_thread,
+                                         out_10d_global_desc,
+                                         p_out_global +
+                                             out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
+                                                 k_block_data_begin + k_thread_data_begin,
+                                                 ho_block_data_begin + ho_thread_data_begin,
+                                                 wo_block_data_begin + wo_thread_data_begin,
+                                                 n_block_data_begin + n_thread_data_begin),
+                                         out_10d_thread_desc.GetLengths(),
+                                         Number<OutThreadCopyDataPerWrite_N>{});
         }).else_([&](auto fwd) {
             static_assert(fwd(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
                               GemmNPerThreadSubC % NPerThread == 0,
@@ -450,17 +452,17 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
             }
 #endif
 
-            threadwise_tensor_slice_copy(
-                out_10d_thread_desc,
-                p_out_thread,
-                out_10d_global_desc,
-                p_out_global +
-                    out_k_h_w_n_global_desc.Get1dIndex(k_block_data_begin + k_thread_data_begin,
-                                                       ho_block_data_begin + ho_thread_data_begin,
-                                                       wo_block_data_begin + wo_thread_data_begin,
-                                                       n_block_data_begin + n_thread_data_begin),
-                out_10d_thread_desc.GetLengths(),
-                Number<OutThreadCopyDataPerWrite_N>{});
+            threadwise_tensor_slice_copy(out_10d_thread_desc,
+                                         p_out_thread,
+                                         out_10d_global_desc,
+                                         p_out_global +
+                                             out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
+                                                 k_block_data_begin + k_thread_data_begin,
+                                                 ho_block_data_begin + ho_thread_data_begin,
+                                                 wo_block_data_begin + wo_thread_data_begin,
+                                                 n_block_data_begin + n_thread_data_begin),
+                                         out_10d_thread_desc.GetLengths(),
+                                         Number<OutThreadCopyDataPerWrite_N>{});
         });
     }
 };

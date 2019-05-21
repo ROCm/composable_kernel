@@ -71,8 +71,10 @@ struct Blockwise3dTensorCopy1
 
             did[2] = is / ref_desc.GetStride(I2);
 
-            const index_t src_index = src_desc.Get1dIndex(did[0], did[1], did[2] * DataPerRead);
-            const index_t dst_index = dst_desc.Get1dIndex(did[0], did[1], did[2] * DataPerRead);
+            const index_t src_index =
+                src_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2] * DataPerRead);
+            const index_t dst_index =
+                dst_desc.GetOffsetFromMultiIndex(did[0], did[1], did[2] * DataPerRead);
 
             *(reinterpret_cast<vector_t*>(p_dst + dst_index)) =
                 *(reinterpret_cast<const vector_t*>(p_src + src_index));
@@ -167,12 +169,13 @@ struct Blockwise3dTensorCopy3
         }
 
         constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor(ThreadPerDims{});
-        const auto thread_multi_id = thread_cluster_desc.GetMultiIndex(get_thread_local_1d_id());
+        const auto thread_multi_id =
+            thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
 
-        mSrcMyThreadOffset = SrcDesc{}.Get1dIndex(
+        mSrcMyThreadOffset = SrcDesc{}.GetOffsetFromMultiIndex(
             thread_multi_id[0], thread_multi_id[1], thread_multi_id[2] * DataPerRead);
 
-        mDstMyThreadOffset = DstDesc{}.Get1dIndex(
+        mDstMyThreadOffset = DstDesc{}.GetOffsetFromMultiIndex(
             thread_multi_id[0], thread_multi_id[1], thread_multi_id[2] * DataPerRead);
     }
 
@@ -214,14 +217,14 @@ struct Blockwise3dTensorCopy3
                 for(index_t iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
                 {
                     const index_t src_offset =
-                        SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                             iloop_d1 * thread_per_d1,
-                                             iloop_d2 * thread_per_d2 * DataPerRead);
+                        SrcDesc{}.GetOffsetFromMultiIndex(iloop_d0 * thread_per_d0,
+                                                          iloop_d1 * thread_per_d1,
+                                                          iloop_d2 * thread_per_d2 * DataPerRead);
 
                     const index_t dst_offset =
-                        DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                             iloop_d1 * thread_per_d1,
-                                             iloop_d2 * thread_per_d2 * DataPerRead);
+                        DstDesc{}.GetOffsetFromMultiIndex(iloop_d0 * thread_per_d0,
+                                                          iloop_d1 * thread_per_d1,
+                                                          iloop_d2 * thread_per_d2 * DataPerRead);
 
                     *(reinterpret_cast<vector_t*>(&p_dst[dst_offset + mDstMyThreadOffset])) = *(
                         reinterpret_cast<const vector_t*>(&p_src[src_offset + mSrcMyThreadOffset]));
@@ -295,12 +298,12 @@ struct Blockwise3dTensorCopy3
                 for(index_t iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
                 {
                     const index_t src_offset =
-                        SrcDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                             iloop_d1 * thread_per_d1,
-                                             iloop_d2 * thread_per_d2 * DataPerRead);
+                        SrcDesc{}.GetOffsetFromMultiIndex(iloop_d0 * thread_per_d0,
+                                                          iloop_d1 * thread_per_d1,
+                                                          iloop_d2 * thread_per_d2 * DataPerRead);
 
-                    const index_t clipboard_offset =
-                        clipboard_desc.Get1dIndex(iloop_d0, iloop_d1, iloop_d2 * DataPerRead);
+                    const index_t clipboard_offset = clipboard_desc.GetOffsetFromMultiIndex(
+                        iloop_d0, iloop_d1, iloop_d2 * DataPerRead);
 
                     *(reinterpret_cast<vector_t*>(&p_clipboard[clipboard_offset])) = *(
                         reinterpret_cast<const vector_t*>(&p_src[src_offset + mSrcMyThreadOffset]));
@@ -350,13 +353,13 @@ struct Blockwise3dTensorCopy3
 #pragma unroll
                 for(index_t iloop_d2 = 0; iloop_d2 < nloop_d2; ++iloop_d2)
                 {
-                    const index_t clipboard_offset =
-                        clipboard_desc.Get1dIndex(iloop_d0, iloop_d1, iloop_d2 * DataPerRead);
+                    const index_t clipboard_offset = clipboard_desc.GetOffsetFromMultiIndex(
+                        iloop_d0, iloop_d1, iloop_d2 * DataPerRead);
 
                     const index_t dst_offset =
-                        DstDesc{}.Get1dIndex(iloop_d0 * thread_per_d0,
-                                             iloop_d1 * thread_per_d1,
-                                             iloop_d2 * thread_per_d2 * DataPerRead);
+                        DstDesc{}.GetOffsetFromMultiIndex(iloop_d0 * thread_per_d0,
+                                                          iloop_d1 * thread_per_d1,
+                                                          iloop_d2 * thread_per_d2 * DataPerRead);
 
                     *(reinterpret_cast<vector_t*>(&p_dst[dst_offset + mDstMyThreadOffset])) =
                         *(reinterpret_cast<const vector_t*>(&p_clipboard[clipboard_offset]));

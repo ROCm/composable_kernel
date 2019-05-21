@@ -39,7 +39,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto thread_cluster_lengths =
             src_cluster_lengths.ReorderGivenNew2Old(map_thread_cluster_2_src_cluster);
 
-        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor(thread_cluster_lengths);
+        constexpr auto thread_cluster_desc = make_packed_ConstantTensorDescriptor(thread_cluster_lengths);
 
         // sanity check: data type
         static_assert(is_same<Float, float>::value, "wrong! only support float for now!\n");
@@ -105,7 +105,8 @@ struct BlockwiseTensorSliceReorderCopy_v3
             }
         }
 
-        const auto thread_multi_id = thread_cluster_desc.GetMultiIndex(get_thread_local_1d_id());
+        const auto thread_multi_id =
+            thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
 
         // compiler: thread_multi_id, src_data_multi_id, dst_data_multi_id, will use separate
         // regsiters, or only one copy???
@@ -115,17 +116,21 @@ struct BlockwiseTensorSliceReorderCopy_v3
         static_for<0, nDim, 1>{}([&](auto IDim) {
             constexpr auto I    = decltype(IDim){};
             constexpr index_t i = I.Get();
-            // compiler: will it really compute index here, or be merged with Get1dIndex and
+            // compiler: will it really compute index here, or be merged with
+            // GetOffsetFromMultiIndex and
             // optimized away???
             src_data_multi_id[i] *= src_sub_lengths.Get(I);
         });
 
-        // compiler: will it really compute index here, or be merged with Get1dIndex and
+        // compiler: will it really compute index here, or be merged with GetOffsetFromMultiIndex
+        // and
         // optimized away???
         const auto dst_data_multi_id = reorder_array_given_new2old(src_data_multi_id, map_dst2src);
 
-        mSrcMyThreadOffset = src_desc.Get1dIndex(src_data_multi_id + src_block_data_multi_id_begin);
-        mDstMyThreadOffset = dst_desc.Get1dIndex(dst_data_multi_id + dst_block_data_multi_id_begin);
+        mSrcMyThreadOffset =
+            src_desc.GetOffsetFromMultiIndex(src_data_multi_id + src_block_data_multi_id_begin);
+        mDstMyThreadOffset =
+            dst_desc.GetOffsetFromMultiIndex(dst_data_multi_id + dst_block_data_multi_id_begin);
     }
 
     __device__ static constexpr index_t GetRegisterClipboardSize()
@@ -142,7 +147,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
 
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
-        constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor(thread_tensor_lengths);
+        constexpr auto thread_tensor_desc = make_packed_ConstantTensorDescriptor(thread_tensor_lengths);
 
         return thread_tensor_desc.GetElementSpace();
     }
@@ -162,7 +167,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
 
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
-        constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor(thread_tensor_lengths);
+        constexpr auto thread_tensor_desc = make_packed_ConstantTensorDescriptor(thread_tensor_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
@@ -171,9 +176,9 @@ struct BlockwiseTensorSliceReorderCopy_v3
 
             constexpr auto clipboard_data_multi_id = repeat_multi_id * thread_sub_tensor_lengths;
 
-            constexpr index_t src_offset = SrcDesc{}.Get1dIndex(src_data_multi_id);
+            constexpr index_t src_offset = SrcDesc{}.GetOffsetFromMultiIndex(src_data_multi_id);
             constexpr index_t clipboard_offset =
-                thread_tensor_desc.Get1dIndex(clipboard_data_multi_id);
+                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id);
 
             threadwise_tensor_slice_copy(SrcDesc{},
                                          p_src + src_offset + mSrcMyThreadOffset,
@@ -199,7 +204,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
 
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
-        constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor(thread_tensor_lengths);
+        constexpr auto thread_tensor_desc = make_packed_ConstantTensorDescriptor(thread_tensor_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
@@ -212,9 +217,9 @@ struct BlockwiseTensorSliceReorderCopy_v3
             constexpr auto dst_data_multi_id = src_data_multi_id.ReorderGivenNew2Old(MapDst2Src{});
 
             constexpr index_t clipboard_offset =
-                thread_tensor_desc.Get1dIndex(clipboard_data_multi_id);
+                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id);
 
-            constexpr index_t dst_offset = DstDesc{}.Get1dIndex(dst_data_multi_id);
+            constexpr index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(dst_data_multi_id);
 
 // write in the order of dst
 #if 1

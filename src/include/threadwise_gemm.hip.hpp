@@ -9,7 +9,7 @@ __device__ void threadwise_matrix_set_zero(Matrix, Float* __restrict__ p_thread)
     {
         for(index_t j = 0; j < Matrix::NCol(); ++j)
         {
-            const index_t id = Matrix::Get1dIndex(i, j);
+            const index_t id = Matrix::GetOffsetFromMultiIndex(i, j);
             p_thread[id]     = 0;
         }
     }
@@ -39,8 +39,8 @@ __device__ void threadwise_matrix_copy(SrcMatrix,
     {
         for(index_t j = 0; j < NCol; j += DataPerRead)
         {
-            const index_t src_index = src_mtx.Get1dIndex(i, j);
-            const index_t dst_index = dst_mtx.Get1dIndex(i, j);
+            const index_t src_index = src_mtx.GetOffsetFromMultiIndex(i, j);
+            const index_t dst_index = dst_mtx.GetOffsetFromMultiIndex(i, j);
 
             *reinterpret_cast<vector_t*>(&p_dst[dst_index]) =
                 *reinterpret_cast<const vector_t*>(&p_src[src_index]);
@@ -83,9 +83,9 @@ __device__ void threadwise_gemm(MatrixA,
             {
                 for(index_t j = 0; j < N; ++j)
                 {
-                    const index_t aindex = a_mtx.Get1dIndex(k, i); // A is transposed
-                    const index_t bindex = b_mtx.Get1dIndex(k, j);
-                    const index_t cindex = c_mtx.Get1dIndex(i, j);
+                    const index_t aindex = a_mtx.GetOffsetFromMultiIndex(k, i); // A is transposed
+                    const index_t bindex = b_mtx.GetOffsetFromMultiIndex(k, j);
+                    const index_t cindex = c_mtx.GetOffsetFromMultiIndex(i, j);
 
                     p_c_thread[cindex] += p_a_thread[aindex] * p_b_thread[bindex];
                 }

@@ -21,7 +21,7 @@ struct ConstantMatrixDescriptor
 
     __host__ __device__ constexpr index_t GetElementSpace() const { return NRow_ * RowStride_; }
 
-    __host__ __device__ index_t Get1dIndex(index_t irow, index_t icol) const
+    __host__ __device__ index_t GetOffsetFromMultiIndex(index_t irow, index_t icol) const
     {
         return irow * RowStride_ + icol;
     }

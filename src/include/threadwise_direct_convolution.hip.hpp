@@ -46,11 +46,14 @@ __device__ void threadwise_direct_convolution_1(InDesc,
                                 const index_t hi = ho + y;
                                 const index_t wi = wo + x;
 
-                                const index_t in_index = in_desc.Get1dIndex(n, c, hi, wi);
+                                const index_t in_index =
+                                    in_desc.GetOffsetFromMultiIndex(n, c, hi, wi);
 
-                                const index_t wei_index = wei_desc.Get1dIndex(k, c, y, x);
+                                const index_t wei_index =
+                                    wei_desc.GetOffsetFromMultiIndex(k, c, y, x);
 
-                                const index_t out_index = out_desc.Get1dIndex(n, k, ho, wo);
+                                const index_t out_index =
+                                    out_desc.GetOffsetFromMultiIndex(n, k, ho, wo);
 
                                 fused_multiply_accumulate(
                                     p_out[out_index], p_wei[wei_index], p_in[in_index]);
@@ -143,14 +146,14 @@ __device__ void threadwise_direct_convolution_3(InDesc,
     {
         // read first input
         threadwise_4d_tensor_copy(in_desc,
-                                  p_in + in_desc.Get1dIndex(0, 0, y, 0),
+                                  p_in + in_desc.GetOffsetFromMultiIndex(0, 0, y, 0),
                                   in_reg_desc,
                                   p_in_reg,
                                   in_reg_desc.GetLengths());
 
         // read first 1x1 weight
         threadwise_4d_tensor_copy(wei_desc,
-                                  p_wei + wei_desc.Get1dIndex(0, 0, y, 0),
+                                  p_wei + wei_desc.GetOffsetFromMultiIndex(0, 0, y, 0),
                                   wei_reg_desc,
                                   p_wei_reg,
                                   wei_reg_desc.GetLengths());
@@ -164,7 +167,7 @@ __device__ void threadwise_direct_convolution_3(InDesc,
         {
             // read new weight
             threadwise_4d_tensor_copy(wei_desc,
-                                      p_wei + wei_desc.Get1dIndex(0, 0, y, x),
+                                      p_wei + wei_desc.GetOffsetFromMultiIndex(0, 0, y, x),
                                       wei_reg_desc,
                                       p_wei_reg,
                                       wei_reg_desc.GetLengths());
@@ -175,10 +178,10 @@ __device__ void threadwise_direct_convolution_3(InDesc,
             // read new input
             threadwise_4d_tensor_copy(
                 in_desc,
-                p_in + in_desc.Get1dIndex(0, 0, y, x + in_reg_desc.GetLength(I3) - 1),
+                p_in + in_desc.GetOffsetFromMultiIndex(0, 0, y, x + in_reg_desc.GetLength(I3) - 1),
                 in_reg_desc,
                 p_in_reg +
-                    in_reg_desc.Get1dIndex(0, 0, 0, in_reg_desc.GetLength(I3) - in_w_new_read),
+                    in_reg_desc.GetOffsetFromMultiIndex(0, 0, 0, in_reg_desc.GetLength(I3) - in_w_new_read),
                 in_desc_reg_new_read.GetLengths());
 
             // do 1x1 conv
@@ -196,14 +199,14 @@ __device__ void threadwise_direct_convolution_3(InDesc,
         {
             // read new weight
             threadwise_4d_tensor_copy(wei_desc,
-                                      p_wei + wei_desc.Get1dIndex(0, 0, y, x),
+                                      p_wei + wei_desc.GetOffsetFromMultiIndex(0, 0, y, x),
                                       wei_reg_desc,
                                       p_wei_reg,
                                       wei_reg_desc.GetLengths());
 
             // read new input
             threadwise_4d_tensor_copy(in_desc,
-                                      p_in + in_desc.Get1dIndex(0, 0, y, x),
+                                      p_in + in_desc.GetOffsetFromMultiIndex(0, 0, y, x),
                                       in_reg_desc,
                                       p_in_reg,
                                       in_reg_desc.GetLengths());

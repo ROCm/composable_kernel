@@ -83,7 +83,8 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         constexpr auto block_work_desc =
             make_ConstantTensorDescriptor(Sequence<KBlockWork, BBlockWork>{});
 
-        const auto block_work_multi_id = block_work_desc.GetMultiIndex(get_block_1d_id());
+        const auto block_work_multi_id =
+            block_work_desc.GetMultiIndexFrom1dIndex(get_block_1d_id());
 
         const index_t k_block_data_on_global = block_work_multi_id[0] * KPerBlock;
         const index_t b_block_data_on_global = block_work_multi_id[1] * BPerBlock;
@@ -219,10 +220,10 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
             {
                 // calculate origin of block input and weight tensor on global memory
                 const Float* p_in_block_on_global =
-                    p_in_global + in_n_c_h_w_global_desc.Get1dIndex(0, 0, y, x);
+                    p_in_global + in_n_c_h_w_global_desc.GetOffsetFromMultiIndex(0, 0, y, x);
 
                 const Float* p_wei_block_on_global =
-                    p_wei_global + wei_c_y_x_k_global_desc.Get1dIndex(0, y, x, 0);
+                    p_wei_global + wei_c_y_x_k_global_desc.GetOffsetFromMultiIndex(0, y, x, 0);
 
                 for(index_t
                         c_block_data_on_global = 0;
@@ -285,7 +286,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
             //     origin of thread tensor in global memory
             const index_t p_out_thread_on_global =
                 p_out_global +
-                out_k_n1_b_n2_global_merged_desc.Get1dIndex(
+                out_k_n1_b_n2_global_merged_desc.GetOffsetFromMultiIndex(
                     k_thread_data_on_global, 0, 0, 0); // dst origin on merged global tensor
 
             // copy

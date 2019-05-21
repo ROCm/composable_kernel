@@ -87,10 +87,10 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         const auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
         mMyThreadOffsetA = c_thread_mtx_index.batch * BlockMatrixStrideA +
-                           a_block_mtx.Get1dIndex(0, c_thread_mtx_index.row);
+                           a_block_mtx.GetOffsetFromMultiIndex(0, c_thread_mtx_index.row);
 
         mMyThreadOffsetB = c_thread_mtx_index.batch * BlockMatrixStrideB +
-                           b_block_mtx.Get1dIndex(0, c_thread_mtx_index.col);
+                           b_block_mtx.GetOffsetFromMultiIndex(0, c_thread_mtx_index.col);
 
 #if 0
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
@@ -221,10 +221,12 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                         threadwise_matrix_copy(
                             a_block_mtx,
                             p_a_block +
-                                a_block_mtx.Get1dIndex(k_begin, m_repeat * MPerLevel1Cluster) +
+                                a_block_mtx.GetOffsetFromMultiIndex(k_begin,
+                                                                    m_repeat * MPerLevel1Cluster) +
                                 ib * BlockMatrixStrideA + mMyThreadOffsetA,
                             a_thread_mtx,
-                            p_a_thread + a_thread_mtx.Get1dIndex(0, m_repeat * MPerThreadSubC),
+                            p_a_thread +
+                                a_thread_mtx.GetOffsetFromMultiIndex(0, m_repeat * MPerThreadSubC),
                             a_thread_sub_mtx.GetLengths(),
                             Number<DataPerReadA>{});
                     }
@@ -238,10 +240,12 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                         threadwise_matrix_copy(
                             b_block_mtx,
                             p_b_block +
-                                b_block_mtx.Get1dIndex(k_begin, n_repeat * NPerLevel1Cluster) +
+                                b_block_mtx.GetOffsetFromMultiIndex(k_begin,
+                                                                    n_repeat * NPerLevel1Cluster) +
                                 ib * BlockMatrixStrideB + mMyThreadOffsetB,
                             b_thread_mtx,
-                            p_b_thread + b_thread_mtx.Get1dIndex(0, n_repeat * NPerThreadSubC),
+                            p_b_thread +
+                                b_thread_mtx.GetOffsetFromMultiIndex(0, n_repeat * NPerThreadSubC),
                             b_thread_sub_mtx.GetLengths(),
                             Number<DataPerReadB>{});
                     }
@@ -343,9 +347,11 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         reg_a[0] = *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA]);
         reg_b[0] = *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB]);
         reg_b[1] = *reinterpret_cast<const Float4*>(
-            &p_b_block[b_block_mtx.Get1dIndex(0, NPerLevel1Cluster) + mMyThreadOffsetB]);
+            &p_b_block[b_block_mtx.GetOffsetFromMultiIndex(0, NPerLevel1Cluster) +
+                       mMyThreadOffsetB]);
         reg_a[1] = *reinterpret_cast<const Float4*>(
-            &p_a_block[a_block_mtx.Get1dIndex(0, MPerLevel1Cluster) + mMyThreadOffsetA]);
+            &p_a_block[a_block_mtx.GetOffsetFromMultiIndex(0, MPerLevel1Cluster) +
+                       mMyThreadOffsetA]);
         outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
         outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
 
@@ -353,15 +359,17 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         for(index_t k = 1; k < K; ++k)
         {
             reg_a[0] = *reinterpret_cast<const Float4*>(
-                &p_a_block[a_block_mtx.Get1dIndex(k, 0) + mMyThreadOffsetA]);
+                &p_a_block[a_block_mtx.GetOffsetFromMultiIndex(k, 0) + mMyThreadOffsetA]);
             outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
             reg_b[0] = *reinterpret_cast<const Float4*>(
-                &p_b_block[b_block_mtx.Get1dIndex(k, 0) + mMyThreadOffsetB]);
+                &p_b_block[b_block_mtx.GetOffsetFromMultiIndex(k, 0) + mMyThreadOffsetB]);
             outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
             reg_b[1] = *reinterpret_cast<const Float4*>(
-                &p_b_block[b_block_mtx.Get1dIndex(k, NPerLevel1Cluster) + mMyThreadOffsetB]);
+                &p_b_block[b_block_mtx.GetOffsetFromMultiIndex(k, NPerLevel1Cluster) +
+                           mMyThreadOffsetB]);
             reg_a[1] = *reinterpret_cast<const Float4*>(
-                &p_a_block[a_block_mtx.Get1dIndex(k, MPerLevel1Cluster) + mMyThreadOffsetA]);
+                &p_a_block[a_block_mtx.GetOffsetFromMultiIndex(k, MPerLevel1Cluster) +
+                           mMyThreadOffsetA]);
             outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
             outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
         }
@@ -489,7 +497,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 
         const index_t c_thread_offset =
             c_thread_mtx_begin.batch * BlockMatrixStrideC +
-            c_block_mtx.Get1dIndex(c_thread_mtx_begin.row, c_thread_mtx_begin.col);
+            c_block_mtx.GetOffsetFromMultiIndex(c_thread_mtx_begin.row, c_thread_mtx_begin.col);
 
         for(index_t m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
         {
@@ -498,12 +506,12 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                 threadwise_matrix_copy(
                     c_thread_sub_mtx,
                     p_c_thread +
-                        c_thread_sub_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
-                                                    n_repeat * NPerLevel1Cluster),
+                        c_thread_sub_mtx.GetOffsetFromMultiIndex(m_repeat * MPerLevel1Cluster,
+                                                                 n_repeat * NPerLevel1Cluster),
                     c_block_mtx,
                     p_c_block +
-                        c_block_mtx.Get1dIndex(m_repeat * MPerLevel1Cluster,
-                                               n_repeat * NPerLevel1Cluster) +
+                        c_block_mtx.GetOffsetFromMultiIndex(m_repeat * MPerLevel1Cluster,
+                                                            n_repeat * NPerLevel1Cluster) +
                         c_thread_offset,
                     c_thread_sub_mtx.GetLengths());
             }
