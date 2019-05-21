@@ -19,7 +19,7 @@ __device__ void threadwise_tensor_slice_copy(SrcDesc,
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
-    constexpr auto ref_desc = make_ConstantTensorDescriptor(SrcOpLengths{});
+    constexpr auto ref_desc = make_packed_ConstantTensorDescriptor(SrcOpLengths{});
 
 #if 0
     if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
@@ -53,9 +53,9 @@ __device__ void threadwise_tensor_slice_copy(SrcDesc,
         static_for<0, nRead, 1>{}([&](auto IRead) {
             constexpr auto multi_id = decltype(Ids){}.PushBack(Number<IRead.Get() * DataPerRead>{});
 
-            const index_t src_index = src_desc.Get1dIndex(multi_id);
+            const index_t src_index = src_desc.GetOffsetFromMultiIndex(multi_id);
 
-            const index_t dst_index = dst_desc.Get1dIndex(multi_id);
+            const index_t dst_index = dst_desc.GetOffsetFromMultiIndex(multi_id);
 
             *(reinterpret_cast<vector_t*>(&p_dst[dst_index])) =
                 *(reinterpret_cast<const vector_t*>(&p_src[src_index]));
@@ -84,9 +84,9 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v1(SrcDesc,
     ford<SrcOpLengths>{}([&](auto src_multi_id) {
         const auto dst_multi_id = reorder_array_given_new2old(src_multi_id, MapDst2Src{});
 
-        const index_t dst_index = dst_desc.Get1dIndex(dst_multi_id);
+        const index_t dst_index = dst_desc.GetOffsetFromMultiIndex(dst_multi_id);
 
-        const index_t src_index = src_desc.Get1dIndex(src_multi_id);
+        const index_t src_index = src_desc.GetOffsetFromMultiIndex(src_multi_id);
 
         p_dst[dst_index] = p_src[src_index];
     });
@@ -115,9 +115,9 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v2(SrcDesc,
     ford<decltype(dst_op_lengths)>{}([&](auto dst_multi_id) {
         const auto src_multi_id = reorder_array_given_old2new(dst_multi_id, MapDst2Src{});
 
-        const index_t dst_index = dst_desc.Get1dIndex(dst_multi_id);
+        const index_t dst_index = dst_desc.GetOffsetFromMultiIndex(dst_multi_id);
 
-        const index_t src_index = src_desc.Get1dIndex(src_multi_id);
+        const index_t src_index = src_desc.GetOffsetFromMultiIndex(src_multi_id);
 
         p_dst[dst_index] = p_src[src_index];
     });
@@ -177,7 +177,7 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
 
                 const auto src_multi_id = reorder_array_given_old2new(dst_multi_id, MapDst2Src{});
 
-                const index_t src_index = src_desc.Get1dIndex(src_multi_id);
+                const index_t src_index = src_desc.GetOffsetFromMultiIndex(src_multi_id);
 
                 vector_type<Float, DstDataPerWrite>::SetScalar(
                     dst_vec_data, p_src[src_index], IDstData);
@@ -186,7 +186,7 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
             // write data
             const auto dst_multi_id = ids.PushBack(IWrite.Get() * DstDataPerWrite);
 
-            const index_t dst_index = dst_desc.Get1dIndex(dst_multi_id);
+            const index_t dst_index = dst_desc.GetOffsetFromMultiIndex(dst_multi_id);
 
             *(reinterpret_cast<vector_t*>(&p_dst[dst_index])) = dst_vec_data;
         });
@@ -204,5 +204,21 @@ threadwise_tensor_slice_copy_generic(SrcDesc,
                                      SliceLengths,
                                      DimAccessOrder)
 {
-    // not implemented
+    constexpr auto src_desc = SrcDesc{};
+    constexpr auto dst_desc = DstDesc{};
+
+    constexpr auto slice_lengths_in_access_order =
+        SliceLengths{}.ReorderGivenNew2Old(DimAccessOrder{});
+
+    ford<decltype(slice_lengths_in_access_order)>{}([&](auto data_multi_id_in_access_order) {
+        const auto data_multi_id =
+            reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});
+
+        const index_t dst_index =
+            dst_desc.GetOffsetFromMultiIndex(src_multi_offset + data_multi_id);
+        const index_t src_index =
+            src_desc.GetOffsetFromMultiIndex(dst_multi_offset + data_multi_id);
+
+        p_dst[dst_index] = p_src[src_index];
+    });
 }

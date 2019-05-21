@@ -93,7 +93,7 @@ struct TensorDescriptor
     const std::vector<std::size_t>& GetStrides() const;
 
     template <class... Is>
-    std::size_t Get1dIndex(Is... is) const
+    std::size_t GetOffsetFromMultiIndex(Is... is) const
     {
         assert(sizeof...(Is) == this->GetNumOfDimension());
         std::initializer_list<std::size_t> iss{static_cast<std::size_t>(is)...};
@@ -246,13 +246,13 @@ struct Tensor
     template <class... Is>
     T& operator()(Is... is)
     {
-        return mData[mDesc.Get1dIndex(is...)];
+        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
     }
 
     template <class... Is>
     const T& operator()(Is... is) const
     {
-        return mData[mDesc.Get1dIndex(is...)];
+        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
     }
 
     typename std::vector<T>::iterator begin() { return mData.begin(); }

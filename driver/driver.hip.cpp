@@ -548,8 +548,8 @@ int main(int argc, char* argv[])
     auto lower_pads = Sequence<HPad, WPad>{};
     auto upper_pads = Sequence<HPad, WPad>{};
 
-    auto in_nchw_desc  = make_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
-    auto wei_kcyx_desc = make_ConstantTensorDescriptor(Sequence<K, C, Y, X>{});
+    auto in_nchw_desc  = make_packed_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
+    auto wei_kcyx_desc = make_packed_ConstantTensorDescriptor(Sequence<K, C, Y, X>{});
     auto out_nkhw_desc = get_convolution_with_padding_output_default_4d_tensor_descriptor(
         in_nchw_desc, wei_kcyx_desc, lower_pads, upper_pads);
 

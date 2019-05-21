@@ -193,10 +193,11 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
         __shared__ Float p_wei_block[wei_block_space];
 
         const Float* p_in_global_block_offset =
-            p_in_global + in_cb_global_desc.Get1dIndex(0, b_block_data_begin);
+            p_in_global + in_cb_global_desc.GetOffsetFromMultiIndex(0, b_block_data_begin);
 
         const Float* p_wei_global_block_offset =
-            p_wei_global + wei_cyxk_global_desc.Get1dIndex(0, 0, 0, k_block_data_begin);
+            p_wei_global +
+            wei_cyxk_global_desc.GetOffsetFromMultiIndex(0, 0, 0, k_block_data_begin);
 
         // register
         Float p_out_thread[out_kb_thread_desc.GetElementSpace()];
@@ -236,7 +237,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 #elif 1
                     blockwise_gemm.Run_asm
 #endif
-                        (p_wei_block + wei_cyxk_block_desc.Get1dIndex(0, y, x, 0),
+                        (p_wei_block + wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
                          p_in_block + y * Wi + x,
                          p_out_thread);
                 }
@@ -267,8 +268,9 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 
                 if(n_data < N && h_data < Ho && w_data < Wo)
                 {
-                    p_out_global[out_khwn_global_desc.Get1dIndex(k_data, h_data, w_data, n_data)] =
-                        p_out_thread[out_kb_thread_desc.Get1dIndex(k, b)];
+                    p_out_global[out_khwn_global_desc.GetOffsetFromMultiIndex(
+                        k_data, h_data, w_data, n_data)] =
+                        p_out_thread[out_kb_thread_desc.GetOffsetFromMultiIndex(k, b)];
                 }
             }
         }

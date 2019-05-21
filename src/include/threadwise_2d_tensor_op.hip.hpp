@@ -20,7 +20,7 @@ __device__ void threadwise_2d_tensor_pointwise_operation_unary(Desc, Float* __re
     {
         for(index_t did1 = 0; did1 < desc.GetLength(I1); ++did1)
         {
-            const index_t dindex = desc.Get1dIndex(did0, did1);
+            const index_t dindex = desc.GetOffsetFromMultiIndex(did0, did1);
 
             f(p[dindex]);
         }
@@ -53,11 +53,11 @@ __device__ void threadwise_2d_tensor_pointwise_operation_binary_reorder_by_get_d
     {
         for(index_t did1 = 0; did1 < ref_desc.GetLength(I1); ++did1)
         {
-            const index_t aindex = src_desc.Get1dIndex(did0, did1);
+            const index_t aindex = src_desc.GetOffsetFromMultiIndex(did0, did1);
 
             const index_t did[2] = {did0, did1};
 
-            const index_t bindex = dst_desc.Get1dIndex(did[IR0], did[IR1]);
+            const index_t bindex = dst_desc.GetOffsetFromMultiIndex(did[IR0], did[IR1]);
 
             f(p_src[aindex], p_dst[bindex]);
         }
@@ -127,7 +127,7 @@ __device__ void threadwise_2d_tensor_shift_down(Desc, Float* __restrict__ p, IDi
     {
         for(index_t did1 = 0; did1 < did1_end; ++did1)
         {
-            const index_t dindex = desc.Get1dIndex(did0, did1);
+            const index_t dindex = desc.GetOffsetFromMultiIndex(did0, did1);
 
             const index_t sindex = dindex + nshift * desc.GetStride(IDim{});
 
