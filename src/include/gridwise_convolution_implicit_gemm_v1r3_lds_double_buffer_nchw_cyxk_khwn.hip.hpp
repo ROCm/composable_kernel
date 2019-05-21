@@ -362,8 +362,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
         const index_t n_thread_data_begin  = c_thread_mtx_begin.col % NPerBlock;
 
         static_if<GemmNPerThreadSubC <= NPerBlock>{}([&](auto fwd) { // fwd do nothing but
-                                                                         // perfect forwarding.
-                                                                         // Using this trick to
+                                                                     // perfect forwarding.
+                                                                     // Using this trick to
             // make this lambda a generic lambda, so it won't be compiled until
             // instantiated
             static_assert(

@@ -286,10 +286,9 @@ struct ConstantTensorDescriptor
                           "wrong! dimensions to be unfolded need to be packed");
 
             // checkt ranks
-            static_assert(GetMemoryRank(IDim_p1) = GetMemoryRank(IDim) + 1,
-                          "wrong! ranks of dimensions to be "
-                          "unfolded need to be in increasing "
-                          "and continuous ranks");
+            static_assert(GetMemoryRank(IDim_p1) == GetMemoryRank(IDim) + 1,
+                          "wrong! ranks of dimensions to be unfolded need to be in increasing and "
+                          "continuous ranks");
         });
 
         // left and right
