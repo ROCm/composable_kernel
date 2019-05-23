@@ -86,7 +86,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
         constexpr index_t HBlockWork = mod_conv::integer_divide_ceil(Ho, HoPerBlock);
         constexpr index_t WBlockWork = mod_conv::integer_divide_ceil(Wo, WoPerBlock);
 
-        constexpr auto block_work_desc = make_packed_ConstantTensorDescriptor(
+        constexpr auto block_work_desc = make_ConstantTensorDescriptor_default_rank_packed(
             Sequence<NBlockWork, KBlockWork, HBlockWork, WBlockWork>{});
 
         const auto block_work_multi_id =
@@ -110,7 +110,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
 
-        constexpr auto in_c_h_w_n_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
+        constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{},
             Number<InBlockReorderDataPerWrite_N>{});
 
@@ -119,12 +119,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
         static_assert(in_c_h_w_n_block_desc.GetStride(I1) % GemmDataPerReadB == 0,
                       "GemmDataPerReadB alignment requirement is not meet");
 
-        constexpr auto wei_c_k_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
+        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<CPerBlock, KPerBlock>{},
             Number<mod_conv::max(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         // tensor view of threadwise output in register
-        constexpr auto out_k_h_w_n_thread_desc = make_packed_ConstantTensorDescriptor(
+        constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_default_rank_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
         // blockwise copy
@@ -152,7 +152,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
                                    decltype(wei_c_k_global_desc),
                                    decltype(wei_c_k_block_desc),
                                    decltype(wei_c_k_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead_K>{};
+                                   WeiBlockCopyDataPerRead_K>({0, 0}, {0, 0});
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -196,7 +196,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
 
         // choose GEMM implementation here
         const auto run_blockwise_batch_gemm = [&](auto... Xs) {
-#if 0
+#if 1
             return blockwise_batch_gemm.Run(Xs...);
 #elif 0
             return blockwise_batch_gemm.Run_asm(Xs...);

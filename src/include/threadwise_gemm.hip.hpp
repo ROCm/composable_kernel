@@ -10,7 +10,7 @@ __device__ void threadwise_matrix_set_zero(Matrix, Float* __restrict__ p_thread)
         for(index_t j = 0; j < Matrix::NCol(); ++j)
         {
             const index_t id = Matrix::GetOffsetFromMultiIndex(i, j);
-            p_thread[id]     = 0;
+            p_thread[id]     = Float(0);
         }
     }
 }

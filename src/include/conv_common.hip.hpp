@@ -30,7 +30,7 @@ __host__ __device__ constexpr auto get_convolution_output_default_4d_tensor_desc
     constexpr auto HO = HI + 1 - Y;
     constexpr auto WO = WI + 1 - X;
 
-    return make_packed_ConstantTensorDescriptor(Sequence<N, K, HO, WO>{});
+    return make_ConstantTensorDescriptor_default_rank_packed(Sequence<N, K, HO, WO>{});
 }
 
 template <class InDesc, class WeiDesc, class LowerPads, class UpperPads>
@@ -67,7 +67,7 @@ __host__ __device__ constexpr auto get_convolution_with_padding_output_default_4
     constexpr auto HO = HI + HPadLow + HPadUp + 1 - Y;
     constexpr auto WO = WI + WPadLow + WPadUp + 1 - X;
 
-    return make_packed_ConstantTensorDescriptor(Sequence<N, K, HO, WO>{});
+    return make_ConstantTensorDescriptor_default_rank_packed(Sequence<N, K, HO, WO>{});
 }
 
 template <class InDesc, class WeiDesc, class OutDesc>

@@ -86,7 +86,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
         constexpr index_t HBlockWork = mod_conv::integer_divide_ceil(Ho, HoPerBlock);
         constexpr index_t WBlockWork = mod_conv::integer_divide_ceil(Wo, WoPerBlock);
 
-        constexpr auto block_work_desc = make_packed_ConstantTensorDescriptor(
+        constexpr auto block_work_desc = make_ConstantTensorDescriptor_default_rank_packed(
             Sequence<NBlockWork, KBlockWork, HBlockWork, WBlockWork>{});
 
         const auto block_work_multi_id =
@@ -102,7 +102,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
 
         // global tensor view
         constexpr auto wei_c_k_global_desc =
-            make_ranked_ConstantTensorDescriptor(Sequence<C, K>{}, Sequence<Y * X * K, 1>{});
+            make_ConstantTensorDescriptor_default_rank(Sequence<C, K>{}, Sequence<Y * X * K, 1>{});
 
         // LDS tensor view
         //   be careful of alignment
@@ -111,7 +111,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
 
-        constexpr auto in_c_h_w_n_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
+        constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{},
             Number<InBlockReorderDataPerWrite_N>{});
 
@@ -120,12 +120,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
         static_assert(in_c_h_w_n_block_desc.GetStride(I1) % GemmDataPerReadB == 0,
                       "GemmDataPerReadB alignment requirement is not meet");
 
-        constexpr auto wei_c_k_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
+        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<CPerBlock, KPerBlock>{},
             Number<mod_conv::max(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         // tensor view of threadwise output in register
-        constexpr auto out_k_h_w_n_thread_desc = make_packed_ConstantTensorDescriptor(
+        constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_default_rank_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
         // blockwise copy
@@ -448,10 +448,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_khwn
             constexpr index_t K1 = KPerBlock / KPerThread;
 
 #if 0
-            constexpr auto out_10d_global_desc = make_packed_ConstantTensorDescriptor(
+            constexpr auto out_10d_global_desc = make_ConstantTensorDescriptor_default_rank_packed(
                 Sequence<K / (K1 * K2), K1, K2, Ho, Wo / (W1 * W2 * W3), W1, W2, W3, N / N1, N1>{});
 
-            constexpr auto out_10d_thread_desc = make_packed_ConstantTensorDescriptor(
+            constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor_default_rank_packed(
                 Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, W3, 1, N1>{});
 #else
             constexpr auto out_10d_global_desc =

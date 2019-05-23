@@ -46,7 +46,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                           N % (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster) == 0,
                       "wrong! Cannot evenly divide work among\n");
 
-        static_assert(ThreadMatrixC::GetLengths() == GetThreadMatrixCLengths(),
+        static_assert(is_same_type(ThreadMatrixC::GetLengths(), GetThreadMatrixCLengths()),
                       "wrong! ThreadMatrixC lengths is wrong");
 
         auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
@@ -55,7 +55,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         mMyThreadOffsetB = BlockMatrixB::GetOffsetFromMultiIndex(0, c_thread_mtx_index.col);
     }
 
-    __device__ static auto GetThreadMatrixCLengths()
+    __device__ static constexpr auto GetThreadMatrixCLengths()
     {
         constexpr index_t M = BlockMatrixA::NCol(); // A is transposed
         constexpr index_t N = BlockMatrixB::NCol();

@@ -1,6 +1,6 @@
 #pragma once
 #include "vector_type.hip.hpp"
-#include "constant_integral.hip.hpp"
+#include "integral_constant.hip.hpp"
 #include "Sequence.hip.hpp"
 #include "Array.hip.hpp"
 #include "functional.hip.hpp"
@@ -17,14 +17,20 @@ __device__ index_t get_block_1d_id() { return blockIdx.x; }
 template <class T1, class T2>
 struct is_same
 {
-    static const bool value = false;
+    static constexpr bool value = false;
 };
 
 template <class T>
 struct is_same<T, T>
 {
-    static const bool value = true;
+    static constexpr bool value = true;
 };
+
+template <class X, class Y>
+__host__ __device__ constexpr bool is_same_type(X, Y)
+{
+    return is_same<X, Y>::value;
+}
 
 namespace mod_conv { // namespace mod_conv
 template <class T, T s>

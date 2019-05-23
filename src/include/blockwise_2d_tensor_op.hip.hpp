@@ -457,7 +457,8 @@ struct Blockwise2dTensorCopy3
     index_t mSrcMyThreadOffset;
     index_t mDstMyThreadOffset;
 
-    __device__ Blockwise2dTensorCopy3()
+    __device__ Blockwise2dTensorCopy3(Array<index_t, 2> src_block_data_multi_id_begin,
+                                      Array<index_t, 2> dst_block_data_multi_id_begin)
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -499,10 +500,13 @@ struct Blockwise2dTensorCopy3
         const index_t thread_id_d0 = get_thread_local_1d_id() / thread_per_d1;
         const index_t thread_id_d1 = get_thread_local_1d_id() - thread_id_d0 * thread_per_d1;
 
-        mSrcMyThreadOffset =
-            SrcDesc{}.GetOffsetFromMultiIndex(thread_id_d0, thread_id_d1 * DataPerRead);
-        mDstMyThreadOffset =
-            DstDesc{}.GetOffsetFromMultiIndex(thread_id_d0, thread_id_d1 * DataPerRead);
+        mSrcMyThreadOffset = SrcDesc{}.GetOffsetFromMultiIndex(
+            src_block_data_multi_id_begin +
+            Array<index_t, 2>{thread_id_d0, thread_id_d1 * DataPerRead});
+
+        mDstMyThreadOffset = DstDesc{}.GetOffsetFromMultiIndex(
+            dst_block_data_multi_id_begin +
+            Array<index_t, 2>{thread_id_d0, thread_id_d1 * DataPerRead});
     }
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
