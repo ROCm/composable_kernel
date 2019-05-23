@@ -37,7 +37,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
     constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     // reorder weight
-    auto wei_cyxk_desc = make_packed_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
+    auto wei_cyxk_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<C, Y, X, K>{});
     ostream_ConstantTensorDescriptor(wei_cyxk_desc, std::cout << "wei_cyxk_desc: ");
 
     Tensor<T> wei_cyxk(make_TensorDescriptor(wei_cyxk_desc));
@@ -50,7 +50,8 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_khwn(InDesc,
         std::thread::hardware_concurrency());
 
     // output
-    auto out_khwn_desc = make_packed_ConstantTensorDescriptor(Sequence<K, Ho, Wo, N>{});
+    auto out_khwn_desc =
+        make_ConstantTensorDescriptor_default_rank_packed(Sequence<K, Ho, Wo, N>{});
     ostream_ConstantTensorDescriptor(out_khwn_desc, std::cout << "out_khwn_desc: ");
 
     Tensor<T> out_khwn(make_TensorDescriptor(out_khwn_desc));

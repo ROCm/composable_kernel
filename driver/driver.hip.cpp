@@ -13,7 +13,7 @@
 #include "device_convolution_implicit_gemm_v1_nchw_cyxk_khwn.hpp"
 #include "device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hpp"
-//#include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
+#include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
 
 struct GeneratorTensor_1
 {
@@ -548,8 +548,8 @@ int main(int argc, char* argv[])
     auto lower_pads = Sequence<HPad, WPad>{};
     auto upper_pads = Sequence<HPad, WPad>{};
 
-    auto in_nchw_desc  = make_packed_ConstantTensorDescriptor(Sequence<N, C, HI, WI>{});
-    auto wei_kcyx_desc = make_packed_ConstantTensorDescriptor(Sequence<K, C, Y, X>{});
+    auto in_nchw_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<N, C, HI, WI>{});
+    auto wei_kcyx_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<K, C, Y, X>{});
     auto out_nkhw_desc = get_convolution_with_padding_output_default_4d_tensor_descriptor(
         in_nchw_desc, wei_kcyx_desc, lower_pads, upper_pads);
 
@@ -612,11 +612,11 @@ int main(int argc, char* argv[])
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn
 #elif 0
     device_convolution_implicit_gemm_v1_nchw_cyxk_khwn
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw
 #elif 0
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw
 #endif
     (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);

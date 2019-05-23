@@ -36,7 +36,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
     constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     // reorder weight
-    auto wei_cyxk_desc = make_packed_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
+    auto wei_cyxk_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<C, Y, X, K>{});
     ostream_ConstantTensorDescriptor(wei_cyxk_desc, std::cout << "wei_cyxk_desc: ");
 
     Tensor<T> wei_cyxk(make_TensorDescriptor(wei_cyxk_desc));
@@ -57,7 +57,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
     wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
-#if 0
+#if 1
     // for 3x3, 34x34, v1r3, Pascal
     constexpr index_t BlockSize = 128;
 
@@ -92,7 +92,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_W = 2;
-#elif 0
+#elif 1
     // for 3x3, 34x34, v1r3, Vega 20, WoPerBlock = 32
     constexpr index_t BlockSize = 256;
 
@@ -162,7 +162,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_W = 2;
-#elif 1
+#elif 0
     // for 3x3, 34x34, v1r3, Vega 20, WoPerBlock = 8
     constexpr index_t BlockSize = 256;
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "constant_integral.hip.hpp"
+#include "integral_constant.hip.hpp"
 
 struct forwarder
 {

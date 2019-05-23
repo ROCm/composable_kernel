@@ -35,7 +35,7 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
     constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     // reorder weight
-    auto wei_cyxk_desc = make_ConstantTensorDescriptor(Sequence<C, Y, X, K>{});
+    auto wei_cyxk_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<C, Y, X, K>{});
     ostream_ConstantTensorDescriptor(wei_cyxk_desc, std::cout << "wei_cyxk_desc: ");
 
     Tensor<T> wei_cyxk(make_TensorDescriptor(wei_cyxk_desc));
@@ -56,37 +56,40 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
     wei_cyxk_device_buf.ToDevice(wei_cyxk.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
+    constexpr index_t N1 = 2;
+    constexpr index_t N2 = 4;
+
+    constexpr index_t B = (N * Ho * Wo) / (N1 * N2);
+
 #if 1
-    // for 3x3, 28x28, v3, Pascal
-    constexpr index_t BlockSize = 128;
+    // for 3x3, 28x28, v3
+    constexpr index_t BlockSize = 256;
 
     constexpr index_t BPerBlock = 16;
     constexpr index_t KPerBlock = 128;
     constexpr index_t CPerBlock = 8;
 
-    constexpr index_t BPerThread = 1;
-    constexpr index_t KPerThread = 8;
-
     constexpr index_t GemmMPerThreadSubC = 4;
     constexpr index_t GemmNPerThreadSubC = 4;
     constexpr index_t GemmMLevel0Cluster = 4;
-    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmNLevel0Cluster = 4;
     constexpr index_t GemmMLevel1Cluster = 4;
-    constexpr index_t GemmNLevel1Cluster = 2;
+    constexpr index_t GemmNLevel1Cluster = 4;
     constexpr index_t GemmKPerThreadLoop = 1;
     constexpr index_t GemmDataPerReadA   = 4;
     constexpr index_t GemmDataPerReadB   = 4;
 
-    using InBlockReorderSrcSubLengths_NCHW                    = Sequence<4, 1, 1, 1>;
-    using InBlockReorderSrcClusterLengths_NCHW                = Sequence<4, 8, 2, 2>;
-    using InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW = Sequence<1, 2, 0, 3>;
+    using InBlockCopySubLengths_N1_N2_C_B     = Sequence<1, 4, 1, 1>;
+    using InBlockCopyClusterLengths_N1_N2_C_B = Sequence<2, 1, 8, 16>;
 
-    constexpr index_t WeiBlockCopyDataPerRead_K = 4;
+    constexpr index_t InBlockCopySrcDataPerRead_B   = 1;
+    constexpr index_t InBlockCopyDstDataPerWrite_N2 = 4;
+
+    constexpr index_t WeiBlockCopyDataPerAccess_K = 4;
 #endif
 
     constexpr index_t GridSize =
-        ((N + NPerBlock - 1) / NPerBlock) * ((K + KPerBlock - 1) / KPerBlock) *
-        ((Ho + HoPerBlock - 1) / HoPerBlock) * ((Wo + WoPerBlock - 1) / WoPerBlock);
+        ((B + BPerBlock - 1) / BPerBlock) * ((K + KPerBlock - 1) / KPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
@@ -102,15 +105,11 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
              decltype(in_nchw_desc),
              decltype(wei_cyxk_desc),
              decltype(out_nkhw_desc),
-             NPerBlock,
+             BPerBlock,
              KPerBlock,
              CPerBlock,
-             HoPerBlock,
-             WoPerBlock,
-             NPerThread,
-             KPerThread,
-             HoPerThread,
-             WoPerThread,
+             N1,
+             N2,
              GemmMPerThreadSubC,
              GemmNPerThreadSubC,
              GemmMLevel0Cluster,
@@ -120,14 +119,11 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
              GemmKPerThreadLoop,
              GemmDataPerReadA,
              GemmDataPerReadB,
-             InBlockReorderSrcSubLengths_NCHW,
-             InBlockReorderSrcClusterLengths_NCHW,
-             InBlockReorderMapThreadCluster2SrcCluster_CHNW2NCHW,
-             InBlockReorderDataPerRead_W,
-             InBlockReorderDataPerWrite_N,
-             WeiBlockCopyClusterLengths,
-             WeiBlockCopyDataPerRead_K,
-             OutThreadCopyDataPerWrite_W>{};
+             InBlockCopySubLengths_N1_N2_C_B,
+             InBlockCopyClusterLengths_N1_N2_C_B,
+             InBlockCopySrcDataPerRead_B,
+             InBlockCopyDstDataPerWrite_N2,
+             WeiBlockCopyDataPerAccess_K>{};
 
         float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,
                                    dim3(GridSize),

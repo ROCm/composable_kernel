@@ -8,5 +8,11 @@ struct integral_constant
     __host__ __device__ constexpr T Get() const { return value; }
 };
 
+template <class T, index_t X, index_t Y>
+__host__ __device__ constexpr auto operator+(integral_constant<T, X>, integral_constant<T, Y>)
+{
+    return integral_constant<T, X + Y>{};
+}
+
 template <index_t N>
 using Number = integral_constant<index_t, N>;

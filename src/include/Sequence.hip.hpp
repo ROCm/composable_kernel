@@ -1,5 +1,5 @@
 #pragma once
-#include "constant_integral.hip.hpp"
+#include "integral_constant.hip.hpp"
 #include "functional.hip.hpp"
 
 template <index_t... Is>
@@ -19,12 +19,6 @@ struct Sequence
         // the last dummy element is to prevent compiler complain about empty Sequence
         const index_t mData[mSize + 1] = {Is..., 0};
         return mData[I];
-    }
-
-    __host__ __device__ index_t operator[](index_t i) const
-    {
-        const index_t mData[mSize + 1] = {Is..., 0};
-        return mData[i];
     }
 
     template <index_t... IRs>
@@ -162,6 +156,12 @@ template <index_t I, class Reduce>
 struct sequence_reverse_inclusive_scan<Sequence<I>, Reduce>
 {
     using SeqType = Sequence<I>;
+};
+
+template <class Reduce>
+struct sequence_reverse_inclusive_scan<Sequence<>, Reduce>
+{
+    using SeqType = Sequence<>;
 };
 
 template <class, class>

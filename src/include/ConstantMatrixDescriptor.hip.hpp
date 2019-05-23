@@ -9,26 +9,26 @@ struct ConstantMatrixDescriptor
         static_assert(NCol_ <= RowStride_, "wrong! NCol > RowStride!");
     }
 
-    __host__ __device__ constexpr index_t NRow() const { return NRow_; }
+    __host__ __device__ static constexpr index_t NRow() { return NRow_; }
 
-    __host__ __device__ constexpr index_t NCol() const { return NCol_; }
+    __host__ __device__ static constexpr index_t NCol() { return NCol_; }
 
-    __host__ __device__ constexpr index_t RowStride() const { return RowStride_; }
+    __host__ __device__ static constexpr index_t RowStride() { return RowStride_; }
 
-    __host__ __device__ constexpr auto GetLengths() const { return Sequence<NRow_, NCol_>{}; }
+    __host__ __device__ static constexpr auto GetLengths() { return Sequence<NRow_, NCol_>{}; }
 
-    __host__ __device__ constexpr index_t GetElementSize() const { return NRow_ * NCol_; }
+    __host__ __device__ static constexpr index_t GetElementSize() { return NRow_ * NCol_; }
 
-    __host__ __device__ constexpr index_t GetElementSpace() const { return NRow_ * RowStride_; }
+    __host__ __device__ static constexpr index_t GetElementSpace() { return NRow_ * RowStride_; }
 
-    __host__ __device__ index_t GetOffsetFromMultiIndex(index_t irow, index_t icol) const
+    __host__ __device__ static index_t GetOffsetFromMultiIndex(index_t irow, index_t icol)
     {
         return irow * RowStride_ + icol;
     }
 
     template <index_t SubNRow, index_t SubNCol>
-    __host__ __device__ constexpr auto MakeSubMatrixDescriptor(Number<SubNRow>,
-                                                               Number<SubNCol>) const
+    __host__ __device__ static constexpr auto MakeSubMatrixDescriptor(Number<SubNRow>,
+                                                                      Number<SubNCol>)
     {
         return ConstantMatrixDescriptor<SubNRow, SubNCol, RowStride_>{};
     }

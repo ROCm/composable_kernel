@@ -1,6 +1,6 @@
 #pragma once
 #include "config.h"
-#include "constant_integral.hip.hpp"
+#include "integral_constant.hip.hpp"
 
 template <class T, index_t N>
 struct vector_type

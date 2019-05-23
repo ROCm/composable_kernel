@@ -19,7 +19,7 @@ __device__ void threadwise_tensor_slice_copy(SrcDesc,
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
-    constexpr auto ref_desc = make_packed_ConstantTensorDescriptor(SrcOpLengths{});
+    constexpr auto ref_desc = make_ConstantTensorDescriptor_default_rank_packed(SrcOpLengths{});
 
 #if 0
     if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
@@ -194,16 +194,19 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
 }
 
 template <class Float, class SrcDesc, class DstDesc, class SliceLengths, class DimAccessOrder>
-__device__ void
-threadwise_tensor_slice_copy_generic(SrcDesc,
-                                     const Float* __restrict__ p_src,
-                                     Array<index_t, SrcDesc::GetNumOfDimension()> src_multi_offset,
-                                     DstDesc,
-                                     Float* __restrict__ p_dst,
-                                     Array<index_t, DstDesc::GetNumOfDimension()> dst_multi_offset,
-                                     SliceLengths,
-                                     DimAccessOrder)
+__device__ void threadwise_tensor_slice_copy_generic(
+    SrcDesc,
+    const Float* __restrict__ p_src,
+    Array<index_t, SrcDesc::GetNumOfDimension()> src_multi_id_begin,
+    DstDesc,
+    Float* __restrict__ p_dst,
+    Array<index_t, DstDesc::GetNumOfDimension()> dst_multi_id_begin,
+    SliceLengths,
+    DimAccessOrder)
 {
+    static_assert(SrcDesc::GetNumOfDimension() == DstDesc::GetNumOfDimension(),
+                  "wrong! # of dimensions not the same");
+
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
 
@@ -215,9 +218,10 @@ threadwise_tensor_slice_copy_generic(SrcDesc,
             reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});
 
         const index_t dst_index =
-            dst_desc.GetOffsetFromMultiIndex(src_multi_offset + data_multi_id);
+            dst_desc.GetOffsetFromMultiIndex(src_multi_id_begin + data_multi_id);
+
         const index_t src_index =
-            src_desc.GetOffsetFromMultiIndex(dst_multi_offset + data_multi_id);
+            src_desc.GetOffsetFromMultiIndex(dst_multi_id_begin + data_multi_id);
 
         p_dst[dst_index] = p_src[src_index];
     });

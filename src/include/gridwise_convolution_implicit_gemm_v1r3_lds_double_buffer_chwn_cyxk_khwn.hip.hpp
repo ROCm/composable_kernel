@@ -85,7 +85,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
         constexpr index_t WBlockWork = mod_conv::integer_divide_ceil(Wo, WoPerBlock);
         constexpr index_t NBlockWork = mod_conv::integer_divide_ceil(N, NPerBlock);
 
-        constexpr auto block_work_desc = make_packed_ConstantTensorDescriptor(
+        constexpr auto block_work_desc = make_ConstantTensorDescriptor_default_rank_packed(
             Sequence<KBlockWork, HBlockWork, WBlockWork, NBlockWork>{});
 
         const auto block_work_multi_id =
@@ -109,7 +109,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
 
-        constexpr auto in_c_h_w_n_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
+        constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{},
             Number<InBlockCopyDataPerRead_N>{});
 
@@ -118,12 +118,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
         static_assert(in_c_h_w_n_block_desc.GetStride(I1) % GemmDataPerReadB == 0,
                       "GemmDataPerReadB alignment requirement is not meet");
 
-        constexpr auto wei_c_k_block_desc = make_ranked_ConstantTensorDescriptor_with_alignment(
+        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<CPerBlock, KPerBlock>{},
             Number<mod_conv::max(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         // tensor view of threadwise output in register
-        constexpr auto out_k_h_w_n_thread_desc = make_packed_ConstantTensorDescriptor(
+        constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_default_rank_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
 // blockwise copy
