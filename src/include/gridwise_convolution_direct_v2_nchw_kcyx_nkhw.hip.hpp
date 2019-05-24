@@ -45,23 +45,23 @@ struct GridwiseConvolutionDirect_v2_nchw_kcyx_nkhw
         constexpr index_t Y = wei_kcyx_global_desc.GetLength(I2);
         constexpr index_t X = wei_kcyx_global_desc.GetLength(I3);
 
-        constexpr auto wei_ke_global_desc = make_ConstantTensorDescriptor(
+        constexpr auto wei_ke_global_desc = make_ConstantTensorDescriptor_default_rank_packed(
             Sequence<K, C * Y * X>{}); // 2d view of wei for blockwise copy
 
         constexpr index_t HiPerBlock = HoPerBlock + Y - 1;
         constexpr index_t WiPerBlock = WoPerBlock + X - 1;
 
-        constexpr auto in_nchw_block_desc = make_ConstantTensorDescriptor_aligned(
+        constexpr auto in_nchw_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<NPerBlock, CPerBlock, HiPerBlock, WiPerBlock>{},
             Number<InBlockCopyDataPerRead>{});
 
-        constexpr auto wei_ke_block_desc = make_ConstantTensorDescriptor_aligned(
+        constexpr auto wei_ke_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
             Sequence<KPerBlock, CPerBlock * Y * X>{},
             Number<WeiBlockCopyDataPerRead>{}); // 2d view of wei for blockwise copy
 
-        constexpr auto wei_kcyx_block_desc =
-            make_ConstantTensorDescriptor(Sequence<KPerBlock, CPerBlock, Y, X>{},
-                                          Sequence<wei_ke_block_desc.GetStride(I0), Y * X, X, 1>{});
+        constexpr auto wei_kcyx_block_desc = make_ConstantTensorDescriptor_default_rank(
+            Sequence<KPerBlock, CPerBlock, Y, X>{},
+            Sequence<wei_ke_block_desc.GetStride(I0), Y * X, X, 1>{});
 
         // shared mem
         constexpr index_t in_block_element_size =
@@ -82,11 +82,11 @@ struct GridwiseConvolutionDirect_v2_nchw_kcyx_nkhw
         constexpr index_t HiPerThread = HoPerThread + Y - 1;
         constexpr index_t WiPerThread = WoPerThread + X - 1;
 
-        constexpr auto in_nchw_thread_block_desc = make_ConstantTensorDescriptor(
+        constexpr auto in_nchw_thread_block_desc = make_ConstantTensorDescriptor_default_rank(
             Sequence<NPerThread, CPerThread, HiPerThread, WiPerThread>{},
             in_nchw_block_desc.GetStrides());
 
-        constexpr auto wei_kcyx_thread_block_desc = make_ConstantTensorDescriptor(
+        constexpr auto wei_kcyx_thread_block_desc = make_ConstantTensorDescriptor_default_rank(
             Sequence<KPerThread, CPerThread, Y, X>{}, wei_kcyx_block_desc.GetStrides());
 
         constexpr auto out_nkhw_thread_desc = get_convolution_output_default_4d_tensor_descriptor(
@@ -170,7 +170,7 @@ struct GridwiseConvolutionDirect_v2_nchw_kcyx_nkhw
                                    decltype(wei_ke_global_desc),
                                    decltype(wei_ke_block_desc),
                                    decltype(wei_ke_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead>{};
+                                   WeiBlockCopyDataPerRead>({0, 0}, {0, 0});
 #endif
 
         // set threadwise output tensor to 0

@@ -92,7 +92,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_W = 2;
-#elif 1
+#elif 0
     // for 3x3, 34x34, v1r3, Vega 20, WoPerBlock = 32
     constexpr index_t BlockSize = 256;
 

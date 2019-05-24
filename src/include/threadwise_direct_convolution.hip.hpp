@@ -80,8 +80,10 @@ __device__ void threadwise_direct_convolution_2(InDesc,
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 
-    constexpr auto in_reg_desc  = make_ConstantTensorDescriptor(in_desc.GetLengths());
-    constexpr auto wei_reg_desc = make_ConstantTensorDescriptor(wei_desc.GetLengths());
+    constexpr auto in_reg_desc =
+        make_ConstantTensorDescriptor_default_rank_packed(in_desc.GetLengths());
+    constexpr auto wei_reg_desc =
+        make_ConstantTensorDescriptor_default_rank_packed(wei_desc.GetLengths());
 
     // register
     TInWei p_in_reg[in_reg_desc.GetElementSpace()];

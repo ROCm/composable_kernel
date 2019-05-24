@@ -85,6 +85,9 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
     constexpr index_t InBlockCopySrcDataPerRead_B   = 1;
     constexpr index_t InBlockCopyDstDataPerWrite_N2 = 4;
 
+    using WeiBlockCopySubLengths_C_K     = Sequence<1, 4>;
+    using WeiBlockCopyClusterLengths_C_K = Sequence<8, 32>;
+
     constexpr index_t WeiBlockCopyDataPerAccess_K = 4;
 #endif
 
@@ -123,8 +126,11 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
              InBlockCopyClusterLengths_N1_N2_C_B,
              InBlockCopySrcDataPerRead_B,
              InBlockCopyDstDataPerWrite_N2,
+             WeiBlockCopySubLengths_C_K,
+             WeiBlockCopyClusterLengths_C_K,
              WeiBlockCopyDataPerAccess_K>{};
 
+#if 1
         float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
@@ -138,6 +144,7 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
                (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
                    (std::size_t(1000) * 1000 * 1000) / time);
         usleep(std::min(time * 1000, float(10000)));
+#endif
     }
 
     out_nkhw_device_buf.FromDevice(out_nkhw.mData.data());

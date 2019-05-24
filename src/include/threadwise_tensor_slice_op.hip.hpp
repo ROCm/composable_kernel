@@ -204,25 +204,46 @@ __device__ void threadwise_tensor_slice_copy_generic(
     SliceLengths,
     DimAccessOrder)
 {
-    static_assert(SrcDesc::GetNumOfDimension() == DstDesc::GetNumOfDimension(),
+    constexpr index_t nDim = SrcDesc::GetNumOfDimension();
+
+    static_assert(nDim == SrcDesc::GetNumOfDimension() && nDim == DstDesc::GetNumOfDimension() &&
+                      nDim == SliceLengths::GetSize() && nDim == DimAccessOrder::GetSize(),
                   "wrong! # of dimensions not the same");
 
-    constexpr auto src_desc = SrcDesc{};
-    constexpr auto dst_desc = DstDesc{};
+    static_assert(is_valid_sequence_map<DimAccessOrder>::value, "wrong! map is not valid");
 
     constexpr auto slice_lengths_in_access_order =
-        SliceLengths{}.ReorderGivenNew2Old(DimAccessOrder{});
+        SliceLengths::ReorderGivenNew2Old(DimAccessOrder{});
 
+#if 1
     ford<decltype(slice_lengths_in_access_order)>{}([&](auto data_multi_id_in_access_order) {
         const auto data_multi_id =
             reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});
 
-        const index_t dst_index =
-            dst_desc.GetOffsetFromMultiIndex(src_multi_id_begin + data_multi_id);
-
         const index_t src_index =
-            src_desc.GetOffsetFromMultiIndex(dst_multi_id_begin + data_multi_id);
+            SrcDesc::GetOffsetFromMultiIndex(src_multi_id_begin + data_multi_id);
+
+        const index_t dst_index =
+            DstDesc::GetOffsetFromMultiIndex(dst_multi_id_begin + data_multi_id);
 
         p_dst[dst_index] = p_src[src_index];
     });
+#else
+    static_ford<decltype(slice_lengths_in_access_order)>{}(
+        [&](auto data_multi_id_in_access_order_) {
+            constexpr auto data_multi_id_in_access_order =
+                sequence2array(decltype(data_multi_id_in_access_order_){});
+
+            const auto data_multi_id =
+                reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});
+
+            const index_t src_index =
+                SrcDesc::GetOffsetFromMultiIndex(src_multi_id_begin + data_multi_id);
+
+            const index_t dst_index =
+                DstDesc::GetOffsetFromMultiIndex(dst_multi_id_begin + data_multi_id);
+
+            p_dst[dst_index] = p_src[src_index];
+        });
+#endif
 }

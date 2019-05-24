@@ -26,6 +26,11 @@ struct ConstantMergedTensorDescriptor
         // TODO: check there is no duplication in OriginalDimMergeSeqs
     }
 
+    __host__ __device__ static constexpr auto GetOriginalTensorDescriptor()
+    {
+        return OriginalTensorDesc{};
+    }
+
     __host__ __device__ static constexpr index_t GetNumOfDimension() { return nDim; }
 
     __host__ __device__ static constexpr index_t GetNumOfOriginalDimension()
@@ -119,4 +124,10 @@ __host__ __device__ constexpr auto make_ConstantMergedTensorDescriptor(OriginalT
                                                                        OriginalDimMergeSeqs...)
 {
     return ConstantMergedTensorDescriptor<OriginalTensorDesc, OriginalDimMergeSeqs...>{};
+}
+
+template <class TDesc>
+__host__ __device__ void print_ConstantMergedTensorDescriptor(TDesc, const char* s)
+{
+    print_ConstantTensorDescriptor(TDesc::GetOriginalTensorDescriptor(), s);
 }
