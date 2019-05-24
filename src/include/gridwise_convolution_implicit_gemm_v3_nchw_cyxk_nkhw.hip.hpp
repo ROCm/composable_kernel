@@ -3,7 +3,7 @@
 #include "ConstantTensorDescriptor.hip.hpp"
 #include "ConstantMergedTensorDescriptor.hip.hpp"
 #include "ConstantMatrixDescriptor.hip.hpp"
-#include "blockwise_merged_tensor_slice_op.hip.hpp"
+#include "blockwise_generic_tensor_slice_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
 #include "threadwise_tensor_slice_op.hip.hpp"
 
@@ -123,7 +123,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         // input blockwise copy
         //     slice a merged tensor, reorder and copy to a normal tensor
         //     this copy operator already has blockwise offset built-in
-        const auto blockwise_in_copy = BlockwiseTensorSliceCopy_generic_v1<
+        const auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1<
             BlockSize,
             Float,
             decltype(in_c_n1_b_n2_global_merged_desc),
@@ -152,7 +152,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         //     this copy operator already have blockwise offset built-in
         const auto blockwise_wei_copy =
 #if 0
-            BlockwiseTensorSliceCopy_generic_v1<BlockSize,
+            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
                                                 Float,
                                                 decltype(wei_c_k_global_desc),
                                                 decltype(wei_c_k_block_desc),
@@ -318,7 +318,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                 out_k_n1_b_n2_global_merged_desc.GetOffsetFromMultiIndex(
                     k_thread_data_on_global, 0, b_thread_data_on_global, 0);
 
-            threadwise_tensor_slice_copy_generic(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc,
+            threadwise_generic_tensor_slice_copy(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc,
                                                  p_out_thread,
                                                  {0, 0, 0, 0, 0, 0, 0, 0},
                                                  out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc,

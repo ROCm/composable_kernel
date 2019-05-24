@@ -194,7 +194,7 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
 }
 
 template <class Float, class SrcDesc, class DstDesc, class SliceLengths, class DimAccessOrder>
-__device__ void threadwise_tensor_slice_copy_generic(
+__device__ void threadwise_generic_tensor_slice_copy(
     SrcDesc,
     const Float* __restrict__ p_src,
     Array<index_t, SrcDesc::GetNumOfDimension()> src_multi_id_begin,
