@@ -14,7 +14,7 @@ template <index_t BlockSize,
           class DstAccessOrder,
           index_t SrcDataPerRead,
           index_t DstDataPerRead>
-struct BlockwiseTensorSliceCopy_generic_v1
+struct BlockwiseGenericTensorSliceCopy_v1
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
 
@@ -22,8 +22,8 @@ struct BlockwiseTensorSliceCopy_generic_v1
     index_t mDstMyThreadOffset;
 
     __device__
-    BlockwiseTensorSliceCopy_generic_v1(Array<index_t, nDim> src_block_data_multi_id_begin,
-                                        Array<index_t, nDim> dst_block_data_multi_id_begin)
+    BlockwiseGenericTensorSliceCopy_v1(Array<index_t, nDim> src_block_data_multi_id_begin,
+                                       Array<index_t, nDim> dst_block_data_multi_id_begin)
     {
         // check NDim consistent
         static_assert(nDim == SrcDesc::GetNumOfDimension() &&
@@ -155,7 +155,7 @@ struct BlockwiseTensorSliceCopy_generic_v1
             const index_t clipboard_offset = thread_tensor_desc.GetOffsetFromMultiIndex(
                 clipboard_data_multi_id_begin); // cannot not constexpr, why?
 
-            threadwise_tensor_slice_copy_generic(SrcDesc{},
+            threadwise_generic_tensor_slice_copy(SrcDesc{},
                                                  p_src + src_offset + mSrcMyThreadOffset,
                                                  make_zero_array<index_t, nDim>(),
                                                  thread_tensor_desc,
@@ -193,7 +193,7 @@ struct BlockwiseTensorSliceCopy_generic_v1
             const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(
                 dst_data_multi_id_begin); // cannot not constexpr, why?
 
-            threadwise_tensor_slice_copy_generic(thread_tensor_desc,
+            threadwise_generic_tensor_slice_copy(thread_tensor_desc,
                                                  p_clipboard + clipboard_offset,
                                                  make_zero_array<index_t, nDim>(),
                                                  DstDesc{},
