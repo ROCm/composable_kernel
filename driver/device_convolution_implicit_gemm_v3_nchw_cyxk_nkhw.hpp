@@ -62,7 +62,6 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
     constexpr index_t B = (N * Ho * Wo) / (N1 * N2);
 
 #if 1
-    // for 3x3, 28x28, v3
     constexpr index_t BlockSize = 256;
 
     constexpr index_t BPerBlock = 16;

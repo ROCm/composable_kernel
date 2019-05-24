@@ -151,6 +151,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         //     slice a tensor, and copy it into another tensor
         //     this copy operator already have blockwise offset built-in
         const auto blockwise_wei_copy =
+#if 0
             BlockwiseTensorSliceCopy_generic_v1<BlockSize,
                                                 Float,
                                                 decltype(wei_c_k_global_desc),
@@ -164,15 +165,26 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                                                 WeiBlockCopyDataPerAccess_K,
                                                 WeiBlockCopyDataPerAccess_K>(
                 {0, k_block_data_on_global}, {0, 0});
+#else
+            Blockwise2dTensorCopy3<BlockSize,
+                                   Float,
+                                   decltype(wei_c_k_global_desc),
+                                   decltype(wei_c_k_block_desc),
+                                   decltype(wei_c_k_block_desc.GetLengths()),
+                                   WeiBlockCopyDataPerAccess_K>({0, k_block_data_on_global},
+                                                                {0, 0});
+#endif
 
-        // GEMM definition
-        // c_mtx += transpose(a_mtx) * b_mtx
-        //     a_mtx[CPerBlock, KPerBlock] is in LDS
-        //     b_mtx[CPerBlocl, N1 * BPerBlock * N2] is in LDS
-        //     c_mtx[KPerBlock, N1 * BPerBlock * N2] is distributed among threads, and saved in
-        //     register
-        constexpr auto a_c_k_block_mtx_desc = make_ConstantMatrixDescriptor(
-            Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_c_k_block_desc.GetStride(I0)>{});
+            // GEMM definition
+            // c_mtx += transpose(a_mtx) * b_mtx
+            //     a_mtx[CPerBlock, KPerBlock] is in LDS
+            //     b_mtx[CPerBlocl, N1 * BPerBlock * N2] is in LDS
+            //     c_mtx[KPerBlock, N1 * BPerBlock * N2] is distributed among threads, and saved in
+            //     register
+            constexpr auto a_c_k_block_mtx_desc =
+                make_ConstantMatrixDescriptor(Number<CPerBlock>{},
+                                              Number<KPerBlock>{},
+                                              Number<wei_c_k_block_desc.GetStride(I0)>{});
 
         constexpr auto b_c_n1bn2_block_mtx_desc =
             make_ConstantMatrixDescriptor(Number<CPerBlock>{},
