@@ -422,7 +422,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3, 34x34
     constexpr index_t N  = 64;
     constexpr index_t C  = 256;
@@ -446,7 +446,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 3x3 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
