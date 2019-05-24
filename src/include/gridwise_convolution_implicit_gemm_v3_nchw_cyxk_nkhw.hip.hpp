@@ -28,8 +28,8 @@ template <index_t GridSize,
           index_t GemmKPerThreadLoop,
           index_t GemmDataPerReadA,
           index_t GemmDataPerReadB,
-          class InBlockCopySubLengths_N1_N2_C_B,
-          class InBlockCopyClusterLengths_N1_N2_C_B,
+          class InBlockCopySubLengths_C_N1_B_N2,
+          class InBlockCopyClusterLengths_C_N1_B_N2,
           index_t InBlockCopySrcDataPerRead_B,
           index_t InBlockCopyDstDataPerWrite_N2,
           class WeiBlockCopySubLengths_C_K,
@@ -101,25 +101,19 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         constexpr auto in_n0_n1_n2_c_h_w_global_mem_desc =
             in_n_c_h_w_global_desc.Fold(I0, Number<N1>{}, Number<N2>{});
 
-        //     merged tensor descriptor in device memory [N1, N2, C, B], src of blockwise copy
-        constexpr auto in_n1_n2_c_b_global_merged_desc = make_ConstantMergedTensorDescriptor(
-            in_n0_n1_n2_c_h_w_global_mem_desc.ReorderGivenNew2Old(Sequence<1, 2, 3, 0, 4, 5>{})
-                .Slice(I4, Number<Ho>{})
-                .Slice(I5, Number<Wo>{}),
-            Sequence<0>{},
+        //     merged tensor descriptor in device memory [C, N1, B, N2], src of blockwise copy
+        constexpr auto in_c_n1_b_n2_global_merged_desc = make_ConstantMergedTensorDescriptor(
+            in_n0_n1_n2_c_h_w_global_mem_desc.Slice(I4, Number<Ho>{}).Slice(I5, Number<Wo>{}),
+            Sequence<3>{},
             Sequence<1>{},
-            Sequence<2>{},
-            Sequence<3, 4, 5>{});
+            Sequence<0, 4, 5>{},
+            Sequence<2>{});
 
-        //     memory layout descriptor in LDS [C, N1, B, N2]
+        //     memory layout descriptor in LDS [C, N1, B, N2], dst of blockwise copy
         //     be careful of LDS alignment
         constexpr auto in_c_n1_b_n2_block_mem_desc =
             make_ConstantTensorDescriptor_default_rank_aligned(
                 Sequence<CPerBlock, N1, BPerBlock, N2>{}, Number<InBlockCopyDstDataPerWrite_N2>{});
-
-        //    tensor descriptor in LDS [N1, N2, C, B], dst of blockwise copy
-        constexpr auto in_n1_n2_c_b_block_desc =
-            in_c_n1_b_n2_block_mem_desc.ReorderGivenNew2Old(Sequence<1, 3, 0, 2>{});
 
         //     this check is ad-hoc
         //     TODO: need to properly implement tensor descriptor with alignment
@@ -132,16 +126,16 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         const auto blockwise_in_copy = BlockwiseTensorSliceCopy_generic_v1<
             BlockSize,
             Float,
-            decltype(in_n1_n2_c_b_global_merged_desc),
-            decltype(in_n1_n2_c_b_block_desc),
-            decltype(in_n1_n2_c_b_block_desc.GetLengths()),
-            InBlockCopySubLengths_N1_N2_C_B,
-            InBlockCopyClusterLengths_N1_N2_C_B,
-            Sequence<2, 0, 1, 3>, // thread_arrange_order [C, N1, N2, B]
-            Sequence<0, 1, 2, 3>, // src_access_order [N1, N2, C, B]
-            Sequence<2, 0, 3, 1>, // dst_access_order [C, N1, B, N2]
+            decltype(in_c_n1_b_n2_global_merged_desc),
+            decltype(in_c_n1_b_n2_block_mem_desc),
+            decltype(in_c_n1_b_n2_block_mem_desc.GetLengths()),
+            InBlockCopySubLengths_C_N1_B_N2,
+            InBlockCopyClusterLengths_C_N1_B_N2,
+            Sequence<0, 1, 3, 2>, // thread_arrange_order [C, N1, N2, B]
+            Sequence<1, 3, 0, 2>, // src_access_order [N1, N2, C, B]
+            Sequence<0, 1, 2, 3>, // dst_access_order [C, N1, B, N2]
             InBlockCopySrcDataPerRead_B,
-            InBlockCopyDstDataPerWrite_N2>({0, 0, 0, b_block_data_on_global}, {0, 0, 0, 0});
+            InBlockCopyDstDataPerWrite_N2>({0, 0, b_block_data_on_global, 0}, {0, 0, 0, 0});
 
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
@@ -154,7 +148,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
             Number<mod_conv::max(WeiBlockCopyDataPerAccess_K, GemmDataPerReadA)>{});
 
         // operator for blockwise copy of weight into LDS
-        //     slicing a tensor
+        //     slice a tensor, and copy it into another tensor
         //     this copy operator already have blockwise offset built-in
         const auto blockwise_wei_copy =
             BlockwiseTensorSliceCopy_generic_v1<BlockSize,
@@ -252,16 +246,12 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                         p_in_block_on_global += CPerBlock * in_n_c_h_w_global_desc.GetStride(I1),
                         p_wei_block_on_global += CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
                 {
-#if 1 // debug
                     blockwise_in_copy.Run(p_in_block_on_global, p_in_block);
                     blockwise_wei_copy.Run(p_wei_block_on_global, p_wei_block);
-#endif
 
                     __syncthreads();
 
-#if 1 // debug
                     blockwise_gemm.Run(p_wei_block, p_in_block, p_out_thread);
-#endif
 
                     __syncthreads();
                 }
@@ -275,104 +265,55 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
             constexpr index_t K0 = K / (K1 * K2);
 
             // define tensor descriptor for threadwise copy
-            //     output tensor (also, memory layout) descriptor in register, src of threadwise
-            //     copy
-            constexpr auto out_k0_k1_k2_n1_b_n2_thread_mem_desc =
+            //     output memory layout descriptor in register
+            constexpr auto out_k0_k1_k2_n1_n0_h_w_n2_thread_mem_desc =
                 make_ConstantTensorDescriptor_default_rank_packed(
-                    Sequence<KPerBlock / (K1 * K2), 1, K2, N1, 1, N2>{});
+                    Sequence<KPerBlock / (K1 * K2), 1, K2, N1, 1, 1, 1, N2>{});
 
-            //     output memory layout descriptor in device memory
+            //     output tensor descriptor in register, src of threadwise copy
+            constexpr auto out_n0_n1_n2_k0_k1_k2_h_w_thread_desc =
+                out_k0_k1_k2_n1_n0_h_w_n2_thread_mem_desc.ReorderGivenNew2Old(
+                    Sequence<4, 3, 7, 0, 1, 2, 5, 6>{});
+
+            //     output memory layout descriptor in device memory, dst of threadwise copy
             constexpr auto out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc =
                 out_n_k_h_w_global_desc.Fold(I1, Number<K1>{}, Number<K2>{})
                     .Fold(I0, Number<N1>{}, Number<N2>{});
-
-            //     output merged tensor descriptor in device memory, dst of threadwise copy
-            constexpr auto out_k0_k1_k2_n1_b_n2_global_merged_desc =
-                make_ConstantMergedTensorDescriptor(
-                    out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc.ReorderGivenNew2Old(
-                        Sequence<3, 4, 5, 1, 0, 6, 7, 2>{}),
-                    Sequence<0>{},
-                    Sequence<1>{},
-                    Sequence<2>{},
-                    Sequence<3>{},
-                    Sequence<4, 5, 6>{},
-                    Sequence<7>{});
 
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
             const auto c_thread_mtx_on_block =
                 blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
-            //     origin of thread tensor on global
             const index_t k_thread_data_on_global =
                 k_block_data_on_global + c_thread_mtx_on_block.row;
 
             const index_t b_thread_data_on_global =
                 b_block_data_on_global + c_thread_mtx_on_block.col / N2;
 
-//     output merged global tensor descriptor, for calculating origin of thread tensor
-//     in global memory
-#if 0 // unfold a merged tensor is not implemented yet
-            constexpr auto out_k_n1_b_n2_global_merged_desc =
-                out_k0_k1_k2_n1_b_n2_global_merged_desc.Unfold(I0, I2);
-#else
+            //     output merged global tensor descriptor, for calculating origin of thread tensor
+            //     in global memory
             constexpr auto out_k_n1_b_n2_global_merged_desc = make_ConstantMergedTensorDescriptor(
-                out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc
-                    .ReorderGivenNew2Old(Sequence<3, 4, 5, 1, 0, 6, 7, 2>{})
-                    .Unfold(I0, I2),
-                Sequence<0>{},
+                out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc.Unfold(I3, I5),
+                Sequence<3>{},
                 Sequence<1>{},
-                Sequence<2, 3, 4>{},
-                Sequence<5>{});
-#endif
+                Sequence<0, 4, 5>{},
+                Sequence<2>{});
 
-            //     origin of thread tensor in global memory
+            //     origin of dst in device memory
             Float* p_out_thread_on_global =
                 p_out_global +
                 out_k_n1_b_n2_global_merged_desc.GetOffsetFromMultiIndex(
-                    k_thread_data_on_global, 0, 0, 0); // dst origin on merged global tensor
+                    k_thread_data_on_global, 0, b_thread_data_on_global, 0);
 
-            threadwise_tensor_slice_copy_generic(
-                out_k0_k1_k2_n1_b_n2_thread_mem_desc, // src thread tensor (in register) descriptor
-                p_out_thread,                         // origin of src
-                {0, 0, 0, 0, 0, 0}, // starting point of slice, w.r.t. origin of src
-                out_k0_k1_k2_n1_b_n2_global_merged_desc, // dst global merged tensor (in device mem)
-                                                         // descriptor
-                p_out_thread_on_global,                  // origin of dst
-                {0,
-                 0,
-                 0,
-                 0,
-                 b_thread_data_on_global,
-                 0}, // starting point of slice w.r.t. origin of dst
-                out_k0_k1_k2_n1_b_n2_thread_mem_desc.GetLengths(), // slice lengths
-                Sequence<3, 5, 0, 1, 2, 4>{} // dimension access order [n1, n2, k0, k1, k2, b]
-                );
-
-#if 0
-            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-            {
-                print_ConstantTensorDescriptor(in_n0_n1_n2_c_h_w_global_mem_desc,
-                                               "in_n0_n1_n2_c_h_w_global_mem_desc");
-
-                print_ConstantMergedTensorDescriptor(in_n1_n2_c_b_global_merged_desc,
-                                                     "in_n1_n2_c_b_global_merged_desc");
-
-                print_ConstantTensorDescriptor(in_c_n1_b_n2_block_mem_desc,
-                                               "in_c_n1_b_n2_block_mem_desc");
-
-                print_ConstantTensorDescriptor(in_n1_n2_c_b_block_desc, "in_n1_n2_c_b_block_desc");
-
-                print_ConstantTensorDescriptor(out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc,
-                                               "out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc");
-
-                print_ConstantMergedTensorDescriptor(out_k_n1_b_n2_global_merged_desc,
-                                                     "out_k_n1_b_n2_global_merged_desc");
-
-                print_ConstantTensorDescriptor(out_k0_k1_k2_n1_b_n2_thread_mem_desc,
-                                               "out_k0_k1_k2_n1_b_n2_thread_mem_desc");
-            }
-#endif
+            threadwise_tensor_slice_copy_generic(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc,
+                                                 p_out_thread,
+                                                 {0, 0, 0, 0, 0, 0, 0, 0},
+                                                 out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc,
+                                                 p_out_thread_on_global,
+                                                 {0, 0, 0, 0, 0, 0, 0, 0},
+                                                 out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths(),
+                                                 arithmetic_sequence_gen<0, 8, 1>::SeqType{});
         }
     }
 };

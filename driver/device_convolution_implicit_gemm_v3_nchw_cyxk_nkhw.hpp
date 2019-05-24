@@ -79,8 +79,8 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
     constexpr index_t GemmDataPerReadA   = 4;
     constexpr index_t GemmDataPerReadB   = 4;
 
-    using InBlockCopySubLengths_N1_N2_C_B     = Sequence<1, 4, 1, 1>;
-    using InBlockCopyClusterLengths_N1_N2_C_B = Sequence<2, 1, 8, 16>;
+    using InBlockCopySubLengths_C_N1_B_N2     = Sequence<1, 1, 1, 4>;
+    using InBlockCopyClusterLengths_C_N1_B_N2 = Sequence<8, 2, 16, 1>;
 
     constexpr index_t InBlockCopySrcDataPerRead_B   = 1;
     constexpr index_t InBlockCopyDstDataPerWrite_N2 = 4;
@@ -122,8 +122,8 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
              GemmKPerThreadLoop,
              GemmDataPerReadA,
              GemmDataPerReadB,
-             InBlockCopySubLengths_N1_N2_C_B,
-             InBlockCopyClusterLengths_N1_N2_C_B,
+             InBlockCopySubLengths_C_N1_B_N2,
+             InBlockCopyClusterLengths_C_N1_B_N2,
              InBlockCopySrcDataPerRead_B,
              InBlockCopyDstDataPerWrite_N2,
              WeiBlockCopySubLengths_C_K,
