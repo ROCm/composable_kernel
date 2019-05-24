@@ -411,7 +411,18 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
 int main(int argc, char* argv[])
 {
-#if 1
+#if 0
+    constexpr index_t N  = 8;
+    constexpr index_t C  = 8;
+    constexpr index_t HI = 3;
+    constexpr index_t WI = 18;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 3;
+    constexpr index_t X  = 3;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
     // 3x3, 34x34
     constexpr index_t N  = 64;
     constexpr index_t C  = 256;
@@ -635,11 +646,13 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
+#if 1
         if(Y == 3 && X == 3)
         {
             host_winograd_3x3_convolution(in_nchw, wei_kcyx, out_nkhw_host, lower_pads, upper_pads);
         }
         else
+#endif
         {
             host_direct_convolution(in_nchw, wei_kcyx, out_nkhw_host, lower_pads, upper_pads);
         }

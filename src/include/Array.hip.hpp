@@ -57,8 +57,8 @@ __host__ __device__ constexpr auto make_zero_array()
 }
 
 template <class TData, index_t NSize, index_t... IRs>
-__host__ __device__ auto reorder_array_given_new2old(const Array<TData, NSize>& old_array,
-                                                     Sequence<IRs...> new2old)
+__host__ __device__ constexpr auto reorder_array_given_new2old(const Array<TData, NSize>& old_array,
+                                                               Sequence<IRs...> new2old)
 {
     Array<TData, NSize> new_array;
 
@@ -73,8 +73,8 @@ __host__ __device__ auto reorder_array_given_new2old(const Array<TData, NSize>& 
 }
 
 template <class TData, index_t NSize, index_t... IRs>
-__host__ __device__ auto reorder_array_given_old2new(const Array<TData, NSize>& old_array,
-                                                     Sequence<IRs...> old2new)
+__host__ __device__ constexpr auto reorder_array_given_old2new(const Array<TData, NSize>& old_array,
+                                                               Sequence<IRs...> old2new)
 {
     Array<TData, NSize> new_array;
 
@@ -89,7 +89,7 @@ __host__ __device__ auto reorder_array_given_old2new(const Array<TData, NSize>& 
 }
 
 template <class TData, index_t NSize, class ExtractSeq>
-__host__ __device__ auto extract_array(const Array<TData, NSize>& old_array, ExtractSeq)
+__host__ __device__ constexpr auto extract_array(const Array<TData, NSize>& old_array, ExtractSeq)
 {
     Array<TData, ExtractSeq::GetSize()> new_array;
 
@@ -112,7 +112,8 @@ __host__ __device__ constexpr auto operator+(Array<TData, NSize> a, Array<TData,
 
     static_for<0, NSize, 1>{}([&](auto I) {
         constexpr index_t i = I.Get();
-        result[i]           = a[i] + b[i];
+
+        result[i] = a[i] + b[i];
     });
 
     return result;
@@ -129,7 +130,7 @@ __host__ __device__ constexpr auto operator*(Array<TData, NSize> a, Sequence<Is.
     static_for<0, NSize, 1>{}([&](auto I) {
         constexpr index_t i = I.Get();
 
-        result[i] = a[i] + b.Get(I);
+        result[i] = a[i] * b.Get(I);
     });
 
     return result;

@@ -47,8 +47,8 @@ void device_convolution_direct_v2_nchw_kcyx_nkhw(InDesc,
     constexpr index_t HoPerThread = 2;
     constexpr index_t WoPerThread = 2;
 
-    constexpr index_t InBlockCopyDataPerRead  = 2;
-    constexpr index_t WeiBlockCopyDataPerRead = 4;
+    constexpr index_t InBlockCopyDataPerRead  = 1;
+    constexpr index_t WeiBlockCopyDataPerRead = 1;
 
     constexpr index_t BlockSize = 128;
 #endif

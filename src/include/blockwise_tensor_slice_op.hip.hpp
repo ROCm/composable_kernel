@@ -130,6 +130,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
 
         mSrcMyThreadOffset =
             src_desc.GetOffsetFromMultiIndex(src_data_multi_id + src_block_data_multi_id_begin);
+
         mDstMyThreadOffset =
             dst_desc.GetOffsetFromMultiIndex(dst_data_multi_id + dst_block_data_multi_id_begin);
     }

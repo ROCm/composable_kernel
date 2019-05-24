@@ -263,7 +263,19 @@ struct sequence_map_inverse<Sequence<Is...>>
     using SeqMapType =
         typename sequence_map_inverse_impl<Sequence<Is...>, is_valid_map>::SeqMapType;
 };
+
 #endif
+template <class Seq>
+struct is_valid_sequence_map
+{
+    static constexpr bool value =
+#if 0 // sequence_sort is not implemented yet
+        is_same<typename arithmetic_sequence_gen<0, Seq::GetSize(), 1>::SeqType,
+                typename sequence_sort<Seq>::SortedSeqType>::value;
+#else
+        true;
+#endif
+};
 
 template <index_t... Xs, index_t... Ys>
 __host__ __device__ constexpr auto operator+(Sequence<Xs...>, Sequence<Ys...>)

@@ -67,6 +67,22 @@ __device__ void threadwise_gemm(MatrixA,
                                 integral_constant<bool, TransC>,
                                 FloatC* __restrict__ p_c_thread)
 {
+#if 0
+    if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+    {
+        printf("p_a_thread: %f %f %f %f\n",
+               p_a_thread[0],
+               p_a_thread[1],
+               p_a_thread[2],
+               p_a_thread[3]);
+        printf("p_b_thread: %f %f %f %f\n",
+               p_b_thread[0],
+               p_b_thread[1],
+               p_b_thread[2],
+               p_b_thread[3]);
+    }
+#endif
+
     if(TransA && (!TransB) && (!TransC))
     {
         constexpr auto a_mtx = MatrixA{};

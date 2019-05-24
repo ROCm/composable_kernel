@@ -26,7 +26,18 @@ struct BlockwiseTensorSliceCopy_generic_v1
                                         Array<index_t, nDim> dst_block_data_multi_id_begin)
     {
         // check NDim consistent
-        static_assert(SrcDesc::GetNumOfDimension() == DstDesc::GetNumOfDimension(), "wrong");
+        static_assert(nDim == SrcDesc::GetNumOfDimension() &&
+                          nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::GetSize() &&
+                          nDim == SubLengths::GetSize() && nDim == DataClusterLengths::GetSize() &&
+                          nDim == ThreadClusterArrangeOrder::GetSize() &&
+                          nDim == SrcAccessOrder::GetSize() && nDim == DstAccessOrder::GetSize(),
+                      "wrong");
+
+        // check
+        static_assert(is_valid_sequence_map<ThreadClusterArrangeOrder>::value &&
+                          is_valid_sequence_map<SrcAccessOrder>::value &&
+                          is_valid_sequence_map<DstAccessOrder>::value,
+                      "wrong!");
 
         // thread cluster
         constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor_default_rank_packed(
@@ -73,8 +84,38 @@ struct BlockwiseTensorSliceCopy_generic_v1
         mSrcMyThreadOffset = SrcDesc::GetOffsetFromMultiIndex(src_block_data_multi_id_begin +
                                                               thread_data_multi_id_begin);
 
-        mSrcMyThreadOffset = DstDesc::GetOffsetFromMultiIndex(dst_block_data_multi_id_begin +
+        mDstMyThreadOffset = DstDesc::GetOffsetFromMultiIndex(dst_block_data_multi_id_begin +
                                                               thread_data_multi_id_begin);
+#if 0
+        {
+            printf("id %5u %5u: "
+                   "src_block_data_multi_id_begin: %u %u %u %u, "
+                   "thread_cluster_multi_id: %u %u %u %u, "
+                   "data_cluster_multi_id: %u %u %u %u, "
+                   "thread_data_multi_id_begin: %u %u %u %u, "
+                   "mSrcMyThreadOffset %u, mDstMyThreadOffset %u \n",
+                   get_block_1d_id(),
+                   get_thread_local_1d_id(),
+                   src_block_data_multi_id_begin[0],
+                   src_block_data_multi_id_begin[1],
+                   src_block_data_multi_id_begin[2],
+                   src_block_data_multi_id_begin[3],
+                   thread_cluster_multi_id[0],
+                   thread_cluster_multi_id[1],
+                   thread_cluster_multi_id[2],
+                   thread_cluster_multi_id[3],
+                   data_cluster_multi_id[0],
+                   data_cluster_multi_id[1],
+                   data_cluster_multi_id[2],
+                   data_cluster_multi_id[3],
+                   thread_data_multi_id_begin[0],
+                   thread_data_multi_id_begin[1],
+                   thread_data_multi_id_begin[2],
+                   thread_data_multi_id_begin[3],
+                   mSrcMyThreadOffset,
+                   mDstMyThreadOffset);
+        }
+#endif
     }
 
     __device__ static constexpr index_t GetRegisterClipboardSize()

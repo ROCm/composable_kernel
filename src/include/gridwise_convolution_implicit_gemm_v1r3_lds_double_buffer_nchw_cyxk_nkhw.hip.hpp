@@ -459,7 +459,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
 
             constexpr auto map_out_global2thread = Sequence<8, 9, 0, 1, 2, 3, 4, 5, 6, 7>{};
 
-            threadwise_tensor_slice_copy_reorder_given_dst2src_v2(
+#if 0
+            threadwise_tensor_slice_copy_reorder_given_dst2src_v3(
                 out_10d_thread_desc,
                 p_out_thread,
                 out_10d_global_desc,
@@ -470,8 +471,24 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
                         ho_block_data_begin + ho_thread_data_begin,
                         wo_block_data_begin + wo_thread_data_begin),
                 out_10d_thread_desc.GetLengths(),
-                map_out_global2thread);
-            // Number<OutThreadCopyDataPerWrite_W>{});
+                map_out_global2thread,
+                Number<OutThreadCopyDataPerWrite_W>{});
+#else
+            threadwise_tensor_slice_copy_generic(
+                out_10d_thread_desc.ReorderGivenNew2Old(map_out_global2thread),
+                p_out_thread,
+                make_zero_array<index_t, 10>(),
+                out_10d_global_desc,
+                p_out_global +
+                    out_n_k_h_w_global_desc.GetOffsetFromMultiIndex(
+                        n_block_data_begin + n_thread_data_begin,
+                        k_block_data_begin + k_thread_data_begin,
+                        ho_block_data_begin + ho_thread_data_begin,
+                        wo_block_data_begin + wo_thread_data_begin),
+                make_zero_array<index_t, 10>(),
+                out_10d_thread_desc.GetLengths().ReorderGivenNew2Old(map_out_global2thread),
+                arithmetic_sequence_gen<0, 10, 1>::SeqType{});
+#endif
         });
     }
 };
