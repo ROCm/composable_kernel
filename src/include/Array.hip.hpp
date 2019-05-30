@@ -135,3 +135,16 @@ __host__ __device__ constexpr auto operator*(Array<TData, NSize> a, Sequence<Is.
 
     return result;
 }
+
+template <class TData, index_t NSize, class F>
+__host__ __device__ constexpr TData reduce_on_array(Array<TData, NSize> a, F f)
+{
+    TData result = a[0];
+
+    static_for<1, NSize, 1>{}([&](auto I) {
+        constexpr index_t i = I.Get();
+        result              = f(result, a[i]);
+    });
+
+    return result;
+}
