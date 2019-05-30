@@ -115,7 +115,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
             Number<InBlockReorderDataPerWrite_N>{});
 
         // this check is ad-hoc
-        // TODO: need to properly implement tensor descriptor with alignment
+        // TODO: need to properly implement tensor descriptor with multiple alignment requirements
         static_assert(in_c_h_w_n_block_desc.GetStride(I1) % GemmDataPerReadB == 0,
                       "GemmDataPerReadB alignment requirement is not meet");
 
@@ -417,7 +417,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
                 out_10d_thread_desc.GetLengths(),
                 map_out_global2thread);
             // Number<OutThreadCopyDataPerWrite_W>{});
-        }).else_([&](auto fwd) {
+        }).Else([&](auto fwd) {
             static_assert(fwd(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
                               GemmNPerThreadSubC % NPerThread == 0,
                           "wrong!");

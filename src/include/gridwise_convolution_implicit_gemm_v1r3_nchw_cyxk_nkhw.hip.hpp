@@ -366,7 +366,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                 out_10d_thread_desc.GetLengths(),
                 map_out_global2thread);
             // Number<OutThreadCopyDataPerWrite_W>{});
-        }).else_([&](auto fwd) {
+        }).Else([&](auto fwd) {
             static_assert(fwd(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
                               GemmNPerThreadSubC % NPerThread == 0,
                           "wrong!");

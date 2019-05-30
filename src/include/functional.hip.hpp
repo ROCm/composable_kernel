@@ -44,7 +44,7 @@ struct static_if<true>
     }
 
     template <class F>
-    __host__ __device__ static constexpr auto else_(F)
+    __host__ __device__ static constexpr auto Else(F)
     {
         return Type{};
     }
@@ -62,7 +62,7 @@ struct static_if<false>
     }
 
     template <class F>
-    __host__ __device__ static constexpr auto else_(F f)
+    __host__ __device__ static constexpr auto Else(F f)
     {
         // This is a trick for compiler:
         //   Pass forwarder to lambda "f" as "auto" argument, and maks sure "f" will use it,
