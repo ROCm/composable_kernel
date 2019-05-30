@@ -44,11 +44,7 @@ struct GeneratorTensor_3
     {
         std::array<index_t, sizeof...(Is)> dims = {{static_cast<index_t>(is)...}};
 
-#if 0
-        auto f_acc = std::plus<index_t>{};
-#else
         auto f_acc = [](auto a, auto b) { return 100 * a + b; };
-#endif
 
         return std::accumulate(dims.begin(), dims.end(), index_t(0), f_acc);
     }
@@ -447,7 +443,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
@@ -543,13 +539,25 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 1x1 filter, 14x14 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
     constexpr index_t HI = 14;
     constexpr index_t WI = 14;
     constexpr index_t K  = 512;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 73x73 image
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 64;
+    constexpr index_t HI = 73;
+    constexpr index_t WI = 73;
+    constexpr index_t K  = 128;
     constexpr index_t Y  = 1;
     constexpr index_t X  = 1;
 
@@ -609,8 +617,6 @@ int main(int argc, char* argv[])
         };
         wei_kcyx.GenerateTensorValue(gen_wei, num_thread);
 #endif
-
-        // out_nkhw_device.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     }
 
 #if 1
@@ -649,7 +655,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-#if 1
+#if 0
         if(Y == 3 && X == 3)
         {
             host_winograd_3x3_convolution(in_nchw, wei_kcyx, out_nkhw_host, lower_pads, upper_pads);

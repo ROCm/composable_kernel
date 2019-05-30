@@ -58,6 +58,9 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         constexpr auto I6 = Number<6>{};
         constexpr auto I7 = Number<7>{};
 
+        constexpr auto True  = integral_constant<bool, true>{};
+        constexpr auto False = integral_constant<bool, false>{};
+
         constexpr auto in_n_c_h_w_global_desc  = InGlobalDesc{};
         constexpr auto wei_c_y_x_k_global_desc = WeiGlobalDesc{};
         constexpr auto out_n_k_h_w_global_desc = OutGlobalDesc{};
@@ -123,7 +126,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         // input blockwise copy
         //     slice a merged tensor, reorder and copy to a normal tensor
         //     this copy operator already has blockwise offset built-in
-        const auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1<
+        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1<
             BlockSize,
             Float,
             decltype(in_c_n1_b_n2_global_merged_desc),
@@ -150,20 +153,20 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
         //     this copy operator already have blockwise offset built-in
-        const auto blockwise_wei_copy =
-#if 0
+        auto blockwise_wei_copy =
+#if 1
             BlockwiseGenericTensorSliceCopy_v1<BlockSize,
-                                                Float,
-                                                decltype(wei_c_k_global_desc),
-                                                decltype(wei_c_k_block_desc),
-                                                decltype(wei_c_k_block_desc.GetLengths()),
-                                                WeiBlockCopySubLengths_C_K,
-                                                WeiBlockCopyClusterLengths_C_K,
-                                                Sequence<0, 1>, // thread_arrange_order [C, K]
-                                                Sequence<0, 1>, // src_access_order [C, K]
-                                                Sequence<0, 1>, // dst_access_order [C, K]
-                                                WeiBlockCopyDataPerAccess_K,
-                                                WeiBlockCopyDataPerAccess_K>(
+                                               Float,
+                                               decltype(wei_c_k_global_desc),
+                                               decltype(wei_c_k_block_desc),
+                                               decltype(wei_c_k_block_desc.GetLengths()),
+                                               WeiBlockCopySubLengths_C_K,
+                                               WeiBlockCopyClusterLengths_C_K,
+                                               Sequence<0, 1>, // thread_arrange_order [C, K]
+                                               Sequence<0, 1>, // src_access_order [C, K]
+                                               Sequence<0, 1>, // dst_access_order [C, K]
+                                               WeiBlockCopyDataPerAccess_K,
+                                               WeiBlockCopyDataPerAccess_K>(
                 {0, k_block_data_on_global}, {0, 0});
 #else
             Blockwise2dTensorCopy3<BlockSize,
@@ -175,16 +178,14 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                                                                 {0, 0});
 #endif
 
-            // GEMM definition
-            // c_mtx += transpose(a_mtx) * b_mtx
-            //     a_mtx[CPerBlock, KPerBlock] is in LDS
-            //     b_mtx[CPerBlocl, N1 * BPerBlock * N2] is in LDS
-            //     c_mtx[KPerBlock, N1 * BPerBlock * N2] is distributed among threads, and saved in
-            //     register
-            constexpr auto a_c_k_block_mtx_desc =
-                make_ConstantMatrixDescriptor(Number<CPerBlock>{},
-                                              Number<KPerBlock>{},
-                                              Number<wei_c_k_block_desc.GetStride(I0)>{});
+        // GEMM definition
+        // c_mtx += transpose(a_mtx) * b_mtx
+        //     a_mtx[CPerBlock, KPerBlock] is in LDS
+        //     b_mtx[CPerBlocl, N1 * BPerBlock * N2] is in LDS
+        //     c_mtx[KPerBlock, N1 * BPerBlock * N2] is distributed among threads, and saved in
+        //     register
+        constexpr auto a_c_k_block_mtx_desc = make_ConstantMatrixDescriptor(
+            Number<CPerBlock>{}, Number<KPerBlock>{}, Number<wei_c_k_block_desc.GetStride(I0)>{});
 
         constexpr auto b_c_n1bn2_block_mtx_desc =
             make_ConstantMatrixDescriptor(Number<CPerBlock>{},
@@ -239,6 +240,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         // zero out threadwise output
         threadwise_matrix_set_zero(c_k0k2_n1n2_thread_mtx_desc, p_out_thread);
 
+#if 0
         // do work
         for(index_t y = 0; y < Y; ++y)
         {
@@ -269,6 +271,45 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                 }
             }
         }
+#else
+        for(index_t y = 0; y < Y; ++y)
+        {
+            for(index_t x = 0; x < X; ++x)
+            {
+                // calculate origin of block input and weight tensor on global memory
+                const Float* p_in_block_on_global =
+                    p_in_global + in_n_c_h_w_global_desc.GetOffsetFromMultiIndex(0, 0, y, x);
+
+                const Float* p_wei_block_on_global =
+                    p_wei_global + wei_c_y_x_k_global_desc.GetOffsetFromMultiIndex(0, y, x, 0);
+
+                for(index_t c_block_data_on_global = 0; c_block_data_on_global < C;
+                    c_block_data_on_global += CPerBlock)
+                {
+                    blockwise_in_copy.Run(p_in_block_on_global, p_in_block);
+                    blockwise_wei_copy.Run(p_wei_block_on_global, p_wei_block);
+
+                    __syncthreads();
+
+                    blockwise_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+
+                    __syncthreads();
+
+                    // move on C: C_N1_B_N2, C_K
+                    blockwise_in_copy.MoveSlicingWindowOnSourceTensor(
+                        I0, Number<CPerBlock>{}, True);
+
+                    blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(
+                        I0, Number<CPerBlock>{}, True);
+                }
+
+                // reset C
+                blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<C>{}, False);
+
+                blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<C>{}, False);
+            }
+        }
+#endif
 
         // copy output: register to global memory
         {

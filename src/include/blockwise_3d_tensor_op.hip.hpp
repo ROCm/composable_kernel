@@ -158,7 +158,7 @@ struct Blockwise3dTensorCopy3
                       "wrrong! BlockSize is not big enough for ThreadPerDims!");
 
         constexpr index_t num_active_thread =
-            accumulate_on_sequence(ThreadPerDims{}, std::multiplies<index_t>{}, Number<1>{});
+            accumulate_on_sequence(ThreadPerDims{}, mod_conv::multiplies<index_t>{}, Number<1>{});
 
         if(BlockSize > num_active_thread)
         {
