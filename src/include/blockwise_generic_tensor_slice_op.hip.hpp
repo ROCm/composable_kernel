@@ -3,6 +3,7 @@
 
 // slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
 // memory layout (ordering of dimensions) can be different between src and dst
+// For now, only support SubLengths == 1 on a merged dimension
 template <index_t BlockSize,
           class Float,
           class SrcDesc,
@@ -47,7 +48,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
     BlockwiseGenericTensorSliceCopy_v1(Array<index_t, nDim> src_block_data_multi_id_begin,
                                        Array<index_t, nDim> dst_block_data_multi_id_begin)
     {
-        // check NDim consistent
+        // check NDim consistency
         static_assert(nDim == SrcDesc::GetNumOfDimension() &&
                           nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::GetSize() &&
                           nDim == SubLengths::GetSize() && nDim == DataClusterLengths::GetSize() &&
@@ -55,7 +56,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                           nDim == SrcAccessOrder::GetSize() && nDim == DstAccessOrder::GetSize(),
                       "wrong");
 
-        // check
+        // check thread arrange order and read/write access order are valid
         static_assert(is_valid_sequence_map<ThreadClusterArrangeOrder>::value &&
                           is_valid_sequence_map<SrcAccessOrder>::value &&
                           is_valid_sequence_map<DstAccessOrder>::value,
@@ -140,10 +141,14 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
 
         // complete offset
-        mThreadSrcOffset = reduce_on_array(mThreadSrcPartialOffsets, std::plus<index_t>{});
-        mThreadDstOffset = reduce_on_array(mThreadDstPartialOffsets, std::plus<index_t>{});
+        mThreadSrcOffset = accumulate_on_array(
+            mThreadSrcPartialOffsets, mod_conv::plus<index_t>{}, static_cast<index_t>(0));
+
+        mThreadDstOffset = accumulate_on_array(
+            mThreadDstPartialOffsets, mod_conv::plus<index_t>{}, static_cast<index_t>(0));
 
 #if 0
+        if(get_block_1d_id() == 0)
         {
             printf("id %5u %5u: "
                    "src_block_data_multi_id_begin: %u %u %u %u, "
@@ -279,13 +284,9 @@ struct BlockwiseGenericTensorSliceCopy_v1
     // the boundary of the tensor being sliced. This functions doesn't do runtime sanity
     // check on out-of-bound slicing window, for performance reason
     template <index_t IDim_, index_t StepSize, bool PositiveDirection>
-    __device__ void MoveSlicingWindowOnSourceTensor(Number<IDim_>,
-                                                    Number<StepSize>,
-                                                    integral_constant<bool, PositiveDirection>)
+    __device__ void MoveSlicingWindowOnSourceTensor(
+        Number<IDim_>, Number<StepSize>, integral_constant<bool, PositiveDirection> direction)
     {
-        static_assert(PositiveDirection,
-                      "wrong! only support movement in positive direction for now");
-
         constexpr auto IDim    = Number<IDim_>{};
         constexpr index_t idim = IDim.Get();
 
@@ -306,7 +307,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
             auto new_src_partial_original_multi_id =
                 src_partial_original_desc.UpdateMultiIndexGivenStepSizeOf1dIndex(
-                    old_src_partial_original_multi_id, StepSize);
+                    old_src_partial_original_multi_id, StepSize, direction);
 
             // update "mThreadSrcOriginalMultiId"
             static_for<0, src_partial_original_dims.GetSize(), 1>{}([&](auto I_) {
@@ -328,7 +329,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             mThreadSrcPartialOffsets[idim] = new_src_partial_offset;
 
             // update "mThreadSrcOffset", do "+" before "-" to avoid underflow
-            mThreadSrcOffset = mThreadSrcOffset + new_src_partial_offset - old_src_partial_offset;
+            mThreadSrcOffset = (mThreadSrcOffset + new_src_partial_offset) - old_src_partial_offset;
         }).Else([&](auto fwd) {
             // Logic for non-merged dimension. If you are never going to move the slicing window on
             // a merged dimension, then "mThreadSrcOriginalMultiId" and "mThreadSrcPartialOffsets",
@@ -336,13 +337,25 @@ struct BlockwiseGenericTensorSliceCopy_v1
             // should be able to remove these calculations.
             // TODO: make sure compiler would actually remove them in this case.
 
+            // It is the user's responsiblity to make sure the slicing window will not be moved out
+            // of the boundary of the tensor being sliced. Otherwise, there might be hazard like
+            // unsigned integer underflow. That is NO runtime sanity check to prevent the hazard
+
             constexpr index_t idim_original = SrcDesc::GetContainedOriginalDimensions(IDim).Front();
 
-            mThreadSrcOffset += StepSize * SrcDesc::GetStride(IDim);
+            static_if<PositiveDirection>{}([&](auto) {
+                mThreadSrcOffset += StepSize * SrcDesc::GetStride(IDim);
 
-            mThreadSrcOriginalMultiId[idim_original] += StepSize;
+                mThreadSrcOriginalMultiId[idim_original] += StepSize;
 
-            mThreadSrcPartialOffsets[idim] += StepSize * SrcDesc::GetStride(IDim);
+                mThreadSrcPartialOffsets[idim] += StepSize * SrcDesc::GetStride(IDim);
+            }).Else([&](auto) {
+                mThreadSrcOffset -= StepSize * SrcDesc::GetStride(IDim);
+
+                mThreadSrcOriginalMultiId[idim_original] -= StepSize;
+
+                mThreadSrcPartialOffsets[idim] -= StepSize * SrcDesc::GetStride(IDim);
+            });
         });
     }
 };

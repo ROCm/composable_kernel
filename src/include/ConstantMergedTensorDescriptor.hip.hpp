@@ -99,15 +99,7 @@ struct ConstantMergedTensorDescriptor
         return original_multi_id;
     }
 
-#if 0 // not needed
-    __host__ __device__ static index_t
-    GetOffsetFromOriginalMultiIndex(Array<index_t, nOriginalDim> original_multi_id)
-    {
-        return OriginalTensorDesc::GetOffsetFromMultiIndex(original_multi_id);
-    }
-#endif
-
-    __host__ __device__ static index_t GetOffsetFromMultiIndexA(Array<index_t, nDim> multi_id)
+    __host__ __device__ static index_t GetOffsetFromMultiIndex(Array<index_t, nDim> multi_id)
     {
         const auto original_multi_id = GetOriginalMultiIndexFromMultiIndex(multi_id);
 
@@ -126,38 +118,6 @@ struct ConstantMergedTensorDescriptor
 
         return dummy_desc.GetMultiIndexFrom1dIndex(id);
     }
-
-#if 0 // not needed
-    template <index_t IDim>
-    __host__ __device__ static index_t GetNewOriginalMultiIndexAfterMovingAlongOneDimension(
-        Array<index_t, nOriginalDim> old_original_multi_id, Number<IDim>, index_t step_size)
-    {
-        auto new_original_multi_id = old_original_multi_id;
-
-        // get partial-original-multi-id corresponding to this merged dimension
-        constexpr auto original_partial_dims = std::get<IDim>(mOriginalDimMergeSeqs);
-
-        constexpr auto original_partial_tensor_desc =
-            OriginalTensorDesc::Extract(original_partial_dims);
-
-        auto old_original_partial_multi_id =
-            extract_array(old_original_mutli_id, original_paritial_dims);
-
-        auto new_original_partial_multi_id =
-            original_partial_tensor_desc.GetNewMultiIndexGivenStepSizeOf1dIndex(
-                old_original_partial_multi_id, step_size);
-
-        // update original-mutli-id
-        static_for<0, original_dims_partial.GetSize(), 1>{}([&](auto I_) {
-            constexpr auto I                = decltype(I_){};
-            constexpr index_t idim_original = original_dims_partial.Get(I);
-
-            new_original_multi_id[idim_original] = original_multi_id_partial[I.Get()];
-        });
-
-        return new_original_multi_id;
-    }
-#endif
 };
 
 template <class OriginalTensorDesc, class... OriginalDimMergeSeqs>

@@ -40,6 +40,18 @@ struct scales
 };
 
 template <class T>
+struct plus
+{
+    __host__ __device__ constexpr T operator()(T a, T b) const { return a + b; }
+};
+
+template <class T>
+struct multiplies
+{
+    __host__ __device__ constexpr T operator()(T a, T b) const { return a * b; }
+};
+
+template <class T>
 struct integer_divide_ceiler
 {
     __host__ __device__ constexpr T operator()(T a, T b) const

@@ -59,7 +59,7 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
         constexpr auto I6 = Number<6>{};
         constexpr auto I7 = Number<7>{};
 
-        constexpr auto TRUE = integral_constant<bool, true>{};
+        constexpr auto True = integral_constant<bool, true>{};
 
         constexpr auto in_n_c_h_w_global_desc  = InGlobalDesc{};
         constexpr auto wei_k_c_y_x_global_desc = WeiGlobalDesc{};
@@ -102,9 +102,9 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
         const index_t b_block_data_on_global = block_work_multi_id[1] * BPerBlock;
 
         // input tensor
-        //     tensor descriptor in device memory [N0, N1, N2, H, W]
-        constexpr auto in_n0_n1_n2_h_w_global_desc = in_n_c_h_w_global_desc.Slice(I2, Number<Hi>{})
-                                                         .Slice(I3, Number<Wi>{})
+        //     tensor descriptor in device memory [N0, N1, N2, Ho, Wo]
+        constexpr auto in_n0_n1_n2_h_w_global_desc = in_n_c_h_w_global_desc.Slice(I2, Number<Ho>{})
+                                                         .Slice(I3, Number<Wo>{})
                                                          .Fold(I0, Number<N1>{}, Number<N2>{})
                                                          .Extract(Sequence<0, 1, 2, 4, 5>{});
 
@@ -115,11 +115,22 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
 
         //     merged tensor descriptor in device memory [E, N1, B, N2], src of blockwise copy
         constexpr auto in_e_n1_b_n2_global_merged_desc = make_ConstantMergedTensorDescriptor(
-            in_c_y_x_global_desc.Inject(in_n0_n1_n2_h_w_global_desc),
+            in_c_y_x_global_desc.Embed(in_n0_n1_n2_h_w_global_desc),
             Sequence<0, 1, 2>{},
             Sequence<4>{},
             Sequence<3, 6, 7>{},
             Sequence<5>{});
+
+#if 0
+        if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
+        {
+            print_ConstantTensorDescriptor(in_n0_n1_n2_h_w_global_desc,
+                                           "in_n0_n1_n2_h_w_global_desc: ");
+            print_ConstantTensorDescriptor(in_c_y_x_global_desc, "in_c_y_x_global_desc: ");
+            print_ConstantMergedTensorDescriptor(in_e_n1_b_n2_global_merged_desc,
+                                                 "in_e_n1_b_n2_global_merged_desc: ");
+        }
+#endif
 
         //     memory layout descriptor in LDS [E, N1, B, N2], dst of blockwise copy
         //     be careful of LDS alignment
@@ -243,6 +254,31 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
         // do work
         for(index_t e = 0; e < E; e += EPerBlock)
         {
+#if 0
+            if(e == 1 * EPerBlock && get_block_1d_id() == 0)
+            {
+                printf("id %5u %5u: "
+                       "mThreadSrcOriginalMultiId %u %u %u %u %u %u %u %u, "
+                       "mThreadSrcPartialOffsets %u %u %u %u, "
+                       "mThreadSrcOffset %u, mThreadDstOffset %u \n",
+                       get_block_1d_id(),
+                       get_thread_local_1d_id(),
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[0],
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[1],
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[2],
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[3],
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[4],
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[5],
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[6],
+                       blockwise_in_copy.mThreadSrcOriginalMultiId[7],
+                       blockwise_in_copy.mThreadSrcPartialOffsets[0],
+                       blockwise_in_copy.mThreadSrcPartialOffsets[1],
+                       blockwise_in_copy.mThreadSrcPartialOffsets[2],
+                       blockwise_in_copy.mThreadSrcPartialOffsets[3],
+                       blockwise_in_copy.mThreadSrcOffset,
+                       blockwise_in_copy.mThreadDstOffset);
+            }
+#endif
             // marching slicing window
             blockwise_in_copy.Run(p_in_global, p_in_block);
             blockwise_wei_copy.Run(p_wei_global, p_wei_block);
@@ -253,8 +289,8 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
 
             __syncthreads();
 
-            blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, TRUE);
-            blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, TRUE);
+            blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
+            blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
         }
 
         // copy output: register to global memory
