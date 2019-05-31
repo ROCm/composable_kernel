@@ -255,28 +255,14 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
         for(index_t e = 0; e < E; e += EPerBlock)
         {
 #if 0
-            if(e == 1 * EPerBlock && get_block_1d_id() == 0)
+            if(e == 0 * EPerBlock && get_block_1d_id() == 0)
             {
                 printf("id %5u %5u: "
-                       "mThreadSrcOriginalMultiId %u %u %u %u %u %u %u %u, "
-                       "mThreadSrcPartialOffsets %u %u %u %u, "
                        "mThreadSrcOffset %u, mThreadDstOffset %u \n",
                        get_block_1d_id(),
                        get_thread_local_1d_id(),
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[0],
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[1],
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[2],
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[3],
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[4],
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[5],
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[6],
-                       blockwise_in_copy.mThreadSrcOriginalMultiId[7],
-                       blockwise_in_copy.mThreadSrcPartialOffsets[0],
-                       blockwise_in_copy.mThreadSrcPartialOffsets[1],
-                       blockwise_in_copy.mThreadSrcPartialOffsets[2],
-                       blockwise_in_copy.mThreadSrcPartialOffsets[3],
-                       blockwise_in_copy.mThreadSrcOffset,
-                       blockwise_in_copy.mThreadDstOffset);
+                       blockwise_wei_copy.mThreadSrcOffset,
+                       blockwise_wei_copy.mThreadDstOffset);
             }
 #endif
             // marching slicing window

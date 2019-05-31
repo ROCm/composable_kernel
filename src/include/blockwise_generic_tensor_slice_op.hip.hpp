@@ -3,7 +3,7 @@
 
 // slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
 // memory layout (ordering of dimensions) can be different between src and dst
-// For now, only support SubLengths == 1 on a merged dimension
+// For now, only support SubLengths[...] == 1 on a merged dimension
 template <index_t BlockSize,
           class Float,
           class SrcDesc,
@@ -84,8 +84,8 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         constexpr auto repeat_lengths = SliceLengths{} / data_per_cluster_per_dims;
 
-        // for now, only support SubLengths.Get() == 1 on a merged dimension that is merge from
-        // multiple dimensions
+        // for now, only support SubLengths.Get() == 1 on a merged dimension that constains
+        // multiple original dimensions
         static_for<0, nDim, 1>{}([&](auto IDim_) {
             constexpr auto IDim = decltype(IDim_){};
 
@@ -292,7 +292,8 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         static_if<SrcDesc::ContainMultipleOriginalDimensions(IDim)>{}([&](auto fwd) {
             // logic for a merged dimension, also works for non-merged dimension, but its logic may
-            // be unncessarily complicated for compiler to remove uselss calculations
+            // be unncessarily complicated for compiler to remove calculations that are useless for
+            // a non-merged dimension
 
             // extract partial original dimensions
             constexpr auto src_partial_original_dims =
@@ -308,6 +309,27 @@ struct BlockwiseGenericTensorSliceCopy_v1
             auto new_src_partial_original_multi_id =
                 src_partial_original_desc.UpdateMultiIndexGivenStepSizeOf1dIndex(
                     old_src_partial_original_multi_id, StepSize, direction);
+
+#if 0
+            {
+                if(debug_flag && get_block_1d_id() == 0)
+                {
+                    printf("id %5u %5u: "
+                           "old_src_partial_original_multi_id %u %u %u, "
+                           "new_src_partial_original_multi_id %u %u %u, "
+                           "mThreadSrcOffset %u, mThreadDstOffset %u \n",
+                           get_block_1d_id(),
+                           get_thread_local_1d_id(),
+                           old_src_partial_original_multi_id[0],
+                           old_src_partial_original_multi_id[1],
+                           old_src_partial_original_multi_id[2],
+                           new_src_partial_original_multi_id[0],
+                           new_src_partial_original_multi_id[1],
+                           new_src_partial_original_multi_id[2]
+                           );
+                }
+            }
+#endif
 
             // update "mThreadSrcOriginalMultiId"
             static_for<0, src_partial_original_dims.GetSize(), 1>{}([&](auto I_) {

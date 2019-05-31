@@ -215,7 +215,7 @@ struct ConstantTensorDescriptor
 
             // do carry check in reversed order, starting from lowest dimension
             // don't check the highest dimension
-            static_for<0, nDim - 1, 1>{}([&](auto IDimReverse) {
+            static_for<0, nDim, 1>{}([&](auto IDimReverse) {
                 constexpr index_t idim = nDim - 1 - IDimReverse.Get();
                 constexpr auto IDim    = Number<idim>{};
 
@@ -241,7 +241,7 @@ struct ConstantTensorDescriptor
 
             // do borrow check in reversed order, starting from lowest dimension
             // don't check the highest dimension
-            static_for<0, nDim - 1, 1>{}([&](auto IDimReverse) {
+            static_for<0, nDim, 1>{}([&](auto IDimReverse) {
                 constexpr index_t idim = nDim - 1 - IDimReverse.Get();
                 constexpr auto IDim    = Number<idim>{};
 

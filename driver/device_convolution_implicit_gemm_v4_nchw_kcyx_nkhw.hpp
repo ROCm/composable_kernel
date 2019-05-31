@@ -71,11 +71,11 @@ void device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw(InDesc,
     constexpr index_t InBlockCopySrcDataPerRead_B   = 1;
     constexpr index_t InBlockCopyDstDataPerWrite_N2 = 4;
 
-    using WeiBlockCopySubLengths_E_K     = Sequence<1, 4>;
-    using WeiBlockCopyClusterLengths_E_K = Sequence<8, 32>;
+    using WeiBlockCopySubLengths_E_K     = Sequence<4, 1>;
+    using WeiBlockCopyClusterLengths_E_K = Sequence<2, 128>;
 
-    constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
-    constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
+    constexpr index_t WeiBlockCopySrcDataPerRead_E  = 1;
+    constexpr index_t WeiBlockCopyDstDataPerWrite_K = 4;
 #endif
 
     constexpr index_t GridSize =

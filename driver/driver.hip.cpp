@@ -443,7 +443,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 3x3 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
@@ -539,7 +539,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 14x14 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
@@ -551,7 +551,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 73x73 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 64;
@@ -634,7 +634,7 @@ int main(int argc, char* argv[])
     device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw
 #elif 0
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw
 #elif 1
     device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw
@@ -655,7 +655,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-#if 0
+#if 1
         if(Y == 3 && X == 3)
         {
             host_winograd_3x3_convolution(in_nchw, wei_kcyx, out_nkhw_host, lower_pads, upper_pads);
