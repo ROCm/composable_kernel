@@ -371,7 +371,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                 mThreadSrcOriginalMultiId[idim_original] += StepSize;
 
                 mThreadSrcPartialOffsets[idim] += StepSize * fwd(SrcDesc{}).GetStride(IDim);
-            }).Else([&](auto) {
+            }).Else([&](auto fwd) {
                 mThreadSrcOffset -= StepSize * fwd(SrcDesc{}).GetStride(IDim);
 
                 mThreadSrcOriginalMultiId[idim_original] -= StepSize;

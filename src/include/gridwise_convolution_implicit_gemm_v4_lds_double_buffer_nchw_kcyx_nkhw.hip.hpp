@@ -30,10 +30,16 @@ template <index_t GridSize,
           index_t GemmDataPerReadB,
           class InBlockCopySubLengths_E_N1_B_N2,
           class InBlockCopyClusterLengths_E_N1_B_N2,
+          class InBlockCopyThreadClusterArrangeOrder,
+          class InBlockCopySrcAccessOrder,
+          class InBlockCopyDstAccessOrder,
           index_t InBlockCopySrcDataPerRead_B,
           index_t InBlockCopyDstDataPerWrite_N2,
           class WeiBlockCopySubLengths_E_K,
           class WeiBlockCopyClusterLengths_E_K,
+          class WeiBlockCopyThreadClusterArrangeOrder,
+          class WeiBlockCopySrcAccessOrder,
+          class WeiBlockCopyDstAccessOrder,
           index_t WeiBlockCopySrcDataPerRead_E,
           index_t WeiBlockCopyDstDataPerWrite_K>
 struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
@@ -146,19 +152,20 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
         // input blockwise copy
         //     slice a merged tensor, reorder and copy to a normal tensor
         //     this copy operator already has blockwise offset built-in
-        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1<
-            BlockSize,
-            Float,
-            decltype(in_e_n1_b_n2_global_merged_desc),
-            decltype(in_e_n1_b_n2_block_desc),
-            decltype(in_e_n1_b_n2_block_desc.GetLengths()),
-            InBlockCopySubLengths_E_N1_B_N2,
-            InBlockCopyClusterLengths_E_N1_B_N2,
-            Sequence<0, 1, 3, 2>, // thread_arrange_order [E, N1, N2, B]
-            Sequence<0, 1, 3, 2>, // src_access_order [E, N1, N2, B]
-            Sequence<0, 1, 2, 3>, // dst_access_order [E, N1, B, N2]
-            InBlockCopySrcDataPerRead_B,
-            InBlockCopyDstDataPerWrite_N2>({0, 0, b_block_data_on_global, 0}, {0, 0, 0, 0});
+        auto blockwise_in_copy =
+            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
+                                               Float,
+                                               decltype(in_e_n1_b_n2_global_merged_desc),
+                                               decltype(in_e_n1_b_n2_block_desc),
+                                               decltype(in_e_n1_b_n2_block_desc.GetLengths()),
+                                               InBlockCopySubLengths_E_N1_B_N2,
+                                               InBlockCopyClusterLengths_E_N1_B_N2,
+                                               InBlockCopyThreadClusterArrangeOrder,
+                                               InBlockCopySrcAccessOrder,
+                                               InBlockCopyDstAccessOrder,
+                                               InBlockCopySrcDataPerRead_B,
+                                               InBlockCopyDstDataPerWrite_N2>(
+                {0, 0, b_block_data_on_global, 0}, {0, 0, 0, 0});
 
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
@@ -171,9 +178,10 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
             Sequence<EPerBlock, KPerBlock>{},
             Number<mod_conv::max(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
 
-        // operator for blockwise copy of weight into LDS
-        //     slice a tensor, and copy it into another tensor
-        //     this copy operator already have blockwise offset built-in
+// operator for blockwise copy of weight into LDS
+//     slice a tensor, and copy it into another tensor
+//     this copy operator already have blockwise offset built-in
+#if 0
         auto blockwise_wei_copy =
             BlockwiseGenericTensorSliceCopy_v1<BlockSize,
                                                Float,
@@ -182,12 +190,28 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
                                                decltype(wei_e_k_block_desc.GetLengths()),
                                                WeiBlockCopySubLengths_E_K,
                                                WeiBlockCopyClusterLengths_E_K,
-                                               Sequence<1, 0>, // thread_arrange_order [K, E]
-                                               Sequence<1, 0>, // src_access_order [K, E]
-                                               Sequence<0, 1>, // dst_access_order [E, K]
+                                               WeiBlockCopyThreadClusterArrangeOrder,
+                                               WeiBlockCopySrcAccessOrder,
+                                               WeiBlockCopyDstAccessOrder,
                                                WeiBlockCopySrcDataPerRead_E,
                                                WeiBlockCopyDstDataPerWrite_K>(
                 {0, k_block_data_on_global}, {0, 0});
+#else
+        constexpr auto map_k_e_2_e_k = Sequence<1, 0>{};
+
+        auto blockwise_wei_copy = BlockwiseTensorSliceReorderCopy_v3<
+            BlockSize,
+            Float,
+            decltype(wei_e_k_global_desc.ReorderGivenNew2Old(map_k_e_2_e_k)),
+            decltype(wei_e_k_block_desc),
+            decltype(wei_e_k_block_desc.GetLengths().ReorderGivenNew2Old(map_k_e_2_e_k)),
+            decltype(WeiBlockCopySubLengths_E_K::ReorderGivenNew2Old(map_k_e_2_e_k)),
+            decltype(WeiBlockCopyClusterLengths_E_K::ReorderGivenNew2Old(map_k_e_2_e_k)),
+            Sequence<1, 0>, // MapDst2Src
+            WeiBlockCopyThreadClusterArrangeOrder,
+            WeiBlockCopySrcDataPerRead_E,
+            WeiBlockCopyDstDataPerWrite_K>({k_block_data_on_global, 0}, {0, 0});
+#endif
 
         // GEMM definition
         // c_mtx += transpose(a_mtx) * b_mtx
@@ -261,7 +285,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
         threadwise_matrix_set_zero(c_k0k2_n1n2_thread_mtx_desc, p_out_thread);
 
 #if 0
-        if(e == 0 * EPerBlock && get_block_1d_id() == 0)
+        if(get_block_1d_id() == 0)
         {
             printf("id %5u %5u: "
                    "mThreadSrcOffset %u, mThreadDstOffset %u \n",
@@ -270,6 +294,10 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
                    blockwise_wei_copy.mThreadSrcOffset,
                    blockwise_wei_copy.mThreadDstOffset);
         }
+#endif
+
+#if 0 // debug
+        return;
 #endif
 
         // LDS double buffer: preload data into LDS
@@ -308,7 +336,11 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
                 Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
 
                 blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
+#if 0
                 blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
+#else
+                blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I1, Number<EPerBlock>{}, True);
+#endif
 
                 __syncthreads();
 
@@ -334,7 +366,11 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
 
             // even iteration
             blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
+#if 0
             blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
+#else
+            blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I1, Number<EPerBlock>{}, True);
+#endif
 
             __syncthreads();
 
