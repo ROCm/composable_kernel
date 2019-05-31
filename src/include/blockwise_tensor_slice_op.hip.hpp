@@ -16,8 +16,8 @@ struct BlockwiseTensorSliceReorderCopy_v3
 {
     static constexpr index_t nDim = SrcLengths::GetSize();
 
-    index_t mSrcMyThreadOffset;
-    index_t mDstMyThreadOffset;
+    index_t mThreadSrcOffset;
+    index_t mThreadDstOffset;
 
     __device__
     BlockwiseTensorSliceReorderCopy_v3(Array<index_t, nDim> src_block_data_multi_id_begin,
@@ -128,11 +128,36 @@ struct BlockwiseTensorSliceReorderCopy_v3
         // optimized away???
         const auto dst_data_multi_id = reorder_array_given_new2old(src_data_multi_id, map_dst2src);
 
-        mSrcMyThreadOffset =
+        mThreadSrcOffset =
             src_desc.GetOffsetFromMultiIndex(src_data_multi_id + src_block_data_multi_id_begin);
 
-        mDstMyThreadOffset =
+        mThreadDstOffset =
             dst_desc.GetOffsetFromMultiIndex(dst_data_multi_id + dst_block_data_multi_id_begin);
+#if 0
+        if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
+        {
+            print_ConstantTensorDescriptor(thread_cluster_desc, "thread_cluster_desc: ");
+        }
+
+        if(get_block_1d_id() == 0)
+        {
+            printf("id %5u %5u: "
+                   "thread_multi_id: %u %u, "
+                   "src_block_data_multi_id_begin: %u %u, "
+                   "src_data_multi_id: %u %u, "
+                   "mThreadSrcOffset %u, mThreadDstOffset %u \n",
+                   get_block_1d_id(),
+                   get_thread_local_1d_id(),
+                   thread_multi_id[0],
+                   thread_multi_id[1],
+                   src_block_data_multi_id_begin[0],
+                   src_block_data_multi_id_begin[1],
+                   src_data_multi_id[0],
+                   src_data_multi_id[1],
+                   mThreadSrcOffset,
+                   mThreadDstOffset);
+        }
+#endif
     }
 
     __device__ static constexpr index_t GetRegisterClipboardSize()
@@ -185,7 +210,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
                 thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id);
 
             threadwise_tensor_slice_copy(SrcDesc{},
-                                         p_src + src_offset + mSrcMyThreadOffset,
+                                         p_src + src_offset + mThreadSrcOffset,
                                          thread_tensor_desc,
                                          p_clipboard + clipboard_offset,
                                          thread_sub_tensor_lengths,
@@ -232,7 +257,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
                                                                   p_clipboard + clipboard_offset,
                                                                   DstDesc{},
                                                                   p_dst + dst_offset +
-                                                                      mDstMyThreadOffset,
+                                                                      mThreadDstOffset,
                                                                   thread_sub_tensor_lengths,
                                                                   MapDst2Src{});
 #else
@@ -240,7 +265,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
                                                                   p_clipboard + clipboard_offset,
                                                                   DstDesc{},
                                                                   p_dst + dst_offset +
-                                                                      mDstMyThreadOffset,
+                                                                      mThreadDstOffset,
                                                                   thread_sub_tensor_lengths,
                                                                   MapDst2Src{},
                                                                   Number<DstDataPerWrite>{});
@@ -254,5 +279,18 @@ struct BlockwiseTensorSliceReorderCopy_v3
 
         RunLoadRegisterClipboard(p_src, p_clipboard);
         RunStoreRegisterClipboard(p_clipboard, p_dst);
+    }
+
+    // this function doesn't do santiy check on whether the slicing window is out of the boundary
+    // of the tensor being sliced
+    template <index_t IDim_, index_t StepSize, bool PositiveDirection>
+    __device__ void MoveSlicingWindowOnSourceTensor(
+        Number<IDim_>, Number<StepSize>, integral_constant<bool, PositiveDirection> direction)
+    {
+        constexpr auto IDim = Number<IDim_>{};
+
+        static_if<PositiveDirection>{}([&](auto fwd) {
+            mThreadSrcOffset += StepSize * fwd(SrcDesc{}).GetStride(IDim);
+        }).Else([&](auto fwd) { mThreadSrcOffset -= StepSize * fwd(SrcDesc{}).GetStride(IDim); });
     }
 };

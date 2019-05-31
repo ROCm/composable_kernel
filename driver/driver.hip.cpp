@@ -410,7 +410,7 @@ int main(int argc, char* argv[])
 {
 #if 0
     constexpr index_t N  = 8;
-    constexpr index_t C  = 8;
+    constexpr index_t C  = 16;
     constexpr index_t HI = 3;
     constexpr index_t WI = 18;
     constexpr index_t K  = 128;
