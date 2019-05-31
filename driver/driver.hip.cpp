@@ -455,10 +455,10 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 1x1 filter, 28x28 image
-    constexpr index_t N  = 16;
-    constexpr index_t C  = 256;
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 512;
     constexpr index_t HI = 28;
     constexpr index_t WI = 28;
     constexpr index_t K  = 512;
