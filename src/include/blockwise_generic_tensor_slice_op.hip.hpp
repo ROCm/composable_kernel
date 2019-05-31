@@ -332,7 +332,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 #endif
 
             // update "mThreadSrcOriginalMultiId"
-            static_for<0, src_partial_original_dims.GetSize(), 1>{}([&](auto I_) {
+            static_for<0, decltype(src_partial_original_dims)::GetSize(), 1>{}([&](auto I_) {
                 constexpr auto I                = decltype(I_){};
                 constexpr index_t idim_original = src_partial_original_dims.Get(I);
 
@@ -365,18 +365,18 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
             constexpr index_t idim_original = SrcDesc::GetContainedOriginalDimensions(IDim).Front();
 
-            static_if<PositiveDirection>{}([&](auto) {
-                mThreadSrcOffset += StepSize * SrcDesc::GetStride(IDim);
+            static_if<PositiveDirection>{}([&](auto fwd) {
+                mThreadSrcOffset += StepSize * fwd(SrcDesc{}).GetStride(IDim);
 
                 mThreadSrcOriginalMultiId[idim_original] += StepSize;
 
-                mThreadSrcPartialOffsets[idim] += StepSize * SrcDesc::GetStride(IDim);
+                mThreadSrcPartialOffsets[idim] += StepSize * fwd(SrcDesc{}).GetStride(IDim);
             }).Else([&](auto) {
-                mThreadSrcOffset -= StepSize * SrcDesc::GetStride(IDim);
+                mThreadSrcOffset -= StepSize * fwd(SrcDesc{}).GetStride(IDim);
 
                 mThreadSrcOriginalMultiId[idim_original] -= StepSize;
 
-                mThreadSrcPartialOffsets[idim] -= StepSize * SrcDesc::GetStride(IDim);
+                mThreadSrcPartialOffsets[idim] -= StepSize * fwd(SrcDesc{}).GetStride(IDim);
             });
         });
     }

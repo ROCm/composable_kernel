@@ -223,7 +223,7 @@ struct GridwiseConvolutionImplicitGemm_v3_lds_double_buffer_nchw_cyxk_nkhw
         const auto run_blockwise_gemm = [&](auto... Xs) {
 #if 1
             return blockwise_gemm.Run(Xs...);
-#elif 0
+#else
             return blockwise_gemm.Run_asm(Xs...);
 #endif
         };
