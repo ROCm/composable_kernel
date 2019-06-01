@@ -88,7 +88,7 @@ struct GridwiseConvolutionImplicitGemm_v3_lds_double_buffer_nchw_cyxk_nkhw
         constexpr index_t BBlockWork = B / BPerBlock;
 
         constexpr auto block_work_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(Sequence<KBlockWork, BBlockWork>{});
+            make_ConstantTensorDescriptor_packed(Sequence<KBlockWork, BBlockWork>{});
 
         const auto block_work_multi_id =
             block_work_desc.GetMultiIndexFrom1dIndex(get_block_1d_id());
@@ -111,9 +111,8 @@ struct GridwiseConvolutionImplicitGemm_v3_lds_double_buffer_nchw_cyxk_nkhw
 
         //     memory layout descriptor in LDS [C, N1, B, N2], dst of blockwise copy
         //     be careful of LDS alignment
-        constexpr auto in_c_n1_b_n2_block_mem_desc =
-            make_ConstantTensorDescriptor_default_rank_aligned(
-                Sequence<CPerBlock, N1, BPerBlock, N2>{}, Number<InBlockCopyDstDataPerWrite_N2>{});
+        constexpr auto in_c_n1_b_n2_block_mem_desc = make_ConstantTensorDescriptor_aligned(
+            Sequence<CPerBlock, N1, BPerBlock, N2>{}, Number<InBlockCopyDstDataPerWrite_N2>{});
 
         //     this check is ad-hoc
         //     TODO: need to properly implement tensor descriptor with alignment
@@ -143,7 +142,7 @@ struct GridwiseConvolutionImplicitGemm_v3_lds_double_buffer_nchw_cyxk_nkhw
 
         //     tensor descriptor in LDS, dst of blockwise copy
         //     be careful of LDS alignment
-        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
+        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, KPerBlock>{},
             Number<mod_conv::max(WeiBlockCopyDataPerAccess_K, GemmDataPerReadA)>{});
 
@@ -367,7 +366,7 @@ struct GridwiseConvolutionImplicitGemm_v3_lds_double_buffer_nchw_cyxk_nkhw
             // define tensor descriptor for threadwise copy
             //     output memory layout descriptor in register
             constexpr auto out_k0_k1_k2_n1_n0_h_w_n2_thread_mem_desc =
-                make_ConstantTensorDescriptor_default_rank_packed(
+                make_ConstantTensorDescriptor_packed(
                     Sequence<KPerBlock / (K1 * K2), 1, K2, N1, 1, 1, 1, N2>{});
 
             //     output tensor descriptor in register, src of threadwise copy

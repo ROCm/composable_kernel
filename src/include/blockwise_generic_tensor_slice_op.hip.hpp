@@ -63,7 +63,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                       "wrong!");
 
         // thread cluster
-        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor_default_rank_packed(
+        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor_packed(
             DataClusterLengths{}.ReorderGivenNew2Old(ThreadClusterArrangeOrder{}));
 
         // BlockSize
@@ -185,7 +185,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         constexpr auto repeat_lengths = SliceLengths{} / (SubLengths{} * DataClusterLengths{});
 
         constexpr auto thread_tensor_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(SubLengths{} * repeat_lengths);
+            make_ConstantTensorDescriptor_packed(SubLengths{} * repeat_lengths);
 
         return thread_tensor_desc.GetElementSpace();
     }
@@ -199,8 +199,8 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         constexpr auto repeat_lengths = SliceLengths{} / (SubLengths{} * DataClusterLengths{});
 
-        constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor_default_rank_packed(
-            thread_sub_tensor_lengths * repeat_lengths);
+        constexpr auto thread_tensor_desc =
+            make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
             constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
@@ -237,8 +237,8 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         constexpr auto repeat_lengths = SliceLengths{} / (SubLengths{} * DataClusterLengths{});
 
-        constexpr auto thread_tensor_desc = make_ConstantTensorDescriptor_default_rank_packed(
-            thread_sub_tensor_lengths * repeat_lengths);
+        constexpr auto thread_tensor_desc =
+            make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
             constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});

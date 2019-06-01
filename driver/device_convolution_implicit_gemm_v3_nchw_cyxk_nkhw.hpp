@@ -36,7 +36,7 @@ void device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(InDesc,
     constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     // reorder weight
-    auto wei_cyxk_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<C, Y, X, K>{});
+    auto wei_cyxk_desc = make_ConstantTensorDescriptor_packed(Sequence<C, Y, X, K>{});
     ostream_ConstantTensorDescriptor(wei_cyxk_desc, std::cout << "wei_cyxk_desc: ");
 
     Tensor<T> wei_cyxk(make_TensorDescriptor(wei_cyxk_desc));

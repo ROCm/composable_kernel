@@ -443,7 +443,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 3x3 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
@@ -455,7 +455,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
@@ -568,8 +568,8 @@ int main(int argc, char* argv[])
     auto lower_pads = Sequence<HPad, WPad>{};
     auto upper_pads = Sequence<HPad, WPad>{};
 
-    auto in_nchw_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<N, C, HI, WI>{});
-    auto wei_kcyx_desc = make_ConstantTensorDescriptor_default_rank_packed(Sequence<K, C, Y, X>{});
+    auto in_nchw_desc  = make_ConstantTensorDescriptor_packed(Sequence<N, C, HI, WI>{});
+    auto wei_kcyx_desc = make_ConstantTensorDescriptor_packed(Sequence<K, C, Y, X>{});
     auto out_nkhw_desc = get_convolution_with_padding_output_default_4d_tensor_descriptor(
         in_nchw_desc, wei_kcyx_desc, lower_pads, upper_pads);
 

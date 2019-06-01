@@ -19,7 +19,7 @@ __device__ void threadwise_tensor_slice_copy(SrcDesc,
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
-    constexpr auto ref_desc = make_ConstantTensorDescriptor_default_rank_packed(SrcOpLengths{});
+    constexpr auto ref_desc = make_ConstantTensorDescriptor_packed(SrcOpLengths{});
 
 #if 0
     if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)

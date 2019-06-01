@@ -99,7 +99,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
         constexpr index_t BBlockWork = B / BPerBlock;
 
         constexpr auto block_work_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(Sequence<KBlockWork, BBlockWork>{});
+            make_ConstantTensorDescriptor_packed(Sequence<KBlockWork, BBlockWork>{});
 
         const auto block_work_multi_id =
             block_work_desc.GetMultiIndexFrom1dIndex(get_block_1d_id());
@@ -127,20 +127,9 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
             Sequence<3, 6, 7>{},
             Sequence<5>{});
 
-#if 0
-        if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
-        {
-            print_ConstantTensorDescriptor(in_n0_n1_n2_h_w_global_desc,
-                                           "in_n0_n1_n2_h_w_global_desc: ");
-            print_ConstantTensorDescriptor(in_c_y_x_global_desc, "in_c_y_x_global_desc: ");
-            print_ConstantMergedTensorDescriptor(in_e_n1_b_n2_global_merged_desc,
-                                                 "in_e_n1_b_n2_global_merged_desc: ");
-        }
-#endif
-
         //     memory layout descriptor in LDS [E, N1, B, N2], dst of blockwise copy
         //     be careful of LDS alignment
-        constexpr auto in_e_n1_b_n2_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
+        constexpr auto in_e_n1_b_n2_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<EPerBlock, N1, BPerBlock, N2>{}, Number<InBlockCopyDstDataPerWrite_N2>{});
 
         //     this check is ad-hoc
@@ -174,7 +163,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
 
         //     tensor descriptor in LDS, dst of blockwise copy
         //     be careful of LDS alignment
-        constexpr auto wei_e_k_block_desc = make_ConstantTensorDescriptor_default_rank_aligned(
+        constexpr auto wei_e_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<EPerBlock, KPerBlock>{},
             Number<mod_conv::max(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
 
@@ -406,7 +395,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
             // define tensor descriptor for threadwise copy
             //     output memory layout descriptor in register
             constexpr auto out_k0_k1_k2_n1_n0_h_w_n2_thread_mem_desc =
-                make_ConstantTensorDescriptor_default_rank_packed(
+                make_ConstantTensorDescriptor_packed(
                     Sequence<KPerBlock / (K1 * K2), 1, K2, N1, 1, 1, 1, N2>{});
 
             //     output tensor descriptor in register, src of threadwise copy
