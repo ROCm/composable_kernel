@@ -4,7 +4,6 @@
 #include "ConstantMatrixDescriptor.hip.hpp"
 #include "blockwise_4d_tensor_op.hip.hpp"
 #include "blockwise_2d_tensor_op.hip.hpp"
-#include "threadwise_2d_tensor_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
 
 // define B = flatten(N, Hi, Wi)
@@ -202,8 +201,8 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
         // register
         Float p_out_thread[out_kb_thread_desc.GetElementSpace()];
 
-        // set threadwise output tensor to 0
-        threadwise_2d_tensor_set_zero(out_kb_thread_desc, p_out_thread);
+        // set threadwise output to 0
+        threadwise_matrix_set_zero(c_kxb_thread_mtx_desc, p_out_thread);
 
         for(index_t c_block_data_begin = 0; c_block_data_begin < C; c_block_data_begin += CPerBlock,
                     p_in_global_block_offset += CPerBlock * in_cb_global_desc.GetStride(I0),
