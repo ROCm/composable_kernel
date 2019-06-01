@@ -13,7 +13,7 @@ blockwise_4d_tensor_pointwise_operation_unary(DstDesc, Float* __restrict__ p_dst
 
     constexpr auto dst_desc = DstDesc{};
 
-    constexpr auto desc = make_ConstantTensorDescriptor_default_rank_packed(dst_desc.GetLengths());
+    constexpr auto desc = make_ConstantTensorDescriptor_packed(dst_desc.GetLengths());
 
 #if 0
     if(get_thread_local_1d_id() == 0)
@@ -108,7 +108,7 @@ __device__ void blockwise_4d_tensor_pointwise_operation_binary_reorder_by_get_ds
 
     constexpr auto src_desc = SrcDesc{};
     constexpr auto dst_desc = DstDesc{};
-    constexpr auto ref_desc = make_ConstantTensorDescriptor_default_rank_packed(SrcOpLengths{});
+    constexpr auto ref_desc = make_ConstantTensorDescriptor_packed(SrcOpLengths{});
 
     constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
@@ -259,7 +259,7 @@ struct Blockwise4dTensorCopy1
         constexpr index_t read_per_d3 = mod_conv::integer_divide_ceil(L3, DataPerRead);
 
         constexpr auto ref_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(Sequence<L0, L1, L2, read_per_d3>{});
+            make_ConstantTensorDescriptor_packed(Sequence<L0, L1, L2, read_per_d3>{});
 
         constexpr index_t NLoop = ref_desc.GetElementSize() / BlockSize;
 
@@ -336,7 +336,7 @@ struct BlockwiseChwnTensorCopyPadded
 
         constexpr auto src_desc = SrcDesc{};
         constexpr auto dst_desc = DstDesc{};
-        constexpr auto ref_desc = make_ConstantTensorDescriptor_default_rank_packed(DstOpLengths{});
+        constexpr auto ref_desc = make_ConstantTensorDescriptor_packed(DstOpLengths{});
 
         constexpr auto h_global_pad_low = GlobalLowerPads{}.Get(I0);
         constexpr auto w_global_pad_low = GlobalLowerPads{}.Get(I1);
@@ -510,8 +510,7 @@ struct Blockwise4dTensorCopy3
             }
         }
 
-        constexpr auto thread_cluster_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(ThreadPerDims{});
+        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor_packed(ThreadPerDims{});
         const auto thread_multi_id =
             thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
 
@@ -653,7 +652,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
         constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
-        constexpr auto clipboard_desc = make_ConstantTensorDescriptor_default_rank_packed(
+        constexpr auto clipboard_desc = make_ConstantTensorDescriptor_packed(
             Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
 
 #pragma unroll
@@ -720,7 +719,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
         constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
-        constexpr auto clipboard_desc = make_ConstantTensorDescriptor_default_rank_packed(
+        constexpr auto clipboard_desc = make_ConstantTensorDescriptor_packed(
             Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
 
 #pragma unroll

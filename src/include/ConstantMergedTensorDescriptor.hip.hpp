@@ -114,7 +114,7 @@ struct ConstantMergedTensorDescriptor
 
     __host__ __device__ static Array<index_t, nDim> GetMultiIndexFrom1dIndex(index_t id)
     {
-        constexpr auto dummy_desc = make_ConstantTensorDescriptor_default_rank_packed(GetLengths());
+        constexpr auto dummy_desc = make_ConstantTensorDescriptor_packed(GetLengths());
 
         return dummy_desc.GetMultiIndexFrom1dIndex(id);
     }
@@ -128,7 +128,7 @@ __host__ __device__ constexpr auto make_ConstantMergedTensorDescriptor(OriginalT
 }
 
 template <class TDesc>
-__host__ __device__ void print_ConstantMergedTensorDescriptor(TDesc, const char* s)
+__host__ __device__ void print_ConstantMergedTensorDescriptor(const char* s, TDesc)
 {
-    print_ConstantTensorDescriptor(TDesc::GetOriginalTensorDescriptor(), s);
+    print_ConstantTensorDescriptor(s, TDesc::GetOriginalTensorDescriptor());
 }

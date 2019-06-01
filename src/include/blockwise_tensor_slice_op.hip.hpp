@@ -40,7 +40,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
             src_cluster_lengths.ReorderGivenNew2Old(map_thread_cluster_2_src_cluster);
 
         constexpr auto thread_cluster_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(thread_cluster_lengths);
+            make_ConstantTensorDescriptor_packed(thread_cluster_lengths);
 
         // sanity check: data type
         static_assert(is_same<Float, float>::value, "wrong! only support float for now!\n");
@@ -175,7 +175,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
         constexpr auto thread_tensor_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(thread_tensor_lengths);
+            make_ConstantTensorDescriptor_packed(thread_tensor_lengths);
 
         return thread_tensor_desc.GetElementSpace();
     }
@@ -196,7 +196,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
         constexpr auto thread_tensor_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(thread_tensor_lengths);
+            make_ConstantTensorDescriptor_packed(thread_tensor_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
@@ -234,7 +234,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
         constexpr auto thread_tensor_desc =
-            make_ConstantTensorDescriptor_default_rank_packed(thread_tensor_lengths);
+            make_ConstantTensorDescriptor_packed(thread_tensor_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
