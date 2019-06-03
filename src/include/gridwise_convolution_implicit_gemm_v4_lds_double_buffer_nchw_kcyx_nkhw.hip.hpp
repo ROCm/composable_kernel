@@ -5,7 +5,7 @@
 #include "ConstantMatrixDescriptor.hip.hpp"
 #include "blockwise_generic_tensor_slice_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
-#include "threadwise_tensor_slice_op.hip.hpp"
+#include "threadwise_generic_tensor_slice_op.hip.hpp"
 
 // define B = merge(N, Ho, Wo)
 template <index_t GridSize,
@@ -170,7 +170,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
 // operator for blockwise copy of weight into LDS
 //     slice a tensor, and copy it into another tensor
 //     this copy operator already have blockwise offset built-in
-#if 0
+#if 1
         auto blockwise_wei_copy =
             BlockwiseGenericTensorSliceCopy_v1<BlockSize,
                                                Float,
@@ -188,7 +188,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
 #else
         constexpr auto map_k_e_2_e_k = Sequence<1, 0>{};
 
-        const auto blockwise_wei_copy = BlockwiseTensorSliceReorderCopy_v3<
+        auto blockwise_wei_copy = BlockwiseTensorSliceReorderCopy_v3<
             BlockSize,
             Float,
             decltype(wei_e_k_global_desc.ReorderGivenNew2Old(map_k_e_2_e_k)),
@@ -324,11 +324,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
                 Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
 
                 blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
-#if 0
-                blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
-#else
                 p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
-#endif
 
                 __syncthreads();
 
@@ -355,11 +351,7 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
 
             // even iteration
             blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
-#if 0
-            blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
-#else
             p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
-#endif
 
             __syncthreads();
 
@@ -434,14 +426,16 @@ struct GridwiseConvolutionImplicitGemm_v4_lds_double_buffer_nchw_kcyx_nkhw
                 out_k_n1_b_n2_global_merged_desc.GetOffsetFromMultiIndex(
                     k_thread_data_on_global, 0, b_thread_data_on_global, 0);
 
-            threadwise_generic_tensor_slice_copy(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc,
-                                                 p_out_thread,
-                                                 {0, 0, 0, 0, 0, 0, 0, 0},
-                                                 out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc,
-                                                 p_out_thread_on_global,
-                                                 {0, 0, 0, 0, 0, 0, 0, 0},
-                                                 out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths(),
-                                                 arithmetic_sequence_gen<0, 8, 1>::SeqType{});
+            threadwise_generic_tensor_slice_copy_v1(
+                out_n0_n1_n2_k0_k1_k2_h_w_thread_desc,
+                p_out_thread,
+                {0, 0, 0, 0, 0, 0, 0, 0},
+                out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc,
+                p_out_thread_on_global,
+                {0, 0, 0, 0, 0, 0, 0, 0},
+                out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths(),
+                arithmetic_sequence_gen<0, 8, 1>::SeqType{},
+                Number<1>{});
         }
     }
 };

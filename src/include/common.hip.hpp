@@ -105,4 +105,13 @@ __host__ __device__ constexpr T min(T x, Ts... xs)
 
     return x < y ? x : y;
 }
+
+// this is wrong
+// TODO: implement correct least common multiple, instead of calling max()
+template <class T, class... Ts>
+__host__ __device__ constexpr T least_common_multiple(T x, Ts... xs)
+{
+    return max(x, xs...);
+}
+
 } // namespace mod_conv

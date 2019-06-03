@@ -15,7 +15,7 @@ template <index_t BlockSize,
           class SrcAccessOrder,
           class DstAccessOrder,
           index_t SrcDataPerRead,
-          index_t DstDataPerRead>
+          index_t DstDataPerWrite>
 struct BlockwiseGenericTensorSliceCopy_v1
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
@@ -217,14 +217,15 @@ struct BlockwiseGenericTensorSliceCopy_v1
             const index_t clipboard_offset = thread_tensor_desc.GetOffsetFromMultiIndex(
                 clipboard_data_multi_id_begin); // cannot not constexpr, why?
 
-            threadwise_generic_tensor_slice_copy(SrcDesc{},
-                                                 p_src + src_offset + mThreadSrcOffset,
-                                                 make_zero_array<index_t, nDim>(),
-                                                 thread_tensor_desc,
-                                                 p_clipboard + clipboard_offset,
-                                                 make_zero_array<index_t, nDim>(),
-                                                 thread_sub_tensor_lengths,
-                                                 SrcAccessOrder{});
+            threadwise_generic_tensor_slice_copy_v1(SrcDesc{},
+                                                    p_src + src_offset + mThreadSrcOffset,
+                                                    make_zero_array<index_t, nDim>(),
+                                                    thread_tensor_desc,
+                                                    p_clipboard + clipboard_offset,
+                                                    make_zero_array<index_t, nDim>(),
+                                                    thread_sub_tensor_lengths,
+                                                    SrcAccessOrder{},
+                                                    Number<SrcDataPerRead>{});
         });
     }
 
@@ -255,14 +256,15 @@ struct BlockwiseGenericTensorSliceCopy_v1
             const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(
                 dst_data_multi_id_begin); // cannot not constexpr, why?
 
-            threadwise_generic_tensor_slice_copy(thread_tensor_desc,
-                                                 p_clipboard + clipboard_offset,
-                                                 make_zero_array<index_t, nDim>(),
-                                                 DstDesc{},
-                                                 p_dst + dst_offset + mThreadDstOffset,
-                                                 make_zero_array<index_t, nDim>(),
-                                                 thread_sub_tensor_lengths,
-                                                 DstAccessOrder{});
+            threadwise_generic_tensor_slice_copy_v1(thread_tensor_desc,
+                                                    p_clipboard + clipboard_offset,
+                                                    make_zero_array<index_t, nDim>(),
+                                                    DstDesc{},
+                                                    p_dst + dst_offset + mThreadDstOffset,
+                                                    make_zero_array<index_t, nDim>(),
+                                                    thread_sub_tensor_lengths,
+                                                    DstAccessOrder{},
+                                                    Number<DstDataPerWrite>{});
         });
     }
 

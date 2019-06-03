@@ -3,8 +3,7 @@
 
 // this is ugly, only for 4d
 template <class InDesc, class WeiDesc>
-constexpr auto get_convolution_output_default_4d_tensor_descriptor(InDesc,
-                                                                                       WeiDesc)
+constexpr auto get_convolution_output_default_4d_tensor_descriptor(InDesc, WeiDesc)
 {
     constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
@@ -34,8 +33,10 @@ constexpr auto get_convolution_output_default_4d_tensor_descriptor(InDesc,
 }
 
 template <class InDesc, class WeiDesc, class LowerPads, class UpperPads>
-constexpr auto get_convolution_with_padding_output_default_4d_tensor_descriptor(
-    InDesc, WeiDesc, LowerPads, UpperPads)
+constexpr auto get_convolution_with_padding_output_default_4d_tensor_descriptor(InDesc,
+                                                                                WeiDesc,
+                                                                                LowerPads,
+                                                                                UpperPads)
 {
     constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
@@ -113,5 +114,6 @@ constexpr std::size_t calculate_convolution_memory_size(Float, InDesc, WeiDesc, 
     constexpr index_t Y = wei_desc.GetLength(I2);
     constexpr index_t X = wei_desc.GetLength(I3);
 
-    return sizeof(Float) * (InDesc::GetElementSpace() + WeiDesc::GetElementSpace() + OutDesc::GetElementSpace());
+    return sizeof(Float) *
+           (InDesc::GetElementSpace() + WeiDesc::GetElementSpace() + OutDesc::GetElementSpace());
 }
