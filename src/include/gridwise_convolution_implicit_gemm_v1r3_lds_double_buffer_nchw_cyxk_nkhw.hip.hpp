@@ -474,7 +474,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
                 map_out_global2thread,
                 Number<OutThreadCopyDataPerWrite_W>{});
 #else
-            threadwise_generic_tensor_slice_copy(
+            threadwise_generic_tensor_slice_copy_v1(
                 out_10d_thread_desc.ReorderGivenNew2Old(map_out_global2thread),
                 p_out_thread,
                 make_zero_array<index_t, 10>(),
