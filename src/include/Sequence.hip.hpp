@@ -139,30 +139,48 @@ struct arithmetic_sequence_gen
         typename arithmetic_sequence_gen_impl<IBegin, IEnd - IBegin, Increment>::SeqType;
 };
 
-template <class, class>
+// reverse scan with init
+template <class, class, index_t>
 struct sequence_reverse_inclusive_scan;
 
-template <index_t I, index_t... Is, class Reduce>
-struct sequence_reverse_inclusive_scan<Sequence<I, Is...>, Reduce>
+template <index_t I, index_t... Is, class Reduce, index_t Init>
+struct sequence_reverse_inclusive_scan<Sequence<I, Is...>, Reduce, Init>
 {
-    using old_scan = typename sequence_reverse_inclusive_scan<Sequence<Is...>, Reduce>::SeqType;
+    using old_scan =
+        typename sequence_reverse_inclusive_scan<Sequence<Is...>, Reduce, Init>::SeqType;
 
     static constexpr index_t new_reduce = Reduce{}(I, old_scan{}.Front());
 
     using SeqType = typename sequence_merge<Sequence<new_reduce>, old_scan>::SeqType;
 };
 
-template <index_t I, class Reduce>
-struct sequence_reverse_inclusive_scan<Sequence<I>, Reduce>
+template <index_t I, class Reduce, index_t Init>
+struct sequence_reverse_inclusive_scan<Sequence<I>, Reduce, Init>
 {
-    using SeqType = Sequence<I>;
+    using SeqType = Sequence<Reduce{}(I, Init)>;
 };
 
-template <class Reduce>
-struct sequence_reverse_inclusive_scan<Sequence<>, Reduce>
+template <class Reduce, index_t Init>
+struct sequence_reverse_inclusive_scan<Sequence<>, Reduce, Init>
 {
     using SeqType = Sequence<>;
 };
+
+#if 0
+// reverse scan with token
+template <class, class, index_t>
+struct sequence_reverse_inclusive_token_scan;
+
+template <index_t I, index_t... Is, class F, index_t Token>
+struct sequence_reverse_inclusive_token_scan<Sequence<I, Is...>, F, Token>
+{
+    using old_scan = typename sequence_reverse_inclusive_token_scan<Sequence<Is...>, F, Token>::SeqType;
+
+    static constexpr index_t new_reduce = Reduce{}(I, old_scan{}.Front());
+
+    using SeqType = typename sequence_merge<Sequence<new_reduce>, old_scan>::SeqType;
+};
+#endif
 
 template <class, class>
 struct sequence_extract;
@@ -434,16 +452,16 @@ transform_sequences(F f, Sequence<Xs...>, Sequence<Ys...>, Sequence<Zs...>)
     return Sequence<f(Xs, Ys, Zs)...>{};
 }
 
-template <class Seq, class Reduce>
-__host__ __device__ constexpr auto reverse_inclusive_scan_sequence(Seq, Reduce)
+template <class Seq, class Reduce, index_t Init>
+__host__ __device__ constexpr auto reverse_inclusive_scan_sequence(Seq, Reduce, Number<Init>)
 {
-    return typename sequence_reverse_inclusive_scan<Seq, Reduce>::SeqType{};
+    return typename sequence_reverse_inclusive_scan<Seq, Reduce, Init>::SeqType{};
 }
 
-template <class Seq, class Reduce>
-__host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce)
+template <class Seq, class Reduce, index_t Init>
+__host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce, Number<Init>)
 {
-    return reverse_inclusive_scan_sequence(Seq{}.Reverse(), Reduce{}).Reverse();
+    return reverse_inclusive_scan_sequence(Seq{}.Reverse(), Reduce{}, Number<Init>{}).Reverse();
 }
 
 template <class Seq>

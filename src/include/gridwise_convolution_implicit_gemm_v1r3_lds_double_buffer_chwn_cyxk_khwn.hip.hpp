@@ -155,7 +155,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
                                    decltype(wei_c_k_global_desc),
                                    decltype(wei_c_k_block_desc),
                                    decltype(wei_c_k_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead_K>{};
+                                   WeiBlockCopyDataPerRead_K>({0, 0}, {0, 0});
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -235,8 +235,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
         }
 #endif
 
-        // set threadwise output tensor to 0
-        threadwise_4d_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
+        // set threadwise output to 0
+        threadwise_matrix_set_zero(c_k_wn_thread_mtx_desc, p_out_thread);
 
         for(index_t y = 0; y < Y; ++y)
         {

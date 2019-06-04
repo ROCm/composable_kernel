@@ -18,11 +18,24 @@ struct Array
 
     __host__ __device__ constexpr index_t GetSize() const { return NSize; }
 
-    __host__ __device__ const TData& operator[](index_t i) const { return mData[i]; }
+    __host__ __device__ constexpr TData operator[](index_t i) const { return mData[i]; }
 
     __host__ __device__ TData& operator[](index_t i) { return mData[i]; }
 
-    __host__ __device__ auto PushBack(TData x) const
+    template <index_t I>
+    __host__ __device__ constexpr TData Get(Number<I>) const
+    {
+        return mData[I];
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr bool Set(Number<I>, TData x)
+    {
+        mData[I] = x;
+        return true; // for constexpr
+    }
+
+    __host__ __device__ constexpr auto PushBack(TData x) const
     {
         Array<TData, NSize + 1> new_array;
 
