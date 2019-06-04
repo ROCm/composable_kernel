@@ -74,7 +74,8 @@ struct ConstantMergedTensorDescriptor
         return OriginalTensorDesc::GetElementSize();
     }
 
-    __host__ __device__ static auto
+#if 0
+    __host__ __device__ static constexpr auto
     GetOriginalMultiIndexFromMultiIndex(Array<index_t, nDim> multi_id)
     {
         Array<index_t, nOriginalDim> original_multi_id;
@@ -98,21 +99,111 @@ struct ConstantMergedTensorDescriptor
 
         return original_multi_id;
     }
-
-    __host__ __device__ static index_t GetOffsetFromMultiIndex(Array<index_t, nDim> multi_id)
+#else
+    template <class OriginalDimsPartial>
+    struct GetOriginalMultiIndexFromMultiIndex_impl1
     {
-        const auto original_multi_id = GetOriginalMultiIndexFromMultiIndex(multi_id);
+        const Array<index_t, OriginalDimsPartial::GetSize()>& original_multi_id_partial_ref;
+        Array<index_t, nOriginalDim>& original_multi_id_ref;
+
+        __host__ __device__ constexpr GetOriginalMultiIndexFromMultiIndex_impl1(
+            const Array<index_t, OriginalDimsPartial::GetSize()>& original_multi_id_partial,
+            Array<index_t, nOriginalDim>& original_multi_id)
+            : original_multi_id_partial_ref(original_multi_id_partial),
+              original_multi_id_ref(original_multi_id)
+        {
+        }
+
+        template <index_t I>
+        constexpr __host__ __device__ bool operator()(Number<I>) const
+        {
+            constexpr index_t idim_original = OriginalDimsPartial::Get(Number<I>{});
+
+            index_t itmp = original_multi_id_partial_ref.Get(Number<I>{});
+
+            original_multi_id_ref.Set(Number<idim_original>{}, itmp);
+
+            return true;
+        }
+    };
+
+    struct GetOriginalMultiIndexFromMultiIndex_impl0
+    {
+        const Array<index_t, nDim>& multi_id_ref;
+        Array<index_t, nOriginalDim>& original_multi_id_ref;
+
+        __host__ __device__ constexpr GetOriginalMultiIndexFromMultiIndex_impl0(
+            const Array<index_t, nDim>& multi_id, Array<index_t, nOriginalDim>& original_multi_id)
+            : multi_id_ref(multi_id), original_multi_id_ref(original_multi_id)
+        {
+        }
+
+        template <index_t IDim>
+        constexpr __host__ __device__ bool operator()(Number<IDim>) const
+        {
+            constexpr auto original_dims_partial =
+                std::get<IDim>(std::tuple<OriginalDimMergeSeqs...>{});
+
+            // get partial original-multi-id corresponding to this merged dimension
+            const auto original_multi_id_partial =
+                OriginalTensorDesc::Extract(original_dims_partial)
+                    .GetMultiIndexFrom1dIndex(multi_id_ref[IDim]);
+
+            static_for<0, original_dims_partial.GetSize(), 1>{}(
+                GetOriginalMultiIndexFromMultiIndex_impl1<decltype(original_dims_partial)>(
+                    original_multi_id_partial, original_multi_id_ref));
+
+            return true;
+        }
+    };
+
+    __host__ __device__ static constexpr auto
+    GetOriginalMultiIndexFromMultiIndex(Array<index_t, nDim> multi_id)
+    {
+        Array<index_t, nOriginalDim> original_multi_id;
+
+        static_for<0, nDim, 1>{}(
+            GetOriginalMultiIndexFromMultiIndex_impl0(multi_id, original_multi_id));
+
+        return original_multi_id;
+    }
+
+    template <index_t... Is>
+    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(Sequence<Is...>)
+    {
+        constexpr auto multi_id = sequence2array(Sequence<Is...>{});
+
+        constexpr auto original_multi_id = GetOriginalMultiIndexFromMultiIndex(multi_id);
+
+        return OriginalTensorDesc::GetOffsetFromMultiIndex(original_multi_id);
+    }
+#endif
+
+#if 0
+    // return type is Sequence<...>
+    template <index_t... Is>
+    __host__ __device__ static constexpr auto GetOriginalMultiIndexFromMultiIndex(Sequence<Is...>)
+    {
+        // not implemented
+        return Sequence<>{};
+    }
+#endif
+
+    __host__ __device__ static constexpr index_t
+    GetOffsetFromMultiIndex(Array<index_t, nDim> multi_id)
+    {
+        auto original_multi_id = GetOriginalMultiIndexFromMultiIndex(multi_id);
 
         return OriginalTensorDesc::GetOffsetFromMultiIndex(original_multi_id);
     }
 
     template <class... Is>
-    __host__ __device__ static index_t GetOffsetFromMultiIndex(Is... is)
+    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(Is... is)
     {
         return GetOffsetFromMultiIndex(Array<index_t, nDim>{is...});
     }
 
-    __host__ __device__ static Array<index_t, nDim> GetMultiIndexFrom1dIndex(index_t id)
+    __host__ __device__ static constexpr Array<index_t, nDim> GetMultiIndexFrom1dIndex(index_t id)
     {
         constexpr auto dummy_desc = make_ConstantTensorDescriptor_packed(GetLengths());
 

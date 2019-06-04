@@ -140,7 +140,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_N = 2;
-#elif 1
+#elif 0
     // for 3x3, 34x34, v1r3, Pascal
     // for 3x3, 28x28, v1r3, Pascal
     // for 3x3, 14x14, v1r3, Pascal

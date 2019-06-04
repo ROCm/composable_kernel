@@ -4,9 +4,9 @@
 struct forwarder
 {
     template <typename T>
-    __host__ __device__ constexpr T operator()(T&& x) const
+    __host__ __device__ constexpr T&& operator()(T&& x) const
     {
-        return std::forward<T>(x);
+        return static_cast<T&&>(x);
     }
 };
 
@@ -76,7 +76,7 @@ template <index_t Iter, index_t Remaining, index_t Increment>
 struct static_for_impl
 {
     template <class F>
-    __host__ __device__ void operator()(F f) const
+    constexpr __host__ __device__ void operator()(F f) const
     {
         static_assert(Remaining % Increment == 0, "wrong! Remaining % Increment != 0");
         static_assert(Increment <= Remaining, "will go out-of-range");
@@ -90,7 +90,7 @@ template <index_t Iter, index_t Increment>
 struct static_for_impl<Iter, 0, Increment>
 {
     template <class F>
-    __host__ __device__ void operator()(F) const
+    constexpr __host__ __device__ void operator()(F) const
     {
         // no work left, just return
         return;
@@ -102,13 +102,19 @@ template <index_t NBegin, index_t NEnd, index_t Increment>
 struct static_for
 {
     template <class F>
-    __host__ __device__ void operator()(F f) const
+    constexpr __host__ __device__ void operator()(F f) const
     {
+        static_assert(NBegin <= NEnd, "wrongs! should have NBegin <= NEnd");
+
         static_assert((NEnd - NBegin) % Increment == 0,
                       "Wrong! should satisfy (NEnd - NBegin) % Increment == 0");
 
+#if 0
         static_if<(NBegin < NEnd)>{}(
             [&](auto fwd) { static_for_impl<NBegin, NEnd - NBegin, fwd(Increment)>{}(f); });
+#else
+        static_for_impl<NBegin, NEnd - NBegin, Increment>{}(f);
+#endif
     }
 };
 
