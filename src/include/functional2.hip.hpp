@@ -1,106 +1,80 @@
 #pragma once
+#include "functional.hip.hpp"
 #include "Sequence.hip.hpp"
 
-// RemainLengths: Sequence<...>
-template <class RemainLengths>
-struct static_ford_impl
+#if 0
+template <index_t Iter, index_t Remaining, index_t Increment>
+struct static_for_impl
 {
-    // F signature: F(Sequence<...> multi_id)
-    // CurrentMultiIndex: Sequence<...>
-    template <class F, class CurrentMultiIndex>
-    __host__ __device__ void operator()(F f, CurrentMultiIndex) const
-    {
-        static_assert(RemainLengths::GetSize() > 0, "wrong! should not get here");
-
-        static_for<0, RemainLengths::Front(), 1>{}([=](auto I) {
-            static_ford_impl<decltype(RemainLengths::PopFront())>{}(f,
-                                                                    CurrentMultiIndex::PushBack(I));
-        });
-    }
-};
-
-template <>
-struct static_ford_impl<Sequence<>>
-{
-    // F signature: F(Sequence<...> multi_id)
-    // CurrentMultiIndex: Sequence<...>
-    template <class F, class CurrentMultiIndex>
-    __host__ __device__ void operator()(F f, CurrentMultiIndex) const
-    {
-        f(CurrentMultiIndex{});
-    }
-};
-
-// Lengths is Sequence<...>
-template <class Lengths>
-struct static_ford
-{
-    // F signature: F(Sequence<...> multi_id)
     template <class F>
-    __host__ __device__ void operator()(F f) const
+    constexpr __host__ __device__ void operator()(F f) const
     {
-        static_assert(Lengths::GetSize() > 0, "wrong! Lengths is empty");
+        static_assert(Remaining % Increment == 0, "wrong! Remaining % Increment != 0");
+        static_assert(Increment <= Remaining, "will go out-of-range");
 
-        static_ford_impl<Lengths>{}(f, Sequence<>{});
+        f(Number<Iter>{});
+        static_for_impl<Iter + Increment, Remaining - Increment, Increment>{}(f);
     }
 };
 
-template <index_t RemainDim>
-struct ford_impl
+template <index_t Iter, index_t Increment>
+struct static_for_impl<Iter, 0, Increment>
 {
-    // F signature: F(Array<...> multi_id)
-    // CurrentMultiIndex: Array<...>
-    // RemainLengths: Sequence<...>
-    template <class F, class CurrentMultiIndex, class RemainLengths>
-    __host__ __device__ void
-    operator()(F f, CurrentMultiIndex current_multi_id, RemainLengths) const
-    {
-        static_assert(RemainLengths::GetSize() == RemainDim, "wrong!");
-        static_assert(RemainDim > 1, "wrong!");
-
-        constexpr auto next_length = RemainLengths{}.Front();
-
-        for(index_t i = 0; i < next_length; ++i)
-        {
-            ford_impl<RemainDim - 1>{}(f, current_multi_id.PushBack(i), RemainLengths{}.PopFront());
-        }
-    }
-};
-
-template <>
-struct ford_impl<1>
-{
-    // F signature: F(Array<...> multi_id)
-    // CurrentMultiIndex: Array<...>
-    // RemainLengths: Sequence<...>
-    template <class F, class CurrentMultiIndex, class RemainLengths>
-    __host__ __device__ void
-    operator()(F f, CurrentMultiIndex current_multi_id, RemainLengths) const
-    {
-        static_assert(RemainLengths::GetSize() == 1, "wrong!");
-
-        constexpr index_t last_length = RemainLengths{}.Front();
-
-        for(index_t i = 0; i < last_length; ++i)
-        {
-            f(current_multi_id.PushBack(i));
-        }
-    }
-};
-
-// Lengths is Sequence<...>
-template <class Lengths>
-struct ford
-{
-    // F signature: F(Array<...> multi_id)
     template <class F>
-    __host__ __device__ void operator()(F f) const
+    constexpr __host__ __device__ void operator()(F) const
     {
-        constexpr index_t first_length = Lengths{}.Front();
-
-        for(index_t i = 0; i < first_length; ++i)
-        {
-            ford_impl<Lengths::GetSize() - 1>{}(f, Array<index_t, 1>{i}, Lengths{}.PopFront());
-        }
+        // no work left, just return
+        return;
     }
 };
+
+// F signature: F(Number<Iter>)
+template <index_t NBegin, index_t NEnd, index_t Increment>
+struct static_for
+{
+    template <class F>
+    constexpr __host__ __device__ void operator()(F f) const
+    {
+        static_assert(NBegin <= NEnd, "wrongs! should have NBegin <= NEnd");
+
+        static_assert((NEnd - NBegin) % Increment == 0,
+                      "Wrong! should satisfy (NEnd - NBegin) % Increment == 0");
+
+#if 0
+        static_if<(NBegin < NEnd)>{}(
+            [&](auto fwd) { static_for_impl<NBegin, NEnd - NBegin, fwd(Increment)>{}(f); });
+#else
+        static_for_impl<NBegin, NEnd - NBegin, Increment>{}(f);
+#endif
+    }
+};
+#else
+template <class>
+struct static_for_impl;
+
+template <index_t... Is>
+struct static_for_impl<Sequence<Is...>>
+{
+    template <class F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        swallow{(f(Number<Is>{}), 0)...};
+    }
+};
+
+// F signature: F(Number<Iter>)
+template <index_t NBegin, index_t NEnd, index_t Increment>
+struct static_for
+{
+    template <class F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        static_assert(NBegin <= NEnd, "wrongs! should have NBegin <= NEnd");
+
+        static_assert((NEnd - NBegin) % Increment == 0,
+                      "Wrong! should satisfy (NEnd - NBegin) % Increment == 0");
+
+        static_for_impl<typename arithmetic_sequence_gen<NBegin, NEnd, Increment>::SeqType>{}(f);
+    }
+};
+#endif

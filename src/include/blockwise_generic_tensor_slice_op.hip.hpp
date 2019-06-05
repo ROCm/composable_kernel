@@ -256,6 +256,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
+#if 0
             constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
 
             const auto clipboard_data_multi_id_begin =
@@ -269,6 +270,18 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
             const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(
                 dst_data_multi_id_begin); // cannot not constexpr, why?
+#else
+            constexpr auto clipboard_data_multi_id_begin =
+                repeat_multi_id_ * thread_sub_tensor_lengths;
+
+            constexpr auto dst_data_multi_id_begin = repeat_multi_id_ * data_per_cluster_per_dims;
+
+            constexpr index_t clipboard_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
+
+            constexpr index_t dst_offset =
+                DstDesc{}.GetOffsetFromMultiIndex(dst_data_multi_id_begin);
+#endif
 
             threadwise_generic_tensor_slice_copy_v1(thread_tensor_desc,
                                                     p_clipboard + clipboard_offset,

@@ -443,7 +443,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 3x3 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
@@ -455,7 +455,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
@@ -552,9 +552,21 @@ int main(int argc, char* argv[])
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
 #elif 0
+    // 1x1 filter, 7x7 image
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 512;
+    constexpr index_t HI = 7;
+    constexpr index_t WI = 7;
+    constexpr index_t K  = 2048;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 0
     // 1x1 filter, 73x73 image
     constexpr index_t N  = 128;
-    constexpr index_t C  = 64;
+    constexpr index_t C  = 512;
     constexpr index_t HI = 73;
     constexpr index_t WI = 73;
     constexpr index_t K  = 128;
