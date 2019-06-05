@@ -115,15 +115,13 @@ struct ConstantMergedTensorDescriptor
         }
 
         template <index_t I>
-        constexpr __host__ __device__ bool operator()(Number<I>) const
+        __host__ __device__ constexpr void operator()(Number<I>) const
         {
             constexpr index_t idim_original = OriginalDimsPartial::Get(Number<I>{});
 
             index_t itmp = original_multi_id_partial_ref.Get(Number<I>{});
 
             original_multi_id_ref.Set(Number<idim_original>{}, itmp);
-
-            return true;
         }
     };
 
@@ -139,7 +137,7 @@ struct ConstantMergedTensorDescriptor
         }
 
         template <index_t IDim>
-        constexpr __host__ __device__ bool operator()(Number<IDim>) const
+        __host__ __device__ constexpr void operator()(Number<IDim>) const
         {
             constexpr auto original_dims_partial =
                 std::get<IDim>(std::tuple<OriginalDimMergeSeqs...>{});
@@ -152,11 +150,10 @@ struct ConstantMergedTensorDescriptor
             static_for<0, original_dims_partial.GetSize(), 1>{}(
                 GetOriginalMultiIndexFromMultiIndex_impl1<decltype(original_dims_partial)>(
                     original_multi_id_partial, original_multi_id_ref));
-
-            return true;
         }
     };
 
+    // return type is Array<...>
     __host__ __device__ static constexpr auto
     GetOriginalMultiIndexFromMultiIndex(Array<index_t, nDim> multi_id)
     {
@@ -176,16 +173,6 @@ struct ConstantMergedTensorDescriptor
         constexpr auto original_multi_id = GetOriginalMultiIndexFromMultiIndex(multi_id);
 
         return OriginalTensorDesc::GetOffsetFromMultiIndex(original_multi_id);
-    }
-#endif
-
-#if 0
-    // return type is Sequence<...>
-    template <index_t... Is>
-    __host__ __device__ static constexpr auto GetOriginalMultiIndexFromMultiIndex(Sequence<Is...>)
-    {
-        // not implemented
-        return Sequence<>{};
     }
 #endif
 

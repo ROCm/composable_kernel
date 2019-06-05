@@ -37,10 +37,11 @@ struct Sequence
     template <class MapOld2New>
     __host__ __device__ static constexpr auto ReorderGivenOld2New(MapOld2New /*old2new*/)
     {
+#if 0
         static_assert(is_same<sequence_sort<MapOld2New>::SortedSeqType,
                               arithmetic_sequence_gen<0, mSize, 1>::SeqType>::value,
                       "wrong! invalid old2new map");
-
+#endif
         constexpr auto map_new2old = typename sequence_map_inverse<MapOld2New>::SeqMapType{};
 
         return ReorderGivenNew2Old(map_new2old);
@@ -99,6 +100,7 @@ struct Sequence
     __host__ __device__ static constexpr auto Modify(Number<I>, Number<X>);
 };
 
+// merge sequence
 template <class, class>
 struct sequence_merge;
 
@@ -108,6 +110,7 @@ struct sequence_merge<Sequence<Xs...>, Sequence<Ys...>>
     using SeqType = Sequence<Xs..., Ys...>;
 };
 
+// arithmetic sqeuence
 template <index_t IBegin, index_t NSize, index_t Increment>
 struct arithmetic_sequence_gen_impl
 {
@@ -139,7 +142,31 @@ struct arithmetic_sequence_gen
         typename arithmetic_sequence_gen_impl<IBegin, IEnd - IBegin, Increment>::SeqType;
 };
 
-// reverse scan with init
+// transform sequence
+template <class, class>
+struct sequence_transform;
+
+template <class F, index_t... Is>
+struct sequence_transform<F, Sequence<Is...>>
+{
+    using SeqType = Sequence<F{}(Is)...>;
+};
+
+// uniform sequence
+template <index_t NSize, index_t I>
+struct uniform_sequence_gen
+{
+    struct return_constant
+    {
+        __host__ __device__ constexpr index_t operator()(index_t) const { return I; }
+    };
+
+    using SeqType = typename sequence_transform<
+        return_constant,
+        typename arithmetic_sequence_gen<0, NSize, 1>::SeqType>::SeqType;
+};
+
+// reverse inclusive scan (with init) sequence
 template <class, class, index_t>
 struct sequence_reverse_inclusive_scan;
 
@@ -166,22 +193,7 @@ struct sequence_reverse_inclusive_scan<Sequence<>, Reduce, Init>
     using SeqType = Sequence<>;
 };
 
-#if 0
-// reverse scan with token
-template <class, class, index_t>
-struct sequence_reverse_inclusive_token_scan;
-
-template <index_t I, index_t... Is, class F, index_t Token>
-struct sequence_reverse_inclusive_token_scan<Sequence<I, Is...>, F, Token>
-{
-    using old_scan = typename sequence_reverse_inclusive_token_scan<Sequence<Is...>, F, Token>::SeqType;
-
-    static constexpr index_t new_reduce = Reduce{}(I, old_scan{}.Front());
-
-    using SeqType = typename sequence_merge<Sequence<new_reduce>, old_scan>::SeqType;
-};
-#endif
-
+// extract sequence
 template <class, class>
 struct sequence_extract;
 
@@ -191,6 +203,7 @@ struct sequence_extract<Seq, Sequence<Is...>>
     using SeqType = Sequence<Seq{}.Get(Number<Is>{})...>;
 };
 
+// split sequence
 template <class Seq, index_t I>
 struct sequence_split
 {
@@ -203,6 +216,7 @@ struct sequence_split
     using SeqType1 = typename sequence_extract<Seq, range1>::SeqType;
 };
 
+// reverse sequence
 template <class Seq>
 struct sequence_reverse
 {
@@ -308,8 +322,10 @@ __host__ __device__ constexpr auto operator-(Sequence<Xs...> seq_x, Sequence<Ys.
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
 
+#if 0
     static_for<0, seq_x.GetSize(), 1>{}(
         [&](auto I) { static_assert(seq_x.Get(I) >= seq_y.Get(I), "wrong! going to undeflow"); });
+#endif
 
     return Sequence<(Xs - Ys)...>{};
 }
@@ -388,10 +404,12 @@ __host__ __device__ constexpr auto operator-(Number<Y>, Sequence<Xs...>)
 {
     constexpr auto seq_x = Sequence<Xs...>{};
 
+#if 0
     static_for<0, sizeof...(Xs), 1>{}([&](auto Iter) {
         constexpr auto I = decltype(Iter){};
         static_assert(seq_x.Get(I) <= Y, "wrong! going to underflow");
     });
+#endif
 
     return Sequence<(Y - Xs)...>{};
 }

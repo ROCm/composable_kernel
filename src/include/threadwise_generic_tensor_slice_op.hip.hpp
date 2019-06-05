@@ -77,14 +77,14 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
             *reinterpret_cast<const vector_t*>(&p_src[src_index]);
     });
 #else
-    static_ford<decltype(access_lengths)>{}([&](auto access_multi_id_) {
-        const auto access_multi_id = sequence2array(access_multi_id_);
+    static_ford<decltype(access_lengths)>{}([&](auto access_multi_id) {
+        constexpr index_t itmp = access_multi_id.Back() * DataPerAccess;
 
-        auto data_multi_id_in_access_order      = access_multi_id;
-        data_multi_id_in_access_order[nDim - 1] = access_multi_id[nDim - 1] * DataPerAccess;
+        constexpr auto data_multi_id_in_access_order =
+            access_multi_id.Modify(Number<nDim - 1>{}, Number<itmp>{});
 
-        const auto data_multi_id =
-            reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});
+        constexpr auto data_multi_id = reorder_array_given_old2new(
+            sequence2array(data_multi_id_in_access_order), DimAccessOrder{});
 
         const index_t src_index =
             SrcDesc::GetOffsetFromMultiIndex(src_multi_id_begin + data_multi_id);
