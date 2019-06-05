@@ -218,11 +218,13 @@ struct BlockwiseGenericTensorSliceCopy_v1
             const index_t clipboard_offset = thread_tensor_desc.GetOffsetFromMultiIndex(
                 clipboard_data_multi_id_begin); // cannot not constexpr, why?
 #else
+            constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
+
             constexpr auto src_thread_data_multi_id_begin =
-                repeat_multi_id_ * data_per_cluster_per_dims;
+                repeat_multi_id * data_per_cluster_per_dims;
 
             constexpr auto clipboard_data_multi_id_begin =
-                repeat_multi_id_ * thread_sub_tensor_lengths;
+                repeat_multi_id * thread_sub_tensor_lengths;
 
             constexpr index_t src_offset =
                 SrcDesc::GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
@@ -271,10 +273,12 @@ struct BlockwiseGenericTensorSliceCopy_v1
             const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(
                 dst_data_multi_id_begin); // cannot not constexpr, why?
 #else
-            constexpr auto clipboard_data_multi_id_begin =
-                repeat_multi_id_ * thread_sub_tensor_lengths;
+            constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
-            constexpr auto dst_data_multi_id_begin = repeat_multi_id_ * data_per_cluster_per_dims;
+            constexpr auto clipboard_data_multi_id_begin =
+                repeat_multi_id * thread_sub_tensor_lengths;
+
+            constexpr auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
 
             constexpr index_t clipboard_offset =
                 thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
