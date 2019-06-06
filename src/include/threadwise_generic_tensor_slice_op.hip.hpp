@@ -62,7 +62,7 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
 #if 1
     ford<decltype(access_lengths)>{}([&](auto access_multi_id) {
         auto data_multi_id_in_access_order      = access_multi_id;
-        data_multi_id_in_access_order[nDim - 1] = access_multi_id[nDim - 1] * DataPerAccess;
+        data_multi_id_in_access_order(nDim - 1) = access_multi_id[nDim - 1] * DataPerAccess;
 
         const auto data_multi_id =
             reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});

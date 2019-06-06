@@ -9,6 +9,8 @@
 template <class OriginalTensorDesc, class... OriginalDimMergeSeqs>
 struct ConstantMergedTensorDescriptor
 {
+    using Type = ConstantMergedTensorDescriptor;
+
     static constexpr auto mOriginalDimMergeSeqs = std::tuple<OriginalDimMergeSeqs...>{};
 
     static constexpr index_t nDim         = sizeof...(OriginalDimMergeSeqs);
@@ -74,43 +76,17 @@ struct ConstantMergedTensorDescriptor
         return OriginalTensorDesc::GetElementSize();
     }
 
-#if 0
-    __host__ __device__ static constexpr auto
-    GetOriginalMultiIndexFromMultiIndex(Array<index_t, nDim> multi_id)
-    {
-        Array<index_t, nOriginalDim> original_multi_id;
-
-        static_for<0, nDim, 1>{}([&](auto IDim) {
-            constexpr index_t idim               = IDim.Get();
-            constexpr auto original_dims_partial = std::get<idim>(mOriginalDimMergeSeqs);
-
-            // get partial original-multi-id corresponding to this merged dimension
-            const auto original_multi_id_partial =
-                OriginalTensorDesc::Extract(original_dims_partial)
-                    .GetMultiIndexFrom1dIndex(multi_id[idim]);
-
-            static_for<0, original_dims_partial.GetSize(), 1>{}([&](auto I_) {
-                constexpr auto I                = decltype(I_){};
-                constexpr index_t idim_original = original_dims_partial.Get(I);
-
-                original_multi_id[idim_original] = original_multi_id_partial[I.Get()];
-            });
-        });
-
-        return original_multi_id;
-    }
-#else
     template <class OriginalDimsPartial>
-    struct GetOriginalMultiIndexFromMultiIndex_impl1
+    struct lambda_1_GetOriginalMultiIndexFromMultiIndex
     {
-        const Array<index_t, OriginalDimsPartial::GetSize()>& original_multi_id_partial_ref;
-        Array<index_t, nOriginalDim>& original_multi_id_ref;
+        const Array<index_t, OriginalDimsPartial::GetSize()>& original_multi_id_partial;
+        Array<index_t, nOriginalDim>& original_multi_id;
 
-        __host__ __device__ constexpr GetOriginalMultiIndexFromMultiIndex_impl1(
-            const Array<index_t, OriginalDimsPartial::GetSize()>& original_multi_id_partial,
-            Array<index_t, nOriginalDim>& original_multi_id)
-            : original_multi_id_partial_ref(original_multi_id_partial),
-              original_multi_id_ref(original_multi_id)
+        __host__ __device__ constexpr lambda_1_GetOriginalMultiIndexFromMultiIndex(
+            const Array<index_t, OriginalDimsPartial::GetSize()>& original_multi_id_partial_,
+            Array<index_t, nOriginalDim>& original_multi_id_)
+            : original_multi_id_partial(original_multi_id_partial_),
+              original_multi_id(original_multi_id_)
         {
         }
 
@@ -119,37 +95,36 @@ struct ConstantMergedTensorDescriptor
         {
             constexpr index_t idim_original = OriginalDimsPartial::Get(Number<I>{});
 
-            index_t itmp = original_multi_id_partial_ref.Get(Number<I>{});
+            index_t itmp = original_multi_id_partial[I];
 
-            original_multi_id_ref.Set(Number<idim_original>{}, itmp);
+            original_multi_id.Set(Number<idim_original>{}, itmp);
         }
     };
 
-    struct GetOriginalMultiIndexFromMultiIndex_impl0
+    struct lambda_0_GetOriginalMultiIndexFromMultiIndex
     {
-        const Array<index_t, nDim>& multi_id_ref;
-        Array<index_t, nOriginalDim>& original_multi_id_ref;
+        const Array<index_t, nDim>& multi_id;
+        Array<index_t, nOriginalDim>& original_multi_id;
 
-        __host__ __device__ constexpr GetOriginalMultiIndexFromMultiIndex_impl0(
-            const Array<index_t, nDim>& multi_id, Array<index_t, nOriginalDim>& original_multi_id)
-            : multi_id_ref(multi_id), original_multi_id_ref(original_multi_id)
+        __host__ __device__ constexpr lambda_0_GetOriginalMultiIndexFromMultiIndex(
+            const Array<index_t, nDim>& multi_id_, Array<index_t, nOriginalDim>& original_multi_id_)
+            : multi_id(multi_id_), original_multi_id(original_multi_id_)
         {
         }
 
         template <index_t IDim>
         __host__ __device__ constexpr void operator()(Number<IDim>) const
         {
-            constexpr auto original_dims_partial =
-                std::get<IDim>(std::tuple<OriginalDimMergeSeqs...>{});
+            constexpr auto original_dims_partial = std::get<IDim>(Type::mOriginalDimMergeSeqs);
 
             // get partial original-multi-id corresponding to this merged dimension
             const auto original_multi_id_partial =
                 OriginalTensorDesc::Extract(original_dims_partial)
-                    .GetMultiIndexFrom1dIndex(multi_id_ref[IDim]);
+                    .GetMultiIndexFrom1dIndex(multi_id[IDim]);
 
             static_for<0, original_dims_partial.GetSize(), 1>{}(
-                GetOriginalMultiIndexFromMultiIndex_impl1<decltype(original_dims_partial)>(
-                    original_multi_id_partial, original_multi_id_ref));
+                lambda_1_GetOriginalMultiIndexFromMultiIndex<decltype(original_dims_partial)>(
+                    original_multi_id_partial, original_multi_id));
         }
     };
 
@@ -160,7 +135,7 @@ struct ConstantMergedTensorDescriptor
         Array<index_t, nOriginalDim> original_multi_id;
 
         static_for<0, nDim, 1>{}(
-            GetOriginalMultiIndexFromMultiIndex_impl0(multi_id, original_multi_id));
+            lambda_0_GetOriginalMultiIndexFromMultiIndex(multi_id, original_multi_id));
 
         return original_multi_id;
     }
@@ -174,7 +149,6 @@ struct ConstantMergedTensorDescriptor
 
         return OriginalTensorDesc::GetOffsetFromMultiIndex(original_multi_id);
     }
-#endif
 
     __host__ __device__ static constexpr index_t
     GetOffsetFromMultiIndex(Array<index_t, nDim> multi_id)
@@ -192,9 +166,9 @@ struct ConstantMergedTensorDescriptor
 
     __host__ __device__ static constexpr Array<index_t, nDim> GetMultiIndexFrom1dIndex(index_t id)
     {
-        constexpr auto dummy_desc = make_ConstantTensorDescriptor_packed(GetLengths());
+        constexpr auto packed_desc = make_ConstantTensorDescriptor_packed(GetLengths());
 
-        return dummy_desc.GetMultiIndexFrom1dIndex(id);
+        return packed_desc.GetMultiIndexFrom1dIndex(id);
     }
 };
 

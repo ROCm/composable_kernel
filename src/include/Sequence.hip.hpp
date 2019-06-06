@@ -16,7 +16,23 @@ struct Sequence
     {
         static_assert(I < mSize, "wrong! I too large");
 
-        // the last dummy element is to prevent compiler complain about empty Sequence
+        // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
+        const index_t mData[mSize + 1] = {Is..., 0};
+        return mData[I];
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr index_t operator[](Number<I>) const
+    {
+        static_assert(I < mSize, "wrong! I too large");
+
+        const index_t mData[mSize + 1] = {Is..., 0};
+        return mData[I];
+    }
+
+    // make sure I is constepxr
+    __host__ __device__ constexpr index_t operator[](index_t I) const
+    {
         const index_t mData[mSize + 1] = {Is..., 0};
         return mData[I];
     }
@@ -29,6 +45,9 @@ struct Sequence
                               arithmetic_sequence_gen<0, mSize, 1>::SeqType>::value,
                       "wrong! invalid new2old map");
 #endif
+
+        static_assert(sizeof...(Is) == sizeof...(IRs),
+                      "wrong! new2old map should have the same size as Sequence to be rerodered");
 
         return Sequence<Type{}.Get(Number<IRs>{})...>{};
     }
@@ -322,11 +341,6 @@ __host__ __device__ constexpr auto operator-(Sequence<Xs...> seq_x, Sequence<Ys.
 {
     static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong! inconsistent size");
 
-#if 0
-    static_for<0, seq_x.GetSize(), 1>{}(
-        [&](auto I) { static_assert(seq_x.Get(I) >= seq_y.Get(I), "wrong! going to undeflow"); });
-#endif
-
     return Sequence<(Xs - Ys)...>{};
 }
 
@@ -363,15 +377,6 @@ __host__ __device__ constexpr auto operator+(Sequence<Xs...>, Number<Y>)
 template <index_t... Xs, index_t Y>
 __host__ __device__ constexpr auto operator-(Sequence<Xs...>, Number<Y>)
 {
-#if 0 // TODO: turn it on. Doesn't compile
-    constexpr auto seq_x = Sequence<Xs...>{};
-
-    static_for<0, sizeof...(Xs), 1>{}([&](auto Iter) {
-        constexpr auto I = decltype(Iter){};
-        static_assert(seq_x.Get(I) >= Y, "wrong! going to underflow");
-    });
-#endif
-
     return Sequence<(Xs - Y)...>{};
 }
 
@@ -403,13 +408,6 @@ template <index_t Y, index_t... Xs>
 __host__ __device__ constexpr auto operator-(Number<Y>, Sequence<Xs...>)
 {
     constexpr auto seq_x = Sequence<Xs...>{};
-
-#if 0
-    static_for<0, sizeof...(Xs), 1>{}([&](auto Iter) {
-        constexpr auto I = decltype(Iter){};
-        static_assert(seq_x.Get(I) <= Y, "wrong! going to underflow");
-    });
-#endif
 
     return Sequence<(Y - Xs)...>{};
 }
@@ -480,25 +478,6 @@ template <class Seq, class Reduce, index_t Init>
 __host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce, Number<Init>)
 {
     return reverse_inclusive_scan_sequence(Seq{}.Reverse(), Reduce{}, Number<Init>{}).Reverse();
-}
-
-template <class Seq>
-struct accumulate_on_sequence_impl
-{
-    template <class IDim>
-    __host__ __device__ constexpr index_t operator()(IDim) const
-    {
-        return Seq{}.Get(IDim{});
-    }
-};
-
-template <class Seq, class Reduce, index_t I>
-__host__ __device__ constexpr index_t
-    accumulate_on_sequence(Seq, Reduce, Number<I> /*initial_value*/)
-{
-    constexpr index_t a =
-        static_const_reduce_n<Seq::mSize>{}(accumulate_on_sequence_impl<Seq>{}, Reduce{});
-    return Reduce{}(a, I);
 }
 
 template <index_t... Is>

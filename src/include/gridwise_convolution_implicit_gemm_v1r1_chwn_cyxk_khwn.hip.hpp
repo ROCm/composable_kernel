@@ -103,7 +103,7 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 
         // tensor view of blockwise input and weight in LDS
         //   be careful of alignment
-        constexpr index_t max_align = mod_conv::max(InBlockCopyDataPerRead_N,
+        constexpr index_t max_align = mod_conv::lcm(InBlockCopyDataPerRead_N,
                                                     WeiBlockCopyDataPerRead_K,
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
@@ -119,11 +119,11 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 
         constexpr auto wei_cyx_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock * Y * X, KPerBlock>{},
-            Number<mod_conv::max(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
+            Number<mod_conv::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         constexpr auto wei_c_y_x_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, Y, X, KPerBlock>{},
-            Number<mod_conv::max(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
+            Number<mod_conv::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         // tensor view of threadwise output in register
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor(
