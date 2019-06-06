@@ -122,7 +122,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             constexpr auto src_partial_original_desc =
                 SrcDesc::GetOriginalTensorDescriptor().Extract(src_partial_original_dims);
 
-            mThreadSrcPartialOffsets[idim] = src_partial_original_desc.GetOffsetFromMultiIndex(
+            mThreadSrcPartialOffsets(idim) = src_partial_original_desc.GetOffsetFromMultiIndex(
                 extract_array(mThreadSrcOriginalMultiId, src_partial_original_dims));
         });
 
@@ -136,7 +136,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             constexpr auto dst_partial_original_desc =
                 DstDesc::GetOriginalTensorDescriptor().Extract(dst_partial_original_dims);
 
-            mThreadDstPartialOffsets[idim] = dst_partial_original_desc.GetOffsetFromMultiIndex(
+            mThreadDstPartialOffsets(idim) = dst_partial_original_desc.GetOffsetFromMultiIndex(
                 extract_array(mThreadDstOriginalMultiId, dst_partial_original_dims));
         });
 
@@ -369,7 +369,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                 constexpr auto I                = decltype(I_){};
                 constexpr index_t idim_original = src_partial_original_dims.Get(I);
 
-                mThreadSrcOriginalMultiId[idim_original] =
+                mThreadSrcOriginalMultiId(idim_original) =
                     new_src_partial_original_multi_id[I.Get()];
             });
 
@@ -381,7 +381,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                     new_src_partial_original_multi_id);
 
             // update "mThreadSrcPartialOffsets"
-            mThreadSrcPartialOffsets[idim] = new_src_partial_offset;
+            mThreadSrcPartialOffsets(idim) = new_src_partial_offset;
 
             // update "mThreadSrcOffset", do "+" before "-" to avoid underflow
             mThreadSrcOffset = (mThreadSrcOffset + new_src_partial_offset) - old_src_partial_offset;
@@ -401,15 +401,15 @@ struct BlockwiseGenericTensorSliceCopy_v1
             static_if<PositiveDirection>{}([&](auto fwd) {
                 mThreadSrcOffset += StepSize * fwd(SrcDesc{}).GetStride(IDim);
 
-                mThreadSrcOriginalMultiId[idim_original] += StepSize;
+                mThreadSrcOriginalMultiId(idim_original) += StepSize;
 
-                mThreadSrcPartialOffsets[idim] += StepSize * fwd(SrcDesc{}).GetStride(IDim);
+                mThreadSrcPartialOffsets(idim) += StepSize * fwd(SrcDesc{}).GetStride(IDim);
             }).Else([&](auto fwd) {
                 mThreadSrcOffset -= StepSize * fwd(SrcDesc{}).GetStride(IDim);
 
-                mThreadSrcOriginalMultiId[idim_original] -= StepSize;
+                mThreadSrcOriginalMultiId(idim_original) -= StepSize;
 
-                mThreadSrcPartialOffsets[idim] -= StepSize * fwd(SrcDesc{}).GetStride(IDim);
+                mThreadSrcPartialOffsets(idim) -= StepSize * fwd(SrcDesc{}).GetStride(IDim);
             });
         });
     }

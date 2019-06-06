@@ -110,7 +110,7 @@ __host__ __device__ constexpr T min(T x, Ts... xs)
 // this is wrong
 // TODO: implement correct least common multiple, instead of calling max()
 template <class T, class... Ts>
-__host__ __device__ constexpr T least_common_multiple(T x, Ts... xs)
+__host__ __device__ constexpr T lcm(T x, Ts... xs)
 {
     return max(x, xs...);
 }

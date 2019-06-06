@@ -2,53 +2,6 @@
 #include "functional.hip.hpp"
 #include "Sequence.hip.hpp"
 
-#if 0
-template <index_t Iter, index_t Remaining, index_t Increment>
-struct static_for_impl
-{
-    template <class F>
-    constexpr __host__ __device__ void operator()(F f) const
-    {
-        static_assert(Remaining % Increment == 0, "wrong! Remaining % Increment != 0");
-        static_assert(Increment <= Remaining, "will go out-of-range");
-
-        f(Number<Iter>{});
-        static_for_impl<Iter + Increment, Remaining - Increment, Increment>{}(f);
-    }
-};
-
-template <index_t Iter, index_t Increment>
-struct static_for_impl<Iter, 0, Increment>
-{
-    template <class F>
-    constexpr __host__ __device__ void operator()(F) const
-    {
-        // no work left, just return
-        return;
-    }
-};
-
-// F signature: F(Number<Iter>)
-template <index_t NBegin, index_t NEnd, index_t Increment>
-struct static_for
-{
-    template <class F>
-    constexpr __host__ __device__ void operator()(F f) const
-    {
-        static_assert(NBegin <= NEnd, "wrongs! should have NBegin <= NEnd");
-
-        static_assert((NEnd - NBegin) % Increment == 0,
-                      "Wrong! should satisfy (NEnd - NBegin) % Increment == 0");
-
-#if 0
-        static_if<(NBegin < NEnd)>{}(
-            [&](auto fwd) { static_for_impl<NBegin, NEnd - NBegin, fwd(Increment)>{}(f); });
-#else
-        static_for_impl<NBegin, NEnd - NBegin, Increment>{}(f);
-#endif
-    }
-};
-#else
 template <class>
 struct static_for_impl;
 
@@ -77,4 +30,32 @@ struct static_for
         static_for_impl<typename arithmetic_sequence_gen<NBegin, NEnd, Increment>::SeqType>{}(f);
     }
 };
-#endif
+
+template <class Seq, class Reduce>
+struct lambda_accumulate_on_sequence
+{
+    const Reduce& f;
+    index_t& result;
+
+    __host__ __device__ constexpr lambda_accumulate_on_sequence(const Reduce& f_, index_t& result_)
+        : f(f_), result(result_)
+    {
+    }
+
+    template <class IDim>
+    __host__ __device__ constexpr index_t operator()(IDim) const
+    {
+        return result = f(result, Seq::Get(IDim{}));
+    }
+};
+
+template <class Seq, class Reduce, index_t Init>
+__host__ __device__ constexpr index_t
+accumulate_on_sequence(Seq, Reduce f, Number<Init> /*initial_value*/)
+{
+    index_t result = Init;
+
+    static_for<0, Seq::mSize, 1>{}(lambda_accumulate_on_sequence<Seq, Reduce>(f, result));
+
+    return result;
+}

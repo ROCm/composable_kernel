@@ -185,7 +185,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 
         // LDS: be careful of alignment
         constexpr index_t max_align =
-            mod_conv::max(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
+            mod_conv::lcm(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
         constexpr index_t in_block_space = in_cb_block_desc.GetElementSpace(Number<max_align>{});
 

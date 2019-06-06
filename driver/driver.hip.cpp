@@ -646,9 +646,9 @@ int main(int argc, char* argv[])
     device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw
 #elif 0
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn
-#elif 0
-    device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw
 #elif 1
+    device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw
+#elif 0
     device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw
 #endif
     (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);

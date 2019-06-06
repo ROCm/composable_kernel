@@ -5,9 +5,8 @@
 #include "ConstantMatrixDescriptor.hip.hpp"
 #include "blockwise_generic_tensor_slice_op.hip.hpp"
 #include "blockwise_gemm.hip.hpp"
-#include "threadwise_tensor_slice_op.hip.hpp"
 
-// define B = merge(N, Ho, Wo)
+// define B = merge(N0, Ho, Wo)
 template <index_t GridSize,
           index_t BlockSize,
           class Float,
@@ -42,7 +41,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                         Float* const __restrict__ p_out_global) const
     {
         // this is a mess
-        // TODO: fidn more elegent way of specifying (or calculating) performance parameters
+        // TODO: find more elegent way of specifying (or calculating) performance parameters
         static_assert(N2 == GemmNPerThreadSubC, "wrong!");
         static_assert((N1 * N2 * BPerBlock) %
                               (GemmNPerThreadSubC * GemmNLevel0Cluster * GemmNLevel1Cluster) ==
@@ -147,13 +146,12 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         //     be careful of LDS alignment
         constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, KPerBlock>{},
-            Number<mod_conv::max(WeiBlockCopyDataPerAccess_K, GemmDataPerReadA)>{});
+            Number<mod_conv::lcm(WeiBlockCopyDataPerAccess_K, GemmDataPerReadA)>{});
 
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
         //     this copy operator already have blockwise offset built-in
         auto blockwise_wei_copy =
-#if 1
             BlockwiseGenericTensorSliceCopy_v1<BlockSize,
                                                Float,
                                                decltype(wei_c_k_global_desc),
@@ -167,15 +165,6 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                                                WeiBlockCopyDataPerAccess_K,
                                                WeiBlockCopyDataPerAccess_K>(
                 {0, k_block_data_on_global}, {0, 0});
-#else
-            Blockwise2dTensorCopy3<BlockSize,
-                                   Float,
-                                   decltype(wei_c_k_global_desc),
-                                   decltype(wei_c_k_block_desc),
-                                   decltype(wei_c_k_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerAccess_K>({0, k_block_data_on_global},
-                                                                {0, 0});
-#endif
 
         // GEMM definition
         // c_mtx += transpose(a_mtx) * b_mtx
@@ -219,8 +208,17 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
             GemmDataPerReadA,
             GemmDataPerReadB>{};
 
+        // choose GEMM implementation here
+        const auto run_blockwise_gemm = [&](auto... Xs) {
+#if 1
+            return blockwise_gemm.Run(Xs...);
+#else
+            return blockwise_gemm.Run_asm(Xs...);
+#endif
+        };
+
         // LDS allocation for input and weight: be careful of alignment
-        constexpr index_t max_align = mod_conv::max(InBlockCopyDstDataPerWrite_N2,
+        constexpr index_t max_align = mod_conv::lcm(InBlockCopyDstDataPerWrite_N2,
                                                     WeiBlockCopyDataPerAccess_K,
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
@@ -264,7 +262,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
 
                     __syncthreads();
 
-                    blockwise_gemm.Run(p_wei_block, p_in_block, p_out_thread);
+                    run_blockwise_gemm(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
@@ -294,7 +292,6 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
 
                     __syncthreads();
 
-                    // move on C: C_N1_B_N2, C_K
                     blockwise_in_copy.MoveSlicingWindowOnSourceTensor(
                         I0, Number<CPerBlock>{}, True);
 
@@ -366,7 +363,8 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                 p_out_thread_on_global,
                 {0, 0, 0, 0, 0, 0, 0, 0},
                 out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths(),
-                arithmetic_sequence_gen<0, 8, 1>::SeqType{});
+                arithmetic_sequence_gen<0, 8, 1>::SeqType{},
+                Number<1>{});
         }
     }
 };

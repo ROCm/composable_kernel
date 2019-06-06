@@ -8,7 +8,7 @@ struct integral_constant
     __host__ __device__ constexpr T Get() const { return value; }
 };
 
-template <class T, index_t X, index_t Y>
+template <class T, T X, T Y>
 __host__ __device__ constexpr auto operator+(integral_constant<T, X>, integral_constant<T, Y>)
 {
     return integral_constant<T, X + Y>{};

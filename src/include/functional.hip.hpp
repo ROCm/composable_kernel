@@ -19,18 +19,7 @@ struct swallow
     }
 };
 
-#if 0
-template<class F>
-__host__ __device__ constexpr auto unpacker(F f)
-{
-    return [=](auto xs_array){ f(xs...); };
-}
-#endif
-
-// Emulate compile time if statement for C++14
-//   Get the idea from
-//   "https://baptiste-wicht.com/posts/2015/07/simulate-static_if-with-c11c14.html"
-// TODO: use if constexpr, when C++17 is supported
+// Emulate if constexpr
 template <bool Predicate>
 struct static_if
 {
@@ -79,30 +68,5 @@ struct static_if<false>
         //   instantiated here
         f(forwarder{});
         return Type{};
-    }
-};
-
-template <index_t NLoop>
-struct static_const_reduce_n
-{
-    // signature of F: F(Number<I>)
-    template <class F, class Reduce>
-    __host__ __device__ constexpr auto operator()(F f, Reduce r) const
-    {
-        static_assert(NLoop > 1, "out-of-range");
-
-        constexpr auto a = f(Number<NLoop - 1>{});
-        auto b = static_const_reduce_n<NLoop - 1>{}(f, r); // TODO: cannot use constexpr here, weird
-        return r(a, b);
-    }
-};
-
-template <>
-struct static_const_reduce_n<1>
-{
-    template <class F, class Reduce>
-    __host__ __device__ constexpr auto operator()(F f, Reduce) const
-    {
-        return f(Number<0>{});
     }
 };

@@ -108,7 +108,7 @@ struct GridwiseConvolutionImplicitGemm_v1r2_nchw_cyxk_khwn
 
         // LDS tensor view
         //   be careful of alignment
-        constexpr index_t max_align = mod_conv::max(InBlockReorderDataPerWrite_N,
+        constexpr index_t max_align = mod_conv::lcm(InBlockReorderDataPerWrite_N,
                                                     WeiBlockCopyDataPerRead_K,
                                                     GemmDataPerReadA,
                                                     GemmDataPerReadB);
