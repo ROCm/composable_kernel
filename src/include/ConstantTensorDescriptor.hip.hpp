@@ -66,10 +66,11 @@ struct ConstantTensorDescriptor
         {
         }
 
-        template <class X>
-        __host__ __device__ constexpr void operator()(X IDim) const
+        template <index_t IDim_>
+        __host__ __device__ constexpr void operator()(Number<IDim_>) const
         {
-            constexpr auto IDim_p1 = IDim + Number<1>{};
+            constexpr auto IDim    = Number<IDim_>{};
+            constexpr auto IDim_p1 = Number<IDim_ + 1>{};
 
             is_continuous =
                 is_continuous && (GetStride(IDim) >= GetStride(IDim_p1) &&
@@ -178,9 +179,10 @@ struct ConstantTensorDescriptor
         {
         }
 
-        template <class X>
-        __host__ __device__ constexpr void operator()(X IDim) const
+        template <class IDim_>
+        __host__ __device__ constexpr void operator()(IDim_) const
         {
+            constexpr auto IDim      = IDim_{};
             constexpr index_t stride = PackedStrides::Get(IDim);
             multi_id.Set(IDim, id / stride);
             id -= multi_id[IDim] * stride;
