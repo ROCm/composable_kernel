@@ -203,7 +203,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
-#if 1
+#if 0
             constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
 
             const auto src_thread_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
@@ -215,7 +215,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
             const index_t clipboard_offset =
                 thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
-#else
+#else // HIP compiler performs better with these codes
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
             constexpr auto src_thread_data_multi_id_begin =
@@ -256,7 +256,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
-#if 1
+#if 0
             constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
 
             const auto clipboard_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
@@ -267,7 +267,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                 thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
 
             const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(dst_data_multi_id_begin);
-#else
+#else // HIP compiler performs better with these codes
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
             constexpr auto clipboard_data_multi_id_begin =
@@ -337,27 +337,6 @@ struct BlockwiseGenericTensorSliceCopy_v1
             auto new_src_partial_original_multi_id =
                 src_partial_original_desc.UpdateMultiIndexGivenStepSizeOf1dIndex(
                     old_src_partial_original_multi_id, StepSize, direction);
-
-#if 0
-            {
-                if(debug_flag && get_block_1d_id() == 0)
-                {
-                    printf("id %5u %5u: "
-                           "old_src_partial_original_multi_id %u %u %u, "
-                           "new_src_partial_original_multi_id %u %u %u, "
-                           "mThreadSrcOffset %u, mThreadDstOffset %u \n",
-                           get_block_1d_id(),
-                           get_thread_local_1d_id(),
-                           old_src_partial_original_multi_id[0],
-                           old_src_partial_original_multi_id[1],
-                           old_src_partial_original_multi_id[2],
-                           new_src_partial_original_multi_id[0],
-                           new_src_partial_original_multi_id[1],
-                           new_src_partial_original_multi_id[2]
-                           );
-                }
-            }
-#endif
 
             // update "mThreadSrcOriginalMultiId"
             static_for<0, decltype(src_partial_original_dims)::GetSize(), 1>{}([&](auto I_) {
