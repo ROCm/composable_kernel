@@ -2,6 +2,9 @@
 #include "integral_constant.hip.hpp"
 #include "functional.hip.hpp"
 
+template <class Seq>
+struct is_valid_sequence_map;
+
 template <index_t... Is>
 struct Sequence
 {
@@ -40,27 +43,24 @@ struct Sequence
     template <index_t... IRs>
     __host__ __device__ static constexpr auto ReorderGivenNew2Old(Sequence<IRs...> /*new2old*/)
     {
-#if 0 // require sequence_sort, which is not implemented yet
-        static_assert(is_same<sequence_sort<Sequence<IRs...>>::SortedSeqType,
-                              arithmetic_sequence_gen<0, mSize, 1>::SeqType>::value,
-                      "wrong! invalid new2old map");
-#endif
-
         static_assert(sizeof...(Is) == sizeof...(IRs),
-                      "wrong! new2old map should have the same size as Sequence to be rerodered");
+                      "wrong! reorder map should have the same size as Sequence to be rerodered");
 
-        return Sequence<Type{}.Get(Number<IRs>{})...>{};
+        static_assert(is_valid_sequence_map<Sequence<IRs...>>::value, "wrong! invalid reorder map");
+
+        return Sequence<Type::Get(Number<IRs>{})...>{};
     }
 
 #if 0 // require sequence_sort, which is not implemented yet
     template <class MapOld2New>
     __host__ __device__ static constexpr auto ReorderGivenOld2New(MapOld2New /*old2new*/)
     {
-#if 0
-        static_assert(is_same<sequence_sort<MapOld2New>::SortedSeqType,
-                              arithmetic_sequence_gen<0, mSize, 1>::SeqType>::value,
-                      "wrong! invalid old2new map");
-#endif
+        static_assert(sizeof...(Is) == MapOld2New::GetSize(),
+                      "wrong! reorder map should have the same size as Sequence to be rerodered");
+
+        static_assert(is_valid_sequence_map<MapOld2New>::value, 
+                      "wrong! invalid reorder map");
+
         constexpr auto map_new2old = typename sequence_map_inverse<MapOld2New>::SeqMapType{};
 
         return ReorderGivenNew2Old(map_new2old);
@@ -106,13 +106,13 @@ struct Sequence
     template <index_t... Ns>
     __host__ __device__ static constexpr auto Extract(Number<Ns>...)
     {
-        return Sequence<Type{}.Get(Number<Ns>{})...>{};
+        return Sequence<Type::Get(Number<Ns>{})...>{};
     }
 
     template <index_t... Ns>
     __host__ __device__ static constexpr auto Extract(Sequence<Ns...>)
     {
-        return Sequence<Type{}.Get(Number<Ns>{})...>{};
+        return Sequence<Type::Get(Number<Ns>{})...>{};
     }
 
     template <index_t I, index_t X>
@@ -316,6 +316,7 @@ struct sequence_map_inverse<Sequence<Is...>>
 };
 
 #endif
+
 template <class Seq>
 struct is_valid_sequence_map
 {

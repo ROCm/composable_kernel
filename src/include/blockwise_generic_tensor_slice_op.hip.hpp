@@ -203,20 +203,18 @@ struct BlockwiseGenericTensorSliceCopy_v1
             make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
-#if 0
+#if 1
             constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
 
-            const auto src_thread_data_multi_id_begin =
-                repeat_multi_id * data_per_cluster_per_dims; // cannot not constexpr, why?
+            const auto src_thread_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
 
-            const auto clipboard_data_multi_id_begin =
-                repeat_multi_id * thread_sub_tensor_lengths; // cannot not constexpr, why?
+            const auto clipboard_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
 
-            const index_t src_offset = SrcDesc{}.GetOffsetFromMultiIndex(
-                src_thread_data_multi_id_begin); // cannot not constexpr, why?
+            const index_t src_offset =
+                SrcDesc{}.GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
 
-            const index_t clipboard_offset = thread_tensor_desc.GetOffsetFromMultiIndex(
-                clipboard_data_multi_id_begin); // cannot not constexpr, why?
+            const index_t clipboard_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
 #else
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
@@ -258,20 +256,17 @@ struct BlockwiseGenericTensorSliceCopy_v1
             make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
-#if 0
+#if 1
             constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
 
-            const auto clipboard_data_multi_id_begin =
-                repeat_multi_id * thread_sub_tensor_lengths; // cannot not constexpr, why?
+            const auto clipboard_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
 
-            const auto dst_data_multi_id_begin =
-                repeat_multi_id * data_per_cluster_per_dims; // cannot not constexpr, why?
+            const auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
 
-            const index_t clipboard_offset = thread_tensor_desc.GetOffsetFromMultiIndex(
-                clipboard_data_multi_id_begin); // cannot not constexpr, why?
+            const index_t clipboard_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
 
-            const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(
-                dst_data_multi_id_begin); // cannot not constexpr, why?
+            const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(dst_data_multi_id_begin);
 #else
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
