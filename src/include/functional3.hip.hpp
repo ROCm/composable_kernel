@@ -11,7 +11,7 @@ struct static_ford_impl
     // F signature: F(Sequence<...> multi_id)
     // CurrentMultiIndex: Sequence<...>
     template <class F, class CurrentMultiIndex>
-    __host__ __device__ void operator()(F f, CurrentMultiIndex) const
+    __host__ __device__ constexpr void operator()(F f, CurrentMultiIndex) const
     {
         static_assert(RemainLengths::GetSize() > 0, "wrong! should not get here");
 
@@ -28,7 +28,7 @@ struct static_ford_impl<Sequence<>>
     // F signature: F(Sequence<...> multi_id)
     // CurrentMultiIndex: Sequence<...>
     template <class F, class CurrentMultiIndex>
-    __host__ __device__ void operator()(F f, CurrentMultiIndex) const
+    __host__ __device__ constexpr void operator()(F f, CurrentMultiIndex) const
     {
         f(CurrentMultiIndex{});
     }
@@ -40,7 +40,7 @@ struct static_ford
 {
     // F signature: F(Sequence<...> multi_id)
     template <class F>
-    __host__ __device__ void operator()(F f) const
+    __host__ __device__ constexpr void operator()(F f) const
     {
         static_assert(Lengths::GetSize() > 0, "wrong! Lengths is empty");
 
@@ -55,7 +55,7 @@ struct ford_impl
     // CurrentMultiIndex: Array<...>
     // RemainLengths: Sequence<...>
     template <class F, class CurrentMultiIndex, class RemainLengths>
-    __host__ __device__ void
+    __host__ __device__ constexpr void
     operator()(F f, CurrentMultiIndex current_multi_id, RemainLengths) const
     {
         static_assert(RemainLengths::GetSize() == RemainDim, "wrong!");
@@ -77,7 +77,7 @@ struct ford_impl<1>
     // CurrentMultiIndex: Array<...>
     // RemainLengths: Sequence<...>
     template <class F, class CurrentMultiIndex, class RemainLengths>
-    __host__ __device__ void
+    __host__ __device__ constexpr void
     operator()(F f, CurrentMultiIndex current_multi_id, RemainLengths) const
     {
         static_assert(RemainLengths::GetSize() == 1, "wrong!");
@@ -97,7 +97,7 @@ struct ford
 {
     // F signature: F(Array<...> multi_id)
     template <class F>
-    __host__ __device__ void operator()(F f) const
+    __host__ __device__ constexpr void operator()(F f) const
     {
         constexpr index_t first_length = Lengths{}.Front();
 

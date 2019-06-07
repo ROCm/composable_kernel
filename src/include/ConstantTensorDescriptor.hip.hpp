@@ -48,13 +48,13 @@ struct ConstantTensorDescriptor
     template <index_t I>
     __host__ __device__ static constexpr index_t GetLength(Number<I>)
     {
-        return Lengths{}.Get(Number<I>{});
+        return Lengths::Get(Number<I>{});
     }
 
     template <index_t I>
     __host__ __device__ static constexpr index_t GetStride(Number<I>)
     {
-        return Strides{}.Get(Number<I>{});
+        return Strides::Get(Number<I>{});
     }
 
     struct lambda_AreDimensionsContinuous
@@ -131,7 +131,7 @@ struct ConstantTensorDescriptor
         template <class X>
         __host__ __device__ constexpr void operator()(X IDim) const
         {
-            offset += multi_id.Get(IDim) * Type::GetStride(IDim);
+            offset += multi_id[IDim] * Type::GetStride(IDim);
         }
     };
 
