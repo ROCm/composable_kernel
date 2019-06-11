@@ -3,6 +3,8 @@
 #include "device.hpp"
 #include "gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
 
+using namespace ck;
+
 template <class T, class InDesc, class WeiDesc, class OutDesc, class LowerPads, class UpperPads>
 void device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(InDesc,
                                                               const Tensor<T>& in_nchw,

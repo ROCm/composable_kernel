@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_SEQUENCE_HPP
+#define CK_SEQUENCE_HPP
+
 #include "integral_constant.hpp"
 #include "functional.hpp"
+
+namespace ck {
 
 template <class Seq>
 struct is_valid_sequence_map;
@@ -547,3 +551,6 @@ __host__ __device__ void print_Sequence(const char* s, Sequence<Xs...>)
     static_if<nsize == 10>{}(
         [&](auto) { printf("%s size %u, {%u %u %u %u %u %u %u %u %u %u}\n", s, nsize, Xs...); });
 }
+
+} // namespace ck
+#endif

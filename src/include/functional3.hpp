@@ -1,8 +1,12 @@
-#pragma once
+#ifndef CK_FUNCTIONAL3_HPP
+#define CK_FUNCTIONAL3_HPP
+
 #include "functional.hpp"
 #include "functional2.hpp"
 #include "Sequence.hpp"
 #include "Array.hpp"
+
+namespace ck {
 
 // RemainLengths: Sequence<...>
 template <class RemainLengths>
@@ -107,3 +111,6 @@ struct ford
         }
     }
 };
+
+} // namespace ck
+#endif

@@ -1,5 +1,7 @@
-#pragma once
-#include "base.hpp"
+#ifndef CK_COMMON_HPP
+#define CK_COMMON_HPP
+
+#include "utility.hpp"
 #include "vector_type.hpp"
 #include "integral_constant.hpp"
 #include "Sequence.hpp"
@@ -8,6 +10,8 @@
 #include "functional2.hpp"
 #include "functional3.hpp"
 
-#if USE_AMD_INLINE_ASM
+#if CK_USE_AMD_INLINE_ASM
 #include "amd_inline_asm.hpp"
+#endif
+
 #endif

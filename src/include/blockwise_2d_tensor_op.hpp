@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_BLOCKWISE_2D_TENSOR_OP_HPP
+#define CK_BLOCKWISE_2D_TENSOR_OP_HPP
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
+
+namespace ck {
 
 template <index_t BlockSize, class Float, class DstDesc, class F>
 __device__ void
@@ -192,7 +196,7 @@ struct Blockwise2dTensorCopy1
         //   but we need to make sure dst stride0 is big enough,
         //   so that the out-of-bound write won't contaminate next line in dst
         constexpr index_t L1          = CopyLengths{}.Get(I1);
-        constexpr index_t read_per_d1 = mod_conv::integer_divide_ceil(L1, DataPerRead);
+        constexpr index_t read_per_d1 = math::integer_divide_ceil(L1, DataPerRead);
 
         static_assert(read_per_d1 * DataPerRead <= DstDesc{}.GetStride(I0),
                       "wrong! out-of-bound write will contaminate next line!\n");
@@ -209,7 +213,7 @@ struct Blockwise2dTensorCopy1
         constexpr index_t L0 = CopyLengths{}.Get(I0);
         constexpr index_t L1 = CopyLengths{}.Get(I1);
 
-        constexpr index_t read_per_d1 = mod_conv::integer_divide_ceil(L1, DataPerRead);
+        constexpr index_t read_per_d1 = math::integer_divide_ceil(L1, DataPerRead);
 
         constexpr auto ref_desc = make_ConstantTensorDescriptor(Sequence<L0, read_per_d1>{});
 
@@ -676,7 +680,7 @@ struct Blockwise2dTensorCopy3
         }
     }
 
-#if USE_AMD_INLINE_ASM
+#if CK_USE_AMD_INLINE_ASM
     __device__ void RunLoadRegisterClipboard_asm(const Float* __restrict__ p_src,
                                                  Float* p_clipboard) const
     {
@@ -796,3 +800,7 @@ struct Blockwise2dTensorCopy3
     }
 #endif
 };
+
+} // namespace ck
+
+#endif

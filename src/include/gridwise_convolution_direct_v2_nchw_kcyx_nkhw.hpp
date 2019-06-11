@@ -1,10 +1,14 @@
-#pragma once
+#ifndef CK_GRIDWISE_CONVOLUTION_DIRECT_V2_NCHW_KCYX_NKHW
+#define CK_GRIDWISE_CONVOLUTION_DIRECT_V2_NCHW_KCYX_NKHW
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "blockwise_2d_tensor_op.hpp"
 #include "blockwise_4d_tensor_op.hpp"
-#include "threadwise_tensor_slice_op.hpp"
+#include "threadwise_tensor_slice_copy.hpp"
 #include "threadwise_direct_convolution.hpp"
+
+namespace ck {
 
 template <index_t GridSize,
           index_t BlockSize,
@@ -245,3 +249,6 @@ struct GridwiseConvolutionDirect_v2_nchw_kcyx_nkhw
                                      Number<1>{});
     }
 };
+
+} // namespace ck
+#endif

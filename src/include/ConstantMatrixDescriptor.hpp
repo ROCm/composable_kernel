@@ -1,5 +1,9 @@
-#pragma once
+#ifndef CK_CONSTANT_MATRIX_DESCRIPTOR_HPP
+#define CK_CONSTANT_MATRIX_DESCRIPTOR_HPP
+
 #include "common.hpp"
+
+namespace ck {
 
 template <index_t NRow_, index_t NCol_, index_t RowStride_>
 struct ConstantMatrixDescriptor
@@ -57,3 +61,7 @@ __host__ __device__ void print_ConstantMatrixDescriptor(TDesc, const char* s)
 
     printf("%s NRow %u NCol %u RowStride %u\n", s, desc.NRow(), desc.NCol(), desc.RowStride());
 }
+
+} // namespace ck
+
+#endif

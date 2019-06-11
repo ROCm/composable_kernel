@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_FUNCTIONAL_HPP
+#define CK_FUNCTIONAL_HPP
+
 #include "integral_constant.hpp"
 #include "Sequence.hpp"
+
+namespace ck {
 
 struct forwarder
 {
@@ -70,3 +74,6 @@ struct static_if<false>
         return Type{};
     }
 };
+
+} // namespace ck
+#endif

@@ -1,11 +1,15 @@
-#pragma once
+#ifndef CK_CONSTANT_TENSOR_DESCRIPTOR_HPP
+#define CK_CONSTANT_TENSOR_DESCRIPTOR_HPP
+
 #include "common.hpp"
+
+namespace ck {
 
 template <class Lengths>
 __host__ __device__ constexpr auto calculate_tensor_strides_packed(Lengths)
 {
     return reverse_inclusive_scan_sequence(
-               Lengths{}.PopFront(), mod_conv::multiplies<index_t>{}, Number<1>{})
+               Lengths{}.PopFront(), math::multiplies<index_t>{}, Number<1>{})
         .PushBack(Number<1>{});
 }
 
@@ -13,7 +17,7 @@ template <class Lengths, index_t Align>
 __host__ __device__ constexpr auto calculate_tensor_strides_aligned(Lengths, Number<Align>)
 {
     constexpr index_t L_back_align =
-        Align * mod_conv::integer_divide_ceiler<index_t>{}(Lengths{}.Back(), Align);
+        Align * math::integer_divide_ceiler<index_t>{}(Lengths{}.Back(), Align);
 
     return calculate_tensor_strides_packed(
         Lengths{}.Modify(Number<Lengths{}.GetSize() - 1>{}, Number<L_back_align>{}));
@@ -100,7 +104,7 @@ struct ConstantTensorDescriptor
 
     __host__ __device__ static constexpr index_t GetElementSize()
     {
-        return accumulate_on_sequence(Lengths{}, mod_conv::multiplies<index_t>{}, Number<1>{});
+        return accumulate_on_sequence(Lengths{}, math::multiplies<index_t>{}, Number<1>{});
     }
 
     template <class Align = Number<1>>
@@ -109,7 +113,7 @@ struct ConstantTensorDescriptor
         // This is WRONG! align shouldbe applied to the last memory rank, not the last tensor
         // dimension
         constexpr index_t element_space_unaligned = accumulate_on_sequence(
-            (GetLengths() - Number<1>{}) * GetStrides(), mod_conv::plus<index_t>{}, Number<1>{});
+            (GetLengths() - Number<1>{}) * GetStrides(), math::plus<index_t>{}, Number<1>{});
 
         return align.Get() * ((element_space_unaligned + align.Get() - 1) / align.Get());
     }
@@ -161,8 +165,7 @@ struct ConstantTensorDescriptor
 
         constexpr auto multi_id = Sequence<Is...>{};
 
-        return accumulate_on_sequence(
-            multi_id * GetStrides(), mod_conv::plus<index_t>{}, Number<0>{});
+        return accumulate_on_sequence(multi_id * GetStrides(), math::plus<index_t>{}, Number<0>{});
     }
 
     // emulate constexpr lambda
@@ -323,7 +326,7 @@ struct ConstantTensorDescriptor
         constexpr auto fold_intervals = Sequence<FoldIntervals...>{};
 
         constexpr index_t fold_intervals_product =
-            accumulate_on_sequence(fold_intervals, mod_conv::multiplies<index_t>{}, Number<1>{});
+            accumulate_on_sequence(fold_intervals, math::multiplies<index_t>{}, Number<1>{});
 
         constexpr auto unfold_length = GetLength(Number<IDim>{});
         constexpr auto unfold_stride = GetStride(Number<IDim>{});
@@ -341,7 +344,7 @@ struct ConstantTensorDescriptor
         constexpr auto fold_strides =
             Number<unfold_stride>{} *
             reverse_inclusive_scan_sequence(
-                fold_intervals.PushBack(Number<1>{}), mod_conv::multiplies<index_t>{}, Number<1>{});
+                fold_intervals.PushBack(Number<1>{}), math::multiplies<index_t>{}, Number<1>{});
 
         // left and right
         constexpr auto left = typename arithmetic_sequence_gen<0, IDim, 1>::SeqType{};
@@ -376,7 +379,7 @@ struct ConstantTensorDescriptor
 
         // unfolded length, stride
         constexpr index_t unfold_length = accumulate_on_sequence(
-            GetLengths().Extract(middle), mod_conv::multiplies<index_t>{}, Number<1>{});
+            GetLengths().Extract(middle), math::multiplies<index_t>{}, Number<1>{});
 
         constexpr index_t unfold_stride = GetStride(Number<LastUnfoldDim>{});
 
@@ -511,3 +514,6 @@ print_ConstantTensorDescriptor(const char* s,
                Strides...);
     });
 }
+
+} // namespace ck
+#endif

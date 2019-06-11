@@ -1,10 +1,14 @@
-#pragma once
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V3_NCHW_CYXK_NKHW
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V3_NCHW_CYXK_NKHW
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
 #include "ConstantMatrixDescriptor.hpp"
-#include "blockwise_generic_tensor_slice_op.hpp"
+#include "blockwise_generic_tensor_slice_copy.hpp"
 #include "blockwise_gemm.hpp"
+
+namespace ck {
 
 // define B = merge(N0, Ho, Wo)
 template <index_t GridSize,
@@ -146,7 +150,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         //     be careful of LDS alignment
         constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, KPerBlock>{},
-            Number<mod_conv::lcm(WeiBlockCopyDataPerAccess_K, GemmDataPerReadA)>{});
+            Number<math::lcm(WeiBlockCopyDataPerAccess_K, GemmDataPerReadA)>{});
 
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
@@ -218,10 +222,10 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         };
 
         // LDS allocation for input and weight: be careful of alignment
-        constexpr index_t max_align = mod_conv::lcm(InBlockCopyDstDataPerWrite_N2,
-                                                    WeiBlockCopyDataPerAccess_K,
-                                                    GemmDataPerReadA,
-                                                    GemmDataPerReadB);
+        constexpr index_t max_align = math::lcm(InBlockCopyDstDataPerWrite_N2,
+                                                WeiBlockCopyDataPerAccess_K,
+                                                GemmDataPerReadA,
+                                                GemmDataPerReadB);
 
         constexpr index_t in_block_space =
             in_c_n1_b_n2_block_mem_desc.GetElementSpace(Number<max_align>{});
@@ -368,3 +372,6 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         }
     }
 };
+
+} // namespace ck
+#endif

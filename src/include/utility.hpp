@@ -1,4 +1,7 @@
-#pragma once
+#ifndef CK_BASE_HPP
+#define CK_BASE_HPP
+
+namespace ck {
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
 
@@ -22,7 +25,7 @@ __host__ __device__ constexpr bool is_same_type(X, Y)
     return is_same<X, Y>::value;
 }
 
-namespace mod_conv { // namespace mod_conv
+namespace math { // namespace math
 template <class T, T s>
 struct scales
 {
@@ -110,4 +113,7 @@ __host__ __device__ constexpr T lcm(T x, Ts... xs)
     return max(x, xs...);
 }
 
-} // namespace mod_conv
+} // namespace math
+} // namspace ck
+
+#endif

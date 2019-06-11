@@ -1,5 +1,9 @@
-#pragma once
-#include "threadwise_tensor_slice_op.hpp"
+#ifndef CK_BLOCKWISE_GENERIC_TENSOR_SLICE_COPY_HPP
+#define CK_BLOCKWISE_GENERIC_TENSOR_SLICE_COPY_HPP
+
+#include "threadwise_generic_tensor_slice_copy.hpp"
+
+namespace ck {
 
 // slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
 // memory layout (ordering of dimensions) can be different between src and dst
@@ -142,10 +146,10 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         // complete offset
         mThreadSrcOffset = accumulate_on_array(
-            mThreadSrcPartialOffsets, mod_conv::plus<index_t>{}, static_cast<index_t>(0));
+            mThreadSrcPartialOffsets, math::plus<index_t>{}, static_cast<index_t>(0));
 
         mThreadDstOffset = accumulate_on_array(
-            mThreadDstPartialOffsets, mod_conv::plus<index_t>{}, static_cast<index_t>(0));
+            mThreadDstPartialOffsets, math::plus<index_t>{}, static_cast<index_t>(0));
 
 #if 0
         if(get_block_1d_id() == 0)
@@ -388,3 +392,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
     }
 };
+
+} // namespace ck
+
+#endif

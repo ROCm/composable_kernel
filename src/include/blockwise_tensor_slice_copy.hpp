@@ -1,5 +1,9 @@
-#pragma once
-#include "threadwise_tensor_slice_op.hpp"
+#ifndef CK_BLOCKWISE_TENSOR_SLICE_COPY_HPP
+#define CK_BLOCKWISE_TENSOR_SLICE_COPY_HPP
+
+#include "threadwise_tensor_slice_copy.hpp"
+
+namespace ck {
 
 template <index_t BlockSize,
           class Float,
@@ -120,7 +124,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
             // compiler: will it really compute index here, or be merged with
             // GetOffsetFromMultiIndex and
             // optimized away???
-            src_data_multi_id[i] *= src_sub_lengths.Get(I);
+            src_data_multi_id(i) *= src_sub_lengths.Get(I);
         });
 
         // compiler: will it really compute index here, or be merged with GetOffsetFromMultiIndex
@@ -167,10 +171,8 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto src_data_per_cluster_per_dims =
             thread_sub_tensor_lengths * SrcClusterLengths{};
 
-        constexpr auto repeat_lengths =
-            transform_sequences(mod_conv::integer_divide_ceiler<index_t>{},
-                                SrcLengths{},
-                                src_data_per_cluster_per_dims);
+        constexpr auto repeat_lengths = transform_sequences(
+            math::integer_divide_ceiler<index_t>{}, SrcLengths{}, src_data_per_cluster_per_dims);
 
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
@@ -188,10 +190,8 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto src_data_per_cluster_per_dims =
             thread_sub_tensor_lengths * SrcClusterLengths{};
 
-        constexpr auto repeat_lengths =
-            transform_sequences(mod_conv::integer_divide_ceiler<index_t>{},
-                                SrcLengths{},
-                                src_data_per_cluster_per_dims);
+        constexpr auto repeat_lengths = transform_sequences(
+            math::integer_divide_ceiler<index_t>{}, SrcLengths{}, src_data_per_cluster_per_dims);
 
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
@@ -226,10 +226,8 @@ struct BlockwiseTensorSliceReorderCopy_v3
         constexpr auto src_data_per_cluster_per_dims =
             thread_sub_tensor_lengths * SrcClusterLengths{};
 
-        constexpr auto repeat_lengths =
-            transform_sequences(mod_conv::integer_divide_ceiler<index_t>{},
-                                SrcLengths{},
-                                src_data_per_cluster_per_dims);
+        constexpr auto repeat_lengths = transform_sequences(
+            math::integer_divide_ceiler<index_t>{}, SrcLengths{}, src_data_per_cluster_per_dims);
 
         constexpr auto thread_tensor_lengths = thread_sub_tensor_lengths * repeat_lengths;
 
@@ -294,3 +292,6 @@ struct BlockwiseTensorSliceReorderCopy_v3
         }).Else([&](auto fwd) { mThreadSrcOffset -= StepSize * fwd(SrcDesc{}).GetStride(IDim); });
     }
 };
+
+} // namespace ck
+#endif

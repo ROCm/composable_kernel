@@ -1,5 +1,9 @@
-#pragma once
+#ifndef CK_THREADWISE_TENSOR_SLICE_COPY_HPP
+#define CK_THREADWISE_TENSOR_SLICE_COPY_HPP
+
 #include "ConstantTensorDescriptor.hpp"
+
+namespace ck {
 
 // need to assume src and dst is aligned
 template <class Float, class SrcDesc, class DstDesc, class SrcOpLengths, index_t DataPerRead>
@@ -192,3 +196,6 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
         });
     });
 }
+
+} // namespace ck
+#endif

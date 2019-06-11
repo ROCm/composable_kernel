@@ -1,4 +1,6 @@
-#pragma once
+#ifndef CK_AMD_INLINE_ASM_HPP
+#define CK_AMD_INLINE_ASM_HPP
+
 #include "common.hpp"
 
 #define NO_VM_WAIT 0
@@ -6,6 +8,8 @@
 #define NO_DS_READ 0
 #define NO_DS_WRITE 0
 #define NO_GLB_READ 0
+
+namespace ck {
 
 // cast a pointer of LDS to its address
 extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
@@ -759,3 +763,6 @@ ds_write_b128(const vector_type<float, 4>::MemoryType& r, void* lds, index_t off
     }
 #endif
 }
+
+} // namespace ck
+#endif

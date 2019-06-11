@@ -1,4 +1,6 @@
-#pragma once
+#ifndef CK_TENSOR_HPP
+#define CK_TENSOR_HPP
+
 #include <thread>
 #include <vector>
 #include <numeric>
@@ -266,3 +268,5 @@ struct Tensor
     TensorDescriptor mDesc;
     std::vector<T> mData;
 };
+
+#endif

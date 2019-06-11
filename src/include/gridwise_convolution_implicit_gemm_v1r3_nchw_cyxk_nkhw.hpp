@@ -1,12 +1,16 @@
-#pragma once
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_NCHW_CYXK_NKHW
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_NCHW_CYXK_NKHW
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_2d_tensor_op.hpp"
-#include "blockwise_tensor_slice_op.hpp"
-#include "threadwise_tensor_slice_op.hpp"
-#include "threadwise_4d_tensor_op.hpp"
+#include "blockwise_tensor_slice_copy.hpp"
+#include "threadwise_tensor_slice_copy.hpp"
+#include "threadwise_generic_tensor_op.hpp"
 #include "blockwise_batched_gemm.hpp"
+
+namespace ck {
 
 template <index_t GridSize,
           index_t BlockSize,
@@ -78,10 +82,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                           Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
                       "wrong! cannot evenly divide work for workgroup ");
 
-        constexpr index_t NBlockWork = mod_conv::integer_divide_ceil(N, NPerBlock);
-        constexpr index_t KBlockWork = mod_conv::integer_divide_ceil(K, KPerBlock);
-        constexpr index_t HBlockWork = mod_conv::integer_divide_ceil(Ho, HoPerBlock);
-        constexpr index_t WBlockWork = mod_conv::integer_divide_ceil(Wo, WoPerBlock);
+        constexpr index_t NBlockWork = math::integer_divide_ceil(N, NPerBlock);
+        constexpr index_t KBlockWork = math::integer_divide_ceil(K, KPerBlock);
+        constexpr index_t HBlockWork = math::integer_divide_ceil(Ho, HoPerBlock);
+        constexpr index_t WBlockWork = math::integer_divide_ceil(Wo, WoPerBlock);
 
         constexpr auto block_work_desc = make_ConstantTensorDescriptor_packed(
             Sequence<NBlockWork, KBlockWork, HBlockWork, WBlockWork>{});
@@ -103,10 +107,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 
         // LDS tensor view
         //   be careful of alignment
-        constexpr index_t max_align = mod_conv::lcm(InBlockReorderDataPerWrite_N,
-                                                    WeiBlockCopyDataPerRead_K,
-                                                    GemmDataPerReadA,
-                                                    GemmDataPerReadB);
+        constexpr index_t max_align = math::lcm(InBlockReorderDataPerWrite_N,
+                                                WeiBlockCopyDataPerRead_K,
+                                                GemmDataPerReadA,
+                                                GemmDataPerReadB);
 
         constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{},
@@ -119,7 +123,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 
         constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, KPerBlock>{},
-            Number<mod_conv::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
+            Number<math::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         // tensor view of threadwise output in register
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
@@ -230,7 +234,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 #endif
 
         // set threadwise output tensor to 0
-        threadwise_4d_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
+        threadwise_generic_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
 
 #if 0
         const Float* p_in_global_block_offset =
@@ -436,8 +440,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                         wo_block_data_begin + wo_thread_data_begin),
                 make_zero_array<index_t, 10>(),
                 out_10d_thread_desc.GetLengths().ReorderGivenNew2Old(map_out_global2thread),
-                arithmetic_sequence_gen<0, 10, 1>::SeqType{});
+                arithmetic_sequence_gen<0, 10, 1>::SeqType{},
+                Number<1>{});
 #endif
         });
     }
 };
+
+} // namespace ck
+#endif

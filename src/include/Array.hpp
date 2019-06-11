@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_ARRAY_HPP
+#define CK_ARRAY_HPP
+
 #include "Sequence.hpp"
 #include "functional2.hpp"
+
+namespace ck {
 
 template <class TData, index_t NSize>
 struct Array
@@ -96,7 +100,7 @@ __host__ __device__ constexpr auto reorder_array_given_new2old(const Array<TData
 
     static_assert(is_valid_sequence_map<Sequence<IRs...>>::value, "wrong! invalid reorder map");
 
-    return Array<TData, NSize>{old_array.mSize[IRs]...};
+    return Array<TData, NSize>{old_array[IRs]...};
 }
 
 template <class TData, index_t NSize, class MapOld2New>
@@ -180,7 +184,7 @@ __host__ __device__ constexpr auto operator+(Array<TData, NSize> a, Array<TData,
 {
     Array<TData, NSize> result;
 
-    auto f = mod_conv::plus<index_t>{};
+    auto f = math::plus<index_t>{};
 
     static_for<0, NSize, 1>{}(
         lambda_array_math<decltype(f), decltype(a), decltype(b), decltype(result)>(
@@ -195,7 +199,7 @@ __host__ __device__ constexpr auto operator-(Array<TData, NSize> a, Array<TData,
 {
     Array<TData, NSize> result;
 
-    auto f = mod_conv::minus<index_t>{};
+    auto f = math::minus<index_t>{};
 
     static_for<0, NSize, 1>{}(
         lambda_array_math<decltype(f), decltype(a), decltype(b), decltype(result)>(
@@ -212,7 +216,7 @@ __host__ __device__ constexpr auto operator+(Array<TData, NSize> a, Sequence<Is.
 
     Array<TData, NSize> result;
 
-    auto f = mod_conv::plus<index_t>{};
+    auto f = math::plus<index_t>{};
 
     static_for<0, NSize, 1>{}(
         lambda_array_math<decltype(f), decltype(a), decltype(b), decltype(result)>(
@@ -229,7 +233,7 @@ __host__ __device__ constexpr auto operator-(Array<TData, NSize> a, Sequence<Is.
 
     Array<TData, NSize> result;
 
-    auto f = mod_conv::minus<index_t>{};
+    auto f = math::minus<index_t>{};
 
     static_for<0, NSize, 1>{}(
         lambda_array_math<decltype(f), decltype(a), decltype(b), decltype(result)>(
@@ -246,7 +250,7 @@ __host__ __device__ constexpr auto operator*(Array<TData, NSize> a, Sequence<Is.
 
     Array<TData, NSize> result;
 
-    auto f = mod_conv::multiplies<index_t>{};
+    auto f = math::multiplies<index_t>{};
 
     static_for<0, NSize, 1>{}(
         lambda_array_math<decltype(f), decltype(a), decltype(b), decltype(result)>(
@@ -263,7 +267,7 @@ __host__ __device__ constexpr auto operator-(Sequence<Is...> a, Array<TData, NSi
 
     Array<TData, NSize> result;
 
-    auto f = mod_conv::minus<index_t>{};
+    auto f = math::minus<index_t>{};
 
     static_for<0, NSize, 1>{}(
         lambda_array_math<decltype(f), decltype(a), decltype(b), decltype(result)>(
@@ -368,3 +372,6 @@ __host__ __device__ void print_Array(const char* s, Array<T, NSize> a)
                a[9]);
     });
 }
+
+} // namespace ck
+#endif

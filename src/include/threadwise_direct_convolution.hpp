@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_THREADWISE_DIRECT_CONVOLUTION_HPP
+#define CK_THREADWISE_DIRECT_CONVOLUTION_HPP
+
 #include "ConstantTensorDescriptor.hpp"
-#include "threadwise_tensor_slice_op.hpp"
+#include "threadwise_tensor_slice_copy.hpp"
+
+namespace ck {
 
 // optimized for scenario if p_in, p_wei, p_out are in register
 template <class TInWei, class TOut, class InDesc, class WeiDesc, class OutDesc>
@@ -218,3 +222,6 @@ __device__ void threadwise_direct_convolution_3(InDesc,
     }
 #endif
 }
+
+} // namespace ck
+#endif
