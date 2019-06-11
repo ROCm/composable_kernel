@@ -1,11 +1,13 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_convolution_wrapper.hpp"
+#include "gridwise_convolution_kernel_wrapper.hpp"
 #include "gridwise_convolution_implicit_gemm_v1r1_chwn_cyxk_khwn.hpp"
 #include "gridwise_convolution_implicit_gemm_v1r2_chwn_cyxk_khwn.hpp"
 #include "gridwise_convolution_implicit_gemm_v1r3_chwn_cyxk_khwn.hpp"
-#include "gridwise_convolution_implicit_gemm_v1r3_lds_double_buffer_chwn_cyxk_khwn.hpp"
+#include "gridwise_convolution_implicit_gemm_v1r3_chwn_cyxk_khwn_lds_double_buffer.hpp"
+
+using namespace ck;
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
@@ -478,7 +480,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
 #elif 0
             GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 #elif 1
-            GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_chwn_cyxk_khwn
+            GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
 #endif
             <GridSize,
              BlockSize,
@@ -509,7 +511,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
              WeiBlockCopyDataPerRead_K,
              OutThreadCopyDataPerWrite_N>{};
 
-        float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,
+        float time = launch_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
                                    0,

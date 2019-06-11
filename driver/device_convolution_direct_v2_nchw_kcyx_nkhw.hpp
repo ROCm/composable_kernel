@@ -1,8 +1,10 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_convolution_wrapper.hpp"
+#include "gridwise_convolution_kernel_wrapper.hpp"
 #include "gridwise_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
+
+using namespace ck;
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_convolution_direct_v2_nchw_kcyx_nkhw(InDesc,
@@ -79,7 +81,7 @@ void device_convolution_direct_v2_nchw_kcyx_nkhw(InDesc,
                                                                           WoPerThread,
                                                                           InBlockCopyDataPerRead,
                                                                           WeiBlockCopyDataPerRead>;
-        float time = launch_kernel(run_gridwise_convolution<gridwise_conv, T>,
+        float time = launch_kernel(run_gridwise_convolution_kernel<gridwise_conv, T>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
                                    0,

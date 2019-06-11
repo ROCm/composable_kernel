@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_BLOCKWISE_GEMM_HPP
+#define CK_BLOCKWISE_GEMM_HPP
+
 #include "common.hpp"
 #include "threadwise_gemm.hpp"
+
+namespace ck {
 
 // if following number are power of 2, index calculation shall be greatly reduced:
 //    MPerThreadSubC, NPerThreadSubC, MLevel0Cluster, NLevel0Cluster, MLevel1Cluster, NLevel1Cluster
@@ -109,7 +113,7 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                            n_repeat * NPerLevel1Cluster + n_in_sub_c};
     }
 
-#if USE_AMD_INLINE_ASM
+#if CK_USE_AMD_INLINE_ASM
     // TODO: this is not working correctly
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
@@ -423,3 +427,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         }
     }
 };
+
+} // namespace ck
+#endif

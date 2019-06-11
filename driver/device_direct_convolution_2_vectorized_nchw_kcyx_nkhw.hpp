@@ -3,6 +3,8 @@
 #include "device.hpp"
 #include "gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hpp"
 
+using namespace ck;
+
 template <class TInWei, class TOut, class InDesc, class WeiDesc, class OutDesc>
 void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
                                                            const Tensor<TInWei>& in_nchw,

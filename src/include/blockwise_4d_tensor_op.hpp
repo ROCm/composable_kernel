@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_BLOCKWISE_4D_TENSOR_OP_HPP
+#define CK_BLOCKWISE_4D_TENSOR_OP_HPP
+
 #include "ConstantTensorDescriptor.hpp"
-#include "threadwise_tensor_slice_op.hpp"
+#include "threadwise_tensor_slice_copy.hpp"
+
+namespace ck {
 
 template <index_t BlockSize, class Float, class DstDesc, class F>
 __device__ void
@@ -235,7 +239,7 @@ struct Blockwise4dTensorCopy1
         //   but we need to make sure dst stride2 is big enough,
         //   so that the out-of-bound write won't contaminate next line in dst
         constexpr index_t L3          = CopyLengths{}.Get(I3);
-        constexpr index_t read_per_d3 = mod_conv::integer_divide_ceil(L3, DataPerRead);
+        constexpr index_t read_per_d3 = math::integer_divide_ceil(L3, DataPerRead);
 
         static_assert(read_per_d3 * DataPerRead <= DstDesc{}.GetStride(I2),
                       "wrong! out-of-bound write will contaminate next line!\n");
@@ -256,7 +260,7 @@ struct Blockwise4dTensorCopy1
         constexpr index_t L2 = CopyLengths{}.Get(I2);
         constexpr index_t L3 = CopyLengths{}.Get(I3);
 
-        constexpr index_t read_per_d3 = mod_conv::integer_divide_ceil(L3, DataPerRead);
+        constexpr index_t read_per_d3 = math::integer_divide_ceil(L3, DataPerRead);
 
         constexpr auto ref_desc =
             make_ConstantTensorDescriptor_packed(Sequence<L0, L1, L2, read_per_d3>{});
@@ -488,7 +492,7 @@ struct Blockwise4dTensorCopy3
         // we allow out-of-bound read from src in D3 dimension,
         //   but we need to make sure dst stride is big enough,
         //   so that the out-of-bound write won't contaminate next line in dst
-        constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+        constexpr index_t nloop_d3 = math::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
         static_assert(nloop_d3 * thread_per_d3 * DataPerRead <= DstDesc{}.GetStride(I2),
                       "wrong! out-of-bound write will contaminate next line!\n");
@@ -500,7 +504,7 @@ struct Blockwise4dTensorCopy3
                       "wrrong! BlockSize is not big enough for ThreadPerDims!");
 
         constexpr index_t num_active_thread =
-            accumulate_on_sequence(ThreadPerDims{}, mod_conv::multiplies<index_t>{}, Number<1>{});
+            accumulate_on_sequence(ThreadPerDims{}, math::multiplies<index_t>{}, Number<1>{});
 
         if(BlockSize > num_active_thread)
         {
@@ -556,7 +560,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d0 = L0 / thread_per_d0;
         constexpr index_t nloop_d1 = L1 / thread_per_d1;
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
-        constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+        constexpr index_t nloop_d3 = math::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
 #pragma unroll
         for(index_t iloop_d0 = 0; iloop_d0 < nloop_d0; ++iloop_d0)
@@ -613,7 +617,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d0 = L0 / thread_per_d0;
         constexpr index_t nloop_d1 = L1 / thread_per_d1;
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
-        constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+        constexpr index_t nloop_d3 = math::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
         return DataPerRead * nloop_d0 * nloop_d1 * nloop_d2 * nloop_d3;
     }
@@ -650,7 +654,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d0 = L0 / thread_per_d0;
         constexpr index_t nloop_d1 = L1 / thread_per_d1;
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
-        constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+        constexpr index_t nloop_d3 = math::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
         constexpr auto clipboard_desc = make_ConstantTensorDescriptor_packed(
             Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
@@ -717,7 +721,7 @@ struct Blockwise4dTensorCopy3
         constexpr index_t nloop_d0 = L0 / thread_per_d0;
         constexpr index_t nloop_d1 = L1 / thread_per_d1;
         constexpr index_t nloop_d2 = L2 / thread_per_d2;
-        constexpr index_t nloop_d3 = mod_conv::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
+        constexpr index_t nloop_d3 = math::integer_divide_ceil(L3, thread_per_d3 * DataPerRead);
 
         constexpr auto clipboard_desc = make_ConstantTensorDescriptor_packed(
             Sequence<nloop_d0, nloop_d1, nloop_d2, nloop_d3 * DataPerRead>{});
@@ -768,3 +772,7 @@ struct Blockwise4dTensorCopyReorder1
             SrcDesc{}, p_src, DstDesc{}, p_dst, SrcOpLengths{}, MapDst2Src{}, f_copy);
     }
 };
+
+} // namespace
+
+#endif

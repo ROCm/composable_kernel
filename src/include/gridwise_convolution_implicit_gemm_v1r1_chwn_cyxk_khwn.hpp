@@ -1,12 +1,16 @@
-#pragma once
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R1_CHWN_CYXK_KHWN
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R1_CHWN_CYXK_KHWN
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_4d_tensor_op.hpp"
 #include "blockwise_2d_tensor_op.hpp"
-#include "threadwise_tensor_slice_op.hpp"
+#include "threadwise_tensor_slice_copy.hpp"
 #include "threadwise_4d_tensor_op.hpp"
 #include "blockwise_batched_gemm.hpp"
+
+namespace ck {
 
 template <index_t GridSize,
           index_t BlockSize,
@@ -103,10 +107,10 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 
         // tensor view of blockwise input and weight in LDS
         //   be careful of alignment
-        constexpr index_t max_align = mod_conv::lcm(InBlockCopyDataPerRead_N,
-                                                    WeiBlockCopyDataPerRead_K,
-                                                    GemmDataPerReadA,
-                                                    GemmDataPerReadB);
+        constexpr index_t max_align = math::lcm(InBlockCopyDataPerRead_N,
+                                                WeiBlockCopyDataPerRead_K,
+                                                GemmDataPerReadA,
+                                                GemmDataPerReadB);
 
         constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, HiPerBlock, WiPerBlock, NPerBlock>{},
@@ -119,11 +123,11 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 
         constexpr auto wei_cyx_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock * Y * X, KPerBlock>{},
-            Number<mod_conv::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
+            Number<math::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         constexpr auto wei_c_y_x_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, Y, X, KPerBlock>{},
-            Number<mod_conv::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
+            Number<math::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
 
         // tensor view of threadwise output in register
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor(
@@ -390,3 +394,6 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
         });
     }
 };
+
+} // namespace ck
+#endif

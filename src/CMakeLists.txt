@@ -1,4 +1,4 @@
-configure_file("${PROJECT_SOURCE_DIR}/src/include/config.h.in" "${PROJECT_BINARY_DIR}/src/include/config.h")
+configure_file("${PROJECT_SOURCE_DIR}/src/include/config.hpp.in" "${PROJECT_BINARY_DIR}/src/include/config.hpp")
 
 set(TENSOR_SOURCE 
     tensor.cpp;

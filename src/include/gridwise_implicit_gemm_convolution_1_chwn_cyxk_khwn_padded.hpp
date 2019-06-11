@@ -7,6 +7,8 @@
 #include "threadwise_4d_tensor_op.hpp"
 #include "blockwise_gemm.hpp"
 
+namespace ck {
+
 template <index_t GridSize,
           index_t BlockSize,
           class Float,
@@ -292,3 +294,5 @@ __global__ void gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(
         out_hkwn_thread_desc.GetLengths(),
         reorder_khwn_from_hkwn);
 }
+
+} // namespace ck

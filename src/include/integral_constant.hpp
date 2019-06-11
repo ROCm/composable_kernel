@@ -1,4 +1,7 @@
-#pragma once
+#ifndef CK_INTEGRAL_CONSTANT_HPP
+#define CK_INTEGRAL_CONSTANT_HPP
+
+namespace ck {
 
 template <class T, T N>
 struct integral_constant
@@ -16,3 +19,6 @@ __host__ __device__ constexpr auto operator+(integral_constant<T, X>, integral_c
 
 template <index_t N>
 using Number = integral_constant<index_t, N>;
+
+} // namespace ck
+#endif

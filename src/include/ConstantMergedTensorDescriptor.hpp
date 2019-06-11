@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_CONSTANT_MERGED_TENSOR_DESCRIPTOR_HPP
+#define CK_CONSTANT_MERGED_TENSOR_DESCRIPTOR_HPP
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
+
+namespace ck {
 
 // OriginalTensorDesc : ConstantTensorDescriptor<...>
 //     it's the tensor whose dimensions are to be merged
@@ -184,3 +188,6 @@ __host__ __device__ void print_ConstantMergedTensorDescriptor(const char* s, TDe
 {
     print_ConstantTensorDescriptor(s, TDesc::GetOriginalTensorDescriptor());
 }
+
+} // namespace ck
+#endif

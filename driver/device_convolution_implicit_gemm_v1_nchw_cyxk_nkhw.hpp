@@ -1,9 +1,11 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_convolution_wrapper.hpp"
+#include "gridwise_convolution_kernel_wrapper.hpp"
 #include "gridwise_convolution_implicit_gemm_v1r3_nchw_cyxk_nkhw.hpp"
-#include "gridwise_convolution_implicit_gemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw.hpp"
+#include "gridwise_convolution_implicit_gemm_v1r3_nchw_cyxk_nkhw_lds_double_buffer.hpp"
+
+using namespace ck;
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
@@ -313,10 +315,10 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
     for(index_t i = 0; i < nrepeat; ++i)
     {
         constexpr auto gridwise_conv =
-#if 1
+#if 0
             GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
 #else
-            GridwiseConvolutionImplicitGemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw
+            GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw_lds_double_buffer
 #endif
             <GridSize,
              BlockSize,
@@ -351,7 +353,7 @@ void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
              WeiBlockCopyDataPerRead_K,
              OutThreadCopyDataPerWrite_W>{};
 
-        float time = launch_kernel(run_gridwise_convolution<decltype(gridwise_conv), T>,
+        float time = launch_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
                                    0,

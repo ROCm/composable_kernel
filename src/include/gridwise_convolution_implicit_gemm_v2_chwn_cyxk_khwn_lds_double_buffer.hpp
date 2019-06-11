@@ -1,11 +1,15 @@
-#pragma once
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V2_CHWN_CYXK_KHWN_LDS_DOUBLE_BUFFER
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V2_CHWN_CYXK_KHWN_LDS_DOUBLE_BUFFER
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_4d_tensor_op.hpp"
 #include "blockwise_2d_tensor_op.hpp"
-#include "threadwise_tensor_slice_op.hpp"
+#include "threadwise_tensor_slice_copy.hpp"
 #include "blockwise_gemm.hpp"
+
+namespace ck {
 
 // define B = flatten(N, Hi, Wi)
 template <index_t GridSize,
@@ -185,7 +189,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 
         // LDS: be careful of alignment
         constexpr index_t max_align =
-            mod_conv::lcm(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
+            math::lcm(index_t(4), InBlockCopyDataPerRead, WeiBlockCopyDataPerRead);
 
         constexpr index_t in_block_space = in_cb_block_desc.GetElementSpace(Number<max_align>{});
 
@@ -404,3 +408,6 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
         }
     }
 };
+
+} // namespace ck
+#endif

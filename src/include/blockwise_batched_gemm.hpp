@@ -1,5 +1,9 @@
-#pragma once
+#ifndef CK_BLOCKWISE_BATCHED_GEMM_HPP
+#define CK_BLOCKWISE_BATCHED_GEMM_HPP
+
 #include "threadwise_gemm.hpp"
+
+namespace ck {
 
 template <index_t BlockSize,
           class BlockMatrixA,
@@ -287,7 +291,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         }
     }
 
-#if USE_AMD_INLINE_ASM
+#if CK_USE_AMD_INLINE_ASM
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
                             const FloatB* __restrict__ p_b_block,
@@ -518,3 +522,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         }
     }
 };
+
+} // namespace
+#endif

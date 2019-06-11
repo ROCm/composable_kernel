@@ -1,5 +1,9 @@
-#pragma once
+#ifndef CK_CONV_COMMON_HPP
+#define CK_CONV_COMMON_HPP
+
 #include "ConstantTensorDescriptor.hpp"
+
+using namespace ck;
 
 // this is ugly, only for 4d
 template <class InDesc, class WeiDesc>
@@ -117,3 +121,5 @@ constexpr std::size_t calculate_convolution_memory_size(Float, InDesc, WeiDesc, 
     return sizeof(Float) *
            (InDesc::GetElementSpace() + WeiDesc::GetElementSpace() + OutDesc::GetElementSpace());
 }
+
+#endif

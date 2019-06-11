@@ -1,5 +1,9 @@
-#pragma once
+#ifndef CK_THREADWISE_4D_TENSOR_OP_HPP
+#define CK_THREADWISE_4D_TENSOR_OP_HPP
+
 #include "ConstantTensorDescriptor.hpp"
+
+namespace ck {
 
 template <class Float, class Desc, class IDim, class NShift>
 __device__ void threadwise_4d_tensor_shift_down(Desc, Float* __restrict__ p, IDim, NShift)
@@ -50,3 +54,6 @@ __device__ void threadwise_4d_tensor_shift_down(Desc, Float* __restrict__ p, IDi
         }
     }
 }
+
+} // namespace ck
+#endif

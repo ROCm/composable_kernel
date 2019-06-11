@@ -1,11 +1,15 @@
-#pragma once
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4_NCHW_KCYX_NKHW
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4_NCHW_KCYX_NKHW
+
 #include "common.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
 #include "ConstantMatrixDescriptor.hpp"
-#include "blockwise_generic_tensor_slice_op.hpp"
+#include "blockwise_generic_tensor_slice_copy.hpp"
 #include "blockwise_gemm.hpp"
-#include "threadwise_generic_tensor_slice_op.hpp"
+#include "threadwise_generic_tensor_slice_copy.hpp"
+
+namespace ck {
 
 // define B = merge(N0, Ho, Wo)
 template <index_t GridSize,
@@ -176,7 +180,7 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
         //     be careful of LDS alignment
         constexpr auto wei_e_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<EPerBlock, KPerBlock>{},
-            Number<mod_conv::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
+            Number<math::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
 
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
@@ -248,10 +252,10 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
         };
 
         // LDS allocation for input and weight: be careful of alignment
-        constexpr index_t max_align = mod_conv::lcm(InBlockCopyDstDataPerWrite_N2,
-                                                    WeiBlockCopyDstDataPerWrite_K,
-                                                    GemmDataPerReadA,
-                                                    GemmDataPerReadB);
+        constexpr index_t max_align = math::lcm(InBlockCopyDstDataPerWrite_N2,
+                                                WeiBlockCopyDstDataPerWrite_K,
+                                                GemmDataPerReadA,
+                                                GemmDataPerReadB);
 
         constexpr index_t in_block_space =
             in_e_n1_b_n2_block_desc.GetElementSpace(Number<max_align>{});
@@ -345,3 +349,6 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw
         }
     }
 };
+
+} // namespace ck
+#endif

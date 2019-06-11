@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_THREADWISE_GENERIC_TENSOR_SLICE_COPY_HPP
+#define CK_THREADWISE_GENERIC_TENSOR_SLICE_COPY_HPP
+
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
+
+namespace ck {
 
 template <class Float,
           class SrcDesc,
@@ -97,3 +101,6 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
     });
 #endif
 }
+
+} // namespace ck
+#endif

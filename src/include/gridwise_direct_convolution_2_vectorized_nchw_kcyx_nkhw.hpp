@@ -7,6 +7,8 @@
 #include "threadwise_4d_tensor_op.hpp"
 #include "threadwise_direct_convolution.hpp"
 
+namespace ck {
+
 template <class TInWei,
           class TOut,
           class TAccum,
@@ -253,3 +255,5 @@ __global__ void gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw(
                                       wo_block_data_begin + wo_thread_data_begin),
                               out_nkhw_thread_desc.GetLengths());
 }
+
+} // namespace ck

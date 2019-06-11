@@ -1,6 +1,10 @@
-#pragma once
-#include "config.h"
+#ifndef CK_VECTOR_TYPE_HPP
+#define CK_VECTOR_TYPE_HPP
+
+#include "config.hpp"
 #include "integral_constant.hpp"
+
+namespace ck {
 
 template <class T, index_t N>
 struct vector_type
@@ -183,4 +187,8 @@ struct vector_type<char4, 2>
 {
     using MemoryType = int64_t;
 };
+#endif
+
+} // namespace ck
+
 #endif

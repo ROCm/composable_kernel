@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_THREADWISE_GEMM_HPP
+#define CK_THREADWISE_GEMM_HPP
+
 #include "common.hpp"
 #include "ConstantMatrixDescriptor.hpp"
+
+namespace ck {
 
 template <class Float, class Matrix>
 __device__ void threadwise_matrix_set_zero(Matrix, Float* __restrict__ p_thread)
@@ -114,3 +118,6 @@ __device__ void threadwise_gemm(MatrixA,
         assert(false);
     }
 }
+
+} // namespace ck
+#endif

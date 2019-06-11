@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_DEVICE_HPP
+#define CK_DEVICE_HPP
+
 #include <memory>
-#include "config.h"
+#include "config.hpp"
+
+using namespace ck;
 
 struct DeviceMem
 {
@@ -56,3 +60,5 @@ float launch_kernel(F kernel, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
 
     return timer.GetElapsedTime();
 }
+
+#endif

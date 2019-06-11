@@ -1,6 +1,10 @@
-#pragma once
+#ifndef CK_FUNCTIONAL2_HPP
+#define CK_FUNCTIONAL2_HPP
+
 #include "functional.hpp"
 #include "Sequence.hpp"
+
+namespace ck {
 
 template <class>
 struct static_for_impl;
@@ -59,3 +63,6 @@ accumulate_on_sequence(Seq, Reduce f, Number<Init> /*initial_value*/)
 
     return result;
 }
+
+} // namespace ck
+#endif
