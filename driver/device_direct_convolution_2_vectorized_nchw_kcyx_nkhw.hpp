@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hip.hpp"
+#include "gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hpp"
 
 template <class TInWei, class TOut, class InDesc, class WeiDesc, class OutDesc>
 void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
