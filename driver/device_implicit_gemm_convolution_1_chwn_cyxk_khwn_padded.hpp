@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hip.hpp"
+#include "gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc, class LowerPads, class UpperPads>
 void device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(InDesc,

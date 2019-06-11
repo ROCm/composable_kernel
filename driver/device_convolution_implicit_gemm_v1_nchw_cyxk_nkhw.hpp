@@ -1,9 +1,9 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_convolution_wrapper.hip.hpp"
-#include "gridwise_convolution_implicit_gemm_v1r3_nchw_cyxk_nkhw.hip.hpp"
-#include "gridwise_convolution_implicit_gemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw.hip.hpp"
+#include "gridwise_convolution_wrapper.hpp"
+#include "gridwise_convolution_implicit_gemm_v1r3_nchw_cyxk_nkhw.hpp"
+#include "gridwise_convolution_implicit_gemm_v1r3_lds_double_buffer_nchw_cyxk_nkhw.hpp"
 
 template <class T, class InDesc, class WeiDesc, class OutDesc>
 void device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(InDesc,
