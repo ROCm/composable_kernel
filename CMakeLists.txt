@@ -45,6 +45,9 @@ elseif(DEVICE_BACKEND STREQUAL "CUDA")
 endif()
 
 #
-include_directories(BEFORE src/include ${PROJECT_BINARY_DIR}/src/include)
+include_directories(BEFORE
+    include
+    ${PROJECT_BINARY_DIR}/include
+)
 add_subdirectory(src)
 add_subdirectory(driver)

@@ -1,4 +1,4 @@
-#include "config.hpp"
+#include "composable_kernel/utility/config.hpp"
 #include "device.hpp"
 
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
