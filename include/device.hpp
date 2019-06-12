@@ -37,7 +37,7 @@ float launch_kernel(F kernel, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
 {
     KernelTimer timer;
 
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
     timer.Start();
 
     hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, 0, args...);
@@ -45,7 +45,7 @@ float launch_kernel(F kernel, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
     timer.End();
 
     hipGetErrorString(hipGetLastError());
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
     const void* f  = reinterpret_cast<const void*>(kernel);
     void* p_args[] = {&args...};
 

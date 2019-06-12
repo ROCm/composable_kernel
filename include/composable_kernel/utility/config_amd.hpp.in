@@ -1,0 +1,41 @@
+#ifndef CK_CONFIG_HPP
+#define CK_CONFIG_HPP
+
+#cmakedefine01 CK_DEVICE_BACKEND_AMD
+
+#include "hip/hip_runtime.h"
+#include "hip/hip_fp16.h"
+#define CK_USE_AMD_INLINE_ASM 1
+
+namespace ck {
+
+// For some reason, HIP compiler need this definition to generate optimal load and store
+// instruction
+typedef float float2_t __attribute__((ext_vector_type(2)));
+typedef float float4_t __attribute__((ext_vector_type(4)));
+
+using index_t = uint32_t;
+
+__device__ void fused_multiply_accumulate(float& d, const float& s0, const float& s1)
+{
+    d += s0 * s1;
+}
+
+#if 0
+__device__ void fused_multiply_accumulate(half& d, const half& s0, const half& s1) { d += s0 * s1; }
+
+__device__ void fused_multiply_accumulate(half& d, const half2& s0, const half2& s1)
+{
+    d += s0.x * s1.x;
+    d += s0.y * s1.y;
+}
+
+__device__ void fused_multiply_accumulate(float& d, const half2& s0, const half2& s1)
+{
+    d += s0.x * s1.x + s0.y * s1.y;
+}
+#endif
+
+} // namespace ck
+
+#endif
