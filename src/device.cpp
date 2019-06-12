@@ -3,9 +3,9 @@
 
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
 {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
     hipGetErrorString(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
     checkCudaErrors(cudaMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
 #endif
 }
@@ -14,10 +14,10 @@ void* DeviceMem::GetDeviceBuffer() { return mpDeviceBuf; }
 
 void DeviceMem::ToDevice(const void* p)
 {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
     hipGetErrorString(
         hipMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, hipMemcpyHostToDevice));
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
     checkCudaErrors(
         cudaMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, cudaMemcpyHostToDevice));
 #endif
@@ -25,18 +25,18 @@ void DeviceMem::ToDevice(const void* p)
 
 void DeviceMem::FromDevice(void* p)
 {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
     hipGetErrorString(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
     checkCudaErrors(cudaMemcpy(p, mpDeviceBuf, mMemSize, cudaMemcpyDeviceToHost));
 #endif
 }
 
 DeviceMem::~DeviceMem()
 {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
     hipGetErrorString(hipFree(mpDeviceBuf));
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
     checkCudaErrors(cudaFree(mpDeviceBuf));
 #endif
 }
@@ -45,10 +45,10 @@ struct KernelTimerImpl
 {
     KernelTimerImpl()
     {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
         hipEventCreate(&mStart);
         hipEventCreate(&mEnd);
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
         cudaEventCreate(&mStart);
         cudaEventCreate(&mEnd);
 #endif
@@ -56,10 +56,10 @@ struct KernelTimerImpl
 
     ~KernelTimerImpl()
     {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
         hipEventDestroy(mStart);
         hipEventDestroy(mEnd);
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
         cudaEventDestroy(mStart);
         cudaEventDestroy(mEnd);
 #endif
@@ -67,19 +67,19 @@ struct KernelTimerImpl
 
     void Start()
     {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
         hipEventRecord(mStart, 0);
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
         cudaEventRecord(mStart, 0);
 #endif
     }
 
     void End()
     {
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
         hipEventRecord(mEnd, 0);
         hipEventSynchronize(mEnd);
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
         cudaEventRecord(mEnd, 0);
         cudaEventSynchronize(mEnd);
 #endif
@@ -88,17 +88,17 @@ struct KernelTimerImpl
     float GetElapsedTime() const
     {
         float time;
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
         hipEventElapsedTime(&time, mStart, mEnd);
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
         cudaEventElapsedTime(&time, mStart, mEnd);
 #endif
         return time;
     }
 
-#if DEVICE_BACKEND_HIP
+#if CK_DEVICE_BACKEND_AMD
     hipEvent_t mStart, mEnd;
-#elif DEVICE_BACKEND_CUDA
+#elif CK_DEVICE_BACKEND_NVIDIA
     cudaEvent_t mStart, mEnd;
 #endif
 };
