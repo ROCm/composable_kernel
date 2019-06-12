@@ -1,5 +1,5 @@
 if(DEVICE_BACKEND STREQUAL "HIP")
-    set(DRIVER_SOURCE driver.hip.cpp)
+    set(DRIVER_SOURCE driver.cpp)
 elseif(DEVICE_BACKEND STREQUAL "CUDA")
     set(DRIVER_SOURCE driver.cu)
 endif()
