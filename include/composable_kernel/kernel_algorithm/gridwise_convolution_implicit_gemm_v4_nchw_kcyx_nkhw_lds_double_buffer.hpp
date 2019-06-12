@@ -264,16 +264,8 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
 
         // LDS double buffer: preload data into LDS
         {
-            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
-            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
-
-            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global, p_in_register_clipboard);
-            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_block_on_global,
-                                                        p_wei_register_clipboard);
-
-            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block_double);
-            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
-                                                         p_wei_block_double);
+            blockwise_in_copy.Run(p_in_global, p_in_block_double);
+            blockwise_wei_copy.Run(p_wei_global, p_wei_block_double);
         }
 
         // LDS double buffer: main body
