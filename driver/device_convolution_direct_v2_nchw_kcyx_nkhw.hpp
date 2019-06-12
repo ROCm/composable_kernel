@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-#include "gridwise_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
+#include "composable_kernel/kernel_algorithm/gridwise_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
 
 using namespace ck;
 

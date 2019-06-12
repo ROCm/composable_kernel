@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hpp"
+#include "composable_kernel/kernel_algorithm/gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw.hpp"
 
 using namespace ck;
 

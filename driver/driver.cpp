@@ -3,9 +3,9 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include "config.hpp"
+#include "composable_kernel/utility/config.hpp"
+#include "composable_kernel/tensor_description/ConstantTensorDescriptor.hpp"
 #include "tensor.hpp"
-#include "ConstantTensorDescriptor.hpp"
 #include "conv_common.hpp"
 #include "device_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hpp"

@@ -2,8 +2,8 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-#include "gridwise_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
-#include "gridwise_convolution_implicit_gemm_v3_nchw_cyxk_nkhw_lds_double_buffer.hpp"
+#include "composable_kernel/kernel_algorithm/gridwise_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
+#include "composable_kernel/kernel_algorithm/gridwise_convolution_implicit_gemm_v3_nchw_cyxk_nkhw_lds_double_buffer.hpp"
 
 using namespace ck;
 

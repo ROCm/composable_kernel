@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
+#include "composable_kernel/kernel_algorithm/gridwise_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded.hpp"
 
 using namespace ck;
 
