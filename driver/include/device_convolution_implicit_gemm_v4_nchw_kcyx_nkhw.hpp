@@ -8,13 +8,20 @@
 
 using namespace ck;
 
-template <class T, class InDesc, class WeiDesc, class OutDesc>
+template <class T,
+          class InDesc,
+          class WeiDesc,
+          class OutDesc,
+          class ConvStrides,
+          class ConvDilations>
 void device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw(InDesc,
                                                         const Tensor<T>& in_nchw,
                                                         WeiDesc,
                                                         const Tensor<T>& wei_kcyx,
                                                         OutDesc,
                                                         Tensor<T>& out_nkhw,
+                                                        ConvStrides,
+                                                        ConvDilations,
                                                         index_t nrepeat)
 {
     constexpr auto I0 = Number<0>{};
@@ -107,6 +114,8 @@ void device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw(InDesc,
              decltype(in_nchw_desc),
              decltype(wei_kcyx_desc),
              decltype(out_nkhw_desc),
+             ConvStrides,
+             ConvDilations,
              BPerBlock,
              KPerBlock,
              CPerBlock,
