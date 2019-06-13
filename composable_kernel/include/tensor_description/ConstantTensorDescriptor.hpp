@@ -320,6 +320,18 @@ struct ConstantTensorDescriptor
         return ConstantTensorDescriptor<slice_lengths, Strides>{};
     }
 
+    template <index_t IDim, index_t SliceLength, index_t SliceStride>
+    __host__ __device__ static constexpr auto
+        StridedSlice(Number<IDim>, Number<SliceLength>, Number<SliceStride>)
+    {
+        constexpr index_t new_stride = Strides::Get(Number<IDim>{}) * SliceStride;
+
+        using new_lengths = decltype(Lengths::Modify(Number<IDim>{}, Number<SliceLength>{}));
+        using new_strides = decltype(Strides::Modify(Number<IDim>{}, Number<new_stride>{}));
+
+        return ConstantTensorDescriptor<new_lengths, new_strides>{};
+    }
+
     template <index_t IDim, index_t... FoldIntervals>
     __host__ __device__ static constexpr auto Fold(Number<IDim>, Number<FoldIntervals>...)
     {
