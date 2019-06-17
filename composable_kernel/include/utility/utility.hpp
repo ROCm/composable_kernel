@@ -1,6 +1,7 @@
 #ifndef CK_UTILITY_HPP
 #define CK_UTILITY_HPP
 
+#include <type_traits>
 #include "config.hpp"
 
 namespace ck {
@@ -9,23 +10,8 @@ __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
 
 __device__ index_t get_block_1d_id() { return blockIdx.x; }
 
-template <class T1, class T2>
-struct is_same
-{
-    static constexpr bool value = false;
-};
-
-template <class T>
-struct is_same<T, T>
-{
-    static constexpr bool value = true;
-};
-
 template <class X, class Y>
-__host__ __device__ constexpr bool is_same_type(X, Y)
-{
-    return is_same<X, Y>::value;
-}
+using is_same = std::is_same<X, Y>;
 
 namespace math {
 
@@ -58,7 +44,7 @@ struct integer_divide_ceiler
 {
     __host__ __device__ constexpr T operator()(T a, T b) const
     {
-        static_assert(is_same<T, index_t>::value || is_same<T, int>::value, "wrong type");
+        static_assert(is_same<T, index_t>{} || is_same<T, int>{}, "wrong type");
 
         return (a + b - 1) / b;
     }
@@ -67,7 +53,7 @@ struct integer_divide_ceiler
 template <class T>
 __host__ __device__ constexpr T integer_divide_ceil(T a, T b)
 {
-    static_assert(is_same<T, index_t>::value || is_same<T, int>::value, "wrong type");
+    static_assert(is_same<T, index_t>{} || is_same<T, int>{}, "wrong type");
 
     return (a + b - 1) / b;
 }
@@ -85,7 +71,7 @@ __host__ __device__ constexpr T max(T x, Ts... xs)
 
     auto y = max(xs...);
 
-    static_assert(is_same<decltype(y), T>::value, "not the same type");
+    static_assert(is_same<decltype(y), T>{}, "not the same type");
 
     return x > y ? x : y;
 }
@@ -103,12 +89,12 @@ __host__ __device__ constexpr T min(T x, Ts... xs)
 
     auto y = min(xs...);
 
-    static_assert(is_same<decltype(y), T>::value, "not the same type");
+    static_assert(is_same<decltype(y), T>{}, "not the same type");
 
     return x < y ? x : y;
 }
 
-// this is wrong
+// this is WRONG
 // TODO: implement least common multiple properly, instead of calling max()
 template <class T, class... Ts>
 __host__ __device__ constexpr T lcm(T x, Ts... xs)

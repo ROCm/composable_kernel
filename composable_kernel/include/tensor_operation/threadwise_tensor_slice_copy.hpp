@@ -56,7 +56,7 @@ __device__ void threadwise_tensor_slice_copy(SrcDesc,
 
     static_ford<decltype(ref_desc.GetLengths().PopBack())>{}([=](auto Ids) {
         static_for<0, nRead, 1>{}([&](auto IRead) {
-            constexpr auto multi_id = decltype(Ids){}.PushBack(Number<IRead.Get() * DataPerRead>{});
+            constexpr auto multi_id = decltype(Ids){}.PushBack(Number<IRead * DataPerRead>{});
 
             const index_t src_index = src_desc.GetOffsetFromMultiIndex(multi_id);
 
@@ -177,8 +177,7 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
 
             // pack data
             static_for<0, DstDataPerWrite, 1>{}([&](auto IDstData) {
-                const auto dst_multi_id =
-                    ids.PushBack(IWrite.Get() * DstDataPerWrite + IDstData.Get());
+                const auto dst_multi_id = ids.PushBack(IWrite * DstDataPerWrite + IDstData);
 
                 const auto src_multi_id = reorder_array_given_old2new(dst_multi_id, MapDst2Src{});
 
@@ -189,7 +188,7 @@ threadwise_tensor_slice_copy_reorder_given_dst2src_v3(SrcDesc,
             });
 
             // write data
-            const auto dst_multi_id = ids.PushBack(IWrite.Get() * DstDataPerWrite);
+            const auto dst_multi_id = ids.PushBack(IWrite * DstDataPerWrite);
 
             const index_t dst_index = dst_desc.GetOffsetFromMultiIndex(dst_multi_id);
 

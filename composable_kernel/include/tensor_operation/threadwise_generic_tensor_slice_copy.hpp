@@ -5,6 +5,10 @@
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
 
+#ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1
+#define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1 0
+#endif
+
 namespace ck {
 
 template <class Float,
@@ -32,21 +36,18 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
 
     static_assert(is_valid_sequence_map<DimAccessOrder>::value, "wrong! map is not valid");
 
-#if 0 
-    // doesn't compile, because merged-tensor reordering is not implemented
-    // TODO: implement tensor desc ops for merged-tensor
-    constexpr auto src_strides_in_access_order =
-        SrcDesc::ReorderGivenNew2Old(DimAccessOrder{}).GetStride(Number<nDim-1>{});
+    // TODO: do more sanity-check here, something like:
+    // constexpr auto src_strides_in_access_order =
+    //     SrcDesc::ReorderGivenNew2Old(DimAccessOrder{}).GetStride(Number<nDim-1>{});
 
-    constexpr auto dst_strides_in_access_order =
-        SrcDesc::ReorderGivenNew2Old(DimAccessOrder{}).GetStride(Number<nDim-1>{});
+    // constexpr auto dst_strides_in_access_order =
+    //     SrcDesc::ReorderGivenNew2Old(DimAccessOrder{}).GetStride(Number<nDim-1>{});
 
-    // check src/dst stride on the lowest access dimension
-    static_assert((DataPerAccess == 1 || src_strides_in_access_order.Back() == 1) &&
-                      (DataPerAccess == 1 || dst_strides_in_access_order.Back() == 1),
-                  "wrong! src/dst stride on the lowest access dimension needs to be 1 for "
-                  "vectorized read/write");
-#endif
+    // // check src/dst stride on the lowest access dimension
+    // static_assert((DataPerAccess == 1 || src_strides_in_access_order.Back() == 1) &&
+    //                   (DataPerAccess == 1 || dst_strides_in_access_order.Back() == 1),
+    //               "wrong! src/dst stride on the lowest access dimension needs to be 1 for "
+    //               "vectorized read/write");
 
     constexpr auto slice_lengths_in_access_order =
         SliceLengths::ReorderGivenNew2Old(DimAccessOrder{});
@@ -64,13 +65,15 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
 
     using vector_t = typename vector_type<Float, DataPerAccess>::MemoryType;
 
-#if 1
-    ford<decltype(access_lengths)>{}([&](auto access_multi_id) {
-        auto data_multi_id_in_access_order      = access_multi_id;
-        data_multi_id_in_access_order(nDim - 1) = access_multi_id[nDim - 1] * DataPerAccess;
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1
+    static_ford<decltype(access_lengths)>{}([&](auto access_multi_id) {
+        constexpr index_t itmp = access_multi_id.Back() * DataPerAccess;
 
-        const auto data_multi_id =
-            reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});
+        constexpr auto data_multi_id_in_access_order =
+            access_multi_id.Modify(Number<nDim - 1>{}, Number<itmp>{});
+
+        constexpr auto data_multi_id = reorder_array_given_old2new(
+            sequence2array(data_multi_id_in_access_order), DimAccessOrder{});
 
         const index_t src_index =
             SrcDesc::GetOffsetFromMultiIndex(src_multi_id_begin + data_multi_id);
@@ -82,14 +85,12 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
             *reinterpret_cast<const vector_t*>(&p_src[src_index]);
     });
 #else
-    static_ford<decltype(access_lengths)>{}([&](auto access_multi_id) {
-        constexpr index_t itmp = access_multi_id.Back() * DataPerAccess;
+    ford<decltype(access_lengths)>{}([&](auto access_multi_id) {
+        auto data_multi_id_in_access_order      = access_multi_id;
+        data_multi_id_in_access_order(nDim - 1) = access_multi_id[nDim - 1] * DataPerAccess;
 
-        constexpr auto data_multi_id_in_access_order =
-            access_multi_id.Modify(Number<nDim - 1>{}, Number<itmp>{});
-
-        constexpr auto data_multi_id = reorder_array_given_old2new(
-            sequence2array(data_multi_id_in_access_order), DimAccessOrder{});
+        const auto data_multi_id =
+            reorder_array_given_old2new(data_multi_id_in_access_order, DimAccessOrder{});
 
         const index_t src_index =
             SrcDesc::GetOffsetFromMultiIndex(src_multi_id_begin + data_multi_id);

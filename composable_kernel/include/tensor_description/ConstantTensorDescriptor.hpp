@@ -107,15 +107,12 @@ struct ConstantTensorDescriptor
         return accumulate_on_sequence(Lengths{}, math::multiplies<index_t>{}, Number<1>{});
     }
 
-    template <class Align = Number<1>>
-    __host__ __device__ static constexpr index_t GetElementSpace(Align align = Align{})
+    __host__ __device__ static constexpr index_t GetElementSpace()
     {
-        // This is WRONG! align shouldbe applied to the last memory rank, not the last tensor
-        // dimension
         constexpr index_t element_space_unaligned = accumulate_on_sequence(
             (GetLengths() - Number<1>{}) * GetStrides(), math::plus<index_t>{}, Number<1>{});
 
-        return align.Get() * ((element_space_unaligned + align.Get() - 1) / align.Get());
+        return element_space_unaligned;
     }
 
     // emulate constexpr lambda
@@ -234,7 +231,7 @@ struct ConstantTensorDescriptor
             // do carry check in reversed order, starting from lowest dimension
             // don't check the highest dimension
             static_for<0, nDim, 1>{}([&](auto IDimReverse) {
-                constexpr index_t idim = nDim - 1 - IDimReverse.Get();
+                constexpr index_t idim = nDim - 1 - IDimReverse;
                 constexpr auto IDim    = Number<idim>{};
 
                 if(carry)
@@ -260,7 +257,7 @@ struct ConstantTensorDescriptor
             // do borrow check in reversed order, starting from lowest dimension
             // don't check the highest dimension
             static_for<0, nDim, 1>{}([&](auto IDimReverse) {
-                constexpr index_t idim = nDim - 1 - IDimReverse.Get();
+                constexpr index_t idim = nDim - 1 - IDimReverse;
                 constexpr auto IDim    = Number<idim>{};
 
                 if(borrow)

@@ -46,7 +46,7 @@ auto call_f_unpack_args_impl(F f, T args, std::index_sequence<Is...>)
 template <class F, class T>
 auto call_f_unpack_args(F f, T args)
 {
-    constexpr std::size_t N = std::tuple_size<T>::value;
+    constexpr std::size_t N = std::tuple_size<T>{};
 
     return call_f_unpack_args_impl(f, args, std::make_index_sequence<N>{});
 }
@@ -60,7 +60,7 @@ auto construct_f_unpack_args_impl(T args, std::index_sequence<Is...>)
 template <class F, class T>
 auto construct_f_unpack_args(F, T args)
 {
-    constexpr std::size_t N = std::tuple_size<T>::value;
+    constexpr std::size_t N = std::tuple_size<T>{};
 
     return construct_f_unpack_args_impl<F>(args, std::make_index_sequence<N>{});
 }

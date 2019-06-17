@@ -598,7 +598,7 @@ struct Blockwise4dTensorCopy3
 
     __device__ constexpr index_t GetRegisterClipboardSize() const
     {
-        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+        static_assert(is_same<Float, float>{}, "wrong! only support float!\n");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};

@@ -264,7 +264,7 @@ struct GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 #if 1
                     blockwise_batch_gemm.Run
 #else
-                    blockwise_batch_gemm.Run_asm
+                    blockwise_batch_gemm.Run_amd_asm
 #endif
                         (p_wei_block + wei_c_y_x_k_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
                          p_in_block + in_c_h_w_n_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),

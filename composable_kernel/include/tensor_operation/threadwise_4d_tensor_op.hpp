@@ -26,16 +26,16 @@ __device__ void threadwise_4d_tensor_shift_down(Desc, Float* __restrict__ p, IDi
     constexpr index_t nshift = NShift::mValue;
 
     constexpr index_t did0_end =
-        is_same<decltype(I0), IDim>::value ? desc.GetLength(I0) - nshift : desc.GetLength(I0);
+        is_same<decltype(I0), IDim>{} ? desc.GetLength(I0) - nshift : desc.GetLength(I0);
 
     constexpr index_t did1_end =
-        is_same<decltype(I1), IDim>::value ? desc.GetLength(I1) - nshift : desc.GetLength(I1);
+        is_same<decltype(I1), IDim>{} ? desc.GetLength(I1) - nshift : desc.GetLength(I1);
 
     constexpr index_t did2_end =
-        is_same<decltype(I2), IDim>::value ? desc.GetLength(I2) - nshift : desc.GetLength(I2);
+        is_same<decltype(I2), IDim>{} ? desc.GetLength(I2) - nshift : desc.GetLength(I2);
 
     constexpr index_t did3_end =
-        is_same<decltype(I3), IDim>::value ? desc.GetLength(I3) - nshift : desc.GetLength(I3);
+        is_same<decltype(I3), IDim>{} ? desc.GetLength(I3) - nshift : desc.GetLength(I3);
 
     for(index_t did0 = 0; did0 < did0_end; ++did0)
     {

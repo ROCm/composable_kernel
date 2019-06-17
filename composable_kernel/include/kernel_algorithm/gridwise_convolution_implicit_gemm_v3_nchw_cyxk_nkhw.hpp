@@ -217,7 +217,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
 #if 1
             return blockwise_gemm.Run(Xs...);
 #else
-            return blockwise_gemm.Run_asm(Xs...);
+            return blockwise_gemm.Run_amd_asm(Xs...);
 #endif
         };
 

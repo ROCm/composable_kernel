@@ -203,7 +203,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw_lds_double_buffer
 #if 1
             return blockwise_batch_gemm.Run(Xs...);
 #elif 0
-            return blockwise_batch_gemm.Run_asm(Xs...);
+            return blockwise_batch_gemm.Run_amd_asm(Xs...);
 #else
             return blockwise_batch_gemm.Run_asm_v2(Xs...);
 #endif

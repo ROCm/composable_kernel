@@ -5,6 +5,10 @@
 #include "ConstantMatrixDescriptor.hpp"
 #include "threadwise_gemm.hpp"
 
+#ifndef CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM
+#define CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM 1
+#endif
+
 namespace ck {
 
 // if following number are power of 2, index calculation shall be greatly reduced:
@@ -51,7 +55,8 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                           N % (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster) == 0,
                       "wrong! Cannot evenly divide work among\n");
 
-        static_assert(is_same_type(ThreadMatrixC::GetLengths(), GetThreadMatrixCLengths()),
+        static_assert(std::is_same<decltype(ThreadMatrixC::GetLengths()),
+                                   decltype(GetThreadMatrixCLengths())>{},
                       "wrong! ThreadMatrixC lengths is wrong");
 
         auto c_thread_mtx_index = GetBeginOfThreadMatrixC(get_thread_local_1d_id());
@@ -115,11 +120,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     }
 
 #if CK_USE_AMD_INLINE_ASM
-    // TODO: this is not working correctly
     template <class FloatA, class FloatB, class FloatC>
-    __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
-                            const FloatB* __restrict__ p_b_block,
-                            FloatC* __restrict__ p_c_thread) const
+    __device__ void Run_amd_asm(const FloatA* __restrict__ p_a_block,
+                                const FloatB* __restrict__ p_b_block,
+                                FloatC* __restrict__ p_c_thread) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -156,15 +160,15 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr index_t NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
 
         // assertion for inline asm
-        static_assert(is_same<FloatA, float>::value && is_same<FloatB, float>::value &&
-                          is_same<FloatC, float>::value,
-                      "Run_asm only deal with float\n");
+        static_assert(is_same<FloatA, float>{} && is_same<FloatB, float>{} &&
+                          is_same<FloatC, float>{},
+                      "Run_amd_asm only deal with float");
 
         static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && KPerThreadLoop == 1 &&
                           MPerThread == 8 && NPerThread == 8,
-                      "Run_asm cannot deal with this GEMM shape yet\n");
+                      "Run_amd_asm cannot deal with this GEMM shape yet");
 
-        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_asm only do float4 read\n");
+        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_amd_asm only do float4 read");
 
         using Float4 = vector_type<float, 4>::MemoryType;
 
@@ -200,9 +204,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 #endif
 
     template <class FloatA, class FloatB, class FloatC>
-    __device__ void Run(const FloatA* const __restrict__ p_a_block,
-                        const FloatB* const __restrict__ p_b_block,
-                        FloatC* const __restrict__ p_c_thread) const
+    __device__ void Run_source(const FloatA* const __restrict__ p_a_block,
+                               const FloatB* const __restrict__ p_b_block,
+                               FloatC* const __restrict__ p_c_thread) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -291,9 +295,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     }
 
     template <class FloatA, class FloatB, class FloatC>
-    __device__ void Run_RegisterDoubleBuffer(FloatA* const p_a_block,
-                                             FloatB* const p_b_block,
-                                             FloatC* p_c_thread) const
+    __device__ void RunRegisterDoubleBuffer_source(FloatA* const p_a_block,
+                                                   FloatB* const p_b_block,
+                                                   FloatC* p_c_thread) const
     {
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -426,6 +430,18 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                             False,
                             p_c_thread);
         }
+    }
+    template <class FloatA, class FloatB, class FloatC>
+    __device__ void Run(const FloatA* __restrict__ p_a_block,
+                        const FloatB* __restrict__ p_b_block,
+                        FloatC* __restrict__ p_c_thread) const
+
+    {
+#if CK_USE_AMD_INLINE_ASM && CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM
+        Run_amd_asm(p_a_block, p_b_block, p_c_thread);
+#else
+        Run_source(p_a_block, p_b_block, p_c_thread);
+#endif
     }
 };
 

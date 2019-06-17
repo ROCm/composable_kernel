@@ -9,10 +9,6 @@
 #include "blockwise_gemm.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
 
-#ifndef CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM
-#define CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM 1
-#endif
-
 namespace ck {
 
 // define B = merge(N0, Ho, Wo)
@@ -239,15 +235,6 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
             GemmDataPerReadA,
             GemmDataPerReadB>{};
 
-        // choose GEMM implementation here
-        const auto run_blockwise_gemm = [&](auto... Xs) {
-#if CK_USE_AMD_INLINE_ASM && CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM
-            return blockwise_gemm.Run_asm(Xs...);
-#else
-            return blockwise_gemm.Run(Xs...);
-#endif
-        };
-
         // LDS allocation for input and weight: be careful of alignment
         constexpr index_t max_align = math::lcm(InBlockCopyDstDataPerWrite_N2,
                                                 WeiBlockCopyDstDataPerWrite_K,
@@ -255,9 +242,11 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
                                                 GemmDataPerReadB);
 
         constexpr index_t in_block_space =
-            in_e_n1_b_n2_block_desc.GetElementSpace(Number<max_align>{});
+            math::integer_divide_ceil(in_e_n1_b_n2_block_desc.GetElementSpace(), max_align) *
+            max_align;
 
-        constexpr index_t wei_block_space = wei_e_k_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t wei_block_space =
+            math::integer_divide_ceil(wei_e_k_block_desc.GetElementSpace(), max_align) * max_align;
 
         __shared__ Float p_in_block_double[2 * in_block_space];
         __shared__ Float p_wei_block_double[2 * wei_block_space];
@@ -309,7 +298,7 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
                                                             p_wei_register_clipboard);
 
                 // LDS double buffer: GEMM on current data
-                run_blockwise_gemm(p_wei_block_now, p_in_block_now, p_out_thread);
+                blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
 
                 // LDS double buffer: store next data to LDS
                 blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
@@ -336,7 +325,7 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
                                                         p_wei_register_clipboard);
 
             // LDS double buffer: GEMM on current data
-            run_blockwise_gemm(p_wei_block_double, p_in_block_double, p_out_thread);
+            blockwise_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
 
             // LDS double buffer: store next data to LDS
             blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
@@ -348,7 +337,7 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
             __syncthreads();
 
             // LDS double buffer: GEMM on current data
-            run_blockwise_gemm(p_wei_block_double + wei_block_space,
+            blockwise_gemm.Run(p_wei_block_double + wei_block_space,
                                p_in_block_double + in_block_space,
                                p_out_thread);
         }
