@@ -87,7 +87,7 @@ __host__ __device__ constexpr auto sequence2array(Sequence<Is...>)
 template <class TData, index_t NSize>
 __host__ __device__ constexpr auto make_zero_array()
 {
-    constexpr auto zero_sequence = typename uniform_sequence_gen<NSize, 0>::SeqType{};
+    constexpr auto zero_sequence = typename uniform_sequence_gen<NSize, 0>::type{};
     constexpr auto zero_array    = sequence2array(zero_sequence);
     return zero_array;
 }

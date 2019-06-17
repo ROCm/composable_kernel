@@ -367,7 +367,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
                 p_out_thread_on_global,
                 {0, 0, 0, 0, 0, 0, 0, 0},
                 out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths(),
-                arithmetic_sequence_gen<0, 8, 1>::SeqType{},
+                arithmetic_sequence_gen<0, 8, 1>::type{},
                 Number<1>{});
         }
     }

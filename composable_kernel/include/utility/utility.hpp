@@ -59,9 +59,9 @@ __host__ __device__ constexpr T integer_divide_ceil(T a, T b)
 }
 
 template <class T>
-__host__ __device__ constexpr T max(T x, T y)
+__host__ __device__ constexpr T max(T x)
 {
-    return x > y ? x : y;
+    return x;
 }
 
 template <class T, class... Ts>
@@ -77,9 +77,9 @@ __host__ __device__ constexpr T max(T x, Ts... xs)
 }
 
 template <class T>
-__host__ __device__ constexpr T min(T x, T y)
+__host__ __device__ constexpr T min(T x)
 {
-    return x < y ? x : y;
+    return x;
 }
 
 template <class T, class... Ts>
