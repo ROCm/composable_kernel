@@ -5,6 +5,79 @@
 
 namespace ck {
 
+// cast a pointer of LDS to its address
+extern "C" __attribute__((address_space(3))) void* __to_local(void* p)[[hc]];
+
+__device__ void vmcnt(index_t cnt)
+{
+    if(cnt == 0)
+    {
+        asm volatile("\n \
+                s_waitcnt vmcnt(0) \n \
+                " ::);
+    }
+    else if(cnt == 1)
+    {
+        asm volatile("\n \
+                s_waitcnt vmcnt(1) \n \
+                " ::);
+    }
+    else if(cnt == 2)
+    {
+        asm volatile("\n \
+                s_waitcnt vmcnt(2) \n \
+                " ::);
+    }
+    else if(cnt == 4)
+    {
+        asm volatile("\n \
+                s_waitcnt vmcnt(2) \n \
+                " ::);
+    }
+    else
+    {
+        assert(false);
+    }
+}
+
+__device__ void lgkmcnt(index_t cnt)
+{
+    if(cnt == 0)
+    {
+        asm volatile("\n \
+                s_waitcnt lgkmcnt(0) \n \
+                " ::);
+    }
+    else if(cnt == 1)
+    {
+        asm volatile("\n \
+                s_waitcnt lgkmcnt(1) \n \
+                " ::);
+    }
+    else if(cnt == 2)
+    {
+        asm volatile("\n \
+                s_waitcnt lgkmcnt(2) \n \
+                " ::);
+    }
+    else if(cnt == 3)
+    {
+        asm volatile("\n \
+                s_waitcnt lgkmcnt(3) \n \
+                " ::);
+    }
+    else if(cnt == 4)
+    {
+        asm volatile("\n \
+                s_waitcnt lgkmcnt(4) \n \
+                " ::);
+    }
+    else
+    {
+        assert(false);
+    }
+}
+
 __device__ void outerProduct1x4(const float* a, const float* b, float* c)
 {
     asm volatile("\n \
