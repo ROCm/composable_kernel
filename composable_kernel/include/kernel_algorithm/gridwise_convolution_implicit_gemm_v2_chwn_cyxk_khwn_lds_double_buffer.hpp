@@ -271,7 +271,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 #elif 0
                         blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 0
-                        blockwise_gemm.Run_asm
+                        blockwise_gemm.Run_amd_asm
 #endif
                             (p_wei_block_now +
                                  wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
@@ -313,7 +313,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 0
-                    blockwise_gemm.Run_asm
+                    blockwise_gemm.Run_amd_asm
 #endif
                         (p_wei_block_double +
                              wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
@@ -339,7 +339,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn_lds_double_buffer
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 0
-                    blockwise_gemm.Run_asm
+                    blockwise_gemm.Run_amd_asm
 #endif
                         (p_wei_block_double + wei_block_space +
                              wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),

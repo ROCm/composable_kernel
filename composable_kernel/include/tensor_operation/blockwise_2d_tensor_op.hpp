@@ -286,7 +286,7 @@ struct Blockwise2dTensorCopy2
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+        static_assert(is_same<Float, float>{}, "wrong! only support float!\n");
 
         using Float4 = float4;
         using Float2 = float2;
@@ -565,7 +565,7 @@ struct Blockwise2dTensorCopy3
 
     __device__ constexpr index_t GetRegisterClipboardSize() const
     {
-        static_assert(is_same<Float, float>::value, "wrong! only support float!\n");
+        static_assert(is_same<Float, float>{}, "wrong! only support float!\n");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -714,7 +714,7 @@ struct Blockwise2dTensorCopy3
                 *(reinterpret_cast<const vector_t*>(&p_src[mSrcMyThreadOffset +
                                                     iloop * src_loop_stride]));
 #else
-            static_assert(is_same<float, Float>::value && DataPerRead == 4,
+            static_assert(is_same<float, Float>{} && DataPerRead == 4,
                           "global_load is only for float4");
 
             global_load(reinterpret_cast<vector_t&>(p_clipboard[iloop * DataPerRead]),
@@ -773,7 +773,7 @@ struct Blockwise2dTensorCopy3
             *(reinterpret_cast<vector_t*>(&p_dst[mDstMyThreadOffset + iloop * dst_loop_stride]) =
                 *(reinterpret_cast<const vector_t*>(&p_clipboard[iloop * DataPerRead]);
 #else
-            static_assert(is_same<float, Float>::value && DataPerRead == 4,
+            static_assert(is_same<float, Float>{} && DataPerRead == 4,
                           "ds_write_b128 is only for float4");
 
             ds_write_b128(reinterpret_cast<const vector_t&>(p_clipboard[iloop * DataPerRead]),

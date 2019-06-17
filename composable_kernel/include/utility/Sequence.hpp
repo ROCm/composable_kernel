@@ -55,22 +55,6 @@ struct Sequence
         return Sequence<Type::Get(Number<IRs>{})...>{};
     }
 
-#if 0 // require sequence_sort, which is not implemented yet
-    template <class MapOld2New>
-    __host__ __device__ static constexpr auto ReorderGivenOld2New(MapOld2New /*old2new*/)
-    {
-        static_assert(sizeof...(Is) == MapOld2New::GetSize(),
-                      "wrong! reorder map should have the same size as Sequence to be rerodered");
-
-        static_assert(is_valid_sequence_map<MapOld2New>::value, 
-                      "wrong! invalid reorder map");
-
-        constexpr auto map_new2old = typename sequence_map_inverse<MapOld2New>::SeqMapType{};
-
-        return ReorderGivenNew2Old(map_new2old);
-    }
-#endif
-
     __host__ __device__ static constexpr auto Reverse();
 
     __host__ __device__ static constexpr index_t Front()
@@ -263,74 +247,15 @@ struct sequence_reverse<Sequence<I0, I1>>
     using SeqType = Sequence<I1, I0>;
 };
 
-#if 0 // not fully implemented
-template <class KeySeq0, class ValSeq0, class KeySeq1, class ValSeq1>
-struct sequence_sort_merge_impl;
-
-template <index_t Key0,
-          index_t... Keys0,
-          index_t Val0,
-          index_t... Vals0,
-          index_t Key1,
-          index_t... Keys1,
-          index_t Val0,
-          index_t... Vals1>
-struct sequence_sort_merge_impl<Sequence<Key0, Keys0...>,
-                                Sequence<Val0, Vals0...>,
-                                Sequence<Key1, Keys1...>,
-                                Sequence<Val1, Vals1...>>
-{
-};
-
-template <class>
-struct sequence_sort;
-
-template <index_t... Is>
-struct sequence_sort<Sequence<Is...>>
-{
-    using OriginalSeqType        = Sequence<Is...>;
-    using SortedSeqType          = xxxxx;
-    using MapSorted2OriginalType = xxx;
-};
-
-template <class Seq, class IsValidSeqMap>
-struct sequence_map_inverse_impl;
-
-// impl for valid map, no impl for invalid map
-template <index_t... Is>
-struct sequence_map_inverse_impl<Sequence<Is...>, true>
-{
-    using SeqMapType = sequence_sort<Sequence<Is...>>::MapSorted2OriginalType;
-};
-
-template <class>
-struct sequence_map_inverse;
-
-template <class Is...>
-struct sequence_map_inverse<Sequence<Is...>>
-{
-    // TODO: make sure the map to be inversed is valid: [0, sizeof...(Is))
-    static constexpr bool is_valid_sequence_map =
-        is_same<typename sequence_sort<Sequence<Is...>>::SortedSeqType,
-                typename arithmetic_sequence_gen<0, sizeof...(Is), 1>::SeqType>::value;
-
-    // make compiler fails, if is_valid_map != true
-    using SeqMapType =
-        typename sequence_map_inverse_impl<Sequence<Is...>, is_valid_map>::SeqMapType;
-};
-
-#endif
-
 template <class Seq>
 struct is_valid_sequence_map
 {
-    static constexpr bool value =
-#if 0 // sequence_sort is not implemented yet
-        is_same<typename arithmetic_sequence_gen<0, Seq::GetSize(), 1>::SeqType,
-                typename sequence_sort<Seq>::SortedSeqType>::value;
-#else
-        true;
-#endif
+    static constexpr bool value = true;
+
+    // TODO: add proper check for is_valid, something like:
+    // static constexpr bool value =
+    //     is_same<typename arithmetic_sequence_gen<0, Seq::GetSize(), 1>::SeqType,
+    //             typename sequence_sort<Seq>::SortedSeqType>{};
 };
 
 template <index_t... Xs, index_t... Ys>

@@ -9,6 +9,9 @@
 #include "helper_cuda.h"
 #define CK_USE_AMD_INLINE_ASM 0
 
+#define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1 0
+#define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1 0
+
 namespace ck {
 
 // For some reason, CUDA need this definition, otherwise

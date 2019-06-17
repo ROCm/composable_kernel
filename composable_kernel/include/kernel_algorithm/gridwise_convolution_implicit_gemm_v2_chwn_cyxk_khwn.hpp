@@ -238,7 +238,7 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
 #elif 0
                     blockwise_gemm.Run_RegisterDoubleBuffer
 #elif 1
-                    blockwise_gemm.Run_asm
+                    blockwise_gemm.Run_amd_asm
 #endif
                         (p_wei_block + wei_cyxk_block_desc.GetOffsetFromMultiIndex(0, y, x, 0),
                          p_in_block + y * Wi + x,

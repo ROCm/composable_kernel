@@ -98,7 +98,7 @@ __host__ __device__ constexpr auto reorder_array_given_new2old(const Array<TData
 {
     static_assert(NSize == sizeof...(IRs), "NSize not consistent");
 
-    static_assert(is_valid_sequence_map<Sequence<IRs...>>::value, "wrong! invalid reorder map");
+    static_assert(is_valid_sequence_map<Sequence<IRs...>>{}, "wrong! invalid reorder map");
 
     return Array<TData, NSize>{old_array[IRs]...};
 }

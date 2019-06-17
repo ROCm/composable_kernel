@@ -6,6 +6,10 @@
 #include "ConstantMergedTensorDescriptor.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
 
+#ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
+#define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1 1
+#endif
+
 namespace ck {
 
 // slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
@@ -91,7 +95,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         constexpr auto repeat_lengths = SliceLengths{} / data_per_cluster_per_dims;
 
-        // for now, only support SubLengths.Get() == 1 on a merged dimension that constains
+        // for now, only support SubLengths == 1 on a merged dimension that constains
         // multiple original dimensions
         static_for<0, nDim, 1>{}([&](auto IDim_) {
             constexpr auto IDim = decltype(IDim_){};
@@ -121,7 +125,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         // partial offset on each dimension
         static_for<0, nDim, 1>{}([&](auto IDim_) {
             constexpr auto IDim    = decltype(IDim_){};
-            constexpr index_t idim = IDim.Get();
+            constexpr index_t idim = IDim;
 
             constexpr auto src_partial_original_dims =
                 SrcDesc::GetContainedOriginalDimensions(IDim);
@@ -135,7 +139,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         static_for<0, nDim, 1>{}([&](auto IDim_) {
             constexpr auto IDim    = decltype(IDim_){};
-            constexpr index_t idim = IDim.Get();
+            constexpr index_t idim = IDim;
 
             constexpr auto dst_partial_original_dims =
                 DstDesc::GetContainedOriginalDimensions(IDim);
@@ -153,38 +157,6 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         mThreadDstOffset = accumulate_on_array(
             mThreadDstPartialOffsets, math::plus<index_t>{}, static_cast<index_t>(0));
-
-#if 0
-        if(get_block_1d_id() == 0)
-        {
-            printf("id %5u %5u: "
-                   "src_block_data_multi_id_begin: %u %u %u %u, "
-                   "thread_cluster_multi_id: %u %u %u %u, "
-                   "data_cluster_multi_id: %u %u %u %u, "
-                   "thread_data_multi_id_begin: %u %u %u %u, "
-                   "mThreadSrcOffset %u, mThreadDstOffset %u \n",
-                   get_block_1d_id(),
-                   get_thread_local_1d_id(),
-                   src_block_data_multi_id_begin[0],
-                   src_block_data_multi_id_begin[1],
-                   src_block_data_multi_id_begin[2],
-                   src_block_data_multi_id_begin[3],
-                   thread_cluster_multi_id[0],
-                   thread_cluster_multi_id[1],
-                   thread_cluster_multi_id[2],
-                   thread_cluster_multi_id[3],
-                   data_cluster_multi_id[0],
-                   data_cluster_multi_id[1],
-                   data_cluster_multi_id[2],
-                   data_cluster_multi_id[3],
-                   thread_data_multi_id_begin[0],
-                   thread_data_multi_id_begin[1],
-                   thread_data_multi_id_begin[2],
-                   thread_data_multi_id_begin[3],
-                   mThreadSrcOffset,
-                   mThreadDstOffset);
-        }
-#endif
     }
 
     __device__ static constexpr index_t GetRegisterClipboardSize()
@@ -210,19 +182,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
-#if 0
-            constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
-
-            const auto src_thread_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
-
-            const auto clipboard_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
-
-            const index_t src_offset =
-                SrcDesc{}.GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
-
-            const index_t clipboard_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
-#else // HIP compiler performs better with these codes
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
             constexpr auto src_thread_data_multi_id_begin =
@@ -235,6 +195,18 @@ struct BlockwiseGenericTensorSliceCopy_v1
                 SrcDesc::GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
 
             constexpr index_t clipboard_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
+#else
+            constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
+
+            const auto src_thread_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
+
+            const auto clipboard_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+
+            const index_t src_offset =
+                SrcDesc{}.GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
+
+            const index_t clipboard_offset =
                 thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
 #endif
 
@@ -263,18 +235,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
 
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id_) {
-#if 0
-            constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
-
-            const auto clipboard_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
-
-            const auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
-
-            const index_t clipboard_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
-
-            const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(dst_data_multi_id_begin);
-#else // HIP compiler performs better with these codes
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
             constexpr auto repeat_multi_id = decltype(repeat_multi_id_){};
 
             constexpr auto clipboard_data_multi_id_begin =
@@ -287,6 +248,17 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
             constexpr index_t dst_offset =
                 DstDesc{}.GetOffsetFromMultiIndex(dst_data_multi_id_begin);
+#else
+            constexpr auto repeat_multi_id = sequence2array(decltype(repeat_multi_id_){});
+
+            const auto clipboard_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+
+            const auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
+
+            const index_t clipboard_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(clipboard_data_multi_id_begin);
+
+            const index_t dst_offset = DstDesc{}.GetOffsetFromMultiIndex(dst_data_multi_id_begin);
 #endif
 
             threadwise_generic_tensor_slice_copy_v1(thread_tensor_desc,
@@ -310,7 +282,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
     }
 
     // When moving the slicing windows along a merged dimension, if the strides of the
-    // contained (by the merged dimension) original dimensions are in descending order,
+    // contained (by the merged dimension) original dimensions are not in descending order,
     // then there is no guarantee that the new offset will be larger than the old offset
     // for movement in positive direction (vice versue for movement in negative direction).
     // As a result, there is the possiblity that the offset calculation may result in
@@ -323,7 +295,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         Number<IDim_>, Number<StepSize>, integral_constant<bool, PositiveDirection> direction)
     {
         constexpr auto IDim    = Number<IDim_>{};
-        constexpr index_t idim = IDim.Get();
+        constexpr index_t idim = IDim;
 
         static_if<SrcDesc::ContainMultipleOriginalDimensions(IDim)>{}([&](auto fwd) {
             // logic for a merged dimension, also works for non-merged dimension, but its logic may
@@ -350,8 +322,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                 constexpr auto I                = decltype(I_){};
                 constexpr index_t idim_original = src_partial_original_dims.Get(I);
 
-                mThreadSrcOriginalMultiId(idim_original) =
-                    new_src_partial_original_multi_id[I.Get()];
+                mThreadSrcOriginalMultiId(idim_original) = new_src_partial_original_multi_id[I];
             });
 
             // calculate new partial offset on this merged dimension

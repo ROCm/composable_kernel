@@ -295,9 +295,9 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 
 #if CK_USE_AMD_INLINE_ASM
     template <class FloatA, class FloatB, class FloatC>
-    __device__ void Run_asm(const FloatA* __restrict__ p_a_block,
-                            const FloatB* __restrict__ p_b_block,
-                            FloatC* __restrict__ p_c_thread) const
+    __device__ void Run_amd_asm(const FloatA* __restrict__ p_a_block,
+                                const FloatB* __restrict__ p_b_block,
+                                FloatC* __restrict__ p_c_thread) const
     {
         constexpr auto a_block_mtx  = BlockMatrixA{};
         constexpr auto b_block_mtx  = BlockMatrixB{};
@@ -330,19 +330,19 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         constexpr index_t NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
 
         // assertion for inline asm
-        static_assert(is_same<FloatA, float>::value && is_same<FloatB, float>::value &&
-                          is_same<FloatC, float>::value,
-                      "Run_asm only deal with float\n");
+        static_assert(is_same<FloatA, float>{} && is_same<FloatB, float>{} &&
+                          is_same<FloatC, float>{},
+                      "Run_amd_asm only deal with float\n");
 
         static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && KPerThreadLoop == 1 &&
                           MPerThread == 8 && NPerThread == 8,
-                      "Run_asm cannot deal with this GEMM shape yet\n");
+                      "Run_amd_asm cannot deal with this GEMM shape yet\n");
 
-        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_asm only do float4 read\n");
+        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_amd_asm only do float4 read\n");
 
-        static_assert(
-            BlockMatrixStrideA == 0 && BatchPerThread == 1,
-            "Run_asm can only deal with BlockMatrixStrideA == 0 && BatchPerThread == 1 for now\n");
+        static_assert(BlockMatrixStrideA == 0 && BatchPerThread == 1,
+                      "Run_amd_asm can only deal with BlockMatrixStrideA == 0 && BatchPerThread == "
+                      "1 for now\n");
 
         using Float4 = vector_type<float, 4>::MemoryType;
 
@@ -421,19 +421,19 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         constexpr index_t NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
 
         // assertion for inline asm
-        static_assert(is_same<FloatA, float>::value && is_same<FloatB, float>::value &&
-                          is_same<FloatC, float>::value,
-                      "Run_asm only deal with float\n");
+        static_assert(is_same<FloatA, float>{} && is_same<FloatB, float>{} &&
+                          is_same<FloatC, float>{},
+                      "Run_amd_asm only deal with float\n");
 
         static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && KPerThreadLoop == 1 &&
                           MPerThread == 8 && NPerThread == 8,
-                      "Run_asm cannot deal with this GEMM shape yet\n");
+                      "Run_amd_asm cannot deal with this GEMM shape yet\n");
 
-        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_asm only do float4 read\n");
+        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_amd_asm only do float4 read\n");
 
-        static_assert(
-            BlockMatrixStrideA == 0 && BatchPerThread == 1,
-            "Run_asm can only deal with BlockMatrixStrideA == 0 && BatchPerThread == 1 for now\n");
+        static_assert(BlockMatrixStrideA == 0 && BatchPerThread == 1,
+                      "Run_amd_asm can only deal with BlockMatrixStrideA == 0 && BatchPerThread == "
+                      "1 for now\n");
 
         using Float4 = vector_type<float, 4>::MemoryType;
 

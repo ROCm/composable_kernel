@@ -49,7 +49,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
             make_ConstantTensorDescriptor_packed(thread_cluster_lengths);
 
         // sanity check: data type
-        static_assert(is_same<Float, float>::value, "wrong! only support float for now!\n");
+        static_assert(is_same<Float, float>{}, "wrong! only support float for now!\n");
 
         // sanity check: nDim
         static_assert(SrcDesc::GetNumOfDimension() == nDim &&
@@ -121,12 +121,11 @@ struct BlockwiseTensorSliceReorderCopy_v3
             reorder_array_given_old2new(thread_multi_id, map_thread_cluster_2_src_cluster);
 
         static_for<0, nDim, 1>{}([&](auto IDim) {
-            constexpr auto I    = decltype(IDim){};
-            constexpr index_t i = I.Get();
+            constexpr index_t idim = IDim;
             // compiler: will it really compute index here, or be merged with
             // GetOffsetFromMultiIndex and
             // optimized away???
-            src_data_multi_id(i) *= src_sub_lengths.Get(I);
+            src_data_multi_id(idim) *= src_sub_lengths.Get(IDim);
         });
 
         // compiler: will it really compute index here, or be merged with GetOffsetFromMultiIndex

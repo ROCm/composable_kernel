@@ -24,10 +24,8 @@ struct swallow
 };
 
 // Emulate if constexpr
-template <bool Predicate>
-struct static_if
-{
-};
+template <bool>
+struct static_if;
 
 template <>
 struct static_if<true>
