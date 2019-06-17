@@ -305,8 +305,9 @@ struct ConstantTensorDescriptor
     {
         using leaf_tensor = ConstantTensorDescriptor<Ts...>;
 
-        return ConstantTensorDescriptor<decltype(GetLengths().Append(leaf_tensor::GetLengths())),
-                                        decltype(GetStrides().Append(leaf_tensor::GetStrides()))>{};
+        return ConstantTensorDescriptor<decltype(GetLengths().PushBack(leaf_tensor::GetLengths())),
+                                        decltype(
+                                            GetStrides().PushBack(leaf_tensor::GetStrides()))>{};
     }
 
     template <index_t IDim, index_t SliceLen>
@@ -347,7 +348,7 @@ struct ConstantTensorDescriptor
 
         // folded lengths
         constexpr auto fold_lengths =
-            Sequence<unfold_length / fold_intervals_product>{}.Append(fold_intervals);
+            Sequence<unfold_length / fold_intervals_product>{}.PushBack(fold_intervals);
 
         // folded strides
         constexpr auto fold_strides =
@@ -356,14 +357,14 @@ struct ConstantTensorDescriptor
                 fold_intervals.PushBack(Number<1>{}), math::multiplies<index_t>{}, Number<1>{});
 
         // left and right
-        constexpr auto left = typename arithmetic_sequence_gen<0, IDim, 1>::SeqType{};
+        constexpr auto left = typename arithmetic_sequence_gen<0, IDim, 1>::type{};
         constexpr auto right =
-            typename arithmetic_sequence_gen<IDim + 1, GetNumOfDimension(), 1>::SeqType{};
+            typename arithmetic_sequence_gen<IDim + 1, GetNumOfDimension(), 1>::type{};
 
         constexpr auto new_lengths =
-            GetLengths().Extract(left).Append(fold_lengths).Append(GetLengths().Extract(right));
+            GetLengths().Extract(left).PushBack(fold_lengths).PushBack(GetLengths().Extract(right));
         constexpr auto new_strides =
-            GetStrides().Extract(left).Append(fold_strides).Append(GetStrides().Extract(right));
+            GetStrides().Extract(left).PushBack(fold_strides).PushBack(GetStrides().Extract(right));
 
         return ConstantTensorDescriptor<decltype(new_lengths), decltype(new_strides)>{};
     }
@@ -377,11 +378,11 @@ struct ConstantTensorDescriptor
                       "wrong! should have FirstUnfoldDim <= LastUnfoldDim!");
 
         // left and right
-        constexpr auto left = typename arithmetic_sequence_gen<0, FirstUnfoldDim, 1>::SeqType{};
+        constexpr auto left = typename arithmetic_sequence_gen<0, FirstUnfoldDim, 1>::type{};
         constexpr auto middle =
-            typename arithmetic_sequence_gen<FirstUnfoldDim, LastUnfoldDim + 1, 1>::SeqType{};
+            typename arithmetic_sequence_gen<FirstUnfoldDim, LastUnfoldDim + 1, 1>::type{};
         constexpr auto right =
-            typename arithmetic_sequence_gen<LastUnfoldDim + 1, GetNumOfDimension(), 1>::SeqType{};
+            typename arithmetic_sequence_gen<LastUnfoldDim + 1, GetNumOfDimension(), 1>::type{};
 
         // dimensions to be unfolded need to be continuous
         static_assert(Type::Extract(middle).AreDimensionsContinuous(), "wrong! not unfoldable");
@@ -396,12 +397,12 @@ struct ConstantTensorDescriptor
         constexpr auto new_lengths = GetLengths()
                                          .Extract(left)
                                          .PushBack(Number<unfold_length>{})
-                                         .Append(GetLengths().Extract(right));
+                                         .PushBack(GetLengths().Extract(right));
 
         constexpr auto new_strides = GetStrides()
                                          .Extract(left)
                                          .PushBack(Number<unfold_stride>{})
-                                         .Append(GetStrides().Extract(right));
+                                         .PushBack(GetStrides().Extract(right));
 
         return ConstantTensorDescriptor<decltype(new_lengths), decltype(new_strides)>{};
     }

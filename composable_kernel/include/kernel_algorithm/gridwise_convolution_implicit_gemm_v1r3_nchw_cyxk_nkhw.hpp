@@ -440,7 +440,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw
                         wo_block_data_begin + wo_thread_data_begin),
                 make_zero_array<index_t, 10>(),
                 out_10d_thread_desc.GetLengths().ReorderGivenNew2Old(map_out_global2thread),
-                arithmetic_sequence_gen<0, 10, 1>::SeqType{},
+                arithmetic_sequence_gen<0, 10, 1>::type{},
                 Number<1>{});
 #endif
         });

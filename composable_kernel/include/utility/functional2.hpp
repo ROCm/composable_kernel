@@ -31,7 +31,7 @@ struct static_for
         static_assert((NEnd - NBegin) % Increment == 0,
                       "Wrong! should satisfy (NEnd - NBegin) % Increment == 0");
 
-        static_for_impl<typename arithmetic_sequence_gen<NBegin, NEnd, Increment>::SeqType>{}(f);
+        static_for_impl<typename arithmetic_sequence_gen<NBegin, NEnd, Increment>::type>{}(f);
     }
 };
 
