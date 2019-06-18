@@ -93,8 +93,6 @@ struct BlockwiseGenericTensorSliceCopy_v1
                           "wrong! cannot evenly divide sliced tensor into cluster");
         });
 
-        constexpr auto repeat_lengths = SliceLengths{} / data_per_cluster_per_dims;
-
         // for now, only support SubLengths == 1 on a merged dimension that constains
         // multiple original dimensions
         static_for<0, nDim, 1>{}([&](auto IDim_) {
@@ -297,7 +295,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         constexpr auto IDim    = Number<IDim_>{};
         constexpr index_t idim = IDim;
 
-        static_if<SrcDesc::ContainMultipleOriginalDimensions(IDim)>{}([&](auto fwd) {
+        static_if<SrcDesc::ContainMultipleOriginalDimensions(IDim)>{}([&](auto) {
             // logic for a merged dimension, also works for non-merged dimension, but its logic may
             // be unncessarily complicated for compiler to remove calculations that are useless for
             // a non-merged dimension
@@ -337,7 +335,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
             // update "mThreadSrcOffset", do "+" before "-" to avoid underflow
             mThreadSrcOffset = (mThreadSrcOffset + new_src_partial_offset) - old_src_partial_offset;
-        }).Else([&](auto fwd) {
+        }).Else([&](auto) {
             // Logic for non-merged dimension. If you are never going to move the slicing window on
             // a merged dimension, then "mThreadSrcOriginalMultiId" and "mThreadSrcPartialOffsets",
             // which are being calculated here, will never be used later. In this case, compiler

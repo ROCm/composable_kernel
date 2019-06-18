@@ -11,6 +11,7 @@
 
 namespace ck {
 
+// user need to make sure alignment requirement is satisfied when setting DataPerAccesss > 1
 template <class Float,
           class SrcDesc,
           class DstDesc,

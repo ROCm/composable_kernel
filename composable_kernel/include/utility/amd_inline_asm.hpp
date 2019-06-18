@@ -102,7 +102,7 @@ __device__ void outerProduct1x4(const float& a,
                                 const vector_type<float, 4>::MemoryType& b,
                                 vector_type<float, 4>::MemoryType& c)
 {
-    outerProduct1x4(&a, (float*)&b, (float*)&c);
+    outerProduct1x4(&a, reinterpret_cast<const float*>(&b), reinterpret_cast<float*>(&c));
 }
 
 __device__ void outerProduct4x4(const vector_type<float, 4>::MemoryType& a,

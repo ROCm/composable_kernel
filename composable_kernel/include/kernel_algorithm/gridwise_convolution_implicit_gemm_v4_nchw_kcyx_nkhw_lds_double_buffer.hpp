@@ -66,10 +66,7 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
-        constexpr auto I4 = Number<4>{};
         constexpr auto I5 = Number<5>{};
-        constexpr auto I6 = Number<6>{};
-        constexpr auto I7 = Number<7>{};
 
         constexpr auto True = integral_constant<bool, true>{};
 
@@ -77,10 +74,8 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
         constexpr auto wei_k_c_y_x_global_desc = WeiGlobalDesc{};
         constexpr auto out_n_k_h_w_global_desc = OutGlobalDesc{};
 
-        constexpr index_t N  = in_n_c_h_w_global_desc.GetLength(I0);
-        constexpr index_t C  = in_n_c_h_w_global_desc.GetLength(I1);
-        constexpr index_t Hi = in_n_c_h_w_global_desc.GetLength(I2);
-        constexpr index_t Wi = in_n_c_h_w_global_desc.GetLength(I3);
+        constexpr index_t N = in_n_c_h_w_global_desc.GetLength(I0);
+        constexpr index_t C = in_n_c_h_w_global_desc.GetLength(I1);
 
         constexpr index_t K  = out_n_k_h_w_global_desc.GetLength(I1);
         constexpr index_t Ho = out_n_k_h_w_global_desc.GetLength(I2);
@@ -346,7 +341,6 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
         {
             constexpr index_t K2 = GemmMPerThreadSubC;
             constexpr index_t K1 = GemmMLevel0Cluster * GemmMLevel1Cluster;
-            constexpr index_t K0 = K / (K1 * K2);
 
             // define tensor descriptor for threadwise copy
             //     output memory layout descriptor in register

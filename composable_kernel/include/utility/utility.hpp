@@ -6,10 +6,6 @@
 
 namespace ck {
 
-__device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
-
-__device__ index_t get_block_1d_id() { return blockIdx.x; }
-
 template <class X, class Y>
 using is_same = std::is_same<X, Y>;
 

@@ -23,6 +23,10 @@ using float4_t = float4;
 
 using index_t = uint32_t;
 
+__device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
+
+__device__ index_t get_block_1d_id() { return blockIdx.x; }
+
 __device__ void fused_multiply_accumulate(float& d, const float& s0, const float& s1)
 {
     d += s0 * s1;
