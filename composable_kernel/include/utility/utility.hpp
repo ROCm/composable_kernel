@@ -55,6 +55,14 @@ __host__ __device__ constexpr T integer_divide_ceil(T a, T b)
 }
 
 template <class T>
+__host__ __device__ constexpr T integer_least_multiple(T a, T b)
+{
+    static_assert(is_same<T, index_t>{} || is_same<T, int>{}, "wrong type");
+
+    return b * integer_divide_ceil(a, b);
+}
+
+template <class T>
 __host__ __device__ constexpr T max(T x)
 {
     return x;

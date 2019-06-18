@@ -237,11 +237,10 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
                                                 GemmDataPerReadB);
 
         constexpr index_t in_block_space =
-            math::integer_divide_ceil(in_e_n1_b_n2_block_desc.GetElementSpace(), max_align) *
-            max_align;
+            math::integer_least_multiple(in_e_n1_b_n2_block_desc.GetElementSpace(), max_align);
 
         constexpr index_t wei_block_space =
-            math::integer_divide_ceil(wei_e_k_block_desc.GetElementSpace(), max_align) * max_align;
+            math::integer_least_multiple(wei_e_k_block_desc.GetElementSpace(), max_align);
 
         __shared__ Float p_in_block_double[2 * in_block_space];
         __shared__ Float p_wei_block_double[2 * wei_block_space];
