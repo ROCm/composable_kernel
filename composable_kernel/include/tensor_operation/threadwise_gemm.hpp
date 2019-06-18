@@ -71,7 +71,7 @@ __device__ void threadwise_gemm(MatrixA,
                                 integral_constant<bool, TransC>,
                                 FloatC* __restrict__ p_c_thread)
 {
-    static_if<TransA && (!TransB) && (!TransC)>{}([&](auto fwd) {
+    static_if<TransA && (!TransB) && (!TransC)>{}([&](auto) {
         constexpr auto a_mtx = MatrixA{};
         constexpr auto b_mtx = MatrixB{};
         constexpr auto c_mtx = MatrixC{};

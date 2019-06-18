@@ -49,7 +49,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         constexpr index_t M = BlockMatrixA::NCol(); // A is transposed
         constexpr index_t N = BlockMatrixB::NCol();
-        constexpr index_t K = BlockMatrixA::NRow();
 
         static_assert(M % (MPerThreadSubC * MLevel0Cluster * MLevel1Cluster) == 0 &&
                           N % (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster) == 0,
@@ -100,12 +99,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
     {
         constexpr auto c_thread_mtx = ThreadMatrixC{};
 
-        constexpr index_t MPerThread = c_thread_mtx.NRow();
-        constexpr index_t NPerThread = c_thread_mtx.NCol();
-
-        constexpr index_t MRepeat = MPerThread / MPerThreadSubC;
-        constexpr index_t NRepeat = NPerThread / NPerThreadSubC;
-
         constexpr index_t MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
         constexpr index_t NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
 
@@ -125,9 +118,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
                                 const FloatB* __restrict__ p_b_block,
                                 FloatC* __restrict__ p_c_thread) const
     {
-        constexpr auto True  = integral_constant<bool, true>{};
-        constexpr auto False = integral_constant<bool, false>{};
-
         constexpr auto a_block_mtx  = BlockMatrixA{};
         constexpr auto b_block_mtx  = BlockMatrixB{};
         constexpr auto c_thread_mtx = ThreadMatrixC{};
@@ -145,13 +135,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         constexpr auto b_thread_mtx =
             make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
-
-        // thread A-sub, B-sub for copy
-        constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<MPerThreadSubC>{}, Number<MPerThread>{});
-
-        constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
 
         FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
         FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
@@ -172,9 +155,9 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         using Float4 = vector_type<float, 4>::MemoryType;
 
-        Float4* reg_a = (Float4*)(p_a_thread);
-        Float4* reg_b = (Float4*)(p_b_thread);
-        Float4* reg_c = (Float4*)(p_c_thread);
+        Float4* reg_a = reinterpret_cast<Float4*>(p_a_thread);
+        Float4* reg_b = reinterpret_cast<Float4*>(p_b_thread);
+        Float4* reg_c = reinterpret_cast<Float4*>(p_c_thread);
 
         reg_a[0] = *reinterpret_cast<const Float4*>(&p_a_block[mMyThreadOffsetA]);
         reg_b[0] = *reinterpret_cast<const Float4*>(&p_b_block[mMyThreadOffsetB]);
@@ -215,8 +198,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr auto b_block_mtx  = BlockMatrixB{};
         constexpr auto c_thread_mtx = ThreadMatrixC{};
 
-        constexpr index_t M = a_block_mtx.NCol();
-        constexpr index_t N = b_block_mtx.NCol();
         constexpr index_t K = a_block_mtx.NRow();
 
         constexpr index_t MPerThread = c_thread_mtx.NRow();
@@ -244,8 +225,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         constexpr index_t MRepeat = MPerThread / MPerThreadSubC;
         constexpr index_t NRepeat = NPerThread / NPerThreadSubC;
-
-        const FloatA* const p_a_block_thread_offset = p_a_block + mMyThreadOffsetA;
 
 #pragma unroll
         // loop over k
@@ -306,8 +285,6 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
         constexpr auto b_block_mtx  = BlockMatrixB{};
         constexpr auto c_thread_mtx = ThreadMatrixC{};
 
-        constexpr index_t M = a_block_mtx.NCol();
-        constexpr index_t N = b_block_mtx.NCol();
         constexpr index_t K = a_block_mtx.NRow();
 
         constexpr index_t MPerThread = c_thread_mtx.NRow();

@@ -18,7 +18,7 @@ struct forwarder
 struct swallow
 {
     template <class... Ts>
-    __host__ __device__ constexpr swallow(Ts&&... ts)
+    __host__ __device__ constexpr swallow(Ts&&...)
     {
     }
 };

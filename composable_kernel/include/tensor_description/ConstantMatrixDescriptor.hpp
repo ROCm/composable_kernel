@@ -54,12 +54,8 @@ __host__ __device__ constexpr auto
 template <class TDesc>
 __host__ __device__ void print_ConstantMatrixDescriptor(TDesc, const char* s)
 {
-    const auto desc = TDesc{};
-
-    constexpr auto I0 = Number<0>{};
-    constexpr auto I1 = Number<1>{};
-
-    printf("%s NRow %u NCol %u RowStride %u\n", s, desc.NRow(), desc.NCol(), desc.RowStride());
+    printf(
+        "%s NRow %u NCol %u RowStride %u\n", s, TDesc::NRow(), TDesc::NCol(), TDesc::RowStride());
 }
 
 } // namespace ck
