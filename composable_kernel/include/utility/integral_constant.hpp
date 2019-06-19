@@ -8,12 +8,9 @@ struct integral_constant
 {
     static constexpr T value = v;
     typedef T value_type;
-    typedef integral_constant type; // using injected-class-name
+    typedef integral_constant type;
     __host__ __device__ constexpr operator value_type() const noexcept { return value; }
-    __host__ __device__ constexpr value_type operator()() const noexcept
-    {
-        return value;
-    } // since c++14
+    __host__ __device__ constexpr value_type operator()() const noexcept { return value; }
 };
 
 template <class T, T X, T Y>

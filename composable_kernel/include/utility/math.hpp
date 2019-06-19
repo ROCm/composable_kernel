@@ -2,6 +2,7 @@
 #define CK_MATH_HPP
 
 #include "config.hpp"
+#include "integral_constant.hpp"
 
 namespace ck {
 namespace math {
