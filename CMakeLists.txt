@@ -33,13 +33,9 @@ endif( NOT( ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang") )
 
 #GPU backend
 if(DEVICE_BACKEND STREQUAL "AMD")
-    set(CK_DEVICE_BACKEND_AMD 1)
-
     set(CMAKE_MODULE_PATH "/opt/rocm/hip/cmake" ${CMAKE_MODULE_PATH})
     find_package(HIP REQUIRED)
 elseif(DEVICE_BACKEND STREQUAL "NVIDIA")
-    set(CK_DEVICE_BACKEND_NVIDIA 1)
-
 	enable_language(CUDA)
 	include_directories(BEFORE ${CUDA_COMMON_INCLUDE_DIR})
 endif()
