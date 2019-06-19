@@ -1,14 +1,13 @@
 #ifndef CK_CONFIG_NVIDIA_HPP
 #define CK_CONFIG_NVIDIA_HPP
 
-#cmakedefine01 CK_DEVICE_BACKEND_NVIDIA
-
 #include "cuda_runtime.h"
 #include "cuda_fp16.h"
 #include "nvToolsExt.h"
 #include "helper_cuda.h"
-#define CK_USE_AMD_INLINE_ASM 0
 
+#define CK_DEVICE_BACKEND_NVIDIA 1
+#define CK_USE_AMD_INLINE_ASM 0
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1 0
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1 0
 
@@ -22,10 +21,6 @@ using float2_t = float2;
 using float4_t = float4;
 
 using index_t = uint32_t;
-
-__device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
-
-__device__ index_t get_block_1d_id() { return blockIdx.x; }
 
 __device__ void fused_multiply_accumulate(float& d, const float& s0, const float& s1)
 {
@@ -52,9 +47,7 @@ __device__ void fused_multiply_accumulate(char& d, const char& s0, const char& s
 //  need to make a better interface
 __device__ void fused_multiply_accumulate(int32_t& d, const int32_t& s0, const int32_t& s1)
 {
-#if CK_DEVICE_BACKEND_NVIDIA
     d = __dp4a(s0, s1, d);
-#endif
 }
 #endif
 

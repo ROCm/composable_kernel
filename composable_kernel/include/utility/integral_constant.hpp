@@ -1,12 +1,20 @@
 #ifndef CK_INTEGRAL_CONSTANT_HPP
 #define CK_INTEGRAL_CONSTANT_HPP
 
-#include <type_traits>
-
 namespace ck {
 
 template <class T, T v>
-using integral_constant = std::integral_constant<T, v>;
+struct integral_constant
+{
+    static constexpr T value = v;
+    typedef T value_type;
+    typedef integral_constant type; // using injected-class-name
+    __host__ __device__ constexpr operator value_type() const noexcept { return value; }
+    __host__ __device__ constexpr value_type operator()() const noexcept
+    {
+        return value;
+    } // since c++14
+};
 
 template <class T, T X, T Y>
 __host__ __device__ constexpr auto operator+(integral_constant<T, X>, integral_constant<T, Y>)
@@ -22,6 +30,16 @@ __host__ __device__ constexpr auto operator*(integral_constant<T, X>, integral_c
 
 template <index_t N>
 using Number = integral_constant<index_t, N>;
+
+template <class X, class Y>
+struct is_same : public integral_constant<bool, false>
+{
+};
+
+template <class X>
+struct is_same<X, X> : public integral_constant<bool, true>
+{
+};
 
 } // namespace ck
 #endif
