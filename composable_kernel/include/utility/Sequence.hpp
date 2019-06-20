@@ -16,30 +16,31 @@ struct Sequence
 
     static constexpr index_t mSize = sizeof...(Is);
 
-    __host__ __device__ static constexpr index_t GetSize() { return mSize; }
+    __host__ __device__ static constexpr auto GetSize() { return Number<mSize>{}; }
 
-    template <index_t I>
-    __host__ __device__ static constexpr index_t Get(Number<I>)
+    __host__ __device__ static constexpr index_t GetImpl(index_t I)
     {
-        static_assert(I < mSize, "wrong! I too large");
-
         // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
         const index_t mData[mSize + 1] = {Is..., 0};
         return mData[I];
     }
 
     template <index_t I>
-    __host__ __device__ constexpr auto operator[](Number<I>) const
+    __host__ __device__ static constexpr auto Get(Number<I>)
     {
-        return Number<Get(Number<I>{})>{};
+        static_assert(I < mSize, "wrong! I too large");
+
+        return Number<GetImpl(Number<I>{})>{};
     }
 
-    // make sure I is constepxr
-    __host__ __device__ constexpr index_t operator[](index_t I) const
+    template <index_t I>
+    __host__ __device__ constexpr auto operator[](Number<I>) const
     {
-        const index_t mData[mSize + 1] = {Is..., 0};
-        return mData[I];
+        return Get(Number<I>{});
     }
+
+    // make sure I is constepxr if you want a constexpr return type
+    __host__ __device__ constexpr index_t operator[](index_t I) const { return GetImpl(I); }
 
     template <index_t... IRs>
     __host__ __device__ static constexpr auto ReorderGivenNew2Old(Sequence<IRs...> /*new2old*/)
@@ -54,16 +55,16 @@ struct Sequence
 
     __host__ __device__ static constexpr auto Reverse();
 
-    __host__ __device__ static constexpr index_t Front()
+    __host__ __device__ static constexpr auto Front()
     {
-        const index_t mData[mSize + 1] = {Is..., 0};
-        return mData[0];
+        static_assert(mSize > 0, "wrong!");
+        return Get(Number<0>{});
     }
 
-    __host__ __device__ static constexpr index_t Back()
+    __host__ __device__ static constexpr auto Back()
     {
-        const index_t mData[mSize + 1] = {Is..., 0};
-        return mData[mSize - 1];
+        static_assert(mSize > 0, "wrong!");
+        return Get(Number<mSize - 1>{});
     }
 
     __host__ __device__ static constexpr auto PopFront();

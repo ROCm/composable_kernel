@@ -43,22 +43,22 @@ struct ConstantTensorDescriptor
         return Sequence<IDim>{};
     }
 
-    __host__ __device__ static constexpr index_t GetNumOfDimension() { return nDim; }
+    __host__ __device__ static constexpr auto GetNumOfDimension() { return Number<nDim>{}; }
 
     __host__ __device__ static constexpr auto GetLengths() { return Lengths{}; }
 
     __host__ __device__ static constexpr auto GetStrides() { return Strides{}; }
 
-    template <index_t I>
-    __host__ __device__ static constexpr index_t GetLength(Number<I>)
+    template <class IDim>
+    __host__ __device__ static constexpr auto GetLength(IDim)
     {
-        return Lengths::Get(Number<I>{});
+        return Lengths::Get(IDim{});
     }
 
-    template <index_t I>
-    __host__ __device__ static constexpr index_t GetStride(Number<I>)
+    template <class IDim>
+    __host__ __device__ static constexpr auto GetStride(IDim)
     {
-        return Strides::Get(Number<I>{});
+        return Strides::Get(IDim{});
     }
 
     struct lambda_AreDimensionsContinuous
@@ -102,17 +102,18 @@ struct ConstantTensorDescriptor
         return false;
     }
 
-    __host__ __device__ static constexpr index_t GetElementSize()
+    __host__ __device__ static constexpr auto GetElementSize()
     {
-        return accumulate_on_sequence(Lengths{}, math::multiplies<index_t>{}, Number<1>{});
+        return Number<accumulate_on_sequence(
+            Lengths{}, math::multiplies<index_t>{}, Number<1>{})>{};
     }
 
-    __host__ __device__ static constexpr index_t GetElementSpace()
+    __host__ __device__ static constexpr auto GetElementSpace()
     {
         constexpr index_t element_space_unaligned = accumulate_on_sequence(
             (GetLengths() - Number<1>{}) * GetStrides(), math::plus<index_t>{}, Number<1>{});
 
-        return element_space_unaligned;
+        return Number<element_space_unaligned>{};
     }
 
     // emulate constexpr lambda
@@ -156,13 +157,14 @@ struct ConstantTensorDescriptor
     }
 
     template <index_t... Is>
-    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(Sequence<Is...>)
+    __host__ __device__ static constexpr auto GetOffsetFromMultiIndex(Sequence<Is...>)
     {
         static_assert(sizeof...(Is) == nDim, "wrong! Dimension not consistent");
 
         constexpr auto multi_id = Sequence<Is...>{};
 
-        return accumulate_on_sequence(multi_id * GetStrides(), math::plus<index_t>{}, Number<0>{});
+        return Number<accumulate_on_sequence(
+            multi_id * GetStrides(), math::plus<index_t>{}, Number<0>{})>{};
     }
 
     // emulate constexpr lambda
