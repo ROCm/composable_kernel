@@ -84,6 +84,12 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
         constexpr index_t Y = wei_k_c_y_x_global_desc.GetLength(I2);
         constexpr index_t X = wei_k_c_y_x_global_desc.GetLength(I3);
 
+        constexpr index_t ConvStrideH = ConvStrides{}[0];
+        constexpr index_t ConvStrideW = ConvStrides{}[1];
+
+        constexpr index_t ConvDilationH = ConvDilations{}[0];
+        constexpr index_t ConvDilationW = ConvDilations{}[1];
+
         static_assert(N % (N1 * N2) == 0, "wrong! cannot divice N evenly among thread");
 
         constexpr index_t N0 = N / (N1 * N2);
@@ -91,6 +97,14 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
         constexpr index_t B = N0 * Ho * Wo;
 
         constexpr index_t E = C * Y * X;
+
+        // sanity-check for vectorized memory load
+        static_assert(ConvStrideW == 1 || InBlockCopySrcDataPerRead_B == 1,
+                      "wrong! global vector load of input tensor is wrong");
+
+        static_assert((X == 1 || ConvDilationW % InBlockCopySrcDataPerRead_B == 0),
+                      "wrong! aligment requirement for vectorized global load of input tensor will "
+                      "be violated");
 
         // divide block work by [K, B]
         static_assert(K % KPerBlock == 0 && B % BPerBlock == 0 && E % (2 * EPerBlock) == 0,
@@ -111,15 +125,15 @@ struct GridwiseConvolutionImplicitGemm_v4_nchw_kcyx_nkhw_lds_double_buffer
         // input tensor
         //     tensor descriptor in device memory [N0, N1, N2, Ho, Wo]
         constexpr auto in_n0_n1_n2_h_w_global_desc =
-            in_n_c_h_w_global_desc.StridedSlice(I2, Number<Ho>{}, Number<ConvStrides::Get(I0)>{})
-                .StridedSlice(I3, Number<Wo>{}, Number<ConvStrides::Get(I1)>{})
+            in_n_c_h_w_global_desc.StridedSlice(I2, Number<Ho>{}, Number<ConvStrideH>{})
+                .StridedSlice(I3, Number<Wo>{}, Number<ConvStrideW>{})
                 .Fold(I0, Number<N1>{}, Number<N2>{})
                 .Extract(Sequence<0, 1, 2, 4, 5>{});
 
         //     batch descritpor for device memory
         constexpr auto in_c_y_x_global_desc =
-            in_n_c_h_w_global_desc.StridedSlice(I2, Number<Y>{}, Number<ConvDilations::Get(I0)>{})
-                .StridedSlice(I3, Number<X>{}, Number<ConvDilations::Get(I1)>{})
+            in_n_c_h_w_global_desc.StridedSlice(I2, Number<Y>{}, Number<ConvDilationH>{})
+                .StridedSlice(I3, Number<X>{}, Number<ConvDilationW>{})
                 .Extract(Sequence<1, 2, 3>{});
 
         //     merged tensor descriptor in device memory [E, N1, B, N2], src of blockwise copy
