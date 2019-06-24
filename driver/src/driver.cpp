@@ -454,7 +454,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
@@ -464,12 +464,12 @@ int main(int argc, char* argv[])
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
 
-    using ConvStrides   = Sequence<2, 2>;
+    using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 1x1 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
@@ -478,6 +478,9 @@ int main(int argc, char* argv[])
     constexpr index_t K  = 512;
     constexpr index_t Y  = 1;
     constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
