@@ -469,7 +469,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 28x28 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
@@ -592,6 +592,197 @@ int main(int argc, char* argv[])
     constexpr index_t K  = 128;
     constexpr index_t Y  = 1;
     constexpr index_t X  = 1;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 8x8 image
+    // cuDNN 68%, miopen 34%
+    constexpr index_t N  = 64;
+    constexpr index_t C  = 1536;
+    constexpr index_t HI = 8;
+    constexpr index_t WI = 8;
+    constexpr index_t K  = 256;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 8x8 image
+    // cuDNN 77%, miopen 47%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 2048;
+    constexpr index_t HI = 8;
+    constexpr index_t WI = 8;
+    constexpr index_t K  = 384;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 7x7 image
+    // cuDNN 82%, miopen 54%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 832;
+    constexpr index_t HI = 7;
+    constexpr index_t WI = 7;
+    constexpr index_t K  = 384;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 8x8 image
+    // cuDNN 83%, miopen 58%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 1280;
+    constexpr index_t HI = 8;
+    constexpr index_t WI = 8;
+    constexpr index_t K  = 384;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 14x14 image
+    // cuDNN 62%, miopen 44%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 512;
+    constexpr index_t HI = 14;
+    constexpr index_t WI = 14;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 8x8 image
+    // cuDNN 74%, miopen 52%
+    constexpr index_t N  = 64;
+    constexpr index_t C  = 1536;
+    constexpr index_t HI = 8;
+    constexpr index_t WI = 8;
+    constexpr index_t K  = 384;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 28x28 image
+    // cuDNN 86%, miopen 64%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 256;
+    constexpr index_t HI = 28;
+    constexpr index_t WI = 28;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 7x7 image
+    // cuDNN 71%, miopen 54%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 832;
+    constexpr index_t HI = 7;
+    constexpr index_t WI = 7;
+    constexpr index_t K  = 256;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 3x3 filter, 2x2 stride, 35x35 input, 17x17 output
+    // cuDNN 90%, miopen 73%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 288;
+    constexpr index_t HI = 35;
+    constexpr index_t WI = 35;
+    constexpr index_t K  = 384;
+    constexpr index_t Y  = 3;
+    constexpr index_t X  = 3;
+
+    using ConvStrides   = Sequence<2, 2>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 17x17 input
+    // cuDNN 81%, miopen 66%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 768;
+    constexpr index_t HI = 17;
+    constexpr index_t WI = 17;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 14x14 image
+    // cuDNN 73%, miopen 65%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 528;
+    constexpr index_t HI = 14;
+    constexpr index_t WI = 14;
+    constexpr index_t K  = 256;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 1
+    // 1x1 filter, 7x7 image
+    // cuDNN 49%, miopen 45%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 832;
+    constexpr index_t HI = 7;
+    constexpr index_t WI = 7;
+    constexpr index_t K = 128 constexpr index_t Y = 1;
+    constexpr index_t X                           = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
