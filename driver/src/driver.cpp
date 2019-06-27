@@ -595,9 +595,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 8x8 image
-    // cuDNN 68%, miopen 34%
+    // cuDNN 68%, ck:nvidia: 72.6%, ck:amd 34%
     constexpr index_t N  = 64;
     constexpr index_t C  = 1536;
     constexpr index_t HI = 8;
@@ -611,9 +611,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 8x8 image
-    // cuDNN 77%, miopen 47%
+    // cuDNN 77%, ck:nvidia 76.4%, ck:amd 47%
     constexpr index_t N  = 128;
     constexpr index_t C  = 2048;
     constexpr index_t HI = 8;
@@ -627,9 +627,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 7x7 image
-    // cuDNN 82%, miopen 54%
+    // cuDNN 82%, ck:nvidia 76.6%, ck:amd 54%
     constexpr index_t N  = 128;
     constexpr index_t C  = 832;
     constexpr index_t HI = 7;
@@ -643,9 +643,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 8x8 image
-    // cuDNN 83%, miopen 58%
+    // cuDNN 83%, ck:nvidia 75.4%, ck:amd 58%
     constexpr index_t N  = 128;
     constexpr index_t C  = 1280;
     constexpr index_t HI = 8;
@@ -659,9 +659,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 14x14 image
-    // cuDNN 62%, miopen 44%
+    // cuDNN 62%, ck:nvidia 68.4%, ck:amd 44%
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
     constexpr index_t HI = 14;
@@ -675,9 +675,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 8x8 image
-    // cuDNN 74%, miopen 52%
+    // cuDNN 74%, ck:nvidia 57.1%, ck:amd 52%
     constexpr index_t N  = 64;
     constexpr index_t C  = 1536;
     constexpr index_t HI = 8;
@@ -691,9 +691,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 28x28 image
-    // cuDNN 86%, miopen 64%
+    // cuDNN 86%, ck:nvidia 84.6%, ck:amd 64%
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
     constexpr index_t HI = 28;
@@ -707,9 +707,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 7x7 image
-    // cuDNN 71%, miopen 54%
+    // cuDNN 71%, ck:55.9%, ck:amd 54%
     constexpr index_t N  = 128;
     constexpr index_t C  = 832;
     constexpr index_t HI = 7;
@@ -723,9 +723,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3 filter, 2x2 stride, 35x35 input, 17x17 output
-    // cuDNN 90%, miopen 73%
+    // cuDNN 90%, ck:nvidia 93%, ck:amd 73%
     constexpr index_t N  = 128;
     constexpr index_t C  = 288;
     constexpr index_t HI = 35;
@@ -739,9 +739,9 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 17x17 input
-    // cuDNN 81%, miopen 66%
+    // cuDNN 81%, ck:nvidia 76.8%, ck:amd 66%
     constexpr index_t N  = 128;
     constexpr index_t C  = 768;
     constexpr index_t HI = 17;
@@ -757,7 +757,23 @@ int main(int argc, char* argv[])
     constexpr index_t WPad = 0;
 #elif 1
     // 1x1 filter, 14x14 image
-    // cuDNN 73%, miopen 65%
+    // cuDNN 73%, ck:nvidia 72.7%, ck:amd 65%
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 528;
+    constexpr index_t HI = 14;
+    constexpr index_t WI = 14;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 0;
+    constexpr index_t WPad = 0;
+#elif 0
+    // 1x1 filter, 14x14 image
+    // cuDNN 73%, ck:nvidia 72.7%, ck:amd 65%
     constexpr index_t N  = 128;
     constexpr index_t C  = 528;
     constexpr index_t HI = 14;
@@ -771,15 +787,16 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 1x1 filter, 7x7 image
-    // cuDNN 49%, miopen 45%
+    // cuDNN 49%, ck:nvidia 52.8%, ck:amd 45%
     constexpr index_t N  = 128;
     constexpr index_t C  = 832;
     constexpr index_t HI = 7;
     constexpr index_t WI = 7;
-    constexpr index_t K = 128 constexpr index_t Y = 1;
-    constexpr index_t X                           = 1;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
 
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
