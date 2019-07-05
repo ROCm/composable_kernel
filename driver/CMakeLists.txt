@@ -3,15 +3,15 @@ set(TENSOR_SOURCE
     src/device.cpp;
 )
 
-add_library(tensor SHARED ${TENSOR_SOURCE})
-target_compile_features(tensor PUBLIC)
-set_target_properties(tensor PROPERTIES POSITION_INDEPENDENT_CODE ON)
+add_library(host SHARED ${TENSOR_SOURCE})
+target_compile_features(host PUBLIC)
+set_target_properties(host PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(DEVICE_BACKEND STREQUAL "NVIDIA")
-    target_link_libraries(tensor nvToolsExt cudart)
+    target_link_libraries(host nvToolsExt cudart)
 endif()
 
-install(TARGETS tensor LIBRARY DESTINATION lib) 
+install(TARGETS host LIBRARY DESTINATION lib) 
 
 
 if(DEVICE_BACKEND STREQUAL "AMD")
@@ -21,4 +21,4 @@ elseif(DEVICE_BACKEND STREQUAL "NVIDIA")
 endif()
 
 add_executable(driver ${DRIVER_SOURCE}) 
-target_link_libraries(driver PRIVATE tensor)
+target_link_libraries(driver PRIVATE host)

@@ -205,10 +205,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         // thread A, B for GEMM
         constexpr auto a_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
+            make_ConstantMatrixDescriptor_packed(Number<KPerThreadLoop>{}, Number<MPerThread>{});
 
         constexpr auto b_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
+            make_ConstantMatrixDescriptor_packed(Number<KPerThreadLoop>{}, Number<NPerThread>{});
 
         // thread A-sub, B-sub for copy
         constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(

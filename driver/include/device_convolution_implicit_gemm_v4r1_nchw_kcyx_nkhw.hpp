@@ -6,8 +6,6 @@
 #include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
-using namespace ck;
-
 template <class T,
           class InDesc,
           class WeiDesc,
@@ -24,6 +22,8 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
                                                           ConvDilations,
                                                           index_t nrepeat)
 {
+    using namespace ck;
+
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};

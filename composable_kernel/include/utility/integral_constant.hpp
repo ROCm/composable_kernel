@@ -59,18 +59,5 @@ __host__ __device__ constexpr auto operator%(Number<X>, Number<Y>)
     return Number<X % Y>{};
 }
 
-#if 0
-static constexpr Number<0> 0_c;
-static constexpr Number<1> 1_c;
-static constexpr Number<2> 2_c;
-static constexpr Number<3> 3_c;
-static constexpr Number<4> 4_c;
-static constexpr Number<5> 5_c;
-static constexpr Number<6> 6_c;
-static constexpr Number<7> 7_c;
-static constexpr Number<8> 8_c;
-static constexpr Number<9> 9_c;
-#endif
-
 } // namespace ck
 #endif

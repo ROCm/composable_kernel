@@ -1,5 +1,5 @@
-#ifndef CK_TENSOR_HPP
-#define CK_TENSOR_HPP
+#ifndef TENSOR_HPP
+#define TENSOR_HPP
 
 #include <thread>
 #include <vector>

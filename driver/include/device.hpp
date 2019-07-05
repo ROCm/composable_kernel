@@ -1,10 +1,8 @@
-#ifndef CK_DEVICE_HPP
-#define CK_DEVICE_HPP
+#ifndef DEVICE_HPP
+#define DEVICE_HPP
 
 #include <memory>
 #include "config.hpp"
-
-using namespace ck;
 
 struct DeviceMem
 {
