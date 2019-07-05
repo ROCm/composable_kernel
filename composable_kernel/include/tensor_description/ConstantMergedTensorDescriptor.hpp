@@ -174,6 +174,12 @@ struct ConstantMergedTensorDescriptor
 
         return packed_desc.GetMultiIndexFrom1dIndex(id);
     }
+
+    __host__ __device__ static constexpr auto Pack()
+    {
+        using Strides = decltype(calculate_tensor_strides_packed(GetLengths()));
+        return ConstantTensorDescriptor<Lengths, Strides>{};
+    }
 };
 
 template <class OriginalTensorDesc, class... OriginalDimMergeSeqs>

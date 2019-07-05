@@ -12,7 +12,8 @@
 #include "device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hpp"
 #include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
 
 using namespace ck;
 
@@ -870,8 +871,10 @@ int main(int argc, char* argv[])
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn
 #elif 0
     device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw
+#elif 0
+    device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw
 #elif 1
-    device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw
+    device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw
 #endif
     (in_nchw_desc,
      in_nchw,

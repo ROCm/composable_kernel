@@ -2,6 +2,7 @@
 #define CK_CONSTANT_MATRIX_DESCRIPTOR_HPP
 
 #include "common_header.hpp"
+#include "ConstantTensorDescriptor.hpp"
 
 namespace ck {
 
@@ -39,7 +40,7 @@ struct ConstantMatrixDescriptor
 };
 
 template <index_t NRow, index_t NCol>
-__host__ __device__ constexpr auto make_ConstantMatrixDescriptor(Number<NRow>, Number<NCol>)
+__host__ __device__ constexpr auto make_ConstantMatrixDescriptor_packed(Number<NRow>, Number<NCol>)
 {
     return ConstantMatrixDescriptor<NRow, NCol, NCol>{};
 }
@@ -47,6 +48,13 @@ __host__ __device__ constexpr auto make_ConstantMatrixDescriptor(Number<NRow>, N
 template <index_t NRow, index_t NCol, index_t RowStride>
 __host__ __device__ constexpr auto
     make_ConstantMatrixDescriptor(Number<NRow>, Number<NCol>, Number<RowStride>)
+{
+    return ConstantMatrixDescriptor<NRow, NCol, RowStride>{};
+}
+
+template <index_t NRow, index_t NCol, index_t RowStride>
+__host__ __device__ constexpr auto
+    make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(ConstantTensorDescriptor<Sequence<NRow, NCol>, Sequence<RowStride, 1>>
 {
     return ConstantMatrixDescriptor<NRow, NCol, RowStride>{};
 }
