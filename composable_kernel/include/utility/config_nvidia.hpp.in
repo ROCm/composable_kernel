@@ -22,7 +22,8 @@ using float4_t = float4;
 
 using index_t = uint32_t;
 
-__device__ void fused_multiply_accumulate(float& d, const float& s0, const float& s1)
+template <class T>
+__device__ void fused_multiply_accumulate(T& d, const T& s0, const T& s1)
 {
     d += s0 * s1;
 }

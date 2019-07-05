@@ -1,5 +1,5 @@
-#ifndef CK_TENSOR_HPP
-#define CK_TENSOR_HPP
+#ifndef TENSOR_HPP
+#define TENSOR_HPP
 
 #include <thread>
 #include <vector>
@@ -8,6 +8,7 @@
 #include <utility>
 #include <cassert>
 #include <iostream>
+#include "common_header.hpp"
 
 template <class Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -268,5 +269,47 @@ struct Tensor
     TensorDescriptor mDesc;
     std::vector<T> mData;
 };
+
+// this is ugly, only for 4d
+template <class TConstTensorDesc>
+void ostream_ConstantTensorDescriptor(TConstTensorDesc, std::ostream& os = std::cout)
+{
+    using namespace ck;
+
+    static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
+
+    constexpr auto I0   = Number<0>{};
+    constexpr auto I1   = Number<1>{};
+    constexpr auto I2   = Number<2>{};
+    constexpr auto I3   = Number<3>{};
+    constexpr auto desc = TConstTensorDesc{};
+
+    os << "Lengths: {" << desc.GetLength(I0) << ", " << desc.GetLength(I1) << ", "
+       << desc.GetLength(I2) << ", " << desc.GetLength(I3) << "}, "
+       << "Strides: {" << desc.GetStride(I0) << ", " << desc.GetStride(I1) << ", "
+       << desc.GetStride(I2) << ", " << desc.GetStride(I3) << "}" << std::endl;
+}
+
+// this is ugly, only for 4d
+template <class TConstTensorDesc>
+auto make_TensorDescriptor(TConstTensorDesc)
+{
+    using namespace ck;
+
+    static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
+
+    constexpr auto I0   = Number<0>{};
+    constexpr auto I1   = Number<1>{};
+    constexpr auto I2   = Number<2>{};
+    constexpr auto I3   = Number<3>{};
+    constexpr auto desc = TConstTensorDesc{};
+
+    std::initializer_list<index_t> lengths = {
+        desc.GetLength(I0), desc.GetLength(I1), desc.GetLength(I2), desc.GetLength(I3)};
+    std::initializer_list<index_t> strides = {
+        desc.GetStride(I0), desc.GetStride(I1), desc.GetStride(I2), desc.GetStride(I3)};
+
+    return TensorDescriptor(lengths, strides);
+}
 
 #endif
