@@ -53,8 +53,8 @@ __host__ __device__ constexpr auto
 }
 
 template <index_t NRow, index_t NCol, index_t RowStride>
-__host__ __device__ constexpr auto
-    make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(ConstantTensorDescriptor<Sequence<NRow, NCol>, Sequence<RowStride, 1>>
+__host__ __device__ constexpr auto make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(
+    ConstantTensorDescriptor<Sequence<NRow, NCol>, Sequence<RowStride, 1>>)
 {
     return ConstantMatrixDescriptor<NRow, NCol, RowStride>{};
 }

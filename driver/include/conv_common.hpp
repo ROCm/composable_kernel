@@ -1,14 +1,14 @@
-#ifndef CK_CONV_COMMON_HPP
-#define CK_CONV_COMMON_HPP
+#ifndef CONV_COMMON_HPP
+#define CONV_COMMON_HPP
 
 #include "ConstantTensorDescriptor.hpp"
-
-using namespace ck;
 
 // this is ugly, only for 4d
 template <class InDesc, class WeiDesc>
 constexpr auto get_convolution_output_default_4d_tensor_descriptor(InDesc, WeiDesc)
 {
+    using namespace ck;
+
     constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
 
@@ -45,6 +45,8 @@ template <class InDesc,
 constexpr auto get_convolution_with_padding_output_default_4d_tensor_descriptor(
     InDesc, WeiDesc, ConvStrides, ConvDilations, LowerPads, UpperPads)
 {
+    using namespace ck;
+
     constexpr auto in_desc  = InDesc{};
     constexpr auto wei_desc = WeiDesc{};
 
@@ -84,6 +86,8 @@ constexpr auto get_convolution_with_padding_output_default_4d_tensor_descriptor(
 template <class InDesc, class WeiDesc, class OutDesc>
 constexpr std::size_t calculate_convolution_flops(InDesc, WeiDesc, OutDesc)
 {
+    using namespace ck;
+
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 
@@ -107,6 +111,8 @@ constexpr std::size_t calculate_convolution_flops(InDesc, WeiDesc, OutDesc)
 template <class Float, class InDesc, class WeiDesc, class OutDesc>
 constexpr std::size_t calculate_convolution_memory_size(Float, InDesc, WeiDesc, OutDesc)
 {
+    using namespace ck;
+
     constexpr auto wei_desc = WeiDesc{};
     constexpr auto out_desc = OutDesc{};
 

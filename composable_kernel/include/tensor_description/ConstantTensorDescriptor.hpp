@@ -374,7 +374,7 @@ struct ConstantTensorDescriptor
     template <index_t IDim, index_t... FoldIntervals>
     __host__ __device__ static constexpr auto Fold(Number<IDim>, Sequence<FoldIntervals...>)
     {
-        return Fold(Number<IDim>{}, Number<FoldInterVals>{}...);
+        return Fold(Number<IDim>{}, Number<FoldIntervals>{}...);
     }
 
     // this function unfold dimension [FirstUnfoldDim, ..., LastUnfoldDim] into 1 dimension
@@ -417,8 +417,8 @@ struct ConstantTensorDescriptor
 
     __host__ __device__ static constexpr auto Pack()
     {
-        using Strides = decltype(calculate_tensor_strides_packed(Lengths{}));
-        return ConstantTensorDescriptor<Lengths, Strides>{};
+        using packed_strides = decltype(calculate_tensor_strides_packed(Lengths{}));
+        return ConstantTensorDescriptor<Lengths, packed_strides>{};
     }
 
     template <class MapNew2Old>

@@ -177,8 +177,9 @@ struct ConstantMergedTensorDescriptor
 
     __host__ __device__ static constexpr auto Pack()
     {
-        using Strides = decltype(calculate_tensor_strides_packed(GetLengths()));
-        return ConstantTensorDescriptor<Lengths, Strides>{};
+        constexpr auto lengths = GetLengths();
+        constexpr auto strides = calculate_tensor_strides_packed(lengths);
+        return ConstantTensorDescriptor<decltype(lengths), decltype(strides)>{};
     }
 };
 
