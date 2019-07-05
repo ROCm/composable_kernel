@@ -371,6 +371,12 @@ struct ConstantTensorDescriptor
         return ConstantTensorDescriptor<decltype(new_lengths), decltype(new_strides)>{};
     }
 
+    template <index_t IDim, index_t... FoldIntervals>
+    __host__ __device__ static constexpr auto Fold(Number<IDim>, Sequence<FoldIntervals...>)
+    {
+        return Fold(Number<IDim>{}, Number<FoldInterVals>{}...);
+    }
+
     // this function unfold dimension [FirstUnfoldDim, ..., LastUnfoldDim] into 1 dimension
     template <index_t FirstUnfoldDim, index_t LastUnfoldDim>
     __host__ __device__ static constexpr auto Unfold(Number<FirstUnfoldDim>, Number<LastUnfoldDim>)
@@ -409,21 +415,18 @@ struct ConstantTensorDescriptor
         return ConstantTensorDescriptor<decltype(new_lengths), decltype(new_strides)>{};
     }
 
+    __host__ __device__ static constexpr auto Pack()
+    {
+        using Strides = decltype(calculate_tensor_strides_packed(Lengths{}));
+        return ConstantTensorDescriptor<Lengths, Strides>{};
+    }
+
     template <class MapNew2Old>
     __host__ __device__ static constexpr auto ReorderGivenNew2Old(MapNew2Old)
     {
         return ConstantTensorDescriptor<decltype(Lengths::ReorderGivenNew2Old(MapNew2Old{})),
                                         decltype(Strides::ReorderGivenNew2Old(MapNew2Old{}))>{};
     }
-
-#if 0 // require sequence_sort, which is not implemented yet
-    template <class MapOld2New>
-    __host__ __device__ static constexpr auto ReorderGivenOld2New(MapOld2New)
-    {
-        return ConstantTensorDescriptor<decltype(Lengths::ReorderGivenOld2New(MapOld2New{})),
-                                        decltype(Strides::ReorderGivenOld2New(MapOld2New{}))>{}
-    }
-#endif
 };
 
 template <class Lengths>
