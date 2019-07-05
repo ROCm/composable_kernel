@@ -131,10 +131,10 @@ struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
 
         // thread A, B for GEMM
         constexpr auto a_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
+            make_ConstantMatrixDescriptor_packed(Number<KPerThreadLoop>{}, Number<MPerThread>{});
 
         constexpr auto b_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
+            make_ConstantMatrixDescriptor_packed(Number<KPerThreadLoop>{}, Number<NPerThread>{});
 
         FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
         FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
