@@ -14,7 +14,7 @@
 #include "device_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hpp"
 #include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
-//#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
 
 struct GeneratorTensor_1
 {
@@ -524,19 +524,29 @@ int main(int argc, char* argv[])
 #elif 0
     device_convolution_implicit_gemm_v2_chwn_cyxk_khwn
         in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(
         in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
 #elif 0
-    device_convolution_implicit_gemm_v4_nchw_kcyx_nkhw(in_nchw_desc,
-                                                       in_nchw,
-                                                       wei_kcyx_desc,
-                                                       wei_kcyx,
-                                                       out_nkhw_desc,
-                                                       out_nkhw_device,
-                                                       ConvStrides{},
-                                                       ConvDilations{},
-                                                       nrepeat);
+    device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(in_nchw_desc,
+                                                         in_nchw,
+                                                         wei_kcyx_desc,
+                                                         wei_kcyx,
+                                                         out_nkhw_desc,
+                                                         out_nkhw_device,
+                                                         ConvStrides{},
+                                                         ConvDilations{},
+                                                         nrepeat);
+#elif 1
+    device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw(in_nchw_desc,
+                                                         in_nchw,
+                                                         wei_kcyx_desc,
+                                                         wei_kcyx,
+                                                         out_nkhw_desc,
+                                                         out_nkhw_device,
+                                                         ConvStrides{},
+                                                         ConvDilations{},
+                                                         nrepeat);
 #elif 0
     device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(in_nchw_desc,
                                                              in_nchw,
