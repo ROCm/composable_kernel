@@ -456,7 +456,7 @@ print_ConstantTensorDescriptor(const char* s,
 {
     constexpr index_t ndim = sizeof...(Lengths);
 
-    static_assert(ndim > 0 && ndim <= 10, "wrong!");
+    static_assert(ndim > 0 && ndim <= 12, "wrong!");
 
     static_if<ndim == 1>{}([&](auto) {
         printf("%s dim %u, lengths {%u}, strides {%u}\n", s, ndim, Lengths..., Strides...);
@@ -522,6 +522,26 @@ print_ConstantTensorDescriptor(const char* s,
 
     static_if<ndim == 10>{}([&](auto) {
         printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u "
+               "%u %u %u}\n",
+               s,
+               ndim,
+               Lengths...,
+               Strides...);
+    });
+
+    static_if<ndim == 11>{}([&](auto) {
+        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u "
+               "%u %u "
+               "%u %u %u}\n",
+               s,
+               ndim,
+               Lengths...,
+               Strides...);
+    });
+
+    static_if<ndim == 12>{}([&](auto) {
+        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u "
+               "%u %u %u %u "
                "%u %u %u}\n",
                s,
                ndim,
