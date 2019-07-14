@@ -29,9 +29,6 @@ template <index_t GridSize,
           index_t BPerBlock,
           index_t KPerBlock,
           index_t EPerBlock,
-          index_t N0PerBlock,
-          index_t Ho0PerBlock,
-          index_t Wo0PerBlock,
           index_t GemmMPerThreadSubC,
           index_t GemmNPerThreadSubC,
           index_t GemmMLevel0Cluster,
@@ -164,14 +161,8 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
         //     memory layout descriptor in LDS [E, N1, B, N2], dst of blockwise copy
         //     be careful of LDS alignment
         constexpr auto in_e_n0_ho0_wo0_b_n2_ho2_wo2_block_desc =
-            make_ConstantTensorDescriptor_packed(Sequence<EPerBlock,
-                                                          N0PerBlock,
-                                                          Ho0PerBlock,
-                                                          Wo0PerBlock,
-                                                          BPerBlock,
-                                                          N2,
-                                                          Ho2,
-                                                          Wo2>{});
+            make_ConstantTensorDescriptor_packed(
+                Sequence<EPerBlock, N0, Ho0, Wo0, BPerBlock, N2, Ho2, Wo2>{});
 
         // input blockwise copy
         //     slice a merged tensor, reorder and copy to a normal tensor
@@ -251,9 +242,8 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
         // c_thread_mtx definition: this is a mess
         // TODO:: more elegent way of defining c_thread_mtx
         constexpr auto c_k0k2_n0ho0wo0n2ho2wo2_thread_mtx_desc =
-            make_ConstantMatrixDescriptor_packed(
-                Number<GemmMRepeat * GemmMPerThreadSubC>{},
-                Number<N0PerBlock * Ho0PerBlock * Wo0PerBlock * N2 * Ho2 * Wo2>{});
+            make_ConstantMatrixDescriptor_packed(Number<GemmMRepeat * GemmMPerThreadSubC>{},
+                                                 Number<N0 * Ho0 * Wo0 * N2 * Ho2 * Wo2>{});
 
         const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<
             BlockSize,
@@ -384,18 +374,8 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
             // define tensor descriptor for threadwise copy
             //     output memory layout descriptor in register
             constexpr auto out_k0_k1_k2_n0_ho0_wo0_n1_ho1_wo1_n2_ho2_wo2_thread_mem_desc =
-                make_ConstantTensorDescriptor_packed(Sequence<KPerBlock / (K1 * K2),
-                                                              1,
-                                                              K2,
-                                                              N0PerBlock,
-                                                              Ho0PerBlock,
-                                                              Wo0PerBlock,
-                                                              1,
-                                                              1,
-                                                              1,
-                                                              N2,
-                                                              Ho2,
-                                                              Wo2>{});
+                make_ConstantTensorDescriptor_packed(
+                    Sequence<KPerBlock / (K1 * K2), 1, K2, N0, Ho0, Wo0, 1, 1, 1, N2, Ho2, Wo2>{});
 
             //     output tensor descriptor in register, src of threadwise copy
             constexpr auto out_n0_n1_n2_k0_k1_k2_ho0_ho1_ho2_wo0_wo1_wo2_thread_desc =
@@ -440,7 +420,6 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
                 out_k_n0_ho0_wo0_b_n2_ho2_wo2_global_merged_desc.GetOffsetFromMultiIndex(
                     k_thread_data_on_global, 0, 0, 0, b_thread_data_on_global, 0, 0, 0);
 
-#if 1
             threadwise_generic_tensor_slice_copy_v1(
                 out_n0_n1_n2_k0_k1_k2_ho0_ho1_ho2_wo0_wo1_wo2_thread_desc,
                 p_out_thread,
@@ -451,22 +430,6 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
                 out_n0_n1_n2_k0_k1_k2_ho0_ho1_ho2_wo0_wo1_wo2_thread_desc.GetLengths(),
                 arithmetic_sequence_gen<0, 12, 1>::type{},
                 Number<1>{});
-#else
-            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-            {
-                print_ConstantTensorDescriptor(
-                    "out thread: ", out_n0_n1_n2_k0_k1_k2_ho0_ho1_ho2_wo0_wo1_wo2_thread_desc);
-                printf("size: %d\n",
-                       out_n0_n1_n2_k0_k1_k2_ho0_ho1_ho2_wo0_wo1_wo2_thread_desc.GetElementSize());
-
-                for(index_t i = 0;
-                    i < out_n0_n1_n2_k0_k1_k2_ho0_ho1_ho2_wo0_wo1_wo2_thread_desc.GetElementSize();
-                    ++i)
-                {
-                    p_out_global[0] = p_out_thread[i];
-                }
-            }
-#endif
         }
     }
 };

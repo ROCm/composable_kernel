@@ -53,15 +53,14 @@ void device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw(InDesc,
     wei_kcyx_device_buf.ToDevice(wei_kcyx.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
-#if 1
+#if 0
     // 1x1 filter, 8x8 image
     constexpr index_t N0 = 1;
-    constexpr index_t N2 = 1;
-
     constexpr index_t Ho0 = 1;
-    constexpr index_t Ho2 = 1;
-
     constexpr index_t Wo0 = 2;
+
+    constexpr index_t N2 = 1;
+    constexpr index_t Ho2 = 1;
     constexpr index_t Wo2 = 4;
 
     constexpr index_t BlockSize = 256;
@@ -69,10 +68,6 @@ void device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw(InDesc,
     constexpr index_t BPerBlock = 16;
     constexpr index_t KPerBlock = 128;
     constexpr index_t EPerBlock = 8;
-
-    constexpr index_t N0PerBlock  = 1;
-    constexpr index_t Ho0PerBlock = 1;
-    constexpr index_t Wo0PerBlock = 2;
 
     constexpr index_t GemmMPerThreadSubC = 4;
     constexpr index_t GemmNPerThreadSubC = 4;
@@ -94,6 +89,51 @@ void device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw(InDesc,
         Sequence<0, 1, 2, 3, 4, 5, 6, 7>; // [E, N0, Ho0, Wo0, B, N2, Ho2, Wo2]
 
     constexpr index_t InBlockCopyDataPerAccess_W2 = 4;
+
+    using WeiBlockCopySubLengths_E_K            = Sequence<4, 1>;
+    using WeiBlockCopyClusterLengths_E_K        = Sequence<2, 128>;
+    using WeiBlockCopyThreadClusterArrangeOrder = Sequence<1, 0>; // [K, E]
+    using WeiBlockCopySrcAccessOrder            = Sequence<1, 0>; // [K, E]
+    using WeiBlockCopyDstAccessOrder            = Sequence<0, 1>; // [E, K]
+
+    constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
+    constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
+#elif 1
+    // 1x1 filter, 8x8 image
+    constexpr index_t N0  = 1;
+    constexpr index_t Ho0 = 2;
+    constexpr index_t Wo0 = 1;
+
+    constexpr index_t N2  = 2;
+    constexpr index_t Ho2 = 2;
+    constexpr index_t Wo2 = 1;
+
+    constexpr index_t BlockSize = 256;
+
+    constexpr index_t BPerBlock = 16;
+    constexpr index_t KPerBlock = 128;
+    constexpr index_t EPerBlock = 8;
+
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 4;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
+    constexpr index_t GemmDataPerReadA   = 4;
+    constexpr index_t GemmDataPerReadB   = 4;
+
+    using InBlockCopySubLengths_E_N0_Ho0_Wo0_B_N2_Ho2_Wo2     = Sequence<1, 1, 2, 1, 1, 2, 1, 1>;
+    using InBlockCopyClusterLengths_E_N0_Ho0_Wo0_B_N2_Ho2_Wo2 = Sequence<8, 1, 1, 1, 16, 1, 2, 1>;
+    using InBlockCopyThreadClusterArrangeOrder =
+        Sequence<0, 1, 5, 2, 6, 3, 4, 7>; // [E, N0, N2, Ho0, Ho2, Wo0, B, Wo2]
+    using InBlockCopySrcAccessOrder =
+        Sequence<0, 1, 5, 2, 6, 3, 4, 7>; // [E, N0, N2, Ho0, Ho2, Wo0, B, Wo2]
+    using InBlockCopyDstAccessOrder =
+        Sequence<0, 1, 2, 3, 4, 5, 6, 7>; // [E, N0, Ho0, Wo0, B, N2, Ho2, Wo2]
+
+    constexpr index_t InBlockCopyDataPerAccess_W2 = 1;
 
     using WeiBlockCopySubLengths_E_K            = Sequence<4, 1>;
     using WeiBlockCopyClusterLengths_E_K        = Sequence<2, 128>;
@@ -137,9 +177,6 @@ void device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw(InDesc,
                 BPerBlock,
                 KPerBlock,
                 EPerBlock,
-                N0PerBlock,
-                Ho0PerBlock,
-                Wo0PerBlock,
                 GemmMPerThreadSubC,
                 GemmNPerThreadSubC,
                 GemmMLevel0Cluster,
