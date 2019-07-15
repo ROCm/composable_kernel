@@ -11,7 +11,6 @@
 
 namespace ck {
 
-// define B = merge(N0, Ho, Wo)
 template <index_t GridSize,
           index_t BlockSize,
           class Float,
@@ -181,6 +180,12 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
             InBlockCopyDataPerAccess_W2,
             InBlockCopyDataPerAccess_W2>({0, 0, 0, 0, b_block_data_on_global, 0, 0, 0},
                                          {0, 0, 0, 0, 0, 0, 0, 0});
+
+#if 1
+        {
+            printf("id (%d %d), in offset: %d %d\n", get_block_1d_id(), get_thread_local_1d_id(),  blockwise_in_copy.mThreadSrcOffset, blockwise_in_copy.mThreadDstOffset);
+        }
+#endif
 
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
