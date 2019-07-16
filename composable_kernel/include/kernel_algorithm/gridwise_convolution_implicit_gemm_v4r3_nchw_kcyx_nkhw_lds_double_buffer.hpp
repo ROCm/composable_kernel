@@ -100,7 +100,8 @@ struct GridwiseConvolutionImplicitGemm_v4r3_nchw_kcyx_nkhw_lds_double_buffer
 
         constexpr index_t B = N0 * Ho0 * Wo0;
 
-        static_assert(N == N0 * N1 * N2 && Ho == Ho * Ho1 * Ho2 && Wo == Wo0 * Wo1 * Wo2, "wrong!");
+        static_assert(N == N0 * N1 * N2 && Ho == Ho0 * Ho1 * Ho2 && Wo == Wo0 * Wo1 * Wo2,
+                      "wrong!");
 
         static_assert((X == 1 || ConvDilationW % InBlockCopyDataPerAccess_W2 == 0),
                       "wrong! aligment requirement for vectorized global load of input tensor will "
@@ -179,12 +180,6 @@ struct GridwiseConvolutionImplicitGemm_v4r3_nchw_kcyx_nkhw_lds_double_buffer
             InBlockCopyDataPerAccess_W2>({0, 0, 0, 0, b_block_data_on_global, 0, 0, 0},
                                          {0, 0, 0, 0, 0, 0, 0, 0});
 
-#if 0
-        {
-            printf("id (%d %d), in offset: %d %d\n", get_block_1d_id(), get_thread_local_1d_id(),  blockwise_in_copy.mThreadSrcOffset, blockwise_in_copy.mThreadDstOffset);
-        }
-#endif
-
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
         constexpr auto wei_e_k_global_desc =
@@ -213,6 +208,19 @@ struct GridwiseConvolutionImplicitGemm_v4r3_nchw_kcyx_nkhw_lds_double_buffer
                                                WeiBlockCopySrcDataPerRead_E,
                                                WeiBlockCopyDstDataPerWrite_K>(
                 {0, k_block_data_on_global}, {0, 0});
+
+#if 0
+        if(get_block_1d_id() == 0)
+        {
+            printf("id (%d %d), in offset: %d %d, wei offset %d %d\n",
+                   get_block_1d_id(),
+                   get_thread_local_1d_id(),
+                   blockwise_in_copy.mThreadSrcOffset,
+                   blockwise_in_copy.mThreadDstOffset,
+                   blockwise_wei_copy.mThreadSrcOffset,
+                   blockwise_wei_copy.mThreadDstOffset);
+        }
+#endif
 
         // GEMM definition
         // c_mtx += transpose(a_mtx) * b_mtx
@@ -323,6 +331,19 @@ struct GridwiseConvolutionImplicitGemm_v4r3_nchw_kcyx_nkhw_lds_double_buffer
                 blockwise_in_copy.RunLoadRegisterClipboard(p_in_global, p_in_register_clipboard);
                 blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_block_on_global,
                                                             p_wei_register_clipboard);
+
+#if 1
+                if(get_block_1d_id() == 0)
+                {
+                    printf("tid (%d %d), %f %f %f %f\n",
+                           get_block_1d_id(),
+                           get_thread_local_1d_id(),
+                           p_wei_register_clipboard[0],
+                           p_wei_register_clipboard[1],
+                           p_wei_register_clipboard[2],
+                           p_wei_register_clipboard[3]);
+                }
+#endif
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
