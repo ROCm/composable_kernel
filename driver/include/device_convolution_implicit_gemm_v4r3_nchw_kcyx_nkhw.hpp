@@ -90,14 +90,14 @@ void device_convolution_implicit_gemm_v4r3_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t InBlockCopyDataPerAccess_W2 = 4;
 
-    using WeiBlockCopySubLengths_E_K            = Sequence<4, 1>;
-    using WeiBlockCopyClusterLengths_E_K        = Sequence<2, 128>;
+    using WeiBlockCopySubLengths_E_K            = Sequence<2, 2>;
+    using WeiBlockCopyClusterLengths_E_K        = Sequence<4, 64>;
     using WeiBlockCopyThreadClusterArrangeOrder = Sequence<1, 0>; // [K, E]
     using WeiBlockCopySrcAccessOrder            = Sequence<1, 0>; // [K, E]
     using WeiBlockCopyDstAccessOrder            = Sequence<0, 1>; // [E, K]
 
-    constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
-    constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
+    constexpr index_t WeiBlockCopySrcDataPerRead_E  = 1;
+    constexpr index_t WeiBlockCopyDstDataPerWrite_K = 2;
 #endif
 
     constexpr index_t N0  = N / (N1 * N2);
