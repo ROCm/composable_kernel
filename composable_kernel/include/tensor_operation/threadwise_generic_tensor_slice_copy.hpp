@@ -4,6 +4,7 @@
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
+#include "tensor_coordinate.hpp"
 
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1 0
@@ -104,6 +105,76 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
     });
 #endif
 }
+
+template <class TData,
+          class SrcDesc,
+          class DstDesc,
+          class SrcCoordinate,
+          class DstCoordinate,
+          class SliceLengths>
+struct ThreadwiseGenericTensorSliceCopy_v2
+{
+    static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
+
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v2()
+        : mSrcSliceOrigin(make_zero_array<index_t, nDim>()),
+          mDstSliceOrigin(make_zero_array<index_t, nDim>())
+    {
+    }
+
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v2(SrcCoordinate src_slice_origin,
+                                                             DstCoordinate dst_slice_origin)
+        : mSrcSliceOrigin(src_slice_origin), mDstSliceOrigin(dst_slice_origin)
+    {
+    }
+
+    __device__ void SetSrcSliceOrigin(SrcCoordinate src_slice_origin)
+    {
+        mSrcSliceOrigin = src_slice_origin;
+    }
+
+    __device__ void SetDstSliceOrigin(DstCoordinate dst_slice_origin)
+    {
+        mDstSliceOrigin = dst_slice_origin;
+    }
+
+    __device__ void Run(const TData* p_src, TData* p_dst) const
+    {
+        static_ford<SliceLengths>{}([&](auto data_id) {
+            p_dst[(mDstSliceOrigin + data_id).GetOffset()] =
+                p_src[(mSrcSliceOrigin + data_id).GetOffset()];
+
+        });
+    }
+
+    __device__ void MoveSrcSlicingWindow(Array<index_t, nDim> step_sizes, bool positive_direction)
+    {
+        if(positive_direction)
+        {
+            mSrcSliceOrigin += step_sizes;
+        }
+        else
+        {
+            mSrcSliceOrigin -= step_sizes;
+        }
+    }
+
+    __device__ void MoveDstSlicingWindow(Array<index_t, nDim> step_sizes, bool positive_direction)
+    {
+        if(positive_direction)
+        {
+            mDstSliceOrigin += step_sizes;
+        }
+        else
+        {
+            mDstSliceOrigin -= step_sizes;
+        }
+    }
+
+    // private:
+    SrcCoordinate mSrcSliceOrigin;
+    DstCoordinate mDstSliceOrigin;
+};
 
 } // namespace ck
 #endif

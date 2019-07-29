@@ -332,7 +332,7 @@ struct GridwiseConvolutionImplicitGemm_v4r3_nchw_kcyx_nkhw_lds_double_buffer
                 blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_block_on_global,
                                                             p_wei_register_clipboard);
 
-#if 1
+#if 0
                 if(get_block_1d_id() == 0)
                 {
                     printf("tid (%d %d), %f %f %f %f\n",

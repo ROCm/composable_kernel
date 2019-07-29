@@ -49,17 +49,9 @@ struct ConstantTensorDescriptor
 
     __host__ __device__ static constexpr auto GetStrides() { return Strides{}; }
 
-    template <class IDim>
-    __host__ __device__ static constexpr auto GetLength(IDim)
-    {
-        return Lengths::Get(IDim{});
-    }
+    __host__ __device__ static constexpr auto GetLength(index_t IDim) { return Lengths{}[IDim]; }
 
-    template <class IDim>
-    __host__ __device__ static constexpr auto GetStride(IDim)
-    {
-        return Strides::Get(IDim{});
-    }
+    __host__ __device__ static constexpr auto GetStride(index_t IDim) { return Strides{}[IDim]; }
 
     struct lambda_AreDimensionsContinuous
     {
