@@ -12,7 +12,8 @@ struct is_valid_sequence_map;
 template <index_t... Is>
 struct Sequence
 {
-    using Type = Sequence;
+    using Type      = Sequence;
+    using data_type = index_t;
 
     static constexpr index_t mSize = sizeof...(Is);
 
