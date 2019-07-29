@@ -83,7 +83,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
         constexpr index_t HBlockWork = math::integer_divide_ceil(Ho, HoPerBlock);
         constexpr index_t WBlockWork = math::integer_divide_ceil(Wo, WoPerBlock);
 
-        constexpr auto block_work_desc = make_ConstantTensorDescriptor(
+        constexpr auto block_work_desc = make_ConstantTensorDescriptor_packed(
             Sequence<NBlockWork, KBlockWork, HBlockWork, WBlockWork>{});
 
         const auto block_work_multi_id =
@@ -109,8 +109,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                                                 GemmDataPerReadB);
 
         constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{},
-            Number<InBlockCopyDataPerRead_N>{});
+            Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{}, Number<max_align>{});
 
         // this check is ad-hoc
         // TODO: need to properly implement tensor descriptor with alignment
@@ -118,11 +117,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                       "GemmDataPerReadB alignment requirement is not meet");
 
         constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, KPerBlock>{},
-            Number<math::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
+            Sequence<CPerBlock, KPerBlock>{}, Number<max_align>{});
 
         // tensor view of threadwise output in register
-        constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor(
+        constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
         // blockwise copy
@@ -144,7 +142,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                                    decltype(wei_c_k_global_desc),
                                    decltype(wei_c_k_block_desc),
                                    decltype(wei_c_k_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead_K>{};
+                                   WeiBlockCopyDataPerRead_K>({0, 0}, {0, 0});
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -186,22 +184,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                 GemmDataPerReadA,
                 GemmDataPerReadB>{};
 
-        // choose GEMM implementation here
-        const auto run_blockwise_batch_gemm = [&](auto... Xs) {
-#if 0
-            return blockwise_batch_gemm.Run(Xs...);
-#elif 0
-            return blockwise_batch_gemm.Run_amd_asm(Xs...);
-#else
-            return blockwise_batch_gemm.Run_asm_v2(Xs...);
-#endif
-        };
-
         // LDS: be careful of alignment
-        // TODO:: need to properly implement tensor descriptor with alignment
-        constexpr index_t in_block_space =
-            in_c_h_w_n_block_desc.GetElementSpace(Number<max_align>{});
-        constexpr index_t wei_block_space = wei_c_k_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t in_block_space  = in_c_h_w_n_block_desc.GetElementSpace();
+        constexpr index_t wei_block_space = wei_c_k_block_desc.GetElementSpace();
 
         __shared__ Float p_in_block[in_block_space];
         __shared__ Float p_wei_block[wei_block_space];
@@ -225,7 +210,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 #endif
 
         // set threadwise output tensor to 0
-        threadwise_4d_tensor_set_zero(out_k_h_w_n_thread_desc, p_out_thread);
+        threadwise_matrix_set_zero(c_k_wn_thread_mtx_desc, p_out_thread);
 
 #if 1
         const Float* p_in_global_block_offset =
@@ -258,7 +243,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
                     __syncthreads();
 
-                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
+                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
@@ -291,7 +276,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
                     __syncthreads();
 
-                    run_blockwise_batch_gemm(p_wei_block, p_in_block, p_out_thread);
+                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
 
                     __syncthreads();
                 }
@@ -308,13 +293,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
         const index_t wo_thread_data_begin = c_thread_mtx_begin.col / NPerBlock;
         const index_t n_thread_data_begin  = c_thread_mtx_begin.col % NPerBlock;
 
-        static_if<GemmNPerThreadSubC <= NPerBlock>{}([&](auto f_dummy) { // f_dummy do nothing but
-                                                                         // perfect forwarding.
-                                                                         // Using this trick to
-            // make this lambda a generic lambda, so it won't be compiled until
-            // instantiated
+        static_if<GemmNPerThreadSubC <= NPerBlock>{}([&](auto fwd) {
+            // fwd do nothing but perfect forwarding.
+            // Using this trick to make this lambda a generic lambda, so it won't be compiled until
+            // being instantiated here
             static_assert(
-                (f_dummy(GemmNPerThreadSubC) <= NPerBlock && NPerBlock % GemmNPerThreadSubC == 0),
+                (fwd(GemmNPerThreadSubC) <= NPerBlock && NPerBlock % GemmNPerThreadSubC == 0),
                 "wrong!");
 
             // output is a 10d tensor
@@ -322,38 +306,33 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
             constexpr index_t N1 = NPerBlock / N2;
 
             constexpr index_t W2 =
-                (GemmNLevel0Cluster * GemmNLevel1Cluster) / f_dummy(NPerBlock / GemmNPerThreadSubC);
+                (GemmNLevel0Cluster * GemmNLevel1Cluster) / fwd(NPerBlock / GemmNPerThreadSubC);
             constexpr index_t W1 = WoPerBlock / W2;
 
             constexpr index_t K2 = GemmMPerThreadSubC;
             constexpr index_t K1 = KPerBlock / KPerThread;
 
-            constexpr auto out_10d_global_desc =
-                make_ConstantTensorDescriptor(Sequence<K / (K1 * K2),
-                                                       K1,
-                                                       K2,
-                                                       Ho,
-                                                       Wo / (W1 * W2),
-                                                       W1,
-                                                       W2,
-                                                       N / f_dummy(N1 * N2),
-                                                       N1,
-                                                       N2>{});
+            constexpr auto out_10d_global_desc = fwd(out_k_h_w_n_global_desc)
+                                                     .Fold(I3, Number<N1>{}, Number<N2>{})
+                                                     .Fold(I2, Number<W1>{}, Number<W2>{})
+                                                     .Fold(I0, Number<K1>{}, Number<K2>{});
 
-            constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
-                Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, 1, 1, N2>{});
+            constexpr auto out_10d_thread_desc = fwd(out_k_h_w_n_thread_desc)
+                                                     .Fold(I3, Number<1>{}, Number<N2>{})
+                                                     .Fold(I2, Number<W1>{}, Number<1>{})
+                                                     .Fold(I0, Number<1>{}, Number<K2>{});
 
 #if 0
-                if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-                {
-                    print_ConstantTensorDescriptor(out_k_h_w_n_thread_desc,
-                                                   "out_k_h_w_n_thread_desc");
-                    print_ConstantTensorDescriptor(out_10d_thread_desc, "out_10d_thread_desc");
+            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+            {
+                print_ConstantTensorDescriptor(out_k_h_w_n_thread_desc,
+                                               "a: out_k_h_w_n_thread_desc");
+                print_ConstantTensorDescriptor(out_10d_thread_desc, "a: out_10d_thread_desc");
 
-                    print_ConstantTensorDescriptor(out_k_h_w_n_global_desc,
-                                                   "out_k_h_w_n_global_desc");
-                    print_ConstantTensorDescriptor(out_10d_global_desc, "out_10d_global_desc");
-                }
+                print_ConstantTensorDescriptor(out_k_h_w_n_global_desc,
+                                               "a: out_k_h_w_n_global_desc");
+                print_ConstantTensorDescriptor(out_10d_global_desc, "a: out_10d_global_desc");
+            }
 #endif
 
             threadwise_tensor_slice_copy(out_10d_thread_desc,
@@ -367,8 +346,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                                                  n_block_data_begin + n_thread_data_begin),
                                          out_10d_thread_desc.GetLengths(),
                                          Number<OutThreadCopyDataPerWrite_N>{});
-        }).Else([&](auto f_dummy) {
-            static_assert(f_dummy(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
+        }).Else([&](auto fwd) {
+            static_assert(fwd(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
                               GemmNPerThreadSubC % NPerThread == 0,
                           "wrong!");
 
@@ -377,33 +356,34 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
             constexpr index_t W3 = GemmNPerThreadSubC / NPerBlock;
             constexpr index_t W2 = GemmNLevel0Cluster * GemmNLevel1Cluster;
-            constexpr index_t W1 = WoPerBlock / f_dummy(W2 * W3);
+            constexpr index_t W1 = WoPerBlock / fwd(W2 * W3);
 
             constexpr index_t K2 = GemmMPerThreadSubC;
             constexpr index_t K1 = KPerBlock / KPerThread;
 
-            constexpr auto out_10d_global_desc = make_ConstantTensorDescriptor(
-                Sequence<K / (K1 * K2), K1, K2, Ho, Wo / (W1 * W2 * W3), W1, W2, W3, N / N1, N1>{});
+            constexpr auto out_10d_global_desc =
+                fwd(out_k_h_w_n_global_desc)
+                    .Fold(I3, Number<N1>{})
+                    .Fold(I2, Number<W1>{}, Number<W2>{}, Number<W3>{})
+                    .Fold(I0, Number<K1>{}, Number<K2>{});
 
-            constexpr auto out_10d_thread_desc = make_ConstantTensorDescriptor(
-                Sequence<KPerThread / K2, 1, K2, HoPerThread, 1, W1, 1, W3, 1, N1>{});
+            constexpr auto out_10d_thread_desc =
+                fwd(out_k_h_w_n_thread_desc)
+                    .Fold(I3, Number<N1>{})
+                    .Fold(I2, Number<W1>{}, Number<1>{}, Number<W3>{})
+                    .Fold(I0, Number<1>{}, Number<K2>{});
 
 #if 0
-                if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-                {
-                    print_ConstantTensorDescriptor(out_k_h_w_n_thread_desc,
-                                                   "out_k_h_w_n_thread_desc");
-                    print_ConstantTensorDescriptor(out_10d_thread_desc, "out_10d_thread_desc");
+            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+            {
+                print_ConstantTensorDescriptor(out_k_h_w_n_thread_desc,
+                                               "b: out_k_h_w_n_thread_desc");
+                print_ConstantTensorDescriptor(out_10d_thread_desc, "b: out_10d_thread_desc");
 
-                    print_ConstantTensorDescriptor(out_k_h_w_n_global_desc,
-                                                   "out_k_h_w_n_global_desc");
-                    print_ConstantTensorDescriptor(out_10d_global_desc, "out_10d_global_desc");
-
-                    for(index_t i = 0; i < 64; ++i)
-                    {
-                        printf("out %f, ", p_out_thread[i]);
-                    }
-                }
+                print_ConstantTensorDescriptor(out_k_h_w_n_global_desc,
+                                               "b: out_k_h_w_n_global_desc");
+                print_ConstantTensorDescriptor(out_10d_global_desc, "b: out_10d_global_desc");
+            }
 #endif
 
             threadwise_tensor_slice_copy(out_10d_thread_desc,

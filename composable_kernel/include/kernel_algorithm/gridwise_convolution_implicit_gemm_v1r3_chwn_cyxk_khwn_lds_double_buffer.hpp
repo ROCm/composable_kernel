@@ -114,8 +114,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                                                 GemmDataPerReadB);
 
         constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{},
-            Number<InBlockCopyDataPerRead_N>{});
+            Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{}, Number<max_align>{});
 
         // this check is ad-hoc
         // TODO: need to properly implement tensor descriptor with alignment
@@ -123,8 +122,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                       "GemmDataPerReadB alignment requirement is not meet");
 
         constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, KPerBlock>{},
-            Number<math::lcm(WeiBlockCopyDataPerRead_K, GemmDataPerReadA)>{});
+            Sequence<CPerBlock, KPerBlock>{}, Number<max_align>{});
 
         // tensor view of threadwise output in register
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
@@ -201,21 +199,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                 GemmDataPerReadA,
                 GemmDataPerReadB>{};
 
-        // choose GEMM implementation here
-        const auto run_blockwise_batch_gemm = [&](auto... Xs) {
-#if 1
-            return blockwise_batch_gemm.Run(Xs...);
-#elif 0
-            return blockwise_batch_gemm.Run_amd_asm(Xs...);
-#else
-            return blockwise_batch_gemm.Run_asm_v2(Xs...);
-#endif
-        };
-
         // LDS: be careful of alignment
-        constexpr index_t in_block_space =
-            in_c_h_w_n_block_desc.GetElementSpace(Number<max_align>{});
-        constexpr index_t wei_block_space = wei_c_k_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t in_block_space  = in_c_h_w_n_block_desc.GetElementSpace();
+        constexpr index_t wei_block_space = wei_c_k_block_desc.GetElementSpace();
 
         // LDS double buffer
         __shared__ Float p_in_block_double[2 * in_block_space];
@@ -307,7 +293,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                         blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
                                                                     p_wei_register_clipboard);
 
-                        run_blockwise_batch_gemm(p_wei_block_now, p_in_block_now, p_out_thread);
+                        blockwise_batch_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
 
                         // LDS double buffer: store next data to LDS
                         blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
@@ -335,7 +321,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                                                                 p_wei_register_clipboard);
 
                     // LDS double buffer: GEMM on current data
-                    run_blockwise_batch_gemm(p_wei_block_double, p_in_block_double, p_out_thread);
+                    blockwise_batch_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
 
                     // LDS double buffer: store next data to LDS
                     blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard,
@@ -347,7 +333,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                     __syncthreads();
 
                     // LDS double buffer: GEMM on current data
-                    run_blockwise_batch_gemm(p_wei_block_double + wei_block_space,
+                    blockwise_batch_gemm.Run(p_wei_block_double + wei_block_space,
                                              p_in_block_double + in_block_space,
                                              p_out_thread);
                 }

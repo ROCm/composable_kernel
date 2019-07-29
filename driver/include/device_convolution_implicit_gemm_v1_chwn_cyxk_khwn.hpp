@@ -143,7 +143,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyDataPerRead_K = 4;
 
     constexpr index_t OutThreadCopyDataPerWrite_N = 2;
-#elif 0
+#elif 1
     // for 3x3, 34x34, v1r3, Pascal
     // for 3x3, 28x28, v1r3, Pascal
     // for 3x3, 14x14, v1r3, Pascal
@@ -478,9 +478,9 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
             GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 #elif 0
             GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
-#elif 0
-            GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 #elif 1
+            GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
+#elif 0
             GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
 #endif
             <GridSize,
