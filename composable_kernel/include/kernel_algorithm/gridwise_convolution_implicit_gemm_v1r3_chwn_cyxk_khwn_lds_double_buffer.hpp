@@ -128,17 +128,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
-// blockwise copy
-// input: format is [C, Hi, Wi, N]
-#if 0
-        const auto blockwise_in_copy =
-            Blockwise4dTensorCopy1<BlockSize,
-                                   Float,
-                                   decltype(in_c_h_w_n_global_desc),
-                                   decltype(in_c_h_w_n_block_desc),
-                                   decltype(in_c_h_w_n_block_desc.GetLengths()),
-                                   InBlockCopyDataPerRead_N>{};
-#else
+        // blockwise copy
+        // input: format is [C, Hi, Wi, N]
         const auto blockwise_in_copy =
             Blockwise4dTensorCopy3<BlockSize,
                                    Float,
@@ -147,7 +138,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                                    decltype(in_c_h_w_n_block_desc.GetLengths()),
                                    InBlockCopyClusterLengths_CHWN,
                                    InBlockCopyDataPerRead_N>{};
-#endif
 
         // blockwise wei copy
         //   format is [CPerBlock, X * KPerBlock]
