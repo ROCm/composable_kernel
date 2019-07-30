@@ -93,6 +93,17 @@ struct NormalTensorCoordinate
         return coord;
     }
 
+    // reposition point of origin, and return compensated offset
+    __host__ __device__ constexpr index_t RepositionOrigin()
+    {
+        index_t offset_diff = mOffset;
+
+        mIndex  = make_zero_array<index_t, nDim>();
+        mOffset = 0;
+
+        return offset_diff;
+    }
+
     // private:
     Array<index_t, nDim> mIndex;
     index_t mOffset;
@@ -305,25 +316,35 @@ struct MergedTensorCoordinate
         return coord;
     }
 
+    // reposition point of origin, and return compensated offset
+    __host__ __device__ constexpr index_t RepositionOrigin()
+    {
+        index_t offset_diff = 0;
+
+        static_for<0, nDim, 1>{}([&](auto idim_) {
+            constexpr auto idim = decltype(idim_){};
+
+            static_if<!tensor_desc_type::ContainMultipleOriginalDimensions(idim)>{}([&](auto) {
+                constexpr auto idim_original =
+                    tensor_desc_type::GetContainedOriginalDimensions(idim).Front();
+
+                mIndex(idim)                  = 0;
+                mOriginalIndex(idim_original) = 0;
+                mOffset -= mPartialOffsets[idim];
+                offset_diff += mPartialOffsets[idim];
+                mPartialOffsets(idim) = 0;
+            });
+        });
+
+        return offset_diff;
+    }
+
     // private:
     Array<index_t, nDim> mIndex;
     Array<index_t, nOriginalDim> mOriginalIndex;
     Array<index_t, nDim> mPartialOffsets; // mPartialOffsets is needed for for unsigned index type
     index_t mOffset;
 };
-
-#if 0
-// implementation of MergedTensorCoordinate, when index_t is signed integer
-// mPartialOffsets is not needed, if index_t is signed integer type
-template<>
-struct TensorCoordinate<signed_t>
-{
-    private:
-    Array<_t, nDim> mIndex;
-    Array<_t, nOriginalDim> mOriginalIndex;
-    index_t mOffset;
-};
-#endif
 
 } // namespace ck
 #endif

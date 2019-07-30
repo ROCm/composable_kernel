@@ -478,9 +478,9 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
             GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
 #elif 0
             GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
-#elif 0
-            GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 #elif 1
+            GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
+#elif 0
             GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
 #endif
             <GridSize,

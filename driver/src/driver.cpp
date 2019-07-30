@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3, 34x34
     constexpr index_t N  = 128;
     constexpr index_t C  = 256;
@@ -520,7 +520,7 @@ int main(int argc, char* argv[])
 #if 0
     device_convolution_direct_v2_nchw_kcyx_nkhw
         (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(
         in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
 #elif 0

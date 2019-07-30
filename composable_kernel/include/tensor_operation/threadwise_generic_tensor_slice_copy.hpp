@@ -140,11 +140,23 @@ struct ThreadwiseGenericTensorSliceCopy_v2
 
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
+#if 0
         static_ford<SliceLengths>{}([&](auto data_id) {
             p_dst[(mDstSliceOrigin + data_id).GetOffset()] =
                 p_src[(mSrcSliceOrigin + data_id).GetOffset()];
-
         });
+#elif 1
+        auto src_slice_origin = mSrcSliceOrigin;
+        auto dst_slice_origin = mDstSliceOrigin;
+
+        p_src += src_slice_origin.RepositionOrigin();
+        p_dst += dst_slice_origin.RepositionOrigin();
+
+        static_ford<SliceLengths>{}([&](auto data_id) {
+            p_dst[(dst_slice_origin + data_id).GetOffset()] =
+                p_src[(src_slice_origin + data_id).GetOffset()];
+        });
+#endif
     }
 
     __device__ void MoveSrcSlicingWindow(Array<index_t, nDim> step_sizes, bool positive_direction)

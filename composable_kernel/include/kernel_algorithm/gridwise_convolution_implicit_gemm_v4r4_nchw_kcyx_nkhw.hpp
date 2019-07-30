@@ -161,7 +161,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
             Float,
             decltype(wei_e_k_global_desc),
             decltype(wei_e_k_block_desc),
-            MergedTensorCoordinate<decltype(wei_e_k_global_desc)>,
+            NormalTensorCoordinate<decltype(wei_e_k_global_desc)>,
             NormalTensorCoordinate<decltype(wei_e_k_block_desc)>,
             decltype(wei_e_k_block_desc.GetLengths()),
             WeiBlockCopySubLengths_E_K,
@@ -301,7 +301,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
                                                         b_thread_data_on_global % B1});
 
             threadwise_out_copy.Run(p_out_thread, p_out_thread_on_global);
-#else
+#elif 0
             // This is a hack, because slicing a merged dimension is not supported yet.
             // This should be replaced with logic above, once slicing a merged dimension support
             // become available
@@ -322,6 +322,49 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
                 decltype(out_k0_k1_b_global_desc),
                 NormalTensorCoordinate<decltype(out_k0_k1_b_thread_desc)>,
                 MergedTensorCoordinate<decltype(out_k0_k1_b_global_desc)>,
+                Sequence<GemmMRepeat, GemmMPerThreadSubC, GemmNPerThreadSubC>>(
+                {0, 0, 0},
+                {k_thread_data_on_global / K1,
+                 k_thread_data_on_global % K1,
+                 b_thread_data_on_global});
+
+            for(index_t nrepeat = 0; nrepeat < GemmNRepeat; ++nrepeat)
+            {
+                threadwise_out_copy.Run(p_out_thread, p_out_global);
+
+                threadwise_out_copy.MoveSrcSlicingWindow({0, 0, GemmNPerThreadSubC}, true);
+                threadwise_out_copy.MoveDstSlicingWindow({0, 0, B1}, true);
+            }
+#elif 1
+            // This is a hack, because slicing a merged dimension is not supported yet.
+            // This should be replaced with logic above, once slicing a merged dimension support
+            // become available
+            //     dst descriptor
+            constexpr auto out_k0_k1_b_global_desc =
+                make_ConstantMergedTensorDescriptor(out_n_k_h_w_global_desc.Fold(I1, Number<K1>{}),
+                                                    Sequence<1>{},
+                                                    Sequence<2>{},
+                                                    Sequence<0, 3, 4>{});
+
+            //     src descriptor
+            constexpr auto out_k0_k1_b_thread_desc = make_ConstantTensorDescriptor_packed(
+                Sequence<GemmMRepeat, GemmMPerThreadSubC, GemmNRepeat * GemmNPerThreadSubC>{});
+
+            auto threadwise_out_copy = ThreadwiseGenericTensorSliceCopy_v2<
+                Float,
+#if 1 // debug
+                decltype(out_k0_k1_b_thread_desc),
+                decltype(out_k0_k1_b_global_desc),
+                NormalTensorCoordinate<decltype(out_k0_k1_b_thread_desc)>,
+                MergedTensorCoordinate<decltype(out_k0_k1_b_global_desc)>,
+#else
+                decltype(out_k0_k1_b_thread_desc),
+                decltype(
+                    make_ConstantTensorDescriptor_packed(out_k0_k1_b_global_desc.GetLengths())),
+                NormalTensorCoordinate<decltype(out_k0_k1_b_thread_desc)>,
+                NormalTensorCoordinate<decltype(
+                    make_ConstantTensorDescriptor_packed(out_k0_k1_b_global_desc.GetLengths()))>,
+#endif
                 Sequence<GemmMRepeat, GemmMPerThreadSubC, GemmNPerThreadSubC>>(
                 {0, 0, 0},
                 {k_thread_data_on_global / K1,

@@ -6,6 +6,7 @@
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_2d_tensor_op.hpp"
 #include "blockwise_4d_tensor_op.hpp"
+#include "blockwise_generic_tensor_slice_copy.hpp"
 #include "threadwise_tensor_slice_copy.hpp"
 #include "threadwise_4d_tensor_op.hpp"
 #include "blockwise_batched_gemm.hpp"
@@ -122,8 +123,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
-        // blockwise copy
-        // input: format is [C, Hi, Wi, N]
+// blockwise copy
+// input: format is [C, Hi, Wi, N]
+#if 0
         const auto blockwise_in_copy =
             Blockwise4dTensorCopy3<BlockSize,
                                    Float,
@@ -132,6 +134,39 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                                    decltype(in_c_h_w_n_block_desc.GetLengths()),
                                    InBlockCopyClusterLengths_CHWN,
                                    InBlockCopyDataPerRead_N>{};
+#elif 0
+        using InBlockCopySubLengths_CHWN =
+            decltype(in_c_h_w_n_block_desc.GetLengths() / InBlockCopyClusterLengths_CHWN{});
+
+        auto blockwise_in_copy =
+            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
+                                               Float,
+                                               decltype(in_c_h_w_n_global_desc),
+                                               decltype(in_c_h_w_n_block_desc),
+                                               decltype(in_c_h_w_n_block_desc.GetLengths()),
+                                               InBlockCopySubLengths_CHWN,
+                                               InBlockCopyClusterLengths_CHWN,
+                                               Sequence<0, 1, 2, 3>,
+                                               Sequence<0, 1, 2, 3>,
+                                               Sequence<0, 1, 2, 3>,
+                                               1,
+                                               1>({0, 0, 0, 0}, {0, 0, 0, 0});
+#elif 1
+        using InBlockCopySubLengths_CHWN =
+            decltype(in_c_h_w_n_block_desc.GetLengths() / InBlockCopyClusterLengths_CHWN{});
+
+        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v2<
+            BlockSize,
+            Float,
+            decltype(in_c_h_w_n_global_desc),
+            decltype(in_c_h_w_n_block_desc),
+            NormalTensorCoordinate<decltype(in_c_h_w_n_global_desc)>,
+            NormalTensorCoordinate<decltype(in_c_h_w_n_block_desc)>,
+            decltype(in_c_h_w_n_block_desc.GetLengths()),
+            InBlockCopySubLengths_CHWN,
+            InBlockCopyClusterLengths_CHWN,
+            Sequence<0, 1, 2, 3>>({0, 0, 0, 0}, {0, 0, 0, 0});
+#endif
 
         // blockwise wei copy
         //   format is [CPerBlock, X * KPerBlock]
