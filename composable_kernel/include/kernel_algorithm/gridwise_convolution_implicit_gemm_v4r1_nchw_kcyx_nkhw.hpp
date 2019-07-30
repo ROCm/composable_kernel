@@ -224,7 +224,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
 
         // c_thread_mtx definition: this is a mess
         // TODO:: more elegent way of defining c_thread_mtx
-        constexpr auto c_k0k2_n1n2_thread_mtx_desc = make_ConstantMatrixDescriptor(
+        constexpr auto c_k0k2_n1n2_thread_mtx_desc = make_ConstantMatrixDescriptor_packed(
             Number<GemmMRepeat * GemmMPerThreadSubC>{}, Number<N1 * N2>{});
 
         const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<
@@ -258,9 +258,10 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
                                                 GemmDataPerReadB);
 
         constexpr index_t in_block_space =
-            in_e_n1_b_n2_block_desc.GetElementSpace(Number<max_align>{});
+            math::integer_least_multiple(in_e_n1_b_n2_block_desc.GetElementSpace(), max_align);
 
-        constexpr index_t wei_block_space = wei_e_k_block_desc.GetElementSpace(Number<max_align>{});
+        constexpr index_t wei_block_space =
+            math::integer_least_multiple(wei_e_k_block_desc.GetElementSpace(), max_align);
 
         __shared__ Float p_in_block[in_block_space];
         __shared__ Float p_wei_block[wei_block_space];
