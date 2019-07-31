@@ -59,7 +59,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t B = (N * Ho * Wo) / (N1 * N2);
 
-#if 0
+#if 1
     // each thread hold 64 data
     constexpr index_t BlockSize = 256;
 
@@ -94,7 +94,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
     constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
-#elif 1
+#elif 0
     // each thread hold 32 data
     constexpr index_t BlockSize = 256;
 
