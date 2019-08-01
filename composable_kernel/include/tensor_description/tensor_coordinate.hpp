@@ -16,7 +16,7 @@ struct NormalTensorCoordinate
     static constexpr index_t nDim = tensor_desc_type::GetNumOfDimension();
 
     __host__ __device__ constexpr NormalTensorCoordinate(Array<index_t, nDim> tensor_index)
-        : mIndex{tensor_index}, mOffset{tensor_desc_type::GetOffsetFromMultiIndex(tensor_index)}
+        : mOffset{tensor_desc_type::GetOffsetFromMultiIndex(tensor_index)}
     {
     }
 
@@ -26,38 +26,15 @@ struct NormalTensorCoordinate
     {
     }
 
-    __host__ __device__ constexpr Array<unsigned, nDim> GetIndex() const { return mIndex; }
-
     __host__ __device__ constexpr index_t GetOffset() const { return mOffset; }
-
-    template <class IDim, bool PositiveDirection>
-    __host__ __device__ void
-    MoveOnDimension(IDim idim, index_t step_size, integral_constant<bool, PositiveDirection>)
-    {
-        if(PositiveDirection)
-        {
-            mIndex(idim) += step_size;
-            mOffset += step_size * tensor_desc_type::GetStride(idim);
-        }
-        else
-        {
-            mIndex(idim) -= step_size;
-            mOffset -= step_size * tensor_desc_type::GetStride(idim);
-        }
-    }
 
     // T is Array or Sequence
     template <class T>
     __host__ __device__ type operator+=(T step_sizes)
     {
-#if 0
-        static_assert(is_same<typename T::data_type, index_t>, "wrong!");
-#endif
-        static_assert(T::GetSize() == nDim, "wrong!");
+        static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
 
-        static_for<0, nDim, 1>{}([&](auto idim) {
-            this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, true>{});
-        });
+        mOffset += tensor_desc_type::GetOffsetFromMultiIndex(step_sizes);
 
         return *this;
     }
@@ -65,14 +42,9 @@ struct NormalTensorCoordinate
     template <class T>
     __host__ __device__ type operator-=(T step_sizes)
     {
-#if 0
-        static_assert(is_same<typename T::data_type, index_t>, "wrong!");
-#endif
-        static_assert(T::GetSize() == nDim, "wrong!");
+        static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
 
-        static_for<0, nDim, 1>{}([&](auto idim) {
-            this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, false>{});
-        });
+        mOffset -= tensor_desc_type::GetOffsetFromMultiIndex(step_sizes);
 
         return *this;
     }
@@ -93,19 +65,25 @@ struct NormalTensorCoordinate
         return coord;
     }
 
-    // reposition point of origin, and return compensated offset
+    // reposition point of origin, and return compensated offset.
+    // This is a hack to reduce index calculation during looping over
+    // a tensor whose origin is this TensorCoordinate. It does so, by spitting
+    // out the run-time offset to the pointer (to the tensor data) held by this
+    // TensorCoordiante, so the caller can add the offset into the run-time pointer of
+    // the data, so only 1 run-time variable (update pointer) is needed, instead
+    // of 2 run-time variables (old pointer and this offset)
+    // TODO: after introducing the concept of "run-time tensor view", which contains the
+    // run-time pointer to the data, always keep track of the pointer, instead of both
+    // offset and the pointer. This also bring additional benefit that we don't need to
+    // worry the offset might underflow (because offset is unsigned integer) when updating it.
     __host__ __device__ constexpr index_t RepositionOrigin()
     {
         index_t offset_diff = mOffset;
-
-        mIndex  = make_zero_array<index_t, nDim>();
-        mOffset = 0;
-
+        mOffset             = 0;
         return offset_diff;
     }
 
-    // private:
-    Array<index_t, nDim> mIndex;
+    private:
     index_t mOffset;
 };
 
@@ -120,8 +98,7 @@ struct MergedTensorCoordinate
         tensor_desc_type::GetOriginalTensorDescriptor().GetNumOfDimension();
 
     __host__ __device__ constexpr MergedTensorCoordinate(Array<index_t, nDim> tensor_index)
-        : mIndex{tensor_index},
-          mOriginalIndex{tensor_desc_type::GetOriginalMultiIndexFromMultiIndex(tensor_index)}
+        : mOriginalIndex{tensor_desc_type::GetOriginalMultiIndexFromMultiIndex(tensor_index)}
     {
         // partial offset on each dimension
         static_for<0, nDim, 1>{}([&](auto idim) {
@@ -146,8 +123,6 @@ struct MergedTensorCoordinate
     {
     }
 
-    __host__ __device__ constexpr Array<index_t, nDim> GetIndex() const { return mIndex; }
-
     __host__ __device__ constexpr index_t GetOffset() const { return mOffset; }
 
     // step_size should be known at compile time
@@ -157,17 +132,7 @@ struct MergedTensorCoordinate
     {
         constexpr auto idim = IDim{};
 
-        // update multi-index
-        if(PositiveDirection)
-        {
-            mIndex(idim) += step_size;
-        }
-        else
-        {
-            mIndex(idim) -= step_size;
-        }
-
-        // update rest
+        // update original index
         static_if<tensor_desc_type::ContainMultipleOriginalDimensions(idim)>{}([&](auto) {
             constexpr auto partial_original_dims =
                 tensor_desc_type::GetContainedOriginalDimensions(idim);
@@ -253,19 +218,10 @@ struct MergedTensorCoordinate
 
             // update "mThreadSrcOffset", do "+" before "-" to avoid underflow
             mOffset = (mOffset + mPartialOffsets[idim]) - old_partial_offset;
-        }).Else([&](auto) {
-            constexpr auto idim_original =
-                tensor_desc_type::GetContainedOriginalDimensions(idim).Front();
-
-            static_if<PositiveDirection>{}([&](auto fwd) {
-                mOriginalIndex(idim_original) += step_size;
-                mPartialOffsets(idim) += step_size * fwd(tensor_desc_type{}).GetStride(idim);
+        }).Else([&](auto fwd) {
+            static_if<PositiveDirection>{}([&](auto) {
                 mOffset += step_size * fwd(tensor_desc_type{}).GetStride(idim);
-            }).Else([&](auto fwd) {
-                mOriginalIndex(idim_original) -= step_size;
-                mPartialOffsets(idim) -= step_size * fwd(tensor_desc_type{}).GetStride(idim);
-                mOffset -= step_size * fwd(tensor_desc_type{}).GetStride(idim);
-            });
+            }).Else([&](auto) { mOffset -= step_size * fwd(tensor_desc_type{}).GetStride(idim); });
         });
     }
 
@@ -273,10 +229,9 @@ struct MergedTensorCoordinate
     template <class T>
     __host__ __device__ type operator+=(T step_sizes)
     {
-#if 0
-        static_assert(is_same<typename T::data_type, index_t>, "wrong!");
-#endif
-        static_assert(T::GetSize() == nDim, "wrong!");
+        static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
+
+        index_t normal_offset_diff = 0;
 
         static_for<0, nDim, 1>{}([&](auto idim) {
             this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, true>{});
@@ -288,10 +243,7 @@ struct MergedTensorCoordinate
     template <class T>
     __host__ __device__ type operator-=(T step_sizes)
     {
-#if 0
-        static_assert(is_same<typename T::data_type, index_t>, "wrong!");
-#endif
-        static_assert(T::GetSize() == nDim, "wrong!");
+        static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
 
         static_for<0, nDim, 1>{}([&](auto idim) {
             this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, false>{});
@@ -316,33 +268,23 @@ struct MergedTensorCoordinate
         return coord;
     }
 
-    // reposition point of origin, and return compensated offset
-    __host__ __device__ constexpr index_t RepositionOrigin()
-    {
-        index_t offset_diff = 0;
+    __host__ __device__ static constexpr index_t RepositionOrigin() { return 0; }
 
-        static_for<0, nDim, 1>{}([&](auto idim_) {
-            constexpr auto idim = decltype(idim_){};
-
-            static_if<!tensor_desc_type::ContainMultipleOriginalDimensions(idim)>{}([&](auto) {
-                constexpr auto idim_original =
-                    tensor_desc_type::GetContainedOriginalDimensions(idim).Front();
-
-                mIndex(idim)                  = 0;
-                mOriginalIndex(idim_original) = 0;
-                mOffset -= mPartialOffsets[idim];
-                offset_diff += mPartialOffsets[idim];
-                mPartialOffsets(idim) = 0;
-            });
-        });
-
-        return offset_diff;
-    }
-
-    // private:
-    Array<index_t, nDim> mIndex;
+    private:
+    // Allocate register memory for all merged dimensions and normal dimensions.
+    // However, only those merged dimensions, whose index will be involved in arithmetic
+    // after the construction of this TensorCoordinate (e.g. when user move a slicing
+    // window on the merged dimension), will use these register memory.
+    // Let's hope compiler will optimize away those register memory allocated for normal
+    // dimensions, and those merged dimensions, that would never be involved in index
+    // arithmetic after construction of TensorCoordinate.
+    // TODO: refactor TensorCoordinate, after introducing the concept of "dimensions"
+    // and simplify implementation of ConstantMergedTensorDescriptor, so we don't need to
+    // count on compiler to optimize way those register memory for us
     Array<index_t, nOriginalDim> mOriginalIndex;
-    Array<index_t, nDim> mPartialOffsets; // mPartialOffsets is needed for for unsigned index type
+    Array<index_t, nDim> mPartialOffsets;
+
+    // complete offset
     index_t mOffset;
 };
 
