@@ -418,6 +418,22 @@ struct BlockwiseGenericTensorSliceCopy_v2
         mThreadwiseCopy.Run(p_src, p_dst);
     }
 
+    template <class SrcMergedDimSubLengthsHack, class DstMergedDimSubLengthsHack>
+    __device__ void Run_hack(const TData* p_src,
+                             TData* p_dst,
+                             SrcMergedDimSubLengthsHack,
+                             DstMergedDimSubLengthsHack) const
+    {
+        // hacks to isolate merged dimension from normal dimensions, and calculate their offset
+        // seperately
+        // SrcMergedDimSliceLengthsHack has entry same as SliceLengths on src merged dimensions,
+        // but 1 on normal dimensions;
+        // SrcNormalDimSliceLengthsHack has entry same as SliceLengths on src normal dimensions,
+        // but 1 on merged dimensions;
+        mThreadwiseCopy.Run_hack(
+            p_src, p_dst, SrcMergedDimSubLengthsHack{}, DstMergedDimSubLengthsHack{});
+    }
+
     __device__ void MoveSrcSlicingWindow(Array<index_t, nDim> step_sizes, bool positive_direction)
     {
         mThreadwiseCopy.MoveSrcSlicingWindow(step_sizes, positive_direction);
