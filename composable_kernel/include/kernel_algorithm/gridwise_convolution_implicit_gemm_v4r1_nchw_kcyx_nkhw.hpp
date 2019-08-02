@@ -295,9 +295,24 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
         // do work
         for(index_t e = 0; e < E; e += EPerBlock)
         {
-            // marching slicing window
+#if 0 // debug
             blockwise_in_copy.Run(p_in_global, p_in_block);
             blockwise_wei_copy.Run(p_wei_global, p_wei_block);
+#else
+            using InSrcMergedDimSubLengthsHack = Sequence<1, 1, 1, 1>;
+            using InDstMergedDimSubLengthsHack = Sequence<1, 1, 1, 1>;
+            blockwise_in_copy.Run_hack(p_in_global,
+                                       p_in_block,
+                                       InSrcMergedDimSubLengthsHack{},
+                                       InDstMergedDimSubLengthsHack{});
+
+            using WeiSrcMergedDimSubLengthsHack = Sequence<1, 1>;
+            using WeiDstMergedDimSubLengthsHack = Sequence<1, 1>;
+            blockwise_wei_copy.Run_hack(p_wei_global,
+                                        p_wei_block,
+                                        WeiSrcMergedDimSubLengthsHack{},
+                                        WeiDstMergedDimSubLengthsHack{});
+#endif
 
             __syncthreads();
 
