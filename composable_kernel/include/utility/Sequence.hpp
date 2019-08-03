@@ -128,48 +128,63 @@ struct sequence_merge<Sequence<Xs...>, Sequence<Ys...>>
     using type = Sequence<Xs..., Ys...>;
 };
 
-// arithmetic sqeuence
-template <index_t IBegin, index_t NSize, index_t Increment>
-struct arithmetic_sequence_gen_impl
+// generate sequence
+template <index_t IBegin, index_t NRemain, class F>
+struct sequence_gen_impl
 {
-    static constexpr index_t NSizeLeft = NSize / 2;
+    static constexpr index_t NRemainLeft  = NRemain / 2;
+    static constexpr index_t NRemainRight = NRemain - NRemainLeft;
+    static constexpr index_t IMiddle      = IBegin + NRemainLeft;
 
-    using type = typename sequence_merge<
-        typename arithmetic_sequence_gen_impl<IBegin, NSizeLeft, Increment>::type,
-        typename arithmetic_sequence_gen_impl<IBegin + NSizeLeft * Increment,
-                                              NSize - NSizeLeft,
-                                              Increment>::type>::type;
+    using type =
+        typename sequence_merge<typename sequence_gen_impl<IBegin, NRemainLeft, F>::type,
+                                typename sequence_gen_impl<IMiddle, NRemainRight, F>::type>::type;
 };
 
-template <index_t IBegin, index_t Increment>
-struct arithmetic_sequence_gen_impl<IBegin, 1, Increment>
+template <index_t I, class F>
+struct sequence_gen_impl<I, 1, F>
 {
-    using type = Sequence<IBegin>;
+    static constexpr index_t Is = F{}(Number<I>{});
+    using type                  = Sequence<Is>;
 };
 
-template <index_t IBegin, index_t Increment>
-struct arithmetic_sequence_gen_impl<IBegin, 0, Increment>
+template <index_t I, class F>
+struct sequence_gen_impl<I, 0, F>
 {
     using type = Sequence<>;
 };
 
+template <index_t NSize, class F>
+struct sequence_gen
+{
+    using type = typename sequence_gen_impl<0, NSize, F>::type;
+};
+
+// arithmetic sequence
 template <index_t IBegin, index_t IEnd, index_t Increment>
 struct arithmetic_sequence_gen
 {
-    using type = typename arithmetic_sequence_gen_impl<IBegin, IEnd - IBegin, Increment>::type;
+    struct F
+    {
+        __host__ __device__ constexpr index_t operator()(index_t i) const
+        {
+            return i * Increment + IBegin;
+        }
+    };
+
+    using type = typename sequence_gen<(IEnd - IBegin) / Increment, F>::type;
 };
 
 // uniform sequence
 template <index_t NSize, index_t I>
 struct uniform_sequence_gen
 {
-    struct return_constant
+    struct F
     {
         __host__ __device__ constexpr index_t operator()(index_t) const { return I; }
     };
 
-    using type = decltype(
-        typename arithmetic_sequence_gen<0, NSize, 1>::type{}.Transform(return_constant{}));
+    using type = typename sequence_gen<NSize, F>::type;
 };
 
 // reverse inclusive scan (with init) sequence
