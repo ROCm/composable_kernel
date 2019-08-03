@@ -138,47 +138,17 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         mDstSliceOrigin = dst_slice_origin;
     }
 
-    __device__ void Run(const TData* p_src, TData* p_dst) const
+    template <class TDesc, class Seq>
+    struct IsolateMergedDimSliceLengthsHack
     {
-        constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
+        template <class IDim>
+        __device__ constexpr index_t operator()(IDim idim) const
+        {
+            return TDesc::ContainMultipleOriginalDimensions(idim) ? Seq{}[idim] : 1;
+        }
+    };
 
-        TData p_buffer_[buffer_desc.GetElementSpace()];
-        TData* p_buffer = p_buffer_;
-
-#if 0
-        static_ford<SliceLengths>{}([&](auto data_id) {
-            p_buffer[buffer_desc.GetOffsetFromMultiIndex(data_id)] =
-                p_src[(mSrcSliceOrigin + data_id).GetOffset()];
-        });
-
-        static_ford<SliceLengths>{}([&](auto data_id) {
-            p_dst[(mDstSliceOrigin + data_id).GetOffset()] =
-                p_buffer[buffer_desc.GetOffsetFromMultiIndex(data_id)];
-        });
-#elif 1
-        auto src_slice_origin = mSrcSliceOrigin;
-        auto dst_slice_origin = mDstSliceOrigin;
-
-        const TData* p_src_tmp = p_src + src_slice_origin.RepositionOrigin();
-        TData* p_dst_tmp       = p_dst + dst_slice_origin.RepositionOrigin();
-
-        static_ford<SliceLengths>{}([&](auto data_id) {
-            p_buffer[buffer_desc.GetOffsetFromMultiIndex(data_id)] =
-                p_src_tmp[(src_slice_origin + data_id).GetOffset()];
-        });
-
-        static_ford<SliceLengths>{}([&](auto data_id) {
-            p_dst_tmp[(dst_slice_origin + data_id).GetOffset()] =
-                p_buffer[buffer_desc.GetOffsetFromMultiIndex(data_id)];
-        });
-#endif
-    }
-
-    template <class SrcMergedDimSliceLengthsHack, class DstMergedDimSliceLengthsHack>
-    __device__ void Run_hack(const TData* p_src,
-                             TData* p_dst,
-                             SrcMergedDimSliceLengthsHack,
-                             DstMergedDimSliceLengthsHack) const
+    __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
 
@@ -191,6 +161,10 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         // but 1 on normal dimensions;
         // SrcNormalDimSliceLengthsHack has entry same as SliceLengths on src normal dimensions,
         // but 1 on merged dimensions;
+        using SrcMergedDimSliceLengthsHack =
+            typename sequence_gen<SliceLengths::GetSize(),
+                                  IsolateMergedDimSliceLengthsHack<SrcDesc, SliceLengths>>::type;
+
         using SrcNormalDimSliceLengthsHack =
             decltype((SliceLengths{} + Number<1>{}) - SrcMergedDimSliceLengthsHack{});
 
@@ -216,6 +190,10 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         // but 1 on normal dimensions;
         // DstNormalDimSliceLengthsHack has entry same as SliceLengths on dst normal dimensions,
         // but 1 on merged dimensions;
+        using DstMergedDimSliceLengthsHack =
+            typename sequence_gen<SliceLengths::GetSize(),
+                                  IsolateMergedDimSliceLengthsHack<DstDesc, SliceLengths>>::type;
+
         using DstNormalDimSliceLengthsHack =
             decltype((SliceLengths{} + Number<1>{}) - DstMergedDimSliceLengthsHack{});
 

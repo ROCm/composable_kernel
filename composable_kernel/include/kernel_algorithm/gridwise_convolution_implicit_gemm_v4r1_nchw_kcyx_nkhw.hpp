@@ -295,27 +295,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
         // do work
         for(index_t e = 0; e < E; e += EPerBlock)
         {
-#if 0 // debug
             blockwise_in_copy.Run(p_in_global, p_in_block);
             blockwise_wei_copy.Run(p_wei_global, p_wei_block);
-#else
-            using InSrcMergedDimSubLengthsHack = Sequence<InBlockCopySubLengths_E_N1_B_N2{}[0],
-                                                          1,
-                                                          InBlockCopySubLengths_E_N1_B_N2{}[2],
-                                                          1>;
-            using InDstMergedDimSubLengthsHack = Sequence<1, 1, 1, 1>;
-            blockwise_in_copy.Run_hack(p_in_global,
-                                       p_in_block,
-                                       InSrcMergedDimSubLengthsHack{},
-                                       InDstMergedDimSubLengthsHack{});
-
-            using WeiSrcMergedDimSubLengthsHack = Sequence<1, 1>;
-            using WeiDstMergedDimSubLengthsHack = Sequence<1, 1>;
-            blockwise_wei_copy.Run_hack(p_wei_global,
-                                        p_wei_block,
-                                        WeiSrcMergedDimSubLengthsHack{},
-                                        WeiDstMergedDimSubLengthsHack{});
-#endif
 
             __syncthreads();
 
@@ -391,10 +372,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
                 arithmetic_sequence_gen<0, 8, 1>::type{},
                 Number<1>{});
 #else
-
-            using OutSrcMergedDimSliceLengthsHack = Sequence<1, 1, 1, 1, 1, 1, 1, 1>;
-            using OutDstMergedDimSliceLengthsHack = Sequence<1, 1, 1, 1, 1, 1, 1, 1>;
-
             ThreadwiseGenericTensorSliceCopy_v2<
                 Float,
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
@@ -403,10 +380,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
                 MergedTensorCoordinate<decltype(out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc)>,
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths())>(
                 {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0})
-                .Run_hack(p_out_thread,
-                          p_out_thread_on_global,
-                          OutSrcMergedDimSliceLengthsHack{},
-                          OutDstMergedDimSliceLengthsHack{});
+                .Run(p_out_thread, p_out_thread_on_global);
 #endif
         }
     }

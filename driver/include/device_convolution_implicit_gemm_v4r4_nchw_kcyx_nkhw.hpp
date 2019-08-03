@@ -4,6 +4,7 @@
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+//#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
 using namespace ck;
 

@@ -11,7 +11,7 @@
 
 namespace ck {
 
-// B = merge(N, H, W)
+// B = merge(N, Ho, Wo)
 template <index_t GridSize,
           index_t BlockSize,
           class Float,
@@ -237,24 +237,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
 
         for(index_t e_block_data_begin = 0; e_block_data_begin < E; e_block_data_begin += EPerBlock)
         {
-#if 0
             blockwise_in_copy.Run(p_in_global, p_in_block);
             blockwise_wei_copy.Run(p_wei_global, p_wei_block);
-#else
-            using InSrcMergedDimSubLengthsHack = InBlockCopySubLengths_E_B;
-            using InDstMergedDimSubLengthsHack = Sequence<1, 1>;
-            blockwise_in_copy.Run_hack(p_in_global,
-                                       p_in_block,
-                                       InSrcMergedDimSubLengthsHack{},
-                                       InDstMergedDimSubLengthsHack{});
-
-            using WeiSrcMergedDimSubLengthsHack = Sequence<1, 1>;
-            using WeiDstMergedDimSubLengthsHack = Sequence<1, 1>;
-            blockwise_wei_copy.Run_hack(p_wei_global,
-                                        p_wei_block,
-                                        WeiSrcMergedDimSubLengthsHack{},
-                                        WeiDstMergedDimSubLengthsHack{});
-#endif
 
             __syncthreads();
 
@@ -318,17 +302,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
 
             for(index_t nrepeat = 0; nrepeat < GemmNRepeat; ++nrepeat)
             {
-#if 0
                 threadwise_out_copy.Run(p_out_thread, p_out_global);
-#else
-                using OutSrcMergedDimSubLengthsHack = Sequence<1, 1, 1>;
-                using OutDstMergedDimSubLengthsHack =
-                    Sequence<1, 1, OutThreadCopySliceLengths{}[2]>;
-                threadwise_out_copy.Run_hack(p_out_thread,
-                                             p_out_global,
-                                             OutSrcMergedDimSubLengthsHack{},
-                                             OutDstMergedDimSubLengthsHack{});
-#endif
 
                 threadwise_out_copy.MoveSrcSlicingWindow({0, 0, GemmNPerThreadSubC}, true);
                 threadwise_out_copy.MoveDstSlicingWindow({0, 0, B1}, true);
