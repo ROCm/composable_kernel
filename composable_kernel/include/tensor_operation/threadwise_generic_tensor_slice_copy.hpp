@@ -227,9 +227,9 @@ struct ThreadwiseGenericTensorSliceCopy_v2
     template <class T, bool PositiveDirection>
     __device__ void MoveDstSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
-        static_if<PositiveDirection>([&](auto) { mDstSliceOrigin += step_sizes; }).Else([&](auto) {
-            mDstSliceOrigin -= step_sizes;
-        });
+        static_if<PositiveDirection>{}([&](auto) {
+            mDstSliceOrigin += step_sizes;
+        }).Else([&](auto) { mDstSliceOrigin -= step_sizes; });
     }
 
     // private:
