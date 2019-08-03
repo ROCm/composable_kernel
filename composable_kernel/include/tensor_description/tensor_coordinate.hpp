@@ -125,12 +125,15 @@ struct MergedTensorCoordinate
 
     __host__ __device__ constexpr index_t GetOffset() const { return mOffset; }
 
-    // step_size should be known at compile time
-    template <class IDim, bool PositiveDirection>
+    template <class IDim, class T, bool PositiveDirection>
     __host__ __device__ void
-    MoveOnDimension(IDim, index_t step_size, integral_constant<bool, PositiveDirection>)
+    MoveOnDimension(IDim idim_, T step_size, integral_constant<bool, PositiveDirection>)
     {
-        constexpr auto idim = IDim{};
+        constexpr auto idim = idim_;
+
+        // if step_size is known at compile time
+        static_if<is_static<T>::value>{}(
+            [&](auto) { static_if<T{} == 0>{}([&](auto) { return; }); });
 
         // update original index
         static_if<tensor_desc_type::ContainMultipleOriginalDimensions(idim)>{}([&](auto) {

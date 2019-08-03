@@ -216,28 +216,20 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         });
     }
 
-    __device__ void MoveSrcSlicingWindow(Array<index_t, nDim> step_sizes, bool positive_direction)
+    template <class T, bool PositiveDirection>
+    __device__ void MoveSrcSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
-        if(positive_direction)
-        {
+        static_if<PositiveDirection>{}([&](auto) {
             mSrcSliceOrigin += step_sizes;
-        }
-        else
-        {
-            mSrcSliceOrigin -= step_sizes;
-        }
+        }).Else([&](auto) { mSrcSliceOrigin -= step_sizes; });
     }
 
-    __device__ void MoveDstSlicingWindow(Array<index_t, nDim> step_sizes, bool positive_direction)
+    template <class T, bool PositiveDirection>
+    __device__ void MoveDstSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
-        if(positive_direction)
-        {
-            mDstSliceOrigin += step_sizes;
-        }
-        else
-        {
+        static_if<PositiveDirection>([&](auto) { mDstSliceOrigin += step_sizes; }).Else([&](auto) {
             mDstSliceOrigin -= step_sizes;
-        }
+        });
     }
 
     // private:
