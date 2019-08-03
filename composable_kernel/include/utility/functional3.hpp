@@ -8,6 +8,21 @@
 
 namespace ck {
 
+template <class>
+struct is_static : integral_constant<bool, false>
+{
+};
+
+template <class T, T X>
+struct is_static<integral_constant<T, X>> : integral_constant<bool, true>
+{
+};
+
+template <index_t... Is>
+struct is_static<Sequence<Is...>> : integral_constant<bool, true>
+{
+};
+
 // RemainLengths: Sequence<...>
 template <class RemainLengths>
 struct static_ford_impl
