@@ -233,8 +233,6 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
         // zero out threadwise output
         threadwise_matrix_set_zero(c_k0k1_b0b1_thread_mtx_desc, p_out_thread);
 
-        const Float* p_wei_block_on_global = p_wei_global;
-
         // LDS double buffer: preload data into LDS
         {
             blockwise_in_copy.Run(p_in_global, p_in_block_double);
@@ -263,15 +261,14 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
                 Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
                 Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-                blockwise_in_copy.MoveSrcSlicingWindow({EPerBlock, 0}, true);
-                blockwise_wei_copy.MoveSrcSlicingWindow({EPerBlock, 0}, true);
+                blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
+                blockwise_wei_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
 
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
                 blockwise_in_copy.RunLoadRegisterBuffer(p_in_global, p_in_register_buffer);
-                blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_block_on_global,
-                                                         p_wei_register_buffer);
+                blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global, p_wei_register_buffer);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
@@ -288,14 +285,14 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
             Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
             // even iteration
-            blockwise_in_copy.MoveSrcSlicingWindow({EPerBlock, 0}, true);
-            blockwise_wei_copy.MoveSrcSlicingWindow({EPerBlock, 0}, true);
+            blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
+            blockwise_wei_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
 
             __syncthreads();
 
             // LDS doubel buffer: load next data from device mem
             blockwise_in_copy.RunLoadRegisterBuffer(p_in_global, p_in_register_buffer);
-            blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_block_on_global, p_wei_register_buffer);
+            blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global, p_wei_register_buffer);
 
             // LDS double buffer: GEMM on current data
             blockwise_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
@@ -369,8 +366,9 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
             {
                 threadwise_out_copy.Run(p_out_thread, p_out_global);
 
-                threadwise_out_copy.MoveSrcSlicingWindow({0, 0, GemmNPerThreadSubC}, true);
-                threadwise_out_copy.MoveDstSlicingWindow({0, 0, B1}, true);
+                threadwise_out_copy.MoveSrcSlicingWindow(Sequence<0, 0, GemmNPerThreadSubC>{},
+                                                         True);
+                threadwise_out_copy.MoveDstSlicingWindow(Sequence<0, 0, B1>{}, True);
             }
         }
     }

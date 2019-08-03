@@ -447,17 +447,19 @@ struct BlockwiseGenericTensorSliceCopy_v2
     }
 
     template <class T, bool PositiveDirection>
-    __device__ void MoveSrcSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void
+    MoveSrcSlicingWindow(T step_sizes,
+                         integral_constant<bool, PositiveDirection> positive_direction)
     {
-        mThreadwiseLoad.MoveSrcSlicingWindow(step_sizes,
-                                             integral_constant<bool, PositiveDirection>{});
+        mThreadwiseLoad.MoveSrcSlicingWindow(step_sizes, positive_direction);
     }
 
     template <class T, bool PositiveDirection>
-    __device__ void MoveDstSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void
+    MoveDstSlicingWindow(T step_sizes,
+                         integral_constant<bool, PositiveDirection> positive_direction)
     {
-        mThreadwiseLoad.MoveDstSlicingWindow(step_sizes,
-                                             integral_constant<bool, PositiveDirection>{});
+        mThreadwiseLoad.MoveDstSlicingWindow(step_sizes, positive_direction);
     }
 
     private:
