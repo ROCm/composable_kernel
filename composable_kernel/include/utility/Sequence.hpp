@@ -6,11 +6,26 @@
 
 namespace ck {
 
+template <index_t...>
+struct Sequence;
+
+template <class Seq, index_t I>
+struct sequence_split;
+
 template <class>
-struct is_valid_sequence_map;
+struct sequence_reverse;
 
 template <class>
 struct sequence_map_inverse;
+
+template <class>
+struct is_valid_sequence_map;
+
+template <index_t I, index_t... Is>
+__host__ __device__ constexpr auto sequence_pop_front(Sequence<I, Is...>);
+
+template <class Seq>
+__host__ __device__ constexpr auto sequence_pop_back(Seq);
 
 template <index_t... Is>
 struct Sequence
@@ -71,7 +86,10 @@ struct Sequence
         return ReorderGivenNew2Old(typename sequence_map_inverse<MapOld2New>::type{});
     }
 
-    __host__ __device__ static constexpr auto Reverse();
+    __host__ __device__ static constexpr auto Reverse()
+    {
+        return typename sequence_reverse<Type>::type{};
+    }
 
     __host__ __device__ static constexpr auto Front()
     {
@@ -85,9 +103,9 @@ struct Sequence
         return Get(Number<mSize - 1>{});
     }
 
-    __host__ __device__ static constexpr auto PopFront();
+    __host__ __device__ static constexpr auto PopFront() { return sequence_pop_front(Type{}); }
 
-    __host__ __device__ static constexpr auto PopBack();
+    __host__ __device__ static constexpr auto PopBack() { return sequence_pop_back(Type{}); }
 
     template <index_t... Xs>
     __host__ __device__ static constexpr auto PushFront(Sequence<Xs...>)
@@ -126,7 +144,16 @@ struct Sequence
     }
 
     template <index_t I, index_t X>
-    __host__ __device__ static constexpr auto Modify(Number<I>, Number<X>);
+    __host__ __device__ static constexpr auto Modify(Number<I>, Number<X>)
+    {
+        static_assert(I < GetSize(), "wrong!");
+
+        using seq_split          = sequence_split<Type, I>;
+        constexpr auto seq_left  = typename seq_split::SeqType0{};
+        constexpr auto seq_right = typename seq_split::SeqType1{}.PopFront();
+
+        return seq_left.PushBack(Number<X>{}).PushBack(seq_right);
+    }
 
     template <class F>
     __host__ __device__ static constexpr auto Transform(F f)
@@ -283,7 +310,8 @@ template <class X2Y, class WorkingY2X, index_t XBegin, index_t XRemain>
 struct sequence_map_inverse_impl
 {
     private:
-    static constexpr auto new_y2x = WorkingY2X::Modify(X2Y{}[XBegin], XBegin);
+    static constexpr auto new_y2x =
+        WorkingY2X::Modify(X2Y::Get(Number<XBegin>{}), Number<XBegin>{});
 
     public:
     using type =
@@ -417,8 +445,8 @@ __host__ __device__ constexpr auto sequence_pop_front(Sequence<I, Is...>)
 template <class Seq>
 __host__ __device__ constexpr auto sequence_pop_back(Seq)
 {
-    static_assert(Seq{}.GetSize() > 0, "wrong! cannot pop an empty Sequence!");
-    return sequence_pop_front(Seq{}.Reverse()).Reverse();
+    static_assert(Seq::GetSize() > 0, "wrong! cannot pop an empty Sequence!");
+    return sequence_pop_front(Seq::Reverse()).Reverse();
 }
 
 template <class F, index_t... Xs>
@@ -456,37 +484,6 @@ template <class Seq, class Reduce, index_t Init>
 __host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce, Number<Init>)
 {
     return reverse_inclusive_scan_sequence(Seq{}.Reverse(), Reduce{}, Number<Init>{}).Reverse();
-}
-
-template <index_t... Is>
-__host__ __device__ constexpr auto Sequence<Is...>::PopFront()
-{
-    return sequence_pop_front(Type{});
-}
-
-template <index_t... Is>
-__host__ __device__ constexpr auto Sequence<Is...>::PopBack()
-{
-    return sequence_pop_back(Type{});
-}
-
-template <index_t... Is>
-__host__ __device__ constexpr auto Sequence<Is...>::Reverse()
-{
-    return typename sequence_reverse<Sequence<Is...>>::type{};
-}
-
-template <index_t... Is>
-template <index_t I, index_t X>
-__host__ __device__ constexpr auto Sequence<Is...>::Modify(Number<I>, Number<X>)
-{
-    static_assert(I < GetSize(), "wrong!");
-
-    using seq_split          = sequence_split<Type, I>;
-    constexpr auto seq_left  = typename seq_split::SeqType0{};
-    constexpr auto seq_right = typename seq_split::SeqType1{}.PopFront();
-
-    return seq_left.PushBack(Number<X>{}).PushBack(seq_right);
 }
 
 template <index_t... Xs>
