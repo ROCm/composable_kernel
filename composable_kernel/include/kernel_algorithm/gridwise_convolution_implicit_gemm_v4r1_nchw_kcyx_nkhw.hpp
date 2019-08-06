@@ -176,7 +176,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
 #else
         auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v2<
             BlockSize,
-            Float,
             decltype(in_e_n1_b_n2_global_merged_desc),
             decltype(in_e_n1_b_n2_block_desc),
             MergedTensorCoordinate<decltype(in_e_n1_b_n2_global_merged_desc)>,
@@ -219,7 +218,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
 #else
         auto blockwise_wei_copy = BlockwiseGenericTensorSliceCopy_v2<
             BlockSize,
-            Float,
             decltype(wei_e_k_global_desc),
             decltype(wei_e_k_block_desc),
             NormalTensorCoordinate<decltype(wei_e_k_global_desc)>,
@@ -373,7 +371,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
                 Number<1>{});
 #else
             ThreadwiseGenericTensorSliceCopy_v2<
-                Float,
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc),
                 NormalTensorCoordinate<decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc)>,

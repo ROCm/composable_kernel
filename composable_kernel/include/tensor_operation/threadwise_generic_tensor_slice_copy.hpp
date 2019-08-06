@@ -106,8 +106,107 @@ __device__ void threadwise_generic_tensor_slice_copy_v1(
 #endif
 }
 
-template <class TData,
-          class SrcDesc,
+#if 0
+template <class SrcDesc,
+          class DstDesc,
+          class SliceLengths,
+          class SrcDimAccessOrder,
+          class DstDimAccessOrder,
+          index_t SrcVectorAccessDim,
+          index_t DstVectorAccessDim,
+          index_t SrcDataPerAccess,
+          index_t DstDataPerAccess>
+struct ThreadwiseGenericTensorSliceCopy_v1
+{
+    static constexpr index_t nDim = SliceLengths::GetNumOfDimension();
+
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v1(Array<index_t, nDim> src_slice_origin,
+                                                             Array<index_t, nDim> dst_slice_origin)
+        : mSrcSliceOrigin(src_slice_origin), mDstSliceOrigin(dst_slice_origin)
+    {
+        static_assert(nDim == SrcDesc::GetNumOfDimension() &&
+                          nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::GetSize() &&
+                          nDim == SrcDimAccessOrder::GetSize() &&
+                          nDim == DstDimAccessOrder::GetSize(),
+                      "wrong! # of dimensions not the same");
+
+        static_assert(is_valid_sequence_map<SrcDimAccessOrder>::{} &&
+                          is_valid_sequence_map<DstDimAccessOrder>::{},
+                      "wrong! map is not valid");
+
+        static_assert(SliceLengths{}[SrcVectorDim] % SrcDataPerAccess == 0 &&
+                          SliceLengths{DstVectorDim} % DstDataPerAccess == 0,
+                      "wrong! cannot evenly divide");
+
+        // check vectorized memory access
+        constexpr auto src_vector_access_dim = Number<SrcVectorAccessDIm>{};
+        constexpr auto dst_vector_access_dim = Number<DstVectorAccessDIm>{};
+
+        static_if<!SrcDesc::ContainMultipleOriginalDimensions(
+            src_vector_access_dim)>{}([&](auto fwd) {
+            static_assert(
+                (fwd(SrcDesc{}).GetStrides()[SrcVectorAccessDim] == 1 || SrcDataPerAccess == 1),
+                "wrong! vectorized access is allowed only if stride == 1");
+        }).Else{}([&](auto fwd) {
+            static_assert((SrcDesc::GetLastOriginalDimensionStride(src_vector_access_dim) == 1 ||
+                           SrcDataPerAccess == 1),
+                          "wrong! vectorized access is allowed only if stride == 1");
+        });
+
+        static_if<!DstDesc::ContainMultipleOriginalDimensions(
+            dst_vector_access_dim)>{}([&](auto fwd) {
+            static_assert(
+                (fwd(DstDesc{}).GetStrides()[DstVectorAccessDim] == 1 || DstDataPerAccess == 1),
+                "wrong! vectorized access is allowed only if stride == 1");
+        }).Else{}([&](auto fwd) {
+            static_assert((DstDesc::GetLastOriginalDimensionStride(dst_vector_access_dim) == 1 ||
+                           DstDataPerAccess == 1),
+                          "wrong! vectorized access is allowed only if stride == 1");
+        });
+    }
+
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v1()
+        : ThreadwiseGenericTensorSliceCopy_v1(make_zero_array<index_t, nDim>(),
+                                              make_zero_array<index_t, nDim>())
+    {
+    }
+
+    __device__ void SetSrcSliceOrigin(Array<index_t, nDim> src_slice_origin)
+    {
+        mSrcSliceOrigin = src_slice_origin;
+    }
+
+    __device__ void SetDstSliceOrigin(Array<index_t, nDim> dst_slice_origin)
+    {
+        mDstSliceOrigin = dst_slice_origin;
+    }
+
+    template <class TData>
+    __device__ void Run(const TData* p_src, TData* p_dst) const
+    {
+        constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
+
+        TData p_buffer[buffer_desc.GetElementSpace()];
+
+        // copy data from src into buffer
+        constexpr auto src_vector_access_dim = Number<SrcVectorAccessDIm>{};
+
+        constexpr auto src_access_lengths = SliceLengths::Modify(
+            src_vector_access_dim, SliceLengths::Get(src_vector_access_dim) / SrcDataPerAccess);
+
+        constexpr auto src_access_lengths_in_src_access_order =
+            src_access_lengths.ReorderGivenNew2Old(SrcDimAccessOrder{});
+
+        static_ford<decltype(src_access_lengths_in_src_access_order)>{}([&](auto src_access_id) {});
+    }
+
+    private:
+    Array<index_t, TData> mSrcSliceOrigin;
+    Array<index_t, TData> mDstSliceOrigin;
+};
+#endif
+
+template <class SrcDesc,
           class DstDesc,
           class SrcCoordinate,
           class DstCoordinate,
@@ -116,15 +215,15 @@ struct ThreadwiseGenericTensorSliceCopy_v2
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
 
-    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v2()
-        : mSrcSliceOrigin(make_zero_array<index_t, nDim>()),
-          mDstSliceOrigin(make_zero_array<index_t, nDim>())
-    {
-    }
-
     __device__ constexpr ThreadwiseGenericTensorSliceCopy_v2(SrcCoordinate src_slice_origin,
                                                              DstCoordinate dst_slice_origin)
         : mSrcSliceOrigin(src_slice_origin), mDstSliceOrigin(dst_slice_origin)
+    {
+    }
+
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v2()
+        : ThreadwiseGenericTensorSliceCopy_v2(make_zero_array<index_t, nDim>(),
+                                              make_zero_array<index_t, nDim>())
     {
     }
 
@@ -148,6 +247,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         }
     };
 
+    template <class TData>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
@@ -216,6 +316,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         });
     }
 
+    // T can be Sequence or Array
     template <class T, bool PositiveDirection>
     __device__ void MoveSrcSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
@@ -232,7 +333,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         }).Else([&](auto) { mDstSliceOrigin -= step_sizes; });
     }
 
-    // private:
+    private:
     SrcCoordinate mSrcSliceOrigin;
     DstCoordinate mDstSliceOrigin;
 };

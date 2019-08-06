@@ -157,7 +157,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
         auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v2<
             BlockSize,
-            Float,
             decltype(in_c_h_w_n_global_desc),
             decltype(in_c_h_w_n_block_desc),
             NormalTensorCoordinate<decltype(in_c_h_w_n_global_desc)>,

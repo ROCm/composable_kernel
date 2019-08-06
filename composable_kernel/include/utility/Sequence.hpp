@@ -6,8 +6,11 @@
 
 namespace ck {
 
-template <class Seq>
+template <class>
 struct is_valid_sequence_map;
+
+template <class>
+struct sequence_map_inverse;
 
 template <index_t... Is>
 struct Sequence
@@ -34,6 +37,8 @@ struct Sequence
         return Number<GetImpl(Number<I>{})>{};
     }
 
+    __host__ __device__ static constexpr auto Get(index_t I) { return GetImpl(I); }
+
     template <index_t I>
     __host__ __device__ constexpr auto operator[](Number<I>) const
     {
@@ -52,6 +57,18 @@ struct Sequence
         static_assert(is_valid_sequence_map<Sequence<IRs...>>::value, "wrong! invalid reorder map");
 
         return Sequence<Type::Get(Number<IRs>{})...>{};
+    }
+
+    // MapOld2New is Sequence<...>
+    template <class MapOld2New>
+    __host__ __device__ static constexpr auto ReorderGivenOld2New(MapOld2New)
+    {
+        static_assert(MapOld2New::GetSize() == GetSize(),
+                      "wrong! reorder map should have the same size as Sequence to be rerodered");
+
+        static_assert(is_valid_sequence_map<MapOld2New>::value, "wrong! invalid reorder map");
+
+        return ReorderGivenNew2Old(typename sequence_map_inverse<MapOld2New>::type{});
     }
 
     __host__ __device__ static constexpr auto Reverse();
@@ -253,12 +270,40 @@ struct sequence_reverse<Sequence<I0, I1>>
 template <class Seq>
 struct is_valid_sequence_map
 {
+    // not implemented yet, always return true
     static constexpr integral_constant<bool, true> value = integral_constant<bool, true>{};
 
     // TODO: add proper check for is_valid, something like:
     // static constexpr bool value =
     //     is_same<typename arithmetic_sequence_gen<0, Seq::GetSize(), 1>::type,
     //             typename sequence_sort<Seq>::SortedSeqType>{};
+};
+
+template <class X2Y, class WorkingY2X, index_t XBegin, index_t XRemain>
+struct sequence_map_inverse_impl
+{
+    private:
+    static constexpr auto new_y2x = WorkingY2X::Modify(X2Y{}[XBegin], XBegin);
+
+    public:
+    using type =
+        typename sequence_map_inverse_impl<X2Y, decltype(new_y2x), XBegin + 1, XRemain - 1>::type;
+};
+
+template <class X2Y, class WorkingY2X, index_t XBegin>
+struct sequence_map_inverse_impl<X2Y, WorkingY2X, XBegin, 0>
+{
+    using type = WorkingY2X;
+};
+
+template <class X2Y>
+struct sequence_map_inverse
+{
+    using type =
+        typename sequence_map_inverse_impl<X2Y,
+                                           typename uniform_sequence_gen<X2Y::GetSize(), 0>::type,
+                                           0,
+                                           X2Y::GetSize()>::type;
 };
 
 template <index_t... Xs, index_t... Ys>

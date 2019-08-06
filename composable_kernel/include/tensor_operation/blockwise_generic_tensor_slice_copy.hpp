@@ -13,11 +13,13 @@
 
 namespace ck {
 
-// slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
+// Slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
 // memory layout (ordering of dimensions) can be different between src and dst.
-// on a merged dimension that constains multiple original dimensions,
-// its sub-length need to evenly divide the length of the last original dimension
-// so each thread is effectively reading a normal (not merged) tensor
+// This functions assume each thread is reading and writing a normal (not merged) tensor,
+// to simplify index calculations. To satisfy this assumption, the user need to make sure
+// that, on a merged dimension that constains multiple original dimensions, the length of
+// the last original dimension need to be evenly dividable by its sub-lengths. Also, the
+// repeat-length on the merged dimension need to be 1.
 template <index_t BlockSize,
           class Float,
           class SrcDesc,
@@ -88,30 +90,55 @@ struct BlockwiseGenericTensorSliceCopy_v1
         constexpr auto data_per_cluster_per_dims = SubLengths{} * ThreadClusterLengths{};
 
         static_for<0, nDim, 1>{}([&](auto IDim) {
-            static_assert(SliceLengths::Get(IDim) % SubLengths::Get(IDim) == 0,
-                          "wrong! cannot evenly divide sliced tensor into sub-tensor");
-
             static_assert(SliceLengths::Get(IDim) % data_per_cluster_per_dims.Get(IDim) == 0,
                           "wrong! cannot evenly divide sliced tensor into cluster");
         });
 
-        // on a merged dimension that constains multiple original dimensions,
-        // its sub-length need to evenly divide the length of the last original dimension,
-        // so each thread is effectively reading a normal (not merged) tensor
-        static_for<0, nDim, 1>{}([&](auto IDim) {
-            constexpr auto sub_length = SubLengths::Get(IDim);
+        constexpr auto repeat_lengths = SliceLengths{} / data_per_cluster_per_dims;
 
-            constexpr auto idim_original_src = SrcDesc::GetContainedOriginalDimensions(IDim).Back();
-            static_assert(SrcDesc::GetOriginalTensorDescriptor().GetLength(idim_original_src) %
-                                  sub_length ==
-                              0,
-                          "wrong!");
+        // additional check for merged dimension
+        static_for<0, nDim, 1>{}([&](auto IDim_) {
+            // src
+            static_if<SrcDesc::ContainMultipleOriginalDimensions(IDim_)>{}([&](auto) {
+                constexpr auto IDim = decltype(IDim_){};
 
-            constexpr auto idim_original_dst = DstDesc::GetContainedOriginalDimensions(IDim).Back();
-            static_assert(DstDesc::GetOriginalTensorDescriptor().GetLength(idim_original_dst) %
-                                  sub_length ==
-                              0,
-                          "wrong!");
+                // on a merged dimension that constains multiple original dimensions,
+                // the length of the last original dimension need to evenly dividable by its
+                // sub-length,
+                // so each thread is effectively reading a normal (not merged) tensor
+                constexpr auto idim_last_original_src =
+                    SrcDesc::GetContainedOriginalDimensions(IDim).Back();
+                static_assert(
+                    SrcDesc::GetOriginalTensorDescriptor().GetLength(idim_last_original_src) %
+                            SubLengths::Get(IDim) ==
+                        0,
+                    "wrong!");
+
+                // merged dimension should have repeat_lengths = 1
+                static_assert(repeat_lengths[IDim] == 1,
+                              "wrong! repeat_lengths shoud be 1 on merged dimension");
+            });
+
+            // dst
+            static_if<DstDesc::ContainMultipleOriginalDimensions(IDim_)>{}([&](auto) {
+                constexpr auto IDim = decltype(IDim_){};
+
+                // on a merged dimension that constains multiple original dimensions,
+                // the length of the last original dimension need to evenly dividable by its
+                // sub-length,
+                // so each thread is effectively reading a normal (not merged) tensor
+                constexpr auto idim_last_original_dst =
+                    DstDesc::GetContainedOriginalDimensions(IDim).Back();
+                static_assert(
+                    DstDesc::GetOriginalTensorDescriptor().GetLength(idim_last_original_dst) %
+                            SubLengths::Get(IDim) ==
+                        0,
+                    "wrong!");
+
+                // merged dimension should have repeat_lengths = 1
+                static_assert(repeat_lengths[IDim] == 1,
+                              "wrong! repeat_lengths shoud be 1 on merged dimension");
+            });
         });
 
         // calculate mThreadSrcOffset, mThreadDstOffset
@@ -376,7 +403,6 @@ struct BlockwiseGenericTensorSliceCopy_v1
 };
 
 template <index_t BlockSize,
-          class TData,
           class SrcDesc,
           class DstDesc,
           class SrcCoordinate,
@@ -428,16 +454,19 @@ struct BlockwiseGenericTensorSliceCopy_v2
         return RegisterBufferDesc::GetElementSpace();
     }
 
+    template <class TData>
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
         mThreadwiseLoad.Run(p_src, p_buffer);
     }
 
+    template <class TData>
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
         mThreadwiseStore.Run(p_buffer, p_dst);
     }
 
+    template <class TData>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         TData p_buffer[GetRegisterBufferSize()];
@@ -466,16 +495,14 @@ struct BlockwiseGenericTensorSliceCopy_v2
     using RegisterBufferDesc = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
 
     using ThreadwiseLoad =
-        ThreadwiseGenericTensorSliceCopy_v2<TData,
-                                            SrcDesc,
+        ThreadwiseGenericTensorSliceCopy_v2<SrcDesc,
                                             RegisterBufferDesc,
                                             SrcCoordinate,
                                             NormalTensorCoordinate<RegisterBufferDesc>,
                                             SubLengths>;
 
     using ThreadwiseStore =
-        ThreadwiseGenericTensorSliceCopy_v2<TData,
-                                            RegisterBufferDesc,
+        ThreadwiseGenericTensorSliceCopy_v2<RegisterBufferDesc,
                                             DstDesc,
                                             NormalTensorCoordinate<RegisterBufferDesc>,
                                             DstCoordinate,

@@ -131,7 +131,6 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
         //     this copy operator already has blockwise offset built-in
         auto blockwise_in_copy =
             BlockwiseGenericTensorSliceCopy_v2<BlockSize,
-                                               Float,
                                                decltype(in_e_b_global_desc),
                                                decltype(in_e_b_block_desc),
                                                MergedTensorCoordinate<decltype(in_e_b_global_desc)>,
@@ -158,7 +157,6 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
         //     this copy operator already have blockwise offset built-in
         auto blockwise_wei_copy = BlockwiseGenericTensorSliceCopy_v2<
             BlockSize,
-            Float,
             decltype(wei_e_k_global_desc),
             decltype(wei_e_k_block_desc),
             NormalTensorCoordinate<decltype(wei_e_k_global_desc)>,
@@ -352,7 +350,6 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
                 Sequence<GemmMRepeat, GemmMPerThreadSubC, GemmNPerThreadSubC>;
 
             auto threadwise_out_copy = ThreadwiseGenericTensorSliceCopy_v2<
-                Float,
                 decltype(out_k0_k1_b_thread_desc),
                 decltype(out_k0_k1_b_global_desc),
                 NormalTensorCoordinate<decltype(out_k0_k1_b_thread_desc)>,
