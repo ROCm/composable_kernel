@@ -419,6 +419,13 @@ struct ConstantTensorDescriptor
         return ConstantTensorDescriptor<decltype(Lengths::ReorderGivenNew2Old(MapNew2Old{})),
                                         decltype(Strides::ReorderGivenNew2Old(MapNew2Old{}))>{};
     }
+
+    template <class MapOld2New>
+    __host__ __device__ static constexpr auto ReorderGivenOld2New(MapOld2New)
+    {
+        return ConstantTensorDescriptor<decltype(Lengths::ReorderGivenOld2New(MapOld2New{})),
+                                        decltype(Strides::ReorderGivenOld2New(MapOld2New{}))>{};
+    }
 };
 
 template <class Lengths>
