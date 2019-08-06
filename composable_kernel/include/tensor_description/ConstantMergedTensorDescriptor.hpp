@@ -65,9 +65,19 @@ struct ConstantMergedTensorDescriptor
         static_assert(!ContainMultipleOriginalDimensions(Number<IDim>{}),
                       "wrong! stride of a merged dimension is undefined");
 
-        constexpr auto idim_original = std::get<IDim>(mOriginalDimMergeSeqs).Front();
+        constexpr auto idim_original = std::get<IDim>(mOriginalDimMergeSeqs).Back();
 
         return OriginalTensorDesc::GetStride(Number<idim_original>{});
+    }
+
+    // this is a hack to return the stride of the last original dimension of a merged dimension
+    // TODO: refactor this once the concept of "dimension" is used
+    template <index_t IDim>
+    __host__ __device__ static constexpr auto GetLastOriginalDimensionStride(Number<IDim>)
+    {
+        constexpr auto idim_last_original = std::get<IDim>(mOriginalDimMergeSeqs).Back();
+
+        return OriginalTensorDesc::GetStride(Number<idim_last_original>{});
     }
 
     __host__ __device__ static constexpr auto GetLengths()
