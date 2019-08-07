@@ -245,7 +245,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 // dimension need to be evenly dividable by its sub-lengths. Also, the repeat-length on
 // the merged dimension need to be 1. These sanity checks are performed in constructor
 // of BlockwiseGenericTensorSliceCopy_v1
-#if 0 // debug
+#if 0
             threadwise_generic_tensor_slice_copy_v1(SrcDesc{},
                                                     p_src + src_offset + mThreadSrcOffset,
                                                     make_zero_array<index_t, nDim>(),
@@ -255,18 +255,28 @@ struct BlockwiseGenericTensorSliceCopy_v1
                                                     thread_sub_tensor_lengths,
                                                     SrcDimAccessOrder{},
                                                     Number<SrcDataPerAccess>{});
-#else
-            ThreadwiseGenericTensorSliceCopy_v1<SrcDesc,
-                                                decltype(thread_buffer_desc),
-                                                SubLengths,
-                                                SrcDimAccessOrder,
-                                                typename arithmetic_sequence_gen<0, nDim, 1>::type,
-                                                SrcVectorAccessDim,
-                                                0,
-                                                SrcDataPerAccess,
-                                                1>(make_zero_array<index_t, nDim>(),
-                                                   make_zero_array<index_t, nDim>())
+#elif 0
+            ThreadwiseGenericTensorSliceCopy_v1r1<
+                SrcDesc,
+                decltype(thread_buffer_desc),
+                SubLengths,
+                SrcDimAccessOrder,
+                typename arithmetic_sequence_gen<0, nDim, 1>::type,
+                SrcVectorAccessDim,
+                0,
+                SrcDataPerAccess,
+                1>(make_zero_array<index_t, nDim>(), make_zero_array<index_t, nDim>())
                 .Run(p_src + src_offset + mThreadSrcOffset, p_buffer + buffer_offset);
+#elif 1
+        ThreadwiseGenericTensorSliceCopy_v1r2<SrcDesc,
+                                              decltype(thread_buffer_desc),
+                                              SubLengths,
+                                              SrcDimAccessOrder,
+                                              SrcVectorAccessDim,
+                                              SrcDataPerAccess,
+                                              1>(make_zero_array<index_t, nDim>(),
+                                                 make_zero_array<index_t, nDim>())
+            .Run_non_static(p_src + src_offset + mThreadSrcOffset, p_buffer + buffer_offset);
 #endif
         });
     }
@@ -312,7 +322,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 // By setting SubLengths = 1 at the merged dimension, this is always true;
 // If in the future, you want to enable SubLengths > 1 at the merged dimension,
 // special care in implementation is needed
-#if 0 // debug
+#if 0
             threadwise_generic_tensor_slice_copy_v1(thread_buffer_desc,
                                                     p_buffer + buffer_offset,
                                                     make_zero_array<index_t, nDim>(),
@@ -322,18 +332,29 @@ struct BlockwiseGenericTensorSliceCopy_v1
                                                     thread_sub_tensor_lengths,
                                                     DstDimAccessOrder{},
                                                     Number<DstDataPerAccess>{});
-#else
-            ThreadwiseGenericTensorSliceCopy_v1<decltype(thread_buffer_desc),
-                                                DstDesc,
-                                                SubLengths,
-                                                typename arithmetic_sequence_gen<0, nDim, 1>::type,
-                                                DstDimAccessOrder,
-                                                0,
-                                                DstVectorAccessDim,
-                                                1,
-                                                DstDataPerAccess>(make_zero_array<index_t, nDim>(),
-                                                                  make_zero_array<index_t, nDim>())
+#elif 0
+            ThreadwiseGenericTensorSliceCopy_v1r1<
+                decltype(thread_buffer_desc),
+                DstDesc,
+                SubLengths,
+                typename arithmetic_sequence_gen<0, nDim, 1>::type,
+                DstDimAccessOrder,
+                0,
+                DstVectorAccessDim,
+                1,
+                DstDataPerAccess>(make_zero_array<index_t, nDim>(),
+                                  make_zero_array<index_t, nDim>())
                 .Run(p_buffer + buffer_offset, p_dst + dst_offset + mThreadDstOffset);
+#elif 1
+    ThreadwiseGenericTensorSliceCopy_v1r2<decltype(thread_buffer_desc),
+                                          DstDesc,
+                                          SubLengths,
+                                          DstDimAccessOrder,
+                                          DstVectorAccessDim,
+                                          1,
+                                          DstDataPerAccess>(make_zero_array<index_t, nDim>(),
+                                                            make_zero_array<index_t, nDim>())
+        .Run_non_static(p_buffer + buffer_offset, p_dst + dst_offset + mThreadDstOffset);
 #endif
         });
     }

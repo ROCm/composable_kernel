@@ -59,7 +59,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t B = (N * Ho * Wo) / (N1 * N2);
 
-#if 1
+#if 0
     // each thread hold 64 data
     constexpr index_t BlockSize = 256;
 
@@ -112,14 +112,14 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     constexpr index_t GemmDataPerReadA   = 4;
     constexpr index_t GemmDataPerReadB   = 4;
 
-    using InBlockCopySubLengths_E_N1_B_N2      = Sequence<1, 1, 1, 4>;
-    using InBlockCopyClusterLengths_E_N1_B_N2  = Sequence<8, 2, 16, 1>;
+    using InBlockCopySubLengths_E_N1_B_N2      = Sequence<1, 1, 4, 1>;
+    using InBlockCopyClusterLengths_E_N1_B_N2  = Sequence<8, 2, 4, 4>;
     using InBlockCopyThreadClusterArrangeOrder = Sequence<0, 1, 3, 2>; // [E, N1, N2, B]
     using InBlockCopySrcAccessOrder            = Sequence<0, 1, 3, 2>; // [E, N1, N2, B]
     using InBlockCopyDstAccessOrder            = Sequence<0, 1, 2, 3>; // [E, N1, B, N2]
 
-    constexpr index_t InBlockCopySrcDataPerRead_B   = 1;
-    constexpr index_t InBlockCopyDstDataPerWrite_N2 = 4;
+    constexpr index_t InBlockCopySrcDataPerRead_B   = 4;
+    constexpr index_t InBlockCopyDstDataPerWrite_N2 = 1;
 
     using WeiBlockCopySubLengths_E_K            = Sequence<2, 2>;
     using WeiBlockCopyClusterLengths_E_K        = Sequence<4, 64>;

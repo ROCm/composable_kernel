@@ -449,18 +449,28 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths(),
                 arithmetic_sequence_gen<0, 8, 1>::type{},
                 Number<1>{});
-#elif 1
-            ThreadwiseGenericTensorSliceCopy_v1<
+#elif 0
+            ThreadwiseGenericTensorSliceCopy_v1r1<
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc),
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths()),
                 arithmetic_sequence_gen<0, 8, 1>::type,
                 arithmetic_sequence_gen<0, 8, 1>::type,
-                0,
-                0,
+                7,
+                7,
                 1,
-                1>({0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0})
+                1>(make_zero_array<index_t, 8>(), make_zero_array<index_t, 8>())
                 .Run(p_out_thread, p_out_thread_on_global);
+#elif 1
+            ThreadwiseGenericTensorSliceCopy_v1r2<
+                decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
+                decltype(out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc),
+                decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths()),
+                arithmetic_sequence_gen<0, 8, 1>::type,
+                7,
+                1,
+                1>(make_zero_array<index_t, 8>(), make_zero_array<index_t, 8>())
+                .Run_non_static(p_out_thread, p_out_thread_on_global);
 #elif 0
             ThreadwiseGenericTensorSliceCopy_v2<
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
