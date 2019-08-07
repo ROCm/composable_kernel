@@ -276,7 +276,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                                               SrcDataPerAccess,
                                               1>(make_zero_array<index_t, nDim>(),
                                                  make_zero_array<index_t, nDim>())
-            .Run_non_static(p_src + src_offset + mThreadSrcOffset, p_buffer + buffer_offset);
+            .Run(p_src + src_offset + mThreadSrcOffset, p_buffer + buffer_offset);
 #endif
         });
     }
@@ -318,10 +318,11 @@ struct BlockwiseGenericTensorSliceCopy_v1
 // By position the origin of the per-thread window at the point, where multi-index
 // of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
 // is assuming each thread is copy a noraml (not merged) tensor.
-// User need to guarantee this is true.
-// By setting SubLengths = 1 at the merged dimension, this is always true;
-// If in the future, you want to enable SubLengths > 1 at the merged dimension,
-// special care in implementation is needed
+// To satisfy this assumption, the user need to make sure that, on a merged dimension
+// that constains multiple original dimensions, the length of the last original
+// dimension need to be evenly dividable by its sub-lengths. Also, the repeat-length on
+// the merged dimension need to be 1. These sanity checks are performed in constructor
+// of BlockwiseGenericTensorSliceCopy_v1
 #if 0
             threadwise_generic_tensor_slice_copy_v1(thread_buffer_desc,
                                                     p_buffer + buffer_offset,
@@ -354,7 +355,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                                           1,
                                           DstDataPerAccess>(make_zero_array<index_t, nDim>(),
                                                             make_zero_array<index_t, nDim>())
-        .Run_non_static(p_buffer + buffer_offset, p_dst + dst_offset + mThreadDstOffset);
+        .Run(p_buffer + buffer_offset, p_dst + dst_offset + mThreadDstOffset);
 #endif
         });
     }

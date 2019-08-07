@@ -10,6 +10,10 @@
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1 0
 #endif
 
+#ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R2
+#define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R2 0
+#endif
+
 namespace ck {
 
 // user need to make sure alignment requirement is satisfied when setting DataPerAccesss > 1
@@ -369,8 +373,10 @@ struct ThreadwiseGenericTensorSliceCopy_v1r2
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
 
+#ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R2
         static_ford<decltype(long_vector_access_lengths), DimAccessOrder>{}([&](
             auto long_vector_access_id) {
+
             // data id w.r.t slicing-window
             constexpr auto long_vector_data_begin_id = long_vector_access_id.Modify(
                 vector_access_dim, long_vector_access_id[vector_access_dim] * long_vector_size);
@@ -406,26 +412,10 @@ struct ThreadwiseGenericTensorSliceCopy_v1r2
                     *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
             });
         });
-    }
-
-    template <class TData>
-    __device__ void Run_non_static(const TData* p_src, TData* p_dst) const
-    {
-        using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
-        using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
-
-        constexpr auto vector_access_dim = Number<VectorAccessDim>{};
-
-        constexpr auto src_data_per_access = Number<SrcDataPerAccess>{};
-        constexpr auto dst_data_per_access = Number<DstDataPerAccess>{};
-
-        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerAccess, DstDataPerAccess)>{};
-
-        constexpr auto long_vector_access_lengths = SliceLengths::Modify(
-            vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
-
+#else
         ford<decltype(long_vector_access_lengths), DimAccessOrder>{}(
             [&](auto long_vector_access_id) {
+
                 // data id w.r.t slicing-window
                 auto long_vector_data_begin_id = long_vector_access_id;
                 long_vector_data_begin_id(vector_access_dim) =
@@ -464,6 +454,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r2
                         *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
                 }
             });
+#endif
     }
 
     private:

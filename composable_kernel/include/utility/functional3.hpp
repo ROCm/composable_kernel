@@ -135,9 +135,11 @@ struct ford
     template <class F>
     __host__ __device__ constexpr void operator()(F f) const
     {
-        for(index_t i = 0; i < Lengths::Front(); ++i)
+        constexpr auto ordered_lengths = Lengths::ReorderGivenNew2Old(Orders{});
+
+        for(index_t i = 0; i < ordered_lengths.Front(); ++i)
         {
-            ford_impl<decltype(Lengths::PopFront()), Orders>{}(f, Array<index_t, 1>{i});
+            ford_impl<decltype(ordered_lengths.PopFront()), Orders>{}(f, Array<index_t, 1>{i});
         }
     }
 };
