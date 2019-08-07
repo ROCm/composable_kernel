@@ -470,7 +470,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 7,
                 1,
                 1>(make_zero_array<index_t, 8>(), make_zero_array<index_t, 8>())
-                .Run_non_static(p_out_thread, p_out_thread_on_global);
+                .Run(p_out_thread, p_out_thread_on_global);
 #elif 0
             ThreadwiseGenericTensorSliceCopy_v2<
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
