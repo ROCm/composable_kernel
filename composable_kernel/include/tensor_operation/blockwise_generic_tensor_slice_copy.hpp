@@ -199,7 +199,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
     }
 
     __device__ void RunLoadRegisterBuffer(const Float* __restrict__ p_src,
-                                          Float* __restrict__ p_Buffer) const
+                                          Float* __restrict__ p_buffer) const
     {
         constexpr auto thread_sub_tensor_lengths = SubLengths{};
 
@@ -216,24 +216,24 @@ struct BlockwiseGenericTensorSliceCopy_v1
             constexpr auto src_thread_data_multi_id_begin =
                 repeat_multi_id * data_per_cluster_per_dims;
 
-            constexpr auto Buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+            constexpr auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
 
             constexpr index_t src_offset =
                 SrcDesc::GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
 
-            constexpr index_t Buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(Buffer_data_multi_id_begin);
+            constexpr index_t buffer_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
 #else
         ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id) {
             const auto src_thread_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
 
-            const auto Buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+            const auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
 
             const index_t src_offset =
                 SrcDesc::GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
 
-            const index_t Buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(Buffer_data_multi_id_begin);
+            const index_t buffer_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
 #endif
 
             // By position the origin of the per-thread window at the point, where multi-index
@@ -247,7 +247,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                                                     p_src + src_offset + mThreadSrcOffset,
                                                     make_zero_array<index_t, nDim>(),
                                                     thread_tensor_desc,
-                                                    p_Buffer + Buffer_offset,
+                                                    p_buffer + buffer_offset,
                                                     make_zero_array<index_t, nDim>(),
                                                     thread_sub_tensor_lengths,
                                                     SrcAccessOrder{},
@@ -255,7 +255,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
     }
 
-    __device__ void RunStoreRegisterBuffer(const Float* __restrict__ p_Buffer,
+    __device__ void RunStoreRegisterBuffer(const Float* __restrict__ p_buffer,
                                            Float* __restrict__ p_dst) const
     {
         constexpr auto thread_sub_tensor_lengths = SubLengths{};
@@ -270,23 +270,23 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
 #if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
         static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id) {
-            constexpr auto Buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+            constexpr auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
 
             constexpr auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
 
-            constexpr index_t Buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(Buffer_data_multi_id_begin);
+            constexpr index_t buffer_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
 
             constexpr index_t dst_offset =
                 DstDesc::GetOffsetFromMultiIndex(dst_data_multi_id_begin);
 #else
         ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id) {
-            const auto Buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+            const auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
 
             const auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
 
-            const index_t Buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(Buffer_data_multi_id_begin);
+            const index_t buffer_offset =
+                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
 
             const index_t dst_offset = DstDesc::GetOffsetFromMultiIndex(dst_data_multi_id_begin);
 #endif
@@ -299,7 +299,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
             // If in the future, you want to enable SubLengths > 1 at the merged dimension,
             // special care in implementation is needed
             threadwise_generic_tensor_slice_copy_v1(thread_tensor_desc,
-                                                    p_Buffer + Buffer_offset,
+                                                    p_buffer + buffer_offset,
                                                     make_zero_array<index_t, nDim>(),
                                                     DstDesc{},
                                                     p_dst + dst_offset + mThreadDstOffset,
@@ -312,10 +312,10 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        Float p_Buffer[GetRegisterBufferSize()];
+        Float p_buffer[GetRegisterBufferSize()];
 
-        RunLoadRegisterBuffer(p_src, p_Buffer);
-        RunStoreRegisterBuffer(p_Buffer, p_dst);
+        RunLoadRegisterBuffer(p_src, p_buffer);
+        RunStoreRegisterBuffer(p_buffer, p_dst);
     }
 
     // When moving the slicing windows along a merged dimension, if the strides of the
