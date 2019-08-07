@@ -19,7 +19,8 @@ namespace ck {
 // to simplify index calculations. To satisfy this assumption, the user need to make sure
 // that, on a merged dimension that constains multiple original dimensions, the length of
 // the last original dimension need to be evenly dividable by its sub-lengths. Also, the
-// repeat-length on the merged dimension need to be 1.
+// repeat-length on the merged dimension need to be 1. These sanity checks are performed
+// in constructor of BlockwiseGenericTensorSliceCopy_v1
 template <index_t BlockSize,
           class Float,
           class SrcDesc,
@@ -28,10 +29,12 @@ template <index_t BlockSize,
           class SubLengths,
           class ThreadClusterLengths,
           class ThreadClusterArrangeOrder,
-          class SrcAccessOrder,
-          class DstAccessOrder,
-          index_t SrcDataPerRead,
-          index_t DstDataPerWrite>
+          class SrcDimAccessOrder,
+          class DstDimAccessOrder,
+          index_t SrcVectorAccessDim,
+          index_t DstVectorAccessDim,
+          index_t SrcDataPerAccess,
+          index_t DstDataPerAccess>
 struct BlockwiseGenericTensorSliceCopy_v1
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
@@ -60,23 +63,22 @@ struct BlockwiseGenericTensorSliceCopy_v1
     Array<index_t, nOriginalDimSrc> mThreadSrcOriginalMultiId;
     Array<index_t, nOriginalDimDst> mThreadDstOriginalMultiId;
 
-    __device__
-    BlockwiseGenericTensorSliceCopy_v1(Array<index_t, nDim> src_block_data_multi_id_begin,
-                                       Array<index_t, nDim> dst_block_data_multi_id_begin)
+    __device__ BlockwiseGenericTensorSliceCopy_v1(Array<index_t, nDim> src_block_data_id_begin,
+                                                  Array<index_t, nDim> dst_block_data_id_begin)
     {
         // check NDim consistency
-        static_assert(nDim == SrcDesc::GetNumOfDimension() &&
-                          nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::GetSize() &&
-                          nDim == SubLengths::GetSize() &&
-                          nDim == ThreadClusterLengths::GetSize() &&
-                          nDim == ThreadClusterArrangeOrder::GetSize() &&
-                          nDim == SrcAccessOrder::GetSize() && nDim == DstAccessOrder::GetSize(),
-                      "wrong");
+        static_assert(
+            nDim == SrcDesc::GetNumOfDimension() && nDim == DstDesc::GetNumOfDimension() &&
+                nDim == SliceLengths::GetSize() && nDim == SubLengths::GetSize() &&
+                nDim == ThreadClusterLengths::GetSize() &&
+                nDim == ThreadClusterArrangeOrder::GetSize() &&
+                nDim == SrcDimAccessOrder::GetSize() && nDim == DstDimAccessOrder::GetSize(),
+            "wrong");
 
         // check thread arrange order and read/write access order are valid
         static_assert(is_valid_sequence_map<ThreadClusterArrangeOrder>::value &&
-                          is_valid_sequence_map<SrcAccessOrder>::value &&
-                          is_valid_sequence_map<DstAccessOrder>::value,
+                          is_valid_sequence_map<SrcDimAccessOrder>::value &&
+                          is_valid_sequence_map<DstDimAccessOrder>::value,
                       "wrong!");
 
         // thread cluster
@@ -142,20 +144,20 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
 
         // calculate mThreadSrcOffset, mThreadDstOffset
-        const auto thread_cluster_multi_id =
+        const auto thread_cluster_id =
             thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
 
-        const auto data_cluster_multi_id =
-            reorder_array_given_old2new(thread_cluster_multi_id, ThreadClusterArrangeOrder{});
+        const auto data_cluster_id =
+            reorder_array_given_old2new(thread_cluster_id, ThreadClusterArrangeOrder{});
 
-        const auto thread_data_multi_id_begin = data_cluster_multi_id * SubLengths{};
+        const auto thread_data_id_begin = data_cluster_id * SubLengths{};
 
         // original multi-id
         mThreadSrcOriginalMultiId = SrcDesc::GetOriginalMultiIndexFromMultiIndex(
-            src_block_data_multi_id_begin + thread_data_multi_id_begin);
+            src_block_data_id_begin + thread_data_id_begin);
 
         mThreadDstOriginalMultiId = DstDesc::GetOriginalMultiIndexFromMultiIndex(
-            dst_block_data_multi_id_begin + thread_data_multi_id_begin);
+            dst_block_data_id_begin + thread_data_id_begin);
 
         // partial offset on each dimension
         static_for<0, nDim, 1>{}([&](auto IDim) {
@@ -188,14 +190,16 @@ struct BlockwiseGenericTensorSliceCopy_v1
             mThreadDstPartialOffsets, math::plus<index_t>{}, static_cast<index_t>(0));
     }
 
-    __device__ static constexpr index_t GetRegisterBufferSize()
+    __device__ static constexpr auto GetRegisterBufferDescriptor()
     {
         constexpr auto repeat_lengths = SliceLengths{} / (SubLengths{} * ThreadClusterLengths{});
 
-        constexpr auto thread_tensor_desc =
-            make_ConstantTensorDescriptor_packed(SubLengths{} * repeat_lengths);
+        return make_ConstantTensorDescriptor_packed(SubLengths{} * repeat_lengths);
+    }
 
-        return thread_tensor_desc.GetElementSpace();
+    __device__ static constexpr index_t GetRegisterBufferSize()
+    {
+        return GetRegisterBufferDescriptor().GetElementSpace();
     }
 
     __device__ void RunLoadRegisterBuffer(const Float* __restrict__ p_src,
@@ -208,50 +212,62 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         constexpr auto repeat_lengths = SliceLengths{} / (SubLengths{} * ThreadClusterLengths{});
 
-        constexpr auto thread_tensor_desc =
-            make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
+        constexpr auto thread_buffer_desc = GetRegisterBufferDescriptor();
 
 #if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
-        static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id) {
-            constexpr auto src_thread_data_multi_id_begin =
-                repeat_multi_id * data_per_cluster_per_dims;
+        static_ford<decltype(repeat_lengths)>{}([&](auto repeat_id) {
+            constexpr auto src_thread_data_id_begin = repeat_id * data_per_cluster_per_dims;
 
-            constexpr auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+            constexpr auto buffer_data_id_begin = repeat_id * thread_sub_tensor_lengths;
 
             constexpr index_t src_offset =
-                SrcDesc::GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
+                SrcDesc::GetOffsetFromMultiIndex(src_thread_data_id_begin);
 
             constexpr index_t buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
+                thread_buffer_desc.GetOffsetFromMultiIndex(buffer_data_id_begin);
 #else
-        ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id) {
-            const auto src_thread_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
+        ford<decltype(repeat_lengths)>{}([&](auto repeat_id) {
+            const auto src_thread_data_id_begin = repeat_id * data_per_cluster_per_dims;
 
-            const auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+            const auto buffer_data_id_begin = repeat_id * thread_sub_tensor_lengths;
 
-            const index_t src_offset =
-                SrcDesc::GetOffsetFromMultiIndex(src_thread_data_multi_id_begin);
+            const index_t src_offset = SrcDesc::GetOffsetFromMultiIndex(src_thread_data_id_begin);
 
             const index_t buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
+                thread_buffer_desc.GetOffsetFromMultiIndex(buffer_data_id_begin);
 #endif
 
-            // By position the origin of the per-thread window at the point, where multi-index
-            // of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
-            // is assuming each thread is copy a noraml (not merged) tensor.
-            // User need to guarantee this is true.
-            // By setting SubLengths = 1 at the merged dimension, this is always true;
-            // If in the future, you want to enable SubLengths > 1 at the merged dimension,
-            // special care in implementation is needed
+// By position the origin of the per-thread window at the point, where multi-index
+// of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
+// is assuming each thread is copy a noraml (not merged) tensor.
+// To satisfy this assumption, the user need to make sure that, on a merged dimension
+// that constains multiple original dimensions, the length of the last original
+// dimension need to be evenly dividable by its sub-lengths. Also, the repeat-length on
+// the merged dimension need to be 1. These sanity checks are performed in constructor
+// of BlockwiseGenericTensorSliceCopy_v1
+#if 0 // debug
             threadwise_generic_tensor_slice_copy_v1(SrcDesc{},
                                                     p_src + src_offset + mThreadSrcOffset,
                                                     make_zero_array<index_t, nDim>(),
-                                                    thread_tensor_desc,
+                                                    thread_buffer_desc,
                                                     p_buffer + buffer_offset,
                                                     make_zero_array<index_t, nDim>(),
                                                     thread_sub_tensor_lengths,
-                                                    SrcAccessOrder{},
-                                                    Number<SrcDataPerRead>{});
+                                                    SrcDimAccessOrder{},
+                                                    Number<SrcDataPerAccess>{});
+#else
+            ThreadwiseGenericTensorSliceCopy_v1<SrcDesc,
+                                                decltype(thread_buffer_desc),
+                                                SubLengths,
+                                                SrcDimAccessOrder,
+                                                typename arithmetic_sequence_gen<0, nDim, 1>::type,
+                                                SrcVectorAccessDim,
+                                                0,
+                                                SrcDataPerAccess,
+                                                1>(make_zero_array<index_t, nDim>(),
+                                                   make_zero_array<index_t, nDim>())
+                .Run(p_src + src_offset + mThreadSrcOffset, p_buffer + buffer_offset);
+#endif
         });
     }
 
@@ -265,48 +281,60 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
         constexpr auto repeat_lengths = SliceLengths{} / (SubLengths{} * ThreadClusterLengths{});
 
-        constexpr auto thread_tensor_desc =
-            make_ConstantTensorDescriptor_packed(thread_sub_tensor_lengths * repeat_lengths);
+        constexpr auto thread_buffer_desc = GetRegisterBufferDescriptor();
 
 #if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
-        static_ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id) {
-            constexpr auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+        static_ford<decltype(repeat_lengths)>{}([&](auto repeat_id) {
+            constexpr auto buffer_data_id_begin = repeat_id * thread_sub_tensor_lengths;
 
-            constexpr auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
+            constexpr auto dst_data_id_begin = repeat_id * data_per_cluster_per_dims;
 
             constexpr index_t buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
+                thread_buffer_desc.GetOffsetFromMultiIndex(buffer_data_id_begin);
 
-            constexpr index_t dst_offset =
-                DstDesc::GetOffsetFromMultiIndex(dst_data_multi_id_begin);
+            constexpr index_t dst_offset = DstDesc::GetOffsetFromMultiIndex(dst_data_id_begin);
 #else
-        ford<decltype(repeat_lengths)>{}([&](auto repeat_multi_id) {
-            const auto buffer_data_multi_id_begin = repeat_multi_id * thread_sub_tensor_lengths;
+        ford<decltype(repeat_lengths)>{}([&](auto repeat_id) {
+            const auto buffer_data_id_begin = repeat_id * thread_sub_tensor_lengths;
 
-            const auto dst_data_multi_id_begin = repeat_multi_id * data_per_cluster_per_dims;
+            const auto dst_data_id_begin = repeat_id * data_per_cluster_per_dims;
 
             const index_t buffer_offset =
-                thread_tensor_desc.GetOffsetFromMultiIndex(buffer_data_multi_id_begin);
+                thread_buffer_desc.GetOffsetFromMultiIndex(buffer_data_id_begin);
 
-            const index_t dst_offset = DstDesc::GetOffsetFromMultiIndex(dst_data_multi_id_begin);
+            const index_t dst_offset = DstDesc::GetOffsetFromMultiIndex(dst_data_id_begin);
 #endif
 
-            // By position the origin of the per-thread window at the point, where multi-index
-            // of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
-            // is assuming each thread is copy a noraml (not merged) tensor.
-            // User need to guarantee this is true.
-            // By setting SubLengths = 1 at the merged dimension, this is always true;
-            // If in the future, you want to enable SubLengths > 1 at the merged dimension,
-            // special care in implementation is needed
-            threadwise_generic_tensor_slice_copy_v1(thread_tensor_desc,
+// By position the origin of the per-thread window at the point, where multi-index
+// of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
+// is assuming each thread is copy a noraml (not merged) tensor.
+// User need to guarantee this is true.
+// By setting SubLengths = 1 at the merged dimension, this is always true;
+// If in the future, you want to enable SubLengths > 1 at the merged dimension,
+// special care in implementation is needed
+#if 0 // debug
+            threadwise_generic_tensor_slice_copy_v1(thread_buffer_desc,
                                                     p_buffer + buffer_offset,
                                                     make_zero_array<index_t, nDim>(),
                                                     DstDesc{},
                                                     p_dst + dst_offset + mThreadDstOffset,
                                                     make_zero_array<index_t, nDim>(),
                                                     thread_sub_tensor_lengths,
-                                                    DstAccessOrder{},
-                                                    Number<DstDataPerWrite>{});
+                                                    DstDimAccessOrder{},
+                                                    Number<DstDataPerAccess>{});
+#else
+            ThreadwiseGenericTensorSliceCopy_v1<decltype(thread_buffer_desc),
+                                                DstDesc,
+                                                SubLengths,
+                                                typename arithmetic_sequence_gen<0, nDim, 1>::type,
+                                                DstDimAccessOrder,
+                                                0,
+                                                DstVectorAccessDim,
+                                                1,
+                                                DstDataPerAccess>(make_zero_array<index_t, nDim>(),
+                                                                  make_zero_array<index_t, nDim>())
+                .Run(p_buffer + buffer_offset, p_dst + dst_offset + mThreadDstOffset);
+#endif
         });
     }
 
@@ -346,26 +374,25 @@ struct BlockwiseGenericTensorSliceCopy_v1
                 SrcDesc::GetOriginalTensorDescriptor().Extract(src_partial_original_dims);
 
             // calculate new partial original multi-id
-            auto old_src_partial_original_multi_id =
+            auto old_src_partial_original_id =
                 extract_array(mThreadSrcOriginalMultiId, src_partial_original_dims);
 
-            auto new_src_partial_original_multi_id =
+            auto new_src_partial_original_id =
                 src_partial_original_desc.UpdateMultiIndexGivenStepSizeOf1dIndex(
-                    old_src_partial_original_multi_id, StepSize, direction);
+                    old_src_partial_original_id, StepSize, direction);
 
             // update "mThreadSrcOriginalMultiId"
             static_for<0, decltype(src_partial_original_dims)::GetSize(), 1>{}([&](auto I) {
                 constexpr auto IDimOriginal = src_partial_original_dims[I];
 
-                mThreadSrcOriginalMultiId(IDimOriginal) = new_src_partial_original_multi_id[I];
+                mThreadSrcOriginalMultiId(IDimOriginal) = new_src_partial_original_id[I];
             });
 
             // calculate new partial offset on this merged dimension
             const index_t old_src_partial_offset = mThreadSrcPartialOffsets[IDim];
 
             const index_t new_src_partial_offset =
-                src_partial_original_desc.GetOffsetFromMultiIndex(
-                    new_src_partial_original_multi_id);
+                src_partial_original_desc.GetOffsetFromMultiIndex(new_src_partial_original_id);
 
             // update "mThreadSrcPartialOffsets"
             mThreadSrcPartialOffsets(IDim) = new_src_partial_offset;
@@ -434,19 +461,19 @@ struct BlockwiseGenericTensorSliceCopy_v2
         static_assert(BlockSize == thread_cluster_desc.GetElementSize(),
                       "wrong! BlockSize not consistent with ThreadClusterLengths");
 
-        const auto thread_cluster_multi_id =
+        const auto thread_cluster_id =
             thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
 
-        const auto data_cluster_multi_id =
-            reorder_array_given_old2new(thread_cluster_multi_id, ThreadClusterArrangeOrder{});
+        const auto data_cluster_id =
+            reorder_array_given_old2new(thread_cluster_id, ThreadClusterArrangeOrder{});
 
-        const auto thread_data_multi_id_begin = data_cluster_multi_id * SubLengths{};
+        const auto thread_data_id_begin = data_cluster_id * SubLengths{};
 
-        mThreadwiseLoad.SetSrcSliceOrigin(src_block_slice_origin + thread_data_multi_id_begin);
+        mThreadwiseLoad.SetSrcSliceOrigin(src_block_slice_origin + thread_data_id_begin);
         mThreadwiseLoad.SetDstSliceOrigin(make_zero_array<index_t, nDim>());
 
         mThreadwiseStore.SetSrcSliceOrigin(make_zero_array<index_t, nDim>());
-        mThreadwiseStore.SetDstSliceOrigin(dst_block_slice_origin + thread_data_multi_id_begin);
+        mThreadwiseStore.SetDstSliceOrigin(dst_block_slice_origin + thread_data_id_begin);
     }
 
     __device__ static constexpr index_t GetRegisterBufferSize()
