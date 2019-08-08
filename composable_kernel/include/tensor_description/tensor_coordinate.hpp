@@ -237,7 +237,10 @@ struct MergedTensorCoordinate
         index_t normal_offset_diff = 0;
 
         static_for<0, nDim, 1>{}([&](auto idim) {
-            this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, true>{});
+            if(step_sizes[idim] != 0)
+            {
+                this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, true>{});
+            }
         });
 
         return *this;
@@ -249,7 +252,10 @@ struct MergedTensorCoordinate
         static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
 
         static_for<0, nDim, 1>{}([&](auto idim) {
-            this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, false>{});
+            if(step_sizes[idim] != 0)
+            {
+                this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, false>{});
+            }
         });
 
         return *this;

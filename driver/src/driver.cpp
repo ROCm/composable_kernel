@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
     constexpr index_t WPad = 0;
 #elif 0
     // 3x3, 34x34
-    constexpr index_t N  = 128;
+    constexpr index_t N  = 64;
     constexpr index_t C  = 256;
     constexpr index_t HI = 34;
     constexpr index_t WI = 34;
@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 3x3 filter, 2x2 stride, 35x35 input, 17x17 output
     // cudnn@V100 90%, ck@V100 93%, ck@P100 83%, ck@VII 81%
     constexpr index_t N  = 128;
@@ -244,7 +244,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 0
+#elif 1
     // 1x1 filter, 17x17 input
     // cudnn@V100 81%, ck@V100 76%, ck@P100 70%, ck@VII 76%
     constexpr index_t N  = 128;
@@ -379,7 +379,7 @@ int main(int argc, char* argv[])
 #elif 0
     device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(
         (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(in_nchw_desc,
                                                          in_nchw,
                                                          wei_kcyx_desc,
