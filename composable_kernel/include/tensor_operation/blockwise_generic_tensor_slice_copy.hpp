@@ -22,7 +22,6 @@ namespace ck {
 // repeat-length on the merged dimension need to be 1. These sanity checks are performed
 // in constructor of BlockwiseGenericTensorSliceCopy_v1
 template <index_t BlockSize,
-          class Float,
           class SrcDesc,
           class DstDesc,
           class SliceLengths,
@@ -202,8 +201,9 @@ struct BlockwiseGenericTensorSliceCopy_v1
         return GetRegisterBufferDescriptor().GetElementSpace();
     }
 
-    __device__ void RunLoadRegisterBuffer(const Float* __restrict__ p_src,
-                                          Float* __restrict__ p_buffer) const
+    template <class TData>
+    __device__ void RunLoadRegisterBuffer(const TData* __restrict__ p_src,
+                                          TData* __restrict__ p_buffer) const
     {
         constexpr auto thread_sub_tensor_lengths = SubLengths{};
 
@@ -255,7 +255,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                                                     thread_sub_tensor_lengths,
                                                     SrcDimAccessOrder{},
                                                     Number<SrcDataPerAccess>{});
-#elif 0
+#elif 1
             ThreadwiseGenericTensorSliceCopy_v1r1<
                 SrcDesc,
                 decltype(thread_buffer_desc),
@@ -281,8 +281,9 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
     }
 
-    __device__ void RunStoreRegisterBuffer(const Float* __restrict__ p_buffer,
-                                           Float* __restrict__ p_dst) const
+    template <class TData>
+    __device__ void RunStoreRegisterBuffer(const TData* __restrict__ p_buffer,
+                                           TData* __restrict__ p_dst) const
     {
         constexpr auto thread_sub_tensor_lengths = SubLengths{};
 
@@ -333,7 +334,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
                                                     thread_sub_tensor_lengths,
                                                     DstDimAccessOrder{},
                                                     Number<DstDataPerAccess>{});
-#elif 0
+#elif 1
             ThreadwiseGenericTensorSliceCopy_v1r1<
                 decltype(thread_buffer_desc),
                 DstDesc,
@@ -360,9 +361,10 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
     }
 
-    __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
+    template <class TData>
+    __device__ void Run(const TData* __restrict__ p_src, TData* __restrict__ p_dst) const
     {
-        Float p_buffer[GetRegisterBufferSize()];
+        TData p_buffer[GetRegisterBufferSize()];
 
         RunLoadRegisterBuffer(p_src, p_buffer);
         RunStoreRegisterBuffer(p_buffer, p_dst);

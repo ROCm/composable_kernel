@@ -10,8 +10,16 @@
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1 0
 #endif
 
+#ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1
+#define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1 0
+#endif
+
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R2
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R2 0
+#endif
+
+#ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2
+#define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2 0
 #endif
 
 namespace ck {
@@ -216,6 +224,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
                 src_vector_access_dim,
                 SliceLengths::Get(src_vector_access_dim) / src_data_per_access);
 
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1
             static_ford<decltype(src_access_lengths), SrcDimAccessOrder>{}([&](auto src_access_id) {
                 constexpr auto src_data_begin_id = src_access_id.Modify(
                     src_vector_access_dim,
@@ -239,6 +248,31 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
                     p_buffer[buffer_offset] = reinterpret_cast<const TData*>(&vector_data)[i];
                 });
             });
+#else
+            ford<decltype(src_access_lengths), SrcDimAccessOrder>{}([&](auto src_access_id) {
+                auto src_data_begin_id = src_access_id;
+                src_data_begin_id(src_vector_access_dim) =
+                    src_access_id[src_vector_access_dim] * src_data_per_access;
+
+                const index_t src_offset =
+                    SrcDesc::GetOffsetFromMultiIndex(mSrcSliceOrigin + src_data_begin_id);
+
+                // load vector from src
+                const vector_t vector_data = *reinterpret_cast<const vector_t*>(&p_src[src_offset]);
+
+                // unpack vector into buffer
+                for(index_t i = 0; i < SrcDataPerAccess; ++i)
+                {
+                    auto scalar_id                   = make_zero_array<index_t, nDim>();
+                    scalar_id(src_vector_access_dim) = i;
+
+                    const index_t buffer_offset =
+                        buffer_desc.GetOffsetFromMultiIndex(src_data_begin_id + scalar_id);
+
+                    p_buffer[buffer_offset] = reinterpret_cast<const TData*>(&vector_data)[i];
+                }
+            });
+#endif
         }
 
         // copy data from buffer to dst
@@ -252,6 +286,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
                 dst_vector_access_dim,
                 SliceLengths::Get(dst_vector_access_dim) / dst_data_per_access);
 
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1
             static_ford<decltype(dst_access_lengths), DstDimAccessOrder>{}([&](auto dst_access_id) {
                 constexpr auto dst_data_begin_id = dst_access_id.Modify(
                     dst_vector_access_dim,
@@ -277,6 +312,33 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
                 // store vector into dst
                 *reinterpret_cast<vector_t*>(&p_dst[dst_offset]) = vector_data;
             });
+#else
+            ford<decltype(dst_access_lengths), DstDimAccessOrder>{}([&](auto dst_access_id) {
+                auto dst_data_begin_id = dst_access_id;
+                dst_data_begin_id(dst_vector_access_dim) =
+                    dst_access_id[dst_vector_access_dim] * dst_data_per_access;
+
+                vector_t vector_data;
+
+                // pack vector from buffer
+                for(index_t i = 0; i < DstDataPerAccess; ++i)
+                {
+                    auto scalar_id                   = make_zero_array<index_t, nDim>();
+                    scalar_id(dst_vector_access_dim) = i;
+
+                    const index_t buffer_offset =
+                        buffer_desc.GetOffsetFromMultiIndex(dst_data_begin_id + scalar_id);
+
+                    reinterpret_cast<TData*>(&vector_data)[i] = p_buffer[buffer_offset];
+                }
+
+                const index_t dst_offset =
+                    DstDesc::GetOffsetFromMultiIndex(mDstSliceOrigin + dst_data_begin_id);
+
+                // store vector into dst
+                *reinterpret_cast<vector_t*>(&p_dst[dst_offset]) = vector_data;
+            });
+#endif
         }
     }
 
@@ -373,7 +435,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r2
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
 
-#ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R2
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R2
         static_ford<decltype(long_vector_access_lengths), DimAccessOrder>{}([&](
             auto long_vector_access_id) {
 
@@ -524,6 +586,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         using SrcNormalDimSliceLengthsHack =
             decltype((SliceLengths{} + Number<1>{}) - SrcMergedDimSliceLengthsHack{});
 
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2
         static_ford<SrcMergedDimSliceLengthsHack>{}([&](auto merged_dim_data_id_) {
             constexpr auto merged_dim_data_id = decltype(merged_dim_data_id_){};
 
@@ -541,6 +604,21 @@ struct ThreadwiseGenericTensorSliceCopy_v2
                 p_buffer[buffer_offset] = p_src_tmp[src_normal_offset];
             });
         });
+#else
+        ford<SrcMergedDimSliceLengthsHack>{}([&](auto merged_dim_data_id) {
+            const TData* p_src_tmp = p_src + (mSrcSliceOrigin + merged_dim_data_id).GetOffset();
+
+            ford<SrcNormalDimSliceLengthsHack>{}([&](auto normal_dim_data_id) {
+                const index_t buffer_offset =
+                    buffer_desc.GetOffsetFromMultiIndex(merged_dim_data_id + normal_dim_data_id);
+
+                const index_t src_normal_offset =
+                    SrcDesc::GetOffsetFromMultiIndex(normal_dim_data_id);
+
+                p_buffer[buffer_offset] = p_src_tmp[src_normal_offset];
+            });
+        });
+#endif
 
         // DstMergedDimSliceLengthsHack has entry same as SliceLengths on dst merged dimensions,
         // but 1 on normal dimensions;
@@ -553,6 +631,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2
         using DstNormalDimSliceLengthsHack =
             decltype((SliceLengths{} + Number<1>{}) - DstMergedDimSliceLengthsHack{});
 
+#if CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2
         static_ford<DstMergedDimSliceLengthsHack>{}([&](auto merged_dim_data_id_) {
             constexpr auto merged_dim_data_id = decltype(merged_dim_data_id_){};
 
@@ -570,6 +649,21 @@ struct ThreadwiseGenericTensorSliceCopy_v2
                 p_dst_tmp[dst_normal_offset] = p_buffer[buffer_offset];
             });
         });
+#else
+        ford<DstMergedDimSliceLengthsHack>{}([&](auto merged_dim_data_id) {
+            TData* p_dst_tmp = p_dst + (mDstSliceOrigin + merged_dim_data_id).GetOffset();
+
+            ford<DstNormalDimSliceLengthsHack>{}([&](auto normal_dim_data_id) {
+                const index_t buffer_offset =
+                    buffer_desc.GetOffsetFromMultiIndex(merged_dim_data_id + normal_dim_data_id);
+
+                const index_t dst_normal_offset =
+                    DstDesc::GetOffsetFromMultiIndex(normal_dim_data_id);
+
+                p_dst_tmp[dst_normal_offset] = p_buffer[buffer_offset];
+            });
+        });
+#endif
     }
 
     // T can be Sequence or Array
