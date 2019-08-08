@@ -3,7 +3,7 @@
 #include "device.hpp"
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-#include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
+//#include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
 template <class T,
@@ -94,6 +94,8 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
     constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
+
+    constexpr index_t OutThreadCopyDataPerAccess_W = 1;
 #elif 1
     // each thread hold 64 data
     constexpr index_t BlockSize = 256;
@@ -214,7 +216,8 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
              WeiBlockCopySrcAccessOrder,
              WeiBlockCopyDstAccessOrder,
              WeiBlockCopySrcDataPerRead_E,
-             WeiBlockCopyDstDataPerWrite_K>{};
+             WeiBlockCopyDstDataPerWrite_K,
+             OutThreadCopyDataPerAccess_W>{};
 
         float time = launch_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
                                    dim3(GridSize),

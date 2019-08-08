@@ -412,7 +412,13 @@ template <index_t BlockSize,
           class SliceLengths,
           class SubLengths,
           class ThreadClusterLengths,
-          class ThreadClusterArrangeOrder>
+          class ThreadClusterArrangeOrder,
+          class SrcDimAccessOrder,
+          class DstDimAccessOrder,
+          index_t SrcVectorAccessDim,
+          index_t DstVectorAccessDim,
+          index_t SrcDataPerAccess,
+          index_t DstDataPerAccess>
 struct BlockwiseGenericTensorSliceCopy_v2
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
@@ -496,6 +502,7 @@ struct BlockwiseGenericTensorSliceCopy_v2
     private:
     using RegisterBufferDesc = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
 
+#if 0
     using ThreadwiseLoad =
         ThreadwiseGenericTensorSliceCopy_v2<SrcDesc,
                                             RegisterBufferDesc,
@@ -509,6 +516,33 @@ struct BlockwiseGenericTensorSliceCopy_v2
                                             NormalTensorCoordinate<RegisterBufferDesc>,
                                             DstCoordinate,
                                             SubLengths>;
+#else
+    using ThreadwiseLoad =
+        ThreadwiseGenericTensorSliceCopy_v2r1<SrcDesc,
+                                              RegisterBufferDesc,
+                                              SrcCoordinate,
+                                              NormalTensorCoordinate<RegisterBufferDesc>,
+                                              SubLengths,
+                                              SrcDimAccessOrder,
+                                              SrcDimAccessOrder,
+                                              SrcVectorAccessDim,
+                                              SrcVectorAccessDim,
+                                              SrcDataPerAccess,
+                                              1>;
+
+    using ThreadwiseStore =
+        ThreadwiseGenericTensorSliceCopy_v2r1<RegisterBufferDesc,
+                                              DstDesc,
+                                              NormalTensorCoordinate<RegisterBufferDesc>,
+                                              DstCoordinate,
+                                              SubLengths,
+                                              DstDimAccessOrder,
+                                              DstDimAccessOrder,
+                                              DstVectorAccessDim,
+                                              DstVectorAccessDim,
+                                              1,
+                                              DstDataPerAccess>;
+#endif
     ThreadwiseLoad mThreadwiseLoad;
     ThreadwiseStore mThreadwiseStore;
 };
