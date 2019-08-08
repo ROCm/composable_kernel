@@ -237,47 +237,23 @@ struct BlockwiseGenericTensorSliceCopy_v1
                 thread_buffer_desc.GetOffsetFromMultiIndex(buffer_data_id_begin);
 #endif
 
-// By position the origin of the per-thread window at the point, where multi-index
-// of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
-// is assuming each thread is copy a noraml (not merged) tensor.
-// To satisfy this assumption, the user need to make sure that, on a merged dimension
-// that constains multiple original dimensions, the length of the last original
-// dimension need to be evenly dividable by its sub-lengths. Also, the repeat-length on
-// the merged dimension need to be 1. These sanity checks are performed in constructor
-// of BlockwiseGenericTensorSliceCopy_v1
-#if 0
-            threadwise_generic_tensor_slice_copy_v1(SrcDesc{},
-                                                    p_src + src_offset + mThreadSrcOffset,
-                                                    make_zero_array<index_t, nDim>(),
-                                                    thread_buffer_desc,
-                                                    p_buffer + buffer_offset,
-                                                    make_zero_array<index_t, nDim>(),
-                                                    thread_sub_tensor_lengths,
-                                                    SrcDimAccessOrder{},
-                                                    Number<SrcDataPerAccess>{});
-#elif 1
-            ThreadwiseGenericTensorSliceCopy_v1r1<
-                SrcDesc,
-                decltype(thread_buffer_desc),
-                SubLengths,
-                SrcDimAccessOrder,
-                typename arithmetic_sequence_gen<0, nDim, 1>::type,
-                SrcVectorAccessDim,
-                0,
-                SrcDataPerAccess,
-                1>(make_zero_array<index_t, nDim>(), make_zero_array<index_t, nDim>())
+            // By position the origin of the per-thread window at the point, where multi-index
+            // of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
+            // is assuming each thread is copy a noraml (not merged) tensor.
+            // To satisfy this assumption, the user need to make sure that, on a merged dimension
+            // that constains multiple original dimensions, the length of the last original
+            // dimension need to be evenly dividable by its sub-lengths. Also, the repeat-length on
+            // the merged dimension need to be 1. These sanity checks are performed in constructor
+            // of BlockwiseGenericTensorSliceCopy_v1
+            ThreadwiseGenericTensorSliceCopy_v1r2<SrcDesc,
+                                                  decltype(thread_buffer_desc),
+                                                  SubLengths,
+                                                  SrcDimAccessOrder,
+                                                  SrcVectorAccessDim,
+                                                  SrcDataPerAccess,
+                                                  1>(make_zero_array<index_t, nDim>(),
+                                                     make_zero_array<index_t, nDim>())
                 .Run(p_src + src_offset + mThreadSrcOffset, p_buffer + buffer_offset);
-#elif 1
-        ThreadwiseGenericTensorSliceCopy_v1r2<SrcDesc,
-                                              decltype(thread_buffer_desc),
-                                              SubLengths,
-                                              SrcDimAccessOrder,
-                                              SrcVectorAccessDim,
-                                              SrcDataPerAccess,
-                                              1>(make_zero_array<index_t, nDim>(),
-                                                 make_zero_array<index_t, nDim>())
-            .Run(p_src + src_offset + mThreadSrcOffset, p_buffer + buffer_offset);
-#endif
         });
     }
 
@@ -316,48 +292,23 @@ struct BlockwiseGenericTensorSliceCopy_v1
             const index_t dst_offset = DstDesc::GetOffsetFromMultiIndex(dst_data_id_begin);
 #endif
 
-// By position the origin of the per-thread window at the point, where multi-index
-// of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
-// is assuming each thread is copy a noraml (not merged) tensor.
-// To satisfy this assumption, the user need to make sure that, on a merged dimension
-// that constains multiple original dimensions, the length of the last original
-// dimension need to be evenly dividable by its sub-lengths. Also, the repeat-length on
-// the merged dimension need to be 1. These sanity checks are performed in constructor
-// of BlockwiseGenericTensorSliceCopy_v1
-#if 0
-            threadwise_generic_tensor_slice_copy_v1(thread_buffer_desc,
-                                                    p_buffer + buffer_offset,
-                                                    make_zero_array<index_t, nDim>(),
-                                                    DstDesc{},
-                                                    p_dst + dst_offset + mThreadDstOffset,
-                                                    make_zero_array<index_t, nDim>(),
-                                                    thread_sub_tensor_lengths,
-                                                    DstDimAccessOrder{},
-                                                    Number<DstDataPerAccess>{});
-#elif 1
-            ThreadwiseGenericTensorSliceCopy_v1r1<
-                decltype(thread_buffer_desc),
-                DstDesc,
-                SubLengths,
-                typename arithmetic_sequence_gen<0, nDim, 1>::type,
-                DstDimAccessOrder,
-                0,
-                DstVectorAccessDim,
-                1,
-                DstDataPerAccess>(make_zero_array<index_t, nDim>(),
-                                  make_zero_array<index_t, nDim>())
+            // By position the origin of the per-thread window at the point, where multi-index
+            // of the SrcDesc (might be a merged tensor) is all-zero. This threadwise slice copy
+            // is assuming each thread is copy a noraml (not merged) tensor.
+            // To satisfy this assumption, the user need to make sure that, on a merged dimension
+            // that constains multiple original dimensions, the length of the last original
+            // dimension need to be evenly dividable by its sub-lengths. Also, the repeat-length on
+            // the merged dimension need to be 1. These sanity checks are performed in constructor
+            // of BlockwiseGenericTensorSliceCopy_v1
+            ThreadwiseGenericTensorSliceCopy_v1r2<decltype(thread_buffer_desc),
+                                                  DstDesc,
+                                                  SubLengths,
+                                                  DstDimAccessOrder,
+                                                  DstVectorAccessDim,
+                                                  1,
+                                                  DstDataPerAccess>(
+                make_zero_array<index_t, nDim>(), make_zero_array<index_t, nDim>())
                 .Run(p_buffer + buffer_offset, p_dst + dst_offset + mThreadDstOffset);
-#elif 1
-    ThreadwiseGenericTensorSliceCopy_v1r2<decltype(thread_buffer_desc),
-                                          DstDesc,
-                                          SubLengths,
-                                          DstDimAccessOrder,
-                                          DstVectorAccessDim,
-                                          1,
-                                          DstDataPerAccess>(make_zero_array<index_t, nDim>(),
-                                                            make_zero_array<index_t, nDim>())
-        .Run(p_buffer + buffer_offset, p_dst + dst_offset + mThreadDstOffset);
-#endif
         });
     }
 
