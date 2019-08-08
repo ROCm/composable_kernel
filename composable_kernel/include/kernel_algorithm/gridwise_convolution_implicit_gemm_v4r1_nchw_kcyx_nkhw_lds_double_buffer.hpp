@@ -335,15 +335,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
                 Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-#if 0
-                blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
-                // blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{},
-                // True);
-                p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
-#else
                 blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
-                blockwise_wei_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
-#endif
+                p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
 
                 __syncthreads();
 
@@ -367,14 +360,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
             Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
             Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-#if 0
-            blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
-            // blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
-            p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
-#else
             blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
-            blockwise_wei_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
-#endif
+            p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
 
             __syncthreads();
 
@@ -447,7 +434,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 out_k_n1_b_n2_global_merged_desc.GetOffsetFromMultiIndex(
                     k_thread_data_on_global, 0, b_thread_data_on_global, 0);
 
-#if 0
+#if 1
             ThreadwiseGenericTensorSliceCopy_v1r2<
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
                 decltype(out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc),
@@ -469,8 +456,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 7,
                 7,
                 1,
-                1>(
-                {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0})
+                1>({0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0})
                 .Run(p_out_thread, p_out_thread_on_global);
 #endif
         }

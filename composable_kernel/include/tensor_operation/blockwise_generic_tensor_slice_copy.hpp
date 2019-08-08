@@ -402,6 +402,19 @@ struct BlockwiseGenericTensorSliceCopy_v1
             });
         });
     }
+
+    template <class T, bool PositiveDirection>
+    __device__ void
+    MoveSrcSlicingWindow(T step_sizes,
+                         integral_constant<bool, PositiveDirection> positive_direction)
+    {
+        static_for<0, nDim, 1>{}([&](auto idim) {
+            if(step_sizes[idim] != 0)
+            {
+                MoveSlicingWindowOnSourceTensor(idim, step_sizes[idim], positive_direction);
+            }
+        });
+    }
 };
 
 template <index_t BlockSize,
@@ -502,21 +515,6 @@ struct BlockwiseGenericTensorSliceCopy_v2
     private:
     using RegisterBufferDesc = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
 
-#if 0
-    using ThreadwiseLoad =
-        ThreadwiseGenericTensorSliceCopy_v2<SrcDesc,
-                                            RegisterBufferDesc,
-                                            SrcCoordinate,
-                                            NormalTensorCoordinate<RegisterBufferDesc>,
-                                            SubLengths>;
-
-    using ThreadwiseStore =
-        ThreadwiseGenericTensorSliceCopy_v2<RegisterBufferDesc,
-                                            DstDesc,
-                                            NormalTensorCoordinate<RegisterBufferDesc>,
-                                            DstCoordinate,
-                                            SubLengths>;
-#else
     using ThreadwiseLoad =
         ThreadwiseGenericTensorSliceCopy_v2r1<SrcDesc,
                                               RegisterBufferDesc,
@@ -542,7 +540,7 @@ struct BlockwiseGenericTensorSliceCopy_v2
                                               DstVectorAccessDim,
                                               1,
                                               DstDataPerAccess>;
-#endif
+
     ThreadwiseLoad mThreadwiseLoad;
     ThreadwiseStore mThreadwiseStore;
 };
