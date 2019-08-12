@@ -198,7 +198,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
                     dst_vector_access_dim,
                     dst_access_id[dst_vector_access_dim] * dst_data_per_access);
 
-                vector_t vector_data;
+                vector_t vector_data{};
 
                 // pack vector from buffer
                 static_for<0, DstDataPerAccess, 1>{}([&](auto i) {
@@ -224,7 +224,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
                 dst_data_begin_id(dst_vector_access_dim) =
                     dst_access_id[dst_vector_access_dim] * dst_data_per_access;
 
-                vector_t vector_data;
+                vector_t vector_data{};
 
                 // pack vector from buffer
                 for(index_t i = 0; i < DstDataPerAccess; ++i)
