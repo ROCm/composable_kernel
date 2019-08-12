@@ -234,8 +234,6 @@ struct MergedTensorCoordinate
     {
         static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
 
-        index_t normal_offset_diff = 0;
-
         static_for<0, nDim, 1>{}([&](auto idim) {
             if(step_sizes[idim] != 0)
             {

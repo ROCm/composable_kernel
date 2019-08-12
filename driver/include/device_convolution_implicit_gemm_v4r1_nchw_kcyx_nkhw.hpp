@@ -91,8 +91,6 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
     constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
-
-    constexpr index_t OutThreadCopyDataPerAccess_W = 1;
 #elif 1
     // each thread hold 64 data
     constexpr index_t BlockSize = 256;
@@ -100,6 +98,8 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     constexpr index_t BPerBlock = 16;
     constexpr index_t KPerBlock = 128;
     constexpr index_t EPerBlock = 8;
+
+    constexpr index_t GemmNRepeat = 2;
 
     constexpr index_t GemmMPerThreadSubC = 4;
     constexpr index_t GemmNPerThreadSubC = 4;
@@ -135,6 +135,8 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     constexpr index_t BPerBlock = 16;
     constexpr index_t KPerBlock = 64;
     constexpr index_t EPerBlock = 8;
+
+    constexpr index_t GemmNRepeat = 2;
 
     constexpr index_t GemmMPerThreadSubC = 2;
     constexpr index_t GemmNPerThreadSubC = 4;
