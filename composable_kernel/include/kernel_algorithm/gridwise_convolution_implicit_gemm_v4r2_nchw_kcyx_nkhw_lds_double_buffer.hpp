@@ -222,8 +222,7 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
         //     b_mtx[EPerBlocl, N1 * BPerBlock * N2] is in LDS
         //     c_mtx[KPerBlock, N1 * BPerBlock * N2] is distributed among threads, and saved in
         //     register
-        constexpr auto a_e_k_block_mtx_desc =
-            make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(wei_e_k_block_desc);
+        constexpr auto a_e_k_block_mtx_desc = make_ConstantMatrixDescriptor(wei_e_k_block_desc);
 
         //     this check is ad-hoc
         //     TODO: need to properly implement tensor descriptor with multiple alignment
@@ -233,8 +232,7 @@ struct GridwiseConvolutionImplicitGemm_v4r2_nchw_kcyx_nkhw_lds_double_buffer
                       "GemmDataPerReadB alignment requirement is not satisfied");
 
         constexpr auto b_e_n0ho0wo0bn2ho2wo2_block_mtx_desc =
-            make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(
-                in_e_n0_ho0_wo0_b_n2_ho2_wo2_block_desc.Unfold(I1, I7));
+            make_ConstantMatrixDescriptor(in_e_n0_ho0_wo0_b_n2_ho2_wo2_block_desc.Unfold(I1, I7));
 
         // sanity check
         static_assert(KPerBlock % (GemmMPerThreadSubC * GemmMLevel0Cluster * GemmMLevel1Cluster) ==

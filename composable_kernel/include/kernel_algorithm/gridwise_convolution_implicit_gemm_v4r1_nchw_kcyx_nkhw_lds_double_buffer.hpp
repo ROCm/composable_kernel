@@ -247,12 +247,10 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
         //     b_mtx[EPerBlocl, N1 * BPerBlock * N2] is in LDS
         //     c_mtx[KPerBlock, N1 * BPerBlock * N2] is distributed among threads, and saved in
         //     register
-        constexpr auto a_e_k_block_mtx_desc =
-            make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(wei_e_k_block_desc);
+        constexpr auto a_e_k_block_mtx_desc = make_ConstantMatrixDescriptor(wei_e_k_block_desc);
 
         constexpr auto b_e_n1bn2_block_mtx_desc =
-            make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(
-                in_e_n1_b_n2_block_desc.Unfold(I1, I3));
+            make_ConstantMatrixDescriptor(in_e_n1_b_n2_block_desc.Unfold(I1, I3));
 
         // sanity check
         static_assert(KPerBlock % (GemmMPerThreadSubC * GemmMLevel0Cluster * GemmMLevel1Cluster) ==

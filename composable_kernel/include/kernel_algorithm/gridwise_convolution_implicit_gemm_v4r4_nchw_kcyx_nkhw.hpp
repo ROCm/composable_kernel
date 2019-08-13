@@ -172,11 +172,9 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
         //     b_mtx[EPerBlocl, BPerBlock] is in LDS
         //     c_mtx[KPerBlock, BPerBlock] is distributed among threads, and saved in
         //     register
-        constexpr auto a_e_k_block_mtx_desc =
-            make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(wei_e_k_block_desc);
+        constexpr auto a_e_k_block_mtx_desc = make_ConstantMatrixDescriptor(wei_e_k_block_desc);
 
-        constexpr auto b_e_b_block_mtx_desc =
-            make_ConstantMatrixDescriptor_from_ConstantTensorDescriptor(in_e_b_block_desc);
+        constexpr auto b_e_b_block_mtx_desc = make_ConstantMatrixDescriptor(in_e_b_block_desc);
 
         // sanity check
         static_assert(

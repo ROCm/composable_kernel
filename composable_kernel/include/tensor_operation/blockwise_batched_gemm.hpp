@@ -5,6 +5,10 @@
 #include "ConstantMatrixDescriptor.hpp"
 #include "threadwise_gemm.hpp"
 
+#ifndef CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM
+#define CK_BLOCKWISE_GEMM_USE_AMD_INLINE_ASM 1
+#endif
+
 namespace ck {
 
 template <index_t BlockSize,
@@ -97,24 +101,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 
         mMyThreadOffsetB = c_thread_mtx_index.batch * BlockMatrixStrideB +
                            b_block_mtx.GetOffsetFromMultiIndex(0, c_thread_mtx_index.col);
-
-#if 0
-        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-        {
-            print_ConstantMatrixDescriptor(BlockMatrixA{}, "a_block_mtx: ");
-            print_ConstantMatrixDescriptor(BlockMatrixB{}, "b_block_mtx: ");
-            print_ConstantMatrixDescriptor(ThreadMatrixC{}, "c_thread_mtx: ");
-
-            printf("%u %u, %u %u %u, %u %u\n",
-                   get_block_1d_id(),
-                   get_thread_local_1d_id(),
-                   c_thread_mtx_index.batch,
-                   c_thread_mtx_index.row,
-                   c_thread_mtx_index.col,
-                   mMyThreadOffsetA,
-                   mMyThreadOffsetB);
-        }
-#endif
     }
 
     __device__ MatrixIndex GetBeginOfThreadMatrixC(index_t thread_id) const
@@ -257,29 +243,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                     }
                 }
 
-#if 0
-                if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-                {
-                    printf("a: %f %f %f %f %f %f %f %f, b: %f %f %f %f %f %f %f %f\n",
-                           p_a_thread[0],
-                           p_a_thread[1],
-                           p_a_thread[2],
-                           p_a_thread[3],
-                           p_a_thread[4],
-                           p_a_thread[5],
-                           p_a_thread[6],
-                           p_a_thread[7],
-                           p_b_thread[0],
-                           p_b_thread[1],
-                           p_b_thread[2],
-                           p_b_thread[3],
-                           p_b_thread[4],
-                           p_b_thread[5],
-                           p_b_thread[6],
-                           p_b_thread[7]);
-                }
-#endif
-
                 threadwise_gemm(a_thread_mtx,
                                 True,
                                 p_a_thread,
@@ -311,10 +274,10 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
         // thread A, B for GEMM
         //   A is transposed, b is not
         constexpr auto a_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
+            make_ConstantMatrixDescriptor_packed(Number<KPerThreadLoop>{}, Number<MPerThread>{});
 
         constexpr auto b_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
+            make_ConstantMatrixDescriptor_packed(Number<KPerThreadLoop>{}, Number<NPerThread>{});
 
         // thread A-sub, B-sub for copy
         constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
@@ -379,102 +342,6 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
             outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
             outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
         }
-        outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
-        outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
-    }
-
-    template <class FloatA, class FloatB, class FloatC>
-    __device__ void Run_asm_v2(const FloatA* __restrict__ p_a_block,
-                               const FloatB* __restrict__ p_b_block,
-                               FloatC* __restrict__ p_c_thread) const
-    {
-        constexpr auto a_block_mtx  = BlockMatrixA{};
-        constexpr auto b_block_mtx  = BlockMatrixB{};
-        constexpr auto c_thread_mtx = ThreadMatrixC{};
-
-        constexpr index_t M = a_block_mtx.NCol();
-        constexpr index_t N = b_block_mtx.NCol();
-        constexpr index_t K = a_block_mtx.NRow(); // A is transposed
-
-        constexpr index_t MPerThread = c_thread_mtx.NRow();
-        constexpr index_t NPerThread = c_thread_mtx.NCol();
-
-        // thread A, B for GEMM
-        //   A is transposed, b is not
-        constexpr auto a_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<MPerThread>{});
-
-        constexpr auto b_thread_mtx =
-            make_ConstantMatrixDescriptor(Number<KPerThreadLoop>{}, Number<NPerThread>{});
-
-        // thread A-sub, B-sub for copy
-        constexpr auto a_thread_sub_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<MPerThreadSubC>{}, Number<MPerThread>{});
-
-        constexpr auto b_thread_sub_mtx = make_ConstantMatrixDescriptor(
-            Number<KPerThreadLoop>{}, Number<NPerThreadSubC>{}, Number<NPerThread>{});
-
-        FloatA p_a_thread[a_thread_mtx.GetElementSpace()];
-        FloatB p_b_thread[b_thread_mtx.GetElementSpace()];
-
-        constexpr index_t MPerLevel1Cluster = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
-        constexpr index_t NPerLevel1Cluster = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
-
-        // assertion for inline asm
-        static_assert(is_same<FloatA, float>{} && is_same<FloatB, float>{} &&
-                          is_same<FloatC, float>{},
-                      "Run_amd_asm only deal with float\n");
-
-        static_assert(MPerThreadSubC == 4 && NPerThreadSubC == 4 && KPerThreadLoop == 1 &&
-                          MPerThread == 8 && NPerThread == 8,
-                      "Run_amd_asm cannot deal with this GEMM shape yet\n");
-
-        static_assert(DataPerReadA == 4 && DataPerReadB == 4, "Run_amd_asm only do float4 read\n");
-
-        static_assert(BlockMatrixStrideA == 0 && BatchPerThread == 1,
-                      "Run_amd_asm can only deal with BlockMatrixStrideA == 0 && BatchPerThread == "
-                      "1 for now\n");
-
-        using Float4 = vector_type<float, 4>::MemoryType;
-
-        Float4* reg_a = (Float4*)(p_a_thread);
-        Float4* reg_b = (Float4*)(p_b_thread);
-        Float4* reg_c = (Float4*)(p_c_thread);
-
-        void* a_lds_loc = (void*)(p_a_block + mMyThreadOffsetA);
-        void* b_lds_loc = (void*)(p_b_block + mMyThreadOffsetB);
-
-        constexpr index_t a_lds_row_stride         = sizeof(float) * a_block_mtx.RowStride();
-        constexpr index_t b_lds_row_stride         = sizeof(float) * b_block_mtx.RowStride();
-        constexpr index_t a_lds_cluster_col_stride = sizeof(float) * MPerLevel1Cluster;
-        constexpr index_t b_lds_cluster_col_stride = sizeof(float) * NPerLevel1Cluster;
-
-        ds_read_b128(reg_a[0], a_lds_loc, 0);
-        ds_read_b128(reg_b[0], b_lds_loc, 0);
-        ds_read_b128(reg_b[1], b_lds_loc, b_lds_cluster_col_stride);
-        ds_read_b128(reg_a[1], a_lds_loc, a_lds_cluster_col_stride);
-        lgkmcnt(2);
-        outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
-        lgkmcnt(1);
-        outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
-
-#pragma unroll
-        for(index_t k = 1; k < K; ++k)
-        {
-            ds_read_b128(reg_a[0], a_lds_loc, k * a_lds_row_stride);
-            lgkmcnt(1);
-            outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
-            ds_read_b128(reg_b[0], b_lds_loc, k * b_lds_row_stride);
-            outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
-            ds_read_b128(reg_b[1], b_lds_loc, b_lds_cluster_col_stride + k * b_lds_row_stride);
-            ds_read_b128(reg_a[1], a_lds_loc, a_lds_cluster_col_stride + k * a_lds_row_stride);
-            lgkmcnt(2);
-            outerProduct4x4(reg_a[0], reg_b[0], reg_c[0], reg_c[2], reg_c[4], reg_c[6]);
-            lgkmcnt(1);
-            outerProduct4x4(reg_a[0], reg_b[1], reg_c[1], reg_c[3], reg_c[5], reg_c[7]);
-        }
-
-        lgkmcnt(0);
         outerProduct4x4(reg_a[1], reg_b[0], reg_c[8], reg_c[10], reg_c[12], reg_c[14]);
         outerProduct4x4(reg_a[1], reg_b[1], reg_c[9], reg_c[11], reg_c[13], reg_c[15]);
     }
