@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
 {
     using namespace ck;
 
-#if 1
+#if 0
     constexpr index_t N  = 64;
     constexpr index_t C  = 1536;
     constexpr index_t HI = 8;
