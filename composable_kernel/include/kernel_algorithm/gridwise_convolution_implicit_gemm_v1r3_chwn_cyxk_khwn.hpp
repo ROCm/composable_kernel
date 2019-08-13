@@ -4,11 +4,8 @@
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMatrixDescriptor.hpp"
-#include "blockwise_2d_tensor_op.hpp"
-#include "blockwise_4d_tensor_op.hpp"
 #include "blockwise_generic_tensor_slice_copy.hpp"
-#include "threadwise_tensor_slice_copy.hpp"
-#include "threadwise_4d_tensor_op.hpp"
+#include "threadwise_generic_tensor_slice_copy.hpp"
 #include "blockwise_batched_gemm.hpp"
 
 namespace ck {
@@ -37,10 +34,13 @@ template <index_t GridSize,
           index_t GemmKPerThreadLoop,
           index_t GemmDataPerReadA,
           index_t GemmDataPerReadB,
+          class InBlockCopySubLengths_CHWN,
           class InBlockCopyClusterLengths_CHWN,
-          index_t InBlockCopyDataPerRead_N,
-          index_t WeiBlockCopyDataPerRead_K,
-          index_t OutThreadCopyDataPerWrite_N>
+          index_t InBlockCopyDataPerAccess_N,
+          class WeiBlockCopySubLengths_CK,
+          class WeiBlockCopyClusterLengths_CK,
+          index_t WeiBlockCopyDataPerAccess_K,
+          index_t OutThreadCopyDataPerAccess_N>
 struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
@@ -103,8 +103,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
 
         // LDS tensor view
         //   be careful of alignment
-        constexpr index_t max_align = math::lcm(InBlockCopyDataPerRead_N,
-                                                WeiBlockCopyDataPerRead_K,
+        constexpr index_t max_align = math::lcm(InBlockCopyDataPerAccess_N,
+                                                WeiBlockCopyDataPerAccess_K,
                                                 GemmDataPerReadA,
                                                 GemmDataPerReadB);
 
@@ -123,24 +123,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
-// blockwise copy
-// input: format is [C, Hi, Wi, N]
-#if 0
-        const auto blockwise_in_copy =
-            Blockwise4dTensorCopy3<BlockSize,
-                                   Float,
-                                   decltype(in_c_h_w_n_global_desc),
-                                   decltype(in_c_h_w_n_block_desc),
-                                   decltype(in_c_h_w_n_block_desc.GetLengths()),
-                                   InBlockCopyClusterLengths_CHWN,
-                                   InBlockCopyDataPerRead_N>{};
-#elif 0
-        using InBlockCopySubLengths_CHWN =
-            decltype(in_c_h_w_n_block_desc.GetLengths() / InBlockCopyClusterLengths_CHWN{});
-
+        // blockwise copy
+        // input: format is [C, Hi, Wi, N]
         auto blockwise_in_copy =
-            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
-                                               Float,
+            BlockwiseGenericTensorSliceCopy_v2<BlockSize,
                                                decltype(in_c_h_w_n_global_desc),
                                                decltype(in_c_h_w_n_block_desc),
                                                decltype(in_c_h_w_n_block_desc.GetLengths()),
@@ -149,33 +135,28 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                                                Sequence<0, 1, 2, 3>,
                                                Sequence<0, 1, 2, 3>,
                                                Sequence<0, 1, 2, 3>,
-                                               1,
-                                               1>({0, 0, 0, 0}, {0, 0, 0, 0});
-#elif 1
-        using InBlockCopySubLengths_CHWN =
-            decltype(in_c_h_w_n_block_desc.GetLengths() / InBlockCopyClusterLengths_CHWN{});
-
-        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v2<
-            BlockSize,
-            decltype(in_c_h_w_n_global_desc),
-            decltype(in_c_h_w_n_block_desc),
-            NormalTensorCoordinate<decltype(in_c_h_w_n_global_desc)>,
-            NormalTensorCoordinate<decltype(in_c_h_w_n_block_desc)>,
-            decltype(in_c_h_w_n_block_desc.GetLengths()),
-            InBlockCopySubLengths_CHWN,
-            InBlockCopyClusterLengths_CHWN,
-            Sequence<0, 1, 2, 3>>({0, 0, 0, 0}, {0, 0, 0, 0});
-#endif
+                                               3,
+                                               3,
+                                               InBlockCopyDataPerAccess_N,
+                                               InBlockCopyDataPerAccess_N>({0, 0, 0, 0},
+                                                                           {0, 0, 0, 0});
 
         // blockwise wei copy
-        //   format is [CPerBlock, X * KPerBlock]
+        //   format is [CPerBlock, KPerBlock]
         const auto blockwise_wei_copy =
-            Blockwise2dTensorCopy3<BlockSize,
-                                   Float,
-                                   decltype(wei_c_k_global_desc),
-                                   decltype(wei_c_k_block_desc),
-                                   decltype(wei_c_k_block_desc.GetLengths()),
-                                   WeiBlockCopyDataPerRead_K>({0, 0}, {0, 0});
+            BlockwiseGenericTensorSliceCopy_v2<BlockSize,
+                                               decltype(wei_c_k_global_desc),
+                                               decltype(wei_c_k_block_desc),
+                                               decltype(wei_c_k_block_desc.GetLengths()),
+                                               WeiBlockCopySubLengths_CK,
+                                               WeiBlockCopyClusterLengths_CK,
+                                               Sequence<0, 1>,
+                                               Sequence<0, 1>,
+                                               Sequence<0, 1>,
+                                               1,
+                                               1,
+                                               WeiBlockCopyDataPerAccess_K,
+                                               WeiBlockCopyDataPerAccess_K>({0, 0}, {0, 0});
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -278,7 +259,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
             }
         }
 
-        // output: register to global mem,
+        // output: register to global mem
         const auto c_thread_mtx_begin =
             blockwise_batch_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
@@ -329,17 +310,24 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
             }
 #endif
 
-            threadwise_tensor_slice_copy(out_10d_thread_desc,
-                                         p_out_thread,
-                                         out_10d_global_desc,
-                                         p_out_global +
-                                             out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
-                                                 k_block_data_begin + k_thread_data_begin,
-                                                 ho_block_data_begin + ho_thread_data_begin,
-                                                 wo_block_data_begin + wo_thread_data_begin,
-                                                 n_block_data_begin + n_thread_data_begin),
-                                         out_10d_thread_desc.GetLengths(),
-                                         Number<OutThreadCopyDataPerWrite_N>{});
+            Float* p_out_thread_on_global = p_out_global +
+                                            out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
+                                                k_block_data_begin + k_thread_data_begin,
+                                                ho_block_data_begin + ho_thread_data_begin,
+                                                wo_block_data_begin + wo_thread_data_begin,
+                                                n_block_data_begin + n_thread_data_begin);
+
+            ThreadwiseGenericTensorSliceCopy_v2r1<decltype(out_10d_thread_desc),
+                                                  decltype(out_10d_global_desc),
+                                                  decltype(out_10d_thread_desc.GetLengths()),
+                                                  arithmetic_sequence_gen<0, 10, 1>::type,
+                                                  arithmetic_sequence_gen<0, 10, 1>::type,
+                                                  9,
+                                                  9,
+                                                  OutThreadCopyDataPerAccess_N,
+                                                  OutThreadCopyDataPerAccess_N>(
+                make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
+                .Run(p_out_thread, p_out_thread_on_global);
         }).Else([&](auto fwd) {
             static_assert(fwd(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
                               GemmNPerThreadSubC % NPerThread == 0,
@@ -380,17 +368,24 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
             }
 #endif
 
-            threadwise_tensor_slice_copy(out_10d_thread_desc,
-                                         p_out_thread,
-                                         out_10d_global_desc,
-                                         p_out_global +
-                                             out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
-                                                 k_block_data_begin + k_thread_data_begin,
-                                                 ho_block_data_begin + ho_thread_data_begin,
-                                                 wo_block_data_begin + wo_thread_data_begin,
-                                                 n_block_data_begin + n_thread_data_begin),
-                                         out_10d_thread_desc.GetLengths(),
-                                         Number<OutThreadCopyDataPerWrite_N>{});
+            Float* p_out_thread_on_global = p_out_global +
+                                            out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
+                                                k_block_data_begin + k_thread_data_begin,
+                                                ho_block_data_begin + ho_thread_data_begin,
+                                                wo_block_data_begin + wo_thread_data_begin,
+                                                n_block_data_begin + n_thread_data_begin);
+
+            ThreadwiseGenericTensorSliceCopy_v2r1<decltype(out_10d_thread_desc),
+                                                  decltype(out_10d_global_desc),
+                                                  decltype(out_10d_thread_desc.GetLengths()),
+                                                  arithmetic_sequence_gen<0, 10, 1>::type,
+                                                  arithmetic_sequence_gen<0, 10, 1>::type,
+                                                  9,
+                                                  9,
+                                                  OutThreadCopyDataPerAccess_N,
+                                                  OutThreadCopyDataPerAccess_N>(
+                make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
+                .Run(p_out_thread, p_out_thread_on_global);
         });
     }
 };

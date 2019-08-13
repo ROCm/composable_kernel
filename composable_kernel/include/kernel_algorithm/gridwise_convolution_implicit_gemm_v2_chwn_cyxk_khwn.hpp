@@ -214,16 +214,15 @@ struct GridwiseConvolutionImplicitGemm_v2_chwn_cyxk_khwn
                     __syncthreads())
         {
             // load data
-            Float p_in_register_clipboard[blockwise_in_copy.GetRegisterClipboardSize()];
-            Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+            Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
+            Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-            blockwise_in_copy.RunLoadRegisterClipboard(p_in_global_block_offset,
-                                                       p_in_register_clipboard);
-            blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
-                                                        p_wei_register_clipboard);
+            blockwise_in_copy.RunLoadRegisterBuffer(p_in_global_block_offset, p_in_register_buffer);
+            blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global_block_offset,
+                                                     p_wei_register_buffer);
 
-            blockwise_in_copy.RunStoreRegisterClipboard(p_in_register_clipboard, p_in_block);
-            blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard, p_wei_block);
+            blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer, p_in_block);
+            blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer, p_wei_block);
 
             __syncthreads();
 

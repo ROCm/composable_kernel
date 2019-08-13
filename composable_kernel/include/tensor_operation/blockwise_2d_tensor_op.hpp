@@ -563,7 +563,7 @@ struct Blockwise2dTensorCopy3
         }
     }
 
-    __device__ constexpr index_t GetRegisterClipboardSize() const
+    __device__ constexpr index_t GetRegisterBufferSize() const
     {
         static_assert(is_same<Float, float>{}, "wrong! only support float!\n");
 
@@ -579,8 +579,8 @@ struct Blockwise2dTensorCopy3
         return DataPerRead * (L0 + thread_per_d0 - 1) / thread_per_d0;
     }
 
-    __device__ void RunLoadRegisterClipboard(const Float* __restrict__ p_src,
-                                             Float* __restrict__ p_clipboard) const
+    __device__ void RunLoadRegisterBuffer(const Float* __restrict__ p_src,
+                                          Float* __restrict__ p_clipboard) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -630,8 +630,8 @@ struct Blockwise2dTensorCopy3
         }
     }
 
-    __device__ void RunStoreRegisterClipboard(const Float* __restrict__ p_clipboard,
-                                              Float* __restrict__ p_dst) const
+    __device__ void RunStoreRegisterBuffer(const Float* __restrict__ p_clipboard,
+                                           Float* __restrict__ p_dst) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -681,8 +681,8 @@ struct Blockwise2dTensorCopy3
     }
 
 #if CK_USE_AMD_INLINE_ASM
-    __device__ void RunLoadRegisterClipboard_asm(const Float* __restrict__ p_src,
-                                                 Float* p_clipboard) const
+    __device__ void RunLoadRegisterBuffer_asm(const Float* __restrict__ p_src,
+                                              Float* p_clipboard) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -741,8 +741,8 @@ struct Blockwise2dTensorCopy3
         }
     }
 
-    __device__ void RunStoreRegisterClipboard_asm(const Float* __restrict__ p_clipboard,
-                                                  Float* __restrict__ p_dst) const
+    __device__ void RunStoreRegisterBuffer_asm(const Float* __restrict__ p_clipboard,
+                                               Float* __restrict__ p_dst) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};

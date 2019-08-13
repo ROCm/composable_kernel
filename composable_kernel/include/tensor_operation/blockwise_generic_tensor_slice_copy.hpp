@@ -420,8 +420,6 @@ struct BlockwiseGenericTensorSliceCopy_v1
 template <index_t BlockSize,
           class SrcDesc,
           class DstDesc,
-          class SrcCoordinate,
-          class DstCoordinate,
           class SliceLengths,
           class SubLengths,
           class ThreadClusterLengths,
@@ -435,6 +433,9 @@ template <index_t BlockSize,
 struct BlockwiseGenericTensorSliceCopy_v2
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
+
+    using SrcCoordinate = typename TensorCoordinate<SrcDesc>::type;
+    using DstCoordinate = typename TensorCoordinate<DstDesc>::type;
 
     __device__ constexpr BlockwiseGenericTensorSliceCopy_v2(SrcCoordinate src_block_slice_origin,
                                                             DstCoordinate dst_block_slice_origin)
@@ -515,31 +516,25 @@ struct BlockwiseGenericTensorSliceCopy_v2
     private:
     using RegisterBufferDesc = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
 
-    using ThreadwiseLoad =
-        ThreadwiseGenericTensorSliceCopy_v2r1<SrcDesc,
-                                              RegisterBufferDesc,
-                                              SrcCoordinate,
-                                              NormalTensorCoordinate<RegisterBufferDesc>,
-                                              SubLengths,
-                                              SrcDimAccessOrder,
-                                              SrcDimAccessOrder,
-                                              SrcVectorAccessDim,
-                                              SrcVectorAccessDim,
-                                              SrcDataPerAccess,
-                                              1>;
+    using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v2r1<SrcDesc,
+                                                                 RegisterBufferDesc,
+                                                                 SubLengths,
+                                                                 SrcDimAccessOrder,
+                                                                 SrcDimAccessOrder,
+                                                                 SrcVectorAccessDim,
+                                                                 SrcVectorAccessDim,
+                                                                 SrcDataPerAccess,
+                                                                 1>;
 
-    using ThreadwiseStore =
-        ThreadwiseGenericTensorSliceCopy_v2r1<RegisterBufferDesc,
-                                              DstDesc,
-                                              NormalTensorCoordinate<RegisterBufferDesc>,
-                                              DstCoordinate,
-                                              SubLengths,
-                                              DstDimAccessOrder,
-                                              DstDimAccessOrder,
-                                              DstVectorAccessDim,
-                                              DstVectorAccessDim,
-                                              1,
-                                              DstDataPerAccess>;
+    using ThreadwiseStore = ThreadwiseGenericTensorSliceCopy_v2r1<RegisterBufferDesc,
+                                                                  DstDesc,
+                                                                  SubLengths,
+                                                                  DstDimAccessOrder,
+                                                                  DstDimAccessOrder,
+                                                                  DstVectorAccessDim,
+                                                                  DstVectorAccessDim,
+                                                                  1,
+                                                                  DstDataPerAccess>;
 
     ThreadwiseLoad mThreadwiseLoad;
     ThreadwiseStore mThreadwiseStore;

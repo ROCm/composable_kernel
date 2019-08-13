@@ -596,7 +596,7 @@ struct Blockwise4dTensorCopy3
         }
     }
 
-    __device__ constexpr index_t GetRegisterClipboardSize() const
+    __device__ constexpr index_t GetRegisterBufferSize() const
     {
         static_assert(is_same<Float, float>{}, "wrong! only support float!\n");
 
@@ -623,8 +623,8 @@ struct Blockwise4dTensorCopy3
         return DataPerRead * nloop_d0 * nloop_d1 * nloop_d2 * nloop_d3;
     }
 
-    __device__ void RunLoadRegisterClipboard(const Float* __restrict__ p_src,
-                                             Float* __restrict__ p_clipboard) const
+    __device__ void RunLoadRegisterBuffer(const Float* __restrict__ p_src,
+                                          Float* __restrict__ p_clipboard) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -690,8 +690,8 @@ struct Blockwise4dTensorCopy3
         }
     }
 
-    __device__ void RunStoreRegisterClipboard(const Float* __restrict__ p_clipboard,
-                                              Float* __restrict__ p_dst) const
+    __device__ void RunStoreRegisterBuffer(const Float* __restrict__ p_clipboard,
+                                           Float* __restrict__ p_dst) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
