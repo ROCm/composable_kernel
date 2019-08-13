@@ -165,7 +165,7 @@ struct BlockwiseTensorSliceReorderCopy_v3
 #endif
     }
 
-    __device__ static constexpr index_t GetRegisterClipboardSize()
+    __device__ static constexpr index_t GetRegisterBufferSize()
     {
         constexpr auto thread_sub_tensor_lengths = SrcSubLengths{};
 
@@ -183,8 +183,8 @@ struct BlockwiseTensorSliceReorderCopy_v3
         return thread_tensor_desc.GetElementSpace();
     }
 
-    __device__ void RunLoadRegisterClipboard(const Float* __restrict__ p_src,
-                                             Float* __restrict__ p_clipboard) const
+    __device__ void RunLoadRegisterBuffer(const Float* __restrict__ p_src,
+                                          Float* __restrict__ p_clipboard) const
     {
         constexpr auto thread_sub_tensor_lengths = SrcSubLengths{};
 
@@ -219,8 +219,8 @@ struct BlockwiseTensorSliceReorderCopy_v3
         });
     }
 
-    __device__ void RunStoreRegisterClipboard(const Float* __restrict__ p_clipboard,
-                                              Float* __restrict__ p_dst) const
+    __device__ void RunStoreRegisterBuffer(const Float* __restrict__ p_clipboard,
+                                           Float* __restrict__ p_dst) const
     {
         constexpr auto thread_sub_tensor_lengths = SrcSubLengths{};
 
@@ -274,10 +274,10 @@ struct BlockwiseTensorSliceReorderCopy_v3
 
     __device__ void Run(const Float* __restrict__ p_src, Float* __restrict__ p_dst) const
     {
-        Float p_clipboard[GetRegisterClipboardSize()];
+        Float p_clipboard[GetRegisterBufferSize()];
 
-        RunLoadRegisterClipboard(p_src, p_clipboard);
-        RunStoreRegisterClipboard(p_clipboard, p_dst);
+        RunLoadRegisterBuffer(p_src, p_clipboard);
+        RunStoreRegisterBuffer(p_clipboard, p_dst);
     }
 
     // this function doesn't do santiy check on whether the slicing window is out of the boundary

@@ -295,5 +295,27 @@ struct MergedTensorCoordinate
     index_t mOffset;
 };
 
+template <class TensorDesc>
+struct TensorCoordinate
+{
+    private:
+    template <class... Ts>
+    __host__ __device__ static constexpr auto
+    MakeDummyTensorCoordinate(ConstantTensorDescriptor<Ts...>)
+    {
+        return NormalTensorCoordinate<ConstantTensorDescriptor<Ts...>>();
+    }
+
+    template <class... Ts>
+    __host__ __device__ static constexpr auto
+    MakeDummyTensorCoordinate(ConstantMergedTensorDescriptor<Ts...>)
+    {
+        return MergedTensorCoordinate<ConstantMergedTensorDescriptor<Ts...>>();
+    }
+
+    public:
+    using type = decltype(MakeDummyTensorCoordinate(TensorDesc{}));
+};
+
 } // namespace ck
 #endif

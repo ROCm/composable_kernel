@@ -254,19 +254,18 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw_lds_double_buffer
 
                 // LDS double buffer: preload data into LDS
                 {
-                    Float p_in_register_clipboard[blockwise_in_copy_reorder
-                                                      .GetRegisterClipboardSize()];
-                    Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+                    Float p_in_register_buffer[blockwise_in_copy_reorder.GetRegisterBufferSize()];
+                    Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-                    blockwise_in_copy_reorder.RunLoadRegisterClipboard(p_in_global_block_offset,
-                                                                       p_in_register_clipboard);
-                    blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
-                                                                p_wei_register_clipboard);
+                    blockwise_in_copy_reorder.RunLoadRegisterBuffer(p_in_global_block_offset,
+                                                                    p_in_register_buffer);
+                    blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global_block_offset,
+                                                             p_wei_register_buffer);
 
-                    blockwise_in_copy_reorder.RunStoreRegisterClipboard(p_in_register_clipboard,
-                                                                        p_in_block_double);
-                    blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
-                                                                 p_wei_block_double);
+                    blockwise_in_copy_reorder.RunStoreRegisterBuffer(p_in_register_buffer,
+                                                                     p_in_block_double);
+                    blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
+                                                              p_wei_block_double);
                 }
 
                 // LDS double buffer: main body
@@ -288,10 +287,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw_lds_double_buffer
                         Float* p_wei_block_next =
                             even_loop ? p_wei_block_double + wei_block_space : p_wei_block_double;
 
-                        Float p_in_register_clipboard[blockwise_in_copy_reorder
-                                                          .GetRegisterClipboardSize()];
                         Float
-                            p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+                            p_in_register_buffer[blockwise_in_copy_reorder.GetRegisterBufferSize()];
+                        Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
                         p_in_global_block_offset +=
                             CPerBlock * in_n_c_h_w_global_desc.GetStride(I1);
@@ -301,27 +299,26 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw_lds_double_buffer
                         __syncthreads();
 
                         // LDS doubel buffer: load next data from device mem
-                        blockwise_in_copy_reorder.RunLoadRegisterClipboard(p_in_global_block_offset,
-                                                                           p_in_register_clipboard);
-                        blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
-                                                                    p_wei_register_clipboard);
+                        blockwise_in_copy_reorder.RunLoadRegisterBuffer(p_in_global_block_offset,
+                                                                        p_in_register_buffer);
+                        blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global_block_offset,
+                                                                 p_wei_register_buffer);
 
                         // LDS double buffer: GEMM on current data
                         run_blockwise_batch_gemm(p_wei_block_now, p_in_block_now, p_out_thread);
 
                         // LDS double buffer: store next data to LDS
-                        blockwise_in_copy_reorder.RunStoreRegisterClipboard(p_in_register_clipboard,
-                                                                            p_in_block_next);
-                        blockwise_wei_copy.RunStoreRegisterClipboard(p_wei_register_clipboard,
-                                                                     p_wei_block_next);
+                        blockwise_in_copy_reorder.RunStoreRegisterBuffer(p_in_register_buffer,
+                                                                         p_in_block_next);
+                        blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
+                                                                  p_wei_block_next);
                     }
                 }
 
                 // LDS double buffer: tail
                 {
-                    Float p_in_register_clipboard[blockwise_in_copy_reorder
-                                                      .GetRegisterClipboardSize()];
-                    Float p_wei_register_clipboard[blockwise_wei_copy.GetRegisterClipboardSize()];
+                    Float p_in_register_buffer[blockwise_in_copy_reorder.GetRegisterBufferSize()];
+                    Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
                     // even iteration
                     p_in_global_block_offset += CPerBlock * in_n_c_h_w_global_desc.GetStride(I1);
@@ -330,19 +327,19 @@ struct GridwiseConvolutionImplicitGemm_v1r3_nchw_cyxk_nkhw_lds_double_buffer
                     __syncthreads();
 
                     // LDS doubel buffer: load next data from device mem
-                    blockwise_in_copy_reorder.RunLoadRegisterClipboard(p_in_global_block_offset,
-                                                                       p_in_register_clipboard);
-                    blockwise_wei_copy.RunLoadRegisterClipboard(p_wei_global_block_offset,
-                                                                p_wei_register_clipboard);
+                    blockwise_in_copy_reorder.RunLoadRegisterBuffer(p_in_global_block_offset,
+                                                                    p_in_register_buffer);
+                    blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global_block_offset,
+                                                             p_wei_register_buffer);
 
                     // LDS double buffer: GEMM on current data
                     run_blockwise_batch_gemm(p_wei_block_double, p_in_block_double, p_out_thread);
 
                     // LDS double buffer: store next data to LDS
-                    blockwise_in_copy_reorder.RunStoreRegisterClipboard(
-                        p_in_register_clipboard, p_in_block_double + in_block_space);
-                    blockwise_wei_copy.RunStoreRegisterClipboard(
-                        p_wei_register_clipboard, p_wei_block_double + wei_block_space);
+                    blockwise_in_copy_reorder.RunStoreRegisterBuffer(
+                        p_in_register_buffer, p_in_block_double + in_block_space);
+                    blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
+                                                              p_wei_block_double + wei_block_space);
 
                     // odd iteration
                     __syncthreads();
