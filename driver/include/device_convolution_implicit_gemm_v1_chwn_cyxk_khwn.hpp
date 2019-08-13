@@ -143,7 +143,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     constexpr index_t WeiBlockCopyDataPerAccess_K = 4;
 
     constexpr index_t OutThreadCopyDataPerAccess_N = 2;
-#elif 1
+#elif 0
     // for 3x3, 34x34, v1r3, Pascal
     // for 3x3, 28x28, v1r3, Pascal
     // for 3x3, 14x14, v1r3, Pascal
@@ -266,9 +266,12 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
     constexpr index_t GemmDataPerReadA   = 4;
     constexpr index_t GemmDataPerReadB   = 4;
 
+    using InBlockCopySubLengths_CHWN             = Sequence<1, 1, 1, 4>;
     using InBlockCopyClusterLengths_CHWN         = Sequence<8, 2, 4, 4>;
     constexpr index_t InBlockCopyDataPerAccess_N = 4;
 
+    using WeiBlockCopySubLengths_CK               = Sequence<1, 4>;
+    using WeiBlockCopyClusterLengths_CK           = Sequence<8, 32>;
     constexpr index_t WeiBlockCopyDataPerAccess_K = 4;
 
     constexpr index_t OutThreadCopyDataPerAccess_N = 4;
