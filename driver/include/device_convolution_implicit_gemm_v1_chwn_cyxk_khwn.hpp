@@ -472,55 +472,54 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(InDesc,
 #endif
 
     constexpr index_t GridSize =
-        ((N + NPerBlock - 1) / NPerBlock) * ((K + KPerBlock - 1) / KPerBlock) *
-        ((Ho + HoPerBlock - 1) / HoPerBlock) * ((Wo + WoPerBlock - 1) / WoPerBlock);
+        (N / NPerBlock) * (K / KPerBlock) * (Ho / HoPerBlock) * (Wo / WoPerBlock);
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
+    constexpr auto gridwise_conv =
+#if 0
+        GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
+#elif 0
+        GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
+#elif 0
+        GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
+#elif 1
+        GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
+#endif
+        <GridSize,
+         BlockSize,
+         T,
+         decltype(in_chwn_desc),
+         decltype(wei_cyxk_desc),
+         decltype(out_khwn_desc),
+         NPerBlock,
+         KPerBlock,
+         CPerBlock,
+         HoPerBlock,
+         WoPerBlock,
+         NPerThread,
+         KPerThread,
+         HoPerThread,
+         WoPerThread,
+         GemmMPerThreadSubC,
+         GemmNPerThreadSubC,
+         GemmMLevel0Cluster,
+         GemmNLevel0Cluster,
+         GemmMLevel1Cluster,
+         GemmNLevel1Cluster,
+         GemmKPerThreadLoop,
+         GemmDataPerReadA,
+         GemmDataPerReadB,
+         InBlockCopySubLengths_CHWN,
+         InBlockCopyClusterLengths_CHWN,
+         InBlockCopyDataPerAccess_N,
+         WeiBlockCopySubLengths_CK,
+         WeiBlockCopyClusterLengths_CK,
+         WeiBlockCopyDataPerAccess_K,
+         OutThreadCopyDataPerAccess_N>{};
+
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        constexpr auto gridwise_conv =
-#if 0
-            GridwiseConvolutionImplicitGemm_v1r1_chwn_cyxk_khwn
-#elif 0
-            GridwiseConvolutionImplicitGemm_v1r2_chwn_cyxk_khwn
-#elif 0
-            GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
-#elif 1
-            GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
-#endif
-            <GridSize,
-             BlockSize,
-             T,
-             decltype(in_chwn_desc),
-             decltype(wei_cyxk_desc),
-             decltype(out_khwn_desc),
-             NPerBlock,
-             KPerBlock,
-             CPerBlock,
-             HoPerBlock,
-             WoPerBlock,
-             NPerThread,
-             KPerThread,
-             HoPerThread,
-             WoPerThread,
-             GemmMPerThreadSubC,
-             GemmNPerThreadSubC,
-             GemmMLevel0Cluster,
-             GemmNLevel0Cluster,
-             GemmMLevel1Cluster,
-             GemmNLevel1Cluster,
-             GemmKPerThreadLoop,
-             GemmDataPerReadA,
-             GemmDataPerReadB,
-             InBlockCopySubLengths_CHWN,
-             InBlockCopyClusterLengths_CHWN,
-             InBlockCopyDataPerAccess_N,
-             WeiBlockCopySubLengths_CK,
-             WeiBlockCopyClusterLengths_CK,
-             WeiBlockCopyDataPerAccess_K,
-             OutThreadCopyDataPerAccess_N>{};
-
         float time = launch_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
                                    dim3(GridSize),
                                    dim3(BlockSize),

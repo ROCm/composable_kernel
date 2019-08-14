@@ -10,6 +10,7 @@
 #include "host_conv.hpp"
 #include "device_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hpp"
+#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded.hpp"
 //#include "device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hpp"
 //#include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
@@ -71,7 +72,7 @@ int main(int argc, char* argv[])
 {
     using namespace ck;
 
-#if 1
+#if 0
     constexpr index_t N  = 64;
     constexpr index_t C  = 1536;
     constexpr index_t HI = 8;
@@ -367,9 +368,19 @@ int main(int argc, char* argv[])
 #if 0
     device_convolution_direct_v2_nchw_kcyx_nkhw
         (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(
         in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
+#elif 1
+    device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded(in_nchw_desc,
+                                                              in_nchw,
+                                                              wei_kcyx_desc,
+                                                              wei_kcyx,
+                                                              out_nkhw_desc,
+                                                              out_nkhw_device,
+                                                              lower_pads,
+                                                              upper_pads,
+                                                              nrepeat);
 #elif 0
     device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(
         in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
@@ -419,16 +430,6 @@ int main(int argc, char* argv[])
                                                          ConvStrides{},
                                                          ConvDilations{},
                                                          nrepeat);
-#elif 0
-    device_implicit_gemm_convolution_1_chwn_cyxk_khwn_padded(in_nchw_desc,
-                                                             in_nchw,
-                                                             wei_kcyx_desc,
-                                                             wei_kcyx,
-                                                             out_nkhw_desc,
-                                                             out_nkhw_device,
-                                                             lower_pads,
-                                                             upper_pads,
-                                                             nrepeat);
 #endif
 
     if(do_verification)

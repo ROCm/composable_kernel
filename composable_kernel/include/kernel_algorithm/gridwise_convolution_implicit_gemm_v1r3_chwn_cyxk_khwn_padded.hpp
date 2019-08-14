@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN_LDS_DOUBLE_BUFFER_HPP
-#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN_LDS_DOUBLE_BUFFER_HPP
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN_PADDED_HPP
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN_PADDED_HPP
 
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
@@ -16,6 +16,8 @@ template <index_t GridSize,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
+          class LowerPads,
+          class UpperPads,
           index_t NPerBlock,
           index_t KPerBlock,
           index_t CPerBlock,
@@ -41,7 +43,7 @@ template <index_t GridSize,
           class WeiBlockCopyClusterLengths_CK,
           index_t WeiBlockCopyDataPerAccess_K,
           index_t OutThreadCopyDataPerAccess_N>
-struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
+struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -75,7 +77,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         constexpr index_t X = wei_c_y_x_k_global_desc.GetLength(I2);
 
         // divide block work: [K, Ho, Wo, N]
-        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % (2 * CPerBlock) == 0 &&
+        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 &&
                           Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
                       "wrong! cannot evenly divide work for workgroup ");
 
@@ -202,9 +204,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         constexpr index_t in_block_space  = in_c_h_w_n_block_desc.GetElementSpace();
         constexpr index_t wei_block_space = wei_c_k_block_desc.GetElementSpace();
 
-        // LDS double buffer
-        __shared__ Float p_in_block_double[2 * in_block_space];
-        __shared__ Float p_wei_block_double[2 * wei_block_space];
+        __shared__ Float p_in_block[in_block_space];
+        __shared__ Float p_wei_block[wei_block_space];
 
         // register
         // C++ lambda doesn't capture array, use pointer instead
@@ -224,7 +225,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         }
 #endif
 
-        // set threadwise output to 0
+        // set threadwise output tensor to 0
         threadwise_matrix_set_zero(c_k_wn_thread_mtx_desc, p_out_thread);
 
         for(index_t y = 0; y < Y; ++y)
@@ -240,100 +241,22 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                     p_wei_global +
                     wei_c_y_x_k_global_desc.GetOffsetFromMultiIndex(0, y, x, k_block_data_begin);
 
-                // LDS double buffer: preload data into LDS
+                for(index_t c_block_data_begin = 0; c_block_data_begin < C;
+                    c_block_data_begin += CPerBlock,
+                            p_in_global_block_offset +=
+                            CPerBlock * in_c_h_w_n_global_desc.GetStride(I0),
+                            p_wei_global_block_offset +=
+                            CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
                 {
-                    Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
-                    Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
+                    blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
 
-                    blockwise_in_copy.RunLoadRegisterBuffer(p_in_global_block_offset,
-                                                            p_in_register_buffer);
-                    blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global_block_offset,
-                                                             p_wei_register_buffer);
-
-                    blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer,
-                                                             p_in_block_double);
-                    blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
-                                                              p_wei_block_double);
-                }
-
-                // LDS double buffer: main body
-                for(index_t c_block_data_begin = 0; c_block_data_begin + 2 * CPerBlock < C;
-                    c_block_data_begin += 2 * CPerBlock)
-                {
-#pragma unroll
-                    for(index_t iloop = 0; iloop < 2; ++iloop)
-                    {
-                        const bool even_loop = (iloop % 2 == 0);
-
-                        Float* p_in_block_now =
-                            even_loop ? p_in_block_double : p_in_block_double + in_block_space;
-                        Float* p_wei_block_now =
-                            even_loop ? p_wei_block_double : p_wei_block_double + wei_block_space;
-
-                        Float* p_in_block_next =
-                            even_loop ? p_in_block_double + in_block_space : p_in_block_double;
-                        Float* p_wei_block_next =
-                            even_loop ? p_wei_block_double + wei_block_space : p_wei_block_double;
-
-                        Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
-                        Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
-
-                        p_in_global_block_offset +=
-                            CPerBlock * in_c_h_w_n_global_desc.GetStride(I0);
-                        p_wei_global_block_offset +=
-                            CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0);
-
-                        __syncthreads();
-
-                        // LDS doubel buffer: load next data from device mem
-                        blockwise_in_copy.RunLoadRegisterBuffer(p_in_global_block_offset,
-                                                                p_in_register_buffer);
-                        blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global_block_offset,
-                                                                 p_wei_register_buffer);
-
-                        blockwise_batch_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
-
-                        // LDS double buffer: store next data to LDS
-                        blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer,
-                                                                 p_in_block_next);
-                        blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
-                                                                  p_wei_block_next);
-                    }
-                }
-
-                // LDS double buffer: tail
-                {
-                    Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
-                    Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
-
-                    // even iteration
-                    p_in_global_block_offset += CPerBlock * in_c_h_w_n_global_desc.GetStride(I0);
-                    p_wei_global_block_offset += CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0);
+                    blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
 
                     __syncthreads();
 
-                    // LDS doubel buffer: load next data from device mem
-                    blockwise_in_copy.RunLoadRegisterBuffer(p_in_global_block_offset,
-                                                            p_in_register_buffer);
-                    blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global_block_offset,
-                                                             p_wei_register_buffer);
+                    blockwise_batch_gemm.Run(p_wei_block, p_in_block, p_out_thread);
 
-                    // LDS double buffer: GEMM on current data
-                    blockwise_batch_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
-
-                    // LDS double buffer: store next data to LDS
-                    blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer,
-                                                             p_in_block_double + in_block_space);
-                    blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
-                                                              p_wei_block_double + wei_block_space);
-
-                    // odd iteration
                     __syncthreads();
-
-                    // LDS double buffer: GEMM on current data
-                    blockwise_batch_gemm.Run(p_wei_block_double + wei_block_space,
-                                             p_in_block_double + in_block_space,
-                                             p_out_thread);
                 }
             }
         }
