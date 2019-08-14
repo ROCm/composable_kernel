@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN
-#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN_HPP
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN_HPP
 
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
@@ -79,21 +79,21 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn
                           Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
                       "wrong! cannot evenly divide work for workgroup ");
 
-        constexpr index_t NBlockWork = math::integer_divide_ceil(N, NPerBlock);
         constexpr index_t KBlockWork = math::integer_divide_ceil(K, KPerBlock);
         constexpr index_t HBlockWork = math::integer_divide_ceil(Ho, HoPerBlock);
         constexpr index_t WBlockWork = math::integer_divide_ceil(Wo, WoPerBlock);
+        constexpr index_t NBlockWork = math::integer_divide_ceil(N, NPerBlock);
 
         constexpr auto block_work_desc = make_ConstantTensorDescriptor_packed(
-            Sequence<NBlockWork, KBlockWork, HBlockWork, WBlockWork>{});
+            Sequence<KBlockWork, HBlockWork, WBlockWork, NBlockWork>{});
 
         const auto block_work_multi_id =
             block_work_desc.GetMultiIndexFrom1dIndex(get_block_1d_id());
 
-        const index_t n_block_data_begin  = block_work_multi_id[0] * NPerBlock;
-        const index_t k_block_data_begin  = block_work_multi_id[1] * KPerBlock;
-        const index_t ho_block_data_begin = block_work_multi_id[2] * HoPerBlock;
-        const index_t wo_block_data_begin = block_work_multi_id[3] * WoPerBlock;
+        const index_t k_block_data_begin  = block_work_multi_id[0] * KPerBlock;
+        const index_t ho_block_data_begin = block_work_multi_id[1] * HoPerBlock;
+        const index_t wo_block_data_begin = block_work_multi_id[2] * WoPerBlock;
+        const index_t n_block_data_begin  = block_work_multi_id[3] * NPerBlock;
 
         const index_t hi_block_data_begin = ho_block_data_begin;
         const index_t wi_block_data_begin = wo_block_data_begin;
