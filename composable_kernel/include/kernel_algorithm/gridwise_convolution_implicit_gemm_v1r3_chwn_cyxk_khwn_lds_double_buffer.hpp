@@ -77,11 +77,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         constexpr index_t HiPerBlock = HoPerBlock + Y - 1;
         constexpr index_t WiPerBlock = WoPerBlock + X - 1;
 
-        // assert for LDS double buffer
-        static_assert(C % (2 * CPerBlock) == 0, "C cannot be evenly divided");
-
         // divide block work: [K, Ho, Wo, N]
-        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % CPerBlock == 0 &&
+        static_assert(N % NPerBlock == 0 && K % KPerBlock == 0 && C % (2 * CPerBlock) == 0 &&
                           Ho % HoPerBlock == 0 && Wo % WoPerBlock == 0,
                       "wrong! cannot evenly divide work for workgroup ");
 
@@ -132,37 +129,46 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         // blockwise copy
         // input: format is [C, Hi, Wi, N]
         auto blockwise_in_copy =
-            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
-                                               decltype(in_c_h_w_n_global_desc),
-                                               decltype(in_c_h_w_n_block_desc),
-                                               decltype(in_c_h_w_n_block_desc.GetLengths()),
-                                               InBlockCopySubLengths_CHWN,
-                                               InBlockCopyClusterLengths_CHWN,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               3,
-                                               3,
-                                               InBlockCopyDataPerAccess_N,
-                                               InBlockCopyDataPerAccess_N>({0, 0, 0, 0},
-                                                                           {0, 0, 0, 0});
+#if 0
+            BlockwiseGenericTensorSliceCopy_v1
+#else
+            BlockwiseGenericTensorSliceCopy_v2
+#endif
+            <BlockSize,
+             decltype(in_c_h_w_n_global_desc),
+             decltype(in_c_h_w_n_block_desc),
+             decltype(in_c_h_w_n_block_desc.GetLengths()),
+             InBlockCopySubLengths_CHWN,
+             InBlockCopyClusterLengths_CHWN,
+             Sequence<0, 1, 2, 3>,
+             Sequence<0, 1, 2, 3>,
+             Sequence<0, 1, 2, 3>,
+             3,
+             3,
+             InBlockCopyDataPerAccess_N,
+             InBlockCopyDataPerAccess_N>({0, 0, 0, 0}, {0, 0, 0, 0});
 
         // blockwise wei copy
         //   format is [CPerBlock, X * KPerBlock]
         const auto blockwise_wei_copy =
-            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
-                                               decltype(wei_c_k_global_desc),
-                                               decltype(wei_c_k_block_desc),
-                                               decltype(wei_c_k_block_desc.GetLengths()),
-                                               WeiBlockCopySubLengths_CK,
-                                               WeiBlockCopyClusterLengths_CK,
-                                               Sequence<0, 1>,
-                                               Sequence<0, 1>,
-                                               Sequence<0, 1>,
-                                               1,
-                                               1,
-                                               WeiBlockCopyDataPerAccess_K,
-                                               WeiBlockCopyDataPerAccess_K>({0, 0}, {0, 0});
+#if 0
+            BlockwiseGenericTensorSliceCopy_v1
+#else
+            BlockwiseGenericTensorSliceCopy_v2
+#endif
+            <BlockSize,
+             decltype(wei_c_k_global_desc),
+             decltype(wei_c_k_block_desc),
+             decltype(wei_c_k_block_desc.GetLengths()),
+             WeiBlockCopySubLengths_CK,
+             WeiBlockCopyClusterLengths_CK,
+             Sequence<0, 1>,
+             Sequence<0, 1>,
+             Sequence<0, 1>,
+             1,
+             1,
+             WeiBlockCopyDataPerAccess_K,
+             WeiBlockCopyDataPerAccess_K>({0, 0}, {0, 0});
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
