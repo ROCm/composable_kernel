@@ -229,7 +229,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t HPad = 0;
     constexpr index_t WPad = 0;
-#elif 1
+#elif 0
     // 3x3 filter, 2x2 stride, 35x35 input, 17x17 output
     // cudnn@V100 90%, ck@V100 93%, ck@P100 83%, ck@VII 81%
     constexpr index_t N  = 128;

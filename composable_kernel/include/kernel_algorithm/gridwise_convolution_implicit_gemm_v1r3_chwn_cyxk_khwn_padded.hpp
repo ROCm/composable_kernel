@@ -128,7 +128,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
         // blockwise copy
         // input: format is [C, Hi, Wi, N]
         auto blockwise_in_copy =
-            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
+            BlockwiseGenericTensorSliceCopy_v2<BlockSize,
                                                decltype(in_c_h_w_n_global_desc),
                                                decltype(in_c_h_w_n_block_desc),
                                                decltype(in_c_h_w_n_block_desc.GetLengths()),
@@ -144,9 +144,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                                                                            {0, 0, 0, 0});
 
         // blockwise wei copy
-        //   format is [CPerBlock, X * KPerBlock]
+        //   format is [CPerBlock, KPerBlock]
         const auto blockwise_wei_copy =
-            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
+            BlockwiseGenericTensorSliceCopy_v2<BlockSize,
                                                decltype(wei_c_k_global_desc),
                                                decltype(wei_c_k_block_desc),
                                                decltype(wei_c_k_block_desc.GetLengths()),
@@ -212,19 +212,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
         Float p_out_thread_data[out_k_h_w_n_thread_desc.GetElementSpace()];
         Float* const p_out_thread = p_out_thread_data;
 
-#if 0
-        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-        {
-            print_ConstantTensorDescriptor(in_c_h_w_n_global_desc, "in_c_h_w_n_global_desc");
-            print_ConstantTensorDescriptor(wei_c_y_x_k_global_desc, "wei_c_y_x_k_global_desc");
-
-            print_ConstantTensorDescriptor(in_c_h_w_n_block_desc, "in_c_h_w_n_block_desc");
-            print_ConstantTensorDescriptor(wei_c_x_k_block_desc, "wei_c_x_k_block_desc");
-
-            printf("in_block_space %u, wei_block_space %u\n", in_block_space, wei_block_space);
-        }
-#endif
-
         // set threadwise output tensor to 0
         threadwise_matrix_set_zero(c_k_wn_thread_mtx_desc, p_out_thread);
 
@@ -249,7 +236,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                             CPerBlock * wei_c_y_x_k_global_desc.GetStride(I0))
                 {
                     blockwise_in_copy.Run(p_in_global_block_offset, p_in_block);
-
                     blockwise_wei_copy.Run(p_wei_global_block_offset, p_wei_block);
 
                     __syncthreads();
@@ -298,19 +284,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                                                      .Fold(I3, Number<1>{}, Number<N2>{})
                                                      .Fold(I2, Number<W1>{}, Number<1>{})
                                                      .Fold(I0, Number<1>{}, Number<K2>{});
-
-#if 0
-            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-            {
-                print_ConstantTensorDescriptor(out_k_h_w_n_thread_desc,
-                                               "a: out_k_h_w_n_thread_desc");
-                print_ConstantTensorDescriptor(out_10d_thread_desc, "a: out_10d_thread_desc");
-
-                print_ConstantTensorDescriptor(out_k_h_w_n_global_desc,
-                                               "a: out_k_h_w_n_global_desc");
-                print_ConstantTensorDescriptor(out_10d_global_desc, "a: out_10d_global_desc");
-            }
-#endif
 
             Float* p_out_thread_on_global = p_out_global +
                                             out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
@@ -368,19 +341,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                     .Fold(I3, Number<N1>{})
                     .Fold(I2, Number<W1>{}, Number<1>{}, Number<W3>{})
                     .Fold(I0, Number<1>{}, Number<K2>{});
-
-#if 0
-            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-            {
-                print_ConstantTensorDescriptor(out_k_h_w_n_thread_desc,
-                                               "b: out_k_h_w_n_thread_desc");
-                print_ConstantTensorDescriptor(out_10d_thread_desc, "b: out_10d_thread_desc");
-
-                print_ConstantTensorDescriptor(out_k_h_w_n_global_desc,
-                                               "b: out_k_h_w_n_global_desc");
-                print_ConstantTensorDescriptor(out_10d_global_desc, "b: out_10d_global_desc");
-            }
-#endif
 
             Float* p_out_thread_on_global = p_out_global +
                                             out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(

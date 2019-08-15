@@ -81,9 +81,9 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded(InDesc,
 
 #if 1
     // v1r3, 3x3, 32x32, 1x1 pad
-    constexpr index_t BlockSize = 128;
+    constexpr index_t BlockSize = 256;
 
-    constexpr index_t NPerBlock  = 16;
+    constexpr index_t NPerBlock  = 32;
     constexpr index_t KPerBlock  = 128;
     constexpr index_t CPerBlock  = 8;
     constexpr index_t HoPerBlock = 2;
@@ -97,7 +97,7 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded(InDesc,
     constexpr index_t GemmMPerThreadSubC = 4;
     constexpr index_t GemmNPerThreadSubC = 4;
     constexpr index_t GemmMLevel0Cluster = 4;
-    constexpr index_t GemmNLevel0Cluster = 2;
+    constexpr index_t GemmNLevel0Cluster = 4;
     constexpr index_t GemmMLevel1Cluster = 4;
     constexpr index_t GemmNLevel1Cluster = 2;
     constexpr index_t GemmKPerThreadLoop = 1;
@@ -105,14 +105,14 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded(InDesc,
     constexpr index_t GemmDataPerReadB   = 4;
 
     using InBlockCopySubLengths_CHWN             = Sequence<1, 1, 1, 4>;
-    using InBlockCopyClusterLengths_CHWN         = Sequence<8, 2, 2, 4>;
+    using InBlockCopyClusterLengths_CHWN         = Sequence<8, 2, 2, 8>;
     constexpr index_t InBlockCopyDataPerAccess_N = 4;
 
-    using WeiBlockCopySubLengths_CK               = Sequence<2, 4>;
-    using WeiBlockCopyClusterLengths_CK           = Sequence<4, 32>;
+    using WeiBlockCopySubLengths_CK               = Sequence<1, 4>;
+    using WeiBlockCopyClusterLengths_CK           = Sequence<8, 32>;
     constexpr index_t WeiBlockCopyDataPerAccess_K = 4;
 
-    constexpr index_t OutThreadCopyDataPerAccess_N = 2;
+    constexpr index_t OutThreadCopyDataPerAccess_N = 4;
 #endif
 
     constexpr index_t GridSize =
