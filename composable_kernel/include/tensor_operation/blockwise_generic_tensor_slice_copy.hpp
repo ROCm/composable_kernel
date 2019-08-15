@@ -417,6 +417,8 @@ struct BlockwiseGenericTensorSliceCopy_v1
     }
 };
 
+// Slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
+// memory layout (ordering of dimensions) can be different between src and dst.
 template <index_t BlockSize,
           class SrcDesc,
           class DstDesc,
@@ -510,7 +512,7 @@ struct BlockwiseGenericTensorSliceCopy_v2
     MoveDstSlicingWindow(T step_sizes,
                          integral_constant<bool, PositiveDirection> positive_direction)
     {
-        mThreadwiseLoad.MoveDstSlicingWindow(step_sizes, positive_direction);
+        mThreadwiseStore.MoveDstSlicingWindow(step_sizes, positive_direction);
     }
 
     private:
