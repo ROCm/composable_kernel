@@ -125,8 +125,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
-        // blockwise copy
-        // input: format is [C, Hi, Wi, N]
+        // blockwise input copy
+        //   format is [C, Hi, Wi, N]
         auto blockwise_in_copy =
             BlockwiseGenericTensorSliceCopy_v2<BlockSize,
                                                decltype(in_c_h_w_n_global_desc),
