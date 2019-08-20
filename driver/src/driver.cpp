@@ -72,9 +72,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck;
 
-#if 0
+#if 1
     constexpr index_t N  = 64;
-    constexpr index_t C  = 1536;
+    constexpr index_t C  = 8;
     constexpr index_t HI = 8;
     constexpr index_t WI = 8;
     constexpr index_t K  = 256;

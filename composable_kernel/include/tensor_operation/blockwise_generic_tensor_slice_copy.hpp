@@ -5,6 +5,7 @@
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
 #include "tensor_coordinate.hpp"
+#include "tensor_view.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
 
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
@@ -442,12 +443,13 @@ struct BlockwiseGenericTensorSliceCopy_v2
     __device__ constexpr BlockwiseGenericTensorSliceCopy_v2(SrcCoordinate src_block_slice_origin,
                                                             DstCoordinate dst_block_slice_origin)
     {
-        static_assert(nDim == SrcDesc::GetNumOfDimension() &&
-                          nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::GetSize() &&
-                          nDim == SubLengths::GetSize() &&
-                          nDim == ThreadClusterLengths::GetSize() &&
-                          nDim == ThreadClusterArrangeOrder::GetSize(),
-                      "wrong! nDim not consistent");
+        static_assert(
+            nDim == SrcDesc::GetNumOfDimension() && nDim == DstDesc::GetNumOfDimension() &&
+                nDim == SliceLengths::GetSize() && nDim == SubLengths::GetSize() &&
+                nDim == ThreadClusterLengths::GetSize() &&
+                nDim == ThreadClusterArrangeOrder::GetSize() &&
+                nDim == SrcDimAccessOrder::GetSize() && nDim == DstDimAccessOrder::GetSize(),
+            "wrong! nDim not consistent");
 
         static_assert(is_same<SliceLengths, decltype(SubLengths{} * ThreadClusterLengths{})>{},
                       "wrong! threads should be mapped to cover entire slicing window");
@@ -537,6 +539,129 @@ struct BlockwiseGenericTensorSliceCopy_v2
                                                                   DstVectorAccessDim,
                                                                   1,
                                                                   DstDataPerAccess>;
+
+    ThreadwiseLoad mThreadwiseLoad;
+    ThreadwiseStore mThreadwiseStore;
+};
+
+template <index_t BlockSize,
+          class SrcTensor,
+          class DstTensor,
+          class SliceLengths,
+          class SubLengths,
+          class ThreadClusterLengths,
+          class ThreadClusterArrangeOrder,
+          class SrcDimAccessOrder,
+          class DstDimAccessOrder,
+          index_t SrcVectorAccessDim,
+          index_t DstVectorAccessDim,
+          index_t SrcDataPerAccess,
+          index_t DstDataPerAccess>
+struct BlockwiseGenericTensorSliceCopy_v3
+{
+    static constexpr index_t nDim = SrcTensor::GetNumOfDimension();
+    using data_type               = remove_cv_t<typename SrcTensor::data_type>;
+
+    using SrcCoordinate = typename SrcTensor::coordinate_type;
+    using DstCoordinate = typename DstTensor::coordinate_type;
+
+    __device__ constexpr BlockwiseGenericTensorSliceCopy_v3(SrcTensor src_block,
+                                                            SrcCoordinate src_block_slice_origin,
+                                                            DstTensor dst_block,
+                                                            DstCoordinate dst_block_slice_origin)
+        : mThreadBuffer{make_TensorView(ThreadBufferDesc{}, mpBuffer)}
+    {
+        static_assert(
+            nDim == SrcTensor::GetNumOfDimension() && nDim == DstTensor::GetNumOfDimension() &&
+                nDim == SliceLengths::GetSize() && nDim == SubLengths::GetSize() &&
+                nDim == ThreadClusterLengths::GetSize() &&
+                nDim == ThreadClusterArrangeOrder::GetSize() &&
+                nDim == SrcDimAccessOrder::GetSize() && nDim == DstDimAccessOrder::GetSize(),
+            "wrong! nDim not consistent");
+
+        static_assert(is_same<SliceLengths, decltype(SubLengths{} * ThreadClusterLengths{})>{},
+                      "wrong! threads should be mapped to cover entire slicing window");
+
+        static_assert(is_same<remove_cv_t<typename SrcTensor::data_type>,
+                              remove_cv_t<typename DstTensor::data_type>>{},
+                      "wrong! type conversion not supported yet");
+
+        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor_packed(
+            ThreadClusterLengths::ReorderGivenNew2Old(ThreadClusterArrangeOrder{}));
+
+        static_assert(BlockSize == thread_cluster_desc.GetElementSize(),
+                      "wrong! BlockSize not consistent with ThreadClusterLengths");
+
+        const auto thread_cluster_id =
+            thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
+
+        const auto data_cluster_id =
+            reorder_array_given_old2new(thread_cluster_id, ThreadClusterArrangeOrder{});
+
+        const auto thread_data_id_begin = data_cluster_id * SubLengths{};
+
+        mThreadwiseLoad = ThreadwiseLoad(src_block,
+                                         src_block_slice_origin + thread_data_id_begin,
+                                         mThreadBuffer,
+                                         make_zero_array<index_t, nDim>());
+
+        mThreadwiseStore = ThreadwiseStore(mThreadBuffer,
+                                           make_zero_array<index_t, nDim>(),
+                                           dst_block,
+                                           dst_block_slice_origin + thread_data_id_begin);
+    }
+
+    __device__ void RunLoadRegisterBuffer() { mThreadwiseLoad.Run(); }
+
+    __device__ void RunStoreRegisterBuffer() const { mThreadwiseStore.Run(); }
+
+    __device__ void Run()
+    {
+        mThreadwiseLoad.Run();
+        mThreadwiseStore.Run();
+    }
+
+    template <class T, bool PositiveDirection>
+    __device__ void
+    MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
+    {
+        mThreadwiseLoad.MoveSrcSliceWindow(step_sizes, positive_direction);
+    }
+
+    template <class T, bool PositiveDirection>
+    __device__ void
+    MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
+    {
+        mThreadwiseStore.MoveDstSliceWindow(step_sizes, positive_direction);
+    }
+
+    private:
+    using ThreadBufferDesc   = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
+    using ThreadBufferTensor = NormalTensorView<ThreadBufferDesc, data_type>;
+
+    using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v3<SrcTensor,
+                                                               ThreadBufferTensor,
+                                                               SubLengths,
+                                                               SrcDimAccessOrder,
+                                                               SrcDimAccessOrder,
+                                                               SrcVectorAccessDim,
+                                                               SrcVectorAccessDim,
+                                                               SrcDataPerAccess,
+                                                               1>;
+
+    using ThreadwiseStore = ThreadwiseGenericTensorSliceCopy_v3<ThreadBufferTensor,
+                                                                DstTensor,
+                                                                SubLengths,
+                                                                DstDimAccessOrder,
+                                                                DstDimAccessOrder,
+                                                                DstVectorAccessDim,
+                                                                DstVectorAccessDim,
+                                                                1,
+                                                                DstDataPerAccess>;
+
+    data_type mpBuffer[ThreadBufferDesc::GetElementSpace()];
+
+    ThreadBufferTensor mThreadBuffer;
 
     ThreadwiseLoad mThreadwiseLoad;
     ThreadwiseStore mThreadwiseStore;

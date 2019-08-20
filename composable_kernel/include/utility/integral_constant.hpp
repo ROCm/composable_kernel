@@ -23,6 +23,9 @@ struct is_same<X, X> : public integral_constant<bool, true>
 {
 };
 
+template <class T>
+using remove_cv_t = typename std::remove_cv<T>::type;
+
 template <index_t N>
 using Number = integral_constant<index_t, N>;
 

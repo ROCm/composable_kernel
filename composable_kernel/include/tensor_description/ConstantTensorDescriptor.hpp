@@ -204,7 +204,7 @@ struct ConstantTensorDescriptor
     }
 
     // This function doesn't do carry check on the highest dimension for positive stepping (or
-    // borrow check on the lowest dimension for negative stepping) , for performance reason. It is
+    // borrow check on the highest dimension for negative stepping) , for performance reason. It is
     // the user's responsibility to make sure the result "new_mutli_id" is not out-of-bound on the
     // highest dimension for positive stepping (or on the lowest dimension for negative stepping)
     template <bool PositiveDirection>
@@ -304,12 +304,71 @@ struct ConstantTensorDescriptor
                                             GetStrides().PushBack(leaf_tensor::GetStrides()))>{};
     }
 
+    template <index_t IDimVector, index_t DataPerVector>
+    struct lambda_IsVectorizationAllowed
+    {
+        bool& is_allowed;
+
+        __host__ __device__ constexpr lambda_IsVectorizationAllowed(bool& is_allowed_)
+            : is_allowed(is_allowed_)
+        {
+        }
+
+        template <index_t IDim_>
+        __host__ __device__ constexpr void operator()(Number<IDim_>) const
+        {
+            constexpr auto IDim = Number<IDim_>{};
+
+            if(IDimVector != IDim && Strides::Get(IDim) % DataPerVector != 0)
+            {
+                is_allowed = false;
+            }
+        }
+    };
+
+    template <index_t IDimVector, index_t DataPerVector>
+    __host__ __device__ static constexpr bool IsVectorizationAllowed(Number<IDimVector>,
+                                                                     Number<DataPerVector>)
+    {
+        bool is_allowed = (Strides{}[IDimVector] == 1 || DataPerVector == 1) &&
+                          Lengths{}[IDimVector] % DataPerVector == 0;
+
+        static_for<0, nDim, 1>{}(
+            lambda_IsVectorizationAllowed<IDimVector, DataPerVector>{is_allowed});
+
+        return is_allowed;
+    }
+
+    template <index_t IDim, index_t DataPerVector>
+    __host__ __device__ static constexpr auto Vectorize(Number<IDim>, Number<DataPerVector>)
+    {
+        constexpr auto idim            = Number<IDim>{};
+        constexpr auto data_per_vector = Number<DataPerVector>{};
+
+        static_assert(IsVectorizationAllowed(idim, data_per_vector), "wrong!");
+
+        using vectorized_lengths =
+            decltype(Lengths::Modify(Number<IDim>{}, Number<Lengths{}[IDim] / DataPerVector>{}));
+        using vectorized_strides =
+            decltype((Strides{} / Number<DataPerVector>{}).Modify(Number<IDim>{}, Number<1>{}));
+
+        return ConstantTensorDescriptor<vectorized_lengths, vectorized_strides>{};
+    }
+
     template <index_t IDim, index_t SliceLen>
     __host__ __device__ static constexpr auto Slice(Number<IDim>, Number<SliceLen>)
     {
-        using slice_lengths = decltype(Lengths{}.Modify(Number<IDim>{}, Number<SliceLen>{}));
+        using slice_lengths = decltype(Lengths::Modify(Number<IDim>{}, Number<SliceLen>{}));
 
         return ConstantTensorDescriptor<slice_lengths, Strides>{};
+    }
+
+    template <index_t... Is>
+    __host__ __device__ static constexpr auto Slice(Sequence<Is...> slice_lengths)
+    {
+        static_assert(slice_lengths.GetSize() == nDim, "wrong!");
+
+        return ConstantTensorDescriptor<decltype(slice_lengths), Strides>{};
     }
 
     template <index_t IDim, index_t SliceLength, index_t SliceStride>
