@@ -7,6 +7,7 @@
 
 namespace ck {
 
+// TensorDesc is ConstantTensorDescriptor
 template <class TensorDesc>
 struct NormalTensorCoordinate
 {
@@ -23,6 +24,12 @@ struct NormalTensorCoordinate
     template <class... Xs>
     __host__ __device__ constexpr NormalTensorCoordinate(Xs... xs)
         : NormalTensorCoordinate(Array<index_t, nDim>{xs...})
+    {
+    }
+
+    template <index_t... Xs>
+    __host__ __device__ constexpr NormalTensorCoordinate(Sequence<Xs...>)
+        : NormalTensorCoordinate(Array<index_t, nDim>{Xs...})
     {
     }
 
@@ -87,6 +94,7 @@ struct NormalTensorCoordinate
     index_t mOffset;
 };
 
+// TensorDesc is ConstantMergedTensorDescriptor
 template <class TensorDesc>
 struct MergedTensorCoordinate
 {
@@ -235,6 +243,8 @@ struct MergedTensorCoordinate
         static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
 
         static_for<0, nDim, 1>{}([&](auto idim) {
+            // compiler should remove dead code path, because step_sizes is known at
+            // compile time
             if(step_sizes[idim] != 0)
             {
                 this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, true>{});
@@ -250,6 +260,8 @@ struct MergedTensorCoordinate
         static_assert(is_same<typename T::data_type, index_t>{} && T::GetSize() == nDim, "wrong!");
 
         static_for<0, nDim, 1>{}([&](auto idim) {
+            // compiler should remove dead code path, because step_sizes is known at
+            // compile time
             if(step_sizes[idim] != 0)
             {
                 this->MoveOnDimension(idim, step_sizes[idim], integral_constant<bool, false>{});
@@ -287,7 +299,7 @@ struct MergedTensorCoordinate
     // arithmetic after construction of TensorCoordinate.
     // TODO: refactor TensorCoordinate, after introducing the concept of "dimensions"
     // and simplify implementation of ConstantMergedTensorDescriptor, so we don't need to
-    // count on compiler to optimize way those register memory for us
+    // count on compiler to optimize away those register memory for us
     Array<index_t, nOriginalDim> mOriginalIndex;
     Array<index_t, nDim> mPartialOffsets;
 

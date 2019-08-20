@@ -14,7 +14,7 @@ struct vector_type
 template <>
 struct vector_type<float, 1>
 {
-    typedef float MemoryType;
+    using MemoryType = float;
 
     template <index_t I>
     __host__ __device__ static void SetScalar(MemoryType& v, float s, Number<I>)
@@ -62,6 +62,24 @@ struct vector_type<float, 4>
         static_assert(I < 4, "wrong");
         *(reinterpret_cast<float*>(&v) + I) = s;
     }
+};
+
+template <>
+struct vector_type<const float, 1>
+{
+    using MemoryType = const float;
+};
+
+template <>
+struct vector_type<const float, 2>
+{
+    using MemoryType = const float2_t;
+};
+
+template <>
+struct vector_type<const float, 4>
+{
+    using MemoryType = const float4_t;
 };
 
 } // namespace ck
