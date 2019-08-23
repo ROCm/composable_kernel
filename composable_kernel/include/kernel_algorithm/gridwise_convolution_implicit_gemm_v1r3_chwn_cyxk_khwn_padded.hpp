@@ -138,7 +138,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
         constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
-#if 0
+#if 1
         // blockwise input copy
         //   format is [C, Hi, Wi, N]
         auto blockwise_in_copy =
@@ -180,7 +180,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                 {0, 0, 0, 0});
 #endif
 
-#if 0
+#if 1
         // blockwise wei copy
         //   format is [CPerBlock, KPerBlock]
         const auto blockwise_wei_copy =
@@ -278,7 +278,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
         // set threadwise output tensor to 0
         threadwise_matrix_set_zero(c_k_wn_thread_mtx_desc, p_out_thread);
 
-#if 0
+#if 1
         for(index_t y = 0; y < Y; ++y)
         {
             for(index_t x = 0; x < X; ++x)
@@ -318,10 +318,8 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                 for(index_t c_block_data_begin = 0; c_block_data_begin < C;
                     c_block_data_begin += CPerBlock)
                 {
-#if 1 // debug
                     blockwise_in_copy.Run();
                     blockwise_wei_copy.Run();
-#endif
 
                     __syncthreads();
 

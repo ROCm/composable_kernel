@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
 
 #if 1
     constexpr index_t N  = 64;
-    constexpr index_t C  = 8;
+    constexpr index_t C  = 1536;
     constexpr index_t HI = 8;
     constexpr index_t WI = 8;
     constexpr index_t K  = 256;
@@ -368,7 +368,7 @@ int main(int argc, char* argv[])
 #if 0
     device_convolution_direct_v2_nchw_kcyx_nkhw
         (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v1_chwn_cyxk_khwn(
         in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
 #elif 1
