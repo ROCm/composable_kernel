@@ -4,6 +4,7 @@
 #include "config.hpp"
 #include "utility.hpp"
 #include "integral_constant.hpp"
+#include "tuple.hpp"
 #include "math.hpp"
 #include "vector_type.hpp"
 #include "Sequence.hpp"
