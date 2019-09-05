@@ -6,6 +6,9 @@
 
 namespace ck {
 
+template <index_t, index_t, index_t>
+struct static_for;
+
 template <index_t...>
 struct Sequence;
 
@@ -294,6 +297,18 @@ struct sequence_reverse<Sequence<I0, I1>>
     using type = Sequence<I1, I0>;
 };
 
+template <class Seq, class Compare>
+struct sequence_sort
+{
+    // not implemented
+};
+
+template <class Seq, class Compare>
+struct sequence_unique_sort
+{
+    // not implemented
+};
+
 template <class Seq>
 struct is_valid_sequence_map
 {
@@ -484,6 +499,35 @@ template <class Seq, class Reduce, index_t Init>
 __host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce, Number<Init>)
 {
     return reverse_inclusive_scan_sequence(Seq{}.Reverse(), Reduce{}, Number<Init>{}).Reverse();
+}
+
+template <class Seq, class Reduce>
+struct lambda_accumulate_on_sequence
+{
+    const Reduce& f;
+    index_t& result;
+
+    __host__ __device__ constexpr lambda_accumulate_on_sequence(const Reduce& f_, index_t& result_)
+        : f(f_), result(result_)
+    {
+    }
+
+    template <class IDim>
+    __host__ __device__ constexpr index_t operator()(IDim) const
+    {
+        return result = f(result, Seq::Get(IDim{}));
+    }
+};
+
+template <class Seq, class Reduce, index_t Init>
+__host__ __device__ constexpr index_t
+accumulate_on_sequence(Seq, Reduce f, Number<Init> /*initial_value*/)
+{
+    index_t result = Init;
+
+    static_for<0, Seq::mSize, 1>{}(lambda_accumulate_on_sequence<Seq, Reduce>(f, result));
+
+    return result;
 }
 
 template <index_t... Xs>

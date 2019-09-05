@@ -37,34 +37,5 @@ struct static_for
     }
 };
 
-template <class Seq, class Reduce>
-struct lambda_accumulate_on_sequence
-{
-    const Reduce& f;
-    index_t& result;
-
-    __host__ __device__ constexpr lambda_accumulate_on_sequence(const Reduce& f_, index_t& result_)
-        : f(f_), result(result_)
-    {
-    }
-
-    template <class IDim>
-    __host__ __device__ constexpr index_t operator()(IDim) const
-    {
-        return result = f(result, Seq::Get(IDim{}));
-    }
-};
-
-template <class Seq, class Reduce, index_t Init>
-__host__ __device__ constexpr index_t
-accumulate_on_sequence(Seq, Reduce f, Number<Init> /*initial_value*/)
-{
-    index_t result = Init;
-
-    static_for<0, Seq::mSize, 1>{}(lambda_accumulate_on_sequence<Seq, Reduce>(f, result));
-
-    return result;
-}
-
 } // namespace ck
 #endif
