@@ -79,6 +79,56 @@ struct Array
     }
 };
 
+// A: Array
+// Picks: Sequence<...>
+template <class Arr, class Picks>
+ArrayElementPicker
+{
+    __host__ __device__ constexpr ArrayElementPicker(Arr & array) : mData{array}
+    {
+        constexpr index_t imax =
+            accumulate_on_sequence(Picks{}, math::maxer<index_t>{}, Number<0>{});
+
+        static_assert(imax < Picks::GetSize(), "wrong! exceeding max id");
+    }
+
+    __host__ __device__ static constexpr index_t GetSize() { return Picks::GetSize(); }
+
+    template <index_t I>
+    __host__ __device__ constexpr TData operator[](Number<I>) const
+    {
+        constexpr auto IP = Picks::Get(Number<I>{});
+        return mData[IP];
+    }
+
+    __host__ __device__ constexpr TData operator[](index_t i) const
+    {
+        constexpr index_t ip = Picks{}[i];
+        return mData[ip];
+    }
+
+    template <index_t I>
+    __host__ __device__ TData& operator()(Number<I>)
+    {
+        constexpr auto IP = Picks::Get(Number<I>{});
+        return mData[IP];
+    }
+
+    __host__ __device__ TData& operator()(index_t i)
+    {
+        constexpr index_t ip = Picks{}[i];
+        return mData[ip];
+    }
+
+    Arr& mData;
+};
+
+template <class Arr, class Picks>
+__host__ __device__ constexpr auto pick_array_element(Arr& a, Picks)
+{
+    return ArrayElementPicker<Arr, Picks>(a);
+}
+
 template <index_t... Is>
 __host__ __device__ constexpr auto sequence2array(Sequence<Is...>)
 {

@@ -32,6 +32,12 @@ struct multiplies
 };
 
 template <class T>
+struct maxer
+{
+    __host__ __device__ constexpr T operator()(T a, T b) const { return a >= b ? a : b; }
+};
+
+template <class T>
 struct integer_divide_ceiler
 {
     __host__ __device__ constexpr T operator()(T a, T b) const
