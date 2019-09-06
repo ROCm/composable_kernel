@@ -11,21 +11,39 @@ template <class... NativeDimensions>
 struct NativeTensorDescriptor
 {
     using type                        = NativeTensorDescriptor;
-    static constexpr auto mDimensions = Tuple<NativeDimensions...>;
-    static constexpr index_t nDim     = mDimensions::GetSize();
+    static constexpr auto mDimensions = Tuple<NativeDimensions...>{};
+    static constexpr index_t nDim     = mDimensions.GetSize();
 
     using Index = MultiIndex<nDim>;
 
     __host__ __device__ static constexpr auto GetNumOfDimension() { return Number<nDim>{}; }
 
+    struct lambda_GetLength
+    {
+        template <class IDim>
+        __host__ __device__ constexpr auto operator()(IDim) const
+        {
+            return GetLength(IDim{});
+        }
+    };
+
     __host__ __device__ static constexpr auto GetLengths()
     {
-        // not implemented
+        return typename sequence_gen<nDim, lambda_GetLength>::type{};
     }
+
+    struct lambda_GetStride
+    {
+        template <class IDim>
+        __host__ __device__ constexpr auto operator()(IDim) const
+        {
+            return GetStride(IDim{});
+        }
+    };
 
     __host__ __device__ static constexpr auto GetStrides()
     {
-        // not implemented
+        return typename sequence_gen<nDim, lambda_GetStride>::type{};
     }
 
     template <index_t IDim>
@@ -59,20 +77,26 @@ struct NativeTensorDescriptor
         return offset_diff;
     }
 
-    __host__ __device__ static constexpr auto AreUpperIndex2OffsetTransformLinear();
+    template <index_t IDim>
+    __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>)
     {
-        // TODO: re-implement "Sequence", so that it can take other data-type (including bool) as
-        // element
-        return uniform_sequence_gen<nDim, 1>{};
+        return true;
     }
 
-    __host__ __device__ static constexpr auto GetIndependentDimensionGroups()
+    __host__ __device__ static constexpr auto GetLinearDimensions()
     {
-        // not implemented, should return Tuple<Sequence<0>, Sequence<1>, ...>
-        return xxx;
+        return typename arithmetic_sequence_gen<0, nDim, 1>::type{};
+    }
+
+    __host__ __device__ static constexpr auto GetNonLinearDimensions() { return Sequence<>{}; }
+
+    __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
+    {
+        return Tuple<>{};
     }
 };
 
+#if 0
 // LowerTensorDescriptor
 // Transforms: std::tuple<DimensionTransforms...>
 // LowerDimensionIds: std::tuple<Sequence<...>>
@@ -213,16 +237,45 @@ struct TransformedTensorDescriptor
         return GetLowerTensorDescriptor().GetOffset(GetLowerIndex(idx_up));
     }
 
-    __host__ __device__ static constexpr auto AreUpperIndex2OffsetTransformLinear();
+    template <index_t IDim>
+    __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>);
     {
         // not implemented
     }
 
-    __host__ __device__ static constexpr auto GetIndependentDimensionGroups()
+    __host__ __device__ static constexpr auto GetLinearDimensions()
+    {
+        // not implemented
+    }
+
+    __host__ __device__ static constexpr auto GetNonLinearDimensions()
+    {
+        // not implemented
+    }
+
+    __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
     {
         // not implemented
     }
 };
+#endif
+
+template <index_t... Lengths, index_t... Strides>
+__host__ __device__ constexpr auto make_NativeTensorDescriptor(Sequence<Lengths...>,
+                                                               Sequence<Strides...>)
+{
+    return NativeTensorDescriptor<NativeDimension<Lengths, Strides>...>{};
+}
+
+template <class Lengths>
+__host__ __device__ constexpr auto make_NativeTensorDescriptor_packed(Lengths)
+{
+    constexpr index_t strides = reverse_inclusive_scan_sequence(
+                                    Lengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
+                                    .PushBack(Number<1>{});
+
+    return make_NativeTensorDescriptor(Lengths{}, strides);
+}
 
 } // namespace ck
 #endif

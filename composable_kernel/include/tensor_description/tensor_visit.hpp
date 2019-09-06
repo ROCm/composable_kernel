@@ -85,6 +85,7 @@ struct TensorVisit
             {
                 constexpr auto nonlinear_independent_dimensions_igroup =
                     nonlinear_independent_dimension_groups.Get(igroup);
+
                 constexpr auto nonlinear_independent_lengths_igroup =
                     lambda_HackLengths{}(lengths, nonlinear_independent_dimensions_igroup);
 
