@@ -4,6 +4,8 @@
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMatrixDescriptor.hpp"
+#include "tensor_descriptor.hpp"
+#include "tensor_descriptor_helper.hpp"
 #include "blockwise_generic_tensor_slice_copy.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
 #include "blockwise_batched_gemm.hpp"
@@ -45,6 +47,7 @@ template <index_t GridSize,
           index_t OutThreadCopyDataPerAccess_N>
 struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
 {
+#if 0
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
@@ -478,6 +481,67 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
 #endif
         });
     }
+#else
+    __device__ void Run(const Float* const __restrict__ p_in_global,
+                        const Float* const __restrict__ p_wei_global,
+                        Float* const __restrict__ p_out_global) const
+    {
+#if 0
+        constexpr auto tmp = std::tuple<bool>{};
+        constexpr auto flag = std::get<0>(tmp);
+#else
+        constexpr auto a = Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>{}, 99);
+
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            printf("adsas %d\n", a.At(Number<0>{}));
+            print_Sequence("seq", a.At(Number<1>{}));
+            printf("adsas %lu\n", a.At(Number<2>{}));
+        }
+
+        auto b = Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>{}, 99);
+
+        b.At(Number<0>{}) = false;
+
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            printf("adsas %d\n", b.At(Number<0>{}));
+            print_Sequence("seq", b.At(Number<1>{}));
+            printf("adsas %lu\n", b.At(Number<2>{}));
+        }
+
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            printf("adsas %d\n",
+                   Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>(), 99).At(Number<0>{}));
+            print_Sequence(
+                "seq", Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>(), 99).At(Number<1>{}));
+            printf("adsas %d\n",
+                   Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>(), 99).At(Number<2>{}));
+        }
+#endif
+
+#if 0
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        // create a native tensor descriptor
+        constexpr auto in_n_c_h_w_global_desc =
+            make_NativeTensorDescriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
+
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            print_tensor_descriptor("in_n_c_h_w_global_desc", in_n_c_h_w_global_desc);
+        }
+
+        // transform the tensor descriptor once
+        //
+        // calculate the offset of some entry
+#endif
+    }
+#endif
 };
 
 } // namespace ck

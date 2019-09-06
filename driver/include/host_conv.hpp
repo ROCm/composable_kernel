@@ -65,9 +65,6 @@ void host_direct_convolution(const Tensor<TIn>& in_nchw,
     index_t h_pad_low = LowerPads{}.Get(Number<0>{});
     index_t w_pad_low = LowerPads{}.Get(Number<1>{});
 
-    index_t h_pad_up = UpperPads{}.Get(Number<0>{});
-    index_t w_pad_up = UpperPads{}.Get(Number<1>{});
-
     auto f = [&](auto n, auto k, auto ho, auto wo) {
         double v = 0;
         for(int c = 0; c < wei_kcyx.mDesc.GetLengths()[1]; ++c)
@@ -124,9 +121,6 @@ void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
 
     index_t h_pad_low = LowerPads{}.Get(Number<0>{});
     index_t w_pad_low = LowerPads{}.Get(Number<1>{});
-
-    index_t h_pad_up = UpperPads{}.Get(Number<0>{});
-    index_t w_pad_up = UpperPads{}.Get(Number<1>{});
 
     std::size_t HiPerTile = HoPerTile + Y - 1;
     std::size_t WiPerTile = WoPerTile + X - 1;

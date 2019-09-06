@@ -12,15 +12,17 @@ struct Dimension
 };
 
 template <index_t Length, index_t Stride>
-struct NativeDimension : Dimension<Length>
+struct NativeDimension
 {
+    __host__ __device__ static constexpr auto GetLength() { return Number<Length>{}; }
+
     __host__ __device__ static constexpr auto GetStride() { return Number<Stride>{}; }
 
-    __host__ __device__ static constexpr index_t GetOffset(index_t id) { return id * Stride; }
+    __host__ __device__ static constexpr index_t GetOffset(index_t i) { return i * Stride; }
 
-    __host__ __device__ static constexpr index_t GetOffsetDiff(index_t id_diff)
+    __host__ __device__ static constexpr index_t GetOffsetDiff(index_t i_diff)
     {
-        return id_diff * Stride;
+        return i_diff * Stride;
     }
 };
 
