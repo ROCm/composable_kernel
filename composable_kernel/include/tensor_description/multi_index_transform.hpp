@@ -33,7 +33,7 @@ struct PassThrough
 };
 
 // LowLengths: Sequence<...>
-template <class LowLengths, class LeftPads, class RightPads>
+template <typename LowLengths, typename LeftPads, typename RightPads>
 struct Pad
 {
     static constexpr index_t nDim = LowLengths::GetSize();
@@ -67,7 +67,7 @@ struct Pad
 
 #if 0
 // LowLengths: Sequence<...>
-template <class LowLengths>
+template <typename LowLengths>
 struct Merge
 {
     static constexpr index_t nDimLow = LowLengths::GetSize();
@@ -113,7 +113,7 @@ struct Merge
 #endif
 
 // UpLengths: Sequence<...>
-template <index_t LowLength, class UpLengths>
+template <index_t LowLength, typename UpLengths>
 struct Unmerge
 {
     static constexpr index_t nDimLow = 1;
@@ -161,7 +161,7 @@ struct Unmerge
 // UpLengths: Sequence<...>
 // Coefficients: Sequence<...>
 // idx_low = coefficients[0, ...nDimUp-1] * idx_up[0, ...nDimUp-1] + coefficients[nDimUp]
-template <index_t LowLength, class UpLengths, class Coefficients>
+template <index_t LowLength, typename UpLengths, typename Coefficients>
 struct Embed
 {
     static constexpr index_t nDimLow = 1;

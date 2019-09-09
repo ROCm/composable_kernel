@@ -73,19 +73,19 @@ int main(int argc, char* argv[])
     using namespace ck;
 
 #if 1
-    constexpr index_t N  = 64;
-    constexpr index_t C  = 1536;
-    constexpr index_t HI = 8;
-    constexpr index_t WI = 8;
-    constexpr index_t K  = 256;
+    constexpr index_t N  = 10;
+    constexpr index_t C  = 10;
+    constexpr index_t HI = 10;
+    constexpr index_t WI = 10;
+    constexpr index_t K  = 10;
     constexpr index_t Y  = 1;
     constexpr index_t X  = 1;
 
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    constexpr index_t HPad = 0;
-    constexpr index_t WPad = 0;
+    constexpr index_t HPad = 2;
+    constexpr index_t WPad = 2;
 #elif 1
     // 3x3, 34x34
     constexpr index_t N  = 64;

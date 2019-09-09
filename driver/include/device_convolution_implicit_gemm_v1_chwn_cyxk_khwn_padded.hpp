@@ -115,8 +115,12 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded(InDesc,
     constexpr index_t OutThreadCopyDataPerAccess_N = 4;
 #endif
 
+#if 0 // debug
     constexpr index_t GridSize =
         (N / NPerBlock) * (K / KPerBlock) * (Ho / HoPerBlock) * (Wo / WoPerBlock);
+#else
+    constexpr index_t GridSize = 1;
+#endif
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
