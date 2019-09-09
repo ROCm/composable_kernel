@@ -6,6 +6,8 @@
 
 namespace ck {
 
+namespace detail {
+
 template <class>
 struct static_for_impl;
 
@@ -18,6 +20,8 @@ struct static_for_impl<Sequence<Is...>>
         swallow{(f(Number<Is>{}), 0)...};
     }
 };
+
+} // namespace detail
 
 // F signature: F(Number<Iter>)
 template <index_t NBegin, index_t NEnd, index_t Increment>
@@ -33,7 +37,8 @@ struct static_for
     template <class F>
     __host__ __device__ constexpr void operator()(F f) const
     {
-        static_for_impl<typename arithmetic_sequence_gen<NBegin, NEnd, Increment>::type>{}(f);
+        detail::static_for_impl<typename arithmetic_sequence_gen<NBegin, NEnd, Increment>::type>{}(
+            f);
     }
 };
 

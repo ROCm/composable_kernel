@@ -47,6 +47,19 @@ template <index_t GridSize,
           index_t OutThreadCopyDataPerAccess_N>
 struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
 {
+    static constexpr auto I0  = Number<0>{};
+    static constexpr auto I1  = Number<1>{};
+    static constexpr auto I2  = Number<2>{};
+    static constexpr auto I3  = Number<3>{};
+    static constexpr auto I4  = Number<4>{};
+    static constexpr auto I5  = Number<5>{};
+    static constexpr auto I6  = Number<6>{};
+    static constexpr auto I7  = Number<7>{};
+    static constexpr auto I8  = Number<8>{};
+    static constexpr auto I9  = Number<9>{};
+    static constexpr auto I10 = Number<10>{};
+    static constexpr auto I11 = Number<11>{};
+
 #if 0
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -59,11 +72,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                  (GemmNPerThreadSubC >= NPerBlock && NPerThread == NPerBlock &&
                   GemmNPerThreadSubC % NPerThread == 0)),
             "wrong!");
-
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
 
         constexpr auto True  = integral_constant<bool, true>{};
         constexpr auto False = integral_constant<bool, false>{};
@@ -487,58 +495,67 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                         Float* const __restrict__ p_out_global) const
     {
 #if 0
-        constexpr auto tmp = std::tuple<bool>{};
-        constexpr auto flag = std::get<0>(tmp);
-#else
-        constexpr auto a = Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>{}, 99);
+        constexpr auto a = make_tuple(true, Sequence<1>{}, index_t(99));
 
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
-            printf("adsas %d\n", a.At(Number<0>{}));
-            print_Sequence("seq", a.At(Number<1>{}));
-            printf("adsas %lu\n", a.At(Number<2>{}));
+            printf("[0] %d\n", a.At(I0));
+            print_Sequence("[1]", a.At(I1));
+            printf("[2] %lu\n", a.At(I2));
         }
 
-        auto b = Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>{}, 99);
+        bool flag = true;
 
-        b.At(Number<0>{}) = false;
+        auto b = make_tuple(flag, Sequence<1>{}, 99);
+
+        b.At(I0) = false;
 
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
-            printf("adsas %d\n", b.At(Number<0>{}));
-            print_Sequence("seq", b.At(Number<1>{}));
-            printf("adsas %lu\n", b.At(Number<2>{}));
+            printf("[0] %d\n", b.At(I0));
+            print_Sequence("[1]", b.At(I1));
+            printf("[2] %lu\n", b.At(I2));
+
+            printf("flag %d\n", flag);
         }
 
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
-            printf("adsas %d\n",
-                   Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>(), 99).At(Number<0>{}));
-            print_Sequence(
-                "seq", Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>(), 99).At(Number<1>{}));
-            printf("adsas %d\n",
-                   Tuple<bool, Sequence<1>, index_t>(true, Sequence<1>(), 99).At(Number<2>{}));
+            printf("[0] %d\n", make_tuple(true, Sequence<1>(), index_t(99)).At(I0));
+            print_Sequence("[1]", make_tuple(true, Sequence<1>(), index_t(99)).At(I1));
+            printf("[2] %d\n", make_tuple(true, Sequence<1>(), index_t(99)).At(I2));
         }
-#endif
-
-#if 0
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
-
+#elif 1
         // create a native tensor descriptor
-        constexpr auto in_n_c_h_w_global_desc =
+        constexpr auto in_c_h_w_n_global_desc =
             make_NativeTensorDescriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
 
+        constexpr index_t C  = in_c_h_w_n_global_desc.GetLength(I0);
+        constexpr index_t Hi = in_c_h_w_n_global_desc.GetLength(I1);
+        constexpr index_t Wi = in_c_h_w_n_global_desc.GetLength(I2);
+        constexpr index_t N  = in_c_h_w_n_global_desc.GetLength(I3);
+
+        constexpr auto pad_h_w = Pad<Sequence<Hi, Wi>, LowerPads, UpperPads>{};
+        constexpr auto pass_c  = PassThrough<C>{};
+        constexpr auto pass_n  = PassThrough<N>{};
+
+        constexpr auto trans = make_tuple(pass_c, pad_h_w, pass_n);
+        constexpr auto lower_dim_groups =
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{});
+        constexpr auto upper_dim_groups =
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{});
+
+        constexpr auto in_c_h_w_n_padded_global_desc = transform_tensor_descriptor(
+            in_c_h_w_n_global_desc, trans, lower_dim_groups, upper_dim_groups);
+
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
-            print_tensor_descriptor("in_n_c_h_w_global_desc", in_n_c_h_w_global_desc);
-        }
+            print_tensor_descriptor("in_c_h_w_n_global_desc", in_c_h_w_n_global_desc);
 
-        // transform the tensor descriptor once
-        //
-        // calculate the offset of some entry
+            printf("offset: %lu\n", in_c_h_w_n_global_desc.GetOffset({1, 2, 3, 4}));
+
+            printf("padded offset: %lu\n", in_c_h_w_n_padded_global_desc.GetOffset({1, 4, 5, 4}));
+        }
 #endif
     }
 #endif

@@ -104,6 +104,18 @@ __host__ __device__ constexpr T lcm(T x, Ts... xs)
     return max(x, xs...);
 }
 
+template <class T>
+struct equal
+{
+    __host__ __device__ constexpr bool operator()(T x, T y) const { return x == y; }
+};
+
+template <class T>
+struct less
+{
+    __host__ __device__ constexpr bool operator()(T x, T y) const { return x < y; }
+};
+
 } // namespace math
 } // namspace ck
 

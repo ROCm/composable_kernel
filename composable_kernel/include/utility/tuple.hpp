@@ -2,6 +2,7 @@
 #define CK_TUPLE_HPP
 
 #include "integral_constant.hpp"
+#include "type.hpp"
 #include "Sequence.hpp"
 
 namespace ck {
@@ -16,6 +17,8 @@ struct TupleElementKey
 template <typename Key, typename Data>
 struct TupleElement
 {
+    __host__ __device__ explicit constexpr TupleElement() : mData() {}
+
     template <typename T>
     __host__ __device__ explicit constexpr TupleElement(T&& v) : mData(static_cast<T&&>(v))
     {
@@ -48,6 +51,12 @@ struct TupleImpl;
 template <index_t... Is, typename... Xs>
 struct TupleImpl<Sequence<Is...>, Xs...> : TupleElement<TupleElementKey<Is>, Xs>...
 {
+#if 1
+    __host__ __device__ explicit constexpr TupleImpl() : TupleElement<TupleElementKey<Is>, Xs>()...
+    {
+    }
+#endif
+
     template <typename... Ys>
     __host__ __device__ explicit constexpr TupleImpl(Ys&&... ys)
         : TupleElement<TupleElementKey<Is>, Xs>(static_cast<Ys&&>(ys))...
@@ -96,6 +105,29 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
         return GetElementByKey(detail::TupleElementKey<I>{});
     }
 };
+
+template <typename... Xs>
+__host__ __device__ constexpr auto make_tuple(Xs&&... xs)
+{
+    return Tuple<remove_cv_t<remove_reference_t<Xs>>...>(std::forward<Xs>(xs)...);
+}
+
+namespace detail {
+
+template <typename X, typename F, index_t... Is>
+__host__ __device__ constexpr auto transpose_tuple_impl(X& x, F f, Sequence<Is...>)
+{
+    return make_tuple(f(x.At(Number<Is>{}))...);
+}
+
+} // namespace detail
+
+template <typename X, typename F>
+__host__ __device__ constexpr auto transpose_tuple(X& x, F f)
+{
+    return detail::transpose_tuple_impl(
+        x, f, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
+}
 
 } // namespace ck
 #endif

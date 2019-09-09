@@ -6,48 +6,78 @@
 
 namespace ck {
 
-template <class TData, index_t NSize>
+template <typename TData, index_t NSize>
 struct Array
 {
-    using Type      = Array<TData, NSize>;
+    using type      = Array<TData, NSize>;
     using data_type = TData;
 
-    static constexpr index_t nSize = NSize;
+    index_t mData[NSize];
 
-    index_t mData[nSize];
+    __host__ __device__ explicit constexpr Array() {}
 
-    template <class... Xs>
-    __host__ __device__ constexpr Array(Xs... xs) : mData{static_cast<TData>(xs)...}
+    template <typename X, typename... Xs>
+    __host__ __device__ explicit constexpr Array(X x, Xs... xs)
+        : mData{static_cast<TData>(x), static_cast<TData>(xs)...}
     {
+        static_assert(sizeof...(Xs) + 1 == NSize, "wrong! size");
     }
 
-    __host__ __device__ static constexpr index_t GetSize() { return NSize; }
-
-    template <index_t I>
-    __host__ __device__ constexpr TData operator[](Number<I>) const
+#if 0
+    template <typename T>
+    __host__ __device__ explicit constexpr Array(const T& x)
     {
-        return mData[I];
-    }
+        static_assert(T::Size() == NSize, "wrong! size");
 
-    __host__ __device__ constexpr TData operator[](index_t i) const { return mData[i]; }
+        static_for<0, NSize, 1>{}([&](auto i){
+           mData[i] = x.At(i); 
+        })
+    }
+#endif
+
+    __host__ __device__ static constexpr index_t Size() { return NSize; }
+
+    __host__ __device__ static constexpr index_t GetSize() { return Size(); }
 
     template <index_t I>
-    __host__ __device__ TData& operator()(Number<I>)
-    {
-        return mData[I];
-    }
-
-    __host__ __device__ TData& operator()(index_t i) { return mData[i]; }
-
-    template <index_t I>
-    __host__ __device__ constexpr void Set(Number<I>, TData x)
+    __host__ __device__ constexpr const TData& At(Number<I>) const
     {
         static_assert(I < NSize, "wrong!");
 
-        mData[I] = x;
+        return mData[I];
     }
 
-    __host__ __device__ constexpr void Set(index_t I, TData x) { mData[I] = x; }
+    template <index_t I>
+    __host__ __device__ constexpr TData& At(Number<I>)
+    {
+        static_assert(I < NSize, "wrong!");
+
+        return mData[I];
+    }
+
+    __host__ __device__ constexpr const TData& At(index_t i) const { return mData[i]; }
+
+    __host__ __device__ constexpr TData& At(index_t i) { return mData[i]; }
+
+    template <typename I>
+    __host__ __device__ constexpr const TData& operator[](I i) const
+    {
+        return At(i);
+    }
+
+    template <typename I>
+    __host__ __device__ constexpr TData& operator()(I i)
+    {
+        return At(i);
+    }
+
+    template <typename T>
+    __host__ __device__ constexpr type& operator=(const T& x)
+    {
+        static_for<0, Size(), 1>{}([&](auto i) { operator()(i) = x[i]; });
+
+        return *this;
+    }
 
     struct lambda_PushBack // emulate constexpr lambda
     {
@@ -63,7 +93,7 @@ struct Array
         template <index_t I>
         __host__ __device__ constexpr void operator()(Number<I>) const
         {
-            new_array.Set(Number<I>{}, old_array[I]);
+            new_array(Number<I>{}) = old_array[I];
         }
     };
 
@@ -73,63 +103,90 @@ struct Array
 
         static_for<0, NSize, 1>{}(lambda_PushBack(*this, new_array));
 
-        new_array.Set(Number<NSize>{}, x);
+        new_array(Number<NSize>{}) = x;
 
         return new_array;
     }
 };
 
-// A: Array
+// Arr: Array
 // Picks: Sequence<...>
-template <class Arr, class Picks>
+template <typename Arr, typename Picks>
 struct ArrayElementPicker
 {
+    using type      = ArrayElementPicker;
     using data_type = typename Arr::data_type;
 
-    __host__ __device__ constexpr ArrayElementPicker(Arr& array) : mData{array}
+    __host__ __device__ constexpr ArrayElementPicker() = delete;
+
+    __host__ __device__ explicit constexpr ArrayElementPicker(Arr& array) : mArray{array}
     {
         constexpr index_t imax =
             accumulate_on_sequence(Picks{}, math::maxer<index_t>{}, Number<0>{});
 
-        static_assert(imax < Picks::GetSize(), "wrong! exceeding max id");
+        static_assert(imax < Arr::Size(), "wrong! exceeding # array element");
     }
 
-    __host__ __device__ static constexpr index_t GetSize() { return Picks::GetSize(); }
+    __host__ __device__ static constexpr auto Size() { return Picks::Size(); }
 
     template <index_t I>
-    __host__ __device__ constexpr data_type operator[](Number<I>) const
+    __host__ __device__ constexpr const data_type& At(Number<I>) const
     {
-        constexpr auto IP = Picks::Get(Number<I>{});
-        return mData[IP];
-    }
+        static_assert(I < Size(), "wrong!");
 
-    __host__ __device__ constexpr data_type operator[](index_t i) const
-    {
-        constexpr index_t ip = Picks{}[i];
-        return mData[ip];
+        constexpr auto IP = Picks{}[I];
+        return mArray[IP];
     }
 
     template <index_t I>
-    __host__ __device__ data_type& operator()(Number<I>)
+    __host__ __device__ constexpr data_type& At(Number<I>)
     {
-        constexpr auto IP = Picks::Get(Number<I>{});
-        return mData[IP];
+        static_assert(I < Size(), "wrong!");
+
+        constexpr auto IP = Picks{}[I];
+        return mArray(IP);
     }
 
-    __host__ __device__ data_type& operator()(index_t i)
+    template <typename I>
+    __host__ __device__ constexpr const data_type& operator[](I i) const
     {
-        constexpr index_t ip = Picks{}[i];
-        return mData[ip];
+        return At(i);
     }
 
-    Arr& mData;
+    template <typename I>
+    __host__ __device__ constexpr data_type& operator()(I i)
+    {
+        return At(i);
+    }
+
+    template <typename T>
+    __host__ __device__ constexpr type& operator=(const T& a)
+    {
+        static_for<0, Size(), 1>{}([&](auto i) { operator()(i) = a[i]; });
+
+        return *this;
+    }
+
+    Arr& mArray;
 };
 
-template <class Arr, class Picks>
+template <typename Arr, typename Picks>
 __host__ __device__ constexpr auto pick_array_element(Arr& a, Picks)
 {
     return ArrayElementPicker<Arr, Picks>(a);
 }
+
+#if 1
+template <typename T>
+__host__ __device__ constexpr auto to_array(const T& x)
+{
+    Array<typename T::data_type, T::Size()> y;
+
+    static_for<0, T::Size(), 1>{}([&](auto i) { y.At(i) = x.At(i); });
+
+    return y;
+}
+#endif
 
 template <index_t... Is>
 __host__ __device__ constexpr auto sequence2array(Sequence<Is...>)
@@ -137,7 +194,7 @@ __host__ __device__ constexpr auto sequence2array(Sequence<Is...>)
     return Array<index_t, sizeof...(Is)>{Is...};
 }
 
-template <class TData, index_t NSize>
+template <typename TData, index_t NSize>
 __host__ __device__ constexpr auto make_zero_array()
 {
     constexpr auto zero_sequence = typename uniform_sequence_gen<NSize, 0>::type{};
@@ -145,7 +202,7 @@ __host__ __device__ constexpr auto make_zero_array()
     return zero_array;
 }
 
-template <class TData, index_t NSize, index_t... IRs>
+template <typename TData, index_t NSize, index_t... IRs>
 __host__ __device__ constexpr auto reorder_array_given_new2old(const Array<TData, NSize>& old_array,
                                                                Sequence<IRs...> /*new2old*/)
 {
@@ -156,7 +213,7 @@ __host__ __device__ constexpr auto reorder_array_given_new2old(const Array<TData
     return Array<TData, NSize>{old_array[IRs]...};
 }
 
-template <class TData, index_t NSize, class MapOld2New>
+template <typename TData, index_t NSize, typename MapOld2New>
 struct lambda_reorder_array_given_old2new
 {
     const Array<TData, NSize>& old_array;
@@ -173,13 +230,13 @@ struct lambda_reorder_array_given_old2new
     {
         TData old_data = old_array[IOldDim];
 
-        constexpr index_t INewDim = MapOld2New::Get(Number<IOldDim>{});
+        constexpr index_t INewDim = MapOld2New::At(Number<IOldDim>{});
 
-        new_array.Set(Number<INewDim>{}, old_data);
+        new_array(Number<INewDim>{}) = old_data;
     }
 };
 
-template <class TData, index_t NSize, index_t... IRs>
+template <typename TData, index_t NSize, index_t... IRs>
 __host__ __device__ constexpr auto reorder_array_given_old2new(const Array<TData, NSize>& old_array,
                                                                Sequence<IRs...> /*old2new*/)
 {
@@ -195,7 +252,7 @@ __host__ __device__ constexpr auto reorder_array_given_old2new(const Array<TData
     return new_array;
 }
 
-template <class TData, index_t NSize, class ExtractSeq>
+template <typename TData, index_t NSize, typename ExtractSeq>
 __host__ __device__ constexpr auto extract_array(const Array<TData, NSize>& old_array, ExtractSeq)
 {
     Array<TData, ExtractSeq::GetSize()> new_array;
@@ -204,12 +261,13 @@ __host__ __device__ constexpr auto extract_array(const Array<TData, NSize>& old_
 
     static_assert(new_size <= NSize, "wrong! too many extract");
 
-    static_for<0, new_size, 1>{}([&](auto I) { new_array(I) = old_array[ExtractSeq::Get(I)]; });
+    static_for<0, new_size, 1>{}([&](auto I) { new_array(I) = old_array[ExtractSeq::At(I)]; });
 
     return new_array;
 }
 
-template <class F, class X, class Y, class Z> // emulate constepxr lambda for array math
+template <typename F, typename X, typename Y, typename Z> // emulate constepxr lambda for array
+// math
 struct lambda_array_math
 {
     const F& f;
@@ -226,13 +284,12 @@ struct lambda_array_math
     __host__ __device__ constexpr void operator()(Number<IDim_>) const
     {
         constexpr auto IDim = Number<IDim_>{};
-
-        z.Set(IDim, f(x[IDim], y[IDim]));
+        z(IDim)             = f(x[IDim], y[IDim]);
     }
 };
 
 // Array = Array + Array
-template <class TData, index_t NSize>
+template <typename TData, index_t NSize>
 __host__ __device__ constexpr auto operator+(Array<TData, NSize> a, Array<TData, NSize> b)
 {
     Array<TData, NSize> result;
@@ -247,7 +304,7 @@ __host__ __device__ constexpr auto operator+(Array<TData, NSize> a, Array<TData,
 }
 
 // Array = Array - Array
-template <class TData, index_t NSize>
+template <typename TData, index_t NSize>
 __host__ __device__ constexpr auto operator-(Array<TData, NSize> a, Array<TData, NSize> b)
 {
     Array<TData, NSize> result;
@@ -262,7 +319,7 @@ __host__ __device__ constexpr auto operator-(Array<TData, NSize> a, Array<TData,
 }
 
 // Array += Array
-template <class TData, index_t NSize>
+template <typename TData, index_t NSize>
 __host__ __device__ constexpr auto operator+=(Array<TData, NSize>& a, Array<TData, NSize> b)
 {
     a = a + b;
@@ -270,14 +327,14 @@ __host__ __device__ constexpr auto operator+=(Array<TData, NSize>& a, Array<TDat
 }
 
 // Array -= Array
-template <class TData, index_t NSize>
+template <typename TData, index_t NSize>
 __host__ __device__ constexpr auto operator-=(Array<TData, NSize>& a, Array<TData, NSize> b)
 {
     a = a - b;
     return a;
 }
 // Array = Array + Sequence
-template <class TData, index_t NSize, index_t... Is>
+template <typename TData, index_t NSize, index_t... Is>
 __host__ __device__ constexpr auto operator+(Array<TData, NSize> a, Sequence<Is...> b)
 {
     static_assert(sizeof...(Is) == NSize, "wrong! size not the same");
@@ -294,7 +351,7 @@ __host__ __device__ constexpr auto operator+(Array<TData, NSize> a, Sequence<Is.
 }
 
 // Array = Array - Sequence
-template <class TData, index_t NSize, index_t... Is>
+template <typename TData, index_t NSize, index_t... Is>
 __host__ __device__ constexpr auto operator-(Array<TData, NSize> a, Sequence<Is...> b)
 {
     static_assert(sizeof...(Is) == NSize, "wrong! size not the same");
@@ -311,7 +368,7 @@ __host__ __device__ constexpr auto operator-(Array<TData, NSize> a, Sequence<Is.
 }
 
 // Array = Array * Sequence
-template <class TData, index_t NSize, index_t... Is>
+template <typename TData, index_t NSize, index_t... Is>
 __host__ __device__ constexpr auto operator*(Array<TData, NSize> a, Sequence<Is...> b)
 {
     static_assert(sizeof...(Is) == NSize, "wrong! size not the same");
@@ -328,7 +385,7 @@ __host__ __device__ constexpr auto operator*(Array<TData, NSize> a, Sequence<Is.
 }
 
 // Array = Sequence - Array
-template <class TData, index_t NSize, index_t... Is>
+template <typename TData, index_t NSize, index_t... Is>
 __host__ __device__ constexpr auto operator-(Sequence<Is...> a, Array<TData, NSize> b)
 {
     static_assert(sizeof...(Is) == NSize, "wrong! size not the same");
@@ -344,7 +401,7 @@ __host__ __device__ constexpr auto operator-(Sequence<Is...> a, Array<TData, NSi
     return result;
 }
 
-template <class TData, index_t NSize, class Reduce>
+template <typename TData, index_t NSize, typename Reduce>
 __host__ __device__ constexpr TData
 accumulate_on_array(const Array<TData, NSize>& a, Reduce f, TData init)
 {
@@ -355,90 +412,6 @@ accumulate_on_array(const Array<TData, NSize>& a, Reduce f, TData init)
     static_for<0, NSize, 1>{}([&](auto I) { result = f(result, a[I]); });
 
     return result;
-}
-
-template <class T, index_t NSize>
-__host__ __device__ void print_Array(const char* s, Array<T, NSize> a)
-{
-    constexpr index_t nsize = a.GetSize();
-
-    static_assert(nsize > 0 && nsize <= 10, "wrong!");
-
-    static_if<nsize == 1>{}([&](auto) { printf("%s size %u, {%u}\n", s, nsize, a[0]); });
-
-    static_if<nsize == 2>{}([&](auto) { printf("%s size %u, {%u %u}\n", s, nsize, a[0], a[1]); });
-
-    static_if<nsize == 3>{}(
-        [&](auto) { printf("%s size %u, {%u %u %u}\n", s, nsize, a[0], a[1], a[2]); });
-
-    static_if<nsize == 4>{}(
-        [&](auto) { printf("%s size %u, {%u %u %u %u}\n", s, nsize, a[0], a[1], a[2], a[3]); });
-
-    static_if<nsize == 5>{}([&](auto) {
-        printf("%s size %u, {%u %u %u %u %u}\n", s, nsize, a[0], a[1], a[2], a[3], a[4]);
-    });
-
-    static_if<nsize == 6>{}([&](auto) {
-        printf("%s size %u, {%u %u %u %u %u %u}\n", s, nsize, a[0], a[1], a[2], a[3], a[4], a[5]);
-    });
-
-    static_if<nsize == 7>{}([&](auto) {
-        printf("%s size %u, {%u %u %u %u %u %u %u}\n",
-               s,
-               nsize,
-               a[0],
-               a[1],
-               a[2],
-               a[3],
-               a[4],
-               a[5],
-               a[6]);
-    });
-
-    static_if<nsize == 8>{}([&](auto) {
-        printf("%s size %u, {%u %u %u %u %u %u %u %u}\n",
-               s,
-               nsize,
-               a[0],
-               a[1],
-               a[2],
-               a[3],
-               a[4],
-               a[5],
-               a[6],
-               a[7]);
-    });
-
-    static_if<nsize == 9>{}([&](auto) {
-        printf("%s size %u, {%u %u %u %u %u %u %u %u %u}\n",
-               s,
-               nsize,
-               a[0],
-               a[1],
-               a[2],
-               a[3],
-               a[4],
-               a[5],
-               a[6],
-               a[7],
-               a[8]);
-    });
-
-    static_if<nsize == 10>{}([&](auto) {
-        printf("%s size %u, {%u %u %u %u %u %u %u %u %u %u}\n",
-               s,
-               nsize,
-               a[0],
-               a[1],
-               a[2],
-               a[3],
-               a[4],
-               a[5],
-               a[6],
-               a[7],
-               a[8],
-               a[9]);
-    });
 }
 
 } // namespace ck

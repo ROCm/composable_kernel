@@ -6,7 +6,7 @@
 
 namespace ck {
 
-template <class... NativeDimensions>
+template <typename... NativeDimensions>
 __host__ __device__ void print_tensor_descriptor(const char* s,
                                                  NativeTensorDescriptor<NativeDimensions...> desc)
 {

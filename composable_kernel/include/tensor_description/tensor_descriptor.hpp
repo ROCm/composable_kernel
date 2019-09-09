@@ -7,12 +7,12 @@
 
 namespace ck {
 
-template <class... NativeDimensions>
+template <typename... NativeDimensions>
 struct NativeTensorDescriptor
 {
     using type                        = NativeTensorDescriptor;
-    static constexpr auto mDimensions = Tuple<NativeDimensions...>{};
-    static constexpr index_t nDim     = mDimensions.GetSize();
+    static constexpr index_t nDim     = sizeof...(NativeDimensions);
+    static constexpr auto mDimensions = make_tuple(NativeDimensions{}...);
 
     using Index = MultiIndex<nDim>;
 
@@ -20,7 +20,7 @@ struct NativeTensorDescriptor
 
     struct lambda_GetLength
     {
-        template <class IDim>
+        template <typename IDim>
         __host__ __device__ constexpr auto operator()(IDim) const
         {
             return GetLength(IDim{});
@@ -34,7 +34,7 @@ struct NativeTensorDescriptor
 
     struct lambda_GetStride
     {
-        template <class IDim>
+        template <typename IDim>
         __host__ __device__ constexpr auto operator()(IDim) const
         {
             return GetStride(IDim{});
@@ -49,16 +49,16 @@ struct NativeTensorDescriptor
     template <index_t IDim>
     __host__ __device__ static constexpr auto GetLength(Number<IDim>)
     {
-        return mDimensions.Get(Number<IDim>{}).GetLength();
+        return mDimensions.At(Number<IDim>{}).GetLength();
     }
 
     template <index_t IDim>
     __host__ __device__ static constexpr auto GetStride(Number<IDim>)
     {
-        return mDimensions.Get(Number<IDim>{}).GetStride();
+        return mDimensions.At(Number<IDim>{}).GetStride();
     }
 
-    __host__ __device__ static constexpr index_t GetOffset(Index idx)
+    __host__ __device__ static constexpr index_t GetOffset(const Index& idx)
     {
         index_t offset = 0;
 
@@ -67,7 +67,7 @@ struct NativeTensorDescriptor
         return offset;
     }
 
-    __host__ __device__ static constexpr index_t GetOffsetDiff(Index idx_diff)
+    __host__ __device__ static constexpr index_t GetOffsetDiff(const Index& idx_diff)
     {
         index_t offset_diff = 0;
 
@@ -96,28 +96,65 @@ struct NativeTensorDescriptor
     }
 };
 
-#if 0
 // LowerTensorDescriptor
-// Transforms: std::tuple<DimensionTransforms...>
-// LowerDimensionIds: std::tuple<Sequence<...>>
-// UpperDimensionIds: std::tuple<Sequence<...>>
-template <class LowTensorDescriptor, class Transforms, class LowDimensionIds, class UpDimensionIds>
+// Transforms: Tuple<DimensionTransforms...>
+// LowerDimensionIds: Tuple<Sequence<...>>
+// UpperDimensionIds: Tuple<Sequence<...>>
+template <typename LowTensorDescriptor,
+          typename Transforms,
+          typename LowDimensionIds,
+          typename UpDimensionIds>
 struct TransformedTensorDescriptor
 {
-    using type                       = TransformedTensorDescriptor;
-    static constexpr index_t nDimUp  = GetUpperNumOfDimension();
-    static constexpr index_t nDimLow = GetLowerNumOfDimension();
+    using type                          = TransformedTensorDescriptor;
+    static constexpr index_t nTransform = Transforms::Size();
 
-    static constexpr index_t nTransform = Transforms::GetSize();
+    struct lambda_merge_sequences
+    {
+        template <typename... Seqs>
+        __host__ __device__ constexpr auto operator()(Seqs... seqs) const
+        {
+            return merge_sequences(seqs...);
+        }
+    };
+
+    __host__ __device__ static constexpr auto GetNumOfLowerDimension()
+    {
+        // Here, we assume all lower-dimensions are active
+        // TODO: sanity-check all lower-dimension are indeed active
+
+        using duplicated_low_active_dims =
+            decltype(unpack(lambda_merge_sequences{}, LowDimensionIds{}));
+
+        using low_active_dims = typename sequence_unique_sort<duplicated_low_active_dims,
+                                                              math::less<index_t>,
+                                                              math::equal<index_t>>::type;
+
+        return low_active_dims::Size();
+    }
+
+    __host__ __device__ static constexpr auto GetNumOfUpperDimension()
+    {
+        using duplicated_up_active_dims =
+            decltype(unpack(lambda_merge_sequences{}, UpDimensionIds{}));
+
+        using up_active_dims = typename sequence_unique_sort<duplicated_up_active_dims,
+                                                             math::less<index_t>,
+                                                             math::equal<index_t>>::type;
+
+        return up_active_dims::Size();
+    }
+
+    static constexpr index_t nDimUp  = GetNumOfUpperDimension();
+    static constexpr index_t nDimLow = GetNumOfLowerDimension();
 
     using UpperIndex = MultiIndex<nDimUp>;
     using LowerIndex = MultiIndex<nDimLow>;
 
-    __host__ __device__ static constexpr TransformedTensorDescriptor()
+    __host__ __device__ constexpr TransformedTensorDescriptor()
     {
-        static_assert(nTransform == Transforms::GetSize() &&
-                          nTransform == LowDimensionIds::GetSize() &&
-                          nTransform == UpDimensionIds::GetSize(),
+        static_assert(nTransform == Transforms::Size() && nTransform == LowDimensionIds::Size() &&
+                          nTransform == UpDimensionIds::Size(),
                       "wrong! # of transformations not the same");
 
         // TODO: sanity check: LowDimensionIds should include all low-dimensions,
@@ -128,33 +165,17 @@ struct TransformedTensorDescriptor
         //   a low-dimension should be associated with only one transformation
     }
 
-    __host__ __device__ static constexpr auto GetNumOfLowerDimension()
-    {
-        // Here, we assume all lower-dimensions are active
-        // TODO: sanity-check all lower-dimension are indeed active
-        constexpr auto low_active_dims = unique_sort_sequence(
-            merge_tuple_of_sequences(LowDimensionIds{}), math::less<index_t>{});
-
-        return low_active_dims.GetSize();
-    }
-
-    __host__ __device__ static constexpr auto GetNumOfUpperDimension()
-    {
-        constexpr auto up_active_dims =
-            unique_sort_sequence(merge_tuple_of_sequences(UpDimensionIds{}), math::less<index_t>{});
-        return up_active_dims.GetSize();
-    }
-
     __host__ __device__ static constexpr auto GetNumOfDimension()
     {
         return GetNumOfUpperDimension();
     }
 
-    __host__ __device__ static constexpr auto GetLengths()
+#if 0
+    __host__ __device__ static constexpr auto GetUpperLengths()
     {
         struct lambda_get_upper_lengths
         {
-            template <class Transform>
+            template <typename Transform>
             __host__ __device__ constexpr auto operator()(Transform tran) const
             {
                 return tran.GetUpperLengths();
@@ -173,6 +194,7 @@ struct TransformedTensorDescriptor
 
         using sort_dimension_ids =
             sequence_unique_sort<decltype(all_upper_dimension_ids), math::less<index_t>>;
+
         constexpr auto sorted_upper_dimension_ids = typename sort_dimension_ids::type;
         constexpr auto sorted2unsorted_map = typename sort_dimension_ids::sorted2unsorted_map_type;
 
@@ -182,46 +204,48 @@ struct TransformedTensorDescriptor
         return sorted_upper_lengths;
     }
 
+    __host__ __device__ static constexpr auto GetLengths() { return GetUpperLengths(); }
+#endif
+
     __host__ __device__ static constexpr auto GetLowerTensorDescriptor()
     {
         return LowTensorDescriptor{};
     }
 
-    __host__ __device__ static constexpr index_t GetLowerIndex(UpperIndex idx_up)
+    __host__ __device__ static constexpr LowerIndex GetLowerIndex(const UpperIndex& idx_up)
     {
         LowerIndex idx_low;
 
         static_for<0, nTransform, 1>{}([&](auto itran) {
-            constexpr auto tran = Transforms::Get(itran);
+            constexpr auto tran = Transforms{}.At(itran);
 
-            constexpr auto idx_low_part = pick_array_element(idx_low, LowDimensionIds::Get(itran));
-            constexpr auto idx_up_part  = pick_array_element(idx_up, UpDimensionIds::Get(itran));
+            auto idx_low_part      = pick_array_element(idx_low, LowDimensionIds{}.At(itran));
+            const auto idx_up_part = pick_array_element(idx_up, UpDimensionIds{}.At(itran));
 
             // this assume each lower (single) index is only assocaited with one transformation,
             //   which is required for index transformation, and has been checked during constructor
             //   of TransformedTensorDescriptor
-            idx_low_part = tran.GetLowerIndex(idx_up_part);
+            idx_low_part = tran.GetLowerIndex(to_array(idx_up_part));
         });
 
         return idx_low;
     }
 
-    __host__ __device__ static constexpr index_t GetLowerIndexDiff(UpperIndex idx_up_diff,
-                                                                   LowerIndex idx_low_old)
+    __host__ __device__ static constexpr LowerIndex GetLowerIndexDiff(const UpperIndex& idx_up_diff,
+                                                                      const LowerIndex& idx_low_old)
     {
         LowerIndex idx_low_diff;
 
         static_for<0, nTransform, 1>{}([&](auto itran) {
-            constexpr auto tran = Transforms::Get(itran);
+            constexpr auto tran = Transforms::At(itran);
 
-            constexpr auto idx_up_diff_part =
-                pick_array_element(idx_up_diff, UpDimensionIds::Get(itran));
+            const auto idx_up_diff_part =
+                pick_array_element(idx_up_diff, UpDimensionIds::At(itran));
 
-            constexpr auto idx_low_diff_part =
-                pick_array_element(idx_low_diff, LowDimensionIds::Get(itran));
+            auto idx_low_diff_part = pick_array_element(idx_low_diff, LowDimensionIds::At(itran));
 
-            constexpr auto idx_low_old_part =
-                pick_array_element(idx_low_old, LowDimensionIds::Get(itran));
+            const auto idx_low_old_part =
+                pick_array_element(idx_low_old, LowDimensionIds::At(itran));
 
             // this assume each lower (single) index is associated with only one transformation,
             //   which is required for index transformation, and has been checked during constructor
@@ -232,13 +256,14 @@ struct TransformedTensorDescriptor
         return idx_low_diff;
     }
 
-    __host__ __device__ static constexpr index_t GetOffset(UpperIndex idx_up)
+    __host__ __device__ static constexpr index_t GetOffset(const UpperIndex& idx_up)
     {
         return GetLowerTensorDescriptor().GetOffset(GetLowerIndex(idx_up));
     }
 
+#if 0
     template <index_t IDim>
-    __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>);
+    __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>)
     {
         // not implemented
     }
@@ -257,8 +282,8 @@ struct TransformedTensorDescriptor
     {
         // not implemented
     }
-};
 #endif
+};
 
 template <index_t... Lengths, index_t... Strides>
 __host__ __device__ constexpr auto make_NativeTensorDescriptor(Sequence<Lengths...>,
@@ -267,14 +292,27 @@ __host__ __device__ constexpr auto make_NativeTensorDescriptor(Sequence<Lengths.
     return NativeTensorDescriptor<NativeDimension<Lengths, Strides>...>{};
 }
 
-template <class Lengths>
+template <typename Lengths>
 __host__ __device__ constexpr auto make_NativeTensorDescriptor_packed(Lengths)
 {
-    constexpr index_t strides = reverse_inclusive_scan_sequence(
-                                    Lengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
-                                    .PushBack(Number<1>{});
+    constexpr auto strides = reverse_inclusive_scan_sequence(
+                                 Lengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
+                                 .PushBack(Number<1>{});
 
     return make_NativeTensorDescriptor(Lengths{}, strides);
+}
+
+template <typename LowTensorDescriptor,
+          typename Transforms,
+          typename LowDimensionIds,
+          typename UpDimensionIds>
+__host__ __device__ constexpr auto
+    transform_tensor_descriptor(LowTensorDescriptor, Transforms, LowDimensionIds, UpDimensionIds)
+{
+    return TransformedTensorDescriptor<LowTensorDescriptor,
+                                       Transforms,
+                                       LowDimensionIds,
+                                       UpDimensionIds>{};
 }
 
 } // namespace ck

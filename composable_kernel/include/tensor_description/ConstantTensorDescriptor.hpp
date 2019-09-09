@@ -178,7 +178,7 @@ struct ConstantTensorDescriptor
         {
             constexpr auto IDim      = IDim_{};
             constexpr index_t stride = PackedStrides::Get(IDim);
-            multi_id.Set(IDim, id / stride);
+            multi_id(IDim)           = id / stride;
             id -= multi_id[IDim] * stride;
         }
     };
@@ -192,7 +192,7 @@ struct ConstantTensorDescriptor
         // calculate index in each of the dimensions in the order of their dimension
         static_for<0, nDim - 1, 1>{}(lambda_GetMultiIndexFrom1dIndex<PackedStrides>(id, multi_id));
 
-        multi_id.Set(Number<nDim - 1>{}, id / PackedStrides::Get(Number<nDim - 1>{}));
+        multi_id(Number<nDim - 1>{}) = id / PackedStrides::Get(Number<nDim - 1>{});
 
         return multi_id;
     }
