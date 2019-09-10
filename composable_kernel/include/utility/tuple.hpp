@@ -3,7 +3,7 @@
 
 #include "integral_constant.hpp"
 #include "type.hpp"
-#include "Sequence.hpp"
+#include "sequence.hpp"
 
 namespace ck {
 
@@ -114,19 +114,19 @@ __host__ __device__ constexpr auto make_tuple(Xs&&... xs)
 
 namespace detail {
 
-template <typename X, typename F, index_t... Is>
-__host__ __device__ constexpr auto transpose_tuple_impl(X& x, F f, Sequence<Is...>)
+template <typename F, typename X, index_t... Is>
+__host__ __device__ constexpr auto transform_tuple_impl(F f, const X& x, Sequence<Is...>)
 {
     return make_tuple(f(x.At(Number<Is>{}))...);
 }
 
 } // namespace detail
 
-template <typename X, typename F>
-__host__ __device__ constexpr auto transpose_tuple(X& x, F f)
+template <typename F, typename X>
+__host__ __device__ constexpr auto transform_tuple(F f, const X& x)
 {
-    return detail::transpose_tuple_impl(
-        x, f, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
+    return detail::transform_tuple_impl(
+        f, x, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
 }
 
 } // namespace ck

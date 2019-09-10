@@ -1,12 +1,12 @@
 #ifndef CK_SEQUENCE_HELPER_HPP
 #define CK_SEQUENCE_HELPER_HPP
 
-#include "Sequence.hpp"
+#include "sequence.hpp"
 
 namespace ck {
 
 template <index_t... Xs>
-__host__ __device__ void print_Sequence(const char* s, Sequence<Xs...>)
+__host__ __device__ void print_sequence(const char* s, Sequence<Xs...>)
 {
     constexpr index_t nsize = Sequence<Xs...>::Size();
 

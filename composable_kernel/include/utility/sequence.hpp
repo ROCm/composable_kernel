@@ -2,7 +2,9 @@
 #define CK_SEQUENCE_HPP
 
 #include "integral_constant.hpp"
+#include "type.hpp"
 #include "functional.hpp"
+#include "math.hpp"
 
 namespace ck {
 
@@ -155,8 +157,8 @@ struct Sequence
         static_assert(I < Size(), "wrong!");
 
         using seq_split          = sequence_split<Type, I>;
-        constexpr auto seq_left  = typename seq_split::SeqType0{};
-        constexpr auto seq_right = typename seq_split::SeqType1{}.PopFront();
+        constexpr auto seq_left  = typename seq_split::left_type{};
+        constexpr auto seq_right = typename seq_split::right_type{}.PopFront();
 
         return seq_left.PushBack(Number<X>{}).PushBack(seq_right);
     }
@@ -188,34 +190,34 @@ struct sequence_merge<Seq>
 };
 
 // generate sequence
-template <index_t IBegin, index_t NRemain, typename F>
-struct sequence_gen_impl
-{
-    static constexpr index_t NRemainLeft  = NRemain / 2;
-    static constexpr index_t NRemainRight = NRemain - NRemainLeft;
-    static constexpr index_t IMiddle      = IBegin + NRemainLeft;
-
-    using type =
-        typename sequence_merge<typename sequence_gen_impl<IBegin, NRemainLeft, F>::type,
-                                typename sequence_gen_impl<IMiddle, NRemainRight, F>::type>::type;
-};
-
-template <index_t I, typename F>
-struct sequence_gen_impl<I, 1, F>
-{
-    static constexpr index_t Is = F{}(Number<I>{});
-    using type                  = Sequence<Is>;
-};
-
-template <index_t I, typename F>
-struct sequence_gen_impl<I, 0, F>
-{
-    using type = Sequence<>;
-};
-
 template <index_t NSize, typename F>
 struct sequence_gen
 {
+    template <index_t IBegin, index_t NRemain, typename G>
+    struct sequence_gen_impl
+    {
+        static constexpr index_t NRemainLeft  = NRemain / 2;
+        static constexpr index_t NRemainRight = NRemain - NRemainLeft;
+        static constexpr index_t IMiddle      = IBegin + NRemainLeft;
+
+        using type = typename sequence_merge<
+            typename sequence_gen_impl<IBegin, NRemainLeft, G>::type,
+            typename sequence_gen_impl<IMiddle, NRemainRight, G>::type>::type;
+    };
+
+    template <index_t I, typename G>
+    struct sequence_gen_impl<I, 1, G>
+    {
+        static constexpr index_t Is = G{}(Number<I>{});
+        using type                  = Sequence<Is>;
+    };
+
+    template <index_t I, typename G>
+    struct sequence_gen_impl<I, 0, G>
+    {
+        using type = Sequence<>;
+    };
+
     using type = typename sequence_gen_impl<0, NSize, F>::type;
 };
 
@@ -281,8 +283,8 @@ struct sequence_split
     using range0 = typename arithmetic_sequence_gen<0, I, 1>::type;
     using range1 = typename arithmetic_sequence_gen<I, NSize, 1>::type;
 
-    using SeqType0 = decltype(Seq::Extract(range0{}));
-    using SeqType1 = decltype(Seq::Extract(range1{}));
+    using left_type  = decltype(Seq::Extract(range0{}));
+    using right_type = decltype(Seq::Extract(range1{}));
 };
 
 // reverse sequence
@@ -293,8 +295,8 @@ struct sequence_reverse
 
     using seq_split = sequence_split<Seq, NSize / 2>;
     using type      = typename sequence_merge<
-        typename sequence_reverse<typename seq_split::SeqType1>::type,
-        typename sequence_reverse<typename seq_split::SeqType0>::type>::type;
+        typename sequence_reverse<typename seq_split::right_type>::type,
+        typename sequence_reverse<typename seq_split::left_type>::type>::type;
 };
 
 template <index_t I>
@@ -309,138 +311,264 @@ struct sequence_reverse<Sequence<I0, I1>>
     using type = Sequence<I1, I0>;
 };
 
-template <typename Seq, typename Compare>
-struct sequence_sort
+template <typename Values, typename Ids, typename Compare>
+struct sequence_sort_impl
 {
-    template <typename SeqLeft, typename SeqRight, typename MergedSeq, typename Comp>
+    template <typename LeftValues,
+              typename LeftIds,
+              typename RightValues,
+              typename RightIds,
+              typename MergedValues,
+              typename MergedIds,
+              typename Comp>
     struct sorted_sequence_merge_impl
     {
-        static constexpr bool pick_left     = SeqLeft::Front() < SeqRight::Front();
-        static constexpr index_t next_value = pick_left ? SeqLeft::Front() : SeqRight::Front();
+        static constexpr bool choose_left = LeftValues::Front() < RightValues::Front();
 
-        using new_merged_seq = decltype(MergedSeq::PushBack(Number<next_value>{}));
+        static constexpr index_t chosen_value =
+            choose_left ? LeftValues::Front() : RightValues::Front();
+        static constexpr index_t chosen_id = choose_left ? LeftIds::Front() : RightIds::Front();
 
-        using new_left_seq =
-            typename conditional<pick_left, decltype(SeqLeft::PopFront()), SeqLeft>::type;
-        using new_right_seq =
-            typename conditional<pick_left, SeqRight, decltype(SeqRight::PopFront())>::type;
+        using new_merged_values = decltype(MergedValues::PushBack(Number<chosen_value>{}));
+        using new_merged_ids    = decltype(MergedIds::PushBack(Number<chosen_id>{}));
+
+        using new_left_values =
+            typename conditional<choose_left, decltype(LeftValues::PopFront()), LeftValues>::type;
+        using new_left_ids =
+            typename conditional<choose_left, decltype(LeftIds::PopFront()), LeftIds>::type;
+
+        using new_right_values =
+            typename conditional<choose_left, RightValues, decltype(RightValues::PopFront())>::type;
+        using new_right_ids =
+            typename conditional<choose_left, RightIds, decltype(RightIds::PopFront())>::type;
+
+        using merge = sorted_sequence_merge_impl<new_left_values,
+                                                 new_left_ids,
+                                                 new_right_values,
+                                                 new_right_ids,
+                                                 new_merged_values,
+                                                 new_merged_ids,
+                                                 Comp>;
+        // this is output
+        using merged_values = typename merge::merged_values;
+        using merged_ids    = typename merge::merged_ids;
+    };
+
+    template <typename LeftValues,
+              typename LeftIds,
+              typename MergedValues,
+              typename MergedIds,
+              typename Comp>
+    struct sorted_sequence_merge_impl<LeftValues,
+                                      LeftIds,
+                                      Sequence<>,
+                                      Sequence<>,
+                                      MergedValues,
+                                      MergedIds,
+                                      Comp>
+    {
+        using merged_values = typename sequence_merge<MergedValues, LeftValues>::type;
+        using merged_ids    = typename sequence_merge<MergedIds, LeftIds>::type;
+    };
+
+    template <typename RightValues,
+              typename RightIds,
+              typename MergedValues,
+              typename MergedIds,
+              typename Comp>
+    struct sorted_sequence_merge_impl<Sequence<>,
+                                      Sequence<>,
+                                      RightValues,
+                                      RightIds,
+                                      MergedValues,
+                                      MergedIds,
+                                      Comp>
+    {
+        using merged_values = typename sequence_merge<MergedValues, RightValues>::type;
+        using merged_ids    = typename sequence_merge<MergedIds, RightIds>::type;
+    };
+
+    template <typename LeftValues,
+              typename LeftIds,
+              typename RightValues,
+              typename RightIds,
+              typename Comp>
+    struct sorted_sequence_merge
+    {
+        using merge = sorted_sequence_merge_impl<LeftValues,
+                                                 LeftIds,
+                                                 RightValues,
+                                                 RightIds,
+                                                 Sequence<>,
+                                                 Sequence<>,
+                                                 Comp>;
+
+        using merged_values = typename merge::merged_values;
+        using merged_ids    = typename merge::merged_ids;
+    };
+
+    static constexpr index_t nsize = Values::Size();
+
+    using split_unsorted_values = sequence_split<Values, nsize / 2>;
+    using split_unsorted_ids    = sequence_split<Ids, nsize / 2>;
+
+    using left_unsorted_values = typename split_unsorted_values::left_type;
+    using left_unsorted_ids    = typename split_unsorted_ids::left_type;
+    using left_sort          = sequence_sort_impl<left_unsorted_values, left_unsorted_ids, Compare>;
+    using left_sorted_values = typename left_sort::sorted_values;
+    using left_sorted_ids    = typename left_sort::sorted_ids;
+
+    using right_unsorted_values = typename split_unsorted_values::right_type;
+    using right_unsorted_ids    = typename split_unsorted_ids::right_type;
+    using right_sort = sequence_sort_impl<right_unsorted_values, right_unsorted_ids, Compare>;
+    using right_sorted_values = typename right_sort::sorted_values;
+    using right_sorted_ids    = typename right_sort::sorted_ids;
+
+    using merged_sorted = sorted_sequence_merge<left_sorted_values,
+                                                left_sorted_ids,
+                                                right_sorted_values,
+                                                right_sorted_ids,
+                                                Compare>;
+
+    using sorted_values = typename merged_sorted::merged_values;
+    using sorted_ids    = typename merged_sorted::merged_ids;
+};
+
+template <index_t ValueX, index_t ValueY, index_t IdX, index_t IdY, typename Compare>
+struct sequence_sort_impl<Sequence<ValueX, ValueY>, Sequence<IdX, IdY>, Compare>
+{
+    static constexpr bool choose_x = Compare{}(ValueX, ValueY);
+
+    using sorted_values =
+        typename conditional<choose_x, Sequence<ValueX, ValueY>, Sequence<ValueY, ValueX>>::type;
+    using sorted_ids = typename conditional<choose_x, Sequence<IdX, IdY>, Sequence<IdY, IdX>>::type;
+};
+
+template <index_t Value, index_t Id, typename Compare>
+struct sequence_sort_impl<Sequence<Value>, Sequence<Id>, Compare>
+{
+    using sorted_values = Sequence<Value>;
+    using sorted_ids    = Sequence<Id>;
+};
+
+template <typename Values, typename Compare>
+struct sequence_sort
+{
+    using unsorted_ids = typename arithmetic_sequence_gen<0, Values::Size(), 1>::type;
+    using sort         = sequence_sort_impl<Values, unsorted_ids, Compare>;
+
+    // this is output
+    using type                = typename sort::sorted_values;
+    using sorted2unsorted_map = typename sort::sorted_ids;
+};
+
+template <typename Values, typename Less, typename Equal>
+struct sequence_unique_sort
+{
+    template <typename RemainValues,
+              typename RemainIds,
+              typename UniquifiedValues,
+              typename UniquifiedIds,
+              typename Eq>
+    struct sorted_sequence_uniquify_impl
+    {
+        static constexpr index_t current_value = RemainValues::Front();
+        static constexpr index_t current_id    = RemainIds::Front();
+
+        static constexpr bool is_unique_value = (current_value != UniquifiedValues::Back());
+
+        using new_remain_values = decltype(RemainValues::PopFront());
+        using new_remain_ids    = decltype(RemainIds::PopFront());
+
+        using new_uniquified_values =
+            typename conditional<is_unique_value,
+                                 decltype(UniquifiedValues::PushBack(Number<current_value>{})),
+                                 UniquifiedValues>::type;
+
+        using new_uniquified_ids =
+            typename conditional<is_unique_value,
+                                 decltype(UniquifiedIds::PushBack(Number<current_id>{})),
+                                 UniquifiedIds>::type;
+
+        using uniquify = sorted_sequence_uniquify_impl<new_remain_values,
+                                                       new_remain_ids,
+                                                       new_uniquified_values,
+                                                       new_uniquified_ids,
+                                                       Eq>;
+
+        // this is output
+        using uniquified_values = typename uniquify::uniquified_values;
+        using uniquified_ids    = typename uniquify::uniquified_ids;
+    };
+
+    template <typename UniquifiedValues, typename UniquifiedIds, typename Eq>
+    struct sorted_sequence_uniquify_impl<Sequence<>,
+                                         Sequence<>,
+                                         UniquifiedValues,
+                                         UniquifiedIds,
+                                         Eq>
+    {
+        using uniquified_values = UniquifiedValues;
+        using uniquified_ids    = UniquifiedIds;
+    };
+
+    template <typename SortedValues, typename SortedIds, typename Eq>
+    struct sorted_sequence_uniquify
+    {
+        using uniquify = sorted_sequence_uniquify_impl<decltype(SortedValues::PopFront()),
+                                                       decltype(SortedIds::PopFront()),
+                                                       Sequence<SortedValues::Front()>,
+                                                       Sequence<SortedIds::Front()>,
+                                                       Eq>;
+
+        using uniquified_values = typename uniquify::uniquified_values;
+        using uniquified_ids    = typename uniquify::uniquified_ids;
+    };
+
+    using sort          = sequence_sort<Values, Less>;
+    using sorted_values = typename sort::type;
+    using sorted_ids    = typename sort::sorted2unsorted_map;
+
+    using uniquify = sorted_sequence_uniquify<sorted_values, sorted_ids, Equal>;
+
+    // this is output
+    using type                = typename uniquify::uniquified_values;
+    using sorted2unsorted_map = typename uniquify::uniquified_ids;
+};
+
+template <typename SeqMap>
+struct is_valid_sequence_map
+{
+    static constexpr bool value =
+        is_same<typename arithmetic_sequence_gen<0, SeqMap::Size(), 1>::type,
+                typename sequence_sort<SeqMap, math::less<index_t>>::type>{};
+};
+
+template <typename SeqMap>
+struct sequence_map_inverse
+{
+    template <typename X2Y, typename WorkingY2X, index_t XBegin, index_t XRemain>
+    struct sequence_map_inverse_impl
+    {
+        static constexpr auto new_y2x =
+            WorkingY2X::Modify(X2Y::At(Number<XBegin>{}), Number<XBegin>{});
 
         using type =
-            typename sorted_sequence_merge_impl<new_left_seq, new_right_seq, new_merged_seq, Comp>::
+            typename sequence_map_inverse_impl<X2Y, decltype(new_y2x), XBegin + 1, XRemain - 1>::
                 type;
     };
 
-    template <typename SeqLeft, typename MergedSeq, typename Comp>
-    struct sorted_sequence_merge_impl<SeqLeft, Sequence<>, MergedSeq, Comp>
+    template <typename X2Y, typename WorkingY2X, index_t XBegin>
+    struct sequence_map_inverse_impl<X2Y, WorkingY2X, XBegin, 0>
     {
-        using type = typename sequence_merge<MergedSeq, SeqLeft>::type;
+        using type = WorkingY2X;
     };
 
-    template <typename SeqRight, typename MergedSeq, typename Comp>
-    struct sorted_sequence_merge_impl<Sequence<>, SeqRight, MergedSeq, Comp>
-    {
-        using type = typename sequence_merge<MergedSeq, SeqRight>::type;
-    };
-
-    template <typename Seq0, typename Seq1, typename Comp>
-    struct sorted_sequence_merge
-    {
-        using type = typename sorted_sequence_merge_impl<Seq0, Seq1, Sequence<>, Comp>::type;
-    };
-
-    using split          = sequence_split<Seq, Seq::Size() / 2>;
-    using unsorted_left  = typename split::SeqType0;
-    using unsorted_right = typename split::SeqType1;
-
-    using sorted_left  = typename sequence_sort<unsorted_left, Compare>::type;
-    using sorted_right = typename sequence_sort<unsorted_right, Compare>::type;
-
-    using type = typename sorted_sequence_merge<sorted_left, sorted_right, Compare>::type;
-};
-
-template <index_t X, index_t Y, typename Compare>
-struct sequence_sort<Sequence<X, Y>, Compare>
-{
-    static constexpr bool x_first = Compare{}(X, Y);
-
-    using type = typename conditional<x_first, Sequence<X, Y>, Sequence<Y, X>>::type;
-};
-
-template <index_t X, typename Compare>
-struct sequence_sort<Sequence<X>, Compare>
-{
-    using type = Sequence<X>;
-};
-
-template <typename Seq, typename Less, typename Equal>
-struct sequence_unique_sort
-{
-    template <typename WorkInputSeq, typename WorkOutputSeq, typename Eq>
-    struct sorted_sequence_uniquify_impl
-    {
-        static constexpr index_t new_value = WorkInputSeq::Front();
-        using new_work_input_seq           = decltype(WorkInputSeq::PopFront());
-
-        using new_working_output_seq =
-            typename conditional<new_value == WorkOutputSeq::Back(),
-                                 WorkOutputSeq,
-                                 decltype(WorkOutputSeq::PopBack(Number<new_value>{}))>::type;
-    };
-
-    template <typename WorkInputSeq, typename Eq>
-    struct sorted_sequence_uniquify_impl<WorkInputSeq, Sequence<>, Eq>
-    {
-        using type = WorkInputSeq;
-    };
-
-    template <typename SortedSeq, typename Eq>
-    struct sorted_sequence_uniquify
-    {
-        using type = typename sorted_sequence_uniquify_impl<SortedSeq, Sequence<>, Eq>::type;
-    };
-
-    using sorted_seq = typename sequence_sort<Seq, Less>::type;
-
-    using type = typename sorted_sequence_uniquify<sorted_seq, Equal>::type;
-};
-
-template <typename Seq>
-struct is_valid_sequence_map
-{
-    // not implemented yet, always return true
-    static constexpr integral_constant<bool, true> value = integral_constant<bool, true>{};
-
-    // TODO: add proper check for is_valid, something like:
-    // static constexpr bool value =
-    //     is_same<typename arithmetic_sequence_gen<0, Seq::Size(), 1>::type,
-    //             typename sequence_sort<Seq>::SortedSeqType>{};
-};
-
-template <typename X2Y, typename WorkingY2X, index_t XBegin, index_t XRemain>
-struct sequence_map_inverse_impl
-{
-    private:
-    static constexpr auto new_y2x = WorkingY2X::Modify(X2Y::At(Number<XBegin>{}), Number<XBegin>{});
-
-    public:
     using type =
-        typename sequence_map_inverse_impl<X2Y, decltype(new_y2x), XBegin + 1, XRemain - 1>::type;
-};
-
-template <typename X2Y, typename WorkingY2X, index_t XBegin>
-struct sequence_map_inverse_impl<X2Y, WorkingY2X, XBegin, 0>
-{
-    using type = WorkingY2X;
-};
-
-template <typename X2Y>
-struct sequence_map_inverse
-{
-    using type =
-        typename sequence_map_inverse_impl<X2Y,
-                                           typename uniform_sequence_gen<X2Y::Size(), 0>::type,
+        typename sequence_map_inverse_impl<SeqMap,
+                                           typename uniform_sequence_gen<SeqMap::Size(), 0>::type,
                                            0,
-                                           X2Y::Size()>::type;
+                                           SeqMap::Size()>::type;
 };
 
 template <index_t... Xs, index_t... Ys>
@@ -599,6 +727,12 @@ template <typename Seq, typename Reduce, index_t Init>
 __host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce, Number<Init>)
 {
     return reverse_inclusive_scan_sequence(Seq{}.Reverse(), Reduce{}, Number<Init>{}).Reverse();
+}
+
+template <typename Seq, index_t... Is>
+__host__ __device__ constexpr auto pick_sequence_elements(Seq, Sequence<Is...>)
+{
+    return Sequence<Seq::At(Number<Is>{})...>{};
 }
 
 template <typename Seq, typename Reduce>

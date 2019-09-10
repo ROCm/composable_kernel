@@ -84,8 +84,8 @@ int main(int argc, char* argv[])
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    constexpr index_t HPad = 2;
-    constexpr index_t WPad = 2;
+    constexpr index_t HPad = 3;
+    constexpr index_t WPad = 3;
 #elif 1
     // 3x3, 34x34
     constexpr index_t N  = 64;
