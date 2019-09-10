@@ -528,34 +528,64 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
 #elif 1
         // create a native tensor descriptor
         constexpr auto in_c_h_w_n_global_desc =
-            make_NativeTensorDescriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
+            make_native_tensor_descriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
 
         constexpr index_t C  = in_c_h_w_n_global_desc.GetLength(I0);
         constexpr index_t Hi = in_c_h_w_n_global_desc.GetLength(I1);
         constexpr index_t Wi = in_c_h_w_n_global_desc.GetLength(I2);
         constexpr index_t N  = in_c_h_w_n_global_desc.GetLength(I3);
 
-        constexpr auto pad_h_w = Pad<Sequence<Hi, Wi>, LowerPads, UpperPads>{};
-        constexpr auto pass_c  = PassThrough<C>{};
-        constexpr auto pass_n  = PassThrough<N>{};
+        // transformation: {c, h, w, n} --> {n, c, hp, wp}
+        //   {h, w} --> {hp, wp}, {c} --> {c}, {n} --> {n}
+        constexpr auto in_n_c_hp_wp_global_desc = transform_tensor_descriptor(
+            in_c_h_w_n_global_desc,
+            make_tuple(
+                Pad<Sequence<Hi, Wi>, LowerPads, UpperPads>{}, PassThrough<C>{}, PassThrough<N>{}),
+            make_tuple(Sequence<1, 2>{}, Sequence<0>{}, Sequence<3>{}),
+            make_tuple(Sequence<2, 3>{}, Sequence<1>{}, Sequence<0>{}));
 
-        constexpr auto trans = make_tuple(pass_c, pad_h_w, pass_n);
-        constexpr auto lower_dim_groups =
-            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{});
-        constexpr auto upper_dim_groups =
-            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{});
+#if 1
+        // transformation: {n, c, hp, wp} --> {c, b}
+        //   {n, hp, wp} --> {b}, {c} --> {c}
+        constexpr auto in_c_b_global_desc = transform_tensor_descriptor(
+            in_n_c_hp_wp_global_desc,
+            make_tuple(Merge<decltype(in_n_c_hp_wp_global_desc.GetLengths(I0, I2, I3))>{},
+                       PassThrough<in_n_c_hp_wp_global_desc.GetLength(I1)>{}),
+            make_tuple(Sequence<0, 2, 3>{}, Sequence<1>{}),
+            make_tuple(Sequence<1>{}, Sequence<0>{}));
+#endif
 
-        constexpr auto in_c_h_w_n_padded_global_desc = transform_tensor_descriptor(
-            in_c_h_w_n_global_desc, trans, lower_dim_groups, upper_dim_groups);
-
+#if 1
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
+            // 0
             print_tensor_descriptor("in_c_h_w_n_global_desc", in_c_h_w_n_global_desc);
 
-            printf("offset: %lu\n", in_c_h_w_n_global_desc.GetOffset({1, 2, 3, 4}));
+            // 1
+            print_tensor_descriptor("in_n_c_hp_wp_global_desc", in_n_c_hp_wp_global_desc);
 
-            printf("padded offset: %lu\n", in_c_h_w_n_padded_global_desc.GetOffset({1, 4, 5, 4}));
+            // 2
+            print_tensor_descriptor("in_c_b_global_desc", in_c_b_global_desc);
+
+            constexpr auto idx2 = MultiIndex<2>{1, 4 * (16 * 16) + 5 * 16 + 6};
+            auto idx1           = in_c_b_global_desc.CalculateLowerIndex(idx2);
+            auto idx0 = in_c_b_global_desc.GetLowerTensorDescriptor().CalculateLowerIndex(idx1);
+
+            print_array("idx2: ", idx2);
+            print_array("idx1: ", idx1);
+            print_array("idx0: ", idx0);
+
+            printf("in_c_b_global_desc offset: %lu\n", in_c_b_global_desc.CalculateOffset(idx2));
         }
+#else
+        {
+            index_t c = static_cast<index_t>(threadIdx.x);
+            index_t h = static_cast<index_t>(threadIdx.y);
+            index_t w = static_cast<index_t>(threadIdx.z);
+
+            p_out_global[0] = in_n_c_h_w_padded_global_desc.CalculateOffset({1, c, h, w});
+        }
+#endif
 #endif
     }
 #endif

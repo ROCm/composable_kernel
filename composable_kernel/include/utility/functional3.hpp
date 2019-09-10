@@ -3,8 +3,8 @@
 
 #include "functional.hpp"
 #include "functional2.hpp"
-#include "Sequence.hpp"
-#include "Array.hpp"
+#include "sequence.hpp"
+#include "array.hpp"
 
 namespace ck {
 

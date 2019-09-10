@@ -1,12 +1,12 @@
 #ifndef CK_ARRAY_HELPER_HPP
 #define CK_ARRAY_HELPER_HPP
 
-#include "Array.hpp"
+#include "array.hpp"
 
 namespace ck {
 
 template <typename T, index_t NSize>
-__host__ __device__ void print_Array(const char* s, Array<T, NSize> a)
+__host__ __device__ void print_array(const char* s, Array<T, NSize> a)
 {
     constexpr index_t nsize = a.GetSize();
 

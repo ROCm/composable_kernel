@@ -18,9 +18,9 @@ struct NativeDimension
 
     __host__ __device__ static constexpr auto GetStride() { return Number<Stride>{}; }
 
-    __host__ __device__ static constexpr index_t GetOffset(index_t i) { return i * Stride; }
+    __host__ __device__ static constexpr index_t CalculateOffset(index_t i) { return i * Stride; }
 
-    __host__ __device__ static constexpr index_t GetOffsetDiff(index_t i_diff)
+    __host__ __device__ static constexpr index_t CalculateOffsetDiff(index_t i_diff)
     {
         return i_diff * Stride;
     }

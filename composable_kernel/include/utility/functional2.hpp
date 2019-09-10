@@ -2,7 +2,7 @@
 #define CK_FUNCTIONAL2_HPP
 
 #include "functional.hpp"
-#include "Sequence.hpp"
+#include "sequence.hpp"
 
 namespace ck {
 

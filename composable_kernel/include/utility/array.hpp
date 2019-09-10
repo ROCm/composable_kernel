@@ -1,7 +1,7 @@
 #ifndef CK_ARRAY_HPP
 #define CK_ARRAY_HPP
 
-#include "Sequence.hpp"
+#include "sequence.hpp"
 #include "functional2.hpp"
 
 namespace ck {
@@ -17,7 +17,7 @@ struct Array
     __host__ __device__ explicit constexpr Array() {}
 
     template <typename X, typename... Xs>
-    __host__ __device__ explicit constexpr Array(X x, Xs... xs)
+    __host__ __device__ constexpr Array(X x, Xs... xs)
         : mData{static_cast<TData>(x), static_cast<TData>(xs)...}
     {
         static_assert(sizeof...(Xs) + 1 == NSize, "wrong! size");
@@ -176,7 +176,6 @@ __host__ __device__ constexpr auto pick_array_element(Arr& a, Picks)
     return ArrayElementPicker<Arr, Picks>(a);
 }
 
-#if 1
 template <typename T>
 __host__ __device__ constexpr auto to_array(const T& x)
 {
@@ -186,8 +185,8 @@ __host__ __device__ constexpr auto to_array(const T& x)
 
     return y;
 }
-#endif
 
+// TODO: remove this
 template <index_t... Is>
 __host__ __device__ constexpr auto sequence2array(Sequence<Is...>)
 {

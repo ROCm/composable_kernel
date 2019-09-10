@@ -2,9 +2,11 @@
 #define CK_TYPE_HPP
 
 #include "integral_constant.hpp"
-#include "Sequence.hpp"
 
 namespace ck {
+
+template <index_t... Is>
+struct Sequence;
 
 template <typename X, typename Y>
 struct is_same : public integral_constant<bool, false>

@@ -1,9 +1,9 @@
 #ifndef CK_FUNCTIONAL4_HPP
 #define CK_FUNCTIONAL4_HPP
 
-#include "Sequence.hpp"
+#include "sequence.hpp"
 #include "tuple.hpp"
-#include "Array.hpp"
+#include "array.hpp"
 
 namespace ck {
 
