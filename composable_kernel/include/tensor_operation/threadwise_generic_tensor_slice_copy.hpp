@@ -6,6 +6,8 @@
 #include "ConstantMergedTensorDescriptor.hpp"
 #include "tensor_coordinate.hpp"
 #include "tensor_view.hpp"
+#include "tensor_descriptor.hpp"
+#include "tensor_coordinate_v2.hpp"
 
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1 0
@@ -427,6 +429,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r2
     Array<index_t, nDim> mDstSliceOrigin;
 };
 
+// This version use TensorCoordinate
 // This threadwise copy allow vector access of src and dst.
 // It allows the dimensions of vector access to be different on src and dst.
 // It also allows the vector size to be different on src and dst.
@@ -774,6 +777,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
     DstCoordinate mDstSliceOrigin;
 };
 
+// this version use TensorView and TensorCoordinate
 template <class SrcTensor,
           class DstTensor,
           class SliceLengths,
@@ -783,7 +787,7 @@ template <class SrcTensor,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
           index_t DstDataPerAccess>
-struct ThreadwiseGenericTensorSliceCopy_v3
+struct ThreadwiseGenericTensorSliceCopy_v3r1
 {
     static constexpr index_t nDim = SrcTensor::GetNumOfDimension();
     using data_type               = remove_cv_t<typename SrcTensor::data_type>;
@@ -791,10 +795,10 @@ struct ThreadwiseGenericTensorSliceCopy_v3
     using SrcCoordinate = typename SrcTensor::coordinate_type;
     using DstCoordinate = typename DstTensor::coordinate_type;
 
-    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v3(SrcTensor src,
-                                                             SrcCoordinate src_slice_origin,
-                                                             DstTensor dst,
-                                                             DstCoordinate dst_slice_origin)
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v3r1(SrcTensor src,
+                                                               SrcCoordinate src_slice_origin,
+                                                               DstTensor dst,
+                                                               DstCoordinate dst_slice_origin)
         : mSrc{src},
           mDst{dst},
           mSrcSlice{src.Slice(src_slice_origin, SliceLengths{})},
@@ -821,8 +825,8 @@ struct ThreadwiseGenericTensorSliceCopy_v3
                       "wrong! vectorized access is not allowed");
     }
 
-    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v3()
-        : ThreadwiseGenericTensorSliceCopy_v3(
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v3r1()
+        : ThreadwiseGenericTensorSliceCopy_v3r1(
               SrcTensor{}, SrcCoordinate{}, DstTensor{}, DstCoordinate{})
     {
     }
@@ -938,6 +942,155 @@ struct ThreadwiseGenericTensorSliceCopy_v3
     DstTensor mDst;
     SrcSlice mSrcSlice;
     DstSlice mDstSlice;
+};
+
+// This version use multi-index transformation
+// This threadwise copy allow vector access of src and dst.
+// It allows the vector size to be different on src and dst.
+// The dimensions of vector access should be the same on src and dst.
+// The dimension access order should be the same on src and dst.
+// It is designed for cases, where one of src and dst is register, and
+// the other is device memory or LDS
+template <class SrcDesc,
+          class DstDesc,
+          class SliceLengths,
+          class DimAccessOrder,
+          index_t VectorAccessDim,
+          index_t SrcDataPerAccess,
+          index_t DstDataPerAccess>
+struct ThreadwiseGenericTensorSliceCopy_v4r2
+{
+    static constexpr index_t nDim = SliceLengths::Size();
+    using Index                   = MultiIndex<nDim>;
+
+    using SrcCoord = typename TensorCoordinate_v2<SrcDesc>::type;
+    using DstCoord = typename TensorCoordinate_v2<DstDesc>::type;
+
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v4r2(SrcCoord src_slice_origin,
+                                                               DstCoord dst_slice_origin)
+        : mSrcSliceOrigin(src_slice_origin), mDstSliceOrigin(dst_slice_origin)
+    {
+        static_assert(nDim == SrcDesc::GetNumOfDimension() &&
+                          nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::Size() &&
+                          nDim == DimAccessOrder::Size(),
+                      "wrong! # of dimensions not the same");
+
+        static_assert(is_valid_sequence_map<DimAccessOrder>{}, "wrong! map is not valid");
+
+        static_assert(
+            SliceLengths{}[VectorAccessDim] % math::lcm(SrcDataPerAccess, DstDataPerAccess) == 0,
+            "wrong! cannot evenly divide");
+
+        // TODO:: sanity-check if vectorized memory access is allowed on src and dst
+    }
+
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v4r2()
+        : ThreadwiseGenericTensorSliceCopy_v4r2(make_zero_array<index_t, nDim>(),
+                                                make_zero_array<index_t, nDim>())
+    {
+    }
+
+    __device__ void SetSrcSliceOrigin(SrcCoord src_slice_origin)
+    {
+        mSrcSliceOrigin = src_slice_origin;
+    }
+
+    __device__ void SetDstSliceOrigin(DstCoord dst_slice_origin)
+    {
+        mDstSliceOrigin = dst_slice_origin;
+    }
+
+    template <class TData>
+    __device__ void Run(const TData* p_src, TData* p_dst) const
+    {
+        using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
+        using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
+
+        constexpr auto vector_access_dim = Number<VectorAccessDim>{};
+
+        constexpr auto src_data_per_access = Number<SrcDataPerAccess>{};
+        constexpr auto dst_data_per_access = Number<DstDataPerAccess>{};
+
+        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerAccess, DstDataPerAccess)>{};
+
+        constexpr auto long_vector_access_lengths = SliceLengths::Modify(
+            vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
+
+        ford<decltype(long_vector_access_lengths), DimAccessOrder>{}([&](
+            auto long_vector_access_id) {
+
+            // data id w.r.t slicing-window
+            auto long_vector_data_begin_id = long_vector_access_id;
+            long_vector_data_begin_id(vector_access_dim) =
+                long_vector_size * long_vector_access_id[vector_access_dim];
+
+            // buffer to hold a long-vector
+            TData p_long_vector[long_vector_size];
+
+            // set 0
+            for(index_t i = 0; i < long_vector_size; ++i)
+            {
+                p_long_vector[i] = 0;
+            }
+
+            // load data from src to the long-vector buffer
+            for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
+            {
+                auto scalar_id               = make_zero_array<index_t, nDim>();
+                scalar_id(vector_access_dim) = i * src_data_per_access;
+
+                const auto src_coord = mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id);
+
+                // check for padding
+                // TODO: still kind of messy
+                if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                {
+                    const index_t src_offset =
+                        (mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id)).GetOffset();
+
+                    const index_t buffer_offset = i * src_data_per_access;
+
+                    *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                        *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
+                }
+            }
+
+            // store data from the long-vector buffer to dst
+            for(index_t i = 0; i < long_vector_size / dst_data_per_access; ++i)
+            {
+                auto scalar_id               = make_zero_array<index_t, nDim>();
+                scalar_id(vector_access_dim) = i * dst_data_per_access;
+
+                const index_t buffer_offset = i * dst_data_per_access;
+
+                const index_t dst_offset =
+                    (mDstSliceOrigin + (long_vector_data_begin_id + scalar_id)).GetOffset();
+
+                *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
+                    *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+            }
+        });
+    }
+
+    template <class T, bool PositiveDirection>
+    __device__ void MoveSrcSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    {
+        static_if<PositiveDirection>{}([&](auto) {
+            mSrcSliceOrigin += step_sizes;
+        }).Else([&](auto) { mSrcSliceOrigin -= step_sizes; });
+    }
+
+    template <class T, bool PositiveDirection>
+    __device__ void MoveDstSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    {
+        static_if<PositiveDirection>{}([&](auto) {
+            mDstSliceOrigin += step_sizes;
+        }).Else([&](auto) { mDstSliceOrigin -= step_sizes; });
+    }
+
+    private:
+    SrcCoord mSrcSliceOrigin;
+    DstCoord mDstSliceOrigin;
 };
 
 } // namespace ck

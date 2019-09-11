@@ -7,6 +7,8 @@
 #include "tensor_coordinate.hpp"
 #include "tensor_view.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
+#include "tensor_descriptor.hpp"
+#include "tensor_coordinate_v2.hpp"
 
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1 1
@@ -418,6 +420,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
     }
 };
 
+// This version use TensorCoordiante
 // Slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
 // memory layout (ordering of dimensions) can be different between src and dst.
 template <index_t BlockSize,
@@ -518,7 +521,7 @@ struct BlockwiseGenericTensorSliceCopy_v2
     }
 
     private:
-    using RegisterBufferDesc = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
+    using RegisterBufferDesc = decltype(make_native_tensor_descriptor_packed(SubLengths{}));
 
     using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v2r1<SrcDesc,
                                                                  RegisterBufferDesc,
@@ -544,6 +547,7 @@ struct BlockwiseGenericTensorSliceCopy_v2
     ThreadwiseStore mThreadwiseStore;
 };
 
+// this version use TensorView and TensorCoordinate
 template <index_t BlockSize,
           class SrcTensor,
           class DstTensor,
@@ -639,29 +643,148 @@ struct BlockwiseGenericTensorSliceCopy_v3
     using ThreadBufferDesc   = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
     using ThreadBufferTensor = NormalTensorView<ThreadBufferDesc, data_type>;
 
-    using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v3<SrcTensor,
-                                                               ThreadBufferTensor,
-                                                               SubLengths,
-                                                               SrcDimAccessOrder,
-                                                               SrcDimAccessOrder,
-                                                               SrcVectorAccessDim,
-                                                               SrcVectorAccessDim,
-                                                               SrcDataPerAccess,
-                                                               1>;
+    using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v3r1<SrcTensor,
+                                                                 ThreadBufferTensor,
+                                                                 SubLengths,
+                                                                 SrcDimAccessOrder,
+                                                                 SrcDimAccessOrder,
+                                                                 SrcVectorAccessDim,
+                                                                 SrcVectorAccessDim,
+                                                                 SrcDataPerAccess,
+                                                                 1>;
 
-    using ThreadwiseStore = ThreadwiseGenericTensorSliceCopy_v3<ThreadBufferTensor,
-                                                                DstTensor,
-                                                                SubLengths,
-                                                                DstDimAccessOrder,
-                                                                DstDimAccessOrder,
-                                                                DstVectorAccessDim,
-                                                                DstVectorAccessDim,
-                                                                1,
-                                                                DstDataPerAccess>;
+    using ThreadwiseStore = ThreadwiseGenericTensorSliceCopy_v3r1<ThreadBufferTensor,
+                                                                  DstTensor,
+                                                                  SubLengths,
+                                                                  DstDimAccessOrder,
+                                                                  DstDimAccessOrder,
+                                                                  DstVectorAccessDim,
+                                                                  DstVectorAccessDim,
+                                                                  1,
+                                                                  DstDataPerAccess>;
 
     data_type mpBuffer[ThreadBufferDesc::GetElementSpace()];
 
     ThreadBufferTensor mThreadBuffer;
+
+    ThreadwiseLoad mThreadwiseLoad;
+    ThreadwiseStore mThreadwiseStore;
+};
+
+template <index_t BlockSize,
+          class SrcDesc,
+          class DstDesc,
+          class SliceLengths,
+          class SubLengths,
+          class ThreadClusterLengths,
+          class ThreadClusterArrangeOrder,
+          class SrcDimAccessOrder,
+          class DstDimAccessOrder,
+          index_t SrcVectorAccessDim,
+          index_t DstVectorAccessDim,
+          index_t SrcDataPerAccess,
+          index_t DstDataPerAccess>
+struct BlockwiseGenericTensorSliceCopy_v4
+{
+    static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
+
+    using SrcCoord = typename TensorCoordinate_v2<SrcDesc>::type;
+    using DstCoord = typename TensorCoordinate_v2<DstDesc>::type;
+
+    __device__ constexpr BlockwiseGenericTensorSliceCopy_v4(SrcCoord src_block_slice_origin,
+                                                            DstCoord dst_block_slice_origin)
+    {
+        static_assert(nDim == SrcDesc::GetNumOfDimension() &&
+                          nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::Size() &&
+                          nDim == SubLengths::Size() && nDim == ThreadClusterLengths::Size() &&
+                          nDim == ThreadClusterArrangeOrder::Size() &&
+                          nDim == SrcDimAccessOrder::Size() && nDim == DstDimAccessOrder::Size(),
+                      "wrong! nDim not consistent");
+
+        static_assert(is_same<SliceLengths, decltype(SubLengths{} * ThreadClusterLengths{})>{},
+                      "wrong! threads should be mapped to cover entire slicing window");
+
+        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor_packed(
+            ThreadClusterLengths::ReorderGivenNew2Old(ThreadClusterArrangeOrder{}));
+
+        static_assert(BlockSize == thread_cluster_desc.GetElementSize(),
+                      "wrong! BlockSize not consistent with ThreadClusterLengths");
+
+        const auto thread_cluster_id =
+            thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
+
+        const auto data_cluster_id =
+            reorder_array_given_old2new(thread_cluster_id, ThreadClusterArrangeOrder{});
+
+        const auto thread_data_id_begin = data_cluster_id * SubLengths{};
+
+        mThreadwiseLoad.SetSrcSliceOrigin(src_block_slice_origin + thread_data_id_begin);
+        mThreadwiseLoad.SetDstSliceOrigin(make_zero_array<index_t, nDim>());
+
+        mThreadwiseStore.SetSrcSliceOrigin(make_zero_array<index_t, nDim>());
+        mThreadwiseStore.SetDstSliceOrigin(dst_block_slice_origin + thread_data_id_begin);
+    }
+
+    __device__ static constexpr index_t GetRegisterBufferSize()
+    {
+        return RegisterBufferDesc::GetElementSpace();
+    }
+
+    template <class TData>
+    __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
+    {
+        mThreadwiseLoad.Run(p_src, p_buffer);
+    }
+
+    template <class TData>
+    __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
+    {
+        mThreadwiseStore.Run(p_buffer, p_dst);
+    }
+
+    template <class TData>
+    __device__ void Run(const TData* p_src, TData* p_dst) const
+    {
+        TData p_buffer[GetRegisterBufferSize()];
+
+        mThreadwiseLoad.Run(p_src, p_buffer);
+        mThreadwiseStore.Run(p_buffer, p_dst);
+    }
+
+    template <class T, bool PositiveDirection>
+    __device__ void
+    MoveSrcSlicingWindow(T step_sizes,
+                         integral_constant<bool, PositiveDirection> positive_direction)
+    {
+        mThreadwiseLoad.MoveSrcSlicingWindow(step_sizes, positive_direction);
+    }
+
+    template <class T, bool PositiveDirection>
+    __device__ void
+    MoveDstSlicingWindow(T step_sizes,
+                         integral_constant<bool, PositiveDirection> positive_direction)
+    {
+        mThreadwiseStore.MoveDstSlicingWindow(step_sizes, positive_direction);
+    }
+
+    private:
+    using RegisterBufferDesc = decltype(make_native_tensor_descriptor_packed(SubLengths{}));
+
+    using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v4r2<SrcDesc,
+                                                                 RegisterBufferDesc,
+                                                                 SubLengths,
+                                                                 SrcDimAccessOrder,
+                                                                 SrcVectorAccessDim,
+                                                                 SrcDataPerAccess,
+                                                                 1>;
+
+    using ThreadwiseStore = ThreadwiseGenericTensorSliceCopy_v4r2<RegisterBufferDesc,
+                                                                  DstDesc,
+                                                                  SubLengths,
+                                                                  DstDimAccessOrder,
+                                                                  DstVectorAccessDim,
+                                                                  1,
+                                                                  DstDataPerAccess>;
 
     ThreadwiseLoad mThreadwiseLoad;
     ThreadwiseStore mThreadwiseStore;

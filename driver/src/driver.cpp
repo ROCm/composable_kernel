@@ -73,25 +73,10 @@ int main(int argc, char* argv[])
     using namespace ck;
 
 #if 1
-    constexpr index_t N  = 10;
-    constexpr index_t C  = 10;
-    constexpr index_t HI = 10;
-    constexpr index_t WI = 10;
-    constexpr index_t K  = 10;
-    constexpr index_t Y  = 1;
-    constexpr index_t X  = 1;
-
-    using ConvStrides   = Sequence<1, 1>;
-    using ConvDilations = Sequence<1, 1>;
-
-    constexpr index_t HPad = 3;
-    constexpr index_t WPad = 3;
-#elif 1
-    // 3x3, 34x34
-    constexpr index_t N  = 64;
-    constexpr index_t C  = 256;
-    constexpr index_t HI = 34;
-    constexpr index_t WI = 34;
+    constexpr index_t N  = 32;
+    constexpr index_t C  = 8;
+    constexpr index_t HI = 2;
+    constexpr index_t WI = 2;
     constexpr index_t K  = 128;
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
@@ -99,8 +84,23 @@ int main(int argc, char* argv[])
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    constexpr index_t HPad = 0;
-    constexpr index_t WPad = 0;
+    constexpr index_t HPad = 1;
+    constexpr index_t WPad = 1;
+#elif 1
+    // 3x3, 34x34
+    constexpr index_t N  = 64;
+    constexpr index_t C  = 256;
+    constexpr index_t HI = 32;
+    constexpr index_t WI = 32;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 3;
+    constexpr index_t X  = 3;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    constexpr index_t HPad = 1;
+    constexpr index_t WPad = 1;
 #elif 0
     // 1x1 filter, 8x8 image
     // cudnn@V100 68%, ck@V100 72%, ck@P100 52%, ck@VII 42%
@@ -434,7 +434,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-#if 1
+#if 0
         if(Y == 3 && X == 3 && ConvStrides{}[0] == 1 && ConvStrides{}[1] == 1 &&
            ConvDilations{}[0] == 1 && ConvDilations{}[1] == 1)
         {

@@ -537,11 +537,9 @@ struct sequence_unique_sort
 };
 
 template <typename SeqMap>
-struct is_valid_sequence_map
+struct is_valid_sequence_map : is_same<typename arithmetic_sequence_gen<0, SeqMap::Size(), 1>::type,
+                                       typename sequence_sort<SeqMap, math::less<index_t>>::type>
 {
-    static constexpr bool value =
-        is_same<typename arithmetic_sequence_gen<0, SeqMap::Size(), 1>::type,
-                typename sequence_sort<SeqMap, math::less<index_t>>::type>{};
 };
 
 template <typename SeqMap>
