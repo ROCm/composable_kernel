@@ -64,6 +64,18 @@ struct NativeTensorDescriptor
         return GetStrides(typename arithmetic_sequence_gen<0, nDim, 1>::type{});
     }
 
+    __host__ __device__ static constexpr index_t GetElementSize()
+    {
+        return accumulate_on_sequence(GetLengths(), math::multiplies<index_t>{}, Number<1>{});
+    }
+
+    __host__ __device__ static constexpr index_t GetElementSpace()
+    {
+        return accumulate_on_sequence(
+            (GetLengths() - Number<1>{}) * GetStrides(), math::plus<index_t>{}, Number<1>{});
+    }
+
+    // TODO: this cannot return constepxr because of use of lambda
     __host__ __device__ static constexpr index_t CalculateOffset(const Index& idx)
     {
         index_t offset = 0;
@@ -71,6 +83,12 @@ struct NativeTensorDescriptor
         static_for<0, nDim, 1>{}([&](auto idim) { offset += idx[idim] * GetStride(idim); });
 
         return offset;
+    }
+
+    // TODO: remove this
+    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(const Index& idx)
+    {
+        return CalculateOffset(idx);
     }
 
     __host__ __device__ static constexpr index_t CalculateOffsetDiff(const Index& idx_diff)
@@ -99,6 +117,12 @@ struct NativeTensorDescriptor
     __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
     {
         return Tuple<>{};
+    }
+
+    // TODO: should this function be here? should it be specific for padding check?
+    __host__ __device__ static constexpr bool IsUpperIndexInPaddingArea(const Index& /* idx */)
+    {
+        return false;
     }
 };
 
@@ -248,6 +272,17 @@ struct TransformedTensorDescriptor
         return GetLengths(Sequence<IDim, IDims...>{});
     }
 
+    __host__ __device__ static constexpr index_t GetElementSize()
+    {
+        return accumulate_on_sequence(GetLengths(), math::multiplies<index_t>{}, Number<1>{});
+    }
+
+    __host__ __device__ static constexpr index_t GetElementSpace()
+    {
+        // TODO: Is this the correct definition for transformed tensor?
+        return GetLowerTensorDescriptor().GetElementSpace();
+    }
+
     // TODO: right now return value is constexpr because use of non-constepxr lambda
     __host__ __device__ static constexpr LowerIndex CalculateLowerIndex(const UpperIndex& idx_up)
     {
@@ -256,8 +291,8 @@ struct TransformedTensorDescriptor
         static_for<0, nTransform, 1>{}([&](auto itran) {
             constexpr auto tran = Transforms{}.At(itran);
 
-            auto idx_low_part      = pick_array_element(idx_low, LowDimensionIds{}.At(itran));
             const auto idx_up_part = pick_array_element(idx_up, UpDimensionIds{}.At(itran));
+            auto idx_low_part      = pick_array_element(idx_low, LowDimensionIds{}.At(itran));
 
             // this assume each lower (single) index is only assocaited with one transformation,
             //   which is required for index transformation, and has been checked during constructor
@@ -269,26 +304,29 @@ struct TransformedTensorDescriptor
     }
 
     // TODO: right now return value is constexpr because use of non-constepxr lambda
-    __host__ __device__ static constexpr LowerIndex
-    CalculateLowerIndexDiff(const UpperIndex& idx_up_diff, const LowerIndex& idx_low_old)
+    __host__ __device__ static constexpr LowerIndex CalculateLowerIndexDiff(
+        const UpperIndex& idx_up_diff, const UpperIndex& idx_up_old, const LowerIndex& idx_low_old)
     {
         LowerIndex idx_low_diff;
 
         static_for<0, nTransform, 1>{}([&](auto itran) {
-            constexpr auto tran = Transforms::At(itran);
+            constexpr auto tran = Transforms{}.At(itran);
 
             const auto idx_up_diff_part =
-                pick_array_element(idx_up_diff, UpDimensionIds::At(itran));
+                pick_array_element(idx_up_diff, UpDimensionIds{}.At(itran));
 
-            auto idx_low_diff_part = pick_array_element(idx_low_diff, LowDimensionIds::At(itran));
+            const auto idx_up_old_part = pick_array_element(idx_up_old, UpDimensionIds{}.At(itran));
 
             const auto idx_low_old_part =
-                pick_array_element(idx_low_old, LowDimensionIds::At(itran));
+                pick_array_element(idx_low_old, LowDimensionIds{}.At(itran));
+
+            auto idx_low_diff_part = pick_array_element(idx_low_diff, LowDimensionIds{}.At(itran));
 
             // this assume each lower (single) index is associated with only one transformation,
             //   which is required for index transformation, and has been checked during constructor
             //   of TransformedTensorDescriptor
-            idx_low_diff_part = tran.CalculateLowerIndex(idx_up_diff_part, idx_low_old_part);
+            idx_low_diff_part = tran.CalculateLowerIndexDiff(
+                to_array(idx_up_diff_part), to_array(idx_up_old_part), to_array(idx_low_old_part));
         });
 
         return idx_low_diff;
@@ -297,6 +335,12 @@ struct TransformedTensorDescriptor
     __host__ __device__ static constexpr index_t CalculateOffset(const UpperIndex& idx_up)
     {
         return GetLowerTensorDescriptor().CalculateOffset(CalculateLowerIndex(idx_up));
+    }
+
+    // TODO: remove this
+    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(const UpperIndex& idx_up)
+    {
+        return CalculateOffset(idx_up);
     }
 
 #if 0
@@ -321,6 +365,22 @@ struct TransformedTensorDescriptor
         // not implemented
     }
 #endif
+
+    // TODO: should this function be here? should it be specific for padding check?
+    __host__ __device__ static constexpr bool IsUpperIndexInPaddingArea(const UpperIndex& idx_up)
+    {
+        bool flag = false;
+
+        static_for<0, nTransform, 1>{}([&](auto itran) {
+            constexpr auto tran = Transforms{}.At(itran);
+
+            const auto idx_up_part = pick_array_element(idx_up, UpDimensionIds{}.At(itran));
+
+            flag = flag || tran.IsUpperIndexInPaddingArea(to_array(idx_up_part));
+        });
+
+        return flag;
+    }
 };
 
 template <index_t... Lengths, index_t... Strides>
@@ -337,7 +397,7 @@ __host__ __device__ constexpr auto make_native_tensor_descriptor_packed(Lengths)
                                  Lengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
                                  .PushBack(Number<1>{});
 
-    return make_NativeTensorDescriptor(Lengths{}, strides);
+    return make_native_tensor_descriptor(Lengths{}, strides);
 }
 
 template <typename LowTensorDescriptor,

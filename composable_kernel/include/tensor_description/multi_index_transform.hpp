@@ -22,17 +22,27 @@ struct PassThrough
 
     __host__ __device__ static constexpr auto GetUpperLengths() { return Sequence<Length>{}; }
 
-    __host__ __device__ static constexpr auto CalculateLowerIndex(UpperIndex idx_up)
+    __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& idx_up)
     {
         return idx_up;
     }
 
-    __host__ __device__ static constexpr auto CalculateLowerIndexDiff(UpperIndex idx_up_diff)
+    __host__ __device__ static constexpr auto
+    CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
+                            const UpperIndex& /* idx_up_old */,
+                            const LowerIndex& /* idx_low_old */)
     {
         return idx_up_diff;
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    // TODO: should this function be here? should it be specific for padding check?
+    __host__ __device__ static constexpr bool
+    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    {
+        return false;
+    }
 };
 
 // LowLengths: Sequence<...>
@@ -55,17 +65,39 @@ struct Pad
         return GetLowerLengths() + LeftPads{} + RightPads{};
     }
 
-    __host__ __device__ static constexpr auto CalculateLowerIndex(UpperIndex idx_up)
+    __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& idx_up)
     {
         return idx_up - LeftPads{};
     }
 
-    __host__ __device__ static constexpr auto CalculateLowerIndexDiff(UpperIndex idx_up_diff)
+    __host__ __device__ static constexpr auto
+    CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
+                            const UpperIndex& /* idx_up_old */,
+                            const LowerIndex& /* idx_low_old */)
     {
         return idx_up_diff;
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    // TODO: should this function be here? should it be specific for padding check?
+    __host__ __device__ constexpr bool IsUpperIndexInPaddingArea(const UpperIndex& idx_up) const
+    {
+        bool flag = false;
+
+        static_for<0, nDim, 1>{}([&](auto idim) {
+            // only check if there is left-padding
+            static_if<(LeftPads::At(idim) != 0)>{}(
+                [&](auto) { flag = flag || idx_up[idim] < LeftPads::At(idim); });
+
+            // only check if there is right-padding
+            static_if<(RightPads::At(idim) != 0)>{}([&](auto) {
+                flag = flag || idx_up[idim] >= LeftPads::At(idim) + LowLengths::At(idim);
+            });
+        });
+
+        return flag;
+    }
 };
 
 // LowLengths: Sequence<...>
@@ -124,7 +156,7 @@ struct Merge
                 .PushBack(Number<1>{});
 
 // calculate index in each of the dimensions in the order of their dimension
-#if 1
+#if 1 // would compile to same ISA?
         static_for<0, nDimLow - 1, 1>{}(
             lambda_CalculateLowerIndex<decltype(pseudo_low_strides)>(itmp, idx_low));
 
@@ -138,8 +170,10 @@ struct Merge
     }
 
     // idx_low_diff depends on idx_low_old, so idx_low need to be up-to-date
-    __host__ __device__ static constexpr auto CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
-                                                                      const LowerIndex& idx_low_old)
+    __host__ __device__ static constexpr auto
+    CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
+                            const UpperIndex& /* idx_up_old */,
+                            const LowerIndex& idx_low_old)
     {
         LowerIndex idx_low_diff;
 
@@ -149,6 +183,13 @@ struct Merge
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return false; }
+
+    // TODO: should this function be here? should it be specific for padding check?
+    __host__ __device__ static constexpr bool
+    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    {
+        return false;
+    }
 };
 
 // UpLengths: Sequence<...>
@@ -189,7 +230,10 @@ struct Unmerge
         return idx_low;
     }
 
-    __host__ __device__ static constexpr auto CalculateLowerIndexDiff(const UpperIndex& idx_up_diff)
+    __host__ __device__ static constexpr auto
+    CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
+                            const UpperIndex& /* idx_up_old */,
+                            const LowerIndex& /* idx_low_old */)
     {
         return CalculateLowerIndex(idx_up_diff);
     }
@@ -240,7 +284,10 @@ struct Embed
         return idx_low;
     }
 
-    __host__ __device__ static constexpr auto CalculateLowerIndexDiff(const UpperIndex& idx_up_diff)
+    __host__ __device__ static constexpr auto
+    CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
+                            const UpperIndex& /* idx_up_old */,
+                            const LowerIndex& /* idx_low_old */)
     {
         LowerIndex idx_low_diff{0};
 

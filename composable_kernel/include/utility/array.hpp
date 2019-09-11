@@ -23,20 +23,9 @@ struct Array
         static_assert(sizeof...(Xs) + 1 == NSize, "wrong! size");
     }
 
-#if 0
-    template <typename T>
-    __host__ __device__ explicit constexpr Array(const T& x)
-    {
-        static_assert(T::Size() == NSize, "wrong! size");
-
-        static_for<0, NSize, 1>{}([&](auto i){
-           mData[i] = x.At(i); 
-        })
-    }
-#endif
-
     __host__ __device__ static constexpr index_t Size() { return NSize; }
 
+    // TODO: remove
     __host__ __device__ static constexpr index_t GetSize() { return Size(); }
 
     template <index_t I>
@@ -265,8 +254,8 @@ __host__ __device__ constexpr auto extract_array(const Array<TData, NSize>& old_
     return new_array;
 }
 
-template <typename F, typename X, typename Y, typename Z> // emulate constepxr lambda for array
-// math
+// emulate constepxr lambda for array
+template <typename F, typename X, typename Y, typename Z>
 struct lambda_array_math
 {
     const F& f;

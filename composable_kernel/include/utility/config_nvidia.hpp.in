@@ -15,14 +15,21 @@
 
 namespace ck {
 
+using unsigned_t = uint32_t;
+using signed_t   = int;
+
+#if 0 // debug
+using index_t = unsigned_t;
+#else
+using index_t = signed_t;
+#endif
+
 // For some reason, CUDA need this definition, otherwise
 //   compiler won't generate optimal load and store instruction, and
 //   kernel would produce wrong result, indicating the compiler fail to generate correct
 //   instruction,
 using float2_t = float2;
 using float4_t = float4;
-
-using index_t = uint32_t;
 
 template <class T>
 __device__ void fused_multiply_accumulate(T& d, const T& s0, const T& s1)

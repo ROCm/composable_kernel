@@ -18,8 +18,8 @@ template <index_t GridSize,
           class InGlobalDesc,
           class WeiGlobalDesc,
           class OutGlobalDesc,
-          class LowerPads,
-          class UpperPads,
+          class LeftPads,
+          class RightPads,
           index_t NPerBlock,
           index_t KPerBlock,
           index_t CPerBlock,
@@ -60,7 +60,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
     static constexpr auto I10 = Number<10>{};
     static constexpr auto I11 = Number<11>{};
 
-#if 0
+    static constexpr auto True  = integral_constant<bool, true>{};
+    static constexpr auto False = integral_constant<bool, false>{};
+
+#if 1
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
@@ -73,14 +76,22 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                   GemmNPerThreadSubC % NPerThread == 0)),
             "wrong!");
 
-        constexpr auto True  = integral_constant<bool, true>{};
-        constexpr auto False = integral_constant<bool, false>{};
+        constexpr auto in_c_h_w_n_global_desc_old  = InGlobalDesc{};
+        constexpr auto wei_c_y_x_k_global_desc_old = WeiGlobalDesc{};
+        constexpr auto out_k_h_w_n_global_desc_old = OutGlobalDesc{};
 
-        constexpr auto in_c_h_w_n_global_desc  = InGlobalDesc{};
-        constexpr auto wei_c_y_x_k_global_desc = WeiGlobalDesc{};
-        constexpr auto out_k_h_w_n_global_desc = OutGlobalDesc{};
+        constexpr auto in_c_h_w_n_global_desc = make_native_tensor_descriptor(
+            in_c_h_w_n_global_desc_old.GetLengths(), in_c_h_w_n_global_desc_old.GetStrides());
 
-        constexpr index_t C = in_c_h_w_n_global_desc.GetLength(I0);
+        constexpr auto wei_c_y_x_k_global_desc = make_native_tensor_descriptor(
+            wei_c_y_x_k_global_desc_old.GetLengths(), wei_c_y_x_k_global_desc_old.GetStrides());
+
+        constexpr auto out_k_h_w_n_global_desc = make_native_tensor_descriptor(
+            out_k_h_w_n_global_desc_old.GetLengths(), out_k_h_w_n_global_desc_old.GetStrides());
+
+        constexpr index_t C  = in_c_h_w_n_global_desc.GetLength(I0);
+        constexpr index_t Hi = in_c_h_w_n_global_desc.GetLength(I1);
+        constexpr index_t Wi = in_c_h_w_n_global_desc.GetLength(I2);
 
         constexpr index_t K  = out_k_h_w_n_global_desc.GetLength(I0);
         constexpr index_t Ho = out_k_h_w_n_global_desc.GetLength(I1);
@@ -111,11 +122,22 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
         const index_t wo_block_data_begin = block_work_multi_id[2] * WoPerBlock;
         const index_t n_block_data_begin  = block_work_multi_id[3] * NPerBlock;
 
-        const index_t hi_block_data_begin = ho_block_data_begin;
-        const index_t wi_block_data_begin = wo_block_data_begin;
+        const index_t hi_block_data_begin = ho_block_data_begin - LeftPads{}[0];
+        const index_t wi_block_data_begin = wo_block_data_begin - LeftPads{}[1];
+
+        // input global tensor view
+        constexpr auto in_c_hp_wp_n_global_desc = transform_tensor_descriptor(
+            in_c_h_w_n_global_desc,
+            make_tuple(
+                PassThrough<C>{}, Pad<Sequence<Hi, Wi>, LeftPads, RightPads>{}, PassThrough<N>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
 
         // global tensor view
-        constexpr auto wei_c_k_global_desc = wei_c_y_x_k_global_desc.Extract(I0, I3);
+        constexpr auto wei_c_k_global_desc_old = wei_c_y_x_k_global_desc_old.Extract(I0, I3);
+
+        constexpr auto wei_c_k_global_desc = make_native_tensor_descriptor(
+            wei_c_k_global_desc_old.GetLengths(), wei_c_k_global_desc_old.GetStrides());
 
         // LDS tensor view
         //   be careful of alignment
@@ -124,122 +146,81 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                                                 GemmDataPerReadA,
                                                 GemmDataPerReadB);
 
-        constexpr auto in_c_h_w_n_block_desc = make_ConstantTensorDescriptor_aligned(
+        constexpr auto in_c_h_w_n_block_desc_old = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, HoPerBlock, WoPerBlock, NPerBlock>{}, Number<max_align>{});
+
+        // hack
+        constexpr auto in_c_h_w_n_block_desc = make_native_tensor_descriptor(
+            in_c_h_w_n_block_desc_old.GetLengths(), in_c_h_w_n_block_desc_old.GetStrides());
 
         // this check is ad-hoc
         // TODO: need to properly implement tensor descriptor with alignment
         static_assert(in_c_h_w_n_block_desc.GetStride(I1) % GemmDataPerReadB == 0,
                       "GemmDataPerReadB alignment requirement is not meet");
 
-        constexpr auto wei_c_k_block_desc = make_ConstantTensorDescriptor_aligned(
+        constexpr auto wei_c_k_block_desc_old = make_ConstantTensorDescriptor_aligned(
             Sequence<CPerBlock, KPerBlock>{}, Number<max_align>{});
 
-        constexpr auto wei_c_1_1_k_block_desc = make_ConstantTensorDescriptor_aligned(
-            Sequence<CPerBlock, 1, 1, KPerBlock>{}, Number<max_align>{});
+        constexpr auto wei_c_k_block_desc = make_native_tensor_descriptor(
+            wei_c_k_block_desc_old.GetLengths(), wei_c_k_block_desc_old.GetStrides());
 
         // LDS: be careful of alignment
-        constexpr index_t in_block_space  = in_c_h_w_n_block_desc.GetElementSpace();
-        constexpr index_t wei_block_space = wei_c_k_block_desc.GetElementSpace();
+        constexpr index_t in_block_space  = in_c_h_w_n_block_desc_old.GetElementSpace();
+        constexpr index_t wei_block_space = wei_c_k_block_desc_old.GetElementSpace();
 
         __shared__ Float p_in_block[in_block_space];
         __shared__ Float p_wei_block[wei_block_space];
 
         // tensor view of threadwise output in register
-        constexpr auto out_k_h_w_n_thread_desc = make_ConstantTensorDescriptor_packed(
+        constexpr auto out_k_h_w_n_thread_desc_old = make_ConstantTensorDescriptor_packed(
             Sequence<KPerThread, HoPerThread, WoPerThread, NPerThread>{});
 
-#if 1
+        constexpr auto out_k_h_w_n_thread_desc = make_native_tensor_descriptor(
+            out_k_h_w_n_thread_desc_old.GetLengths(), out_k_h_w_n_thread_desc_old.GetStrides());
+
         // blockwise input copy
         //   format is [C, Hi, Wi, N]
         auto blockwise_in_copy =
-            BlockwiseGenericTensorSliceCopy_v2<BlockSize,
-                                               decltype(in_c_h_w_n_global_desc),
-                                               decltype(in_c_h_w_n_block_desc),
-                                               decltype(in_c_h_w_n_block_desc.GetLengths()),
-                                               InBlockCopySubLengths_CHWN,
-                                               InBlockCopyClusterLengths_CHWN,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               3,
-                                               3,
-                                               InBlockCopyDataPerAccess_N,
-                                               InBlockCopyDataPerAccess_N>({0, 0, 0, 0},
-                                                                           {0, 0, 0, 0});
+#if 0
+            BlockwiseGenericTensorSliceCopy_v2
 #else
-        auto in_c_h_w_n_global = make_TensorView(in_c_h_w_n_global_desc, p_in_global);
-        auto in_c_h_w_n_block  = make_TensorView(in_c_h_w_n_block_desc, p_in_block);
-
-        auto blockwise_in_copy =
-            BlockwiseGenericTensorSliceCopy_v3<BlockSize,
-                                               decltype(in_c_h_w_n_global),
-                                               decltype(in_c_h_w_n_block),
-                                               decltype(in_c_h_w_n_block.GetLengths()),
-                                               InBlockCopySubLengths_CHWN,
-                                               InBlockCopyClusterLengths_CHWN,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               3,
-                                               3,
-                                               InBlockCopyDataPerAccess_N,
-                                               InBlockCopyDataPerAccess_N>(
-                in_c_h_w_n_global,
-                {0, hi_block_data_begin, wi_block_data_begin, n_block_data_begin},
-                in_c_h_w_n_block,
-                {0, 0, 0, 0});
+            BlockwiseGenericTensorSliceCopy_v4
 #endif
+            <BlockSize,
+             decltype(in_c_hp_wp_n_global_desc),
+             decltype(in_c_h_w_n_block_desc),
+             decltype(in_c_h_w_n_block_desc.GetLengths()),
+             InBlockCopySubLengths_CHWN,
+             InBlockCopyClusterLengths_CHWN,
+             Sequence<0, 1, 2, 3>,
+             Sequence<0, 1, 2, 3>,
+             Sequence<0, 1, 2, 3>,
+             3,
+             3,
+             InBlockCopyDataPerAccess_N,
+             InBlockCopyDataPerAccess_N>({0, 0, 0, 0}, {0, 0, 0, 0});
 
-#if 1
         // blockwise wei copy
         //   format is [CPerBlock, KPerBlock]
         const auto blockwise_wei_copy =
-            BlockwiseGenericTensorSliceCopy_v2<BlockSize,
-                                               decltype(wei_c_k_global_desc),
-                                               decltype(wei_c_k_block_desc),
-                                               decltype(wei_c_k_block_desc.GetLengths()),
-                                               WeiBlockCopySubLengths_CK,
-                                               WeiBlockCopyClusterLengths_CK,
-                                               Sequence<0, 1>,
-                                               Sequence<0, 1>,
-                                               Sequence<0, 1>,
-                                               1,
-                                               1,
-                                               WeiBlockCopyDataPerAccess_K,
-                                               WeiBlockCopyDataPerAccess_K>({0, 0}, {0, 0});
+#if 0
+            BlockwiseGenericTensorSliceCopy_v2
 #else
-        auto wei_c_y_x_k_global = make_TensorView(wei_c_y_x_k_global_desc, p_wei_global);
-        auto wei_c_1_1_k_block  = make_TensorView(wei_c_1_1_k_block_desc, p_wei_block);
-
-        constexpr index_t WeiBlockCopySubLengths_C = WeiBlockCopySubLengths_CK{}[0];
-        constexpr index_t WeiBlockCopySubLengths_K = WeiBlockCopySubLengths_CK{}[1];
-
-        using WeiBlockCopySubLengths_CYXK =
-            Sequence<WeiBlockCopySubLengths_C, 1, 1, WeiBlockCopySubLengths_K>;
-
-        constexpr index_t WeiBlockCopyClusterLengths_C = WeiBlockCopyClusterLengths_CK{}[0];
-        constexpr index_t WeiBlockCopyClusterLengths_K = WeiBlockCopyClusterLengths_CK{}[1];
-
-        using WeiBlockCopyClusterLengths_CYXK =
-            Sequence<WeiBlockCopyClusterLengths_C, 1, 1, WeiBlockCopyClusterLengths_K>;
-
-        auto blockwise_wei_copy =
-            BlockwiseGenericTensorSliceCopy_v3<BlockSize,
-                                               decltype(wei_c_y_x_k_global),
-                                               decltype(wei_c_1_1_k_block),
-                                               decltype(wei_c_1_1_k_block.GetLengths()),
-                                               WeiBlockCopySubLengths_CYXK,
-                                               WeiBlockCopyClusterLengths_CYXK,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               Sequence<0, 1, 2, 3>,
-                                               3,
-                                               3,
-                                               WeiBlockCopyDataPerAccess_K,
-                                               WeiBlockCopyDataPerAccess_K>(
-                wei_c_y_x_k_global, {0, 0, 0, k_block_data_begin}, wei_c_1_1_k_block, {0, 0, 0, 0});
+            BlockwiseGenericTensorSliceCopy_v4
 #endif
+            <BlockSize,
+             decltype(wei_c_k_global_desc),
+             decltype(wei_c_k_block_desc),
+             decltype(wei_c_k_block_desc.GetLengths()),
+             WeiBlockCopySubLengths_CK,
+             WeiBlockCopyClusterLengths_CK,
+             Sequence<0, 1>,
+             Sequence<0, 1>,
+             Sequence<0, 1>,
+             1,
+             1,
+             WeiBlockCopyDataPerAccess_K,
+             WeiBlockCopyDataPerAccess_K>({0, 0}, {0, 0});
 
         // a series of blockwise batched GEMM
         // C_matrix += transpose(A_matrix) * B_matrix
@@ -283,7 +264,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
 
         // register
         // C++ lambda doesn't capture array, use pointer instead
-        Float p_out_thread_data[out_k_h_w_n_thread_desc.GetElementSpace()];
+        Float p_out_thread_data[out_k_h_w_n_thread_desc_old.GetElementSpace()];
         Float* const p_out_thread = p_out_thread_data;
 
         // set threadwise output tensor to 0
@@ -296,12 +277,12 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
             {
                 const Float* p_in_global_block_offset =
                     p_in_global +
-                    in_c_h_w_n_global_desc.GetOffsetFromMultiIndex(
-                        0, hi_block_data_begin + y, wi_block_data_begin + x, n_block_data_begin);
+                    in_c_h_w_n_global_desc.CalculateOffset(
+                        {0, hi_block_data_begin + y, wi_block_data_begin + x, n_block_data_begin});
 
                 const Float* p_wei_global_block_offset =
                     p_wei_global +
-                    wei_c_y_x_k_global_desc.GetOffsetFromMultiIndex(0, y, x, k_block_data_begin);
+                    wei_c_y_x_k_global_desc.CalculateOffset({0, y, x, k_block_data_begin});
 
                 for(index_t c_block_data_begin = 0; c_block_data_begin < C;
                     c_block_data_begin += CPerBlock,
@@ -390,25 +371,30 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
             constexpr index_t K2 = GemmMPerThreadSubC;
             constexpr index_t K1 = KPerBlock / KPerThread;
 
-            constexpr auto out_10d_global_desc = fwd(out_k_h_w_n_global_desc)
-                                                     .Fold(I3, Number<N1>{}, Number<N2>{})
-                                                     .Fold(I2, Number<W1>{}, Number<W2>{})
-                                                     .Fold(I0, Number<K1>{}, Number<K2>{});
+            constexpr auto out_10d_global_desc_old = fwd(out_k_h_w_n_global_desc_old)
+                                                         .Fold(I3, Number<N1>{}, Number<N2>{})
+                                                         .Fold(I2, Number<W1>{}, Number<W2>{})
+                                                         .Fold(I0, Number<K1>{}, Number<K2>{});
 
-            constexpr auto out_10d_thread_desc = fwd(out_k_h_w_n_thread_desc)
-                                                     .Fold(I3, Number<1>{}, Number<N2>{})
-                                                     .Fold(I2, Number<W1>{}, Number<1>{})
-                                                     .Fold(I0, Number<1>{}, Number<K2>{});
+            constexpr auto out_10d_global_desc = make_native_tensor_descriptor(
+                out_10d_global_desc_old.GetLengths(), out_10d_global_desc_old.GetStrides());
 
-            Float* p_out_thread_on_global = p_out_global +
-                                            out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
-                                                k_block_data_begin + k_thread_data_begin,
-                                                ho_block_data_begin + ho_thread_data_begin,
-                                                wo_block_data_begin + wo_thread_data_begin,
-                                                n_block_data_begin + n_thread_data_begin);
+            constexpr auto out_10d_thread_desc_old = fwd(out_k_h_w_n_thread_desc_old)
+                                                         .Fold(I3, Number<1>{}, Number<N2>{})
+                                                         .Fold(I2, Number<W1>{}, Number<1>{})
+                                                         .Fold(I0, Number<1>{}, Number<K2>{});
 
-#if 1
-            ThreadwiseGenericTensorSliceCopy_v1r2<decltype(out_10d_thread_desc),
+            constexpr auto out_10d_thread_desc = make_native_tensor_descriptor(
+                out_10d_thread_desc_old.GetLengths(), out_10d_thread_desc_old.GetStrides());
+
+            Float* p_out_thread_on_global =
+                p_out_global +
+                out_k_h_w_n_global_desc.CalculateOffset({k_block_data_begin + k_thread_data_begin,
+                                                         ho_block_data_begin + ho_thread_data_begin,
+                                                         wo_block_data_begin + wo_thread_data_begin,
+                                                         n_block_data_begin + n_thread_data_begin});
+
+            ThreadwiseGenericTensorSliceCopy_v4r2<decltype(out_10d_thread_desc),
                                                   decltype(out_10d_global_desc),
                                                   decltype(out_10d_thread_desc.GetLengths()),
                                                   arithmetic_sequence_gen<0, 10, 1>::type,
@@ -417,19 +403,6 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                                                   OutThreadCopyDataPerAccess_N>(
                 make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
                 .Run(p_out_thread, p_out_thread_on_global);
-#elif 0
-            ThreadwiseGenericTensorSliceCopy_v1r1<decltype(out_10d_thread_desc),
-                                                  decltype(out_10d_global_desc),
-                                                  decltype(out_10d_thread_desc.GetLengths()),
-                                                  arithmetic_sequence_gen<0, 10, 1>::type,
-                                                  arithmetic_sequence_gen<0, 10, 1>::type,
-                                                  9,
-                                                  9,
-                                                  OutThreadCopyDataPerAccess_N,
-                                                  OutThreadCopyDataPerAccess_N>(
-                make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
-                .Run(p_out_thread, p_out_thread_on_global);
-#endif
         }).Else([&](auto fwd) {
             static_assert(fwd(GemmNPerThreadSubC) >= NPerBlock && NPerThread == NPerBlock &&
                               GemmNPerThreadSubC % NPerThread == 0,
@@ -445,27 +418,32 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
             constexpr index_t K2 = GemmMPerThreadSubC;
             constexpr index_t K1 = KPerBlock / KPerThread;
 
-            constexpr auto out_10d_global_desc =
-                fwd(out_k_h_w_n_global_desc)
+            constexpr auto out_10d_global_desc_old =
+                fwd(out_k_h_w_n_global_desc_old)
                     .Fold(I3, Number<N1>{})
                     .Fold(I2, Number<W1>{}, Number<W2>{}, Number<W3>{})
                     .Fold(I0, Number<K1>{}, Number<K2>{});
 
-            constexpr auto out_10d_thread_desc =
-                fwd(out_k_h_w_n_thread_desc)
+            constexpr auto out_10d_global_desc = make_native_tensor_descriptor(
+                out_10d_global_desc_old.GetLengths(), out_10d_global_desc_old.GetStrides());
+
+            constexpr auto out_10d_thread_desc_old =
+                fwd(out_k_h_w_n_thread_desc_old)
                     .Fold(I3, Number<N1>{})
                     .Fold(I2, Number<W1>{}, Number<1>{}, Number<W3>{})
                     .Fold(I0, Number<1>{}, Number<K2>{});
 
-            Float* p_out_thread_on_global = p_out_global +
-                                            out_k_h_w_n_global_desc.GetOffsetFromMultiIndex(
-                                                k_block_data_begin + k_thread_data_begin,
-                                                ho_block_data_begin + ho_thread_data_begin,
-                                                wo_block_data_begin + wo_thread_data_begin,
-                                                n_block_data_begin + n_thread_data_begin);
+            constexpr auto out_10d_thread_desc = make_native_tensor_descriptor(
+                out_10d_thread_desc_old.GetLengths(0), out_10d_thread_desc_old.GetStrides());
 
-#if 1
-            ThreadwiseGenericTensorSliceCopy_v1r2<decltype(out_10d_thread_desc),
+            Float* p_out_thread_on_global =
+                p_out_global +
+                out_k_h_w_n_global_desc.CalculateOffset({k_block_data_begin + k_thread_data_begin,
+                                                         ho_block_data_begin + ho_thread_data_begin,
+                                                         wo_block_data_begin + wo_thread_data_begin,
+                                                         n_block_data_begin + n_thread_data_begin});
+
+            ThreadwiseGenericTensorSliceCopy_v4r2<decltype(out_10d_thread_desc),
                                                   decltype(out_10d_global_desc),
                                                   decltype(out_10d_thread_desc.GetLengths()),
                                                   arithmetic_sequence_gen<0, 10, 1>::type,
@@ -474,58 +452,13 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                                                   OutThreadCopyDataPerAccess_N>(
                 make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
                 .Run(p_out_thread, p_out_thread_on_global);
-#elif 0
-            ThreadwiseGenericTensorSliceCopy_v1r1<decltype(out_10d_thread_desc),
-                                                  decltype(out_10d_global_desc),
-                                                  decltype(out_10d_thread_desc.GetLengths()),
-                                                  arithmetic_sequence_gen<0, 10, 1>::type,
-                                                  arithmetic_sequence_gen<0, 10, 1>::type,
-                                                  9,
-                                                  9,
-                                                  OutThreadCopyDataPerAccess_N,
-                                                  OutThreadCopyDataPerAccess_N>(
-                make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
-                .Run(p_out_thread, p_out_thread_on_global);
-#endif
         });
     }
-#else
+#elif 0
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
     {
-#if 0
-        constexpr auto a = make_tuple(true, Sequence<1>{}, index_t(99));
-
-        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-        {
-            printf("[0] %d\n", a.At(I0));
-            print_Sequence("[1]", a.At(I1));
-            printf("[2] %lu\n", a.At(I2));
-        }
-
-        bool flag = true;
-
-        auto b = make_tuple(flag, Sequence<1>{}, 99);
-
-        b.At(I0) = false;
-
-        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-        {
-            printf("[0] %d\n", b.At(I0));
-            print_Sequence("[1]", b.At(I1));
-            printf("[2] %lu\n", b.At(I2));
-
-            printf("flag %d\n", flag);
-        }
-
-        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-        {
-            printf("[0] %d\n", make_tuple(true, Sequence<1>(), index_t(99)).At(I0));
-            print_Sequence("[1]", make_tuple(true, Sequence<1>(), index_t(99)).At(I1));
-            printf("[2] %d\n", make_tuple(true, Sequence<1>(), index_t(99)).At(I2));
-        }
-#elif 1
         // create a native tensor descriptor
         constexpr auto in_c_h_w_n_global_desc =
             make_native_tensor_descriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
@@ -540,11 +473,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
         constexpr auto in_n_c_hp_wp_global_desc = transform_tensor_descriptor(
             in_c_h_w_n_global_desc,
             make_tuple(
-                Pad<Sequence<Hi, Wi>, LowerPads, UpperPads>{}, PassThrough<C>{}, PassThrough<N>{}),
+                Pad<Sequence<Hi, Wi>, LeftPads, RightPads>{}, PassThrough<C>{}, PassThrough<N>{}),
             make_tuple(Sequence<1, 2>{}, Sequence<0>{}, Sequence<3>{}),
             make_tuple(Sequence<2, 3>{}, Sequence<1>{}, Sequence<0>{}));
 
-#if 1
         // transformation: {n, c, hp, wp} --> {c, b}
         //   {n, hp, wp} --> {b}, {c} --> {c}
         constexpr auto in_c_b_global_desc = transform_tensor_descriptor(
@@ -553,9 +485,7 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                        PassThrough<in_n_c_hp_wp_global_desc.GetLength(I1)>{}),
             make_tuple(Sequence<0, 2, 3>{}, Sequence<1>{}),
             make_tuple(Sequence<1>{}, Sequence<0>{}));
-#endif
 
-#if 1
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
             // 0
@@ -577,16 +507,55 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
 
             printf("in_c_b_global_desc offset: %lu\n", in_c_b_global_desc.CalculateOffset(idx2));
         }
+    }
 #else
-        {
-            index_t c = static_cast<index_t>(threadIdx.x);
-            index_t h = static_cast<index_t>(threadIdx.y);
-            index_t w = static_cast<index_t>(threadIdx.z);
+    __device__ void Run(const Float* const __restrict__ p_in_global,
+                        const Float* const __restrict__ p_wei_global,
+                        Float* const __restrict__ p_out_global) const
+    {
+        // create a native tensor descriptor
+        constexpr auto in_c_h_w_n_global_desc =
+            make_native_tensor_descriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
 
-            p_out_global[0] = in_n_c_h_w_padded_global_desc.CalculateOffset({1, c, h, w});
+        constexpr index_t C  = in_c_h_w_n_global_desc.GetLength(I0);
+        constexpr index_t Hi = in_c_h_w_n_global_desc.GetLength(I1);
+        constexpr index_t Wi = in_c_h_w_n_global_desc.GetLength(I2);
+        constexpr index_t N  = in_c_h_w_n_global_desc.GetLength(I3);
+
+        // transformation: {c, h, w, n} --> {n, c, hp, wp}
+        //   {h, w} --> {hp, wp}, {c} --> {c}, {n} --> {n}
+        constexpr auto in_c_hp_wp_n_global_desc = transform_tensor_descriptor(
+            in_c_h_w_n_global_desc,
+            make_tuple(
+                PassThrough<C>{}, Pad<Sequence<Hi, Wi>, LeftPads, RightPads>{}, PassThrough<N>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
+
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            // 0
+            print_tensor_descriptor("in_c_h_w_n_global_desc", in_c_h_w_n_global_desc);
+
+            // 1
+            print_tensor_descriptor("in_c_hp_wp_n_global_desc", in_c_hp_wp_n_global_desc);
+
+            constexpr auto idx1 = MultiIndex<4>{1, 2, 3, 4};
+            auto idx0           = in_c_hp_wp_n_global_desc.CalculateLowerIndex(idx1);
+
+            print_array("idx1: ", idx1);
+            print_array("idx0: ", idx0);
+
+            auto coord1 = make_tensor_coordinate_v2(in_c_hp_wp_n_global_desc, idx1);
+
+            print_array("1: ", coord1.GetIndex());
+            print_array("0: ", coord1.GetLowerCoordinate().GetIndex());
+
+            printf("in_c_hp_wp_n_global_desc is_in_pad: %d\n",
+                   coord1.IsAnyLevelIndexInPaddingArea());
+
+            printf("in_c_hp_wp_n_global_desc offset: %lu\n",
+                   in_c_hp_wp_n_global_desc.CalculateOffset(idx1));
         }
-#endif
-#endif
     }
 #endif
 };
