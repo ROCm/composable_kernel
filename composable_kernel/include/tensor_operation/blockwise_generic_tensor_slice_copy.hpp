@@ -408,8 +408,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
 
     template <class T, bool PositiveDirection>
     __device__ void
-    MoveSrcSlicingWindow(T step_sizes,
-                         integral_constant<bool, PositiveDirection> positive_direction)
+    MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
         static_for<0, nDim, 1>{}([&](auto idim) {
             if(step_sizes[idim] != 0)
@@ -506,18 +505,16 @@ struct BlockwiseGenericTensorSliceCopy_v2
 
     template <class T, bool PositiveDirection>
     __device__ void
-    MoveSrcSlicingWindow(T step_sizes,
-                         integral_constant<bool, PositiveDirection> positive_direction)
+    MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
-        mThreadwiseLoad.MoveSrcSlicingWindow(step_sizes, positive_direction);
+        mThreadwiseLoad.MoveSrcSliceWindow(step_sizes, positive_direction);
     }
 
     template <class T, bool PositiveDirection>
     __device__ void
-    MoveDstSlicingWindow(T step_sizes,
-                         integral_constant<bool, PositiveDirection> positive_direction)
+    MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
-        mThreadwiseStore.MoveDstSlicingWindow(step_sizes, positive_direction);
+        mThreadwiseStore.MoveDstSliceWindow(step_sizes, positive_direction);
     }
 
     private:
@@ -753,18 +750,16 @@ struct BlockwiseGenericTensorSliceCopy_v4
 
     template <class T, bool PositiveDirection>
     __device__ void
-    MoveSrcSlicingWindow(T step_sizes,
-                         integral_constant<bool, PositiveDirection> positive_direction)
+    MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
-        mThreadwiseLoad.MoveSrcSlicingWindow(step_sizes, positive_direction);
+        mThreadwiseLoad.MoveSrcSliceWindow(step_sizes, positive_direction);
     }
 
     template <class T, bool PositiveDirection>
     __device__ void
-    MoveDstSlicingWindow(T step_sizes,
-                         integral_constant<bool, PositiveDirection> positive_direction)
+    MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
-        mThreadwiseStore.MoveDstSlicingWindow(step_sizes, positive_direction);
+        mThreadwiseStore.MoveDstSliceWindow(step_sizes, positive_direction);
     }
 
     private:

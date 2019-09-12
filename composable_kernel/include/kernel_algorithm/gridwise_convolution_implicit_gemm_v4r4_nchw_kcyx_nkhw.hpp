@@ -240,8 +240,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
 
             __syncthreads();
 
-            blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
-            blockwise_wei_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
+            blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
+            blockwise_wei_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
         }
 
         // copy output: register to global memory
@@ -297,9 +297,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
             {
                 threadwise_out_copy.Run(p_out_thread, p_out_global);
 
-                threadwise_out_copy.MoveSrcSlicingWindow(Sequence<0, 0, GemmNPerThreadSubC>{},
-                                                         True);
-                threadwise_out_copy.MoveDstSlicingWindow(Sequence<0, 0, B1>{}, True);
+                threadwise_out_copy.MoveSrcSliceWindow(Sequence<0, 0, GemmNPerThreadSubC>{}, True);
+                threadwise_out_copy.MoveDstSliceWindow(Sequence<0, 0, B1>{}, True);
             }
         }
     }

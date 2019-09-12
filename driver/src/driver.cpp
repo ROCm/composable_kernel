@@ -72,20 +72,20 @@ int main(int argc, char* argv[])
 {
     using namespace ck;
 
-#if 1
+#if 0
     constexpr index_t N  = 32;
     constexpr index_t C  = 8;
-    constexpr index_t HI = 2;
-    constexpr index_t WI = 2;
+    constexpr index_t HI = 1;
+    constexpr index_t WI = 1;
     constexpr index_t K  = 128;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
 
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    constexpr index_t HPad = 1;
-    constexpr index_t WPad = 1;
+    using LeftPads  = Sequence<1, 1>;
+    using RightPads = Sequence<0, 0>;
 #elif 1
     // 3x3, 34x34
     constexpr index_t N  = 64;
@@ -99,8 +99,8 @@ int main(int argc, char* argv[])
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    constexpr index_t HPad = 1;
-    constexpr index_t WPad = 1;
+    using LeftPads  = Sequence<1, 1>;
+    using RightPads = Sequence<1, 1>;
 #elif 0
     // 1x1 filter, 8x8 image
     // cudnn@V100 68%, ck@V100 72%, ck@P100 52%, ck@VII 42%
@@ -311,13 +311,10 @@ int main(int argc, char* argv[])
     constexpr index_t WPad = 0;
 #endif
 
-    auto lower_pads = Sequence<HPad, WPad>{};
-    auto upper_pads = Sequence<HPad, WPad>{};
-
     auto in_nchw_desc  = make_ConstantTensorDescriptor_packed(Sequence<N, C, HI, WI>{});
     auto wei_kcyx_desc = make_ConstantTensorDescriptor_packed(Sequence<K, C, Y, X>{});
     auto out_nkhw_desc = get_convolution_with_padding_output_default_4d_tensor_descriptor(
-        in_nchw_desc, wei_kcyx_desc, ConvStrides{}, ConvDilations{}, lower_pads, upper_pads);
+        in_nchw_desc, wei_kcyx_desc, ConvStrides{}, ConvDilations{}, LeftPads{}, RightPads{});
 
     ostream_ConstantTensorDescriptor(in_nchw_desc, std::cout << "in_nchw_desc: ");
     ostream_ConstantTensorDescriptor(wei_kcyx_desc, std::cout << "wei_kcyx_desc: ");
@@ -378,8 +375,8 @@ int main(int argc, char* argv[])
                                                               wei_kcyx,
                                                               out_nkhw_desc,
                                                               out_nkhw_device,
-                                                              lower_pads,
-                                                              upper_pads,
+                                                              LeftPads{},
+                                                              RightPads{},
                                                               nrepeat);
 #elif 0
     device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw(
@@ -434,11 +431,12 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-#if 0
+#if 1
         if(Y == 3 && X == 3 && ConvStrides{}[0] == 1 && ConvStrides{}[1] == 1 &&
            ConvDilations{}[0] == 1 && ConvDilations{}[1] == 1)
         {
-            host_winograd_3x3_convolution(in_nchw, wei_kcyx, out_nkhw_host, lower_pads, upper_pads);
+            host_winograd_3x3_convolution(
+                in_nchw, wei_kcyx, out_nkhw_host, LeftPads{}, RightPads{});
         }
         else
 #endif
@@ -448,8 +446,8 @@ int main(int argc, char* argv[])
                                     out_nkhw_host,
                                     ConvStrides{},
                                     ConvDilations{},
-                                    lower_pads,
-                                    upper_pads);
+                                    LeftPads{},
+                                    RightPads{});
         }
         check_error(out_nkhw_host, out_nkhw_device);
 

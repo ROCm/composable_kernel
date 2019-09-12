@@ -303,7 +303,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
                 Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-                blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
+                blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
                 p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
 
                 __syncthreads();
@@ -328,7 +328,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
             Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
             Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-            blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
+            blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
             p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStride(I0);
 
             __syncthreads();

@@ -304,8 +304,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
             blockwise_in_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
             blockwise_wei_copy.MoveSlicingWindowOnSourceTensor(I0, Number<EPerBlock>{}, True);
 #else
-            blockwise_in_copy.MoveSrcSlicingWindow({EPerBlock, 0, 0, 0}, true);
-            blockwise_wei_copy.MoveSrcSlicingWindow({EPerBlock, 0}, true);
+            blockwise_in_copy.MoveSrcSliceWindow({EPerBlock, 0, 0, 0}, true);
+            blockwise_wei_copy.MoveSrcSliceWindow({EPerBlock, 0}, true);
 #endif
         }
 
