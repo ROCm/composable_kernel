@@ -518,7 +518,7 @@ struct BlockwiseGenericTensorSliceCopy_v2
     }
 
     private:
-    using RegisterBufferDesc = decltype(make_native_tensor_descriptor_packed(SubLengths{}));
+    using RegisterBufferDesc = decltype(make_ConstantTensorDescriptor_packed(SubLengths{}));
 
     using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v2r1<SrcDesc,
                                                                  RegisterBufferDesc,

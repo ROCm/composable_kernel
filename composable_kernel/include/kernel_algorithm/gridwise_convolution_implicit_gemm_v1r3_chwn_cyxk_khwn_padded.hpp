@@ -51,10 +51,10 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_padded
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
     {
-        static constexpr auto I0  = Number<0>{};
-        static constexpr auto I1  = Number<1>{};
-        static constexpr auto I2  = Number<2>{};
-        static constexpr auto I3  = Number<3>{};
+        static constexpr auto I0 = Number<0>{};
+        static constexpr auto I1 = Number<1>{};
+        static constexpr auto I2 = Number<2>{};
+        static constexpr auto I3 = Number<3>{};
 
         static constexpr auto True  = integral_constant<bool, true>{};
         static constexpr auto False = integral_constant<bool, false>{};

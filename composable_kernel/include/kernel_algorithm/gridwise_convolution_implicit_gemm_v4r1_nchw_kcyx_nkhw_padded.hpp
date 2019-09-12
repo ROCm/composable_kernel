@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_HPP
-#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_HPP
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_PADDED_HPP
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_PADDED_HPP
 
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
@@ -20,6 +20,8 @@ template <index_t GridSize,
           typename OutGlobalDesc,
           typename ConvStrides,
           typename ConvDilations,
+          typename LeftPads,
+          typename RightPads,
           index_t BPerBlock,
           index_t KPerBlock,
           index_t EPerBlock,
@@ -47,7 +49,7 @@ template <index_t GridSize,
           typename WeiBlockCopyDstAccessOrder,
           index_t WeiBlockCopySrcDataPerRead_E,
           index_t WeiBlockCopyDstDataPerWrite_K>
-struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
+struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,

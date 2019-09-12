@@ -111,7 +111,7 @@ struct ConstantMergedTensorDescriptor
 
             index_t itmp = original_multi_id_partial[I];
 
-            original_multi_id.Set(Number<idim_original>{}, itmp);
+            original_multi_id(idim_original) = itmp;
         }
     };
 
