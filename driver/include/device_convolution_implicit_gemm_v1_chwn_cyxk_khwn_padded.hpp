@@ -6,15 +6,15 @@
 
 using namespace ck;
 
-template <class T, class InDesc, class WeiDesc, class OutDesc, class LowerPads, class UpperPads>
+template <typename T, class InDesc, class WeiDesc, class OutDesc, class LeftPads, class RightPads>
 void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded(InDesc,
                                                                const Tensor<T>& in_nchw,
                                                                WeiDesc,
                                                                const Tensor<T>& wei_kcyx,
                                                                OutDesc,
                                                                Tensor<T>& out_nkhw,
-                                                               LowerPads,
-                                                               UpperPads,
+                                                               LeftPads,
+                                                               RightPads,
                                                                index_t nrepeat)
 {
     constexpr auto I0 = Number<0>{};
@@ -131,8 +131,8 @@ void device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded(InDesc,
                                                                    decltype(in_chwn_desc),
                                                                    decltype(wei_cyxk_desc),
                                                                    decltype(out_khwn_desc),
-                                                                   LowerPads,
-                                                                   UpperPads,
+                                                                   LeftPads,
+                                                                   RightPads,
                                                                    NPerBlock,
                                                                    KPerBlock,
                                                                    CPerBlock,
