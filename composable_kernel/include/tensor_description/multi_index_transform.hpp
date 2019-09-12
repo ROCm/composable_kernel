@@ -8,6 +8,12 @@ namespace ck {
 template <index_t N>
 using MultiIndex = Array<index_t, N>;
 
+template <typename... Xs>
+__host__ __device__ constexpr auto make_multi_index(Xs... xs)
+{
+    return MultiIndex<sizeof...(Xs)>(xs...);
+}
+
 template <index_t Length>
 struct PassThrough
 {

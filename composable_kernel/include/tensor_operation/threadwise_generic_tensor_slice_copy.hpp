@@ -757,7 +757,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
 
     // T can be Sequence or Array
     template <class T, bool PositiveDirection>
-    __device__ void MoveSrcSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         static_if<PositiveDirection>{}([&](auto) {
             mSrcSliceOrigin += step_sizes;
@@ -765,7 +765,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
     }
 
     template <class T, bool PositiveDirection>
-    __device__ void MoveDstSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         static_if<PositiveDirection>{}([&](auto) {
             mDstSliceOrigin += step_sizes;
@@ -1045,8 +1045,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 // TODO: still kind of messy
                 if(!src_coord.IsAnyLevelIndexInPaddingArea())
                 {
-                    const index_t src_offset =
-                        (mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id)).GetOffset();
+                    const index_t src_offset = src_coord.GetOffset();
 
                     const index_t buffer_offset = i * src_data_per_access;
 
@@ -1073,7 +1072,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     }
 
     template <class T, bool PositiveDirection>
-    __device__ void MoveSrcSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         static_if<PositiveDirection>{}([&](auto) {
             mSrcSliceOrigin += step_sizes;
@@ -1081,7 +1080,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     }
 
     template <class T, bool PositiveDirection>
-    __device__ void MoveDstSlicingWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         static_if<PositiveDirection>{}([&](auto) {
             mDstSliceOrigin += step_sizes;

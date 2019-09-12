@@ -269,7 +269,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
                 Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
                 Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
-                blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
+                blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
                 p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStrides()[0];
 
                 __syncthreads();
@@ -294,7 +294,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
             Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
 
             // even iteration
-            blockwise_in_copy.MoveSrcSlicingWindow(Sequence<EPerBlock, 0>{}, True);
+            blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
             p_wei_block_on_global += EPerBlock * wei_e_k_global_desc.GetStrides()[0];
 
             __syncthreads();
@@ -379,9 +379,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
             {
                 threadwise_out_copy.Run(p_out_thread, p_out_global);
 
-                threadwise_out_copy.MoveSrcSlicingWindow(Sequence<0, 0, GemmNPerThreadSubC>{},
-                                                         True);
-                threadwise_out_copy.MoveDstSlicingWindow(Sequence<0, 0, B1>{}, True);
+                threadwise_out_copy.MoveSrcSliceWindow(Sequence<0, 0, GemmNPerThreadSubC>{}, True);
+                threadwise_out_copy.MoveDstSliceWindow(Sequence<0, 0, B1>{}, True);
             }
         }
     }
