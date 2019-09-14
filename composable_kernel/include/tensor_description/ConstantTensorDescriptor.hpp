@@ -6,7 +6,7 @@
 namespace ck {
 
 template <class Lengths>
-__host__ __device__ constexpr auto calculate_tensor_strides_packed(Lengths)
+__host__ __device__ constexpr auto calculate_tensor_strides_packed_old(Lengths)
 {
     return reverse_inclusive_scan_sequence(
                Lengths{}.PopFront(), math::multiplies<index_t>{}, Number<1>{})
@@ -14,12 +14,12 @@ __host__ __device__ constexpr auto calculate_tensor_strides_packed(Lengths)
 }
 
 template <class Lengths, index_t Align>
-__host__ __device__ constexpr auto calculate_tensor_strides_aligned(Lengths, Number<Align>)
+__host__ __device__ constexpr auto calculate_tensor_strides_aligned_old(Lengths, Number<Align>)
 {
     constexpr index_t L_back_align =
         Align * math::integer_divide_ceiler<index_t>{}(Lengths{}.Back(), Align);
 
-    return calculate_tensor_strides_packed(
+    return calculate_tensor_strides_packed_old(
         Lengths{}.Modify(Number<Lengths{}.GetSize() - 1>{}, Number<L_back_align>{}));
 }
 
@@ -187,7 +187,7 @@ struct ConstantTensorDescriptor
     {
         Array<index_t, nDim> multi_id;
 
-        using PackedStrides = decltype(calculate_tensor_strides_packed(GetLengths()));
+        using PackedStrides = decltype(calculate_tensor_strides_packed_old(GetLengths()));
 
         // calculate index in each of the dimensions in the order of their dimension
         static_for<0, nDim - 1, 1>{}(lambda_GetMultiIndexFrom1dIndex<PackedStrides>(id, multi_id));
@@ -468,7 +468,7 @@ struct ConstantTensorDescriptor
 
     __host__ __device__ static constexpr auto Pack()
     {
-        using packed_strides = decltype(calculate_tensor_strides_packed(Lengths{}));
+        using packed_strides = decltype(calculate_tensor_strides_packed_old(Lengths{}));
         return ConstantTensorDescriptor<Lengths, packed_strides>{};
     }
 
@@ -490,7 +490,7 @@ struct ConstantTensorDescriptor
 template <class Lengths>
 __host__ __device__ constexpr auto make_ConstantTensorDescriptor_packed(Lengths)
 {
-    using Strides = decltype(calculate_tensor_strides_packed(Lengths{}));
+    using Strides = decltype(calculate_tensor_strides_packed_old(Lengths{}));
     return ConstantTensorDescriptor<Lengths, Strides>{};
 }
 
@@ -503,7 +503,7 @@ __host__ __device__ constexpr auto make_ConstantTensorDescriptor(Lengths, Stride
 template <class Lengths, index_t Align>
 __host__ __device__ constexpr auto make_ConstantTensorDescriptor_aligned(Lengths, Number<Align>)
 {
-    using Strides = decltype(calculate_tensor_strides_aligned(Lengths{}, Number<Align>{}));
+    using Strides = decltype(calculate_tensor_strides_aligned_old(Lengths{}, Number<Align>{}));
     return ConstantTensorDescriptor<Lengths, Strides>{};
 }
 

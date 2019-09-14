@@ -24,8 +24,6 @@ struct PassThrough
 
     __host__ __device__ static constexpr auto GetNumOfUpperDimension() { return Number<1>{}; }
 
-    __host__ __device__ static constexpr auto GetLowerLengths() { return Sequence<Length>{}; }
-
     __host__ __device__ static constexpr auto GetUpperLengths() { return Sequence<Length>{}; }
 
     __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& idx_up)
@@ -51,11 +49,11 @@ struct PassThrough
     }
 };
 
-// LowLengths: Sequence<...>
-template <typename LowLengths, typename LeftPads, typename RightPads>
+// LowerLengths: Sequence<...>
+template <typename LowerLengths, typename LeftPads, typename RightPads>
 struct Pad
 {
-    static constexpr index_t nDim = LowLengths::Size();
+    static constexpr index_t nDim = LowerLengths::Size();
 
     using LowerIndex = MultiIndex<nDim>;
     using UpperIndex = MultiIndex<nDim>;
@@ -64,11 +62,9 @@ struct Pad
 
     __host__ __device__ static constexpr auto GetNumOfUpperDimension() { return Number<nDim>{}; }
 
-    __host__ __device__ static constexpr auto GetLowerLengths() { return LowLengths{}; }
-
     __host__ __device__ static constexpr auto GetUpperLengths()
     {
-        return GetLowerLengths() + LeftPads{} + RightPads{};
+        return LowerLengths{} + LeftPads{} + RightPads{};
     }
 
     __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& idx_up)
@@ -98,7 +94,7 @@ struct Pad
 
             // only check if there is right-padding
             static_if<(RightPads::At(idim) != 0)>{}([&](auto) {
-                flag = flag || idx_up[idim] >= LeftPads::At(idim) + LowLengths::At(idim);
+                flag = flag || idx_up[idim] >= LeftPads::At(idim) + LowerLengths::At(idim);
             });
         });
 
@@ -106,11 +102,11 @@ struct Pad
     }
 };
 
-// LowLengths: Sequence<...>
-template <typename LowLengths>
+// LowerLengths: Sequence<...>
+template <typename LowerLengths>
 struct Merge
 {
-    static constexpr index_t nDimLow = LowLengths::Size();
+    static constexpr index_t nDimLow = LowerLengths::Size();
     static constexpr index_t nDimUp  = 1;
 
     using LowerIndex = MultiIndex<nDimLow>;
@@ -120,12 +116,10 @@ struct Merge
 
     __host__ __device__ static constexpr auto GetNumOfUpperDimension() { return Number<nDimUp>{}; }
 
-    __host__ __device__ static constexpr auto GetLowerLengths() { return LowLengths{}; }
-
     __host__ __device__ static constexpr auto GetUpperLengths()
     {
         return Sequence<accumulate_on_sequence(
-            GetLowerLengths(), math::multiplies<index_t>{}, Number<1>{})>{};
+            LowerLengths{}, math::multiplies<index_t>{}, Number<1>{})>{};
     }
 
     // emulate constexpr lambda
@@ -158,11 +152,11 @@ struct Merge
 
         constexpr auto pseudo_low_strides =
             reverse_inclusive_scan_sequence(
-                GetLowerLengths().PopFront(), math::multiplies<index_t>{}, Number<1>{})
+                LowerLengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
                 .PushBack(Number<1>{});
 
-// calculate index in each of the dimensions in the order of their dimension
-#if 1 // would compile to same ISA?
+#if 1 // would these 2 versions be compiled to same ISA?
+        // calculate index in each of the dimensions in the order of their dimension
         static_for<0, nDimLow - 1, 1>{}(
             lambda_CalculateLowerIndex<decltype(pseudo_low_strides)>(itmp, idx_low));
 
@@ -176,16 +170,75 @@ struct Merge
     }
 
     // idx_low_diff depends on idx_low_old, so idx_low need to be up-to-date
+    // If idx_up_diff is known at compile-time, many calculations can be optimized
+    // away by compiler
+    // This function assume idx_low_old is not out-of-bound
     __host__ __device__ static constexpr auto
     CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
                             const UpperIndex& /* idx_up_old */,
                             const LowerIndex& idx_low_old)
     {
-        LowerIndex idx_low_diff;
+        // do nothing if idx_up_diff == 0
+        if(idx_up_diff[0] == 0)
+        {
+            return make_zero_array<index_t, nDimLow>();
+        }
 
-        // not implemeneted
+        // CalculateLowerIndex(idx_up_diff) has multiple integer divisions.
+        //   If idx_up_diff is known at compile-time, the calculation can
+        //   be done at compile-time. However, if idx_up_diff is only known
+        //   at run-time, then the calculation will also be computed at
+        //   run-time, and can be very expensive.
+        LowerIndex idx_low_new = idx_low_old + CalculateLowerIndex(idx_up_diff);
 
-        return idx_low_diff;
+        if(idx_up_diff[0] > 0)
+        {
+            bool carry = false;
+
+            // do carry check in reversed order, starting from lowest dimension
+            // don't check the highest dimension
+            static_for<0, nDimLow, 1>{}([&](auto ireverse) {
+                constexpr index_t i = nDimLow - 1 - ireverse;
+
+                if(carry)
+                {
+                    ++idx_low_new(i);
+                }
+
+                carry = false;
+
+                if(idx_low_new[i] >= LowerLengths::At(i))
+                {
+                    idx_low_new(i) -= LowerLengths::At(i);
+                    carry = true;
+                }
+            });
+        }
+        else if(idx_up_diff[0] < 0)
+        {
+            bool borrow = false;
+
+            // do borrow check in reversed order, starting from lowest dimension
+            // don't check the highest dimension
+            static_for<0, nDimLow, 1>{}([&](auto ireverse) {
+                constexpr index_t i = nDimLow - 1 - ireverse;
+
+                if(borrow)
+                {
+                    --idx_low_new(i);
+                }
+
+                borrow = false;
+
+                if(idx_low_new[i] < 0)
+                {
+                    idx_low_new(i) += LowerLengths::At(i);
+                    borrow = true;
+                }
+            });
+        }
+
+        return idx_low_new - idx_low_old;
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return false; }
@@ -198,12 +251,12 @@ struct Merge
     }
 };
 
-// UpLengths: Sequence<...>
-template <typename UpLengths>
+// UpperLengths: Sequence<...>
+template <typename UpperLengths>
 struct Unmerge
 {
     static constexpr index_t nDimLow = 1;
-    static constexpr index_t nDimUp  = UpLengths::Size();
+    static constexpr index_t nDimUp  = UpperLengths::Size();
 
     using LowerIndex = MultiIndex<nDimLow>;
     using UpperIndex = MultiIndex<nDimUp>;
@@ -212,23 +265,16 @@ struct Unmerge
 
     __host__ __device__ static constexpr auto GetNumOfUpperDimension() { return Number<nDimUp>{}; }
 
-    __host__ __device__ static constexpr auto GetLowerLengths()
-    {
-        constexpr index_t low_length =
-            accumulate_on_sequence(UpLengths{}, math::multiplies<index_t>{}, Number<1>{});
-
-        return Sequence<low_length>{};
-    }
-
-    __host__ __device__ static constexpr auto GetUpperLengths() { return UpLengths{}; }
+    __host__ __device__ static constexpr auto GetUpperLengths() { return UpperLengths{}; }
 
     __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& idx_up)
     {
         LowerIndex idx_low{0};
 
         constexpr auto pseudo_up_strides =
-            typename sequence_reverse_inclusive_scan<UpLengths, math::multiplies<index_t>, 1>::
-                type{};
+            reverse_inclusive_scan_sequence(
+                UpperLengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
+                .PushBack(Number<1>{});
 
         static_for<0, nDimUp, 1>{}(
             [&](auto idim) { idx_low(0) += idx_up[idim] * pseudo_up_strides[idim]; });
@@ -245,47 +291,45 @@ struct Unmerge
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    // TODO: should this function be here? should it be specific for padding check?
+    __host__ __device__ static constexpr bool
+    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    {
+        return false;
+    }
 };
 
-// UpLengths: Sequence<...>
+// UpperLengths: Sequence<...>
 // Coefficients: Sequence<...>
 // idx_low = coefficients[0, ...nDimUp-1] * idx_up[0, ...nDimUp-1] + coefficients[nDimUp]
-template <index_t LowLength, typename UpLengths, typename Coefficients>
+template <typename UpperLengths, typename Coefficients>
 struct Embed
 {
     static constexpr index_t nDimLow = 1;
-    static constexpr index_t nDimUp  = UpLengths::Size();
+    static constexpr index_t nDimUp  = UpperLengths::Size();
 
     using LowerIndex = MultiIndex<nDimLow>;
     using UpperIndex = MultiIndex<nDimUp>;
 
     __host__ __device__ explicit constexpr Embed()
     {
-        static_assert(UpLengths::GetSize() == nDimUp && Coefficients::GetSize() == nDimUp + 1,
+        static_assert(UpperLengths::GetSize() == nDimUp && Coefficients::GetSize() == nDimUp + 1,
                       "wrong! # of dimensions not consistent");
-
-        constexpr index_t low_id_max =
-            Coefficients::Back() + accumulate_on_sequence(UpLengths{} * Coefficients::PopBack(),
-                                                          math::plus<index_t>{},
-                                                          Number<0>{});
-
-        static_assert(low_id_max < LowLength, "wrong! lower-id will go out of range");
     }
 
     __host__ __device__ static constexpr auto GetNumOfUpperDimension() { return Number<nDimUp>{}; }
 
     __host__ __device__ static constexpr auto GetNumOfLowerDimension() { return Number<nDimLow>{}; }
 
-    __host__ __device__ static constexpr auto GetLowerLengths() { return Sequence<LowLength>{}; }
-
-    __host__ __device__ static constexpr auto GetUpperLengths() { return UpLengths{}; }
+    __host__ __device__ static constexpr auto GetUpperLengths() { return UpperLengths{}; }
 
     __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& idx_up)
     {
         LowerIndex idx_low(Coefficients{}[nDimUp]);
 
         static_for<0, nDimUp, 1>{}(
-            [&](auto idim) { idx_low[0] += idx_up[idim] * Coefficients{}[idim]; });
+            [&](auto idim) { idx_low(0) += idx_up[idim] * Coefficients{}[idim]; });
 
         return idx_low;
     }
@@ -298,12 +342,18 @@ struct Embed
         LowerIndex idx_low_diff{0};
 
         static_for<0, nDimUp, 1>{}(
-            [&](auto idim) { idx_low_diff[0] += idx_up_diff[idim] * Coefficients{}[idim]; });
+            [&](auto idim) { idx_low_diff(0) += idx_up_diff[idim] * Coefficients{}[idim]; });
 
         return idx_low_diff;
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    __host__ __device__ static constexpr bool
+    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    {
+        return false;
+    }
 };
 
 } // namespace ck

@@ -951,10 +951,10 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
 // The dimension access order should be the same on src and dst.
 // It is designed for cases, where one of src and dst is register, and
 // the other is device memory or LDS
-template <class SrcDesc,
-          class DstDesc,
-          class SliceLengths,
-          class DimAccessOrder,
+template <typename SrcDesc,
+          typename DstDesc,
+          typename SliceLengths,
+          typename DimAccessOrder,
           index_t VectorAccessDim,
           index_t SrcDataPerAccess,
           index_t DstDataPerAccess>
