@@ -207,10 +207,12 @@ struct TransformedTensorDescriptor
         return LowTensorDescriptor{};
     }
 
+#if 0
     __host__ __device__ static constexpr auto GetLowerLengths()
     {
         return GetLowerTensorDescriptor().GetLengths();
     }
+#endif
 
     struct lambda_GetUpperLengths
     {
@@ -382,36 +384,6 @@ struct TransformedTensorDescriptor
         return flag;
     }
 };
-
-template <index_t... Lengths, index_t... Strides>
-__host__ __device__ constexpr auto make_native_tensor_descriptor(Sequence<Lengths...>,
-                                                                 Sequence<Strides...>)
-{
-    return NativeTensorDescriptor<NativeDimension<Lengths, Strides>...>{};
-}
-
-template <typename Lengths>
-__host__ __device__ constexpr auto make_native_tensor_descriptor_packed(Lengths)
-{
-    constexpr auto strides = reverse_inclusive_scan_sequence(
-                                 Lengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
-                                 .PushBack(Number<1>{});
-
-    return make_native_tensor_descriptor(Lengths{}, strides);
-}
-
-template <typename LowTensorDescriptor,
-          typename Transforms,
-          typename LowDimensionIds,
-          typename UpDimensionIds>
-__host__ __device__ constexpr auto
-    transform_tensor_descriptor(LowTensorDescriptor, Transforms, LowDimensionIds, UpDimensionIds)
-{
-    return TransformedTensorDescriptor<LowTensorDescriptor,
-                                       Transforms,
-                                       LowDimensionIds,
-                                       UpDimensionIds>{};
-}
 
 } // namespace ck
 #endif
