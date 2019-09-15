@@ -3,7 +3,7 @@
 #include "device.hpp"
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-//#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
 using namespace ck;
@@ -33,17 +33,10 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
     constexpr auto wei_kcyx_desc = WeiDesc{};
     constexpr auto out_nkhw_desc = OutDesc{};
 
-    constexpr index_t Hi = in_nchw_desc.GetLength(I2);
-    constexpr index_t Wi = in_nchw_desc.GetLength(I3);
-
     constexpr index_t N  = out_nkhw_desc.GetLength(I0);
+    constexpr index_t K  = out_nkhw_desc.GetLength(I1);
     constexpr index_t Ho = out_nkhw_desc.GetLength(I2);
     constexpr index_t Wo = out_nkhw_desc.GetLength(I3);
-
-    constexpr index_t K = wei_kcyx_desc.GetLength(I0);
-    constexpr index_t C = wei_kcyx_desc.GetLength(I1);
-    constexpr index_t Y = wei_kcyx_desc.GetLength(I2);
-    constexpr index_t X = wei_kcyx_desc.GetLength(I3);
 
     std::size_t data_sz = sizeof(T);
     DeviceMem in_nchw_device_buf(data_sz * in_nchw.mDesc.GetElementSpace());
@@ -171,7 +164,7 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
     constexpr auto gridwise_conv =
-#if 0
+#if 1
         GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
 #else
         GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
