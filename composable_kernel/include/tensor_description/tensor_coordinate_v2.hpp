@@ -190,14 +190,16 @@ struct TensorCoordinate_v2
     __host__ __device__ static constexpr auto
     MakeDummyTensorCoordinate(NativeTensorDescriptor<Ts...>)
     {
-        return NativeTensorCoordinate<NativeTensorDescriptor<Ts...>>();
+        return NativeTensorCoordinate<NativeTensorDescriptor<Ts...>>(
+            make_zero_array<index_t, TensorDesc::GetNumOfDimension()>());
     }
 
     template <typename... Ts>
     __host__ __device__ static constexpr auto
     MakeDummyTensorCoordinate(TransformedTensorDescriptor<Ts...>)
     {
-        return TransformedTensorCoordinate<TransformedTensorDescriptor<Ts...>>();
+        return TransformedTensorCoordinate<TransformedTensorDescriptor<Ts...>>(
+            make_zero_array<index_t, TensorDesc::GetNumOfDimension()>());
     }
 
     public:
