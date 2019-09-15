@@ -19,6 +19,7 @@
 //#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v4r3_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
 
 struct GeneratorTensor_1
 {

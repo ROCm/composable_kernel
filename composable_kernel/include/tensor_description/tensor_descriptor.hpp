@@ -187,8 +187,28 @@ struct TransformedTensorDescriptor
                           nTransform == UpDimensionIds::Size(),
                       "wrong! # of transformations not the same");
 
-        // TODO: sanity check: LowDimensionIds should include all low-dimensions,
+        // sanity check:
+        //   LowDimensionIds should include all low-dimensions,
         //   UpDimensionIds should include all up-dimensions
+        using mingled_up_dimension_ids =
+            decltype(unpack(lambda_merge_sequences{}, UpDimensionIds{}));
+
+        using sorted_up_dimension_ids =
+            typename sequence_sort<mingled_up_dimension_ids, math::less<index_t>>::type;
+
+        static_assert(sorted_up_dimension_ids::Size() == nDimUp &&
+                          is_valid_sequence_map<sorted_up_dimension_ids>{},
+                      "wrong! UpDimensionIds is not configured correctly");
+
+        using mingled_low_dimension_ids =
+            decltype(unpack(lambda_merge_sequences{}, LowDimensionIds{}));
+
+        using sorted_low_dimension_ids =
+            typename sequence_sort<mingled_low_dimension_ids, math::less<index_t>>::type;
+
+        static_assert(sorted_low_dimension_ids::Size() == nDimLow &&
+                          is_valid_sequence_map<sorted_low_dimension_ids>{},
+                      "wrong! LowDimensionIds is not configured correctly");
 
         // TODO: sanity check: while a up-dimension could be associated with multille
         //   transformation, a low-dimension should be associated with only one transformation

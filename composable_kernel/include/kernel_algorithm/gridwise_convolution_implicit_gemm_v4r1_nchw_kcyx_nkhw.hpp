@@ -100,10 +100,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
         constexpr index_t E = C * Y * X;
 
         // sanity-check for vectorized memory load
-        static_assert(ConvStrideW == 1 || InBlockCopySrcDataPerRead_B == 1,
-                      "wrong! global vector load of input tensor is wrong");
-
-        static_assert((X == 1 || ConvDilationW % InBlockCopySrcDataPerRead_B == 0),
+        static_assert((Ho == 1 || ConvStrideW % InBlockCopySrcDataPerRead_B == 0) &&
+                          (X == 1 || ConvDilationW % InBlockCopySrcDataPerRead_B == 0),
                       "wrong! aligment requirement for vectorized global load of input tensor will "
                       "be violated");
 

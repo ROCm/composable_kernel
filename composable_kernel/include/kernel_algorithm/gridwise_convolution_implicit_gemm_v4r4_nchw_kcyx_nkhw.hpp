@@ -83,7 +83,9 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
         constexpr index_t E = C * Y * X;
         constexpr index_t B = N * Ho * Wo;
 
-        static_assert((X == 1 || ConvDilationW % InBlockCopyDataPerAccess_B == 0),
+        // sanity-check for vectorized memory load
+        static_assert((Ho == 1 || ConvStrideW % InBlockCopyDataPerAccess_B == 0) &&
+                          (X == 1 || ConvDilationW % InBlockCopyDataPerAccess_B == 0),
                       "wrong! aligment requirement for vectorized global load of input tensor will "
                       "be violated");
 
