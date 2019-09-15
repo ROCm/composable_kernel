@@ -51,11 +51,9 @@ struct TupleImpl;
 template <index_t... Is, typename... Xs>
 struct TupleImpl<Sequence<Is...>, Xs...> : TupleElement<TupleElementKey<Is>, Xs>...
 {
-#if 1
     __host__ __device__ explicit constexpr TupleImpl() : TupleElement<TupleElementKey<Is>, Xs>()...
     {
     }
-#endif
 
     template <typename... Ys>
     __host__ __device__ explicit constexpr TupleImpl(Ys&&... ys)
@@ -95,14 +93,14 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
     __host__ __device__ constexpr const auto& At(Number<I>) const
     {
         static_assert(I < base::Size(), "wrong! out of range");
-        return GetElementByKey(detail::TupleElementKey<I>{});
+        return base::GetElementByKey(detail::TupleElementKey<I>{});
     }
 
     template <index_t I>
     __host__ __device__ constexpr auto& At(Number<I>)
     {
         static_assert(I < base::Size(), "wrong! out of range");
-        return GetElementByKey(detail::TupleElementKey<I>{});
+        return base::GetElementByKey(detail::TupleElementKey<I>{});
     }
 };
 
