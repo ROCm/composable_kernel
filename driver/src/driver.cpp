@@ -92,8 +92,8 @@ int main(int argc, char* argv[])
     // 3x3, 34x34
     constexpr index_t N  = 64;
     constexpr index_t C  = 256;
-    constexpr index_t HI = 34;
-    constexpr index_t WI = 34;
+    constexpr index_t HI = 32;
+    constexpr index_t WI = 32;
     constexpr index_t K  = 128;
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
@@ -101,8 +101,8 @@ int main(int argc, char* argv[])
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    using LeftPads  = Sequence<0, 0>;
-    using RightPads = Sequence<0, 0>;
+    using LeftPads  = Sequence<1, 1>;
+    using RightPads = Sequence<1, 1>;
 #elif 0
     // 1x1 filter, 8x8 image
     // cudnn@V100 68%, ck@V100 72%, ck@P100 52%, ck@VII 42%

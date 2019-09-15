@@ -4,6 +4,7 @@
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
+#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buffer.hpp"
 
 template <class T,
           class InDesc,
@@ -166,43 +167,48 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(InDesc,
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    constexpr auto gridwise_conv = GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded<
-        GridSize,
-        BlockSize,
-        T,
-        decltype(in_nchw_desc),
-        decltype(wei_kcyx_desc),
-        decltype(out_nkhw_desc),
-        ConvStrides,
-        ConvDilations,
-        LeftPads,
-        RightPads,
-        BPerBlock,
-        KPerBlock,
-        EPerBlock,
-        GemmMPerThreadSubC,
-        GemmNPerThreadSubC,
-        GemmMLevel0Cluster,
-        GemmNLevel0Cluster,
-        GemmMLevel1Cluster,
-        GemmNLevel1Cluster,
-        GemmKPerThreadLoop,
-        GemmDataPerReadA,
-        GemmDataPerReadB,
-        InBlockCopySubLengths_E_B,
-        InBlockCopyClusterLengths_E_B,
-        InBlockCopyThreadClusterArrangeOrder,
-        InBlockCopySrcAccessOrder,
-        InBlockCopyDstAccessOrder,
-        InBlockCopyDataPerAccess_B,
-        WeiBlockCopySubLengths_E_K,
-        WeiBlockCopyClusterLengths_E_K,
-        WeiBlockCopyThreadClusterArrangeOrder,
-        WeiBlockCopySrcAccessOrder,
-        WeiBlockCopyDstAccessOrder,
-        WeiBlockCopySrcDataPerRead_E,
-        WeiBlockCopyDstDataPerWrite_K,
-        OutThreadCopyDataPerAccess_B>{};
+    constexpr auto gridwise_conv =
+#if 0
+        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded
+#else
+        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buffer
+#endif
+        <GridSize,
+         BlockSize,
+         T,
+         decltype(in_nchw_desc),
+         decltype(wei_kcyx_desc),
+         decltype(out_nkhw_desc),
+         ConvStrides,
+         ConvDilations,
+         LeftPads,
+         RightPads,
+         BPerBlock,
+         KPerBlock,
+         EPerBlock,
+         GemmMPerThreadSubC,
+         GemmNPerThreadSubC,
+         GemmMLevel0Cluster,
+         GemmNLevel0Cluster,
+         GemmMLevel1Cluster,
+         GemmNLevel1Cluster,
+         GemmKPerThreadLoop,
+         GemmDataPerReadA,
+         GemmDataPerReadB,
+         InBlockCopySubLengths_E_B,
+         InBlockCopyClusterLengths_E_B,
+         InBlockCopyThreadClusterArrangeOrder,
+         InBlockCopySrcAccessOrder,
+         InBlockCopyDstAccessOrder,
+         InBlockCopyDataPerAccess_B,
+         WeiBlockCopySubLengths_E_K,
+         WeiBlockCopyClusterLengths_E_K,
+         WeiBlockCopyThreadClusterArrangeOrder,
+         WeiBlockCopySrcAccessOrder,
+         WeiBlockCopyDstAccessOrder,
+         WeiBlockCopySrcDataPerRead_E,
+         WeiBlockCopyDstDataPerWrite_K,
+         OutThreadCopyDataPerAccess_B>{};
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
