@@ -25,14 +25,14 @@ namespace ck {
 // repeat-length on the merged dimension need to be 1. These sanity checks are performed
 // in constructor of BlockwiseGenericTensorSliceCopy_v1
 template <index_t BlockSize,
-          class SrcDesc,
-          class DstDesc,
-          class SliceLengths,
-          class SubLengths,
-          class ThreadClusterLengths,
-          class ThreadClusterArrangeOrder,
-          class SrcDimAccessOrder,
-          class DstDimAccessOrder,
+          typename SrcDesc,
+          typename DstDesc,
+          typename SliceLengths,
+          typename SubLengths,
+          typename ThreadClusterLengths,
+          typename ThreadClusterArrangeOrder,
+          typename SrcDimAccessOrder,
+          typename DstDimAccessOrder,
           index_t SrcVectorAccessDim,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
@@ -204,7 +204,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         return GetRegisterBufferDescriptor().GetElementSpace();
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void RunLoadRegisterBuffer(const TData* __restrict__ p_src,
                                           TData* __restrict__ p_buffer) const
     {
@@ -260,7 +260,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void RunStoreRegisterBuffer(const TData* __restrict__ p_buffer,
                                            TData* __restrict__ p_dst) const
     {
@@ -315,7 +315,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void Run(const TData* __restrict__ p_src, TData* __restrict__ p_dst) const
     {
         TData p_buffer[GetRegisterBufferSize()];
@@ -406,7 +406,7 @@ struct BlockwiseGenericTensorSliceCopy_v1
         });
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void
     MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
@@ -423,14 +423,14 @@ struct BlockwiseGenericTensorSliceCopy_v1
 // Slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
 // memory layout (ordering of dimensions) can be different between src and dst.
 template <index_t BlockSize,
-          class SrcDesc,
-          class DstDesc,
-          class SliceLengths,
-          class SubLengths,
-          class ThreadClusterLengths,
-          class ThreadClusterArrangeOrder,
-          class SrcDimAccessOrder,
-          class DstDimAccessOrder,
+          typename SrcDesc,
+          typename DstDesc,
+          typename SliceLengths,
+          typename SubLengths,
+          typename ThreadClusterLengths,
+          typename ThreadClusterArrangeOrder,
+          typename SrcDimAccessOrder,
+          typename DstDimAccessOrder,
           index_t SrcVectorAccessDim,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
@@ -482,19 +482,19 @@ struct BlockwiseGenericTensorSliceCopy_v2
         return RegisterBufferDesc::GetElementSpace();
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
         mThreadwiseLoad.Run(p_src, p_buffer);
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
         mThreadwiseStore.Run(p_buffer, p_dst);
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         TData p_buffer[GetRegisterBufferSize()];
@@ -503,14 +503,14 @@ struct BlockwiseGenericTensorSliceCopy_v2
         mThreadwiseStore.Run(p_buffer, p_dst);
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void
     MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
         mThreadwiseLoad.MoveSrcSliceWindow(step_sizes, positive_direction);
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void
     MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
@@ -546,14 +546,14 @@ struct BlockwiseGenericTensorSliceCopy_v2
 
 // this version use TensorView and TensorCoordinate
 template <index_t BlockSize,
-          class SrcTensor,
-          class DstTensor,
-          class SliceLengths,
-          class SubLengths,
-          class ThreadClusterLengths,
-          class ThreadClusterArrangeOrder,
-          class SrcDimAccessOrder,
-          class DstDimAccessOrder,
+          typename SrcTensor,
+          typename DstTensor,
+          typename SliceLengths,
+          typename SubLengths,
+          typename ThreadClusterLengths,
+          typename ThreadClusterArrangeOrder,
+          typename SrcDimAccessOrder,
+          typename DstDimAccessOrder,
           index_t SrcVectorAccessDim,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
@@ -622,14 +622,14 @@ struct BlockwiseGenericTensorSliceCopy_v3
         mThreadwiseStore.Run();
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void
     MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
         mThreadwiseLoad.MoveSrcSliceWindow(step_sizes, positive_direction);
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void
     MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
     {
@@ -669,14 +669,14 @@ struct BlockwiseGenericTensorSliceCopy_v3
 };
 
 template <index_t BlockSize,
-          class SrcDesc,
-          class DstDesc,
-          class SliceLengths,
-          class SubLengths,
-          class ThreadClusterLengths,
-          class ThreadClusterArrangeOrder,
-          class SrcDimAccessOrder,
-          class DstDimAccessOrder,
+          typename SrcDesc,
+          typename DstDesc,
+          typename SliceLengths,
+          typename SubLengths,
+          typename ThreadClusterLengths,
+          typename ThreadClusterArrangeOrder,
+          typename SrcDimAccessOrder,
+          typename DstDimAccessOrder,
           index_t SrcVectorAccessDim,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
@@ -727,19 +727,19 @@ struct BlockwiseGenericTensorSliceCopy_v4
         return RegisterBufferDesc::GetElementSpace();
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
         mThreadwiseLoad.Run(p_src, p_buffer);
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
         mThreadwiseStore.Run(p_buffer, p_dst);
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         TData p_buffer[GetRegisterBufferSize()];
@@ -748,16 +748,18 @@ struct BlockwiseGenericTensorSliceCopy_v4
         mThreadwiseStore.Run(p_buffer, p_dst);
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void
-    MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
+    MoveSrcSliceWindow(const T& step_sizes,
+                       integral_constant<bool, PositiveDirection> positive_direction)
     {
         mThreadwiseLoad.MoveSrcSliceWindow(step_sizes, positive_direction);
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void
-    MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection> positive_direction)
+    MoveDstSliceWindow(const T& step_sizes,
+                       integral_constant<bool, PositiveDirection> positive_direction)
     {
         mThreadwiseStore.MoveDstSliceWindow(step_sizes, positive_direction);
     }

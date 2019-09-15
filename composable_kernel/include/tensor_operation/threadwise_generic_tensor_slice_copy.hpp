@@ -1072,16 +1072,22 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     }
 
     template <class T, bool PositiveDirection>
-    __device__ void MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void MoveSrcSliceWindow(const T& step_sizes_,
+                                       integral_constant<bool, PositiveDirection>)
     {
+        const auto step_sizes = to_array(step_sizes_);
+
         static_if<PositiveDirection>{}([&](auto) {
-            mSrcSliceOrigin += step_sizes;
+            mSrcSliceOrigin += to_array(step_sizes);
         }).Else([&](auto) { mSrcSliceOrigin -= step_sizes; });
     }
 
     template <class T, bool PositiveDirection>
-    __device__ void MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
+    __device__ void MoveDstSliceWindow(const T& step_sizes_,
+                                       integral_constant<bool, PositiveDirection>)
     {
+        const auto step_sizes = to_array(step_sizes_);
+
         static_if<PositiveDirection>{}([&](auto) {
             mDstSliceOrigin += step_sizes;
         }).Else([&](auto) { mDstSliceOrigin -= step_sizes; });

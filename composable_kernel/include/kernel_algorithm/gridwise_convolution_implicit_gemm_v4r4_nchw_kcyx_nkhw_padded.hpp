@@ -59,7 +59,6 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
-        constexpr auto I5 = Number<5>{};
 
         constexpr auto True = integral_constant<bool, true>{};
 
@@ -330,7 +329,6 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
-        constexpr auto I5 = Number<5>{};
 
         constexpr auto True = integral_constant<bool, true>{};
 

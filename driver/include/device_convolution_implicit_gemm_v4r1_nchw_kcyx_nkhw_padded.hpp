@@ -4,6 +4,7 @@
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded.hpp"
+#include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buffer.hpp"
 
 template <typename T,
           typename InDesc,
@@ -101,44 +102,49 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded(InDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        constexpr auto gridwise_conv = GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded<
-            GridSize,
-            BlockSize,
-            T,
-            decltype(in_nchw_desc),
-            decltype(wei_kcyx_desc),
-            decltype(out_nkhw_desc),
-            ConvStrides,
-            ConvDilations,
-            LeftPads,
-            RightPads,
-            BPerBlock,
-            KPerBlock,
-            EPerBlock,
-            GemmNRepeat,
-            GemmMPerThreadSubC,
-            GemmNPerThreadSubC,
-            GemmMLevel0Cluster,
-            GemmNLevel0Cluster,
-            GemmMLevel1Cluster,
-            GemmNLevel1Cluster,
-            GemmKPerThreadLoop,
-            GemmDataPerReadA,
-            GemmDataPerReadB,
-            InBlockCopySubLengths_E_N1_B_N2,
-            InBlockCopyClusterLengths_E_N1_B_N2,
-            InBlockCopyThreadClusterArrangeOrder,
-            InBlockCopySrcAccessOrder,
-            InBlockCopyDstAccessOrder,
-            InBlockCopySrcDataPerRead_B,
-            InBlockCopyDstDataPerWrite_N2,
-            WeiBlockCopySubLengths_E_K,
-            WeiBlockCopyClusterLengths_E_K,
-            WeiBlockCopyThreadClusterArrangeOrder,
-            WeiBlockCopySrcAccessOrder,
-            WeiBlockCopyDstAccessOrder,
-            WeiBlockCopySrcDataPerRead_E,
-            WeiBlockCopyDstDataPerWrite_K>{};
+        constexpr auto gridwise_conv =
+#if 0
+            GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
+#else
+            GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buffer
+#endif
+            <GridSize,
+             BlockSize,
+             T,
+             decltype(in_nchw_desc),
+             decltype(wei_kcyx_desc),
+             decltype(out_nkhw_desc),
+             ConvStrides,
+             ConvDilations,
+             LeftPads,
+             RightPads,
+             BPerBlock,
+             KPerBlock,
+             EPerBlock,
+             GemmNRepeat,
+             GemmMPerThreadSubC,
+             GemmNPerThreadSubC,
+             GemmMLevel0Cluster,
+             GemmNLevel0Cluster,
+             GemmMLevel1Cluster,
+             GemmNLevel1Cluster,
+             GemmKPerThreadLoop,
+             GemmDataPerReadA,
+             GemmDataPerReadB,
+             InBlockCopySubLengths_E_N1_B_N2,
+             InBlockCopyClusterLengths_E_N1_B_N2,
+             InBlockCopyThreadClusterArrangeOrder,
+             InBlockCopySrcAccessOrder,
+             InBlockCopyDstAccessOrder,
+             InBlockCopySrcDataPerRead_B,
+             InBlockCopyDstDataPerWrite_N2,
+             WeiBlockCopySubLengths_E_K,
+             WeiBlockCopyClusterLengths_E_K,
+             WeiBlockCopyThreadClusterArrangeOrder,
+             WeiBlockCopySrcAccessOrder,
+             WeiBlockCopyDstAccessOrder,
+             WeiBlockCopySrcDataPerRead_E,
+             WeiBlockCopyDstDataPerWrite_K>{};
 
         float time = launch_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
                                    dim3(GridSize),
