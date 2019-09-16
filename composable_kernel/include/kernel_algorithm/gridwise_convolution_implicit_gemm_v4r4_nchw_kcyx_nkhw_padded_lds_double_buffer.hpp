@@ -96,7 +96,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                       "be violated");
 
         // divide block work by [K, B]
-        static_assert(K % KPerBlock == 0 && B % BPerBlock == 0 && E % EPerBlock == 0,
+        static_assert(K % KPerBlock == 0 && B % BPerBlock == 0 && E % (2 * EPerBlock) == 0,
                       "wrong! cannot divide work evenly among block");
 
         constexpr index_t KBlockWork = K / KPerBlock;
