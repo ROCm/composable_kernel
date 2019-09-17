@@ -313,14 +313,14 @@ struct TensorCoordinate
     private:
     template <class... Ts>
     __host__ __device__ static constexpr auto
-        MakeDummyTensorCoordinate(ConstantTensorDescriptor<Ts...>)
+    MakeDummyTensorCoordinate(ConstantTensorDescriptor<Ts...>)
     {
         return NormalTensorCoordinate<ConstantTensorDescriptor<Ts...>>();
     }
 
     template <class... Ts>
     __host__ __device__ static constexpr auto
-        MakeDummyTensorCoordinate(ConstantMergedTensorDescriptor<Ts...>)
+    MakeDummyTensorCoordinate(ConstantMergedTensorDescriptor<Ts...>)
     {
         return MergedTensorCoordinate<ConstantMergedTensorDescriptor<Ts...>>();
     }

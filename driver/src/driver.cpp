@@ -49,7 +49,7 @@ struct GeneratorTensor_3
     {
         std::array<index_t, sizeof...(Is)> dims = {{static_cast<index_t>(is)...}};
 
-        auto f_acc = [](auto a, auto b) { return 100 * a + b; };
+        auto f_acc = [](auto a, auto b) { return 10 * a + b; };
 
         return std::accumulate(dims.begin(), dims.end(), index_t(0), f_acc);
     }
@@ -75,19 +75,19 @@ int main(int argc, char* argv[])
     using namespace ck;
 
 #if 0
-    constexpr index_t N  = 256;
-    constexpr index_t C  = 64;
-    constexpr index_t HI = 17;
-    constexpr index_t WI = 17;
-    constexpr index_t K  = 256;
-    constexpr index_t Y  = 17;
-    constexpr index_t X  = 17;
+    constexpr index_t N  = 8;
+    constexpr index_t C  = 8;
+    constexpr index_t HI = 2;
+    constexpr index_t WI = 8;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
 
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    using LeftPads  = Sequence<0, 3>;
-    using RightPads = Sequence<0, 3>;
+    using LeftPads  = Sequence<0, 0>;
+    using RightPads = Sequence<0, 0>;
 #elif 0
     // 3x3, 34x34
     constexpr index_t N  = 64;
@@ -347,7 +347,7 @@ int main(int argc, char* argv[])
         wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 #elif 0
         in_nchw.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        wei_kcyx.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        wei_kcyx.GenerateTensorValue(GeneratorTensor_3{}, num_thread);
 #elif 0
         in_nchw.GenerateTensorValue(GeneratorTensor_3{}, num_thread);
         wei_kcyx.GenerateTensorValue(GeneratorTensor_1{}, num_thread);

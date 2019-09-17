@@ -85,12 +85,6 @@ struct NativeTensorDescriptor
         return offset;
     }
 
-    // TODO: remove this
-    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(const Index& idx)
-    {
-        return CalculateOffset(idx);
-    }
-
     __host__ __device__ static constexpr index_t CalculateOffsetDiff(const Index& idx_diff)
     {
         index_t offset_diff = 0;
@@ -227,13 +221,6 @@ struct TransformedTensorDescriptor
         return LowTensorDescriptor{};
     }
 
-#if 0
-    __host__ __device__ static constexpr auto GetLowerLengths()
-    {
-        return GetLowerTensorDescriptor().GetLengths();
-    }
-#endif
-
     struct lambda_GetUpperLengths
     {
         template <typename Transform>
@@ -357,12 +344,6 @@ struct TransformedTensorDescriptor
     __host__ __device__ static constexpr index_t CalculateOffset(const UpperIndex& idx_up)
     {
         return GetLowerTensorDescriptor().CalculateOffset(CalculateLowerIndex(idx_up));
-    }
-
-    // TODO: remove this
-    __host__ __device__ static constexpr index_t GetOffsetFromMultiIndex(const UpperIndex& idx_up)
-    {
-        return CalculateOffset(idx_up);
     }
 
 #if 0

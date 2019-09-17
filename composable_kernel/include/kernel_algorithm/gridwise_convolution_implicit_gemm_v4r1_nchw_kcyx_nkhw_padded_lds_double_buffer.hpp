@@ -184,23 +184,27 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                                                InBlockCopyDstDataPerWrite_N2>(
                 {0, 0, b_block_data_on_global, 0}, {0, 0, 0, 0});
 
+#if 0
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
         constexpr auto wei_e_k_global_desc =
-#if 0
             transform_tensor_descriptor(wei_k_c_y_x_global_desc,
                                         make_tuple(Merge<Sequence<C, Y, X>>{}, PassThrough<K>{}),
                                         make_tuple(Sequence<1, 2, 3>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 #else // hack
-            make_native_tensor_descriptor_packed(Sequence<K, C * Y * X>{});
+        constexpr auto wei_e_k_global_desc_old =
+            WeiGlobalDesc::Unfold(I1, I3).ReorderGivenNew2Old(Sequence<1, 0>{});
+
+        constexpr auto wei_e_k_global_desc = make_native_tensor_descriptor(
+            wei_e_k_global_desc_old.GetLengths(), wei_e_k_global_desc_old.GetStrides());
 #endif
 
-            //     tensor descriptor in LDS, dst of blockwise copy
-            //     be careful of LDS alignment
-            constexpr auto wei_e_k_block_desc = make_native_tensor_descriptor_aligned(
-                Sequence<EPerBlock, KPerBlock>{},
-                Number<math::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
+        //     tensor descriptor in LDS, dst of blockwise copy
+        //     be careful of LDS alignment
+        constexpr auto wei_e_k_block_desc = make_native_tensor_descriptor_aligned(
+            Sequence<EPerBlock, KPerBlock>{},
+            Number<math::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
 
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
