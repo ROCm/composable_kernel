@@ -684,12 +684,10 @@ template <index_t BlockSize,
 struct BlockwiseGenericTensorSliceCopy_v4
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
+    using Index                   = MultiIndex<nDim>;
 
-    using SrcCoord = typename TensorCoordinate_v2<SrcDesc>::type;
-    using DstCoord = typename TensorCoordinate_v2<DstDesc>::type;
-
-    __device__ constexpr BlockwiseGenericTensorSliceCopy_v4(SrcCoord src_block_slice_origin,
-                                                            DstCoord dst_block_slice_origin)
+    __device__ constexpr BlockwiseGenericTensorSliceCopy_v4(const Index& src_block_slice_origin,
+                                                            const Index& dst_block_slice_origin)
     {
         static_assert(nDim == SrcDesc::GetNumOfDimension() &&
                           nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::Size() &&

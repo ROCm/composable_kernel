@@ -47,7 +47,7 @@ struct NativeTensorCoordinate
         // mIndex is updated here, but some (or all) of its entries may never be used
         mIndex += idx_diff;
 
-        mOffset += tensor_desc_type::CalculateOffset(idx_diff);
+        mOffset += tensor_desc_type::CalculateOffsetDiff(idx_diff);
 
         return *this;
     }
@@ -57,7 +57,7 @@ struct NativeTensorCoordinate
         // mIndex is updated here, but some (or all) of its entries may never be used
         mIndex -= idx_diff;
 
-        mOffset -= tensor_desc_type::CalculateOffset(idx_diff);
+        mOffset -= tensor_desc_type::CalculateOffsetDiff(idx_diff);
 
         return *this;
     }
