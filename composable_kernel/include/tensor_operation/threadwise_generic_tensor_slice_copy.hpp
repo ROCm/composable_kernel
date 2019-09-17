@@ -966,8 +966,8 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     using SrcCoord = typename TensorCoordinate_v2<SrcDesc>::type;
     using DstCoord = typename TensorCoordinate_v2<DstDesc>::type;
 
-    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v4r2(SrcCoord src_slice_origin,
-                                                               DstCoord dst_slice_origin)
+    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v4r2(const Index& src_slice_origin,
+                                                               const Index& dst_slice_origin)
         : mSrcSliceOrigin(src_slice_origin), mDstSliceOrigin(dst_slice_origin)
     {
         static_assert(nDim == SrcDesc::GetNumOfDimension() &&

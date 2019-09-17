@@ -51,7 +51,7 @@ template <index_t GridSize,
           index_t WeiBlockCopyDstDataPerWrite_K>
 struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
 {
-#if 0
+#if 1
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const

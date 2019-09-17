@@ -187,16 +187,20 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
         constexpr auto wei_e_k_global_desc =
+#if 0
             transform_tensor_descriptor(wei_k_c_y_x_global_desc,
                                         make_tuple(Merge<Sequence<C, Y, X>>{}, PassThrough<K>{}),
                                         make_tuple(Sequence<1, 2, 3>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
+#else // hack
+            make_native_tensor_descriptor_packed(Sequence<K, C * Y * X>{});
+#endif
 
-        //     tensor descriptor in LDS, dst of blockwise copy
-        //     be careful of LDS alignment
-        constexpr auto wei_e_k_block_desc = make_native_tensor_descriptor_aligned(
-            Sequence<EPerBlock, KPerBlock>{},
-            Number<math::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
+            //     tensor descriptor in LDS, dst of blockwise copy
+            //     be careful of LDS alignment
+            constexpr auto wei_e_k_block_desc = make_native_tensor_descriptor_aligned(
+                Sequence<EPerBlock, KPerBlock>{},
+                Number<math::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
 
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
