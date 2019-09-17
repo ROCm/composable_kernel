@@ -51,7 +51,7 @@ template <index_t GridSize,
           index_t WeiBlockCopyDstDataPerWrite_K>
 struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
 {
-#if 1
+#if 0
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
                         Float* const __restrict__ p_out_global) const
@@ -437,6 +437,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
                       "wrong! aligment requirement for vectorized global load of input tensor will "
                       "be violated");
 
+        // input
         constexpr auto in_n_c_hi_wi_global_desc =
             make_native_tensor_descriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
 
@@ -465,6 +466,13 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
             make_tuple(Sequence<3, 4, 6>{}, Sequence<1>{}, Sequence<0, 5, 7>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
+        // weight
+        constexpr auto wei_e_k_global_desc =
+            transform_tensor_descriptor(wei_k_c_y_x_global_desc,
+                                        make_tuple(Merge<Sequence<C, Y, X>>{}, PassThrough<K>{}),
+                                        make_tuple(Sequence<1, 2, 3>{}, Sequence<0>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+
 #if 0
         if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
         {
@@ -487,8 +495,19 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
             print_array("idx1: ", idx1);
             print_array("idx0: ", idx0);
         }
+#else
+        index_t itmp    = get_block_1d_id() + get_thread_local_1d_id();
+        auto wei_coord1 = make_tensor_coordinate_v2(wei_e_k_global_desc, {itmp, itmp + 1});
+
+        auto step_sizes = make_multi_index(EPerBlock, 0);
+
+        wei_coord1 += step_sizes;
+
+        p_out_global[0] = wei_coord1.GetLowerCoordinate().GetIndex()[0];
+        p_out_global[1] = wei_coord1.GetLowerCoordinate().GetIndex()[1];
+        p_out_global[2] = wei_coord1.GetLowerCoordinate().GetIndex()[2];
+        p_out_global[3] = wei_coord1.GetLowerCoordinate().GetIndex()[3];
 #endif
-        p_out_global[0] = in_e_n1_b_n2_global_desc.CalculateOffset({0, 0, 10, 0});
     }
 #endif
 };

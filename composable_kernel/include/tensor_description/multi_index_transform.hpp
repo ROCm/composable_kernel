@@ -197,7 +197,7 @@ struct Merge
 
             // do carry check in reversed order, starting from lowest dimension
             // don't check the highest dimension
-            static_for<0, nDimLow, 1>{}([&](auto ireverse) {
+            static_for<0, nDimLow - 1, 1>{}([&](auto ireverse) {
                 constexpr index_t i = nDimLow - 1 - ireverse;
 
                 if(carry)
@@ -213,6 +213,12 @@ struct Merge
                     carry = true;
                 }
             });
+
+            // highest dimension, no out-of-bound check
+            if(carry)
+            {
+                ++idx_low_new(0);
+            }
         }
         else if(idx_up_diff[0] < 0)
         {
@@ -220,7 +226,7 @@ struct Merge
 
             // do borrow check in reversed order, starting from lowest dimension
             // don't check the highest dimension
-            static_for<0, nDimLow, 1>{}([&](auto ireverse) {
+            static_for<0, nDimLow - 1, 1>{}([&](auto ireverse) {
                 constexpr index_t i = nDimLow - 1 - ireverse;
 
                 if(borrow)
@@ -236,6 +242,12 @@ struct Merge
                     borrow = true;
                 }
             });
+
+            // highest dimension, no out-of-bound check
+            if(borrow)
+            {
+                --idx_low_new(0);
+            }
         }
 
         return idx_low_new - idx_low_old;
