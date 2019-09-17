@@ -185,6 +185,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
                                                InBlockCopyDstDataPerWrite_N2>(
                 {0, 0, b_block_data_on_global, 0}, {0, 0, 0, 0});
 
+#if 0
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
         constexpr auto wei_e_k_global_desc =
@@ -192,6 +193,13 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
                                         make_tuple(Merge<Sequence<C, Y, X>>{}, PassThrough<K>{}),
                                         make_tuple(Sequence<1, 2, 3>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
+#else // hack
+        constexpr auto wei_e_k_global_desc_old =
+            WeiGlobalDesc::Unfold(I1, I3).ReorderGivenNew2Old(Sequence<1, 0>{});
+
+        constexpr auto wei_e_k_global_desc = make_native_tensor_descriptor(
+            wei_e_k_global_desc_old.GetLengths(), wei_e_k_global_desc_old.GetStrides());
+#endif
 
         //     tensor descriptor in LDS, dst of blockwise copy
         //     be careful of LDS alignment
