@@ -311,6 +311,51 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<0, 0>;
     using RightPads = Sequence<0, 0>;
+#elif 0
+    // 5x5 filter, 2x2 pad, 7x7 input
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 48;
+    constexpr index_t HI = 7;
+    constexpr index_t WI = 7;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 5;
+    constexpr index_t X  = 5;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    using LeftPads  = Sequence<2, 2>;
+    using RightPads = Sequence<2, 2>;
+#elif 0
+    // 7x1 filter, 3x0 pad, 17x17 input
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 128;
+    constexpr index_t HI = 17;
+    constexpr index_t WI = 17;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 7;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    using LeftPads  = Sequence<3, 0>;
+    using RightPads = Sequence<3, 0>;
+#elif 1
+    // 1x7 filter, 0x3 pad, 17x17 input
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 128;
+    constexpr index_t HI = 17;
+    constexpr index_t WI = 17;
+    constexpr index_t K  = 128;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 7;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    using LeftPads  = Sequence<0, 3>;
+    using RightPads = Sequence<0, 3>;
 #endif
 
     auto in_nchw_desc  = make_ConstantTensorDescriptor_packed(Sequence<N, C, HI, WI>{});
