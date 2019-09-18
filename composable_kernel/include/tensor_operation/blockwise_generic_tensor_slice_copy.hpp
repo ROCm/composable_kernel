@@ -487,6 +487,7 @@ struct BlockwiseGenericTensorSliceCopy_v2
 #if 0
         mThreadwiseLoad.Run(p_src, p_buffer);
 #else
+        // hardcoded: global to register
         mThreadwiseLoad.template Run_amd_experiment<TData, 2, 0>(p_src, p_buffer);
 #endif
     }
@@ -497,7 +498,8 @@ struct BlockwiseGenericTensorSliceCopy_v2
 #if 0
         mThreadwiseStore.Run(p_buffer, p_dst);
 #else
-        mThreadwiseStore.template Run_amd_experiment<TData, 0, 2>(p_buffer, p_dst);
+        // hardcoded: register to LDS
+        mThreadwiseStore.template Run_amd_experiment<TData, 0, 1>(p_buffer, p_dst);
 #endif
     }
 
@@ -506,13 +508,8 @@ struct BlockwiseGenericTensorSliceCopy_v2
     {
         TData p_buffer[GetRegisterBufferSize()];
 
-#if 0
-        mThreadwiseLoad.Run(p_src, p_buffer);
-        mThreadwiseStore.Run(p_buffer, p_dst);
-#else
-        mThreadwiseLoad.template Run_amd_experiment<TData, 2, 0>(p_src, p_buffer);
-        mThreadwiseStore.template Run_amd_experiment<TData, 0, 2>(p_buffer, p_dst);
-#endif
+        RunLoadRegisterBuffer(p_src, p_buffer);
+        RunStoreRegisterBuffer(p_buffer, p_dst);
     }
 
     template <typename T, bool PositiveDirection>
