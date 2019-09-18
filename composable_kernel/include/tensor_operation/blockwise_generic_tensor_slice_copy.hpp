@@ -439,11 +439,10 @@ struct BlockwiseGenericTensorSliceCopy_v2
 {
     static constexpr index_t nDim = SrcDesc::GetNumOfDimension();
 
-    using SrcCoordinate = typename TensorCoordinate<SrcDesc>::type;
-    using DstCoordinate = typename TensorCoordinate<DstDesc>::type;
+    using Index = MultiIndex<nDim>;
 
-    __device__ constexpr BlockwiseGenericTensorSliceCopy_v2(SrcCoordinate src_block_slice_origin,
-                                                            DstCoordinate dst_block_slice_origin)
+    __device__ constexpr BlockwiseGenericTensorSliceCopy_v2(const Index& src_block_slice_origin,
+                                                            const Index& dst_block_slice_origin)
     {
         static_assert(
             nDim == SrcDesc::GetNumOfDimension() && nDim == DstDesc::GetNumOfDimension() &&
@@ -485,13 +484,21 @@ struct BlockwiseGenericTensorSliceCopy_v2
     template <typename TData>
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
+#if 0
         mThreadwiseLoad.Run(p_src, p_buffer);
+#else
+        mThreadwiseLoad.template Run_amd_experiment<TData, 2, 0>(p_src, p_buffer);
+#endif
     }
 
     template <typename TData>
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
+#if 0
         mThreadwiseStore.Run(p_buffer, p_dst);
+#else
+        mThreadwiseStore.template Run_amd_experiment<TData, 0, 2>(p_buffer, p_dst);
+#endif
     }
 
     template <typename TData>
@@ -499,8 +506,13 @@ struct BlockwiseGenericTensorSliceCopy_v2
     {
         TData p_buffer[GetRegisterBufferSize()];
 
+#if 0
         mThreadwiseLoad.Run(p_src, p_buffer);
         mThreadwiseStore.Run(p_buffer, p_dst);
+#else
+        mThreadwiseLoad.template Run_amd_experiment<TData, 2, 0>(p_src, p_buffer);
+        mThreadwiseStore.template Run_amd_experiment<TData, 0, 2>(p_buffer, p_dst);
+#endif
     }
 
     template <typename T, bool PositiveDirection>

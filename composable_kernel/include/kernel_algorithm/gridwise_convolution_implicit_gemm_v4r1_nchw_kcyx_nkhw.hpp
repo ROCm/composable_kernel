@@ -225,7 +225,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw
         // c_thread_mtx definition: this is a mess
         // TODO:: more elegent way of defining c_thread_mtx
         constexpr auto c_k0k2_n1n2_thread_mtx_desc = make_ConstantMatrixDescriptor_packed(
-            Number<GemmMRepeat * GemmMPerThreadSubC>{}, Number<N1 * N2>{});
+            Number<GemmMRepeat * GemmMPerThreadSubC>{}, Number<GemmNRepeat * GemmNPerThreadSubC>{});
 
         const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<
             BlockSize,
