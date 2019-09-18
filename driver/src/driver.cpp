@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<0, 0>;
     using RightPads = Sequence<0, 0>;
-#elif 0
+#elif 1
     // 1x1 filter, 8x8 image
     // cudnn@V100 68%, ck@V100 72%, ck@P100 52%, ck@VII 42%
     constexpr index_t N  = 64;
