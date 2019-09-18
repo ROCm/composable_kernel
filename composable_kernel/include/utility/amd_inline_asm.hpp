@@ -10,169 +10,202 @@ extern "C" __attribute__((address_space(3))) __device__ void* __to_local(void* p
 
 // global_load and global_store
 template <typename T, index_t VectorSize>
-__device__ typename vector_type<T, VectorSize>::MemoryType
-__global_load(const T* p_src_block, uint32_t src_thread_offset, uint32_t src_const_offset);
+__device__ typename vector_type<T, VectorSize>::MemoryType __global_load(
+    const T* p_src_block, uint32_t src_thread_data_offset, uint32_t src_const_data_offset);
 
 template <typename T, index_t VectorSize>
 __device__ void __global_store(const typename vector_type<T, VectorSize>::MemoryType& src,
                                T* p_dst_block,
-                               uint32_t dst_thread_offset,
-                               uint32_t dst_const_offset);
+                               uint32_t dst_thread_data_offset,
+                               uint32_t dst_const_data_offset);
 
 template <>
 __device__ float __global_load<float, 1>(const float* p_src_block,
-                                         uint32_t src_thread_offset,
-                                         uint32_t src_const_offset)
+                                         uint32_t src_thread_data_offset,
+                                         uint32_t src_const_data_offset)
 {
-#if 0 // compute on VALU
     float dst;
 
-    uint64_t src_thread_offset_u64 = static_cast<uint64_t>(src_thread_offset + src_const_offset);
+#if 0   // source code
+    dst = p_src_block[src_const_data_offset + src_thread_data_offset];
+#elif 0 // use VGPR only
+    const float* src_thread_addr_offset_u64 =
+        p_src_block + src_const_data_offset + src_thread_data_offset;
+
+    asm volatile("\n \
+     global_load_dword %0, %1 off offset:0 \n \
+     s_waitcnt 0 \n \
+     "
+                 : "=v"(dst)
+                 : "v"(src_thread_addr_offset_u64));
+#elif 0 // use VGPR and SGPR, do compute on VALU
+    uint64_t src_thread_addr_offset_u64 =
+        (src_thread_data_offset + src_const_data_offset) * sizeof(float);
 
     asm volatile("\n \
      global_load_dword %0, %1, %2, offset:0 \n \
      s_waitcnt 0 \n \
      "
                  : "=v"(dst)
-                 : "v"(src_thread_offset_u64), "s"(p_src_block));
+                 : "v"(src_thread_addr_offset_u64), "s"(p_src_block));
+#elif 1 // use VGPR and SGPR, do compute on SALU
+    uint64_t src_thread_addr_offset_u64 =
+        static_cast<uint64_t>(src_thread_data_offset * sizeof(float));
 
-    return dst;
-#else // compute on SALU
-    float dst;
-
-    uint64_t src_thread_offset_u64 = static_cast<uint64_t>(src_thread_offset);
-
-    const float* p_src_block_with_offset = p_src_block + src_const_offset;
+    const float* p_src_block_with_offset = p_src_block + src_const_data_offset;
 
     asm volatile("\n \
      global_load_dword %0, %1, %2, offset:0 \n \
-     ;;s_waitcnt 0 \n \
+     s_waitcnt 0 \n \
      "
                  : "=v"(dst)
-                 : "v"(src_thread_offset_u64), "s"(p_src_block_with_offset));
+                 : "v"(src_thread_addr_offset_u64), "s"(p_src_block_with_offset));
+#endif
 
     return dst;
-#endif
 }
 
 template <>
-__device__ vector_type<float, 2>::MemoryType __global_load<float, 2>(const float* p_src_block,
-                                                                     uint32_t src_thread_offset,
-                                                                     uint32_t src_const_offset)
+__device__ vector_type<float, 2>::MemoryType __global_load<float, 2>(
+    const float* p_src_block, uint32_t src_thread_data_offset, uint32_t src_const_data_offset)
 {
-#if 0 // compute on VALU
-    vector_type<float, 2>::MemoryType dst;
+    using vector_t = vector_type<float, 2>::MemoryType;
 
-    uint64_t src_thread_offset_u64 = static_cast<uint64_t>(src_thread_offset + src_const_offset);
+    vector_t dst;
+
+#if 0   // source code
+    dst = *reinterpret_cast<const vector_t*>(&p_src_block[src_const_data_offset + src_thread_data_offset]);
+#elif 0 // use VGPR only
+    const float* src_thread_addr_offset_u64 =
+        p_src_block + src_const_data_offset + src_thread_data_offset;
+
+    asm volatile("\n \
+     global_load_dwordx2 %0, %1 off offset:0 \n \
+     s_waitcnt 0 \n \
+     "
+                 : "=v"(dst)
+                 : "v"(src_thread_addr_offset_u64));
+#elif 0 // use VGPR and SGPR, do compute on VALU
+    uint64_t src_thread_addr_offset_u64 =
+        (src_thread_data_offset + src_const_data_offset) * sizeof(float);
 
     asm volatile("\n \
      global_load_dwordx2 %0, %1, %2, offset:0 \n \
      s_waitcnt 0 \n \
      "
                  : "=v"(dst)
-                 : "v"(src_thread_offset_u64), "s"(p_src_block));
+                 : "v"(src_thread_addr_offset_u64), "s"(p_src_block));
+#elif 1 // use VGPR and SGPR, do compute on SALU
+    uint64_t src_thread_addr_offset_u64 =
+        static_cast<uint64_t>(src_thread_data_offset * sizeof(float));
 
-    return dst;
-#else // compute on SALU
-    vector_type<float, 2>::MemoryType dst;
-
-    uint64_t src_thread_offset_u64 = static_cast<uint64_t>(src_thread_offset);
-
-    const float* p_src_block_with_offset = p_src_block + src_const_offset;
+    const float* p_src_block_with_offset = p_src_block + src_const_data_offset;
 
     asm volatile("\n \
      global_load_dwordx2 %0, %1, %2, offset:0 \n \
-     ;;s_waitcnt 0 \n \
+     s_waitcnt 0 \n \
      "
                  : "=v"(dst)
-                 : "v"(src_thread_offset_u64), "s"(p_src_block_with_offset));
+                 : "v"(src_thread_addr_offset_u64), "s"(p_src_block_with_offset));
+#endif
 
     return dst;
-#endif
 }
 
 template <>
-__device__ vector_type<float, 4>::MemoryType __global_load<float, 4>(const float* p_src_block,
-                                                                     uint32_t src_thread_offset,
-                                                                     uint32_t src_const_offset)
+__device__ vector_type<float, 4>::MemoryType __global_load<float, 4>(
+    const float* p_src_block, uint32_t src_thread_data_offset, uint32_t src_const_data_offset)
 {
-#if 0 // compute on VALU
-    vector_type<float, 4>::MemoryType dst;
+    using vector_t = vector_type<float, 4>::MemoryType;
 
-    uint64_t src_thread_offset_u64 = static_cast<uint64_t>(src_thread_offset + src_const_offset);
+    vector_t dst;
+
+#if 0   // source code
+    dst = *reinterpret_cast<const vector_t*>(&p_src_block[src_const_data_offset + src_thread_data_offset]);
+#elif 0 // use VGPR only
+    const float* src_thread_addr_offset_u64 =
+        p_src_block + src_const_data_offset + src_thread_data_offset;
+
+    asm volatile("\n \
+     global_load_dwordx4 %0, %1 off offset:0 \n \
+     s_waitcnt 0 \n \
+     "
+                 : "=v"(dst)
+                 : "v"(src_thread_addr_offset_u64));
+#elif 0 // use VGPR and SGPR, do compute on VALU
+    uint64_t src_thread_addr_offset_u64 =
+        (src_thread_data_offset + src_const_data_offset) * sizeof(float);
 
     asm volatile("\n \
      global_load_dwordx4 %0, %1, %2, offset:0 \n \
      s_waitcnt 0 \n \
      "
                  : "=v"(dst)
-                 : "v"(src_thread_offset_u64), "s"(p_src_block));
+                 : "v"(src_thread_addr_offset_u64), "s"(p_src_block));
+#elif 1 // use VGPR and SGPR, do compute on SALU
+    uint64_t src_thread_addr_offset_u64 =
+        static_cast<uint64_t>(src_thread_data_offset * sizeof(float));
 
-    return dst;
-#else // compute on SALU
-    vector_type<float, 4>::MemoryType dst;
-
-    uint64_t src_thread_offset_u64 = static_cast<uint64_t>(src_thread_offset);
-
-    const float* p_src_block_with_offset = p_src_block + src_const_offset;
+    const float* p_src_block_with_offset = p_src_block + src_const_data_offset;
 
     asm volatile("\n \
      global_load_dwordx4 %0, %1, %2, offset:0 \n \
-     ;;s_waitcnt 0 \n \
+     s_waitcnt 0 \n \
      "
                  : "=v"(dst)
-                 : "v"(src_thread_offset_u64), "s"(p_src_block_with_offset));
+                 : "v"(src_thread_addr_offset_u64), "s"(p_src_block_with_offset));
+#endif
 
     return dst;
-#endif
 }
 
 template <>
 __device__ void __global_store<float, 1>(const float& src,
                                          float* p_dst_block,
-                                         uint32_t dst_thread_offset,
-                                         uint32_t dst_const_offset)
+                                         uint32_t dst_thread_data_offset,
+                                         uint32_t dst_const_data_offset)
 {
 #if 0 // compute on VALU
-    uint64_t dst_thread_offset_u64 = static_cast<uint64_t>(dst_thread_offset + dst_const_offset);
+    uint64_t dst_thread_data_offset_u64 = (dst_thread_data_offset + dst_const_data_offset) * sizeof(float);
 
     asm volatile("\n \
      global_store_dword %0, %1, %2, offset:0 \n \
-     s_waitcnt 0 \n \
      "
                  :
-                 : "v"(dst_thread_offset_u64), "v"(src), "s"(p_dst_block));
+                 : "v"(dst_thread_data_offset_u64), "v"(src), "s"(p_dst_block));
 #else // compute on SALU
-    uint64_t dst_thread_offset_u64 = static_cast<uint64_t>(dst_thread_offset);
+    uint64_t dst_thread_data_offset_u64 = dst_thread_data_offset * sizeof(float);
 
-    float* p_dst_block_with_offset = p_dst_block + dst_const_offset;
+    float* p_dst_block_with_offset = p_dst_block + dst_const_data_offset;
 
     asm volatile("\n \
      global_store_dword %0, %1, %2, offset:0 \n \
-     ;;s_waitcnt 0 \n \
      "
                  :
-                 : "v"(dst_thread_offset_u64), "v"(src), "s"(p_dst_block_with_offset));
+                 : "v"(dst_thread_data_offset_u64), "v"(src), "s"(p_dst_block_with_offset));
 #endif
 }
 
 // __buffer_load and __buffer_store
 template <typename T, index_t VectorSize>
-__device__ typename vector_type<T, VectorSize>::MemoryType
-__buffer_load(const T* p_src_block, uint32_t src_thread_offset, uint32_t src_const_offset);
+__device__ typename vector_type<T, VectorSize>::MemoryType __buffer_load(
+    const T* p_src_block, uint32_t src_thread_data_offset, uint32_t src_const_data_offset);
 
 template <typename T, index_t VectorSize>
 __device__ void __buffer_store(const typename vector_type<T, VectorSize>::MemoryType& src,
                                T* p_dst_block,
-                               uint32_t dst_thread_offset,
-                               uint32_t dst_const_offset);
+                               uint32_t dst_thread_data_offset,
+                               uint32_t dst_const_data_offset);
 
 template <>
 __device__ float __buffer_load<float, 1>(const float* p_src_block,
-                                         uint32_t src_thread_offset,
-                                         uint32_t src_const_offset)
+                                         uint32_t src_thread_data_offset,
+                                         uint32_t src_const_data_offset)
 {
     float dst;
+
+    uint32_t src_thread_addr_offset = src_thread_data_offset * sizeof(float);
+    uint32_t src_const_addr_offset  = src_const_data_offset * sizeof(float);
 
     int32x4_t src_block_setting{0};
     // fill in byte 0 - 1
@@ -184,20 +217,22 @@ __device__ float __buffer_load<float, 1>(const float* p_src_block,
 
     asm volatile("\n \
     buffer_load_dword %0, %1, %2, %3 offen offset:0 \n \
-    ;;s_waitcnt 0 \n \
+    s_waitcnt 0 \n \
     "
                  : "=v"(dst)
-                 : "v"(src_thread_offset), "s"(src_block_setting), "s"(src_const_offset));
+                 : "v"(src_thread_addr_offset), "s"(src_block_setting), "s"(src_const_addr_offset));
 
     return dst;
 }
 
 template <>
-__device__ vector_type<float, 2>::MemoryType __buffer_load<float, 2>(const float* p_src_block,
-                                                                     uint32_t src_thread_offset,
-                                                                     uint32_t src_const_offset)
+__device__ vector_type<float, 2>::MemoryType __buffer_load<float, 2>(
+    const float* p_src_block, uint32_t src_thread_data_offset, uint32_t src_const_data_offset)
 {
     vector_type<float, 2>::MemoryType dst;
+
+    uint32_t src_thread_addr_offset = src_thread_data_offset * sizeof(float);
+    uint32_t src_const_addr_offset  = src_const_data_offset * sizeof(float);
 
     int32x4_t src_block_setting{0};
     // fill in byte 0 - 1
@@ -209,20 +244,22 @@ __device__ vector_type<float, 2>::MemoryType __buffer_load<float, 2>(const float
 
     asm volatile("\n \
     buffer_load_dwordx2 %0, %1, %2, %3 offen offset:0 \n \
-    ;;s_waitcnt 0 \n \
+    s_waitcnt 0 \n \
     "
                  : "=v"(dst)
-                 : "v"(src_thread_offset), "s"(src_block_setting), "s"(src_const_offset));
+                 : "v"(src_thread_addr_offset), "s"(src_block_setting), "s"(src_const_addr_offset));
 
     return dst;
 }
 
 template <>
-__device__ vector_type<float, 4>::MemoryType __buffer_load<float, 4>(const float* p_src_block,
-                                                                     uint32_t src_thread_offset,
-                                                                     uint32_t src_const_offset)
+__device__ vector_type<float, 4>::MemoryType __buffer_load<float, 4>(
+    const float* p_src_block, uint32_t src_thread_data_offset, uint32_t src_const_data_offset)
 {
     vector_type<float, 4>::MemoryType dst;
+
+    uint32_t src_thread_addr_offset = src_thread_data_offset * sizeof(float);
+    uint32_t src_const_addr_offset  = src_const_data_offset * sizeof(float);
 
     int32x4_t src_block_setting{0};
     // fill in byte 0 - 1
@@ -234,10 +271,10 @@ __device__ vector_type<float, 4>::MemoryType __buffer_load<float, 4>(const float
 
     asm volatile("\n \
     buffer_load_dwordx4 %0, %1, %2, %3 offen offset:0 \n \
-    ;;s_waitcnt 0 \n \
+    s_waitcnt 0 \n \
     "
                  : "=v"(dst)
-                 : "v"(src_thread_offset), "s"(src_block_setting), "s"(src_const_offset));
+                 : "v"(src_thread_addr_offset), "s"(src_block_setting), "s"(src_const_addr_offset));
 
     return dst;
 }
@@ -245,9 +282,12 @@ __device__ vector_type<float, 4>::MemoryType __buffer_load<float, 4>(const float
 template <>
 __device__ void __buffer_store<float, 1>(const float& src,
                                          float* p_dst_block,
-                                         uint32_t dst_thread_offset,
-                                         uint32_t dst_const_offset)
+                                         uint32_t dst_thread_data_offset,
+                                         uint32_t dst_const_data_offset)
 {
+    uint32_t dst_thread_addr_offset = dst_thread_data_offset * sizeof(float);
+    uint32_t dst_const_addr_offset  = dst_const_data_offset * sizeof(float);
+
     int32x4_t dst_block_setting{0};
     // fill in byte 0 - 1
     *reinterpret_cast<float**>(&dst_block_setting) = p_dst_block;
@@ -258,10 +298,12 @@ __device__ void __buffer_store<float, 1>(const float& src,
 
     asm volatile("\n \
     buffer_store_dword %1, %2, %0, %3 offen offset:0 \n \
-    ;;s_waitcnt 0 \n \
     "
                  :
-                 : "s"(dst_block_setting), "v"(src), "v"(dst_thread_offset), "s"(dst_const_offset));
+                 : "s"(dst_block_setting),
+                   "v"(src),
+                   "v"(dst_thread_addr_offset),
+                   "s"(dst_const_addr_offset));
 }
 
 __device__ void vmcnt(index_t cnt)
