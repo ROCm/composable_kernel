@@ -6,7 +6,7 @@
 namespace ck {
 
 template <index_t NSize>
-__host__ __device__ void print_array(const char* s, Array<unsigned_t, NSize> a)
+__host__ __device__ void print_array(const char* s, Array<uint32_t, NSize> a)
 {
     constexpr index_t nsize = a.GetSize();
 
@@ -90,7 +90,7 @@ __host__ __device__ void print_array(const char* s, Array<unsigned_t, NSize> a)
 }
 
 template <index_t NSize>
-__host__ __device__ void print_array(const char* s, Array<signed_t, NSize> a)
+__host__ __device__ void print_array(const char* s, Array<int32_t, NSize> a)
 {
     constexpr index_t nsize = a.GetSize();
 

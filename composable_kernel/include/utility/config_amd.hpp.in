@@ -5,6 +5,7 @@
 #include "hip/hip_fp16.h"
 
 #define CK_DEVICE_BACKEND_AMD 1
+#define CK_USE_UNSIGNED_INDEX_TYPE 1
 #define CK_USE_AMD_INLINE_ASM 1
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1 1
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1 0
@@ -13,19 +14,18 @@
 
 namespace ck {
 
-using unsigned_t = uint32_t;
-using signed_t   = int;
-
-#if 0 // debug
-using index_t = unsigned_t;
+#if CK_USE_UNSIGNED_INDEX_TYPE
+using index_t = uint32_t;
 #else
-using index_t = signed_t;
+using index_t = int32_t;
 #endif
 
 // For some reason, HIP compiler need this definition to generate optimal load and store
 // instruction
 typedef float float2_t __attribute__((ext_vector_type(2)));
 typedef float float4_t __attribute__((ext_vector_type(4)));
+
+typedef int32_t int32x4_t __attribute__((ext_vector_type(4)));
 
 template <class T>
 __device__ void fused_multiply_accumulate(T& d, const T& s0, const T& s1)
