@@ -166,7 +166,7 @@ struct MergedTensorCoordinate
 
                 // do carry check in reversed order, starting from lowest dimension
                 // don't check the highest dimension
-                static_for<0, ndim_partial_original, 1>{}([&](auto IReverse) {
+                static_for<0, ndim_partial_original - 1, 1>{}([&](auto IReverse) {
                     constexpr index_t i = ndim_partial_original - 1 - IReverse;
 
                     if(carry)
@@ -182,6 +182,12 @@ struct MergedTensorCoordinate
                         carry = true;
                     }
                 });
+
+                // highest dimension
+                if(carry)
+                {
+                    ++partial_original_id(0);
+                }
             }).Else([&](auto) {
                 // shift up multi-id to avoid unsigned integer underflow during intermediate
                 // calculations. After the shift, should have new_multi_id[...] >= 1
@@ -192,7 +198,7 @@ struct MergedTensorCoordinate
 
                 // do borrow check in reversed order, starting from lowest dimension
                 // don't check the highest dimension
-                static_for<0, ndim_partial_original, 1>{}([&](auto IReverse) {
+                static_for<0, ndim_partial_original - 1, 1>{}([&](auto IReverse) {
                     constexpr index_t i = ndim_partial_original - 1 - IReverse;
 
                     if(borrow)
@@ -208,6 +214,12 @@ struct MergedTensorCoordinate
                         borrow = true;
                     }
                 });
+
+                // highest dimension
+                if(borrow)
+                {
+                    --partial_original_id(0);
+                }
 
                 // shift back down multi-id
                 // here, should have new_multi_id[...] >= GetLengths()
