@@ -183,8 +183,8 @@ __device__ float __buffer_load<float, 1>(const float* p_src_block,
     reinterpret_cast<int*>(&src_block_setting)[3] = 0x00027000;
 
     asm volatile("\n \
-    __buffer_load_dword %0, %1, %2, %3 offen offset:0 \n \
-    s_waitcnt 0 \n \
+    buffer_load_dword %0, %1, %2, %3 offen offset:0 \n \
+    ;;s_waitcnt 0 \n \
     "
                  : "=v"(dst)
                  : "v"(src_thread_offset), "s"(src_block_setting), "s"(src_const_offset));
@@ -208,8 +208,8 @@ __device__ vector_type<float, 2>::MemoryType __buffer_load<float, 2>(const float
     reinterpret_cast<int*>(&src_block_setting)[3] = 0x00027000;
 
     asm volatile("\n \
-    __buffer_load_dwordx2 %0, %1, %2, %3 offen offset:0 \n \
-    s_waitcnt 0 \n \
+    buffer_load_dwordx2 %0, %1, %2, %3 offen offset:0 \n \
+    ;;s_waitcnt 0 \n \
     "
                  : "=v"(dst)
                  : "v"(src_thread_offset), "s"(src_block_setting), "s"(src_const_offset));
@@ -233,8 +233,8 @@ __device__ vector_type<float, 4>::MemoryType __buffer_load<float, 4>(const float
     reinterpret_cast<int*>(&src_block_setting)[3] = 0x00027000;
 
     asm volatile("\n \
-    __buffer_load_dwordx4 %0, %1, %2, %3 offen offset:0 \n \
-    s_waitcnt 0 \n \
+    buffer_load_dwordx4 %0, %1, %2, %3 offen offset:0 \n \
+    ;;s_waitcnt 0 \n \
     "
                  : "=v"(dst)
                  : "v"(src_thread_offset), "s"(src_block_setting), "s"(src_const_offset));
@@ -257,8 +257,8 @@ __device__ void __buffer_store<float, 1>(const float& src,
     reinterpret_cast<int*>(&dst_block_setting)[3] = 0x00027000;
 
     asm volatile("\n \
-    __buffer_store_dword %1, %2, %0, %3 offen offset:0 \n \
-    s_waitcnt 0 \n \
+    buffer_store_dword %1, %2, %0, %3 offen offset:0 \n \
+    ;;s_waitcnt 0 \n \
     "
                  :
                  : "s"(dst_block_setting), "v"(src), "v"(dst_thread_offset), "s"(dst_const_offset));

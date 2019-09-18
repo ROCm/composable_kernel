@@ -838,7 +838,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
 #if 1 // source code
                         vector_data = *reinterpret_cast<const src_vector_t*>(
                             &p_src[src_normal_offset + src_merged_offset]);
-#elif 1 // inline asm using global_load
+#elif 0 // inline asm using global_load
                         vector_data = __global_load<TData, SrcDataPerAccess>(
                             p_src,
                             static_cast<uint32_t>(src_merged_offset),
@@ -943,7 +943,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
 #if 1 // source code
                             *reinterpret_cast<dst_vector_t*>(
                                 &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
-#elif 1 // inline asm using global_store
+#elif 0 // inline asm using global_store
                             __global_store<TData, DstDataPerAccess>(
                                 vector_data, p_dst, dst_merged_offset, dst_normal_offset);
 #elif 1 // inline asm using buffer_store
