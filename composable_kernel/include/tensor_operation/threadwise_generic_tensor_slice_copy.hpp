@@ -819,38 +819,38 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
 
                     src_vector_t vector_data;
 
+                    // Read vector from src.
+                    //   1. Source code version can take src of all kinds of memory-space
+                    //   2. Inline asm versions using global_load or buffer_load can only take
+                    //      src from global-memory
+                    //
+                    // Commemt for loading from global-memory:
+                    //   When
+                    //     1) using source code, in order for compiler to emit optimal
+                    //        load instruction, or
+                    //     2) using inline asm (global_load or buffer_load), in order
+                    //        for inline asm to be valid,
+                    //   following assumptions need to be satisfied:
+                    //     1. p_src need to be block-invariant (assumption)
+                    //     2. src_normal_offset must be calculatd at compile time (guaranteed)
+                    //     3. src_merged_offset can be runtime value (no assumption imposed)
                     static_if<SrcMemorySpace == 2>{}([&](auto) {
 #if 1 // source code
-                        // Load vector from src.
-                        // src can be all kinds of memory-space.
-                        // In order for optimized global_load to be emitted by compiler, need to
-                        // assume:
-                        //   1. p_src need to be block-invariant (assumption)
-                        //   2. src_normal_offset must be calculatd at compile time (guaranteed)
-                        //   3. src_merged_offset can be runtime value (no assumption imposed)
                         vector_data = *reinterpret_cast<const src_vector_t*>(
                             &p_src[src_normal_offset + src_merged_offset]);
-#else // inline asm using buffer_load
-                        // Load vector from src
-                        // src's memory-space can only be global-memory (buffer_load inline-asm is
-                        // used)
-                        // In order for buffer_load to be valid, need to assume:
-                        //   1. p_src need to be block-invariant (assumption)
-                        //   2. src_normal_offset must be calculatd at compile time (guaranteed)
-                        //   3. src_merged_offset can be runtime value (no assumption imposed)
-                        vector_data = buffer_load<TData, SrcDataPerAccess>(
+#elif 1 // inline asm using global_load
+                        vector_data = __global_load<TData, SrcDataPerAccess>(
+                            p_src,
+                            static_cast<uint32_t>(src_merged_offset),
+                            static_cast<uint32_t>(src_normal_offset));
+#elif 1 // inline asm using buffer_load
+                        vector_data = __buffer_load<TData, SrcDataPerAccess>(
                             p_src,
                             static_cast<uint32_t>(src_merged_offset),
                             static_cast<uint32_t>(src_normal_offset));
 #endif
                     }).Else([&](auto) {
-                        // Load vector from src.
                         // src can be all kinds of memory-space.
-                        // In order for optimized global_load to be emitted by compiler, need to
-                        // assume:
-                        //   1. p_src need to be block-invariant (assumption)
-                        //   2. src_normal_offset must be calculatd at compile time (guaranteed)
-                        //   3. src_merged_offset can be runtime value (no assumption imposed)
                         vector_data = *reinterpret_cast<const src_vector_t*>(
                             &p_src[src_normal_offset + src_merged_offset]);
                     });
@@ -924,36 +924,34 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
                         const index_t dst_normal_offset =
                             DstDesc::GetOffsetFromMultiIndex(dst_normal_dim_data_id);
 
+                        // Write vector into dst.
+                        //   1. Source code version can take dst of all kinds of memory-space
+                        //   2. Inline asm versions using global_store or buffer_store can only take
+                        //      dst from global-memory
+                        //
+                        // Commemt for storing into global-memory:
+                        //   When
+                        //     1) using source code, in order for compiler to emit optimal
+                        //        store instruction, or
+                        //     2) using inline asm (global_store or buffer_store), in order
+                        //        for inline asm to be valid,
+                        //   following assumptions need to be satisfied:
+                        //     1. p_dst need to be block-invariant (assumption)
+                        //     2. dst_normal_offset must be calculatd at compile time (guaranteed)
+                        //     3. dst_merged_offset can be runtime value (no assumption imposed)
                         static_if<DstMemorySpace == 2>{}([&](auto) {
 #if 1 // source code
-                            // Write vector into dst.
-                            // dst can be all kinds of memory-space
-                            // In order for optmized global_store to be emitted by compiler, need to
-                            // assume:
-                            //   1. p_dst need to be block-invariant (assumption)
-                            //   2. dst_normal_offset must be calculatd at compile time (guaranteed)
-                            //   3. dst_merged_offset can be runtime value (no assumption imposed)
                             *reinterpret_cast<dst_vector_t*>(
                                 &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
-#else // inline asm using buffer_store
-                            // Write vector into dst.
-                            // dst's memory-space need to be global-memory (buffer_store is used)
-                            // In order for optmized global_store to be emitted by compiler, need to
-                            // assume:
-                            //   1. p_dst need to be block-invariant (assumption)
-                            //   2. dst_normal_offset must be calculatd at compile time (guaranteed)
-                            //   3. dst_merged_offset can be runtime value (no assumption imposed)
-                            buffer_store<TData, DstDataPerAccess>(
+#elif 1 // inline asm using global_store
+                            __global_store<TData, DstDataPerAccess>(
+                                vector_data, p_dst, dst_merged_offset, dst_normal_offset);
+#elif 1 // inline asm using buffer_store
+                            __buffer_store<TData, DstDataPerAccess>(
                                 vector_data, p_dst, dst_merged_offset, dst_normal_offset);
 #endif
                         }).Else([&](auto) {
-                            // Write vector into dst.
                             // dst can be all kinds of memory-space
-                            // In order for optmized global_store to be emitted by compiler, need to
-                            // assume:
-                            //   1. p_dst need to be block-invariant (assumption)
-                            //   2. dst_normal_offset must be calculatd at compile time (guaranteed)
-                            //   3. dst_merged_offset can be runtime value (no assumption imposed)
                             *reinterpret_cast<dst_vector_t*>(
                                 &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
                         });
