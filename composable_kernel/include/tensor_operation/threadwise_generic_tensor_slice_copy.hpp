@@ -835,7 +835,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
                     //     2. src_normal_offset must be calculatd at compile time (guaranteed)
                     //     3. src_merged_offset can be runtime value (no assumption imposed)
                     static_if<SrcMemorySpace == 2>{}([&](auto) {
-#if 1 // source code
+#if 0   // source code
                         vector_data = *reinterpret_cast<const src_vector_t*>(
                             &p_src[src_normal_offset + src_merged_offset]);
 #elif 0 // inline asm using global_load
@@ -940,7 +940,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
                         //     2. dst_normal_offset must be calculatd at compile time (guaranteed)
                         //     3. dst_merged_offset can be runtime value (no assumption imposed)
                         static_if<DstMemorySpace == 2>{}([&](auto) {
-#if 1 // source code
+#if 0   // source code
                             *reinterpret_cast<dst_vector_t*>(
                                 &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
 #elif 0 // inline asm using global_store

@@ -47,7 +47,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     wei_kcyx_device_buf.ToDevice(wei_kcyx.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
-#if 0
+#if 1
     // BlockSize = 256, blockwise-GEMM 128x128, each thread hold 64 data
     constexpr index_t BlockSize = 256;
 
