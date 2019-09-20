@@ -1276,6 +1276,107 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         });
     }
 
+    // memory-space
+    // 0: VGPR
+    // 1: LDS
+    // 2: global-memory
+    template <class TData, index_t SrcMemorySpace, index_t DstMemorySpace>
+    __device__ void Run_amd_experiment(const TData* p_src, TData* p_dst) const
+    {
+        using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
+        using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
+
+        constexpr auto vector_access_dim = Number<VectorAccessDim>{};
+
+        constexpr auto src_data_per_access = Number<SrcDataPerAccess>{};
+        constexpr auto dst_data_per_access = Number<DstDataPerAccess>{};
+
+        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerAccess, DstDataPerAccess)>{};
+
+        constexpr auto long_vector_access_lengths = SliceLengths::Modify(
+            vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
+
+        ford<decltype(long_vector_access_lengths), DimAccessOrder>{}([&](
+            auto long_vector_access_id) {
+
+            // data id w.r.t slicing-window
+            auto long_vector_data_begin_id = long_vector_access_id;
+            long_vector_data_begin_id(vector_access_dim) =
+                long_vector_size * long_vector_access_id[vector_access_dim];
+
+            // buffer to hold a long-vector
+            TData p_long_vector[long_vector_size];
+
+            // set 0
+            for(index_t i = 0; i < long_vector_size; ++i)
+            {
+                p_long_vector[i] = 0;
+            }
+
+            // load data from src to the long-vector buffer
+            for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
+            {
+                auto scalar_id               = make_zero_array<index_t, nDim>();
+                scalar_id(vector_access_dim) = i * src_data_per_access;
+
+                const auto src_coord = mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id);
+
+                // check for padding
+                // TODO: still kind of messy
+                if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                {
+                    const index_t src_offset = src_coord.GetOffset();
+
+                    const index_t buffer_offset = i * src_data_per_access;
+
+                    static_if<SrcMemorySpace == 2>{}([&](auto) {
+#if 0   // source code
+                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
+#elif 1 // inline asm using buffer_load
+                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            __buffer_load<TData, SrcDataPerAccess>(
+                                p_src, static_cast<uint32_t>(src_offset), static_cast<uint32_t>(0));
+#endif
+                    }).Else([&](auto) {
+                        // src can be all kinds of memory-space.
+                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
+                    });
+                }
+            }
+
+            // store data from the long-vector buffer to dst
+            for(index_t i = 0; i < long_vector_size / dst_data_per_access; ++i)
+            {
+                auto scalar_id               = make_zero_array<index_t, nDim>();
+                scalar_id(vector_access_dim) = i * dst_data_per_access;
+
+                const index_t buffer_offset = i * dst_data_per_access;
+
+                const index_t dst_offset =
+                    (mDstSliceOrigin + (long_vector_data_begin_id + scalar_id)).GetOffset();
+
+                static_if<DstMemorySpace == 2>{}([&](auto) {
+#if 0   // source code
+                    *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
+                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+#elif 1 // inline asm using buffer_store
+                    __buffer_store<TData, DstDataPerAccess>(
+                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]),
+                        p_dst,
+                        dst_offset,
+                        0);
+#endif
+                }).Else([&](auto) {
+                    // dst can be all kinds of memory-space
+                    *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
+                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                });
+            }
+        });
+    }
+
     template <class T, bool PositiveDirection>
     __device__ void MoveSrcSliceWindow(const T& step_sizes_,
                                        integral_constant<bool, PositiveDirection>)
