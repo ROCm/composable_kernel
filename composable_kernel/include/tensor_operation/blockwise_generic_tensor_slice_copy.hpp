@@ -737,13 +737,23 @@ struct BlockwiseGenericTensorSliceCopy_v4
     template <typename TData>
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
+#if 0
         mThreadwiseLoad.Run(p_src, p_buffer);
+#else
+        // hardcoded: global to register
+        mThreadwiseLoad.template Run_amd_experiment<TData, 2, 0>(p_src, p_buffer);
+#endif
     }
 
     template <typename TData>
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
+#if 0
         mThreadwiseStore.Run(p_buffer, p_dst);
+#else
+        // hardcoded: register to LDS
+        mThreadwiseStore.template Run_amd_experiment<TData, 0, 1>(p_buffer, p_dst);
+#endif
     }
 
     template <typename TData>
@@ -751,8 +761,8 @@ struct BlockwiseGenericTensorSliceCopy_v4
     {
         TData p_buffer[GetRegisterBufferSize()];
 
-        mThreadwiseLoad.Run(p_src, p_buffer);
-        mThreadwiseStore.Run(p_buffer, p_dst);
+        RunLoadRegisterBuffer(p_src, p_buffer);
+        RunStoreRegisterBuffer(p_buffer, p_dst);
     }
 
     template <typename T, bool PositiveDirection>

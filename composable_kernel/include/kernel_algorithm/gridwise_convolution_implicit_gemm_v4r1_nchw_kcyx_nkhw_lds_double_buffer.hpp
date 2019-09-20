@@ -344,64 +344,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
 
         // copy output: register to global memory
         {
-#if 0
-            constexpr index_t K2 = GemmMPerThreadSubC;
-            constexpr index_t K1 = GemmMLevel0Cluster * GemmMLevel1Cluster;
-
-            // define tensor descriptor for threadwise copy
-            //     output memory layout descriptor in register
-            constexpr auto out_k0_k1_k2_n1_n0_h_w_n2_thread_mem_desc =
-                make_ConstantTensorDescriptor_packed(
-                    Sequence<KPerBlock / (K1 * K2), 1, K2, N1, 1, 1, 1, N2>{});
-
-            //     output tensor descriptor in register, src of threadwise copy
-            constexpr auto out_n0_n1_n2_k0_k1_k2_h_w_thread_desc =
-                out_k0_k1_k2_n1_n0_h_w_n2_thread_mem_desc.ReorderGivenNew2Old(
-                    Sequence<4, 3, 7, 0, 1, 2, 5, 6>{});
-
-            //     output memory layout descriptor in device memory, dst of threadwise copy
-            constexpr auto out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc =
-                out_n_k_h_w_global_desc.Fold(I1, Number<K1>{}, Number<K2>{})
-                    .Fold(I0, Number<N1>{}, Number<N2>{});
-
-            // calculate origin of thread output tensor on global memory
-            //     blockwise GEMM c matrix starting index
-            const auto c_thread_mtx_on_block =
-                blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
-
-            const index_t k_thread_data_on_global =
-                k_block_data_on_global + c_thread_mtx_on_block.row;
-
-            const index_t b_thread_data_on_global =
-                b_block_data_on_global + c_thread_mtx_on_block.col / N2;
-
-            //     output merged global tensor descriptor, for calculating origin of thread tensor
-            //     in global memory
-            constexpr auto out_k_n1_b_n2_global_merged_desc = make_ConstantMergedTensorDescriptor(
-                out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc.Unfold(I3, I5),
-                Sequence<3>{},
-                Sequence<1>{},
-                Sequence<0, 4, 5>{},
-                Sequence<2>{});
-
-            //     origin of dst in device memory
-            Float* p_out_thread_on_global =
-                p_out_global +
-                out_k_n1_b_n2_global_merged_desc.GetOffsetFromMultiIndex(
-                    k_thread_data_on_global, 0, b_thread_data_on_global, 0);
-
-            ThreadwiseGenericTensorSliceCopy_v2r1<
-                decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc),
-                decltype(out_n0_n1_n2_k0_k1_k2_h_w_global_mem_desc),
-                decltype(out_n0_n1_n2_k0_k1_k2_h_w_thread_desc.GetLengths()),
-                arithmetic_sequence_gen<0, 8, 1>::type,
-                arithmetic_sequence_gen<0, 8, 1>::type,
-                7,
-                7,
-                1,
-                1>({0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0})
-                .Run(p_out_thread, p_out_thread_on_global);
-#else
             constexpr index_t K1 = GemmMPerThreadSubC * GemmMLevel0Cluster * GemmMLevel1Cluster;
 
             // define tensor descriptor for threadwise copy
@@ -449,7 +391,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                     b_thread_data_on_global,
                     0})
                 .template Run_amd_experiment<Float, 0, 2>(p_out_thread, p_out_global);
-#endif
         }
     }
 };

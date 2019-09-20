@@ -369,31 +369,37 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
 
         // copy output: register to global memory
         {
-            constexpr index_t K2 = GemmMPerThreadSubC;
-            constexpr index_t K1 = GemmMLevel0Cluster * GemmMLevel1Cluster;
-
-            static_assert(K % (K1 * K2) == 0, "wrong!");
+            constexpr index_t K1 = GemmMPerThreadSubC * GemmMLevel0Cluster * GemmMLevel1Cluster;
+            constexpr index_t K0 = K / K1;
 
             // define tensor descriptor for threadwise copy
-            //     output memory layout descriptor in register
-            constexpr auto out_k0_k1_k2_n1_n0_ho_wo_n2_thread_desc =
-                make_native_tensor_descriptor_packed(
-                    Sequence<KPerBlock / (K1 * K2), 1, K2, N1, 1, 1, 1, N2>{});
+            //     output memory layout descriptor in register, src of threadwise copy
+            constexpr auto out_k0_k1_n1_b_n2_thread_desc = make_native_tensor_descriptor_packed(
+                Sequence<GemmMRepeat, GemmMPerThreadSubC, N1, 1, N2>{});
 
-            //     output tensor descriptor in register, src of threadwise copy
-            constexpr auto out_n0_n1_n2_k0_k1_k2_ho_wo_thread_desc =
-                reorder_tensor_descriptor_given_upper2lower(out_k0_k1_k2_n1_n0_ho_wo_n2_thread_desc,
-                                                            Sequence<4, 3, 7, 0, 1, 2, 5, 6>{});
+            //     output memory layout descriptor in device memory
+            constexpr auto out_n0_n1_n2_k0_k1_ho_wo_global_desc_old =
+                OutGlobalDesc::Fold(I1, Number<K1>{}).Fold(I0, Number<N1>{}, Number<N2>{});
 
-            //     output memory layout descriptor in device memory, dst of threadwise copy
-            constexpr auto out_n0_n1_n2_k0_k1_k2_ho_wo_global_desc = transform_tensor_descriptor(
-                out_n_k_ho_wo_global_desc,
-                make_tuple(Unmerge<Sequence<N / (N1 * N2), N1, N2>>{},
-                           Unmerge<Sequence<K / (K1 * K2), K1, K2>>{},
-                           PassThrough<Ho>{},
-                           PassThrough<Wo>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5>{}, Sequence<6>{}, Sequence<7>{}));
+            constexpr auto out_n0_n1_n2_k0_k1_ho_wo_global_desc = make_native_tensor_descriptor(
+                out_n0_n1_n2_k0_k1_ho_wo_global_desc_old.GetLengths(),
+                out_n0_n1_n2_k0_k1_ho_wo_global_desc_old.GetStrides());
+
+            //     output merged global tensor descriptor, dst of threadwise copy
+            constexpr auto out_k0_k1_n1_b_n2_global_desc = transform_tensor_descriptor(
+                out_n0_n1_n2_k0_k1_ho_wo_global_desc,
+                make_tuple(PassThrough<K0>{},
+                           PassThrough<K1>{},
+                           PassThrough<N1>{},
+                           Merge<Sequence<N0, Ho, Wo>>{},
+                           PassThrough<N2>{}),
+                make_tuple(Sequence<3>{},
+                           Sequence<4>{},
+                           Sequence<1>{},
+                           Sequence<0, 5, 6>{},
+                           Sequence<2>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
@@ -406,41 +412,20 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
             const index_t b_thread_data_on_global =
                 b_block_data_on_global + c_thread_mtx_on_block.col / N2;
 
-            //     output merged global tensor descriptor, for calculating origin of thread tensor
-            //     in global memory
-            constexpr auto out_n0_n1_n2_k_ho_wo_global_desc = transform_tensor_descriptor(
-                out_n_k_ho_wo_global_desc,
-                make_tuple(Unmerge<Sequence<N / (N1 * N2), N1, N2>>{},
-                           PassThrough<K>{},
-                           PassThrough<Ho>{},
-                           PassThrough<Wo>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}, Sequence<4>{}, Sequence<5>{}));
-
-            constexpr auto out_k_n1_b_n2_global_desc = transform_tensor_descriptor(
-                out_n0_n1_n2_k_ho_wo_global_desc,
-                make_tuple(PassThrough<K>{},
-                           PassThrough<N1>{},
-                           Merge<Sequence<N0, Ho, Wo>>{},
-                           PassThrough<N2>{}),
-                make_tuple(Sequence<3>{}, Sequence<1>{}, Sequence<0, 4, 5>{}, Sequence<2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-
-            //     origin of dst in device memory
-            Float* p_out_thread_on_global =
-                p_out_global +
-                out_k_n1_b_n2_global_desc.CalculateOffset(
-                    {k_thread_data_on_global, 0, b_thread_data_on_global, 0});
-
-            ThreadwiseGenericTensorSliceCopy_v4r2<
-                decltype(out_n0_n1_n2_k0_k1_k2_ho_wo_thread_desc),
-                decltype(out_n0_n1_n2_k0_k1_k2_ho_wo_global_desc),
-                decltype(out_n0_n1_n2_k0_k1_k2_ho_wo_thread_desc.GetLengths()),
-                arithmetic_sequence_gen<0, 8, 1>::type,
-                7,
-                1,
-                1>({0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0})
-                .Run(p_out_thread, p_out_thread_on_global);
+            ThreadwiseGenericTensorSliceCopy_v4r2<decltype(out_k0_k1_n1_b_n2_thread_desc),
+                                                  decltype(out_k0_k1_n1_b_n2_global_desc),
+                                                  decltype(
+                                                      out_k0_k1_n1_b_n2_thread_desc.GetLengths()),
+                                                  arithmetic_sequence_gen<0, 5, 1>::type,
+                                                  3,
+                                                  1,
+                                                  1>({0, 0, 0, 0, 0},
+                                                     {k_thread_data_on_global / K1,
+                                                      k_thread_data_on_global % K1,
+                                                      0,
+                                                      b_thread_data_on_global,
+                                                      0})
+                .template Run_amd_experiment<Float, 0, 2>(p_out_thread, p_out_global);
         }
     }
 };
