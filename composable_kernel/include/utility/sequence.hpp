@@ -311,6 +311,28 @@ struct sequence_reverse<Sequence<I0, I1>>
     using type = Sequence<I1, I0>;
 };
 
+#if 0
+template <typename Reduce, typename Seq, typename... Seqs>
+struct sequence_reduce
+{
+    using type = typename sequence_reduce<Reduce,
+                                          Seq,
+                                          typename sequence_reduce<Reduce, Seqs...>::type>::type;
+};
+
+template <typename Reduce, index_t... Xs, index_t... Ys>
+struct sequence_reduce<Reduce, Sequence<Xs...>, Sequence<Ys...>>
+{
+    using type = Sequence<Reduce{}(Xs, Ys)...>;
+};
+
+template <typename Reduce, typename Seq>
+struct sequence_reduce<Reduce, Seq>
+{
+    using type = Seq;
+};
+#endif
+
 template <typename Values, typename Ids, typename Compare>
 struct sequence_sort_impl
 {
@@ -728,10 +750,18 @@ __host__ __device__ constexpr auto inclusive_scan_sequence(Seq, Reduce, Number<I
 }
 
 template <typename Seq, index_t... Is>
-__host__ __device__ constexpr auto pick_sequence_elements(Seq, Sequence<Is...>)
+__host__ __device__ constexpr auto pick_sequence_elements_by_ids(Seq, Sequence<Is...> /* ids */)
 {
     return Sequence<Seq::At(Number<Is>{})...>{};
 }
+
+#if 0
+template <typename Seq, typename Mask>
+__host__ __device__ constexpr auto pick_sequence_elements_by_mask(Seq, Mask)
+{
+    // not implemented
+}
+#endif
 
 template <typename Seq, typename Reduce>
 struct lambda_accumulate_on_sequence
