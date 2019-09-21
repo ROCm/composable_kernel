@@ -346,7 +346,7 @@ struct TransformedTensorDescriptor
         return GetLowerTensorDescriptor().CalculateOffset(CalculateLowerIndex(idx_up));
     }
 
-#if 0
+#if 1
     struct lambda_sequence_logic_or
     {
         template <typename... Seqs>

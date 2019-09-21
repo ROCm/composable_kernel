@@ -21,6 +21,10 @@
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1 0
 #endif
 
+#ifndef CK_EXPERIMENTAL_USE_AMD_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
+#define CK_EXPERIMENTAL_USE_AMD_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1 0
+#endif
+
 namespace ck {
 
 // This threadwise copy allow vector access of src and dst.
@@ -835,19 +839,15 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
                     //     2. src_normal_offset must be calculatd at compile time (guaranteed)
                     //     3. src_merged_offset can be runtime value (no assumption imposed)
                     static_if<SrcMemorySpace == 2>{}([&](auto) {
-#if 0   // source code
-                        vector_data = *reinterpret_cast<const src_vector_t*>(
-                            &p_src[src_normal_offset + src_merged_offset]);
-#elif 0 // inline asm using global_load
-                        vector_data = __global_load<TData, SrcDataPerAccess>(
-                            p_src,
-                            static_cast<uint32_t>(src_merged_offset),
-                            static_cast<uint32_t>(src_normal_offset));
-#elif 1 // inline asm using buffer_load
+#if CK_USE_AMD_INTRINSIC && \
+    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
                         vector_data = __buffer_load<TData, SrcDataPerAccess>(
                             p_src,
                             static_cast<uint32_t>(src_merged_offset),
                             static_cast<uint32_t>(src_normal_offset));
+#else
+                        vector_data = *reinterpret_cast<const src_vector_t*>(
+                            &p_src[src_normal_offset + src_merged_offset]);
 #endif
                     }).Else([&](auto) {
                         // src can be all kinds of memory-space.
@@ -940,15 +940,13 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
                         //     2. dst_normal_offset must be calculatd at compile time (guaranteed)
                         //     3. dst_merged_offset can be runtime value (no assumption imposed)
                         static_if<DstMemorySpace == 2>{}([&](auto) {
-#if 0   // source code
-                            *reinterpret_cast<dst_vector_t*>(
-                                &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
-#elif 0 // inline asm using global_store
-                            __global_store<TData, DstDataPerAccess>(
-                                vector_data, p_dst, dst_merged_offset, dst_normal_offset);
-#elif 1 // inline asm using buffer_store
+#if CK_USE_AMD_INTRINSIC && \
+    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
                             __buffer_store<TData, DstDataPerAccess>(
                                 vector_data, p_dst, dst_merged_offset, dst_normal_offset);
+#else
+                            *reinterpret_cast<dst_vector_t*>(
+                                &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
 #endif
                         }).Else([&](auto) {
                             // dst can be all kinds of memory-space
@@ -1053,15 +1051,6 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
             auto src_slice_vectorized =
                 mSrcSlice.Vectorize(src_vector_access_dim, src_data_per_access);
 
-#if 0
-            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-            {
-                print_ConstantTensorDescriptor("mSrcSlice: ", typename decltype(mSrcSlice)::tensor_desc_type{});
-                print_ConstantTensorDescriptor("src_slice_vector: ", typename decltype(src_slice_vectorized)::tensor_desc_type{});
-            }
-#endif
-
-#if 1 // debug
             ford<decltype(src_slice_vectorized.GetLengths()), SrcDimAccessOrder>{}(
                 [&](auto src_vector_id) {
                     // load vector from src
@@ -1080,7 +1069,6 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
                             reinterpret_cast<const data_type*>(&vector_data)[i];
                     }
                 });
-#endif
         }
 
         // copy data from buffer into dst
@@ -1093,15 +1081,6 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
             auto dst_slice_vectorized =
                 mDstSlice.Vectorize(dst_vector_access_dim, dst_data_per_access);
 
-#if 0
-            if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-            {
-                print_ConstantTensorDescriptor("mDstSlice: ", typename decltype(mDstSlice)::tensor_desc_type{});
-                print_ConstantTensorDescriptor("dst_slice_vector: ", typename decltype(dst_slice_vectorized)::tensor_desc_type{});
-            }
-#endif
-
-#if 1 // debug
             ford<decltype(dst_slice_vectorized.GetLengths()), DstDimAccessOrder>{}(
                 [&](auto dst_vector_id) {
 
@@ -1122,7 +1101,6 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
                     // write vector into dst
                     dst_slice_vectorized(dst_vector_id) = vector_data;
                 });
-#endif
         }
     }
 
@@ -1330,13 +1308,14 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const index_t buffer_offset = i * src_data_per_access;
 
                     static_if<SrcMemorySpace == 2>{}([&](auto) {
-#if 0   // source code
-                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
-                            *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
-#elif 1 // inline asm using buffer_load
+#if CK_USE_AMD_INTRINSIC && \
+    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
                         *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
                             __buffer_load<TData, SrcDataPerAccess>(
                                 p_src, static_cast<uint32_t>(src_offset), static_cast<uint32_t>(0));
+#else
+                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
 #endif
                     }).Else([&](auto) {
                         // src can be all kinds of memory-space.
@@ -1358,15 +1337,16 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     (mDstSliceOrigin + (long_vector_data_begin_id + scalar_id)).GetOffset();
 
                 static_if<DstMemorySpace == 2>{}([&](auto) {
-#if 0   // source code
-                    *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
-                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
-#elif 1 // inline asm using buffer_store
+#if CK_USE_AMD_INTRINSIC && \
+    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
                     __buffer_store<TData, DstDataPerAccess>(
                         *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]),
                         p_dst,
                         dst_offset,
                         0);
+#else
+                    *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
+                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
 #endif
                 }).Else([&](auto) {
                     // dst can be all kinds of memory-space
