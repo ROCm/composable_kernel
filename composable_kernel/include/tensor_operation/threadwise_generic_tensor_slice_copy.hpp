@@ -1136,6 +1136,10 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
 // the other is device memory or LDS
 template <typename SrcDesc,
           typename DstDesc,
+          typename SrcLinearDimensionMask,
+          typename SrcNonLinearDimensionMask,
+          typename DstLinearDimensionMask,
+          typename DstNonLinearDimensionMask,
           typename SliceLengths,
           typename DimAccessOrder,
           index_t VectorAccessDim,
@@ -1252,6 +1256,117 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
             }
         });
+    }
+
+    template <index_t... Lengths, index_t... Mask>
+    __device__ static constexpr auto mask_lengths(Sequence<Lengths...>, Sequence<Mask...>)
+    {
+        return Sequence<(Mask ? Lengths : 1)...>{};
+    }
+
+    template <class TData>
+    __device__ void Run_access_order_optimized_for_source_index_calculation(const TData* p_src,
+                                                                            TData* p_dst) const
+    {
+        using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
+        using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
+
+        constexpr auto vector_access_dim = Number<VectorAccessDim>{};
+
+        constexpr auto src_data_per_access = Number<SrcDataPerAccess>{};
+        constexpr auto dst_data_per_access = Number<DstDataPerAccess>{};
+
+        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerAccess, DstDataPerAccess)>{};
+
+        constexpr auto long_vector_access_lengths = SliceLengths::Modify(
+            vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
+
+        // TODO:: don't use hack
+        constexpr auto src_linear_dim_mask    = SrcLinearDimensionMask{};
+        constexpr auto src_nonlinear_dim_mask = SrcNonLinearDimensionMask{};
+
+        // separate steps into linear and non-linear components
+        constexpr auto linear_long_vector_access_lengths =
+            mask_lengths(long_vector_access_lengths, src_linear_dim_mask);
+
+        constexpr auto nonlinear_long_vector_access_lengths =
+            mask_lengths(long_vector_access_lengths, src_nonlinear_dim_mask);
+
+        // loop over src's non-linear dimensions
+        ford<decltype(nonlinear_long_vector_access_lengths)>{}(
+            [&](auto nonlinear_dim_long_vector_access_id) {
+
+                // step-sizes along src's nonlinear dimensions
+                auto nonlinear_dim_data_steps = nonlinear_dim_long_vector_access_id;
+                nonlinear_dim_data_steps(vector_access_dim) =
+                    long_vector_size * nonlinear_dim_long_vector_access_id[vector_access_dim];
+
+                // move src cooridnate along nonlinear dimensions
+                const auto src_nonlinear_coord = mSrcSliceOrigin + nonlinear_dim_data_steps;
+
+                // loop over src's linear dimensions
+                ford<decltype(linear_long_vector_access_lengths)>{}(
+                    [&](auto linear_dim_long_vector_access_id) {
+
+                        // step-sizes along src's linear dimensions
+                        auto linear_dim_data_steps = linear_dim_long_vector_access_id;
+                        linear_dim_data_steps(vector_access_dim) =
+                            long_vector_size * linear_dim_long_vector_access_id[vector_access_dim];
+
+                        // buffer to hold a long-vector
+                        TData p_long_vector[long_vector_size];
+
+                        // set 0
+                        for(index_t i = 0; i < long_vector_size; ++i)
+                        {
+                            p_long_vector[i] = 0;
+                        }
+
+                        // load data from src to the long-vector buffer
+                        for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
+                        {
+                            auto scalar_id               = make_zero_array<index_t, nDim>();
+                            scalar_id(vector_access_dim) = i * src_data_per_access;
+
+                            // move src cooridnate along linear dimensions
+                            const auto src_coord =
+                                src_nonlinear_coord + (linear_dim_data_steps + scalar_id);
+
+                            // TODO: good implementation?
+                            const index_t src_linear_offset_diff =
+                                src_coord.GetOffset() - src_nonlinear_coord.GetOffset();
+
+                            // check for padding
+                            // TODO: still kind of messy
+                            if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                            {
+                                const index_t src_offset = src_coord.GetOffset();
+
+                                const index_t buffer_offset = i * src_data_per_access;
+
+                                *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                                    *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
+                            }
+                        }
+
+                        // store data from the long-vector buffer to dst
+                        for(index_t i = 0; i < long_vector_size / dst_data_per_access; ++i)
+                        {
+                            auto scalar_id               = make_zero_array<index_t, nDim>();
+                            scalar_id(vector_access_dim) = i * dst_data_per_access;
+
+                            const index_t buffer_offset = i * dst_data_per_access;
+
+                            const index_t dst_offset =
+                                (mDstSliceOrigin +
+                                 (nonlinear_dim_data_steps + linear_dim_data_steps + scalar_id))
+                                    .GetOffset();
+
+                            *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
+                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                        }
+                    });
+            });
     }
 
     // memory-space

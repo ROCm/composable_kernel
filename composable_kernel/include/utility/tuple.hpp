@@ -113,18 +113,32 @@ __host__ __device__ constexpr auto make_tuple(Xs&&... xs)
 namespace detail {
 
 template <typename F, typename X, index_t... Is>
-__host__ __device__ constexpr auto transform_tuple_impl(F f, const X& x, Sequence<Is...>)
+__host__ __device__ constexpr auto transform_tuples_impl(F f, const X& x, Sequence<Is...>)
 {
     return make_tuple(f(x.At(Number<Is>{}))...);
+}
+
+template <typename F, typename X, typename Y, index_t... Is>
+__host__ __device__ constexpr auto
+transform_tuples_impl(F f, const X& x, const Y& y, Sequence<Is...>)
+{
+    return make_tuple(f(x.At(Number<Is>{}), y.At(Number<Is>{}))...);
 }
 
 } // namespace detail
 
 template <typename F, typename X>
-__host__ __device__ constexpr auto transform_tuple(F f, const X& x)
+__host__ __device__ constexpr auto transform_tuples(F f, const X& x)
 {
-    return detail::transform_tuple_impl(
+    return detail::transform_tuples_impl(
         f, x, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
+}
+
+template <typename F, typename X, typename Y>
+__host__ __device__ constexpr auto transform_tuples(F f, const X& x, const Y& y)
+{
+    return detail::transform_tuples_impl(
+        f, x, y, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
 }
 
 } // namespace ck

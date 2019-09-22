@@ -368,5 +368,49 @@ struct Embed
     }
 };
 
+template <index_t LowerLength, index_t VectorSize>
+struct Vectorize
+{
+    using LowerIndex = MultiIndex<1>;
+    using UpperIndex = MultiIndex<1>;
+
+    __host__ __device__ constexpr Vectorize()
+    {
+        static_assert(VectorSize > 0 && LowerLength % VectorSize == 0,
+                      "wrong! cannot evenly divide");
+    }
+
+    __host__ __device__ static constexpr auto GetNumOfLowerDimension() { return Number<1>{}; }
+
+    __host__ __device__ static constexpr auto GetNumOfUpperDimension() { return Number<1>{}; }
+
+    __host__ __device__ static constexpr auto GetUpperLengths()
+    {
+        return Sequence<LowerLength / VectorSize>{};
+    }
+
+    __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& idx_up)
+    {
+        return VectorSize * idx_up;
+    }
+
+    __host__ __device__ static constexpr auto
+    CalculateLowerIndexDiff(const UpperIndex& idx_up_diff,
+                            const UpperIndex& /* idx_up_old */,
+                            const LowerIndex& /* idx_low_old */)
+    {
+        return VectorSize * idx_up_diff;
+    }
+
+    __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    // TODO: should this function be here? should it be specific for padding check?
+    __host__ __device__ static constexpr bool
+    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    {
+        return false;
+    }
+};
+
 } // namespace ck
 #endif

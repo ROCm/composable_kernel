@@ -706,16 +706,16 @@ __host__ __device__ constexpr auto sequence_pop_back(Seq)
     return sequence_pop_front(Seq::Reverse()).Reverse();
 }
 
-template <typename F, index_t... Xs>
-__host__ __device__ constexpr auto transform_sequences(F f, Sequence<Xs...>)
-{
-    return Sequence<f(Xs)...>{};
-}
-
 template <typename... Seqs>
 __host__ __device__ constexpr auto merge_sequences(Seqs...)
 {
     return typename sequence_merge<Seqs...>::type{};
+}
+
+template <typename F, index_t... Xs>
+__host__ __device__ constexpr auto transform_sequences(F f, Sequence<Xs...>)
+{
+    return Sequence<f(Xs)...>{};
 }
 
 template <typename F, index_t... Xs, index_t... Ys>

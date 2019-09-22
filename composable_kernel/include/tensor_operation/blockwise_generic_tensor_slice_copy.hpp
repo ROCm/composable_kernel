@@ -680,6 +680,10 @@ struct BlockwiseGenericTensorSliceCopy_v3
 template <index_t BlockSize,
           typename SrcDesc,
           typename DstDesc,
+          typename SrcLinearDimensionMask,
+          typename SrcNonLinearDimensionMask,
+          typename DstLinearDimensionMask,
+          typename DstNonLinearDimensionMask,
           typename SliceLengths,
           typename SubLengths,
           typename ThreadClusterLengths,
@@ -739,7 +743,9 @@ struct BlockwiseGenericTensorSliceCopy_v4
     {
 #if 0
         mThreadwiseLoad.Run(p_src, p_buffer);
-#else
+#elif 1
+        mThreadwiseLoad.Run_access_order_optimized_for_source_index_calculation(p_src, p_buffer);
+#elif 0
         // hardcoded: global to register
         mThreadwiseLoad.template Run_amd_experiment<TData, 2, 0>(p_src, p_buffer);
 #endif
@@ -750,7 +756,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
     {
 #if 0
         mThreadwiseStore.Run(p_buffer, p_dst);
-#else
+#elif 1
         // hardcoded: register to LDS
         mThreadwiseStore.template Run_amd_experiment<TData, 0, 1>(p_buffer, p_dst);
 #endif
@@ -784,21 +790,31 @@ struct BlockwiseGenericTensorSliceCopy_v4
     private:
     using RegisterBufferDesc = decltype(make_native_tensor_descriptor_packed(SubLengths{}));
 
-    using ThreadwiseLoad = ThreadwiseGenericTensorSliceCopy_v4r2<SrcDesc,
-                                                                 RegisterBufferDesc,
-                                                                 SubLengths,
-                                                                 SrcDimAccessOrder,
-                                                                 SrcVectorAccessDim,
-                                                                 SrcDataPerAccess,
-                                                                 1>;
+    using ThreadwiseLoad =
+        ThreadwiseGenericTensorSliceCopy_v4r2<SrcDesc,
+                                              RegisterBufferDesc,
+                                              SrcLinearDimensionMask,
+                                              SrcNonLinearDimensionMask,
+                                              typename uniform_sequence_gen<nDim, 1>::type,
+                                              typename uniform_sequence_gen<nDim, 0>::type,
+                                              SubLengths,
+                                              SrcDimAccessOrder,
+                                              SrcVectorAccessDim,
+                                              SrcDataPerAccess,
+                                              1>;
 
-    using ThreadwiseStore = ThreadwiseGenericTensorSliceCopy_v4r2<RegisterBufferDesc,
-                                                                  DstDesc,
-                                                                  SubLengths,
-                                                                  DstDimAccessOrder,
-                                                                  DstVectorAccessDim,
-                                                                  1,
-                                                                  DstDataPerAccess>;
+    using ThreadwiseStore =
+        ThreadwiseGenericTensorSliceCopy_v4r2<RegisterBufferDesc,
+                                              DstDesc,
+                                              typename uniform_sequence_gen<nDim, 1>::type,
+                                              typename uniform_sequence_gen<nDim, 0>::type,
+                                              DstLinearDimensionMask,
+                                              DstNonLinearDimensionMask,
+                                              SubLengths,
+                                              DstDimAccessOrder,
+                                              DstVectorAccessDim,
+                                              1,
+                                              DstDataPerAccess>;
 
     ThreadwiseLoad mThreadwiseLoad;
     ThreadwiseStore mThreadwiseStore;

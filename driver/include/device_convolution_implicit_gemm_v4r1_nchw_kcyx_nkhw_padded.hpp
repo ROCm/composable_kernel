@@ -3,7 +3,7 @@
 #include "device.hpp"
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-#include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded.hpp"
+//#include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buffer.hpp"
 
 template <typename T,

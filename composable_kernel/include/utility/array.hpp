@@ -389,6 +389,20 @@ __host__ __device__ constexpr auto operator-(Sequence<Is...> a, Array<TData, NSi
     return result;
 }
 
+// Array = Array * TData
+template <typename TData, index_t NSize>
+__host__ __device__ constexpr auto operator*(TData v, Array<TData, NSize> a)
+{
+    Array<TData, NSize> result;
+
+    for(index_t i = 0; i < NSize; ++i)
+    {
+        result(i) = a[i] * v;
+    }
+
+    return result;
+}
+
 template <typename TData, index_t NSize, typename Reduce>
 __host__ __device__ constexpr TData
 accumulate_on_array(const Array<TData, NSize>& a, Reduce f, TData init)
