@@ -101,17 +101,24 @@ struct NativeTensorDescriptor
         return true;
     }
 
-    __host__ __device__ static constexpr auto GetLinearDimensions()
+    __host__ __device__ static constexpr auto GetMaskOfLinearDimensions()
     {
-        return typename arithmetic_sequence_gen<0, nDim, 1>::type{};
+        return typename uniform_sequence_gen<nDim, 1>::type{};
+    }
+
+    __host__ __device__ static constexpr auto GetMaskOfNonLinearDimensions()
+    {
+        return typename uniform_sequence_gen<nDim, 0>::type{};
     }
 
     __host__ __device__ static constexpr auto GetNonLinearDimensions() { return Sequence<>{}; }
 
+#if 0
     __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
     {
         return Tuple<>{};
     }
+#endif
 
     // TODO: should this function be here? should it be specific for padding check?
     __host__ __device__ static constexpr bool IsUpperIndexInPaddingArea(const Index& /* idx */)
@@ -233,7 +240,7 @@ struct TransformedTensorDescriptor
     __host__ __device__ static constexpr auto GetUpperLengths()
     {
         constexpr auto tuple_of_up_lengths =
-            transform_tuple(lambda_GetUpperLengths{}, Transforms{});
+            transform_tuples(lambda_GetUpperLengths{}, Transforms{});
 
         constexpr auto mingled_up_lengths = unpack(lambda_merge_sequences{}, tuple_of_up_lengths);
 
@@ -346,67 +353,92 @@ struct TransformedTensorDescriptor
         return GetLowerTensorDescriptor().CalculateOffset(CalculateLowerIndex(idx_up));
     }
 
-#if 1
+#if 0
     struct lambda_sequence_logic_or
     {
         template <typename... Seqs>
         __host__ __device__ constexpr auto operator()(Seqs... seqs) const
         {
             // TODO: should use math::logic_or<bool>, after Sequence can take bool
-            return typename sequence_reduce<math::logic_or<index_t>, Seqs...>::type{};
+            return typename sequence_reduce<math::logic_or<bool>, Seqs...>::type{};
         }
     };
 
     struct lambda_1
     {
-        template <typename Transform>
-        __host__ __device__ constexpr auto operator()(const Transform& tran) const
+        // check only one transform at a time
+        template <typename Transform, typename LowDimensionId, typename UpDimensionId>
+        __host__ __device__ constexpr auto
+        operator()(const Transform& tran, LowDimensionId, UpDimensionId) const
         {
-            return tran.GetUpperLengths();
+            // judge if transformation is linear
+            constexpr bool is_linear_transform = tran.IsLinearTransform();
+
+            // judge if all lower dimension are linear
+            constexpr bool is_all_low_dim_linear = math::accumulate_on_sequence(
+                pick_sequence_elements_by_mask(
+                    GetLowerTensorDescriptor().GetMaskOfLinearDimensions(), LowDimensionId{}),
+                math::logic_and<bool>{},
+                integral_constant<bool, true>{});
+
+            // judge if upper dimenisons are linear
+            constexpr bool is_up_dim_nonlinear = !(is_linear_transform && is_all_low_dim_linear);
+
+            constexpr auto value_sequence =
+                typename uniform_sequence_gen<tran.GetNumOfUpperDimension(),
+                                              is_up_dim_nonlinear>::type{};
+
+            constexpr auto mask_of_up_nonlinear_dims = modifiy_sequence(
+                typename uniform_sequence_gen<nDimUp, 0>::type{}, value_sequence, UpDimensionId{});
+
+            return mask_of_up_nonlinear_dims;
+        };
+
+        __host__ __device__ static constexpr bool GetMaskOfNonLinearDimensions()
+        {
+            // create tuple of linear dimension masks, for all transformations
+            constexpr auto tuple_of_nonlinear_dimension_mask =
+                transform_tuples(lambda_1{}, Transforms{}, LowDimensionIds{}, UpDimensionIds{});
+
+            // reduce tuple of masks into one mask
+            constexpr auto nonlinear_dimension_mask =
+                unpack(lambda_sequence_logic_or{}, tuple_of_nonlinear_dimension_mask);
+
+            return nonlinear_dimension_mask;
         }
-    };
 
-    template <index_t IDim>
-    __host__ __device__ static constexpr bool GetMaskOfLinearDimensions()
-    {
-        // create tuple of linear dimension masks, for all transformations
-        constexpr auto tuple_of_linear_dimension_mask = 
-            transform_tuple(lambda_1, Transforms{});
+        __host__ __device__ static constexpr bool GetMaskOfLinearDimensions()
+        {
+            return GetMaskOfNonLinearDimensions().Transform(math::logic_not<bool>{});
+        }
 
-        // reduce tuple of masks into one mask
-        constexpr auto linear_dimension_mask =
-            unpack(lambda_sequence_logic_or{}, tuple_of_linear_dimension_mask);
+        template <index_t IDim>
+        __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>)
+        {
+            return GetMaskOfLinearDimensions().At(Number<IDim>{});
+        }
 
-        return linear_dimension_mask;
-    }
+        __host__ __device__ static constexpr auto GetLinearDimensions()
+        {
+            constexpr auto linear_dimension_mask = GetMaskOfLienarDimensions();
 
-    template <index_t IDim>
-    __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>)
-    {
-        return GetMaskOfLinearDimensions().At(Number<IDim>{});
-    }
+            return pick_sequence_elements_by_mask(
+                typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, linear_dimension_mask);
+        }
 
-    __host__ __device__ static constexpr auto GetLinearDimensions()
-    {
-        constexpr auto linear_dimension_mask = GetMaskOfLienarDimensions();
+        __host__ __device__ static constexpr auto GetNonLinearDimensions()
+        {
+            constexpr auto nonlinear_dimension_mask =
+                GetMaskOfLienarDimensions().Transform(math::logic_not<index_t>{});
 
-        return pick_sequence_elements_by_mask(
-            typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, linear_dimension_mask);
-    }
+            return pick_sequence_elements_by_mask(
+                typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, nonlinear_dimension_mask);
+        }
 
-    __host__ __device__ static constexpr auto GetNonLinearDimensions()
-    {
-        constexpr auto nonlinear_dimension_mask =
-            GetMaskOfLienarDimensions().Transform(math::logic_not<index_t>{});
-
-        return pick_sequence_elements_by_mask(
-            typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, nonlinear_dimension_mask);
-    }
-
-    __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
-    {
-        // not implemented
-    }
+        __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
+        {
+            // not implemented
+        }
 #endif
 
     // TODO: should this function be here? should it be specific for padding check?

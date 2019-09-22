@@ -96,6 +96,19 @@ __host__ __device__ constexpr auto
         LowerTensorDescriptor{}, typename sequence_map_inverse<MapUpper2Lower>::type{});
 }
 
+template <typename LowerTensorDescriptor, index_t VectorDim, index_t VectorSize>
+__host__ __device__ constexpr auto
+vectorize_tensor_descriptor(LowerTensorDescriptor, Number<VectorDim> vector_dim, Number<VectorSize>)
+{
+    constexpr index_t nDim = LowerTensorDescriptor::GetNumOfDimension();
+
+    return transform_tensor_descriptor(
+        LowerTensorDescriptor{},
+        Vectorize<LowerTensorDescriptor::GetLength(vector_dim), VectorSize>{},
+        typename arithmetic_sequence_gen<0, nDim, 1>::type{},
+        typename arithmetic_sequence_gen<0, nDim, 1>::type{});
+}
+
 template <typename... NativeDimensions>
 __host__ __device__ void
 print_tensor_descriptor(const char* s, const NativeTensorDescriptor<NativeDimensions...>& desc)

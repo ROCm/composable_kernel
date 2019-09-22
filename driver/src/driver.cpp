@@ -9,17 +9,17 @@
 #include "conv_common.hpp"
 #include "host_conv.hpp"
 #include "device_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hpp"
-#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded.hpp"
+//#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hpp"
+//#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded.hpp"
 //#include "device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hpp"
 //#include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
+//#include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded.hpp"
 //#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v4r3_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
+//#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+//#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
 
 struct GeneratorTensor_1
 {
