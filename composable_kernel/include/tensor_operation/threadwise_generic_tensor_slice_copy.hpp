@@ -21,10 +21,6 @@
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1 0
 #endif
 
-#ifndef CK_EXPERIMENTAL_USE_AMD_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
-#define CK_EXPERIMENTAL_USE_AMD_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1 0
-#endif
-
 namespace ck {
 
 // This threadwise copy allow vector access of src and dst.
@@ -36,11 +32,11 @@ namespace ck {
 // device memory or LDS.
 // When copying large amout of data, let's hope compiler will reduce register
 // used for the buffer.
-template <class SrcDesc,
-          class DstDesc,
-          class SliceLengths,
-          class SrcDimAccessOrder,
-          class DstDimAccessOrder,
+template <typename SrcDesc,
+          typename DstDesc,
+          typename SliceLengths,
+          typename SrcDimAccessOrder,
+          typename DstDimAccessOrder,
           index_t SrcVectorAccessDim,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
@@ -114,7 +110,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
         mDstSliceOrigin = dst_slice_origin;
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
@@ -262,10 +258,10 @@ struct ThreadwiseGenericTensorSliceCopy_v1r1
 // The dimension access order should be the same on src and dst.
 // It is designed for cases, where one of src and dst is register, and
 // the other is device memory or LDS
-template <class SrcDesc,
-          class DstDesc,
-          class SliceLengths,
-          class DimAccessOrder,
+template <typename SrcDesc,
+          typename DstDesc,
+          typename SliceLengths,
+          typename DimAccessOrder,
           index_t VectorAccessDim,
           index_t SrcDataPerAccess,
           index_t DstDataPerAccess>
@@ -328,7 +324,7 @@ struct ThreadwiseGenericTensorSliceCopy_v1r2
         mDstSliceOrigin = dst_slice_origin;
     }
 
-    template <class TData>
+    template <typename TData>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
@@ -443,11 +439,11 @@ struct ThreadwiseGenericTensorSliceCopy_v1r2
 // device memory or LDS.
 // When copying large amout of data, let's hope compiler will reduce register
 // used for the buffer.
-template <class SrcDesc,
-          class DstDesc,
-          class SliceLengths,
-          class SrcDimAccessOrder,
-          class DstDimAccessOrder,
+template <typename SrcDesc,
+          typename DstDesc,
+          typename SliceLengths,
+          typename SrcDimAccessOrder,
+          typename DstDimAccessOrder,
           index_t SrcVectorAccessDim,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
@@ -526,17 +522,17 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
         mDstSliceOrigin = dst_slice_origin;
     }
 
-    template <class TDesc, class Lengths>
+    template <typename TDesc, class Lengths>
     struct IsolateMergedDimLengths
     {
-        template <class IDim>
+        template <typename IDim>
         __device__ constexpr index_t operator()(IDim idim) const
         {
             return TDesc::ContainMultipleOriginalDimensions(idim) ? Lengths{}[idim] : 1;
         }
     };
 
-    template <class TData>
+    template <typename TData>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
@@ -765,7 +761,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
     // 0: VGPR
     // 1: LDS
     // 2: global-memory
-    template <class TData, index_t SrcMemorySpace, index_t DstMemorySpace>
+    template <typename TData, index_t SrcMemorySpace, index_t DstMemorySpace>
     __device__ void Run_amd_experiment(const TData* p_src, TData* p_dst) const
     {
         constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
@@ -839,8 +835,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
                     //     2. src_normal_offset must be calculatd at compile time (guaranteed)
                     //     3. src_merged_offset can be runtime value (no assumption imposed)
                     static_if<SrcMemorySpace == 2>{}([&](auto) {
-#if CK_USE_AMD_INTRINSIC && \
-    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
+#if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
                         vector_data = __buffer_load<TData, SrcDataPerAccess>(
                             p_src,
                             static_cast<uint32_t>(src_merged_offset),
@@ -940,8 +935,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
                         //     2. dst_normal_offset must be calculatd at compile time (guaranteed)
                         //     3. dst_merged_offset can be runtime value (no assumption imposed)
                         static_if<DstMemorySpace == 2>{}([&](auto) {
-#if CK_USE_AMD_INTRINSIC && \
-    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
+#if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
                             __buffer_store<TData, DstDataPerAccess>(
                                 vector_data, p_dst, dst_merged_offset, dst_normal_offset);
 #else
@@ -959,7 +953,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
     }
 
     // T can be Sequence or Array
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         static_if<PositiveDirection>{}([&](auto) {
@@ -967,7 +961,7 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
         }).Else([&](auto) { mSrcSliceOrigin -= step_sizes; });
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         static_if<PositiveDirection>{}([&](auto) {
@@ -981,11 +975,11 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
 };
 
 // this version use TensorView and TensorCoordinate
-template <class SrcTensor,
-          class DstTensor,
-          class SliceLengths,
-          class SrcDimAccessOrder,
-          class DstDimAccessOrder,
+template <typename SrcTensor,
+          typename DstTensor,
+          typename SliceLengths,
+          typename SrcDimAccessOrder,
+          typename DstDimAccessOrder,
           index_t SrcVectorAccessDim,
           index_t DstVectorAccessDim,
           index_t SrcDataPerAccess,
@@ -1105,13 +1099,13 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
     }
 
     // T can be Sequence or Array
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         mSrc.MoveSliceWindow(mSrcSlice, step_sizes, integral_constant<bool, PositiveDirection>{});
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
     {
         mDst.MoveSliceWindow(mDstSlice, step_sizes, integral_constant<bool, PositiveDirection>{});
@@ -1187,8 +1181,12 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         mDstSliceOrigin = dst_slice_origin;
     }
 
-    template <class TData>
-    __device__ void Run(const TData* p_src, TData* p_dst) const
+    // Will do padding check on src data: Read 0 if src data is in padding area.
+    // Will do padding check on dst data: No write if dst data is in paddin area.
+    template <typename TData,
+              address_space_t SrcAddressSpace = address_space_t::generic,
+              address_space_t DstAddressSpace = address_space_t::generic>
+    __device__ void Run_generic(const TData* p_src, TData* p_dst) const
     {
         using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
         using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
@@ -1214,7 +1212,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
             // buffer to hold a long-vector
             TData p_long_vector[long_vector_size];
 
-            // set 0
+            // zero out buffer
             for(index_t i = 0; i < long_vector_size; ++i)
             {
                 p_long_vector[i] = 0;
@@ -1226,18 +1224,29 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 auto scalar_id               = make_zero_array<index_t, nDim>();
                 scalar_id(vector_access_dim) = i * src_data_per_access;
 
+                const index_t buffer_offset = i * src_data_per_access;
+
                 const auto src_coord = mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id);
 
-                // check for padding
-                // TODO: still kind of messy
+                // Check src vector's padding situation, only check the first data in this src
+                //   vector. It's user's responsiblity to make sure all data in the src vector has
+                //   the same padding situation
+                // TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is neccessary
                 if(!src_coord.IsAnyLevelIndexInPaddingArea())
                 {
-                    const index_t src_offset = src_coord.GetOffset();
-
-                    const index_t buffer_offset = i * src_data_per_access;
-
-                    *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
-                        *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
+                    static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
+#if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
+                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            __buffer_load<TData, SrcDataPerAccess>(p_src, src_coord.GetOffset(), 0);
+#else
+                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
+#endif
+                    }).Else([&](auto) {
+                        // src can be all kinds of memory-space.
+                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
+                    });
                 }
             }
 
@@ -1249,24 +1258,53 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 
                 const index_t buffer_offset = i * dst_data_per_access;
 
-                const index_t dst_offset =
-                    (mDstSliceOrigin + (long_vector_data_begin_id + scalar_id)).GetOffset();
+                const auto dst_coord = mDstSliceOrigin + (long_vector_data_begin_id + scalar_id);
 
-                *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
-                    *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+// Check dst vector's padding situation, only check the first data in this dst
+//   vector. It's user's responsiblity to make sure all data in the dst vector has
+//   the same padding situation
+// TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is neccessary
+#if 0 // tuning
+                if(!dst_coord.IsAnyLevelIndexInPaddingArea())
+#endif
+                {
+                    static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
+#if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
+                        __buffer_store<TData, DstDataPerAccess>(
+                            *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]),
+                            p_dst,
+                            dst_coord.GetOffset(),
+                            0);
+#else
+                        *reinterpret_cast<dst_vector_t*>(&p_dst[dst_coord.GetOffset()]) =
+                            *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+#endif
+                    }).Else([&](auto) {
+                        // dst can be all kinds of memory-space
+                        *reinterpret_cast<dst_vector_t*>(&p_dst[dst_coord.GetOffset()]) =
+                            *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                    });
+                }
             }
         });
     }
 
+    // Modify Length to 1, if Mask is set to false
+    // Used for isolating linear dimension from non-linear dimensions
     template <index_t... Lengths, index_t... Mask>
     __device__ static constexpr auto mask_lengths(Sequence<Lengths...>, Sequence<Mask...>)
     {
         return Sequence<(Mask ? Lengths : 1)...>{};
     }
 
-    template <class TData>
-    __device__ void Run_access_order_optimized_for_source_index_calculation(const TData* p_src,
-                                                                            TData* p_dst) const
+    // p_src must be global-memory, p_dst can be any memory-space.
+    // User should make sure p_src is a block-invariant pointer, because
+    //   buffer_load is used for loading from global-memory into register buffer.
+    // Will do padding check on src data: Read 0 if src data is in padding area.
+    // Will do padding check on dst data: No write if dst data is in paddin area.
+    // This version is optimized for address calculation of src tensor
+    template <typename TData, address_space_t SrcAddressSpace = address_space_t::generic>
+    __device__ void Run_optimized_src_address_calculation(const TData* p_src, TData* p_dst) const
     {
         using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
         using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
@@ -1281,11 +1319,16 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
 
-        // TODO:: don't use hack
+        // TODO:: stop using this hack, once TransformedTensorDescriptor::GetLinearDimensionMask()
+        //   is implemented
         constexpr auto src_linear_dim_mask    = SrcLinearDimensionMask{};
         constexpr auto src_nonlinear_dim_mask = SrcNonLinearDimensionMask{};
 
-        // separate steps into linear and non-linear components
+        static_assert(
+            src_linear_dim_mask.At(VectorAccessDim) || long_vector_size == SrcDataPerAccess,
+            "Warning! VectorAccessDim is not SrcDesc's linear dimension, performance would drop");
+
+        // separate steps into linear and non-linear components, accoording to src tensor
         constexpr auto linear_long_vector_access_lengths =
             mask_lengths(long_vector_access_lengths, src_linear_dim_mask);
 
@@ -1293,88 +1336,122 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
             mask_lengths(long_vector_access_lengths, src_nonlinear_dim_mask);
 
         // loop over src's non-linear dimensions
-        ford<decltype(nonlinear_long_vector_access_lengths)>{}(
-            [&](auto nonlinear_dim_long_vector_access_id) {
+        ford<decltype(nonlinear_long_vector_access_lengths)>{}([&](
+            auto nonlinear_dim_long_vector_access_id) {
 
-                // step-sizes along src's nonlinear dimensions
-                auto nonlinear_dim_data_steps = nonlinear_dim_long_vector_access_id;
-                nonlinear_dim_data_steps(vector_access_dim) =
-                    long_vector_size * nonlinear_dim_long_vector_access_id[vector_access_dim];
+            // calculate step-sizes along src's nonlinear dimensions
+            auto nonlinear_dim_data_steps = nonlinear_dim_long_vector_access_id;
+            nonlinear_dim_data_steps(vector_access_dim) =
+                long_vector_size * nonlinear_dim_long_vector_access_id[vector_access_dim];
 
-                // move src cooridnate along nonlinear dimensions
-                const auto src_nonlinear_coord = mSrcSliceOrigin + nonlinear_dim_data_steps;
+            // move src cooridnate along nonlinear dimensions
+            // this coordinate contains run-time per-thread offset
+            const auto src_nonlinear_coord = mSrcSliceOrigin + nonlinear_dim_data_steps;
 
-                // loop over src's linear dimensions
-                ford<decltype(linear_long_vector_access_lengths)>{}(
-                    [&](auto linear_dim_long_vector_access_id) {
+            // loop over src's linear dimensions
+            ford<decltype(linear_long_vector_access_lengths)>{}([&](
+                auto linear_dim_long_vector_access_id) {
 
-                        // step-sizes along src's linear dimensions
-                        auto linear_dim_data_steps = linear_dim_long_vector_access_id;
-                        linear_dim_data_steps(vector_access_dim) =
-                            long_vector_size * linear_dim_long_vector_access_id[vector_access_dim];
+                // step-sizes along src's linear dimensions
+                auto linear_dim_data_steps = linear_dim_long_vector_access_id;
+                linear_dim_data_steps(vector_access_dim) =
+                    long_vector_size * linear_dim_long_vector_access_id[vector_access_dim];
 
-                        // buffer to hold a long-vector
-                        TData p_long_vector[long_vector_size];
+                // buffer to hold a long-vector
+                TData p_long_vector[long_vector_size];
 
-                        // set 0
-                        for(index_t i = 0; i < long_vector_size; ++i)
-                        {
-                            p_long_vector[i] = 0;
-                        }
+                // zero out buffer
+                for(index_t i = 0; i < long_vector_size; ++i)
+                {
+                    p_long_vector[i] = 0;
+                }
 
-                        // load data from src to the long-vector buffer
-                        for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
-                        {
-                            auto scalar_id               = make_zero_array<index_t, nDim>();
-                            scalar_id(vector_access_dim) = i * src_data_per_access;
+                // Loop over VectorAccessDim, and load data from src to the
+                //   long-vector buffer.
+                // If VectorAccessDim is src's linear dimension, then src's
+                //   offset-diff due to this looping is known at compile-time. If
+                //   VectorAccessDim is src's nonlinear dimension, then src's
+                //   offset-diff due to this looping is only known at run-time. For best
+                //   performance, VectorAccessDim, should be src's linear dimension
+                for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
+                {
+                    auto scalar_id               = make_zero_array<index_t, nDim>();
+                    scalar_id(vector_access_dim) = i * src_data_per_access;
 
-                            // move src cooridnate along linear dimensions
-                            const auto src_coord =
-                                src_nonlinear_coord + (linear_dim_data_steps + scalar_id);
+                    const index_t buffer_offset = i * src_data_per_access;
 
-                            // TODO: good implementation?
-                            const index_t src_linear_offset_diff =
-                                src_coord.GetOffset() - src_nonlinear_coord.GetOffset();
+                    // move src cooridnate along linear dimensions
+                    const auto src_coord =
+                        src_nonlinear_coord + (linear_dim_data_steps + scalar_id);
 
-                            // check for padding
-                            // TODO: still kind of messy
-                            if(!src_coord.IsAnyLevelIndexInPaddingArea())
-                            {
-                                const index_t src_offset = src_coord.GetOffset();
+                    // this is src compile-time offset
+                    // TODO: is this good implementation?
+                    const index_t src_linear_offset =
+                        src_coord.GetOffset() - src_nonlinear_coord.GetOffset();
 
-                                const index_t buffer_offset = i * src_data_per_access;
+                    // Check src vector's padding situation, only check the first data in
+                    //   this src vector. It's user's responsiblity to make sure all data in
+                    //   the src vector has the same padding situation
+                    // TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
+                    // neccessary
+                    if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                    {
+                        static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
+#if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
+                            *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                                __buffer_load<TData, SrcDataPerAccess>(
+                                    p_src, src_nonlinear_coord.GetOffset(), src_linear_offset);
+#else
+                            *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                                *reinterpret_cast<const src_vector_t*>(
+                                    &p_src[src_nonlinear_coord.GetOffset() + src_linear_offset]);
+#endif
+                        }).Else([&](auto) {
+                            *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                                *reinterpret_cast<const src_vector_t*>(
+                                    &p_src[src_nonlinear_coord.GetOffset() + src_linear_offset]);
+                        });
+                    }
+                }
 
-                                *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
-                                    *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
-                            }
-                        }
+                // store data from the long-vector buffer to dst
+                for(index_t i = 0; i < long_vector_size / dst_data_per_access; ++i)
+                {
+                    auto scalar_id               = make_zero_array<index_t, nDim>();
+                    scalar_id(vector_access_dim) = i * dst_data_per_access;
 
-                        // store data from the long-vector buffer to dst
-                        for(index_t i = 0; i < long_vector_size / dst_data_per_access; ++i)
-                        {
-                            auto scalar_id               = make_zero_array<index_t, nDim>();
-                            scalar_id(vector_access_dim) = i * dst_data_per_access;
+                    const index_t buffer_offset = i * dst_data_per_access;
 
-                            const index_t buffer_offset = i * dst_data_per_access;
+                    // dst offset is calculated here, without explicitly separating into
+                    //   compile-time and per-thread component
+                    const auto dst_coord = mDstSliceOrigin + (nonlinear_dim_data_steps +
+                                                              linear_dim_data_steps + scalar_id);
 
-                            const index_t dst_offset =
-                                (mDstSliceOrigin +
-                                 (nonlinear_dim_data_steps + linear_dim_data_steps + scalar_id))
-                                    .GetOffset();
-
-                            *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
-                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
-                        }
-                    });
+// Check dst vector's padding situation, only check the first data in
+//   this dst vector. It's user's responsiblity to make sure all data in
+//   the dst vector has the same padding situation
+// TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
+// neccessary
+#if 0 // tuning
+                    if(!dst_coord.IsAnyLevelIndexInPaddingArea())
+#endif
+                    {
+                        *reinterpret_cast<dst_vector_t*>(&p_dst[dst_coord.GetOffset()]) =
+                            *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                    }
+                }
             });
+        });
     }
 
-    // memory-space
-    // 0: VGPR
-    // 1: LDS
-    // 2: global-memory
-    template <class TData, index_t SrcMemorySpace, index_t DstMemorySpace>
-    __device__ void Run_amd_experiment(const TData* p_src, TData* p_dst) const
+    // p_src could be any memory space, d_dst must be global memory.
+    // User should make sure p_dst is a block-invariant pointer, because
+    //   buffer_load is used for storing data from regsiter buffer into global-memory.
+    // Will do padding check on src data: Read 0 if src data is in padding area.
+    // Will do padding check on dst data: No write if dst data is in paddin area.
+    // This version is optimized for address calculation of dst tensor
+    template <typename TData, address_space_t DstAddressSpace = address_space_t::generic>
+    __device__ void Run_optimized_dst_address_calculation(const TData* p_src, TData* p_dst) const
     {
         using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
         using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
@@ -1389,90 +1466,134 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
 
-        ford<decltype(long_vector_access_lengths), DimAccessOrder>{}([&](
-            auto long_vector_access_id) {
+        // TODO:: stop using this hack, once TransformedTensorDescriptor::GetLinearDimensionMask()
+        //   is implemented
+        constexpr auto dst_linear_dim_mask    = DstLinearDimensionMask{};
+        constexpr auto dst_nonlinear_dim_mask = DstNonLinearDimensionMask{};
 
-            // data id w.r.t slicing-window
-            auto long_vector_data_begin_id = long_vector_access_id;
-            long_vector_data_begin_id(vector_access_dim) =
-                long_vector_size * long_vector_access_id[vector_access_dim];
+        static_assert(
+            dst_linear_dim_mask.At(VectorAccessDim) || long_vector_size == DstDataPerAccess,
+            "Warning! VectorAccessDim is not DstDesc's linear dimension, performance would drop");
 
-            // buffer to hold a long-vector
-            TData p_long_vector[long_vector_size];
+        // separate steps into linear and non-linear components, accoording to dst tensor
+        constexpr auto linear_long_vector_access_lengths =
+            mask_lengths(long_vector_access_lengths, dst_linear_dim_mask);
 
-            // set 0
-            for(index_t i = 0; i < long_vector_size; ++i)
-            {
-                p_long_vector[i] = 0;
-            }
+        constexpr auto nonlinear_long_vector_access_lengths =
+            mask_lengths(long_vector_access_lengths, dst_nonlinear_dim_mask);
 
-            // load data from src to the long-vector buffer
-            for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
-            {
-                auto scalar_id               = make_zero_array<index_t, nDim>();
-                scalar_id(vector_access_dim) = i * src_data_per_access;
+        // loop over dst's non-linear dimensions
+        ford<decltype(nonlinear_long_vector_access_lengths)>{}([&](
+            auto nonlinear_dim_long_vector_access_id) {
 
-                const auto src_coord = mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id);
+            // calculate step-sizes along dst's nonlinear dimensions
+            auto nonlinear_dim_data_steps = nonlinear_dim_long_vector_access_id;
+            nonlinear_dim_data_steps(vector_access_dim) =
+                long_vector_size * nonlinear_dim_long_vector_access_id[vector_access_dim];
 
-                // check for padding
-                // TODO: still kind of messy
-                if(!src_coord.IsAnyLevelIndexInPaddingArea())
+            // move dst cooridnate along nonlinear dimensions
+            // this coordinate contains run-time per-thread offset
+            const auto dst_nonlinear_coord = mDstSliceOrigin + nonlinear_dim_data_steps;
+
+            // loop over dst's linear dimensions
+            ford<decltype(linear_long_vector_access_lengths)>{}([&](
+                auto linear_dim_long_vector_access_id) {
+
+                // step-sizes along dst's linear dimensions
+                auto linear_dim_data_steps = linear_dim_long_vector_access_id;
+                linear_dim_data_steps(vector_access_dim) =
+                    long_vector_size * linear_dim_long_vector_access_id[vector_access_dim];
+
+                // buffer to hold a long-vector
+                TData p_long_vector[long_vector_size];
+
+                // zero out buffer
+                for(index_t i = 0; i < long_vector_size; ++i)
                 {
-                    const index_t src_offset = src_coord.GetOffset();
+                    p_long_vector[i] = 0;
+                }
+
+                // Loop over VectorAccessDim, and load data from src to the
+                //   long-vector buffer.
+                // If VectorAccessDim is dst's linear dimension, then dst's
+                //   offset-diff due to this looping is known at compile-time. If
+                //   VectorAccessDim is dst's nonlinear dimension, then dst's
+                //   offset-diff due to this looping is only known at run-time. For best
+                //   performance, VectorAccessDim, should be dst's linear dimension
+                for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
+                {
+                    auto scalar_id               = make_zero_array<index_t, nDim>();
+                    scalar_id(vector_access_dim) = i * src_data_per_access;
 
                     const index_t buffer_offset = i * src_data_per_access;
 
-                    static_if<SrcMemorySpace == 2>{}([&](auto) {
-#if CK_USE_AMD_INTRINSIC && \
-    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
+                    // src offset is calculated here, without explicitly separating into
+                    //   compile-time and per-thread component
+                    const auto src_coord = mSrcSliceOrigin + (nonlinear_dim_data_steps +
+                                                              linear_dim_data_steps + scalar_id);
+
+                    // Check src vector's padding situation, only check the first data in
+                    //   this src vector. It's user's responsiblity to make sure all data in
+                    //   the src vector has the same padding situation
+                    // TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
+                    // neccessary
+                    if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                    {
                         *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
-                            __buffer_load<TData, SrcDataPerAccess>(
-                                p_src, static_cast<uint32_t>(src_offset), static_cast<uint32_t>(0));
-#else
-                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
-                            *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
-#endif
-                    }).Else([&](auto) {
-                        // src can be all kinds of memory-space.
-                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
-                            *reinterpret_cast<const src_vector_t*>(&p_src[src_offset]);
-                    });
+                            *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
+                    }
                 }
-            }
 
-            // store data from the long-vector buffer to dst
-            for(index_t i = 0; i < long_vector_size / dst_data_per_access; ++i)
-            {
-                auto scalar_id               = make_zero_array<index_t, nDim>();
-                scalar_id(vector_access_dim) = i * dst_data_per_access;
+                // store data from the long-vector buffer to dst
+                for(index_t i = 0; i < long_vector_size / dst_data_per_access; ++i)
+                {
+                    auto scalar_id               = make_zero_array<index_t, nDim>();
+                    scalar_id(vector_access_dim) = i * dst_data_per_access;
 
-                const index_t buffer_offset = i * dst_data_per_access;
+                    const index_t buffer_offset = i * dst_data_per_access;
 
-                const index_t dst_offset =
-                    (mDstSliceOrigin + (long_vector_data_begin_id + scalar_id)).GetOffset();
+                    // move dst cooridnate along linear dimensions
+                    const auto dst_coord =
+                        dst_nonlinear_coord + (linear_dim_data_steps + scalar_id);
 
-                static_if<DstMemorySpace == 2>{}([&](auto) {
-#if CK_USE_AMD_INTRINSIC && \
-    CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V2R1
-                    __buffer_store<TData, DstDataPerAccess>(
-                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]),
-                        p_dst,
-                        dst_offset,
-                        0);
-#else
-                    *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
-                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                    // this is dst compile-time offset
+                    // TODO: is this good implementation?
+                    const index_t dst_linear_offset =
+                        dst_coord.GetOffset() - dst_nonlinear_coord.GetOffset();
+
+// Check dst vector's padding situation, only check the first data in
+//   this dst vector. It's user's responsiblity to make sure all data in
+//   the dst vector has the same padding situation
+// TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
+// neccessary
+#if 0 // tuning
+                    if(!dst_coord.IsAnyLevelIndexInPaddingArea())
 #endif
-                }).Else([&](auto) {
-                    // dst can be all kinds of memory-space
-                    *reinterpret_cast<dst_vector_t*>(&p_dst[dst_offset]) =
-                        *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
-                });
-            }
+                    {
+                        static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
+#if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
+                            __buffer_store<TData, DstDataPerAccess>(
+                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]),
+                                p_dst,
+                                dst_nonlinear_coord.GetOffset(),
+                                dst_linear_offset);
+#else
+                            *reinterpret_cast<dst_vector_t*>(
+                                &p_dst[dst_nonlinear_coord.GetOffset() + dst_linear_offset]) =
+                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+#endif
+                        }).Else([&](auto) {
+                            *reinterpret_cast<dst_vector_t*>(
+                                &p_dst[dst_nonlinear_coord.GetOffset() + dst_linear_offset]) =
+                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                        });
+                    }
+                }
+            });
         });
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void MoveSrcSliceWindow(const T& step_sizes_,
                                        integral_constant<bool, PositiveDirection>)
     {
@@ -1483,7 +1604,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         }).Else([&](auto) { mSrcSliceOrigin -= step_sizes; });
     }
 
-    template <class T, bool PositiveDirection>
+    template <typename T, bool PositiveDirection>
     __device__ void MoveDstSliceWindow(const T& step_sizes_,
                                        integral_constant<bool, PositiveDirection>)
     {
