@@ -742,12 +742,15 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
 #if 0
-        mThreadwiseLoad.Run(p_src, p_buffer);
+        mThreadwiseLoad.Run_generic(p_src, p_buffer);
 #elif 1
-        mThreadwiseLoad.Run_access_order_optimized_for_source_index_calculation(p_src, p_buffer);
-#elif 0
-        // hardcoded: global to register
-        mThreadwiseLoad.template Run_amd_experiment<TData, 2, 0>(p_src, p_buffer);
+        // hardcoded: src is global memory
+        mThreadwiseLoad.template Run_generic<TData, address_space_t::global>(p_src, p_buffer);
+#elif 1
+        // hardcoded: src is global memory
+        mThreadwiseLoad
+            .template Run_optimized_src_address_calculation<TData, address_space_t::global>(
+                p_src, p_buffer);
 #endif
     }
 
@@ -755,10 +758,15 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
 #if 0
-        mThreadwiseStore.Run(p_buffer, p_dst);
+        mThreadwiseStore.Run_generic(p_buffer, p_dst);
 #elif 1
-        // hardcoded: register to LDS
-        mThreadwiseStore.template Run_amd_experiment<TData, 0, 1>(p_buffer, p_dst);
+        // hardcoded: dst is lds
+        mThreadwiseStore.template Run_generic<TData, address_space_t::lds>(p_buffer, p_dst);
+#elif 1
+        // hardcoded: dst is lds
+        mThreadwiseStore
+            .template Run_optimized_dst_address_calculation<TData, address_space_t::lds>(p_buffer,
+                                                                                         p_dst);
 #endif
     }
 

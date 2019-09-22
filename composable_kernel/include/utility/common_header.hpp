@@ -22,7 +22,7 @@
 #include "amd_inline_asm.hpp"
 #endif
 
-#if CK_USE_AMD_INTRINCIS
+#if CK_USE_AMD_INTRINSIC
 #include "amd_intrinsic.hpp"
 #endif
 
