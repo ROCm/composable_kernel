@@ -20,7 +20,10 @@ namespace ck {
 
 enum address_space_t
 {
-    generic = 0
+    generic = 0,
+    vgpr    = generic,
+    lds     = generic,
+    global  = generic
 };
 
 #if CK_UNSIGNED_INDEX_TYPE
