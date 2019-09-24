@@ -66,12 +66,12 @@ struct NativeTensorDescriptor
 
     __host__ __device__ static constexpr index_t GetElementSize()
     {
-        return accumulate_on_sequence(GetLengths(), math::multiplies<index_t>{}, Number<1>{});
+        return reduce_on_sequence(GetLengths(), math::multiplies<index_t>{}, Number<1>{});
     }
 
     __host__ __device__ static constexpr index_t GetElementSpace()
     {
-        return accumulate_on_sequence(
+        return reduce_on_sequence(
             (GetLengths() - Number<1>{}) * GetStrides(), math::plus<index_t>{}, Number<1>{});
     }
 
@@ -120,10 +120,10 @@ struct NativeTensorDescriptor
     }
 #endif
 
-    // TODO: should this function be here? should it be specific for padding check?
-    __host__ __device__ static constexpr bool IsUpperIndexInPaddingArea(const Index& /* idx */)
+    __host__ __device__ static constexpr bool
+    IsUpperIndexMappedToValidOffset(const Index& /* idx */)
     {
-        return false;
+        return true;
     }
 };
 
@@ -290,7 +290,7 @@ struct TransformedTensorDescriptor
 
     __host__ __device__ static constexpr index_t GetElementSize()
     {
-        return accumulate_on_sequence(GetLengths(), math::multiplies<index_t>{}, Number<1>{});
+        return reduce_on_sequence(GetLengths(), math::multiplies<index_t>{}, Number<1>{});
     }
 
     __host__ __device__ static constexpr index_t GetElementSpace()
@@ -375,7 +375,7 @@ struct TransformedTensorDescriptor
             constexpr bool is_linear_transform = tran.IsLinearTransform();
 
             // judge if all lower dimension are linear
-            constexpr bool is_all_low_dim_linear = math::accumulate_on_sequence(
+            constexpr bool is_all_low_dim_linear = math::reduce_on_sequence(
                 pick_sequence_elements_by_mask(
                     GetLowerTensorDescriptor().GetMaskOfLinearDimensions(), LowDimensionId{}),
                 math::logic_and<bool>{},
@@ -441,20 +441,31 @@ struct TransformedTensorDescriptor
         }
 #endif
 
-    // TODO: should this function be here? should it be specific for padding check?
-    __host__ __device__ static constexpr bool IsUpperIndexInPaddingArea(const UpperIndex& idx_up)
+    __host__ __device__ static constexpr bool
+    IsUpperIndexMappedToValidLowerIndex(const UpperIndex& idx_up)
     {
-        bool flag = false;
+        bool flag = true;
 
         static_for<0, nTransform, 1>{}([&](auto itran) {
             constexpr auto tran = Transforms{}.At(itran);
 
             const auto idx_up_part = pick_array_element(idx_up, UpDimensionIds{}.At(itran));
 
-            flag = flag || tran.IsUpperIndexInPaddingArea(to_array(idx_up_part));
+            flag = flag && tran.IsUpperIndexMappedToValidLowerIndex(to_array(idx_up_part));
         });
 
         return flag;
+    }
+
+    // Whenever this function is called, it will call CalculateLowerIndex() recursively
+    // If you have created a tensor coordinate already, instead of calling this function,
+    //   you should call TransformedTensorCoordinate::IsUpperIndexMappedToValidOffset()
+    __host__ __device__ static constexpr bool
+    IsUpperIndexMappedToValidOffset(const UpperIndex& idx_up)
+    {
+        return IsUpperIndexMappedToValidLowerIndex(idx_up) &&
+               GetLowerTensorDescriptor().IsUpperIndexMappedToValidOffset(
+                   CalculateLowerIndex(idx_up));
     }
 };
 

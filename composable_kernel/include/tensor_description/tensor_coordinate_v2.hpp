@@ -76,8 +76,7 @@ struct NativeTensorCoordinate
         return coord;
     }
 
-    // TODO: should this function be here? should it be specific for padding check?
-    __host__ __device__ static constexpr bool IsAnyLevelIndexInPaddingArea() { return false; }
+    __host__ __device__ static constexpr bool IsUpperIndexMappedToValidOffset() { return true; }
 
     private:
     // mIndex may be saved and update, however, the value of some (or all) of its entries may
@@ -166,11 +165,11 @@ struct TransformedTensorCoordinate
         return coord_up;
     }
 
-    // TODO: should this function be here? should it be specific for padding check?
-    __host__ __device__ constexpr bool IsAnyLevelIndexInPaddingArea() const
+    // this function should be inexpensive, because there is no upper-to-lower index transformation
+    __host__ __device__ constexpr bool IsUpperIndexMappedToValidOffset() const
     {
-        return tensor_desc_type::IsUpperIndexInPaddingArea(GetIndex()) ||
-               mCoordLow.IsAnyLevelIndexInPaddingArea();
+        return tensor_desc_type::IsUpperIndexMappedToValidLowerIndex(GetIndex()) &&
+               mCoordLow.IsUpperIndexMappedToValidOffset();
     }
 
     private:
@@ -206,11 +205,5 @@ struct TensorCoordinate_v2
     using type = decltype(MakeDummyTensorCoordinate(TensorDesc{}));
 };
 
-template <typename TensorDesc>
-__host__ __device__ constexpr auto
-make_tensor_coordinate_v2(TensorDesc, MultiIndex<TensorDesc::GetNumOfDimension()> idx)
-{
-    return typename TensorCoordinate_v2<TensorDesc>::type(idx);
-}
-}
+} // namespace ck
 #endif

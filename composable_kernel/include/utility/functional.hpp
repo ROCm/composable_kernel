@@ -25,6 +25,12 @@ struct swallow
     }
 };
 
+template <typename T>
+struct logical_not
+{
+    constexpr bool operator()(const T& x) const { return !x; }
+};
+
 // Emulate if constexpr
 template <bool>
 struct static_if;

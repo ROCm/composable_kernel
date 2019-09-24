@@ -107,7 +107,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
         constexpr index_t E = C * Y * X;
 
         // sanity-check for vectorized memory load
-        static_assert((Ho == 1 || ConvStrideW % InBlockCopySrcDataPerRead_B == 0) &&
+        static_assert((Wo == 1 || (ConvStrideW == 1 || InBlockCopySrcDataPerRead_B == 1)) &&
                           (X == 1 || ConvDilationW % InBlockCopySrcDataPerRead_B == 0),
                       "wrong! aligment requirement for vectorized global load of input tensor will "
                       "be violated");
@@ -174,9 +174,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                                                decltype(in_e_n1_b_n2_global_desc),
                                                decltype(in_e_n1_b_n2_block_desc),
                                                Sequence<0, 1, 0, 1>,
-                                               Sequence<1, 0, 1, 0>,
                                                Sequence<1, 1, 1, 1>,
-                                               Sequence<0, 0, 0, 0>,
                                                decltype(in_e_n1_b_n2_block_desc.GetLengths()),
                                                InBlockCopySubLengths_E_N1_B_N2,
                                                InBlockCopyClusterLengths_E_N1_B_N2,
@@ -219,9 +217,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                                                decltype(wei_e_k_global_desc),
                                                decltype(wei_e_k_block_desc),
                                                Sequence<1, 1>,
-                                               Sequence<0, 0>,
                                                Sequence<1, 1>,
-                                               Sequence<0, 0>,
                                                decltype(wei_e_k_block_desc.GetLengths()),
                                                WeiBlockCopySubLengths_E_K,
                                                WeiBlockCopyClusterLengths_E_K,
@@ -299,8 +295,10 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
 
         // LDS double buffer: preload data into LDS
         {
-            blockwise_in_copy.Run(p_in_global, p_in_block_double);
-            blockwise_wei_copy.Run(p_wei_global, p_wei_block_double);
+            blockwise_in_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+                p_in_global, p_in_block_double);
+            blockwise_wei_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+                p_wei_global, p_wei_block_double);
         }
 
         // LDS double buffer: main body
@@ -331,15 +329,19 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
-                blockwise_in_copy.RunLoadRegisterBuffer(p_in_global, p_in_register_buffer);
-                blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global, p_wei_register_buffer);
+                blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                    p_in_global, p_in_register_buffer);
+                blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                    p_wei_global, p_wei_register_buffer);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
 
                 // LDS double buffer: store next data to LDS
-                blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer, p_in_block_next);
-                blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer, p_wei_block_next);
+                blockwise_in_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                    p_in_register_buffer, p_in_block_next);
+                blockwise_wei_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                    p_wei_register_buffer, p_wei_block_next);
             }
         }
 
@@ -355,17 +357,19 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
             __syncthreads();
 
             // LDS doubel buffer: load next data from device mem
-            blockwise_in_copy.RunLoadRegisterBuffer(p_in_global, p_in_register_buffer);
-            blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global, p_wei_register_buffer);
+            blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                p_in_global, p_in_register_buffer);
+            blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                p_wei_global, p_wei_register_buffer);
 
             // LDS double buffer: GEMM on current data
             blockwise_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
 
             // LDS double buffer: store next data to LDS
-            blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer,
-                                                     p_in_block_double + in_block_space);
-            blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
-                                                      p_wei_block_double + wei_block_space);
+            blockwise_in_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                p_in_register_buffer, p_in_block_double + in_block_space);
+            blockwise_wei_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                p_wei_register_buffer, p_wei_block_double + wei_block_space);
 
             // odd iteration
             __syncthreads();
@@ -424,9 +428,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
             ThreadwiseGenericTensorSliceCopy_v4r2<decltype(out_k0_k1_n1_b_n2_thread_desc),
                                                   decltype(out_k0_k1_n1_b_n2_global_desc),
                                                   Sequence<1, 1, 1, 1, 1>,
-                                                  Sequence<0, 0, 0, 0, 0>,
                                                   Sequence<1, 1, 1, 0, 1>,
-                                                  Sequence<0, 0, 0, 1, 0>,
                                                   decltype(
                                                       out_k0_k1_n1_b_n2_thread_desc.GetLengths()),
                                                   arithmetic_sequence_gen<0, 5, 1>::type,

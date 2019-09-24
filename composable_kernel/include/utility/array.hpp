@@ -110,8 +110,7 @@ struct ArrayElementPicker
 
     __host__ __device__ explicit constexpr ArrayElementPicker(Arr& array) : mArray{array}
     {
-        constexpr index_t imax =
-            accumulate_on_sequence(Picks{}, math::maxer<index_t>{}, Number<0>{});
+        constexpr index_t imax = reduce_on_sequence(Picks{}, math::maxer<index_t>{}, Number<0>{});
 
         static_assert(imax < Arr::Size(), "wrong! exceeding # array element");
     }

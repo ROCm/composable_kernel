@@ -681,9 +681,7 @@ template <index_t BlockSize,
           typename SrcDesc,
           typename DstDesc,
           typename SrcLinearDimensionMask,
-          typename SrcNonLinearDimensionMask,
           typename DstLinearDimensionMask,
-          typename DstNonLinearDimensionMask,
           typename SliceLengths,
           typename SubLengths,
           typename ThreadClusterLengths,
@@ -738,45 +736,43 @@ struct BlockwiseGenericTensorSliceCopy_v4
         return RegisterBufferDesc::GetElementSpace();
     }
 
-    template <typename TData>
+    template <typename TData, address_space_t SrcAddressSpace = address_space_t::generic>
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
-#if 0
-        mThreadwiseLoad.Run_generic(p_src, p_buffer);
-#elif 1
-        // hardcoded: src is global memory
-        mThreadwiseLoad.template Run_generic<TData, address_space_t::global>(p_src, p_buffer);
-#elif 1
-        // hardcoded: src is global memory
-        mThreadwiseLoad
-            .template Run_optimized_src_address_calculation<TData, address_space_t::global>(
-                p_src, p_buffer);
+#if 1
+        mThreadwiseLoad.template Run_generic<TData, SrcAddressSpace, address_space_t::vgpr>(
+            p_src, p_buffer);
+#else
+        mThreadwiseLoad.template Run_optimized_src_address_calculation<TData,
+                                                                       SrcAddressSpace,
+                                                                       address_space_t::vgpr>(
+            p_src, p_buffer);
 #endif
     }
 
-    template <typename TData>
+    template <typename TData, address_space_t DstAddressSpace = address_space_t::generic>
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
-#if 0
-        mThreadwiseStore.Run_generic(p_buffer, p_dst);
-#elif 1
-        // hardcoded: dst is lds
-        mThreadwiseStore.template Run_generic<TData, address_space_t::lds>(p_buffer, p_dst);
-#elif 1
-        // hardcoded: dst is lds
-        mThreadwiseStore
-            .template Run_optimized_dst_address_calculation<TData, address_space_t::lds>(p_buffer,
+#if 1
+        mThreadwiseStore.template Run_generic<TData, address_space_t::vgpr, DstAddressSpace>(
+            p_buffer, p_dst);
+#else
+        mThreadwiseStore.template Run_optimized_dst_address_calculation<TData,
+                                                                        address_space_t::vgpr,
+                                                                        DstAddressSpace>(p_buffer,
                                                                                          p_dst);
 #endif
     }
 
-    template <typename TData>
+    template <typename TData,
+              address_space_t SrcAddressSpace = address_space_t::generic,
+              address_space_t DstAddressSpace = address_space_t::generic>
     __device__ void Run(const TData* p_src, TData* p_dst) const
     {
         TData p_buffer[GetRegisterBufferSize()];
 
-        RunLoadRegisterBuffer(p_src, p_buffer);
-        RunStoreRegisterBuffer(p_buffer, p_dst);
+        RunLoadRegisterBuffer<TData, SrcAddressSpace>(p_src, p_buffer);
+        RunStoreRegisterBuffer<TData, DstAddressSpace>(p_buffer, p_dst);
     }
 
     template <typename T, bool PositiveDirection>
@@ -802,9 +798,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
         ThreadwiseGenericTensorSliceCopy_v4r2<SrcDesc,
                                               RegisterBufferDesc,
                                               SrcLinearDimensionMask,
-                                              SrcNonLinearDimensionMask,
                                               typename uniform_sequence_gen<nDim, 1>::type,
-                                              typename uniform_sequence_gen<nDim, 0>::type,
                                               SubLengths,
                                               SrcDimAccessOrder,
                                               SrcVectorAccessDim,
@@ -815,9 +809,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
         ThreadwiseGenericTensorSliceCopy_v4r2<RegisterBufferDesc,
                                               DstDesc,
                                               typename uniform_sequence_gen<nDim, 1>::type,
-                                              typename uniform_sequence_gen<nDim, 0>::type,
                                               DstLinearDimensionMask,
-                                              DstNonLinearDimensionMask,
                                               SubLengths,
                                               DstDimAccessOrder,
                                               DstVectorAccessDim,

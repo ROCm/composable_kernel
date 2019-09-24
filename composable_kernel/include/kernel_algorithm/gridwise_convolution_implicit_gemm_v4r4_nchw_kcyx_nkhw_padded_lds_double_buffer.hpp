@@ -90,7 +90,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
         constexpr index_t B = N * Ho * Wo;
 
         // sanity-check for vectorized memory load
-        static_assert((Ho == 1 || ConvStrideW % InBlockCopyDataPerAccess_B == 0) &&
+        static_assert((Wo == 1 || (ConvStrideW == 1 || InBlockCopyDataPerAccess_B == 1)) &&
                           (X == 1 || ConvDilationW % InBlockCopyDataPerAccess_B == 0),
                       "wrong! aligment requirement for vectorized global load of input tensor will "
                       "be violated");
@@ -145,6 +145,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
             BlockwiseGenericTensorSliceCopy_v4<BlockSize,
                                                decltype(in_e_b_global_desc),
                                                decltype(in_e_b_block_desc),
+                                               Sequence<0, 0>,
+                                               Sequence<1, 1>,
                                                decltype(in_e_b_block_desc.GetLengths()),
                                                InBlockCopySubLengths_E_B,
                                                InBlockCopyClusterLengths_E_B,
@@ -157,13 +159,21 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                                                InBlockCopyDataPerAccess_B>(
                 {0, b_block_data_on_global}, {0, 0});
 
-        // weight tensor
-        //   global mem
+// weight tensor
+//   global mem
+#if 0
         constexpr auto wei_e_k_global_desc =
             transform_tensor_descriptor(wei_k_c_y_x_global_desc,
                                         make_tuple(Merge<Sequence<C, Y, X>>{}, PassThrough<K>{}),
                                         make_tuple(Sequence<1, 2, 3>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
+#else // hack
+        constexpr auto wei_e_k_global_desc_old =
+            WeiGlobalDesc::Unfold(I1, I3).ReorderGivenNew2Old(Sequence<1, 0>{});
+
+        constexpr auto wei_e_k_global_desc = make_native_tensor_descriptor(
+            wei_e_k_global_desc_old.GetLengths(), wei_e_k_global_desc_old.GetStrides());
+#endif
 
         //   LDS
         //     be careful of LDS alignment
@@ -176,6 +186,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
             BlockwiseGenericTensorSliceCopy_v4<BlockSize,
                                                decltype(wei_e_k_global_desc),
                                                decltype(wei_e_k_block_desc),
+                                               Sequence<1, 1>,
+                                               Sequence<1, 1>,
                                                decltype(wei_e_k_block_desc.GetLengths()),
                                                WeiBlockCopySubLengths_E_K,
                                                WeiBlockCopyClusterLengths_E_K,
@@ -253,8 +265,10 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
 
         // LDS double buffer: preload data into LDS
         {
-            blockwise_in_copy.Run(p_in_global, p_in_block_double);
-            blockwise_wei_copy.Run(p_wei_global, p_wei_block_double);
+            blockwise_in_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+                p_in_global, p_in_block_double);
+            blockwise_wei_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+                p_wei_global, p_wei_block_double);
         }
 
         // LDS double buffer: main body
@@ -285,15 +299,19 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
-                blockwise_in_copy.RunLoadRegisterBuffer(p_in_global, p_in_register_buffer);
-                blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global, p_wei_register_buffer);
+                blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                    p_in_global, p_in_register_buffer);
+                blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                    p_wei_global, p_wei_register_buffer);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
 
                 // LDS double buffer: store next data to LDS
-                blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer, p_in_block_next);
-                blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer, p_wei_block_next);
+                blockwise_in_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                    p_in_register_buffer, p_in_block_next);
+                blockwise_wei_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                    p_wei_register_buffer, p_wei_block_next);
             }
         }
 
@@ -309,17 +327,19 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
             __syncthreads();
 
             // LDS doubel buffer: load next data from device mem
-            blockwise_in_copy.RunLoadRegisterBuffer(p_in_global, p_in_register_buffer);
-            blockwise_wei_copy.RunLoadRegisterBuffer(p_wei_global, p_wei_register_buffer);
+            blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                p_in_global, p_in_register_buffer);
+            blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
+                p_wei_global, p_wei_register_buffer);
 
             // LDS double buffer: GEMM on current data
             blockwise_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
 
             // LDS double buffer: store next data to LDS
-            blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer,
-                                                     p_in_block_double + in_block_space);
-            blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
-                                                      p_wei_block_double + wei_block_space);
+            blockwise_in_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                p_in_register_buffer, p_in_block_double + in_block_space);
+            blockwise_wei_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
+                p_wei_register_buffer, p_wei_block_double + wei_block_space);
 
             // odd iteration
             __syncthreads();
@@ -367,9 +387,11 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                 make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
             // output threadwise copy
-            auto threadwise_out_copy = ThreadwiseGenericTensorSliceCopy_v4r2<
+            ThreadwiseGenericTensorSliceCopy_v4r2<
                 decltype(out_k0_k1_b0_b1_thread_desc),
                 decltype(out_k0_k1_b0_b1_global_desc),
+                Sequence<1, 1, 1, 1>,
+                Sequence<1, 1, 0, 0>,
                 decltype(out_k0_k1_b0_b1_thread_desc.GetLengths()),
                 arithmetic_sequence_gen<0, 4, 1>::type,
                 3,
@@ -378,9 +400,15 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                                               {k_thread_data_on_global / K1,
                                                k_thread_data_on_global % K1,
                                                b_thread_data_on_global / B1,
-                                               b_thread_data_on_global % B1});
-
-            threadwise_out_copy.Run(p_out_thread, p_out_global);
+                                               b_thread_data_on_global % B1})
+#if 1
+                .template Run_generic<Float, address_space_t::generic, address_space_t::global>
+#elif 1
+                .template Run_optimized_dst_address_calculation<Float,
+                                                                address_space_t::vgpr,
+                                                                address_space_t::global>
+#endif
+                (p_out_thread, p_out_global);
         }
     }
 };

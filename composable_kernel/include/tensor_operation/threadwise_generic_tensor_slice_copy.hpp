@@ -1131,9 +1131,7 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
 template <typename SrcDesc,
           typename DstDesc,
           typename SrcLinearDimensionMask,
-          typename SrcNonLinearDimensionMask,
           typename DstLinearDimensionMask,
-          typename DstNonLinearDimensionMask,
           typename SliceLengths,
           typename DimAccessOrder,
           index_t VectorAccessDim,
@@ -1231,8 +1229,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 // Check src vector's padding situation, only check the first data in this src
                 //   vector. It's user's responsiblity to make sure all data in the src vector has
                 //   the same padding situation
-                // TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is neccessary
-                if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                if(src_coord.IsUpperIndexMappedToValidOffset())
                 {
                     static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
@@ -1260,13 +1257,10 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 
                 const auto dst_coord = mDstSliceOrigin + (long_vector_data_begin_id + scalar_id);
 
-// Check dst vector's padding situation, only check the first data in this dst
-//   vector. It's user's responsiblity to make sure all data in the dst vector has
-//   the same padding situation
-// TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is neccessary
-#if 0 // tuning
-                if(!dst_coord.IsAnyLevelIndexInPaddingArea())
-#endif
+                // Check dst vector's padding situation, only check the first data in this dst
+                //   vector. It's user's responsiblity to make sure all data in the dst vector has
+                //   the same padding situation
+                if(dst_coord.IsUpperIndexMappedToValidOffset())
                 {
                     static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
@@ -1303,7 +1297,9 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     // Will do padding check on src data: Read 0 if src data is in padding area.
     // Will do padding check on dst data: No write if dst data is in paddin area.
     // This version is optimized for address calculation of src tensor
-    template <typename TData, address_space_t SrcAddressSpace = address_space_t::generic>
+    template <typename TData,
+              address_space_t SrcAddressSpace = address_space_t::generic,
+              address_space_t DstAddressSpace = address_space_t::generic>
     __device__ void Run_optimized_src_address_calculation(const TData* p_src, TData* p_dst) const
     {
         using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
@@ -1321,8 +1317,9 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 
         // TODO:: stop using this hack, once TransformedTensorDescriptor::GetLinearDimensionMask()
         //   is implemented
-        constexpr auto src_linear_dim_mask    = SrcLinearDimensionMask{};
-        constexpr auto src_nonlinear_dim_mask = SrcNonLinearDimensionMask{};
+        constexpr auto src_linear_dim_mask = SrcLinearDimensionMask{};
+        constexpr auto src_nonlinear_dim_mask =
+            SrcLinearDimensionMask::Transform(logical_not<index_t>{});
 
         static_assert(
             src_linear_dim_mask.At(VectorAccessDim) || long_vector_size == SrcDataPerAccess,
@@ -1392,9 +1389,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     // Check src vector's padding situation, only check the first data in
                     //   this src vector. It's user's responsiblity to make sure all data in
                     //   the src vector has the same padding situation
-                    // TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
-                    // neccessary
-                    if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                    if(src_coord.IsUpperIndexMappedToValidOffset())
                     {
                         static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
@@ -1427,14 +1422,10 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const auto dst_coord = mDstSliceOrigin + (nonlinear_dim_data_steps +
                                                               linear_dim_data_steps + scalar_id);
 
-// Check dst vector's padding situation, only check the first data in
-//   this dst vector. It's user's responsiblity to make sure all data in
-//   the dst vector has the same padding situation
-// TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
-// neccessary
-#if 0 // tuning
-                    if(!dst_coord.IsAnyLevelIndexInPaddingArea())
-#endif
+                    // Check dst vector's padding situation, only check the first data in
+                    //   this dst vector. It's user's responsiblity to make sure all data in
+                    //   the dst vector has the same padding situation
+                    if(dst_coord.IsUpperIndexMappedToValidOffset())
                     {
                         *reinterpret_cast<dst_vector_t*>(&p_dst[dst_coord.GetOffset()]) =
                             *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
@@ -1450,7 +1441,9 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     // Will do padding check on src data: Read 0 if src data is in padding area.
     // Will do padding check on dst data: No write if dst data is in paddin area.
     // This version is optimized for address calculation of dst tensor
-    template <typename TData, address_space_t DstAddressSpace = address_space_t::generic>
+    template <typename TData,
+              address_space_t SrcAddressSpace = address_space_t::generic,
+              address_space_t DstAddressSpace = address_space_t::generic>
     __device__ void Run_optimized_dst_address_calculation(const TData* p_src, TData* p_dst) const
     {
         using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
@@ -1468,8 +1461,9 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 
         // TODO:: stop using this hack, once TransformedTensorDescriptor::GetLinearDimensionMask()
         //   is implemented
-        constexpr auto dst_linear_dim_mask    = DstLinearDimensionMask{};
-        constexpr auto dst_nonlinear_dim_mask = DstNonLinearDimensionMask{};
+        constexpr auto dst_linear_dim_mask = DstLinearDimensionMask{};
+        constexpr auto dst_nonlinear_dim_mask =
+            DstLinearDimensionMask::Transform(logical_not<index_t>{});
 
         static_assert(
             dst_linear_dim_mask.At(VectorAccessDim) || long_vector_size == DstDataPerAccess,
@@ -1535,9 +1529,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     // Check src vector's padding situation, only check the first data in
                     //   this src vector. It's user's responsiblity to make sure all data in
                     //   the src vector has the same padding situation
-                    // TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
-                    // neccessary
-                    if(!src_coord.IsAnyLevelIndexInPaddingArea())
+                    if(src_coord.IsUpperIndexMappedToValidOffset())
                     {
                         *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
                             *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
@@ -1561,14 +1553,10 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const index_t dst_linear_offset =
                         dst_coord.GetOffset() - dst_nonlinear_coord.GetOffset();
 
-// Check dst vector's padding situation, only check the first data in
-//   this dst vector. It's user's responsiblity to make sure all data in
-//   the dst vector has the same padding situation
-// TODO: not sure a dedicated IsAnyLevelIndexInPaddingArea() function is
-// neccessary
-#if 0 // tuning
-                    if(!dst_coord.IsAnyLevelIndexInPaddingArea())
-#endif
+                    // Check dst vector's padding situation, only check the first data in
+                    //   this dst vector. It's user's responsiblity to make sure all data in
+                    //   the dst vector has the same padding situation
+                    if(dst_coord.IsUpperIndexMappedToValidOffset())
                     {
                         static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE

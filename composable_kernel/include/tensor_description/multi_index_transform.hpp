@@ -41,11 +41,10 @@ struct PassThrough
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
 
-    // TODO: should this function be here? should it be specific for padding check?
     __host__ __device__ static constexpr bool
-    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    IsUpperIndexMappedToValidLowerIndex(const UpperIndex& /* idx_up */)
     {
-        return false;
+        return true;
     }
 };
 
@@ -82,23 +81,38 @@ struct Pad
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
 
-    // TODO: should this function be here? should it be specific for padding check?
-    __host__ __device__ constexpr bool IsUpperIndexInPaddingArea(const UpperIndex& idx_up) const
+    __host__ __device__ constexpr bool
+    IsUpperIndexMappedToValidLowerIndex(const UpperIndex& idx_up) const
     {
-        bool flag = false;
+#if 0
+        struct lambda_no_pad
+        {
+            __host__ __device__ constexpr bool operator()(index_t x) const { return x == 0; }
+        };
 
-        static_for<0, nDim, 1>{}([&](auto idim) {
-            // only check if there is left-padding
-            static_if<(LeftPads::At(idim) != 0)>{}(
-                [&](auto) { flag = flag || idx_up[idim] < LeftPads::At(idim); });
+        if(sequence_all_of(LeftPads{}, lambda_no_pad{}) &&
+           sequence_all_of(RightPads{}, lambda_no_pad{}))
+        {
+            return true;
+        }
+        else
+#endif
+        {
+            bool flag = true;
 
-            // only check if there is right-padding
-            static_if<(RightPads::At(idim) != 0)>{}([&](auto) {
-                flag = flag || idx_up[idim] >= LeftPads::At(idim) + LowerLengths::At(idim);
+            static_for<0, nDim, 1>{}([&](auto idim) {
+                // only check if there is left-padding
+                static_if<(LeftPads::At(idim) != 0)>{}(
+                    [&](auto) { flag = flag && idx_up[idim] >= LeftPads::At(idim); });
+
+                // only check if there is right-padding
+                static_if<(RightPads::At(idim) != 0)>{}([&](auto) {
+                    flag = flag && (idx_up[idim] < LeftPads::At(idim) + LowerLengths::At(idim));
+                });
             });
-        });
 
-        return flag;
+            return flag;
+        }
     }
 };
 
@@ -155,16 +169,10 @@ struct Merge
                 LowerLengths::PopFront(), math::multiplies<index_t>{}, Number<1>{})
                 .PushBack(Number<1>{});
 
-#if 1 // would these 2 versions be compiled to same ISA?
-        // calculate index in each of the dimensions in the order of their dimension
         static_for<0, nDimLow - 1, 1>{}(
             lambda_CalculateLowerIndex<decltype(pseudo_low_strides)>(itmp, idx_low));
 
         idx_low(nDimLow - 1) = itmp / pseudo_low_strides[nDimLow - 1];
-#else
-        static_for<0, nDimLow, 1>{}(
-            lambda_CalculateLowerIndex<decltype(pseudo_low_strides)>(itmp, idx_low));
-#endif
 
         return idx_low;
     }
@@ -244,6 +252,7 @@ struct Merge
             });
 
             // highest dimension, no out-of-bound check
+
             if(borrow)
             {
                 --idx_low_new(0);
@@ -255,11 +264,10 @@ struct Merge
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return false; }
 
-    // TODO: should this function be here? should it be specific for padding check?
     __host__ __device__ static constexpr bool
-    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    IsUpperIndexMappedToValidLowerIndex(const UpperIndex& /* idx_up */)
     {
-        return false;
+        return true;
     }
 };
 
@@ -304,11 +312,10 @@ struct Unmerge
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
 
-    // TODO: should this function be here? should it be specific for padding check?
     __host__ __device__ static constexpr bool
-    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    IsUpperIndexMappedToValidLowerIndex(const UpperIndex& /* idx_up */)
     {
-        return false;
+        return true;
     }
 };
 
@@ -362,9 +369,9 @@ struct Embed
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
 
     __host__ __device__ static constexpr bool
-    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    IsUpperIndexMappedToValidLowerIndex(const UpperIndex& /* idx_up */)
     {
-        return false;
+        return true;
     }
 };
 
@@ -404,11 +411,10 @@ struct Vectorize
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
 
-    // TODO: should this function be here? should it be specific for padding check?
     __host__ __device__ static constexpr bool
-    IsUpperIndexInPaddingArea(const UpperIndex& /* idx_up */)
+    IsUpperIndexMappedToValidLowerIndex(const UpperIndex& /* idx_up */)
     {
-        return false;
+        return true;
     }
 };
 

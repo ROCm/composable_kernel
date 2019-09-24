@@ -96,13 +96,12 @@ struct ConstantTensorDescriptor
 
     __host__ __device__ static constexpr auto GetElementSize()
     {
-        return Number<accumulate_on_sequence(
-            Lengths{}, math::multiplies<index_t>{}, Number<1>{})>{};
+        return Number<reduce_on_sequence(Lengths{}, math::multiplies<index_t>{}, Number<1>{})>{};
     }
 
     __host__ __device__ static constexpr auto GetElementSpace()
     {
-        constexpr index_t element_space_unaligned = accumulate_on_sequence(
+        constexpr index_t element_space_unaligned = reduce_on_sequence(
             (GetLengths() - Number<1>{}) * GetStrides(), math::plus<index_t>{}, Number<1>{});
 
         return Number<element_space_unaligned>{};
@@ -155,7 +154,7 @@ struct ConstantTensorDescriptor
 
         constexpr auto multi_id = Sequence<Is...>{};
 
-        return Number<accumulate_on_sequence(
+        return Number<reduce_on_sequence(
             multi_id * GetStrides(), math::plus<index_t>{}, Number<0>{})>{};
     }
 
@@ -389,7 +388,7 @@ struct ConstantTensorDescriptor
         constexpr auto fold_intervals = Sequence<FoldIntervals...>{};
 
         constexpr index_t fold_intervals_product =
-            accumulate_on_sequence(fold_intervals, math::multiplies<index_t>{}, Number<1>{});
+            reduce_on_sequence(fold_intervals, math::multiplies<index_t>{}, Number<1>{});
 
         constexpr auto unfold_length = GetLength(Number<IDim>{});
         constexpr auto unfold_stride = GetStride(Number<IDim>{});
@@ -447,7 +446,7 @@ struct ConstantTensorDescriptor
         static_assert(Type::Extract(middle).AreDimensionsContinuous(), "wrong! not unfoldable");
 
         // unfolded length, stride
-        constexpr index_t unfold_length = accumulate_on_sequence(
+        constexpr index_t unfold_length = reduce_on_sequence(
             GetLengths().Extract(middle), math::multiplies<index_t>{}, Number<1>{});
 
         constexpr index_t unfold_stride = GetStride(Number<LastUnfoldDim>{});
