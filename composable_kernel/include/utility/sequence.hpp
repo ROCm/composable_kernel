@@ -764,12 +764,12 @@ __host__ __device__ constexpr auto pick_sequence_elements_by_mask(Seq, Mask)
 #endif
 
 template <typename Seq, typename Reduce>
-struct lambda_accumulate_on_sequence
+struct lambda_reduce_on_sequence
 {
     const Reduce& f;
     index_t& result;
 
-    __host__ __device__ constexpr lambda_accumulate_on_sequence(const Reduce& f_, index_t& result_)
+    __host__ __device__ constexpr lambda_reduce_on_sequence(const Reduce& f_, index_t& result_)
         : f(f_), result(result_)
     {
     }
@@ -783,13 +783,41 @@ struct lambda_accumulate_on_sequence
 
 template <typename Seq, typename Reduce, index_t Init>
 __host__ __device__ constexpr index_t
-accumulate_on_sequence(Seq, Reduce f, Number<Init> /*initial_value*/)
+reduce_on_sequence(Seq, Reduce f, Number<Init> /*initial_value*/)
 {
     index_t result = Init;
 
-    static_for<0, Seq::mSize, 1>{}(lambda_accumulate_on_sequence<Seq, Reduce>(f, result));
+    static_for<0, Seq::Size(), 1>{}(lambda_reduce_on_sequence<Seq, Reduce>(f, result));
 
     return result;
+}
+
+// TODO: a generic any_of for any container
+template <typename Seq, typename F>
+__host__ __device__ constexpr bool sequence_any_of(Seq, F f /*initial_value*/)
+{
+    bool flag = false;
+
+    for(index_t i = 0; i < Seq::Size(); ++i)
+    {
+        flag = flag || f(Seq::At(i));
+    }
+
+    return flag;
+}
+
+// TODO: a generic all_of for any container
+template <typename Seq, typename F>
+__host__ __device__ constexpr bool sequence_all_of(Seq, F f /*initial_value*/)
+{
+    bool flag = true;
+
+    for(index_t i = 0; i < Seq::Size(); ++i)
+    {
+        flag = flag && f(Seq::At(i));
+    }
+
+    return flag;
 }
 
 } // namespace ck

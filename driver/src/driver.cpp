@@ -19,7 +19,7 @@
 //#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v4r3_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
-//#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
+#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
 
 struct GeneratorTensor_1
 {
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
 
 #if 0
     constexpr index_t N  = 64;
-    constexpr index_t C  = 64;
+    constexpr index_t C  = 256;
     constexpr index_t HI = 56;
     constexpr index_t WI = 56;
     constexpr index_t K  = 256;
