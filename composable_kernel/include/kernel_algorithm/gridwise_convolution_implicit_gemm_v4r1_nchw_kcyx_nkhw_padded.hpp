@@ -207,6 +207,12 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded
             Sequence<EPerBlock, KPerBlock>{},
             Number<math::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
 
+        //     this check is ad-hoc
+        //     TODO: need to properly implement tensor descriptor with multiple alignment
+        //     requirements
+        static_assert(wei_e_k_block_desc.GetStride(I0) % GemmDataPerReadA == 0,
+                      "GemmDataPerReadA alignment requirement is not satisfied");
+
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
         //     this copy operator already have blockwise offset built-in
