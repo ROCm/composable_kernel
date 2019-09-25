@@ -1130,8 +1130,6 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
 // the other is device memory or LDS
 template <typename SrcDesc,
           typename DstDesc,
-          typename SrcLinearDimensionMask,
-          typename DstLinearDimensionMask,
           typename SliceLengths,
           typename DimAccessOrder,
           index_t VectorAccessDim,
@@ -1315,11 +1313,9 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
 
-        // TODO:: stop using this hack, once TransformedTensorDescriptor::GetLinearDimensionMask()
-        //   is implemented
-        constexpr auto src_linear_dim_mask = SrcLinearDimensionMask{};
-        constexpr auto src_nonlinear_dim_mask =
-            SrcLinearDimensionMask::Transform(logical_not<index_t>{});
+        // separate linear dimensions from non-linear dimensions
+        constexpr auto src_linear_dim_mask    = SrcDesc::GetLinearDimensionMask();
+        constexpr auto src_nonlinear_dim_mask = SrcDesc::GetNonLinearDimensionMask();
 
         static_assert(
             src_linear_dim_mask.At(VectorAccessDim) || long_vector_size == SrcDataPerAccess,
@@ -1459,11 +1455,9 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
 
-        // TODO:: stop using this hack, once TransformedTensorDescriptor::GetLinearDimensionMask()
-        //   is implemented
-        constexpr auto dst_linear_dim_mask = DstLinearDimensionMask{};
-        constexpr auto dst_nonlinear_dim_mask =
-            DstLinearDimensionMask::Transform(logical_not<index_t>{});
+        // separate linear dimensions from non-linear dimensions
+        constexpr auto dst_linear_dim_mask    = DstDesc::GetLinearDimensionMask();
+        constexpr auto dst_nonlinear_dim_mask = DstDesc::GetNonLinearDimensionMask();
 
         static_assert(
             dst_linear_dim_mask.At(VectorAccessDim) || long_vector_size == DstDataPerAccess,

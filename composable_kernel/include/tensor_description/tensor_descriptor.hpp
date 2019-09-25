@@ -353,7 +353,6 @@ struct TransformedTensorDescriptor
         return GetLowerTensorDescriptor().CalculateOffset(CalculateLowerIndex(idx_up));
     }
 
-#if 1
     struct lambda_sequence_logical_and
     {
         template <typename... Seqs>
@@ -378,7 +377,7 @@ struct TransformedTensorDescriptor
         // check only one transform at a time
         template <typename Transform, typename LowDimensionId, typename UpDimensionId>
         __host__ __device__ constexpr auto
-        operator()(const Transform& tran, LowDimensionId, UpDimensionId) const
+        operator()(Transform, LowDimensionId, UpDimensionId) const
         {
             // judge if transformation is linear
             constexpr bool is_linear_transform = Transform::IsLinearTransform();
@@ -392,23 +391,42 @@ struct TransformedTensorDescriptor
             // create linear mask for upper dimensions
             constexpr bool are_up_dim_linear = is_linear_transform && are_all_low_dim_linear;
 
-            constexpr auto mask_of_up_linear_dims = modifiy_sequence_by_ids(
-                typename uniform_sequence_gen<nDimUp, 0>::type{},
-                typename uniform_sequence_gen<UpDimensionId::Size(), 1>::type{},
+            constexpr auto mask_of_up_linear_dims = modify_sequence_elements_by_ids(
+                typename uniform_sequence_gen<nDimUp, 1>::type{},
+                typename uniform_sequence_gen<UpDimensionId::Size(), are_up_dim_linear>::type{},
                 UpDimensionId{});
 
             return mask_of_up_linear_dims;
         }
     };
 
+    // TODO: this is a hack, transform_tuples() doesn't compile, would complain about constexpr
+    template <typename F, typename X, typename Y, typename Z, index_t... Is>
+    __host__ __device__ static constexpr auto
+    dummy_transform_tuples_impl(F f, X x, Y y, Z z, Sequence<Is...>)
+    {
+        return make_tuple(f(x.At(Number<Is>{}), y.At(Number<Is>{}), z.At(Number<Is>{}))...);
+    }
+
     __host__ __device__ static constexpr auto GetLinearDimensionMask()
     {
+#if 0
         // create tuple of linear dimension masks, for all transformations
         constexpr auto tuple_of_linear_dimension_mask =
             transform_tuples(lambda_get_linear_dimension_mask_of_single_tranform{},
                              Transforms{},
                              LowDimensionIds{},
                              UpDimensionIds{});
+#else
+        // create tuple of linear dimension masks, for all transformations
+        // TODO: this is a hack, transform_tuples() doesn't compile, complain about constexpr
+        constexpr auto tuple_of_linear_dimension_mask = dummy_transform_tuples_impl(
+            lambda_get_linear_dimension_mask_of_single_tranform{},
+            Transforms{},
+            LowDimensionIds{},
+            UpDimensionIds{},
+            typename arithmetic_sequence_gen<0, Transforms::Size(), 1>::type{});
+#endif
 
         // reduce tuple of masks into one mask
         constexpr auto linear_dimension_mask =
@@ -444,6 +462,7 @@ struct TransformedTensorDescriptor
             typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, nonlinear_dimension_mask);
     }
 
+#if 0
     __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
     {
         // not implemented
