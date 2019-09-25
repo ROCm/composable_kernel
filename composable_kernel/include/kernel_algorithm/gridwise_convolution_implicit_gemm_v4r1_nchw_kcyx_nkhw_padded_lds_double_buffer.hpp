@@ -173,8 +173,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
             BlockwiseGenericTensorSliceCopy_v4<BlockSize,
                                                decltype(in_e_n1_b_n2_global_desc),
                                                decltype(in_e_n1_b_n2_block_desc),
-                                               Sequence<0, 1, 0, 1>,
-                                               Sequence<1, 1, 1, 1>,
                                                decltype(in_e_n1_b_n2_block_desc.GetLengths()),
                                                InBlockCopySubLengths_E_N1_B_N2,
                                                InBlockCopyClusterLengths_E_N1_B_N2,
@@ -216,8 +214,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
             BlockwiseGenericTensorSliceCopy_v4<BlockSize,
                                                decltype(wei_e_k_global_desc),
                                                decltype(wei_e_k_block_desc),
-                                               Sequence<1, 1>,
-                                               Sequence<1, 1>,
                                                decltype(wei_e_k_block_desc.GetLengths()),
                                                WeiBlockCopySubLengths_E_K,
                                                WeiBlockCopyClusterLengths_E_K,
@@ -427,8 +423,6 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
 
             ThreadwiseGenericTensorSliceCopy_v4r2<decltype(out_k0_k1_n1_b_n2_thread_desc),
                                                   decltype(out_k0_k1_n1_b_n2_global_desc),
-                                                  Sequence<1, 1, 1, 1, 1>,
-                                                  Sequence<1, 1, 1, 0, 1>,
                                                   decltype(
                                                       out_k0_k1_n1_b_n2_thread_desc.GetLengths()),
                                                   arithmetic_sequence_gen<0, 5, 1>::type,
