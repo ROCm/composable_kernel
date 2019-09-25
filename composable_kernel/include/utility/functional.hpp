@@ -26,6 +26,18 @@ struct swallow
 };
 
 template <typename T>
+struct logical_and
+{
+    constexpr bool operator()(const T& x, const T& y) const { return x && y; }
+};
+
+template <typename T>
+struct logical_or
+{
+    constexpr bool operator()(const T& x, const T& y) const { return x || y; }
+};
+
+template <typename T>
 struct logical_not
 {
     constexpr bool operator()(const T& x) const { return !x; }

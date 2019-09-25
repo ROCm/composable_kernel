@@ -45,6 +45,7 @@ struct NativeTensorCoordinate
     __host__ __device__ constexpr type operator+=(const Index& idx_diff)
     {
         // mIndex is updated here, but some (or all) of its entries may never be used
+        // compiler should remove those entries as dead code
         mIndex += idx_diff;
 
         mOffset += tensor_desc_type::CalculateOffsetDiff(idx_diff);
@@ -55,6 +56,7 @@ struct NativeTensorCoordinate
     __host__ __device__ constexpr type operator-=(const Index& idx_diff)
     {
         // mIndex is updated here, but some (or all) of its entries may never be used
+        // compiler should remove those entries as dead code
         mIndex -= idx_diff;
 
         mOffset -= tensor_desc_type::CalculateOffsetDiff(idx_diff);
@@ -136,6 +138,7 @@ struct TransformedTensorCoordinate
             idx_up_diff, GetIndex(), GetLowerCoordinate().GetIndex());
 
         // mIndexUp is updated here, but some (or all) of its entries may never be used
+        // compiler should remove those entries as dead code
         mIndexUp += idx_up_diff;
 
         return *this;
@@ -146,6 +149,8 @@ struct TransformedTensorCoordinate
         mCoordLow -= tensor_desc_type::CalculateLowerIndexDiff(
             idx_up_diff, GetIndex(), GetLowerCoordinate().GetIndex());
 
+        // mIndex is updated here, but some (or all) of its entries may never be used
+        // compiler should remove those entries as dead code
         mIndexUp -= idx_up_diff;
 
         return *this;

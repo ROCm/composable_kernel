@@ -101,12 +101,12 @@ struct NativeTensorDescriptor
         return true;
     }
 
-    __host__ __device__ static constexpr auto GetMaskOfLinearDimensions()
+    __host__ __device__ static constexpr auto GetLinearDimensionMask()
     {
         return typename uniform_sequence_gen<nDim, 1>::type{};
     }
 
-    __host__ __device__ static constexpr auto GetMaskOfNonLinearDimensions()
+    __host__ __device__ static constexpr auto GetNonLinearDimensionMask()
     {
         return typename uniform_sequence_gen<nDim, 0>::type{};
     }
@@ -353,18 +353,27 @@ struct TransformedTensorDescriptor
         return GetLowerTensorDescriptor().CalculateOffset(CalculateLowerIndex(idx_up));
     }
 
-#if 0
-    struct lambda_sequence_logic_or
+#if 1
+    struct lambda_sequence_logical_and
     {
         template <typename... Seqs>
-        __host__ __device__ constexpr auto operator()(Seqs... seqs) const
+        __host__ __device__ constexpr auto operator()(Seqs...) const
         {
-            // TODO: should use math::logic_or<bool>, after Sequence can take bool
-            return typename sequence_reduce<math::logic_or<bool>, Seqs...>::type{};
+            return typename sequence_reduce<logical_and<index_t>, Seqs...>::type{};
         }
     };
 
-    struct lambda_1
+    template <typename T>
+    struct lambda_is_true
+    {
+        __host__ __device__ constexpr auto operator()(const T& x) const
+        {
+            // TODO: remove static_cast once Sequence can take bool as entries
+            return static_cast<bool>(x) == true;
+        }
+    };
+
+    struct lambda_get_linear_dimension_mask_of_single_tranform
     {
         // check only one transform at a time
         template <typename Transform, typename LowDimensionId, typename UpDimensionId>
@@ -372,73 +381,73 @@ struct TransformedTensorDescriptor
         operator()(const Transform& tran, LowDimensionId, UpDimensionId) const
         {
             // judge if transformation is linear
-            constexpr bool is_linear_transform = tran.IsLinearTransform();
+            constexpr bool is_linear_transform = Transform::IsLinearTransform();
 
             // judge if all lower dimension are linear
-            constexpr bool is_all_low_dim_linear = math::reduce_on_sequence(
-                pick_sequence_elements_by_mask(
-                    GetLowerTensorDescriptor().GetMaskOfLinearDimensions(), LowDimensionId{}),
-                math::logic_and<bool>{},
-                integral_constant<bool, true>{});
+            constexpr bool are_all_low_dim_linear = sequence_all_of(
+                pick_sequence_elements_by_ids(GetLowerTensorDescriptor().GetLinearDimensionMask(),
+                                              LowDimensionId{}),
+                lambda_is_true<index_t>{});
 
-            // judge if upper dimenisons are linear
-            constexpr bool is_up_dim_nonlinear = !(is_linear_transform && is_all_low_dim_linear);
+            // create linear mask for upper dimensions
+            constexpr bool are_up_dim_linear = is_linear_transform && are_all_low_dim_linear;
 
-            constexpr auto value_sequence =
-                typename uniform_sequence_gen<tran.GetNumOfUpperDimension(),
-                                              is_up_dim_nonlinear>::type{};
+            constexpr auto mask_of_up_linear_dims = modifiy_sequence_by_ids(
+                typename uniform_sequence_gen<nDimUp, 0>::type{},
+                typename uniform_sequence_gen<UpDimensionId::Size(), 1>::type{},
+                UpDimensionId{});
 
-            constexpr auto mask_of_up_nonlinear_dims = modifiy_sequence(
-                typename uniform_sequence_gen<nDimUp, 0>::type{}, value_sequence, UpDimensionId{});
-
-            return mask_of_up_nonlinear_dims;
-        };
-
-        __host__ __device__ static constexpr bool GetMaskOfNonLinearDimensions()
-        {
-            // create tuple of linear dimension masks, for all transformations
-            constexpr auto tuple_of_nonlinear_dimension_mask =
-                transform_tuples(lambda_1{}, Transforms{}, LowDimensionIds{}, UpDimensionIds{});
-
-            // reduce tuple of masks into one mask
-            constexpr auto nonlinear_dimension_mask =
-                unpack(lambda_sequence_logic_or{}, tuple_of_nonlinear_dimension_mask);
-
-            return nonlinear_dimension_mask;
+            return mask_of_up_linear_dims;
         }
+    };
 
-        __host__ __device__ static constexpr bool GetMaskOfLinearDimensions()
-        {
-            return GetMaskOfNonLinearDimensions().Transform(math::logic_not<bool>{});
-        }
+    __host__ __device__ static constexpr auto GetLinearDimensionMask()
+    {
+        // create tuple of linear dimension masks, for all transformations
+        constexpr auto tuple_of_linear_dimension_mask =
+            transform_tuples(lambda_get_linear_dimension_mask_of_single_tranform{},
+                             Transforms{},
+                             LowDimensionIds{},
+                             UpDimensionIds{});
 
-        template <index_t IDim>
-        __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>)
-        {
-            return GetMaskOfLinearDimensions().At(Number<IDim>{});
-        }
+        // reduce tuple of masks into one mask
+        constexpr auto linear_dimension_mask =
+            unpack(lambda_sequence_logical_and{}, tuple_of_linear_dimension_mask);
 
-        __host__ __device__ static constexpr auto GetLinearDimensions()
-        {
-            constexpr auto linear_dimension_mask = GetMaskOfLienarDimensions();
+        return linear_dimension_mask;
+    }
 
-            return pick_sequence_elements_by_mask(
-                typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, linear_dimension_mask);
-        }
+    __host__ __device__ static constexpr auto GetNonLinearDimensionMask()
+    {
+        return GetLinearDimensionMask().Transform(logical_not<index_t>{});
+    }
 
-        __host__ __device__ static constexpr auto GetNonLinearDimensions()
-        {
-            constexpr auto nonlinear_dimension_mask =
-                GetMaskOfLienarDimensions().Transform(math::logic_not<index_t>{});
+    template <index_t IDim>
+    __host__ __device__ static constexpr bool IsLinearDimension(Number<IDim>)
+    {
+        return GetLinearDimensionMask().At(Number<IDim>{});
+    }
 
-            return pick_sequence_elements_by_mask(
-                typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, nonlinear_dimension_mask);
-        }
+    __host__ __device__ static constexpr auto GetLinearDimensions()
+    {
+        constexpr auto linear_dimension_mask = GetLinearDimensionMask();
 
-        __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
-        {
-            // not implemented
-        }
+        return pick_sequence_elements_by_mask(
+            typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, linear_dimension_mask);
+    }
+
+    __host__ __device__ static constexpr auto GetNonLinearDimensions()
+    {
+        constexpr auto nonlinear_dimension_mask = GetNonLinearDimensionMask();
+
+        return pick_sequence_elements_by_mask(
+            typename arithmetic_sequence_gen<0, nDimUp, 1>::type{}, nonlinear_dimension_mask);
+    }
+
+    __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
+    {
+        // not implemented
+    }
 #endif
 
     __host__ __device__ static constexpr bool
@@ -457,9 +466,10 @@ struct TransformedTensorDescriptor
         return flag;
     }
 
-    // Whenever this function is called, it will call CalculateLowerIndex() recursively
+    // Whenever this function is called, it will call CalculateLowerIndex() recursively.
     // If you have created a tensor coordinate already, instead of calling this function,
-    //   you should call TransformedTensorCoordinate::IsUpperIndexMappedToValidOffset()
+    //   you should call TensorCoordinate::IsUpperIndexMappedToValidOffset() which would
+    //   be less expensive.
     __host__ __device__ static constexpr bool
     IsUpperIndexMappedToValidOffset(const UpperIndex& idx_up)
     {

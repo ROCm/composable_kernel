@@ -311,7 +311,7 @@ struct sequence_reverse<Sequence<I0, I1>>
     using type = Sequence<I1, I0>;
 };
 
-#if 0
+#if 1
 template <typename Reduce, typename Seq, typename... Seqs>
 struct sequence_reduce
 {
@@ -755,31 +755,64 @@ __host__ __device__ constexpr auto pick_sequence_elements_by_ids(Seq, Sequence<I
     return Sequence<Seq::At(Number<Is>{})...>{};
 }
 
-#if 0
+#if 1
+namespace detail {
+template <typename WorkSeq, typename RemainSeq, typename RemainMask>
+struct pick_sequence_elements_by_mask_impl
+{
+    using new_work_seq = typename conditional<RemainMask::Front(),
+                                              decltype(WorkSeq::PushBack(RemainSeq::Front())),
+                                              WorkSeq>::type;
+
+    using type =
+        typename pick_sequence_elements_by_mask_impl<new_work_seq,
+                                                     decltype(RemainSeq::PopFront()),
+                                                     decltype(RemainMask::PopFront())>::type;
+};
+
+template <typename WorkSeq>
+struct pick_sequence_elements_by_mask_impl<WorkSeq, Sequence<>, Sequence<>>
+{
+    using type = WorkSeq;
+};
+
+} // namespace detail
+
 template <typename Seq, typename Mask>
 __host__ __device__ constexpr auto pick_sequence_elements_by_mask(Seq, Mask)
 {
-    // not implemented
+    static_assert(Seq::Size() == Mask::Size(), "wrong!");
+
+    return typename detail::pick_sequence_elements_by_mask_impl<Sequence<>, Seq, Mask>::type{};
+}
+
+namespace detail {
+template <typename WorkSeq, typename RemainValues, typename RemainIds>
+struct modify_sequence_elements_by_ids_impl
+{
+    using new_work_seq = decltype(WorkSeq::Modify(RemainIds::Front(), RemainValues::Front()));
+
+    using type =
+        typename modify_sequence_elements_by_ids_impl<new_work_seq,
+                                                      decltype(RemainValues::PopFront()),
+                                                      decltype(RemainIds::PopFront())>::type;
+};
+
+template <typename WorkSeq>
+struct modify_sequence_elements_by_ids_impl<WorkSeq, Sequence<>, Sequence<>>
+{
+    using type = WorkSeq;
+};
+} // namespace detail
+
+template <typename Seq, typename Values, typename Ids>
+__host__ __device__ constexpr auto modify_sequence_elements_by_ids(Seq, Values, Ids)
+{
+    static_assert(Values::Size() == Ids::Size() && Seq::Size() >= Values::Size(), "wrong!");
+
+    return typename detail::modify_sequence_elements_by_ids_impl<Seq, Values, Ids>::type{};
 }
 #endif
-
-template <typename Seq, typename Reduce>
-struct lambda_reduce_on_sequence
-{
-    const Reduce& f;
-    index_t& result;
-
-    __host__ __device__ constexpr lambda_reduce_on_sequence(const Reduce& f_, index_t& result_)
-        : f(f_), result(result_)
-    {
-    }
-
-    template <typename IDim>
-    __host__ __device__ constexpr index_t operator()(IDim) const
-    {
-        return result = f(result, Seq::At(IDim{}));
-    }
-};
 
 template <typename Seq, typename Reduce, index_t Init>
 __host__ __device__ constexpr index_t
@@ -787,14 +820,17 @@ reduce_on_sequence(Seq, Reduce f, Number<Init> /*initial_value*/)
 {
     index_t result = Init;
 
-    static_for<0, Seq::Size(), 1>{}(lambda_reduce_on_sequence<Seq, Reduce>(f, result));
+    for(index_t i = 0; i < Seq::Size(); ++i)
+    {
+        result = f(result, Seq::At(i));
+    }
 
     return result;
 }
 
 // TODO: a generic any_of for any container
 template <typename Seq, typename F>
-__host__ __device__ constexpr bool sequence_any_of(Seq, F f /*initial_value*/)
+__host__ __device__ constexpr bool sequence_any_of(Seq, F f)
 {
     bool flag = false;
 
@@ -808,7 +844,7 @@ __host__ __device__ constexpr bool sequence_any_of(Seq, F f /*initial_value*/)
 
 // TODO: a generic all_of for any container
 template <typename Seq, typename F>
-__host__ __device__ constexpr bool sequence_all_of(Seq, F f /*initial_value*/)
+__host__ __device__ constexpr bool sequence_all_of(Seq, F f)
 {
     bool flag = true;
 
