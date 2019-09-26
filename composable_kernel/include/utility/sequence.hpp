@@ -473,6 +473,13 @@ struct sequence_sort_impl<Sequence<Value>, Sequence<Id>, Compare>
     using sorted_ids    = Sequence<Id>;
 };
 
+template <typename Compare>
+struct sequence_sort_impl<Sequence<>, Sequence<>, Compare>
+{
+    using sorted_values = Sequence<>;
+    using sorted_ids    = Sequence<>;
+};
+
 template <typename Values, typename Compare>
 struct sequence_sort
 {

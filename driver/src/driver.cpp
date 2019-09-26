@@ -14,7 +14,7 @@
 //#include "device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hpp"
 //#include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
+//#include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded.hpp"
 //#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v4r3_nchw_kcyx_nkhw.hpp"
@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<0, 0>;
     using RightPads = Sequence<0, 0>;
-#elif 0
+#elif 1
     // 1x1 filter, 8x8 image
     // cudnn@V100 68%, ck@V100 72%, ck@P100 52%, ck@VII 42%
     constexpr index_t N  = 64;
@@ -366,6 +366,10 @@ int main(int argc, char* argv[])
     ostream_ConstantTensorDescriptor(in_nchw_desc, std::cout << "in_nchw_desc: ");
     ostream_ConstantTensorDescriptor(wei_kcyx_desc, std::cout << "wei_kcyx_desc: ");
     ostream_ConstantTensorDescriptor(out_nkhw_desc, std::cout << "out_nkhw_desc: ");
+    print_sequence("LeftPads", LeftPads{});
+    print_sequence("RightPads", RightPads{});
+    print_sequence("ConvStrides", ConvStrides{});
+    print_sequence("ConvDilations", ConvDilations{});
 
     using in_data_t  = float;
     using out_data_t = float;
@@ -444,7 +448,7 @@ int main(int argc, char* argv[])
                                                          ConvStrides{},
                                                          ConvDilations{},
                                                          nrepeat);
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded(in_nchw_desc,
                                                                 in_nchw,
                                                                 wei_kcyx_desc,
@@ -486,7 +490,7 @@ int main(int argc, char* argv[])
                                                          ConvStrides{},
                                                          ConvDilations{},
                                                          nrepeat);
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(in_nchw_desc,
                                                                 in_nchw,
                                                                 wei_kcyx_desc,

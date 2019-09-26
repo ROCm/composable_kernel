@@ -2,12 +2,12 @@
 #define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R4_NCHW_KCYX_NKHW_PADDED_LDS_DOUBLE_BUFFER_HPP
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
-#include "ConstantMergedTensorDescriptor.hpp"
+#include "tensor_descriptor.hpp"
+#include "tensor_descriptor_helper.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_generic_tensor_slice_copy.hpp"
-#include "blockwise_gemm.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
+#include "blockwise_gemm.hpp"
 
 namespace ck {
 
@@ -103,13 +103,12 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
         constexpr index_t BBlockWork = B / BPerBlock;
 
         constexpr auto block_work_desc =
-            make_ConstantTensorDescriptor_packed(Sequence<KBlockWork, BBlockWork>{});
+            make_cluster_descriptor(Sequence<KBlockWork, BBlockWork>{});
 
-        const auto block_work_multi_id =
-            block_work_desc.GetMultiIndexFrom1dIndex(get_block_1d_id());
+        const auto block_work_id = block_work_desc.CalculateClusterIndex(get_block_1d_id());
 
-        const index_t k_block_data_on_global = block_work_multi_id[0] * KPerBlock;
-        const index_t b_block_data_on_global = block_work_multi_id[1] * BPerBlock;
+        const index_t k_block_data_on_global = block_work_id[0] * KPerBlock;
+        const index_t b_block_data_on_global = block_work_id[1] * BPerBlock;
 
         // input tensor
         //   global mem
@@ -157,21 +156,10 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                                                InBlockCopyDataPerAccess_B>(
                 {0, b_block_data_on_global}, {0, 0});
 
-// weight tensor
-//   global mem
-#if 0
-        constexpr auto wei_e_k_global_desc =
-            transform_tensor_descriptor(wei_k_c_y_x_global_desc,
-                                        make_tuple(Merge<Sequence<C, Y, X>>{}, PassThrough<K>{}),
-                                        make_tuple(Sequence<1, 2, 3>{}, Sequence<0>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-#else // hack
-        constexpr auto wei_e_k_global_desc_old =
-            WeiGlobalDesc::Unfold(I1, I3).ReorderGivenNew2Old(Sequence<1, 0>{});
-
-        constexpr auto wei_e_k_global_desc = make_native_tensor_descriptor(
-            wei_e_k_global_desc_old.GetLengths(), wei_e_k_global_desc_old.GetStrides());
-#endif
+        // weight tensor
+        //   global mem
+        constexpr auto wei_e_k_global_desc = reorder_tensor_descriptor_given_upper2lower(
+            unfold_tensor_descriptor(wei_k_c_y_x_global_desc, I1, I3), Sequence<1, 0>{});
 
         //   LDS
         //     be careful of LDS alignment
@@ -267,9 +255,9 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
 
         // LDS double buffer: preload data into LDS
         {
-            blockwise_in_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+            blockwise_in_copy.template Run<Float, Float, address_space_t::global>(
                 p_in_global, p_in_block_double);
-            blockwise_wei_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+            blockwise_wei_copy.template Run<Float, Float, address_space_t::global>(
                 p_wei_global, p_wei_block_double);
         }
 
@@ -292,8 +280,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                 Float* p_wei_block_next =
                     even_loop ? p_wei_block_double + wei_block_space : p_wei_block_double;
 
-                Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
-                Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
+                Float p_in_thread_buffer[blockwise_in_copy.GetThreadBufferSize()];
+                Float p_wei_thread_buffer[blockwise_wei_copy.GetThreadBufferSize()];
 
                 blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
                 blockwise_wei_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
@@ -301,26 +289,26 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
-                blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                    p_in_global, p_in_register_buffer);
-                blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                    p_wei_global, p_wei_register_buffer);
+                blockwise_in_copy
+                    .template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                        p_in_global, p_in_thread_buffer);
+                blockwise_wei_copy
+                    .template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                        p_wei_global, p_wei_thread_buffer);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
 
                 // LDS double buffer: store next data to LDS
-                blockwise_in_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
-                    p_in_register_buffer, p_in_block_next);
-                blockwise_wei_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
-                    p_wei_register_buffer, p_wei_block_next);
+                blockwise_in_copy.RunStoreThreadBuffer(p_in_thread_buffer, p_in_block_next);
+                blockwise_wei_copy.RunStoreThreadBuffer(p_wei_thread_buffer, p_wei_block_next);
             }
         }
 
         // LDS double buffer: tail
         {
-            Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
-            Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
+            Float p_in_thread_buffer[blockwise_in_copy.GetThreadBufferSize()];
+            Float p_wei_thread_buffer[blockwise_wei_copy.GetThreadBufferSize()];
 
             // even iteration
             blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
@@ -329,19 +317,19 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
             __syncthreads();
 
             // LDS doubel buffer: load next data from device mem
-            blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                p_in_global, p_in_register_buffer);
-            blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                p_wei_global, p_wei_register_buffer);
+            blockwise_in_copy.template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                p_in_global, p_in_thread_buffer);
+            blockwise_wei_copy.template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                p_wei_global, p_wei_thread_buffer);
 
             // LDS double buffer: GEMM on current data
             blockwise_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
 
             // LDS double buffer: store next data to LDS
-            blockwise_in_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
-                p_in_register_buffer, p_in_block_double + in_block_space);
-            blockwise_wei_copy.template RunStoreRegisterBuffer<Float, address_space_t::lds>(
-                p_wei_register_buffer, p_wei_block_double + wei_block_space);
+            blockwise_in_copy.RunStoreThreadBuffer(p_in_thread_buffer,
+                                                   p_in_block_double + in_block_space);
+            blockwise_wei_copy.RunStoreThreadBuffer(p_wei_thread_buffer,
+                                                    p_wei_block_double + wei_block_space);
 
             // odd iteration
             __syncthreads();
@@ -402,10 +390,14 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                                                b_thread_data_on_global / B1,
                                                b_thread_data_on_global % B1})
 #if 1
-                .template Run_generic<Float, address_space_t::generic, address_space_t::global>
-#elif 1
+                .template Run_generic<Float,
+                                      Float,
+                                      address_space_t::generic,
+                                      address_space_t::global>
+#else // tweaking
                 .template Run_optimized_dst_address_calculation<Float,
-                                                                address_space_t::vgpr,
+                                                                Float,
+                                                                address_space_t::generic,
                                                                 address_space_t::global>
 #endif
                 (p_out_thread, p_out_global);

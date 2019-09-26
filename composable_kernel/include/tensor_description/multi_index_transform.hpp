@@ -132,7 +132,7 @@ struct Merge
 
     __host__ __device__ static constexpr auto GetUpperLengths()
     {
-        return Sequence<accumulate_on_sequence(
+        return Sequence<reduce_on_sequence(
             LowerLengths{}, math::multiplies<index_t>{}, Number<1>{})>{};
     }
 

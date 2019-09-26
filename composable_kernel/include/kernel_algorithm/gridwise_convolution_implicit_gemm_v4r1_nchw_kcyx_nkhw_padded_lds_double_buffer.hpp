@@ -6,8 +6,8 @@
 #include "tensor_descriptor_helper.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_generic_tensor_slice_copy.hpp"
-#include "blockwise_gemm.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
+#include "blockwise_gemm.hpp"
 
 namespace ck {
 
@@ -115,16 +115,13 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
         constexpr index_t KBlockWork = K / KPerBlock;
         constexpr index_t BBlockWork = B / BPerBlock;
 
-        constexpr auto block_work_desc = transform_tensor_descriptor(
-            make_native_tensor_descriptor_packed(Sequence<KBlockWork, BBlockWork>{}),
-            make_tuple(Merge<Sequence<KBlockWork, BBlockWork>>{}),
-            make_tuple(Sequence<0, 1>{}),
-            make_tuple(Sequence<0>{}));
+        constexpr auto block_work_desc =
+            make_cluster_descriptor(Sequence<KBlockWork, BBlockWork>{});
 
-        const auto block_work_multi_id = block_work_desc.CalculateLowerIndex(get_block_1d_id());
+        const auto block_work_id = block_work_desc.CalculateClusterIndex(get_block_1d_id());
 
-        const index_t k_block_data_on_global = block_work_multi_id[0] * KPerBlock;
-        const index_t b_block_data_on_global = block_work_multi_id[1] * BPerBlock;
+        const index_t k_block_data_on_global = block_work_id[0] * KPerBlock;
+        const index_t b_block_data_on_global = block_work_id[1] * BPerBlock;
 
         // input tensor
         //     global memory
@@ -185,11 +182,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
 
         // weight tensor
         //     tensor descriptor in device memory, src of blockwise copy
-        constexpr auto wei_k_e_global_desc =
-            unfold_tensor_descriptor(wei_k_c_y_x_global_desc, I1, I3);
-
-        constexpr auto wei_e_k_global_desc =
-            reorder_tensor_descriptor_given_upper2lower(wei_k_e_global_desc, Sequence<1, 0>{});
+        constexpr auto wei_e_k_global_desc = reorder_tensor_descriptor_given_upper2lower(
+            unfold_tensor_descriptor(wei_k_c_y_x_global_desc, I1, I3), Sequence<1, 0>{});
 
         //     tensor descriptor in LDS, dst of blockwise copy
         //     be careful of LDS alignment
