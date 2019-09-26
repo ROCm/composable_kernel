@@ -2,11 +2,8 @@
 #define CK_THREADWISE_GENERIC_TENSOR_SLICE_COPY_HPP
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
-#include "ConstantMergedTensorDescriptor.hpp"
-#include "tensor_coordinate.hpp"
-#include "tensor_view.hpp"
 #include "tensor_descriptor.hpp"
+#include "tensor_descriptor_helper.hpp"
 #include "tensor_coordinate_v2.hpp"
 
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1
@@ -22,6 +19,8 @@
 #endif
 
 namespace ck {
+
+#if 0
 
 // This threadwise copy allow vector access of src and dst.
 // It allows the dimensions of vector access to be different on src and dst.
@@ -1120,6 +1119,8 @@ struct ThreadwiseGenericTensorSliceCopy_v3r1
     SrcSlice mSrcSlice;
     DstSlice mDstSlice;
 };
+
+#endif
 
 // This version use multi-index transformation
 // This threadwise copy allow vector access of src and dst.

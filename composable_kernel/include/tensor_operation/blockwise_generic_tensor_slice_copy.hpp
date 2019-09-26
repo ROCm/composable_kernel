@@ -2,19 +2,18 @@
 #define CK_BLOCKWISE_GENERIC_TENSOR_SLICE_COPY_HPP
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
-#include "ConstantMergedTensorDescriptor.hpp"
-#include "tensor_coordinate.hpp"
-#include "tensor_view.hpp"
-#include "threadwise_generic_tensor_slice_copy.hpp"
 #include "tensor_descriptor.hpp"
+#include "tensor_descriptor_helper.hpp"
 #include "tensor_coordinate_v2.hpp"
+#include "threadwise_generic_tensor_slice_copy.hpp"
 
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1
 #define CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_BLOCKWISE_GENERIC_SLICE_COPY_V1 1
 #endif
 
 namespace ck {
+
+#if 0
 
 // Slice a (normal or merged) tensor, and copy it into another (normal or merged) tensor
 // memory layout (ordering of dimensions) can be different between src and dst.
@@ -677,6 +676,8 @@ struct BlockwiseGenericTensorSliceCopy_v3
     ThreadwiseStore mThreadwiseStore;
 };
 
+#endif
+
 template <index_t BlockSize,
           typename BlockSrcDesc,
           typename BlockDstDesc,
@@ -710,42 +711,17 @@ struct BlockwiseGenericTensorSliceCopy_v4
             is_same<BlockSliceLengths, decltype(ThreadSliceLengths{} * ThreadClusterLengths{})>{},
             "wrong! threads should be mapped to cover entire slicing window");
 
-#if 1
-        constexpr auto thread_cluster_desc = make_ConstantTensorDescriptor_packed(
-            ThreadClusterLengths::ReorderGivenNew2Old(ThreadClusterArrangeOrder{}));
-#else
-        constexpr auto thread_cluster_lengths_in_arrange_order =
-            ThreadClusterLengths::ReorderGivenNew2Old(ThreadClusterArrangeOrder{});
-
-        constexpr auto thread_cluster_desc = transform_tensor_descriptor(
-            make_native_tensor_descriptor_packed(thread_cluster_lengths_in_arrange_order),
-            make_tuple(Merge<decltype(thread_cluster_lengths_in_arrange_order)>{}),
-            make_tuple(arithmetic)
-
-                ::ReorderGivenNew2Old(ThreadClusterArrangeOrder{}));
-
-        static_assert(BlockSize == thread_cluster_desc.GetElementSize(),
-                      "wrong! BlockSize not consistent with ThreadClusterLengths");
-
-        constexpr auto thread_cluster_id = transform_tensor_descriptor(
-            make_native_tensor_descriptor_packed(Sequence<KBlockWork, BBlockWork>{}),
-            make_tuple(Merge<Sequence<KBlockWork, BBlockWork>>{}),
-            make_tuple(Sequence<0, 1>{}),
-            make_tuple(Sequence<0>{}));
-
-        const auto block_work_multi_id = block_work_desc.CalculateLowerIndex(get_block_1d_id());
-#endif
+        // map threads to cluster
+        constexpr auto thread_cluster_desc =
+            make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
         static_assert(BlockSize == thread_cluster_desc.GetElementSize(),
                       "wrong! BlockSize not consistent with ThreadClusterLengths");
 
         const auto thread_cluster_id =
-            thread_cluster_desc.GetMultiIndexFrom1dIndex(get_thread_local_1d_id());
+            thread_cluster_desc.CalculateClusterIndex(get_thread_local_1d_id());
 
-        const auto data_cluster_id =
-            reorder_array_given_old2new(thread_cluster_id, ThreadClusterArrangeOrder{});
-
-        const auto thread_data_id_begin = data_cluster_id * ThreadSliceLengths{};
+        const auto thread_data_id_begin = thread_cluster_id * ThreadSliceLengths{};
 
         mThreadwiseLoad.SetSrcSliceOrigin(src_block_slice_origin + thread_data_id_begin);
         mThreadwiseLoad.SetDstSliceOrigin(make_zero_array<index_t, nDim>());
