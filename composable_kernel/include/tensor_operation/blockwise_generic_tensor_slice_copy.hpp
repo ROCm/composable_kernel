@@ -772,7 +772,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
                                              BlockSrcAddressSpace,
                                              ThreadBufferAddressSpace>(p_block_src,
                                                                        p_thread_buffer);
-#else
+#else // tweaking
         mThreadwiseLoad.template Run_optimized_src_address_calculation<BlockSrcData,
                                                                        ThreadBufferData,
                                                                        BlockSrcAddressSpace,
@@ -793,7 +793,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
                                               BlockDstData,
                                               ThreadBufferAddressSpace,
                                               BlockDstAddressSpace>(p_thread_buffer, p_block_dst);
-#else
+#else // tweaking
         mThreadwiseStore.template Run_optimized_dst_address_calculation<ThreadBufferData,
                                                                         BlockDstData,
                                                                         ThreadBufferAddressSpace,
