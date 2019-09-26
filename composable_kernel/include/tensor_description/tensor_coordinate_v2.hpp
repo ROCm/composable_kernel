@@ -81,7 +81,7 @@ struct NativeTensorCoordinate
     __host__ __device__ static constexpr bool IsUpperIndexMappedToValidOffset() { return true; }
 
     private:
-    // mIndex may be saved and update, however, the value of some (or all) of its entries may
+    // mIndex may be saved and updated, however, the value of some (or all) of its entries may
     //   never be used. Compiler should be able to remove these entries as well as its calculation
     //   as dead code.
     // TODO: make sure compiler indeed remove these dead code
@@ -178,7 +178,8 @@ struct TransformedTensorCoordinate
     }
 
     private:
-    // mIndexUp may be calculated and update, however, the value of some (or all) of its entries may
+    // mIndexUp may be calculated and updated, however, the value of some (or all) of its entries
+    // may
     //   never be used. Compiler should be able to remove these entries as well as its calculation
     //   as dead code.
     // TODO: make sure compiler indeed remove these dead code
@@ -192,7 +193,7 @@ struct TensorCoordinate_v2
     private:
     template <typename... Ts>
     __host__ __device__ static constexpr auto
-    MakeDummyTensorCoordinate(NativeTensorDescriptor<Ts...>)
+        MakeDummyTensorCoordinate(NativeTensorDescriptor<Ts...>)
     {
         return NativeTensorCoordinate<NativeTensorDescriptor<Ts...>>(
             make_zero_array<index_t, TensorDesc::GetNumOfDimension()>());
@@ -200,7 +201,7 @@ struct TensorCoordinate_v2
 
     template <typename... Ts>
     __host__ __device__ static constexpr auto
-    MakeDummyTensorCoordinate(TransformedTensorDescriptor<Ts...>)
+        MakeDummyTensorCoordinate(TransformedTensorDescriptor<Ts...>)
     {
         return TransformedTensorCoordinate<TransformedTensorDescriptor<Ts...>>(
             make_zero_array<index_t, TensorDesc::GetNumOfDimension()>());

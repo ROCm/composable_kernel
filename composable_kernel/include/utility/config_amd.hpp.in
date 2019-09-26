@@ -37,11 +37,16 @@ typedef float float4_t __attribute__((ext_vector_type(4)));
 
 typedef int32_t int32x4_t __attribute__((ext_vector_type(4)));
 
+// data type conversion
 template <class T>
-__device__ void fused_multiply_accumulate(T& d, const T& s0, const T& s1)
+struct type_convert
 {
-    d += s0 * s1;
-}
+    template <class X>
+    __device__ T operator()(X x) const
+    {
+        return static_cast<T>(x);
+    }
+};
 
 } // namespace ck
 
