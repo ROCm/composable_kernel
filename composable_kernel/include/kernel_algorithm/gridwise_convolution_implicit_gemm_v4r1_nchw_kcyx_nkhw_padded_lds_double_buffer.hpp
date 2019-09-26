@@ -287,9 +287,9 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
 
         // LDS double buffer: preload data into LDS
         {
-            blockwise_in_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+            blockwise_in_copy.template Run<Float, Float, address_space_t::global>(
                 p_in_global, p_in_block_double);
-            blockwise_wei_copy.template Run<Float, address_space_t::global, address_space_t::lds>(
+            blockwise_wei_copy.template Run<Float, Float, address_space_t::global>(
                 p_wei_global, p_wei_block_double);
         }
 
@@ -312,8 +312,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                 Float* p_wei_block_next =
                     even_loop ? p_wei_block_double + wei_block_space : p_wei_block_double;
 
-                Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
-                Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
+                Float p_in_thread_buffer[blockwise_in_copy.GetThreadBufferSize()];
+                Float p_wei_thread_buffer[blockwise_wei_copy.GetThreadBufferSize()];
 
                 blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
                 blockwise_wei_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
@@ -321,25 +321,27 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
-                blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                    p_in_global, p_in_register_buffer);
-                blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                    p_wei_global, p_wei_register_buffer);
+                blockwise_in_copy
+                    .template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                        p_in_global, p_in_thread_buffer);
+                blockwise_wei_copy
+                    .template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                        p_wei_global, p_wei_thread_buffer);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
 
                 // LDS double buffer: store next data to LDS
-                blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer, p_in_block_next);
-                blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer, p_wei_block_next);
+                blockwise_in_copy.RunStoreThreadBuffer(p_in_thread_buffer, p_in_block_next);
+                blockwise_wei_copy.RunStoreThreadBuffer(p_wei_thread_buffer, p_wei_block_next);
             }
         }
 
         // LDS double buffer: tail
         {
             // even iteration
-            Float p_in_register_buffer[blockwise_in_copy.GetRegisterBufferSize()];
-            Float p_wei_register_buffer[blockwise_wei_copy.GetRegisterBufferSize()];
+            Float p_in_thread_buffer[blockwise_in_copy.GetThreadBufferSize()];
+            Float p_wei_thread_buffer[blockwise_wei_copy.GetThreadBufferSize()];
 
             blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
             blockwise_wei_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
@@ -347,19 +349,19 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
             __syncthreads();
 
             // LDS doubel buffer: load next data from device mem
-            blockwise_in_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                p_in_global, p_in_register_buffer);
-            blockwise_wei_copy.template RunLoadRegisterBuffer<Float, address_space_t::global>(
-                p_wei_global, p_wei_register_buffer);
+            blockwise_in_copy.template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                p_in_global, p_in_thread_buffer);
+            blockwise_wei_copy.template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+                p_wei_global, p_wei_thread_buffer);
 
             // LDS double buffer: GEMM on current data
             blockwise_gemm.Run(p_wei_block_double, p_in_block_double, p_out_thread);
 
             // LDS double buffer: store next data to LDS
-            blockwise_in_copy.RunStoreRegisterBuffer(p_in_register_buffer,
-                                                     p_in_block_double + in_block_space);
-            blockwise_wei_copy.RunStoreRegisterBuffer(p_wei_register_buffer,
-                                                      p_wei_block_double + wei_block_space);
+            blockwise_in_copy.RunStoreThreadBuffer(p_in_thread_buffer,
+                                                   p_in_block_double + in_block_space);
+            blockwise_wei_copy.RunStoreThreadBuffer(p_wei_thread_buffer,
+                                                    p_wei_block_double + wei_block_space);
 
             // odd iteration
             __syncthreads();
@@ -431,9 +433,14 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                                                       b_thread_data_on_global,
                                                       0})
 #if 1
-                .template Run_generic<Float, Float, address_space_t::generic, address_space_t::global>
+                .template Run_generic<Float,
+                                      Float,
+                                      address_space_t::generic,
+                                      address_space_t::global>
 #elif 1
-                .template Run_optimized_dst_address_calculation<Float, Float, address_space_t::global>
+                .template Run_optimized_dst_address_calculation<Float,
+                                                                Float,
+                                                                address_space_t::global>
 #endif
                 (p_out_thread, p_out_global);
         }
