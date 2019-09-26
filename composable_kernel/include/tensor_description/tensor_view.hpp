@@ -4,7 +4,7 @@
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
-#include "tensor_coordinate.hpp"
+#include "tensor_coordinate_deprecated.hpp"
 
 namespace ck {
 
@@ -14,7 +14,7 @@ struct NormalTensorView
 {
     using type             = NormalTensorView;
     using tensor_desc_type = TensorDesc;
-    using coordinate_type  = typename NormalTensorCoordinate<TensorDesc>::type;
+    using coordinate_type  = typename NormalTensorCoordinate_deprecated<TensorDesc>::type;
     using data_type        = TData;
 
     static constexpr auto nDim = TensorDesc::GetNumOfDimension();
