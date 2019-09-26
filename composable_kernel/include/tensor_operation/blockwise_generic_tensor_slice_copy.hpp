@@ -734,43 +734,46 @@ struct BlockwiseGenericTensorSliceCopy_v4
         return RegisterBufferDesc::GetElementSpace();
     }
 
-    template <typename TData, address_space_t SrcAddressSpace = address_space_t::generic>
-    __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
+    template <typename SrcData, typename BufferData, address_space_t SrcAddressSpace = address_space_t::generic>
+    __device__ void RunLoadRegisterBuffer(const SrcData* p_src, BufferData* p_buffer) const
     {
 #if 1
-        mThreadwiseLoad.template Run_generic<TData, SrcAddressSpace, address_space_t::generic>(
+        mThreadwiseLoad.template Run_generic<SrcData, BufferData, SrcAddressSpace, address_space_t::generic>(
             p_src, p_buffer);
 #else
-        mThreadwiseLoad.template Run_optimized_src_address_calculation<TData,
+        mThreadwiseLoad.template Run_optimized_src_address_calculation<SrcData,
+                                                                       BufferData,
                                                                        SrcAddressSpace,
                                                                        address_space_t::generic>(
             p_src, p_buffer);
 #endif
     }
 
-    template <typename TData, address_space_t DstAddressSpace = address_space_t::generic>
-    __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
+    template <typename BufferData, typename DstData, address_space_t DstAddressSpace = address_space_t::generic>
+    __device__ void RunStoreRegisterBuffer(const BufferData* p_buffer, DstData* p_dst) const
     {
 #if 1
-        mThreadwiseStore.template Run_generic<TData, address_space_t::generic, DstAddressSpace>(
+        mThreadwiseStore.template Run_generic<BufferData, DstData, address_space_t::generic, DstAddressSpace>(
             p_buffer, p_dst);
 #else
-        mThreadwiseStore.template Run_optimized_dst_address_calculation<TData,
+        mThreadwiseStore.template Run_optimized_dst_address_calculation<BufferData,
+                                                                        DstData,
                                                                         address_space_t::generic,
                                                                         DstAddressSpace>(p_buffer,
                                                                                          p_dst);
 #endif
     }
 
-    template <typename TData,
+    template <typename SrcData,
+              typename DstData,
               address_space_t SrcAddressSpace = address_space_t::generic,
               address_space_t DstAddressSpace = address_space_t::generic>
-    __device__ void Run(const TData* p_src, TData* p_dst) const
+    __device__ void Run(const SrcData* p_src, DstData* p_dst) const
     {
-        TData p_buffer[GetRegisterBufferSize()];
+        SrcData p_src_buffer[GetRegisterBufferSize()];
 
-        RunLoadRegisterBuffer<TData, SrcAddressSpace>(p_src, p_buffer);
-        RunStoreRegisterBuffer<TData, DstAddressSpace>(p_buffer, p_dst);
+        RunLoadRegisterBuffer<SrcData, SrcData, SrcAddressSpace>(p_src, p_buffer);
+        RunStoreRegisterBuffer<SrcData, DstData, DstAddressSpace>(p_buffer, p_dst);
     }
 
     template <typename T, bool PositiveDirection>
