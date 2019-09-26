@@ -1180,7 +1180,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     // Will do padding check on src data: Read 0 if src data is in padding area.
     // Will do padding check on dst data: No write if dst data is in paddin area.
     template <typename SrcData,
-			  typename DstData,
+              typename DstData,
               address_space_t SrcAddressSpace = address_space_t::generic,
               address_space_t DstAddressSpace = address_space_t::generic>
     __device__ void Run_generic(const SrcData* p_src, DstData* p_dst) const
@@ -1233,7 +1233,8 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
                         *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
-                            __buffer_load<SrcData, SrcDataPerAccess>(p_src, src_coord.GetOffset(), 0);
+                            __buffer_load<SrcData, SrcDataPerAccess>(
+                                p_src, src_coord.GetOffset(), 0);
 #else
                         *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                             *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
@@ -1246,12 +1247,12 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 }
             }
 
-			// SrcData to DstData conversion
+            // SrcData to DstData conversion
             DstData p_dst_long_vector[long_vector_size];
 
-			for(index_t i = 0; i < long_vector_size; ++i)
+            for(index_t i = 0; i < long_vector_size; ++i)
             {
-                p_dst_long_vector[i] = type_convert<DstData>(p_src_long_vector[i]);
+                p_dst_long_vector[i] = type_convert<DstData>{}(p_src_long_vector[i]);
             }
 
             // store data from the long-vector buffer to dst
