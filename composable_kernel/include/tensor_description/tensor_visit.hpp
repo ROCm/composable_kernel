@@ -5,7 +5,7 @@
 #include "dimension.hpp"
 #include "dimension_transform.hpp"
 #include "tensor_descriptor.hpp"
-#include "tensor_coordinate_v2.hpp"
+#include "tensor_coordinate.hpp"
 
 namespace ck {
 
@@ -13,7 +13,7 @@ template <class TensorDescriptor>
 struct TensorVisit
 {
     using Index      = typename TensorDescriptor::Index;
-    using Coordinate = typename TensorCoordinate_v2<TensorDescriptor>::type;
+    using Coordinate = typename TensorCoordinate<TensorDescriptor>::type;
 
     __host__ __device__ static void Run_v1(Index idx_begin)
     {

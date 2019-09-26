@@ -9,7 +9,7 @@ template <typename TensorDesc>
 __host__ __device__ constexpr auto
 make_tensor_coordinate_v2(TensorDesc, MultiIndex<TensorDesc::GetNumOfDimension()> idx)
 {
-    return typename TensorCoordinate_v2<TensorDesc>::type(idx);
+    return typename TensorCoordinate<TensorDesc>::type(idx);
 }
 
 } // namespace ck

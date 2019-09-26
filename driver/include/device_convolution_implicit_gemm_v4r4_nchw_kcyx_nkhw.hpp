@@ -3,7 +3,7 @@
 #include "device.hpp"
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+//#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
 using namespace ck;
@@ -164,7 +164,7 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
     constexpr auto gridwise_conv =
-#if 1
+#if 0
         GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
 #else
         GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
