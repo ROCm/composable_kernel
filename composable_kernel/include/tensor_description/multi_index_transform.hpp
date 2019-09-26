@@ -252,7 +252,6 @@ struct Merge
             });
 
             // highest dimension, no out-of-bound check
-
             if(borrow)
             {
                 --idx_low_new(0);
@@ -273,7 +272,7 @@ struct Merge
 
 // UpperLengths: Sequence<...>
 template <typename UpperLengths>
-struct Unmerge
+struct UnMerge
 {
     static constexpr index_t nDimLow = 1;
     static constexpr index_t nDimUp  = UpperLengths::Size();

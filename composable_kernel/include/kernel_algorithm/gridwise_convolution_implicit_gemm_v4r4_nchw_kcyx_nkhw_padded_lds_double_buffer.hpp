@@ -384,7 +384,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
 
             constexpr auto out_k0_k1_b0_b1_global_desc = transform_tensor_descriptor(
                 out_k_b_global_desc,
-                make_tuple(Unmerge<Sequence<K0, K1>>{}, Unmerge<Sequence<B0, B1>>{}),
+                make_tuple(UnMerge<Sequence<K0, K1>>{}, UnMerge<Sequence<B0, B1>>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 

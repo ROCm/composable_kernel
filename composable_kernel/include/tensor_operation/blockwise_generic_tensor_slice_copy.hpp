@@ -738,12 +738,12 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunLoadRegisterBuffer(const TData* p_src, TData* p_buffer) const
     {
 #if 1
-        mThreadwiseLoad.template Run_generic<TData, SrcAddressSpace, address_space_t::vgpr>(
+        mThreadwiseLoad.template Run_generic<TData, SrcAddressSpace, address_space_t::generic>(
             p_src, p_buffer);
 #else
         mThreadwiseLoad.template Run_optimized_src_address_calculation<TData,
                                                                        SrcAddressSpace,
-                                                                       address_space_t::vgpr>(
+                                                                       address_space_t::generic>(
             p_src, p_buffer);
 #endif
     }
@@ -752,11 +752,11 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunStoreRegisterBuffer(const TData* p_buffer, TData* p_dst) const
     {
 #if 1
-        mThreadwiseStore.template Run_generic<TData, address_space_t::vgpr, DstAddressSpace>(
+        mThreadwiseStore.template Run_generic<TData, address_space_t::generic, DstAddressSpace>(
             p_buffer, p_dst);
 #else
         mThreadwiseStore.template Run_optimized_dst_address_calculation<TData,
-                                                                        address_space_t::vgpr,
+                                                                        address_space_t::generic,
                                                                         DstAddressSpace>(p_buffer,
                                                                                          p_dst);
 #endif

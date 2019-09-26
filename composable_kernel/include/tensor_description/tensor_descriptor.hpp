@@ -299,7 +299,7 @@ struct TransformedTensorDescriptor
         return GetLowerTensorDescriptor().GetElementSpace();
     }
 
-    // TODO: right now return value is constexpr because use of non-constepxr lambda
+    // TODO: right now return value is not constexpr because use of non-constexpr lambda
     __host__ __device__ static constexpr LowerIndex CalculateLowerIndex(const UpperIndex& idx_up)
     {
         LowerIndex idx_low;

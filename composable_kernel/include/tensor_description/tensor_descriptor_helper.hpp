@@ -96,6 +96,81 @@ __host__ __device__ constexpr auto
         LowerTensorDescriptor{}, typename sequence_map_inverse<MapUpper2Lower>::type{});
 }
 
+template <typename Lengths, typename Strides>
+__host__ __device__ constexpr bool AreDimensionsUnfoldable(Lengths, Strides)
+{
+    static_assert(Lengths::Size() == Strides::Size(), "wrong!");
+
+    bool flag = true;
+
+    for(index_t i = 0; i < Lengths::Size() - 1; ++i)
+    {
+        flag = flag && Strides::At(i) == Strides::At(i + 1) * Lengths::At(i + 1);
+    }
+
+    return flag;
+}
+
+// unfold only support NativeTennsorDescriptor, for now
+template <index_t FirstUnfoldDim, index_t LastUnfoldDim, typename... Ts>
+__host__ __device__ constexpr auto unfold_tensor_descriptor(NativeTensorDescriptor<Ts...> desc,
+                                                            Number<FirstUnfoldDim>,
+                                                            Number<LastUnfoldDim>)
+{
+    constexpr index_t nDim = desc.GetNumOfDimension();
+
+    static_assert(FirstUnfoldDim >= 0 && LastUnfoldDim < nDim && FirstUnfoldDim <= LastUnfoldDim,
+                  "wrong! should have FirstUnfoldDim <= LastUnfoldDim!");
+
+    // left and right
+    constexpr auto left = typename arithmetic_sequence_gen<0, FirstUnfoldDim, 1>::type{};
+    constexpr auto middle =
+        typename arithmetic_sequence_gen<FirstUnfoldDim, LastUnfoldDim + 1, 1>::type{};
+    constexpr auto right = typename arithmetic_sequence_gen<LastUnfoldDim + 1, nDim, 1>::type{};
+
+    // sanity-checknfoldable
+    static_assert(AreDimensionsUnfoldable(desc.GetLengths(middle), desc.GetStrides(middle)),
+                  "wrong! not unfoldable");
+
+    // unfolded length, stride
+    constexpr index_t unfold_length =
+        reduce_on_sequence(desc.GetLengths(middle), math::multiplies<index_t>{}, Number<1>{});
+
+    constexpr index_t unfold_stride = desc.GetStride(Number<LastUnfoldDim>{});
+
+    // new lengths, strides
+    constexpr auto new_lengths =
+        desc.GetLengths(left).PushBack(Number<unfold_length>{}).PushBack(desc.GetLengths(right));
+
+    constexpr auto new_strides =
+        desc.GetStrides(left).PushBack(Number<unfold_stride>{}).PushBack(desc.GetStrides(right));
+
+    return make_native_tensor_descriptor(new_lengths, new_strides);
+}
+
+#if 0
+template <typename LowerTensorDescriptor,
+          typename PadDimensionIds,
+          typename LeftPads,
+          typename RightPads>
+__host__ __device__ constexpr auto
+    pad_tensor_descriptor(LowerTensorDescriptor, PadLowerDimensionIds, LeftPads, RightPads)
+{
+    constexpr index_t nDim = LowerTensorDescriptor::GetNumOfDimension();
+
+    constexpr auto non_pad_low_dim_ids = xxx;
+
+    return transform_tensor_descriptor(
+        LowerTensorDescriptor{},
+        make_tuple(Pad<decltype(LowerTensorDescriptor::GetLengths(PadLowerDimensionIds{})),
+                       LeftPads,
+                       RightPads>{})
+            .PushBack(PassThrough<xxxx>...),
+        make_tuple(PadLowerDimensionIds{}).PushBack(xxxx),
+        sequence_to_tuple(typename arithmetic_sequence_gen<0, nDim, 1> i::type{}));
+}
+#endif
+
 template <typename... NativeDimensions>
 __host__ __device__ void
 print_tensor_descriptor(const char* s, const NativeTensorDescriptor<NativeDimensions...>& desc)

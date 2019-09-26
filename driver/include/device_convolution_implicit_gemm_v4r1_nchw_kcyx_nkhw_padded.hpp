@@ -33,18 +33,12 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded(InDesc,
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-#if 1
-    constexpr auto in_nchw_desc  = InDesc{};
-    constexpr auto wei_kcyx_desc = WeiDesc{};
-    constexpr auto out_nkhw_desc = OutDesc{};
-#else
     constexpr auto in_nchw_desc =
         make_native_tensor_descriptor(InDesc::GetLengths(), InDesc::GetStrides());
     constexpr auto wei_kcyx_desc =
         make_native_tensor_descriptor(WeiDesc::GetLengths(), WeiDesc::GetStrides());
     constexpr auto out_nkhw_desc =
-        make_native_tensor_descriptor(OutDesc::GetLegnths(), OutDesc::GetStrides());
-#endif
+        make_native_tensor_descriptor(OutDesc::GetLengths(), OutDesc::GetStrides());
 
     constexpr index_t N  = out_nkhw_desc.GetLength(I0);
     constexpr index_t K  = out_nkhw_desc.GetLength(I1);
