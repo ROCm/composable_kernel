@@ -1226,7 +1226,8 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 const auto src_coord = mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id);
 
                 // Check src vector's padding situation, only check the first data in this src
-                //   vector. It's user's responsiblity to make sure all data in the src vector has
+                //   vector. It's user's responsiblity to make sure all data in the src vector
+                //   has
                 //   the same padding situation
                 if(src_coord.IsUpperIndexMappedToValidOffset())
                 {
@@ -1266,7 +1267,8 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 const auto dst_coord = mDstSliceOrigin + (long_vector_data_begin_id + scalar_id);
 
                 // Check dst vector's padding situation, only check the first data in this dst
-                //   vector. It's user's responsiblity to make sure all data in the dst vector has
+                //   vector. It's user's responsiblity to make sure all data in the dst vector
+                //   has
                 //   the same padding situation
                 if(dst_coord.IsUpperIndexMappedToValidOffset())
                 {
@@ -1305,13 +1307,15 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     // Will do padding check on src data: Read 0 if src data is in padding area.
     // Will do padding check on dst data: No write if dst data is in paddin area.
     // This version is optimized for address calculation of src tensor
-    template <typename TData,
+    template <typename SrcData,
+              typename DstData,
               address_space_t SrcAddressSpace = address_space_t::generic,
               address_space_t DstAddressSpace = address_space_t::generic>
-    __device__ void Run_optimized_src_address_calculation(const TData* p_src, TData* p_dst) const
+    __device__ void Run_optimized_src_address_calculation(const SrcData* p_src,
+                                                          DstData* p_dst) const
     {
-        using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
-        using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
+        using src_vector_t = typename vector_type<SrcData, SrcDataPerAccess>::MemoryType;
+        using dst_vector_t = typename vector_type<DstData, DstDataPerAccess>::MemoryType;
 
         constexpr auto vector_access_dim = Number<VectorAccessDim>{};
 
@@ -1327,9 +1331,10 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto src_linear_dim_mask    = SrcDesc::GetLinearDimensionMask();
         constexpr auto src_nonlinear_dim_mask = SrcDesc::GetNonLinearDimensionMask();
 
-        static_assert(
-            src_linear_dim_mask.At(VectorAccessDim) || long_vector_size == SrcDataPerAccess,
-            "Warning! VectorAccessDim is not SrcDesc's linear dimension, performance would drop");
+        static_assert(src_linear_dim_mask.At(VectorAccessDim) ||
+                          long_vector_size == SrcDataPerAccess,
+                      "Warning! VectorAccessDim is not SrcDesc's linear dimension, performance "
+                      "would drop");
 
         // separate steps into linear and non-linear components, accoording to src tensor
         constexpr auto linear_long_vector_access_lengths =
@@ -1361,12 +1366,12 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     long_vector_size * linear_dim_long_vector_access_id[vector_access_dim];
 
                 // buffer to hold a long-vector
-                TData p_long_vector[long_vector_size];
+                SrcData p_src_long_vector[long_vector_size];
 
                 // zero out buffer
                 for(index_t i = 0; i < long_vector_size; ++i)
                 {
-                    p_long_vector[i] = 0;
+                    p_src_long_vector[i] = 0;
                 }
 
                 // Loop over VectorAccessDim, and load data from src to the
@@ -1399,20 +1404,28 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     {
                         static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
-                            *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
-                                __buffer_load<TData, SrcDataPerAccess>(
+                            *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
+                                __buffer_load<SrcData, SrcDataPerAccess>(
                                     p_src, src_nonlinear_coord.GetOffset(), src_linear_offset);
 #else
-                            *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                                 *reinterpret_cast<const src_vector_t*>(
                                     &p_src[src_nonlinear_coord.GetOffset() + src_linear_offset]);
 #endif
                         }).Else([&](auto) {
-                            *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                            *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                                 *reinterpret_cast<const src_vector_t*>(
                                     &p_src[src_nonlinear_coord.GetOffset() + src_linear_offset]);
                         });
                     }
+                }
+
+                // SrcData to DstData conversion
+                DstData p_dst_long_vector[long_vector_size];
+
+                for(index_t i = 0; i < long_vector_size; ++i)
+                {
+                    p_dst_long_vector[i] = type_convert<DstData>{}(p_src_long_vector[i]);
                 }
 
                 // store data from the long-vector buffer to dst
@@ -1434,7 +1447,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     if(dst_coord.IsUpperIndexMappedToValidOffset())
                     {
                         *reinterpret_cast<dst_vector_t*>(&p_dst[dst_coord.GetOffset()]) =
-                            *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                            *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]);
                     }
                 }
             });
@@ -1447,13 +1460,15 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     // Will do padding check on src data: Read 0 if src data is in padding area.
     // Will do padding check on dst data: No write if dst data is in paddin area.
     // This version is optimized for address calculation of dst tensor
-    template <typename TData,
+    template <typename SrcData,
+              typename DstData,
               address_space_t SrcAddressSpace = address_space_t::generic,
               address_space_t DstAddressSpace = address_space_t::generic>
-    __device__ void Run_optimized_dst_address_calculation(const TData* p_src, TData* p_dst) const
+    __device__ void Run_optimized_dst_address_calculation(const SrcData* p_src,
+                                                          DstData* p_dst) const
     {
-        using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
-        using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
+        using src_vector_t = typename vector_type<SrcData, SrcDataPerAccess>::MemoryType;
+        using dst_vector_t = typename vector_type<DstData, DstDataPerAccess>::MemoryType;
 
         constexpr auto vector_access_dim = Number<VectorAccessDim>{};
 
@@ -1469,9 +1484,10 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto dst_linear_dim_mask    = DstDesc::GetLinearDimensionMask();
         constexpr auto dst_nonlinear_dim_mask = DstDesc::GetNonLinearDimensionMask();
 
-        static_assert(
-            dst_linear_dim_mask.At(VectorAccessDim) || long_vector_size == DstDataPerAccess,
-            "Warning! VectorAccessDim is not DstDesc's linear dimension, performance would drop");
+        static_assert(dst_linear_dim_mask.At(VectorAccessDim) ||
+                          long_vector_size == DstDataPerAccess,
+                      "Warning! VectorAccessDim is not DstDesc's linear dimension, performance "
+                      "would drop");
 
         // separate steps into linear and non-linear components, accoording to dst tensor
         constexpr auto linear_long_vector_access_lengths =
@@ -1503,12 +1519,12 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     long_vector_size * linear_dim_long_vector_access_id[vector_access_dim];
 
                 // buffer to hold a long-vector
-                TData p_long_vector[long_vector_size];
+                SrcData p_src_long_vector[long_vector_size];
 
                 // zero out buffer
                 for(index_t i = 0; i < long_vector_size; ++i)
                 {
-                    p_long_vector[i] = 0;
+                    p_src_long_vector[i] = 0;
                 }
 
                 // Loop over VectorAccessDim, and load data from src to the
@@ -1535,9 +1551,17 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     //   the src vector has the same padding situation
                     if(src_coord.IsUpperIndexMappedToValidOffset())
                     {
-                        *reinterpret_cast<src_vector_t*>(&p_long_vector[buffer_offset]) =
+                        *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                             *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
                     }
+                }
+
+                // SrcData to DstData conversion
+                DstData p_dst_long_vector[long_vector_size];
+
+                for(index_t i = 0; i < long_vector_size; ++i)
+                {
+                    p_dst_long_vector[i] = type_convert<DstData>{}(p_src_long_vector[i]);
                 }
 
                 // store data from the long-vector buffer to dst
@@ -1564,20 +1588,20 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     {
                         static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
-                            __buffer_store<TData, DstDataPerAccess>(
-                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]),
+                            __buffer_store<DstData, DstDataPerAccess>(
+                                *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]),
                                 p_dst,
                                 dst_nonlinear_coord.GetOffset(),
                                 dst_linear_offset);
 #else
                             *reinterpret_cast<dst_vector_t*>(
                                 &p_dst[dst_nonlinear_coord.GetOffset() + dst_linear_offset]) =
-                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                                *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]);
 #endif
                         }).Else([&](auto) {
                             *reinterpret_cast<dst_vector_t*>(
                                 &p_dst[dst_nonlinear_coord.GetOffset() + dst_linear_offset]) =
-                                *reinterpret_cast<dst_vector_t*>(&p_long_vector[buffer_offset]);
+                                *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]);
                         });
                     }
                 }
