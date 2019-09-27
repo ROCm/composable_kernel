@@ -226,14 +226,6 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto src_linear_dim_mask    = SrcDesc::GetLinearDimensionMask();
         constexpr auto src_nonlinear_dim_mask = SrcDesc::GetNonLinearDimensionMask();
 
-#if 0 // debug
-        if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
-        {
-            print_sequence("src_linear_dim_mask", src_linear_dim_mask);
-            print_sequence("src_nonlinear_dim_mask", src_nonlinear_dim_mask);
-        }
-#endif
-
         static_assert(src_linear_dim_mask.At(VectorAccessDim) ||
                           long_vector_size == SrcDataPerAccess,
                       "Warning! VectorAccessDim is not SrcDesc's linear dimension, performance "
@@ -295,18 +287,14 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const auto src_coord =
                         src_nonlinear_coord + (linear_dim_data_steps + scalar_id);
 
-// this is src compile-time offset
-#if 0
-                    // TODO: is this good implementation?
+#if 1 // tweaking
+                    // this is src compile-time offset
                     const index_t src_linear_offset =
                         src_coord.GetOffset() - src_nonlinear_coord.GetOffset();
-#elif 0
+#else
+                    // this is src compile-time offset
                     const index_t src_linear_offset =
-                        SrcDesc::CalculateOffset(linear_dim_data_steps + scalar_id) -
-                        SrcDesc::CalculateOffset(make_zero_array<index_t, nDim>());
-#elif 1
-                    const index_t src_linear_offset =
-                        src_coord.CalculateOffsetDiff(linear_dim_data_steps + scalar_id);
+                        src_nonlinear_coord.CalculateOffsetDiff(linear_dim_data_steps + scalar_id);
 #endif
 
                     // Check src vector's padding situation, only check the first data in
@@ -395,14 +383,6 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         // separate linear dimensions from non-linear dimensions
         constexpr auto dst_linear_dim_mask    = DstDesc::GetLinearDimensionMask();
         constexpr auto dst_nonlinear_dim_mask = DstDesc::GetNonLinearDimensionMask();
-
-#if 0 // debug
-        if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
-        {
-            print_sequence("dst_linear_dim_mask", dst_linear_dim_mask);
-            print_sequence("dst_nonlinear_dim_mask", dst_nonlinear_dim_mask);
-        }
-#endif
 
         static_assert(dst_linear_dim_mask.At(VectorAccessDim) ||
                           long_vector_size == DstDataPerAccess,
@@ -496,18 +476,14 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const auto dst_coord =
                         dst_nonlinear_coord + (linear_dim_data_steps + scalar_id);
 
-// this is dst compile-time offset
-#if 0
-                    // TODO: is this good implementation?
+#if 1 // tweaking
+                    // this is dst compile-time offset
                     const index_t dst_linear_offset =
                         dst_coord.GetOffset() - dst_nonlinear_coord.GetOffset();
-#elif 0
+#else
+                    // this is dst compile-time offset
                     const index_t dst_linear_offset =
-                        DstDesc::CalculateOffset(linear_dim_data_steps + scalar_id) -
-                        DstDesc::CalculateOffset(make_zero_array<index_t, nDim>());
-#elif 1
-                    const index_t dst_linear_offset =
-                        dst_coord.CalculateOffsetDiff(linear_dim_data_steps + scalar_id);
+                        dst_nonlinear_coord.CalculateOffsetDiff(linear_dim_data_steps + scalar_id);
 #endif
 
                     // Check dst vector's padding situation, only check the first data in

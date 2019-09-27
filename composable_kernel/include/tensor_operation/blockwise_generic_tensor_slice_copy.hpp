@@ -73,7 +73,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunLoadThreadBuffer(const BlockSrcData* p_block_src,
                                         ThreadBufferData* p_thread_buffer) const
     {
-#if 0
+#if 1
         mThreadwiseLoad.template Run<BlockSrcData,
                                      ThreadBufferData,
                                      BlockSrcAddressSpace,
@@ -94,11 +94,11 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunStoreThreadBuffer(const ThreadBufferData* p_thread_buffer,
                                          BlockDstData* p_block_dst) const
     {
-#if 0
+#if 1
         mThreadwiseStore.template Run<ThreadBufferData,
-                                              BlockDstData,
-                                              ThreadBufferAddressSpace,
-                                              BlockDstAddressSpace>(p_thread_buffer, p_block_dst);
+                                      BlockDstData,
+                                      ThreadBufferAddressSpace,
+                                      BlockDstAddressSpace>(p_thread_buffer, p_block_dst);
 #else // tweaking
         mThreadwiseStore.template Run_optimized_dst_address_calculation<ThreadBufferData,
                                                                         BlockDstData,

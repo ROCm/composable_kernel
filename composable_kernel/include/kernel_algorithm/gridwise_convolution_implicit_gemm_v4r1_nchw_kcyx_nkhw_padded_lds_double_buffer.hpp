@@ -426,7 +426,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_padded_lds_double_buf
                                                       0,
                                                       b_thread_data_on_global,
                                                       0})
-#if 0
+#if 1
                 .template Run<Float, Float, address_space_t::generic, address_space_t::global>
 #else // tweaking
                 .template Run_optimized_dst_address_calculation<Float,

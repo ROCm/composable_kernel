@@ -319,7 +319,7 @@ struct TransformedTensorDescriptor
         return idx_low;
     }
 
-    // TODO: right now return value is constexpr because use of non-constepxr lambda
+    // TODO: right now return value is not constexpr because use of non-constepxr lambda
     __host__ __device__ static constexpr LowerIndex CalculateLowerIndexDiff(
         const UpperIndex& idx_up_diff, const UpperIndex& idx_up_old, const LowerIndex& idx_low_old)
     {
