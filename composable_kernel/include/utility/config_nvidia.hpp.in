@@ -48,36 +48,6 @@ struct type_convert
     }
 };
 
-template <class T>
-__device__ void fused_multiply_accumulate(T& d, const T& s0, const T& s1)
-{
-    d += s0 * s1;
-}
-
-#if 0
-__device__ void fused_multiply_accumulate(half& d, const half& s0, const half& s1) { d += s0 * s1; }
-
-__device__ void fused_multiply_accumulate(half& d, const half2& s0, const half2& s1)
-{
-    d += s0.x * s1.x;
-    d += s0.y * s1.y;
-}
-
-__device__ void fused_multiply_accumulate(float& d, const half2& s0, const half2& s1)
-{
-    d += s0.x * s1.x + s0.y * s1.y;
-}
-
-__device__ void fused_multiply_accumulate(char& d, const char& s0, const char& s1) { d += s0 * s1; }
-
-// TODO:: this interface is misleading, s0, s1 are actually int8x4
-//  need to make a better interface
-__device__ void fused_multiply_accumulate(int32_t& d, const int32_t& s0, const int32_t& s1)
-{
-    d = __dp4a(s0, s1, d);
-}
-#endif
-
 } // namespace ck
 
 #endif

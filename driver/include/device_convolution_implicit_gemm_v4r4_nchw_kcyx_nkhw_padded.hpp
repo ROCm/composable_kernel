@@ -3,7 +3,6 @@
 #include "device.hpp"
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-//#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buffer.hpp"
 
 template <class T,
@@ -24,7 +23,7 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(InDesc,
                                                                  ConvDilations,
                                                                  LeftPads,
                                                                  RightPads,
-                                                                 index_t nrepeat)
+                                                                 ck::index_t nrepeat)
 {
     using namespace ck;
 

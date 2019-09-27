@@ -4,7 +4,6 @@
 #include "common_header.hpp"
 #include "ConstantTensorDescriptor.hpp"
 #include "ConstantMergedTensorDescriptor.hpp"
-#include "tensor_view.hpp"
 #include "tensor_coordinate_deprecated.hpp"
 
 #ifndef CK_EXPERIMENTAL_USE_MORE_COMPILE_STATIC_THREADWISE_GENERIC_TENSOR_SLICE_COPY_V1R1
@@ -600,18 +599,18 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
 
                     // Read vector from src.
                     //   1. Source code version can take src of all kinds of memory-space
-                    //   2. Inline asm versions using global_load or buffer_load can only take
+                    //   2. Intrinsic version using buffer_load can only take
                     //      src from global-memory
                     //
                     // Commemt for loading from global-memory:
-                    //   When
+                    //   When:
                     //     1) using source code, in order for compiler to emit optimal
                     //        load instruction, or
-                    //     2) using inline asm (global_load or buffer_load), in order
-                    //        for inline asm to be valid,
+                    //     2) using buffer_load intrinsic, in order for ISA to be valid,
                     //   following assumptions need to be satisfied:
                     //     1. p_src need to be block-invariant (assumption)
-                    //     2. src_normal_offset must be calculatd at compile time (guaranteed)
+                    //     2. src_normal_offset must be calculatd at compile time (guaranteed by
+                    //        algorithm)
                     //     3. src_merged_offset can be runtime value (no assumption imposed)
                     static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
@@ -698,18 +697,18 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
 
                         // Write vector into dst.
                         //   1. Source code version can take dst of all kinds of memory-space
-                        //   2. Inline asm versions using global_store or buffer_store can only take
+                        //   2. Intrinsic version using buffer_store can only take
                         //      dst from global-memory
                         //
                         // Commemt for storing into global-memory:
-                        //   When
+                        //   When:
                         //     1) using source code, in order for compiler to emit optimal
                         //        store instruction, or
-                        //     2) using inline asm (global_store or buffer_store), in order
-                        //        for inline asm to be valid,
+                        //     2) using buffer_store, intrinsic in order ISA to be valid
                         //   following assumptions need to be satisfied:
                         //     1. p_dst need to be block-invariant (assumption)
-                        //     2. dst_normal_offset must be calculatd at compile time (guaranteed)
+                        //     2. dst_normal_offset must be calculatd at compile time (guaranteed by
+                        //        algorithm)
                         //     3. dst_merged_offset can be runtime value (no assumption imposed)
                         static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
@@ -749,153 +748,6 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
     private:
     SrcCoordinate mSrcSliceOrigin;
     DstCoordinate mDstSliceOrigin;
-};
-
-// this version use TensorView and TensorCoordinate_deprecated
-template <typename SrcTensor,
-          typename DstTensor,
-          typename SliceLengths,
-          typename SrcDimAccessOrder,
-          typename DstDimAccessOrder,
-          index_t SrcVectorAccessDim,
-          index_t DstVectorAccessDim,
-          index_t SrcDataPerAccess,
-          index_t DstDataPerAccess>
-struct ThreadwiseGenericTensorSliceCopy_v3r1
-{
-    static constexpr index_t nDim = SrcTensor::GetNumOfDimension();
-    using data_type               = remove_cv_t<typename SrcTensor::data_type>;
-
-    using SrcCoordinate = typename SrcTensor::coordinate_type;
-    using DstCoordinate = typename DstTensor::coordinate_type;
-
-    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v3r1(SrcTensor src,
-                                                               SrcCoordinate src_slice_origin,
-                                                               DstTensor dst,
-                                                               DstCoordinate dst_slice_origin)
-        : mSrc{src},
-          mDst{dst},
-          mSrcSlice{src.Slice(src_slice_origin, SliceLengths{})},
-          mDstSlice{dst.Slice(dst_slice_origin, SliceLengths{})}
-    {
-        static_assert(nDim == SrcTensor::GetNumOfDimension() &&
-                          nDim == DstTensor::GetNumOfDimension() &&
-                          nDim == SliceLengths::GetSize() && nDim == SrcDimAccessOrder::GetSize() &&
-                          nDim == DstDimAccessOrder::GetSize(),
-                      "wrong! # of dimensions not the same");
-
-        static_assert(is_valid_sequence_map<SrcDimAccessOrder>::value &&
-                          is_valid_sequence_map<DstDimAccessOrder>::value,
-                      "wrong! map is not valid");
-
-        static_assert(is_same<remove_cv_t<typename SrcTensor::data_type>,
-                              remove_cv_t<typename DstTensor::data_type>>{},
-                      "wrong! type conversion is not supported yet");
-
-        static_assert(decltype(mSrcSlice)::IsVectorizationAllowed(Number<SrcVectorAccessDim>{},
-                                                                  Number<SrcDataPerAccess>{}) &&
-                          decltype(mDstSlice)::IsVectorizationAllowed(Number<DstVectorAccessDim>{},
-                                                                      Number<DstDataPerAccess>{}),
-                      "wrong! vectorized access is not allowed");
-    }
-
-    __device__ constexpr ThreadwiseGenericTensorSliceCopy_v3r1()
-        : ThreadwiseGenericTensorSliceCopy_v3r1(
-              SrcTensor{}, SrcCoordinate{}, DstTensor{}, DstCoordinate{})
-    {
-    }
-
-    __device__ void Run() const
-    {
-        // buffer
-        constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SrcTensor::GetLengths());
-        data_type p_buffer[buffer_desc.GetElementSpace()];
-        auto buffer = make_TensorView(buffer_desc, p_buffer);
-
-        // copy data from src into buffer
-        {
-            using src_vector_t = typename vector_type<data_type, SrcDataPerAccess>::MemoryType;
-
-            constexpr auto src_vector_access_dim = Number<SrcVectorAccessDim>{};
-            constexpr auto src_data_per_access   = Number<SrcDataPerAccess>{};
-
-            auto src_slice_vectorized =
-                mSrcSlice.Vectorize(src_vector_access_dim, src_data_per_access);
-
-            ford<decltype(src_slice_vectorized.GetLengths()), SrcDimAccessOrder>{}(
-                [&](auto src_vector_id) {
-                    // load vector from src
-                    const src_vector_t vector_data = src_slice_vectorized[src_vector_id];
-
-                    // unpack vector into buffer
-                    auto src_scalar_id = src_vector_id;
-                    src_scalar_id(src_vector_access_dim) *= src_data_per_access;
-
-                    for(index_t i = 0; i < SrcDataPerAccess; ++i)
-                    {
-                        auto id                   = make_zero_array<index_t, nDim>();
-                        id(src_vector_access_dim) = i;
-
-                        buffer(src_scalar_id + id) =
-                            reinterpret_cast<const data_type*>(&vector_data)[i];
-                    }
-                });
-        }
-
-        // copy data from buffer into dst
-        {
-            using dst_vector_t = typename vector_type<data_type, DstDataPerAccess>::MemoryType;
-
-            constexpr auto dst_vector_access_dim = Number<DstVectorAccessDim>{};
-            constexpr auto dst_data_per_access   = Number<DstDataPerAccess>{};
-
-            auto dst_slice_vectorized =
-                mDstSlice.Vectorize(dst_vector_access_dim, dst_data_per_access);
-
-            ford<decltype(dst_slice_vectorized.GetLengths()), DstDimAccessOrder>{}(
-                [&](auto dst_vector_id) {
-
-                    dst_vector_t vector_data{};
-
-                    // pack vector from buffer
-                    auto dst_scalar_id = dst_vector_id;
-                    dst_scalar_id(dst_vector_access_dim) *= dst_data_per_access;
-
-                    for(index_t i = 0; i < DstDataPerAccess; ++i)
-                    {
-                        auto id                   = make_zero_array<index_t, nDim>();
-                        id(dst_vector_access_dim) = i;
-
-                        reinterpret_cast<data_type*>(&vector_data)[i] = buffer[dst_scalar_id + id];
-                    }
-
-                    // write vector into dst
-                    dst_slice_vectorized(dst_vector_id) = vector_data;
-                });
-        }
-    }
-
-    // T can be Sequence or Array
-    template <typename T, bool PositiveDirection>
-    __device__ void MoveSrcSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
-    {
-        mSrc.MoveSliceWindow(mSrcSlice, step_sizes, integral_constant<bool, PositiveDirection>{});
-    }
-
-    template <typename T, bool PositiveDirection>
-    __device__ void MoveDstSliceWindow(T step_sizes, integral_constant<bool, PositiveDirection>)
-    {
-        mDst.MoveSliceWindow(mDstSlice, step_sizes, integral_constant<bool, PositiveDirection>{});
-    }
-
-    private:
-    using SrcSlice = decltype(SrcTensor{}.Slice(make_zero_array<index_t, nDim>(), SliceLengths{}));
-    using DstSlice = decltype(DstTensor{}.Slice(make_zero_array<index_t, nDim>(), SliceLengths{}));
-
-    SrcTensor mSrc;
-    DstTensor mDst;
-    SrcSlice mSrcSlice;
-    DstSlice mDstSlice;
 };
 
 } // namespace ck
