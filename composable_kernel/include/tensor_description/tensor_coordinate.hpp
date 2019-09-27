@@ -78,6 +78,11 @@ struct NativeTensorCoordinate
         return coord;
     }
 
+    __host__ __device__ static constexpr index_t CalculateOffsetDiff(const Index& idx_diff)
+    {
+        return tensor_desc_type::CalculateOffsetDiff(idx_diff);
+    }
+
     __host__ __device__ static constexpr bool IsUpperIndexMappedToValidOffset() { return true; }
 
     private:
@@ -170,7 +175,18 @@ struct TransformedTensorCoordinate
         return coord_up;
     }
 
-    // this function should be inexpensive, because there is no upper-to-lower index transformation
+    // Calculate offset diff without updating tensor-coordinate
+    // If idx_up_diff is know at compile time, and has only non-zero entries on linear dimensions,
+    //   then all calculation can be done at compile-time.
+    __host__ __device__ constexpr index_t CalculateOffsetDiff(const UpperIndex& idx_up_diff) const
+    {
+        // For transformation of multi-index difference, not all transformation functions need to
+        //   know the old lower-index or the old upper-index. We pass both of them to the
+        //   transformation function. The transformation function itself decides to use them or not.
+        return GetLowerCoordinate().CalculateOffsetDiff(tensor_desc_type::CalculateLowerIndexDiff(
+            idx_up_diff, GetIndex(), GetLowerCoordinate().GetIndex()));
+    }
+
     __host__ __device__ constexpr bool IsUpperIndexMappedToValidOffset() const
     {
         return tensor_desc_type::IsUpperIndexMappedToValidLowerIndex(GetIndex()) &&
@@ -193,7 +209,7 @@ struct TensorCoordinate
     private:
     template <typename... Ts>
     __host__ __device__ static constexpr auto
-        MakeDummyTensorCoordinate(NativeTensorDescriptor<Ts...>)
+    MakeDummyTensorCoordinate(NativeTensorDescriptor<Ts...>)
     {
         return NativeTensorCoordinate<NativeTensorDescriptor<Ts...>>(
             make_zero_array<index_t, TensorDesc::GetNumOfDimension()>());
@@ -201,7 +217,7 @@ struct TensorCoordinate
 
     template <typename... Ts>
     __host__ __device__ static constexpr auto
-        MakeDummyTensorCoordinate(TransformedTensorDescriptor<Ts...>)
+    MakeDummyTensorCoordinate(TransformedTensorDescriptor<Ts...>)
     {
         return TransformedTensorCoordinate<TransformedTensorDescriptor<Ts...>>(
             make_zero_array<index_t, TensorDesc::GetNumOfDimension()>());
