@@ -8,7 +8,7 @@
 #include "device.hpp"
 #include "conv_common.hpp"
 #include "host_conv.hpp"
-#include "device_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
+//#include "device_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hpp"
 //#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded.hpp"
 //#include "device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw.hpp"
@@ -448,7 +448,7 @@ int main(int argc, char* argv[])
                                                          ConvStrides{},
                                                          ConvDilations{},
                                                          nrepeat);
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded(in_nchw_desc,
                                                                 in_nchw,
                                                                 wei_kcyx_desc,
@@ -490,7 +490,7 @@ int main(int argc, char* argv[])
                                                          ConvStrides{},
                                                          ConvDilations{},
                                                          nrepeat);
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(in_nchw_desc,
                                                                 in_nchw,
                                                                 wei_kcyx_desc,

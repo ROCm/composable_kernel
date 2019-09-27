@@ -5,12 +5,6 @@
 
 namespace ck {
 
-template <index_t Length>
-struct Dimension
-{
-    __host__ __device__ static constexpr auto GetLength() { return Number<Length>{}; }
-};
-
 template <index_t Length, index_t Stride>
 struct NativeDimension
 {
