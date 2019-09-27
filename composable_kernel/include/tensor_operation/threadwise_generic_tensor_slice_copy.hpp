@@ -78,7 +78,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
               typename DstData,
               address_space_t SrcAddressSpace = address_space_t::generic,
               address_space_t DstAddressSpace = address_space_t::generic>
-    __device__ void Run_generic(const SrcData* p_src, DstData* p_dst) const
+    __device__ void Run(const SrcData* p_src, DstData* p_dst) const
     {
         using src_vector_t = typename vector_type<SrcData, SrcDataPerAccess>::MemoryType;
         using dst_vector_t = typename vector_type<DstData, DstDataPerAccess>::MemoryType;
@@ -130,7 +130,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
                         *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                             __buffer_load<SrcData, SrcDataPerAccess>(
-                                p_src, src_coord.GetOffset(), 0);
+                                p_src, 0, src_coord.GetOffset());
 #else
                         *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                             *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
@@ -172,8 +172,8 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                         __buffer_store<DstData, DstDataPerAccess>(
                             *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]),
                             p_dst,
-                            dst_coord.GetOffset(),
-                            0);
+                            0,
+                            dst_coord.GetOffset());
 #else
                         *reinterpret_cast<dst_vector_t*>(&p_dst[dst_coord.GetOffset()]) =
                             *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]);
