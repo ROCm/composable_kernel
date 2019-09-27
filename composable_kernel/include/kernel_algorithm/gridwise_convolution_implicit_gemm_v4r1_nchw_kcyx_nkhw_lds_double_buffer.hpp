@@ -396,14 +396,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                     0,
                     b_thread_data_on_global,
                     0})
-#if 0
-                .Run
-#else // tweaking
-                .template Run_optimized_address_calculation<Float,
-                                                            address_space_t::generic,
-                                                            address_space_t::global>
-#endif
-                (p_out_thread, p_out_global);
+                .template Run<Float, address_space_t::generic, address_space_t::global>(
+                    p_out_thread, p_out_global);
         }
     }
 };

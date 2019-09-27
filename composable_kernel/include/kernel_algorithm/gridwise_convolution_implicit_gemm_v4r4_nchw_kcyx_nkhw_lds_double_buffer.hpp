@@ -391,14 +391,8 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
             for(index_t nrepeat = 0; nrepeat < GemmNRepeat; ++nrepeat)
             {
                 threadwise_out_copy
-#if 1
-                    .Run
-#else // tweaking
-                    .template Run_optimized_address_calculation<Float,
-                                                                address_space_t::generic,
-                                                                address_space_t::global>
-#endif
-                    (p_out_thread, p_out_global);
+                    .template Run<Float, address_space_t::generic, address_space_t::global>(
+                        p_out_thread, p_out_global);
 
                 threadwise_out_copy.MoveSrcSliceWindow(Sequence<0, 0, GemmNPerThreadSubC>{}, True);
                 threadwise_out_copy.MoveDstSliceWindow(Sequence<0, 0, B1>{}, True);
