@@ -130,7 +130,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
                         *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                             __buffer_load<SrcData, SrcDataPerAccess>(
-                                p_src, 0, src_coord.GetOffset());
+                                p_src, src_coord.GetOffset(), 0);
 #else
                         *reinterpret_cast<src_vector_t*>(&p_src_long_vector[buffer_offset]) =
                             *reinterpret_cast<const src_vector_t*>(&p_src[src_coord.GetOffset()]);
@@ -172,8 +172,8 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                         __buffer_store<DstData, DstDataPerAccess>(
                             *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]),
                             p_dst,
-                            0,
-                            dst_coord.GetOffset());
+                            dst_coord.GetOffset(),
+                            0);
 #else
                         *reinterpret_cast<dst_vector_t*>(&p_dst[dst_coord.GetOffset()]) =
                             *reinterpret_cast<dst_vector_t*>(&p_dst_long_vector[buffer_offset]);
@@ -287,10 +287,15 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const auto src_coord =
                         src_nonlinear_coord + (linear_dim_data_steps + scalar_id);
 
-                    // this is src compile-time offset
+// this is src compile-time offset
+#if 0
                     // TODO: is this good implementation?
                     const index_t src_linear_offset =
                         src_coord.GetOffset() - src_nonlinear_coord.GetOffset();
+#else
+                    const index_t src_linear_offset =
+                        SrcDesc::CalculateOffset(linear_dim_data_steps + scalar_id);
+#endif
 
                     // Check src vector's padding situation, only check the first data in
                     //   this src vector. It's user's responsiblity to make sure all data in
@@ -471,10 +476,15 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const auto dst_coord =
                         dst_nonlinear_coord + (linear_dim_data_steps + scalar_id);
 
-                    // this is dst compile-time offset
+// this is dst compile-time offset
+#if 1
                     // TODO: is this good implementation?
                     const index_t dst_linear_offset =
                         dst_coord.GetOffset() - dst_nonlinear_coord.GetOffset();
+#else
+                    const index_t dst_linear_offset =
+                        DstDesc::CalculateOffset(linear_dim_data_steps + scalar_id);
+#endif
 
                     // Check dst vector's padding situation, only check the first data in
                     //   this dst vector. It's user's responsiblity to make sure all data in

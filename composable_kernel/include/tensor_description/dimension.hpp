@@ -11,13 +11,6 @@ struct NativeDimension
     __host__ __device__ static constexpr auto GetLength() { return Number<Length>{}; }
 
     __host__ __device__ static constexpr auto GetStride() { return Number<Stride>{}; }
-
-    __host__ __device__ static constexpr index_t CalculateOffset(index_t i) { return i * Stride; }
-
-    __host__ __device__ static constexpr index_t CalculateOffsetDiff(index_t i_diff)
-    {
-        return i_diff * Stride;
-    }
 };
 
 } // namespace ck

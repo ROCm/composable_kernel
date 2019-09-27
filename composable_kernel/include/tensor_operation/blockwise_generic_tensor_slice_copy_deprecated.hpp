@@ -483,8 +483,8 @@ struct BlockwiseGenericTensorSliceCopy_v2
               address_space_t ThreadBufferAddressSpace = address_space_t::generic>
     __device__ void RunLoadThreadBuffer(const TData* p_block_src, TData* p_thread_buffer) const
     {
-        mThreadwiseLoad.Run<TData, BlockSrcAddressSpace, ThreadBufferAddressSpace>(p_block_src,
-                                                                                   p_thread_buffer);
+        mThreadwiseLoad.template Run<TData, BlockSrcAddressSpace, ThreadBufferAddressSpace>(
+            p_block_src, p_thread_buffer);
     }
 
     template <typename TData,
@@ -492,8 +492,8 @@ struct BlockwiseGenericTensorSliceCopy_v2
               address_space_t BlockDstAddressSpace     = address_space_t::generic>
     __device__ void RunStoreThreadBuffer(const TData* p_thread_buffer, TData* p_block_dst) const
     {
-        mThreadwiseStore.Run<TData, ThreadBufferAddressSpace, BlockDstAddressSpace>(p_thread_buffer,
-                                                                                    p_block_dst);
+        mThreadwiseStore.template Run<TData, ThreadBufferAddressSpace, BlockDstAddressSpace>(
+            p_thread_buffer, p_block_dst);
     }
 
     template <typename TData,
