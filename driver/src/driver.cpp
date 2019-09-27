@@ -74,20 +74,20 @@ int main(int argc, char* argv[])
 {
     using namespace ck;
 
-#if 0
-    constexpr index_t N  = 64;
-    constexpr index_t C  = 256;
-    constexpr index_t HI = 56;
-    constexpr index_t WI = 56;
-    constexpr index_t K  = 256;
+#if 1
+    constexpr index_t N  = 128;
+    constexpr index_t C  = 128;
+    constexpr index_t HI = 17;
+    constexpr index_t WI = 17;
+    constexpr index_t K  = 128;
     constexpr index_t Y  = 1;
-    constexpr index_t X  = 1;
+    constexpr index_t X  = 7;
 
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
 
-    using LeftPads  = Sequence<0, 0>;
-    using RightPads = Sequence<0, 0>;
+    using LeftPads  = Sequence<0, 3>;
+    using RightPads = Sequence<0, 3>;
 #elif 0
     // 3x3, 34x34
     constexpr index_t N  = 64;
