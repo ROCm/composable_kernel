@@ -19,8 +19,6 @@ namespace ck {
 enum address_space_t
 {
     generic = 0,
-    vgpr    = 1,
-    lds     = 2,
     global  = 3
 };
 

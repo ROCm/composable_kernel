@@ -21,8 +21,6 @@ namespace ck {
 enum address_space_t
 {
     generic = 0,
-    vgpr    = generic,
-    lds     = generic,
     global  = generic
 };
 
@@ -38,6 +36,17 @@ using index_t = int32_t;
 //   instruction,
 using float2_t = float2;
 using float4_t = float4;
+
+// data type conversion
+template <typename T>
+struct type_convert
+{
+    template <typename X>
+    __device__ T operator()(const X& x) const
+    {
+        return static_cast<T>(x);
+    }
+};
 
 template <class T>
 __device__ void fused_multiply_accumulate(T& d, const T& s0, const T& s1)
