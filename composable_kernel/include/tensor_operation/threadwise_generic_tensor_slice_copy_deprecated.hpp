@@ -537,19 +537,20 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
         }
     };
 
-    template <typename TData,
+    template <typename SrcData,
+              typename DstData,
               address_space_t SrcAddressSpace = address_space_t::generic,
               address_space_t DstAddressSpace = address_space_t::generic>
-    __device__ void Run(const TData* p_src, TData* p_dst) const
+    __device__ void Run(const SrcData* p_src, DstData* p_dst) const
     {
         constexpr auto buffer_desc = make_ConstantTensorDescriptor_packed(SliceLengths{});
 
-        TData p_buffer_[buffer_desc.GetElementSpace()];
-        TData* p_buffer = p_buffer_;
+        SrcData p_src_buffer_[buffer_desc.GetElementSpace()];
+        SrcData* p_src_buffer = p_src_buffer_;
 
         // copy data from src into buffer
         {
-            using src_vector_t = typename vector_type<TData, SrcDataPerAccess>::MemoryType;
+            using src_vector_t = typename vector_type<SrcData, SrcDataPerAccess>::MemoryType;
 
             constexpr auto src_vector_access_dim = Number<SrcVectorAccessDim>{};
             constexpr auto src_data_per_access   = Number<SrcDataPerAccess>{};
@@ -573,77 +574,88 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
             constexpr auto src_normal_dim_access_lengths =
                 src_access_lengths + Number<1>{} - src_merged_dim_access_lengths;
 
-            ford<decltype(src_merged_dim_access_lengths), SrcDimAccessOrder>{}([&](
-                auto src_merged_dim_access_id) {
+            ford<decltype(src_merged_dim_access_lengths), SrcDimAccessOrder>{}(
+                [&](auto src_merged_dim_access_id) {
 
-                auto src_merged_dim_data_id = src_merged_dim_access_id;
-                src_merged_dim_data_id(src_vector_access_dim) =
-                    src_merged_dim_access_id[src_vector_access_dim] * src_data_per_access;
+                    auto src_merged_dim_data_id = src_merged_dim_access_id;
+                    src_merged_dim_data_id(src_vector_access_dim) =
+                        src_merged_dim_access_id[src_vector_access_dim] * src_data_per_access;
 
-                // offset w.r.t. merged dimension need be computed at run-time,
-                const index_t src_merged_offset =
-                    (mSrcSliceOrigin + src_merged_dim_data_id).GetOffset();
+                    // offset w.r.t. merged dimension need be computed at run-time,
+                    const index_t src_merged_offset =
+                        (mSrcSliceOrigin + src_merged_dim_data_id).GetOffset();
 
-                ford<decltype(src_normal_dim_access_lengths), SrcDimAccessOrder>{}([&](
-                    auto src_normal_dim_access_id) {
+                    ford<decltype(src_normal_dim_access_lengths), SrcDimAccessOrder>{}([&](
+                        auto src_normal_dim_access_id) {
 
-                    auto src_normal_dim_data_id = src_normal_dim_access_id;
-                    src_normal_dim_data_id(src_vector_access_dim) =
-                        src_normal_dim_access_id[src_vector_access_dim] * src_data_per_access;
+                        auto src_normal_dim_data_id = src_normal_dim_access_id;
+                        src_normal_dim_data_id(src_vector_access_dim) =
+                            src_normal_dim_access_id[src_vector_access_dim] * src_data_per_access;
 
-                    // offset w.r.t. normal dimension is known at compile-time
-                    const index_t src_normal_offset =
-                        SrcDesc::GetOffsetFromMultiIndex(src_normal_dim_data_id);
+                        // offset w.r.t. normal dimension is known at compile-time
+                        const index_t src_normal_offset =
+                            SrcDesc::GetOffsetFromMultiIndex(src_normal_dim_data_id);
 
-                    src_vector_t vector_data;
+                        src_vector_t vector_data;
 
-                    // Read vector from src.
-                    //   1. Source code version can take src of all kinds of memory-space
-                    //   2. Intrinsic version using buffer_load can only take
-                    //      src from global-memory
-                    //
-                    // Commemt for loading from global-memory:
-                    //   When:
-                    //     1) using source code, in order for compiler to emit optimal
-                    //        load instruction, or
-                    //     2) using buffer_load intrinsic, in order for ISA to be valid,
-                    //   following assumptions need to be satisfied:
-                    //     1. p_src need to be block-invariant (assumption)
-                    //     2. src_normal_offset must be calculatd at compile time (guaranteed by
-                    //        algorithm)
-                    //     3. src_merged_offset can be runtime value (no assumption imposed)
-                    static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
+                        // Read vector from src.
+                        //   1. Source code version can take src of all kinds of memory-space
+                        //   2. Intrinsic version using buffer_load can only take
+                        //      src from global-memory
+                        //
+                        // Commemt for loading from global-memory:
+                        //   When:
+                        //     1) using source code, in order for compiler to emit optimal
+                        //        load instruction, or
+                        //     2) using buffer_load intrinsic, in order for ISA to be valid,
+                        //   following assumptions need to be satisfied:
+                        //     1. p_src need to be block-invariant (assumption)
+                        //     2. src_normal_offset must be calculatd at compile time (guaranteed by
+                        //        algorithm)
+                        //     3. src_merged_offset can be runtime value (no assumption imposed)
+                        static_if<SrcAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
-                        vector_data = __buffer_load<TData, SrcDataPerAccess>(
-                            p_src, src_merged_offset, src_normal_offset);
+                            vector_data = __buffer_load<SrcData, SrcDataPerAccess>(
+                                p_src, src_merged_offset, src_normal_offset);
 #else
-                        vector_data = *reinterpret_cast<const src_vector_t*>(
-                            &p_src[src_normal_offset + src_merged_offset]);
+                            vector_data = *reinterpret_cast<const src_vector_t*>(
+                                &p_src[src_normal_offset + src_merged_offset]);
 #endif
-                    }).Else([&](auto) {
-                        // src can be all kinds of memory-space.
-                        vector_data = *reinterpret_cast<const src_vector_t*>(
-                            &p_src[src_normal_offset + src_merged_offset]);
+                        }).Else([&](auto) {
+                            // src can be all kinds of memory-space.
+                            vector_data = *reinterpret_cast<const src_vector_t*>(
+                                &p_src[src_normal_offset + src_merged_offset]);
+                        });
+
+                        // unpack vector into buffer
+                        for(index_t i = 0; i < SrcDataPerAccess; ++i)
+                        {
+                            auto scalar_id                   = make_zero_array<index_t, nDim>();
+                            scalar_id(src_vector_access_dim) = i;
+
+                            const index_t buffer_offset = buffer_desc.GetOffsetFromMultiIndex(
+                                src_merged_dim_data_id + src_normal_dim_data_id + scalar_id);
+
+                            p_src_buffer[buffer_offset] =
+                                reinterpret_cast<const SrcData*>(&vector_data)[i];
+                        }
                     });
-
-                    // unpack vector into buffer
-                    for(index_t i = 0; i < SrcDataPerAccess; ++i)
-                    {
-                        auto scalar_id                   = make_zero_array<index_t, nDim>();
-                        scalar_id(src_vector_access_dim) = i;
-
-                        const index_t buffer_offset = buffer_desc.GetOffsetFromMultiIndex(
-                            src_merged_dim_data_id + src_normal_dim_data_id + scalar_id);
-
-                        p_buffer[buffer_offset] = reinterpret_cast<const TData*>(&vector_data)[i];
-                    }
                 });
-            });
         }
+
+        // type conversion
+        // TODO: would compiler do a good job reusing register for buffer?
+        DstData p_dst_buffer_[buffer_desc.GetElementSpace()];
+        DstData* p_dst_buffer = p_dst_buffer_;
+
+        ford<SliceLengths>{}([&](auto idx) {
+            p_dst_buffer[buffer_desc.GetOffsetFromMultiIndex(idx)] =
+                type_convert<DstData>{}(p_src_buffer[buffer_desc.GetOffsetFromMultiIndex(idx)]);
+        });
 
         // copy data from buffer into dst
         {
-            using dst_vector_t = typename vector_type<TData, DstDataPerAccess>::MemoryType;
+            using dst_vector_t = typename vector_type<SrcData, DstDataPerAccess>::MemoryType;
 
             constexpr auto dst_vector_access_dim = Number<DstVectorAccessDim>{};
             constexpr auto dst_data_per_access   = Number<DstDataPerAccess>{};
@@ -659,72 +671,72 @@ struct ThreadwiseGenericTensorSliceCopy_v2r1
             constexpr auto dst_normal_dim_access_lengths =
                 dst_access_lengths + Number<1>{} - dst_merged_dim_access_lengths;
 
-            ford<decltype(dst_merged_dim_access_lengths), DstDimAccessOrder>{}(
-                [&](auto dst_merged_dim_access_id) {
+            ford<decltype(dst_merged_dim_access_lengths), DstDimAccessOrder>{}([&](
+                auto dst_merged_dim_access_id) {
 
-                    auto dst_merged_dim_data_id = dst_merged_dim_access_id;
-                    dst_merged_dim_data_id(dst_vector_access_dim) =
-                        dst_merged_dim_access_id[dst_vector_access_dim] * dst_data_per_access;
+                auto dst_merged_dim_data_id = dst_merged_dim_access_id;
+                dst_merged_dim_data_id(dst_vector_access_dim) =
+                    dst_merged_dim_access_id[dst_vector_access_dim] * dst_data_per_access;
 
-                    // offset w.r.t. merged dimension need be computed at run-time,
-                    const index_t dst_merged_offset =
-                        (mDstSliceOrigin + dst_merged_dim_data_id).GetOffset();
+                // offset w.r.t. merged dimension need be computed at run-time,
+                const index_t dst_merged_offset =
+                    (mDstSliceOrigin + dst_merged_dim_data_id).GetOffset();
 
-                    ford<decltype(dst_normal_dim_access_lengths), DstDimAccessOrder>{}([&](
-                        auto dst_normal_dim_access_id) {
+                ford<decltype(dst_normal_dim_access_lengths), DstDimAccessOrder>{}([&](
+                    auto dst_normal_dim_access_id) {
 
-                        auto dst_normal_dim_data_id = dst_normal_dim_access_id;
-                        dst_normal_dim_data_id(dst_vector_access_dim) =
-                            dst_normal_dim_access_id[dst_vector_access_dim] * dst_data_per_access;
+                    auto dst_normal_dim_data_id = dst_normal_dim_access_id;
+                    dst_normal_dim_data_id(dst_vector_access_dim) =
+                        dst_normal_dim_access_id[dst_vector_access_dim] * dst_data_per_access;
 
-                        dst_vector_t vector_data;
+                    dst_vector_t vector_data;
 
-                        // pack vector from buffer
-                        for(index_t i = 0; i < DstDataPerAccess; ++i)
-                        {
-                            auto scalar_id                   = make_zero_array<index_t, nDim>();
-                            scalar_id(dst_vector_access_dim) = i;
+                    // pack vector from buffer
+                    for(index_t i = 0; i < DstDataPerAccess; ++i)
+                    {
+                        auto scalar_id                   = make_zero_array<index_t, nDim>();
+                        scalar_id(dst_vector_access_dim) = i;
 
-                            const index_t buffer_offset = buffer_desc.GetOffsetFromMultiIndex(
-                                dst_merged_dim_data_id + dst_normal_dim_data_id + scalar_id);
+                        const index_t buffer_offset = buffer_desc.GetOffsetFromMultiIndex(
+                            dst_merged_dim_data_id + dst_normal_dim_data_id + scalar_id);
 
-                            reinterpret_cast<TData*>(&vector_data)[i] = p_buffer[buffer_offset];
-                        }
+                        reinterpret_cast<SrcData*>(&vector_data)[i] = p_dst_buffer[buffer_offset];
+                    }
 
-                        // offset w.r.t. normal dimension is known at compile-time
-                        const index_t dst_normal_offset =
-                            DstDesc::GetOffsetFromMultiIndex(dst_normal_dim_data_id);
+                    // offset w.r.t. normal dimension is known at compile-time
+                    const index_t dst_normal_offset =
+                        DstDesc::GetOffsetFromMultiIndex(dst_normal_dim_data_id);
 
-                        // Write vector into dst.
-                        //   1. Source code version can take dst of all kinds of memory-space
-                        //   2. Intrinsic version using buffer_store can only take
-                        //      dst from global-memory
-                        //
-                        // Commemt for storing into global-memory:
-                        //   When:
-                        //     1) using source code, in order for compiler to emit optimal
-                        //        store instruction, or
-                        //     2) using buffer_store, intrinsic in order ISA to be valid
-                        //   following assumptions need to be satisfied:
-                        //     1. p_dst need to be block-invariant (assumption)
-                        //     2. dst_normal_offset must be calculatd at compile time (guaranteed by
-                        //        algorithm)
-                        //     3. dst_merged_offset can be runtime value (no assumption imposed)
-                        static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
+                    // Write vector into dst.
+                    //   1. Source code version can take dst of all kinds of memory-space
+                    //   2. Intrinsic version using buffer_store can only take
+                    //      dst from global-memory
+                    //
+                    // Commemt for storing into global-memory:
+                    //   When:
+                    //     1) using source code, in order for compiler to emit optimal
+                    //        store instruction, or
+                    //     2) using buffer_store, intrinsic in order ISA to be valid
+                    //   following assumptions need to be satisfied:
+                    //     1. p_dst need to be block-invariant (assumption)
+                    //     2. dst_normal_offset must be calculatd at compile time (guaranteed by
+                    //        algorithm)
+                    //     3. dst_merged_offset can be runtime value (no assumption imposed)
+                    static_if<DstAddressSpace == address_space_t::global>{}([&](auto) {
 #if CK_USE_AMD_INTRINSIC && CK_USE_AMD_INTRINSIC_BUFFER_LOAD_STORE
-                            __buffer_store<TData, DstDataPerAccess>(
-                                vector_data, p_dst, dst_merged_offset, dst_normal_offset);
+                        __buffer_store<SrcData, DstDataPerAccess>(
+                            vector_data, p_dst, dst_merged_offset, dst_normal_offset);
 #else
-                            *reinterpret_cast<dst_vector_t*>(
-                                &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
+                        *reinterpret_cast<dst_vector_t*>(
+                            &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
 #endif
-                        }).Else([&](auto) {
-                            // dst can be all kinds of memory-space
-                            *reinterpret_cast<dst_vector_t*>(
-                                &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
-                        });
+                    }).Else([&](auto) {
+                        // dst can be all kinds of memory-space
+                        *reinterpret_cast<dst_vector_t*>(
+                            &p_dst[dst_normal_offset + dst_merged_offset]) = vector_data;
                     });
                 });
+            });
         }
     }
 

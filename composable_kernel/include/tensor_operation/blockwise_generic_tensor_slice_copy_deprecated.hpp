@@ -478,35 +478,42 @@ struct BlockwiseGenericTensorSliceCopy_v2
         return ThreadBufferDesc::GetElementSpace();
     }
 
-    template <typename TData,
+    template <typename SrcData,
+              typename DstData,
               address_space_t BlockSrcAddressSpace     = address_space_t::generic,
               address_space_t ThreadBufferAddressSpace = address_space_t::generic>
-    __device__ void RunLoadThreadBuffer(const TData* p_block_src, TData* p_thread_buffer) const
+    __device__ void RunLoadThreadBuffer(const SrcData* p_block_src, DstData* p_thread_buffer) const
     {
-        mThreadwiseLoad.template Run<TData, BlockSrcAddressSpace, ThreadBufferAddressSpace>(
-            p_block_src, p_thread_buffer);
+        mThreadwiseLoad
+            .template Run<SrcData, DstData, BlockSrcAddressSpace, ThreadBufferAddressSpace>(
+                p_block_src, p_thread_buffer);
     }
 
-    template <typename TData,
+    template <typename SrcData,
+              typename DstData,
               address_space_t ThreadBufferAddressSpace = address_space_t::generic,
               address_space_t BlockDstAddressSpace     = address_space_t::generic>
-    __device__ void RunStoreThreadBuffer(const TData* p_thread_buffer, TData* p_block_dst) const
+    __device__ void RunStoreThreadBuffer(const SrcData* p_thread_buffer, DstData* p_block_dst) const
     {
-        mThreadwiseStore.template Run<TData, ThreadBufferAddressSpace, BlockDstAddressSpace>(
-            p_thread_buffer, p_block_dst);
+        mThreadwiseStore
+            .template Run<SrcData, DstData, ThreadBufferAddressSpace, BlockDstAddressSpace>(
+                p_thread_buffer, p_block_dst);
     }
 
-    template <typename TData,
+    template <typename SrcData,
+              typename DstData,
               address_space_t BlockSrcAddressSpace = address_space_t::generic,
               address_space_t BlockDstAddressSpace = address_space_t::generic>
-    __device__ void Run(const TData* p_block_src, TData* p_block_dst) const
+    __device__ void Run(const SrcData* p_block_src, DstData* p_block_dst) const
     {
-        TData p_thread_buffer[GetThreadBufferSize()];
+        SrcData p_thread_buffer[GetThreadBufferSize()];
 
-        RunLoadThreadBuffer<TData, BlockSrcAddressSpace, address_space_t::generic>(p_block_src,
-                                                                                   p_thread_buffer);
-        RunStoreThreadBuffer<TData, address_space_t::generic, BlockDstAddressSpace>(p_thread_buffer,
-                                                                                    p_block_dst);
+        RunLoadThreadBuffer<SrcData, SrcData, BlockSrcAddressSpace, address_space_t::generic>(
+            p_block_src, p_thread_buffer);
+
+        // if there is type conversion, it's done during store
+        RunStoreThreadBuffer<SrcData, DstData, address_space_t::generic, BlockDstAddressSpace>(
+            p_thread_buffer, p_block_dst);
     }
 
     template <typename T, bool PositiveDirection>
