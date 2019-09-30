@@ -120,6 +120,8 @@ struct BlockwiseGenericTensorSliceCopy_v4
                             BlockSrcData,
                             BlockSrcAddressSpace,
                             address_space_t::generic>(p_block_src, p_thread_buffer);
+
+        // if there is type conversion, it's done during store
         RunStoreThreadBuffer<BlockSrcData,
                              BlockDstData,
                              address_space_t::generic,
