@@ -2,7 +2,7 @@
 #define CK_CONSTANT_MATRIX_DESCRIPTOR_HPP
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
 #include "tensor_descriptor.hpp"
 
 namespace ck {
@@ -32,6 +32,11 @@ struct ConstantMatrixDescriptor
         return irow * RowStride_ + icol;
     }
 
+    __host__ __device__ static index_t CalculateOffset(index_t irow, index_t icol)
+    {
+        return GetOffsetFromMultiIndex(irow, icol);
+    }
+
     template <index_t SubNRow, index_t SubNCol>
     __host__ __device__ static constexpr auto MakeSubMatrixDescriptor(Number<SubNRow>,
                                                                       Number<SubNCol>)
@@ -54,9 +59,10 @@ __host__ __device__ constexpr auto
 }
 
 template <typename... Ts>
-__host__ __device__ constexpr auto make_ConstantMatrixDescriptor(ConstantTensorDescriptor<Ts...>)
+__host__ __device__ constexpr auto
+    make_ConstantMatrixDescriptor(ConstantTensorDescriptor_deprecated<Ts...>)
 {
-    using TDesc = ConstantTensorDescriptor<Ts...>;
+    using TDesc = ConstantTensorDescriptor_deprecated<Ts...>;
     static_assert(TDesc::GetNumOfDimension() == 2, "wrong");
     static_assert(TDesc::GetStrides()[1] == 1, "wrong");
     return ConstantMatrixDescriptor<TDesc::GetLengths()[0],

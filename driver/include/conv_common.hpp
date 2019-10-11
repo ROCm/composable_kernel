@@ -1,7 +1,7 @@
 #ifndef CONV_COMMON_HPP
 #define CONV_COMMON_HPP
 
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
 
 // this is ugly, only for 4d
 template <class InDesc, class WeiDesc>

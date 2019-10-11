@@ -2,8 +2,8 @@
 #define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V3_NCHW_CYXK_NKHW
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
-#include "ConstantMergedTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
+#include "ConstantMergedTensorDescriptor_deprecated.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_generic_tensor_slice_copy.hpp"
 #include "blockwise_gemm.hpp"
@@ -128,7 +128,7 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         // input blockwise copy
         //     slice a merged tensor, reorder and copy to a normal tensor
         //     this copy operator already has blockwise offset built-in
-        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1<
+        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1_deprecated<
             BlockSize,
             Float,
             decltype(in_c_n1_b_n2_global_merged_desc),
@@ -155,20 +155,19 @@ struct GridwiseConvolutionImplicitGemm_v3_nchw_cyxk_nkhw
         // operator for blockwise copy of weight into LDS
         //     slice a tensor, and copy it into another tensor
         //     this copy operator already have blockwise offset built-in
-        auto blockwise_wei_copy =
-            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
-                                               Float,
-                                               decltype(wei_c_k_global_desc),
-                                               decltype(wei_c_k_block_desc),
-                                               decltype(wei_c_k_block_desc.GetLengths()),
-                                               WeiBlockCopySubLengths_C_K,
-                                               WeiBlockCopyClusterLengths_C_K,
-                                               Sequence<0, 1>, // thread_arrange_order [C, K]
-                                               Sequence<0, 1>, // src_access_order [C, K]
-                                               Sequence<0, 1>, // dst_access_order [C, K]
-                                               WeiBlockCopyDataPerAccess_K,
-                                               WeiBlockCopyDataPerAccess_K>(
-                {0, k_block_data_on_global}, {0, 0});
+        auto blockwise_wei_copy = BlockwiseGenericTensorSliceCopy_v1_deprecated<
+            BlockSize,
+            Float,
+            decltype(wei_c_k_global_desc),
+            decltype(wei_c_k_block_desc),
+            decltype(wei_c_k_block_desc.GetLengths()),
+            WeiBlockCopySubLengths_C_K,
+            WeiBlockCopyClusterLengths_C_K,
+            Sequence<0, 1>, // thread_arrange_order [C, K]
+            Sequence<0, 1>, // src_access_order [C, K]
+            Sequence<0, 1>, // dst_access_order [C, K]
+            WeiBlockCopyDataPerAccess_K,
+            WeiBlockCopyDataPerAccess_K>({0, k_block_data_on_global}, {0, 0});
 
         // GEMM definition
         // c_mtx += transpose(a_mtx) * b_mtx

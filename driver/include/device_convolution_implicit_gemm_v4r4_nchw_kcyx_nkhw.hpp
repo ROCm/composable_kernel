@@ -5,14 +5,14 @@
 #include "gridwise_convolution_kernel_wrapper.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
-using namespace ck;
-
 template <class T,
           class InDesc,
           class WeiDesc,
           class OutDesc,
           class ConvStrides,
-          class ConvDilations>
+          class ConvDilations,
+          class LeftPads,
+          class RightPads>
 void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
                                                           const Tensor<T>& in_nchw,
                                                           WeiDesc,
@@ -21,8 +21,12 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
                                                           Tensor<T>& out_nkhw,
                                                           ConvStrides,
                                                           ConvDilations,
+                                                          LeftPads,
+                                                          RightPads,
                                                           ck::index_t nrepeat)
 {
+    using namespace ck;
+
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
@@ -164,7 +168,7 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
 
     constexpr auto gridwise_conv =
 #if 0
-        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
+        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded
 #else
         GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer
 #endif
@@ -176,6 +180,8 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
          decltype(out_nkhw_desc),
          ConvStrides,
          ConvDilations,
+         LeftPads,
+         RightPads,
          BPerBlock,
          KPerBlock,
          EPerBlock,

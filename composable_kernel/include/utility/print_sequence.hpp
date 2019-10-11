@@ -1,5 +1,5 @@
-#ifndef CK_SEQUENCE_HELPER_HPP
-#define CK_SEQUENCE_HELPER_HPP
+#ifndef CK_PRINT_SEQUENCE_HPP
+#define CK_PRINT_SEQUENCE_HPP
 
 #include "sequence.hpp"
 

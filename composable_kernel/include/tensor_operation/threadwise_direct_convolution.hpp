@@ -2,7 +2,7 @@
 #define CK_THREADWISE_DIRECT_CONVOLUTION_HPP
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
 #include "threadwise_tensor_slice_copy.hpp"
 
 namespace ck {

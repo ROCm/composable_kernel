@@ -1,7 +1,7 @@
 #pragma once
 #include "tensor.hpp"
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
 
 // this is ugly, only for 4d
 template <class TConstTensorDesc>

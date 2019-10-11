@@ -68,64 +68,118 @@ struct BlockwiseGenericTensorSliceCopy_v4
 
     template <typename BlockSrcData,
               typename ThreadBufferData,
-              address_space_t BlockSrcAddressSpace     = address_space_t::generic,
-              address_space_t ThreadBufferAddressSpace = address_space_t::generic>
+              AddressSpace BlockSrcAddressSpace,
+              AddressSpace ThreadBufferAddressSpace>
+    __device__ void
+    RunLoadThreadBuffer(const BlockSrcData* p_block_src,
+                        ThreadBufferData* p_thread_buffer,
+                        integral_constant<AddressSpace, BlockSrcAddressSpace>,
+                        integral_constant<AddressSpace, ThreadBufferAddressSpace>) const
+    {
+        constexpr auto block_src_address_space =
+            integral_constant<AddressSpace, BlockSrcAddressSpace>{};
+        constexpr auto thread_buffer_address_space =
+            integral_constant<AddressSpace, ThreadBufferAddressSpace>{};
+
+        constexpr bool has_optimized_address_calculation =
+            decltype(mThreadwiseStore)::HasWorkingOptimizedAddressCalculation();
+
+        // TODO: threadwise copy is still being tweaked
+        if(has_optimized_address_calculation)
+        {
+            mThreadwiseLoad.Run_optimized_src_address_calculation(
+                p_block_src, p_thread_buffer, block_src_address_space, thread_buffer_address_space);
+        }
+        else
+        {
+            mThreadwiseLoad.Run(
+                p_block_src, p_thread_buffer, block_src_address_space, thread_buffer_address_space);
+        }
+    }
+
+    template <typename BlockSrcData, typename ThreadBufferData>
     __device__ void RunLoadThreadBuffer(const BlockSrcData* p_block_src,
                                         ThreadBufferData* p_thread_buffer) const
     {
-#if 1
-        mThreadwiseLoad.template Run<BlockSrcData,
-                                     ThreadBufferData,
-                                     BlockSrcAddressSpace,
-                                     ThreadBufferAddressSpace>(p_block_src, p_thread_buffer);
-#else // tweaking
-        mThreadwiseLoad.template Run_optimized_src_address_calculation<BlockSrcData,
-                                                                       ThreadBufferData,
-                                                                       BlockSrcAddressSpace,
-                                                                       ThreadBufferAddressSpace>(
-            p_block_src, p_thread_buffer);
-#endif
+        constexpr auto generic_address_space =
+            integral_constant<AddressSpace, AddressSpace::generic>{};
+
+        RunLoadThreadBuffer(
+            p_block_src, p_thread_buffer, generic_address_space, generic_address_space);
     }
 
     template <typename ThreadBufferData,
               typename BlockDstData,
-              address_space_t ThreadBufferAddressSpace = address_space_t::generic,
-              address_space_t BlockDstAddressSpace     = address_space_t::generic>
+              AddressSpace ThreadBufferAddressSpace,
+              AddressSpace BlockDstAddressSpace>
+    __device__ void
+    RunStoreThreadBuffer(const ThreadBufferData* p_thread_buffer,
+                         BlockDstData* p_block_dst,
+                         integral_constant<AddressSpace, ThreadBufferAddressSpace>,
+                         integral_constant<AddressSpace, BlockDstAddressSpace>) const
+    {
+        constexpr auto thread_buffer_address_space =
+            integral_constant<AddressSpace, ThreadBufferAddressSpace>{};
+        constexpr auto block_dst_address_space =
+            integral_constant<AddressSpace, BlockDstAddressSpace>{};
+
+        constexpr bool has_optimized_address_calculation =
+            decltype(mThreadwiseStore)::HasWorkingOptimizedAddressCalculation();
+
+        // TODO: threadwise copy is still being tweaked
+        if(has_optimized_address_calculation)
+        {
+            mThreadwiseStore.Run_optimized_dst_address_calculation(
+                p_thread_buffer, p_block_dst, thread_buffer_address_space, block_dst_address_space);
+        }
+        else
+        {
+            mThreadwiseStore.Run(
+                p_thread_buffer, p_block_dst, thread_buffer_address_space, block_dst_address_space);
+        }
+    }
+
+    template <typename ThreadBufferData, typename BlockDstData>
     __device__ void RunStoreThreadBuffer(const ThreadBufferData* p_thread_buffer,
                                          BlockDstData* p_block_dst) const
     {
-#if 1
-        mThreadwiseStore.template Run<ThreadBufferData,
-                                      BlockDstData,
-                                      ThreadBufferAddressSpace,
-                                      BlockDstAddressSpace>(p_thread_buffer, p_block_dst);
-#else // tweaking
-        mThreadwiseStore.template Run_optimized_dst_address_calculation<ThreadBufferData,
-                                                                        BlockDstData,
-                                                                        ThreadBufferAddressSpace,
-                                                                        BlockDstAddressSpace>(
-            p_thread_buffer, p_block_dst);
-#endif
+        constexpr auto generic_address_space =
+            integral_constant<AddressSpace, AddressSpace::generic>{};
+
+        RunStoreThreadBuffer(
+            p_thread_buffer, p_block_dst, generic_address_space, generic_address_space);
     }
 
     template <typename BlockSrcData,
               typename BlockDstData,
-              address_space_t BlockSrcAddressSpace = address_space_t::generic,
-              address_space_t BlockDstAddressSpace = address_space_t::generic>
-    __device__ void Run(const BlockSrcData* p_block_src, BlockDstData* p_block_dst) const
+              AddressSpace BlockSrcAddressSpace,
+              AddressSpace BlockDstAddressSpace>
+    __device__ void
+    Run(const BlockSrcData* p_block_src,
+        BlockDstData* p_block_dst,
+        integral_constant<AddressSpace, BlockSrcAddressSpace> block_src_address_space,
+        integral_constant<AddressSpace, BlockDstAddressSpace> block_dst_address_space) const
     {
         BlockSrcData p_thread_buffer[GetThreadBufferSize()];
 
-        RunLoadThreadBuffer<BlockSrcData,
-                            BlockSrcData,
-                            BlockSrcAddressSpace,
-                            address_space_t::generic>(p_block_src, p_thread_buffer);
+        constexpr auto generic_address_space =
+            integral_constant<AddressSpace, AddressSpace::generic>{};
+
+        RunLoadThreadBuffer(
+            p_block_src, p_thread_buffer, block_src_address_space, generic_address_space);
 
         // if there is type conversion, it's done during store
-        RunStoreThreadBuffer<BlockSrcData,
-                             BlockDstData,
-                             address_space_t::generic,
-                             BlockDstAddressSpace>(p_thread_buffer, p_block_dst);
+        RunStoreThreadBuffer(
+            p_thread_buffer, p_block_dst, generic_address_space, block_dst_address_space);
+    }
+
+    template <typename BlockSrcData, typename BlockDstData>
+    __device__ void Run(const BlockSrcData* p_block_src, BlockDstData* p_block_dst) const
+    {
+        constexpr auto generic_address_space =
+            integral_constant<AddressSpace, AddressSpace::generic>{};
+
+        Run(p_block_src, p_block_dst, generic_address_space, generic_address_space);
     }
 
     template <typename T, bool PositiveDirection>

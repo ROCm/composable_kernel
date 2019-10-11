@@ -2,7 +2,7 @@
 #define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_NCHW_CYXK_NKHW
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_2d_tensor_op.hpp"
 #include "blockwise_tensor_slice_copy.hpp"
