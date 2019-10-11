@@ -5,14 +5,12 @@
 #include "utility.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
+#include "float_type.hpp"
 #include "type.hpp"
 #include "tuple.hpp"
 #include "math.hpp"
-#include "vector_type.hpp"
 #include "sequence.hpp"
-#include "sequence_helper.hpp"
 #include "array.hpp"
-#include "array_helper.hpp"
 #include "functional.hpp"
 #include "functional2.hpp"
 #include "functional3.hpp"
@@ -22,8 +20,8 @@
 #include "amd_inline_asm.hpp"
 #endif
 
-#if CK_USE_AMD_INTRINSIC
-#include "amd_intrinsic.hpp"
+#if CK_USE_AMD_BUFFER_ADDRESSING
+#include "amd_buffer_addressing.hpp"
 #endif
 
 #endif

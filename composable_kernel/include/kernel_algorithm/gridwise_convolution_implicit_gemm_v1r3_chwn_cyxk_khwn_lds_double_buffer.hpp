@@ -2,7 +2,7 @@
 #define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V1R3_CHWN_CYXK_KHWN_LDS_DOUBLE_BUFFER_HPP
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_generic_tensor_slice_copy.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
@@ -127,9 +127,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         // input: format is [C, Hi, Wi, N]
         auto blockwise_in_copy =
 #if 0
-            BlockwiseGenericTensorSliceCopy_v1
+            BlockwiseGenericTensorSliceCopy_v1_deprecated
 #else
-            BlockwiseGenericTensorSliceCopy_v2
+            BlockwiseGenericTensorSliceCopy_v2_deprecated
 #endif
             <BlockSize,
              decltype(in_c_h_w_n_global_desc),
@@ -149,9 +149,9 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
         //   format is [CPerBlock, X * KPerBlock]
         const auto blockwise_wei_copy =
 #if 0
-            BlockwiseGenericTensorSliceCopy_v1
+            BlockwiseGenericTensorSliceCopy_v1_deprecated
 #else
-            BlockwiseGenericTensorSliceCopy_v2
+            BlockwiseGenericTensorSliceCopy_v2_deprecated
 #endif
             <BlockSize,
              decltype(wei_c_k_global_desc),
@@ -406,14 +406,15 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                                                 n_block_data_begin + n_thread_data_begin);
 
 #if 1
-            ThreadwiseGenericTensorSliceCopy_v1r2<decltype(out_10d_thread_desc),
-                                                  decltype(out_10d_global_desc),
-                                                  decltype(out_10d_thread_desc.GetLengths()),
-                                                  arithmetic_sequence_gen<0, 10, 1>::type,
-                                                  9,
-                                                  OutThreadCopyDataPerAccess_N,
-                                                  OutThreadCopyDataPerAccess_N>(
-                make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
+            ThreadwiseGenericTensorSliceCopy_v1r2_deprecated<
+                decltype(out_10d_thread_desc),
+                decltype(out_10d_global_desc),
+                decltype(out_10d_thread_desc.GetLengths()),
+                arithmetic_sequence_gen<0, 10, 1>::type,
+                9,
+                OutThreadCopyDataPerAccess_N,
+                OutThreadCopyDataPerAccess_N>(make_zero_array<index_t, 10>(),
+                                              make_zero_array<index_t, 10>())
                 .Run(p_out_thread, p_out_thread_on_global);
 #elif 0
             ThreadwiseGenericTensorSliceCopy_v1r1<decltype(out_10d_thread_desc),
@@ -476,14 +477,15 @@ struct GridwiseConvolutionImplicitGemm_v1r3_chwn_cyxk_khwn_lds_double_buffer
                                                 n_block_data_begin + n_thread_data_begin);
 
 #if 1
-            ThreadwiseGenericTensorSliceCopy_v1r2<decltype(out_10d_thread_desc),
-                                                  decltype(out_10d_global_desc),
-                                                  decltype(out_10d_thread_desc.GetLengths()),
-                                                  arithmetic_sequence_gen<0, 10, 1>::type,
-                                                  9,
-                                                  OutThreadCopyDataPerAccess_N,
-                                                  OutThreadCopyDataPerAccess_N>(
-                make_zero_array<index_t, 10>(), make_zero_array<index_t, 10>())
+            ThreadwiseGenericTensorSliceCopy_v1r2_deprecated<
+                decltype(out_10d_thread_desc),
+                decltype(out_10d_global_desc),
+                decltype(out_10d_thread_desc.GetLengths()),
+                arithmetic_sequence_gen<0, 10, 1>::type,
+                9,
+                OutThreadCopyDataPerAccess_N,
+                OutThreadCopyDataPerAccess_N>(make_zero_array<index_t, 10>(),
+                                              make_zero_array<index_t, 10>())
                 .Run(p_out_thread, p_out_thread_on_global);
 #elif 0
             ThreadwiseGenericTensorSliceCopy_v1r1<decltype(out_10d_thread_desc),

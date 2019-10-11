@@ -1,27 +1,25 @@
-#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R4_NCHW_KCYX_NKHW_PADDED_LDS_DOUBLE_BUFFER_HPP
-#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R4_NCHW_KCYX_NKHW_PADDED_LDS_DOUBLE_BUFFER_HPP
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R4_NCHW_KCYX_NKHW_HPP_LDS_DOUBLE_BUFFER_DEPRECATRD_HPP
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R4_NCHW_KCYX_NKHW_HPP_LDS_DOUBLE_BUFFER_DEPRECATRD_HPP
 
 #include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
+#include "ConstantMergedTensorDescriptor_deprecated.hpp"
 #include "ConstantMatrixDescriptor.hpp"
-#include "blockwise_generic_tensor_slice_copy.hpp"
-#include "threadwise_generic_tensor_slice_copy.hpp"
+#include "blockwise_generic_tensor_slice_copy_deprecated.hpp"
 #include "blockwise_gemm.hpp"
+#include "threadwise_generic_tensor_slice_copy_deprecated.hpp"
 
 namespace ck {
 
 // B = merge(N, Ho, Wo)
 template <index_t GridSize,
           index_t BlockSize,
-          typename Float,
-          typename InGlobalDesc,
-          typename WeiGlobalDesc,
-          typename OutGlobalDesc,
-          typename ConvStrides,
-          typename ConvDilations,
-          typename LeftPads,
-          typename RightPads,
+          class Float,
+          class InGlobalDesc,
+          class WeiGlobalDesc,
+          class OutGlobalDesc,
+          class ConvStrides,
+          class ConvDilations,
           index_t BPerBlock,
           index_t KPerBlock,
           index_t EPerBlock,
@@ -34,21 +32,21 @@ template <index_t GridSize,
           index_t GemmKPerThreadLoop,
           index_t GemmDataPerReadA,
           index_t GemmDataPerReadB,
-          typename InBlockCopySubLengths_E_B,
-          typename InBlockCopyClusterLengths_E_B,
-          typename InBlockCopyThreadClusterArrangeOrder,
-          typename InBlockCopySrcAccessOrder,
-          typename InBlockCopyDstAccessOrder,
+          class InBlockCopySubLengths_E_B,
+          class InBlockCopyClusterLengths_E_B,
+          class InBlockCopyThreadClusterArrangeOrder,
+          class InBlockCopySrcAccessOrder,
+          class InBlockCopyDstAccessOrder,
           index_t InBlockCopyDataPerAccess_B,
-          typename WeiBlockCopySubLengths_E_K,
-          typename WeiBlockCopyClusterLengths_E_K,
-          typename WeiBlockCopyThreadClusterArrangeOrder,
-          typename WeiBlockCopySrcAccessOrder,
-          typename WeiBlockCopyDstAccessOrder,
+          class WeiBlockCopySubLengths_E_K,
+          class WeiBlockCopyClusterLengths_E_K,
+          class WeiBlockCopyThreadClusterArrangeOrder,
+          class WeiBlockCopySrcAccessOrder,
+          class WeiBlockCopyDstAccessOrder,
           index_t WeiBlockCopySrcDataPerRead_E,
           index_t WeiBlockCopyDstDataPerWrite_K,
           index_t OutThreadCopyDataPerAccess_B>
-struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buffer
+struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer_deprecated
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -58,27 +56,23 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
+        constexpr auto I5 = Number<5>{};
 
         constexpr auto True = integral_constant<bool, true>{};
 
-        constexpr auto in_n_c_hi_wi_global_desc =
-            make_native_tensor_descriptor(InGlobalDesc::GetLengths(), InGlobalDesc::GetStrides());
-        constexpr auto wei_k_c_y_x_global_desc =
-            make_native_tensor_descriptor(WeiGlobalDesc::GetLengths(), WeiGlobalDesc::GetStrides());
-        constexpr auto out_n_k_ho_wo_global_desc =
-            make_native_tensor_descriptor(OutGlobalDesc::GetLengths(), OutGlobalDesc::GetStrides());
+        constexpr auto in_n_c_h_w_global_desc  = InGlobalDesc{};
+        constexpr auto wei_k_c_y_x_global_desc = WeiGlobalDesc{};
+        constexpr auto out_n_k_h_w_global_desc = OutGlobalDesc{};
 
-        constexpr index_t N  = in_n_c_hi_wi_global_desc.GetLength(I0);
-        constexpr index_t C  = in_n_c_hi_wi_global_desc.GetLength(I1);
-        constexpr index_t Hi = in_n_c_hi_wi_global_desc.GetLength(I2);
-        constexpr index_t Wi = in_n_c_hi_wi_global_desc.GetLength(I3);
+        constexpr index_t N = in_n_c_h_w_global_desc.GetLengths()[0];
+        constexpr index_t C = in_n_c_h_w_global_desc.GetLengths()[1];
 
-        constexpr index_t K  = out_n_k_ho_wo_global_desc.GetLength(I1);
-        constexpr index_t Ho = out_n_k_ho_wo_global_desc.GetLength(I2);
-        constexpr index_t Wo = out_n_k_ho_wo_global_desc.GetLength(I3);
+        constexpr index_t K  = out_n_k_h_w_global_desc.GetLengths()[1];
+        constexpr index_t Ho = out_n_k_h_w_global_desc.GetLengths()[2];
+        constexpr index_t Wo = out_n_k_h_w_global_desc.GetLengths()[3];
 
-        constexpr index_t Y = wei_k_c_y_x_global_desc.GetLength(I2);
-        constexpr index_t X = wei_k_c_y_x_global_desc.GetLength(I3);
+        constexpr index_t Y = wei_k_c_y_x_global_desc.GetLengths()[2];
+        constexpr index_t X = wei_k_c_y_x_global_desc.GetLengths()[3];
 
         constexpr index_t ConvStrideH = ConvStrides{}[0];
         constexpr index_t ConvStrideW = ConvStrides{}[1];
@@ -103,67 +97,65 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
         constexpr index_t BBlockWork = B / BPerBlock;
 
         constexpr auto block_work_desc =
-            make_cluster_descriptor(Sequence<KBlockWork, BBlockWork>{});
+            make_ConstantTensorDescriptor_packed(Sequence<KBlockWork, BBlockWork>{});
 
-        const auto block_work_id = block_work_desc.CalculateClusterIndex(get_block_1d_id());
+        const auto block_work_multi_id =
+            block_work_desc.GetMultiIndexFrom1dIndex(get_block_1d_id());
 
-        const index_t k_block_data_on_global = block_work_id[0] * KPerBlock;
-        const index_t b_block_data_on_global = block_work_id[1] * BPerBlock;
+        const index_t k_block_data_on_global = block_work_multi_id[0] * KPerBlock;
+        const index_t b_block_data_on_global = block_work_multi_id[1] * BPerBlock;
 
         // input tensor
-        //   global mem
-        constexpr auto in_n_c_hip_wip_global_desc = transform_tensor_descriptor(
-            in_n_c_hi_wi_global_desc,
-            make_tuple(
-                PassThrough<N>{}, PassThrough<C>{}, Pad<Sequence<Hi, Wi>, LeftPads, RightPads>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}));
+        //     tensor descriptor in device memory [N, Ho, Wo]
+        constexpr auto in_n_ho_wo_global_desc =
+            in_n_c_h_w_global_desc.Extract(I0, I2, I3)
+                .StridedSlice(I1, Number<Ho>{}, Number<ConvStrideH>{})
+                .StridedSlice(I2, Number<Wo>{}, Number<ConvStrideW>{});
 
-        constexpr auto in_n_c_y_ho_x_wo_global_desc = transform_tensor_descriptor(
-            in_n_c_hip_wip_global_desc,
-            make_tuple(PassThrough<N>{},
-                       PassThrough<C>{},
-                       Embed<Sequence<Y, Ho>, Sequence<ConvDilationH, ConvStrideH, 0>>{},
-                       Embed<Sequence<X, Wo>, Sequence<ConvDilationW, ConvStrideW, 0>>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
+        //     batch descritpor for device memory
+        constexpr auto in_c_y_x_global_desc =
+            in_n_c_h_w_global_desc.StridedSlice(I2, Number<Y>{}, Number<ConvDilationH>{})
+                .StridedSlice(I3, Number<X>{}, Number<ConvDilationW>{})
+                .Extract(Sequence<1, 2, 3>{});
 
-        constexpr auto in_e_b_global_desc = transform_tensor_descriptor(
-            in_n_c_y_ho_x_wo_global_desc,
-            make_tuple(Merge<Sequence<C, Y, X>>{}, Merge<Sequence<N, Ho, Wo>>{}),
-            make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+        //     merged tensor descriptor in device memory [E, B], src of blockwise copy
+        constexpr auto in_e_b_global_desc =
+            make_ConstantMergedTensorDescriptor(in_c_y_x_global_desc.Embed(in_n_ho_wo_global_desc),
+                                                Sequence<0, 1, 2>{},
+                                                Sequence<3, 4, 5>{});
 
-        //   LDS mem
+        //     memory layout descriptor in LDS [E, B], dst of blockwise copy
         //     be careful of LDS alignment
         constexpr auto in_e_b_block_desc =
-            make_native_tensor_descriptor_packed(Sequence<EPerBlock, BPerBlock>{});
+            make_ConstantTensorDescriptor_packed(Sequence<EPerBlock, BPerBlock>{});
 
         // input blockwise copy
+        //     slice a merged tensor, reorder and copy to a normal tensor
+        //     this copy operator already has blockwise offset built-in
         auto blockwise_in_copy =
-            BlockwiseGenericTensorSliceCopy_v4<BlockSize,
-                                               decltype(in_e_b_global_desc),
-                                               decltype(in_e_b_block_desc),
-                                               decltype(in_e_b_block_desc.GetLengths()),
-                                               InBlockCopySubLengths_E_B,
-                                               InBlockCopyClusterLengths_E_B,
-                                               InBlockCopyThreadClusterArrangeOrder,
-                                               InBlockCopySrcAccessOrder,
-                                               InBlockCopyDstAccessOrder,
-                                               1,
-                                               1,
-                                               InBlockCopyDataPerAccess_B,
-                                               InBlockCopyDataPerAccess_B>(
+            BlockwiseGenericTensorSliceCopy_v2_deprecated<BlockSize,
+                                                          decltype(in_e_b_global_desc),
+                                                          decltype(in_e_b_block_desc),
+                                                          decltype(in_e_b_block_desc.GetLengths()),
+                                                          InBlockCopySubLengths_E_B,
+                                                          InBlockCopyClusterLengths_E_B,
+                                                          InBlockCopyThreadClusterArrangeOrder,
+                                                          InBlockCopySrcAccessOrder,
+                                                          InBlockCopyDstAccessOrder,
+                                                          1,
+                                                          1,
+                                                          InBlockCopyDataPerAccess_B,
+                                                          InBlockCopyDataPerAccess_B>(
                 {0, b_block_data_on_global}, {0, 0});
 
         // weight tensor
-        //   global mem
-        constexpr auto wei_e_k_global_desc = reorder_tensor_descriptor_given_upper2lower(
-            unfold_tensor_descriptor(wei_k_c_y_x_global_desc, I1, I3), Sequence<1, 0>{});
+        //     tensor descriptor in device memory, src of blockwise copy
+        constexpr auto wei_e_k_global_desc =
+            wei_k_c_y_x_global_desc.Unfold(I1, I3).ReorderGivenNew2Old(Sequence<1, 0>{});
 
-        //   LDS
+        //     tensor descriptor in LDS, dst of blockwise copy
         //     be careful of LDS alignment
-        constexpr auto wei_e_k_block_desc = make_native_tensor_descriptor_aligned(
+        constexpr auto wei_e_k_block_desc = make_ConstantTensorDescriptor_aligned(
             Sequence<EPerBlock, KPerBlock>{},
             Number<math::lcm(WeiBlockCopyDstDataPerWrite_K, GemmDataPerReadA)>{});
 
@@ -173,21 +165,23 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
         static_assert(wei_e_k_block_desc.GetStride(I0) % GemmDataPerReadA == 0,
                       "GemmDataPerReadA alignment requirement is not satisfied");
 
-        // weight blockwise copy
+        // operator for blockwise copy of weight into LDS
+        //     slice a tensor, and copy it into another tensor
+        //     this copy operator already have blockwise offset built-in
         auto blockwise_wei_copy =
-            BlockwiseGenericTensorSliceCopy_v4<BlockSize,
-                                               decltype(wei_e_k_global_desc),
-                                               decltype(wei_e_k_block_desc),
-                                               decltype(wei_e_k_block_desc.GetLengths()),
-                                               WeiBlockCopySubLengths_E_K,
-                                               WeiBlockCopyClusterLengths_E_K,
-                                               WeiBlockCopyThreadClusterArrangeOrder,
-                                               WeiBlockCopySrcAccessOrder,
-                                               WeiBlockCopyDstAccessOrder,
-                                               0,
-                                               1,
-                                               WeiBlockCopySrcDataPerRead_E,
-                                               WeiBlockCopyDstDataPerWrite_K>(
+            BlockwiseGenericTensorSliceCopy_v2_deprecated<BlockSize,
+                                                          decltype(wei_e_k_global_desc),
+                                                          decltype(wei_e_k_block_desc),
+                                                          decltype(wei_e_k_block_desc.GetLengths()),
+                                                          WeiBlockCopySubLengths_E_K,
+                                                          WeiBlockCopyClusterLengths_E_K,
+                                                          WeiBlockCopyThreadClusterArrangeOrder,
+                                                          WeiBlockCopySrcAccessOrder,
+                                                          WeiBlockCopyDstAccessOrder,
+                                                          0,
+                                                          1,
+                                                          WeiBlockCopySrcDataPerRead_E,
+                                                          WeiBlockCopyDstDataPerWrite_K>(
                 {0, k_block_data_on_global}, {0, 0});
 
         // GEMM definition
@@ -253,12 +247,14 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
         // zero out threadwise output
         threadwise_matrix_set_zero(c_k0k1_b0b1_thread_mtx_desc, p_out_thread);
 
+        const Float* p_wei_block_on_global = p_wei_global;
+
         // LDS double buffer: preload data into LDS
         {
-            blockwise_in_copy.template Run<Float, Float, address_space_t::global>(
-                p_in_global, p_in_block_double);
-            blockwise_wei_copy.template Run<Float, Float, address_space_t::global>(
-                p_wei_global, p_wei_block_double);
+            blockwise_in_copy.template Run<Float, AddressSpace::global>(p_in_global,
+                                                                        p_in_block_double);
+            blockwise_wei_copy.template Run<Float, AddressSpace::global>(p_wei_global,
+                                                                         p_wei_block_double);
         }
 
         // LDS double buffer: main body
@@ -289,12 +285,10 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
-                blockwise_in_copy
-                    .template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
-                        p_in_global, p_in_thread_buffer);
-                blockwise_wei_copy
-                    .template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
-                        p_wei_global, p_wei_thread_buffer);
+                blockwise_in_copy.template RunLoadThreadBuffer<Float, AddressSpace::global>(
+                    p_in_global, p_in_thread_buffer);
+                blockwise_wei_copy.template RunLoadThreadBuffer<Float, AddressSpace::global>(
+                    p_wei_global, p_wei_thread_buffer);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(p_wei_block_now, p_in_block_now, p_out_thread);
@@ -317,9 +311,9 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
             __syncthreads();
 
             // LDS doubel buffer: load next data from device mem
-            blockwise_in_copy.template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+            blockwise_in_copy.template RunLoadThreadBuffer<Float, AddressSpace::global>(
                 p_in_global, p_in_thread_buffer);
-            blockwise_wei_copy.template RunLoadThreadBuffer<Float, Float, address_space_t::global>(
+            blockwise_wei_copy.template RunLoadThreadBuffer<Float, AddressSpace::global>(
                 p_wei_global, p_wei_thread_buffer);
 
             // LDS double buffer: GEMM on current data
@@ -342,6 +336,15 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
 
         // copy output: register to global memory
         {
+            constexpr index_t K1 = GemmMPerThreadSubC * GemmMLevel0Cluster * GemmMLevel1Cluster;
+            constexpr index_t B1 = GemmNPerThreadSubC * GemmNLevel0Cluster * GemmNLevel1Cluster;
+
+            // define tensor descriptor for threadwise copy
+            //     output global descriptor, for calculating origin of thread tensor
+            //     in global memory
+            constexpr auto out_k_b_global_desc = make_ConstantMergedTensorDescriptor(
+                out_n_k_h_w_global_desc, Sequence<1>{}, Sequence<0, 2, 3>{});
+
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
             const auto c_thread_mtx_on_block =
@@ -353,51 +356,46 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buf
             const index_t b_thread_data_on_global =
                 b_block_data_on_global + c_thread_mtx_on_block.col;
 
-            // src descriptor
-            constexpr auto out_k0_k1_b0_b1_thread_desc = make_native_tensor_descriptor_packed(
-                Sequence<GemmMRepeat, GemmMPerThreadSubC, GemmNRepeat, GemmNPerThreadSubC>{});
+            // This is a hack, because slicing a merged dimension is not supported yet.
+            // This should be replaced with logic above, once slicing a merged dimension support
+            // become available
+            //     dst descriptor
+            constexpr auto out_k0_k1_b_global_desc =
+                make_ConstantMergedTensorDescriptor(out_n_k_h_w_global_desc.Fold(I1, Number<K1>{}),
+                                                    Sequence<1>{},
+                                                    Sequence<2>{},
+                                                    Sequence<0, 3, 4>{});
 
-            // dst descriptor
-            constexpr index_t K1 = GemmMPerThreadSubC * GemmMLevel0Cluster * GemmMLevel1Cluster;
-            constexpr index_t B1 = GemmNPerThreadSubC * GemmNLevel0Cluster * GemmNLevel1Cluster;
+            //     src descriptor
+            constexpr auto out_k0_k1_b_thread_desc = make_ConstantTensorDescriptor_packed(
+                Sequence<GemmMRepeat, GemmMPerThreadSubC, GemmNRepeat * GemmNPerThreadSubC>{});
 
-            constexpr index_t K0 = K / K1;
-            constexpr index_t B0 = B / B1;
+            using OutThreadCopySliceLengths =
+                Sequence<GemmMRepeat, GemmMPerThreadSubC, GemmNPerThreadSubC>;
 
-            constexpr auto out_k_b_global_desc = transform_tensor_descriptor(
-                out_n_k_ho_wo_global_desc,
-                make_tuple(PassThrough<K>{}, Merge<Sequence<N, Ho, Wo>>{}),
-                make_tuple(Sequence<1>{}, Sequence<0, 2, 3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            constexpr auto out_k0_k1_b0_b1_global_desc = transform_tensor_descriptor(
-                out_k_b_global_desc,
-                make_tuple(UnMerge<Sequence<K0, K1>>{}, UnMerge<Sequence<B0, B1>>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
-
-            // output threadwise copy
-            ThreadwiseGenericTensorSliceCopy_v4r2<
-                decltype(out_k0_k1_b0_b1_thread_desc),
-                decltype(out_k0_k1_b0_b1_global_desc),
-                decltype(out_k0_k1_b0_b1_thread_desc.GetLengths()),
-                arithmetic_sequence_gen<0, 4, 1>::type,
-                3,
+            auto threadwise_out_copy = ThreadwiseGenericTensorSliceCopy_v2r1_deprecated<
+                decltype(out_k0_k1_b_thread_desc),
+                decltype(out_k0_k1_b_global_desc),
+                OutThreadCopySliceLengths,
+                arithmetic_sequence_gen<0, 3, 1>::type,
+                arithmetic_sequence_gen<0, 3, 1>::type,
+                2,
+                2,
                 OutThreadCopyDataPerAccess_B,
-                OutThreadCopyDataPerAccess_B>({0, 0, 0, 0},
+                OutThreadCopyDataPerAccess_B>({0, 0, 0},
                                               {k_thread_data_on_global / K1,
                                                k_thread_data_on_global % K1,
-                                               b_thread_data_on_global / B1,
-                                               b_thread_data_on_global % B1})
-#if 1
-                .template Run<Float, Float, address_space_t::generic, address_space_t::global>
-#else // tweaking
-                .template Run_optimized_dst_address_calculation<Float,
-                                                                Float,
-                                                                address_space_t::generic,
-                                                                address_space_t::global>
-#endif
-                (p_out_thread, p_out_global);
+                                               b_thread_data_on_global});
+
+            for(index_t nrepeat = 0; nrepeat < GemmNRepeat; ++nrepeat)
+            {
+                threadwise_out_copy
+                    .template Run<Float, AddressSpace::generic, AddressSpace::global>(p_out_thread,
+                                                                                      p_out_global);
+
+                threadwise_out_copy.MoveSrcSliceWindow(Sequence<0, 0, GemmNPerThreadSubC>{}, True);
+                threadwise_out_copy.MoveDstSliceWindow(Sequence<0, 0, B1>{}, True);
+            }
         }
     }
 };

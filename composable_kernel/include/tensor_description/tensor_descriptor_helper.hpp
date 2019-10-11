@@ -63,10 +63,11 @@ template <typename LowerTensorDescriptor,
           index_t... LowerLengths,
           index_t... LowerDimensionIds,
           index_t... UpperDimensionIds>
-__host__ __device__ constexpr auto reorder_tensor_descriptor_impl(LowerTensorDescriptor,
-                                                                  Sequence<LowerLengths...>,
-                                                                  Sequence<LowerDimensionIds...>,
-                                                                  Sequence<UpperDimensionIds...>)
+__host__ __device__ constexpr auto
+    reorder_transformed_tensor_descriptor_impl(LowerTensorDescriptor,
+                                               Sequence<LowerLengths...>,
+                                               Sequence<LowerDimensionIds...>,
+                                               Sequence<UpperDimensionIds...>)
 {
     return TransformedTensorDescriptor<LowerTensorDescriptor,
                                        Tuple<PassThrough<LowerLengths>...>,
@@ -74,17 +75,40 @@ __host__ __device__ constexpr auto reorder_tensor_descriptor_impl(LowerTensorDes
                                        Tuple<Sequence<UpperDimensionIds>...>>{};
 }
 
-template <typename LowerTensorDescriptor, typename MapLower2Upper>
+// reorder a NativeTensorDescriptor
+template <typename... Ts, typename MapLower2Upper>
 __host__ __device__ constexpr auto
-    reorder_tensor_descriptor_given_lower2upper(LowerTensorDescriptor, MapLower2Upper)
+    reorder_tensor_descriptor_given_lower2upper(NativeTensorDescriptor<Ts...>, MapLower2Upper)
 {
     static_assert(is_valid_sequence_map<MapLower2Upper>{},
                   "wrong! MapLower2Upper is not a valid map");
 
-    return reorder_tensor_descriptor_impl(
-        LowerTensorDescriptor{},
-        LowerTensorDescriptor::GetLengths(),
-        typename arithmetic_sequence_gen<0, LowerTensorDescriptor::GetNumOfDimension(), 1>::type{},
+    constexpr auto old_desc = NativeTensorDescriptor<Ts...>{};
+
+    static_assert(old_desc.GetNumOfDimension() == MapLower2Upper::Size(), "wrong!");
+
+    constexpr auto new_lengths = old_desc.GetLengths().ReorderGivenOld2New(MapLower2Upper{});
+    constexpr auto new_strides = old_desc.GetStrides().ReorderGivenOld2New(MapLower2Upper{});
+
+    return make_native_tensor_descriptor(new_lengths, new_strides);
+}
+
+// reorder a TransformedTensorDescriptor
+template <typename... Ts, typename MapLower2Upper>
+__host__ __device__ constexpr auto
+    reorder_tensor_descriptor_given_lower2upper(TransformedTensorDescriptor<Ts...>, MapLower2Upper)
+{
+    static_assert(is_valid_sequence_map<MapLower2Upper>{},
+                  "wrong! MapLower2Upper is not a valid map");
+
+    constexpr auto low_desc = TransformedTensorDescriptor<Ts...>{};
+
+    static_assert(low_desc.GetNumOfDimension() == MapLower2Upper::Size(), "wrong!");
+
+    return reorder_transformed_tensor_descriptor_impl(
+        low_desc,
+        low_desc.GetLengths(),
+        typename arithmetic_sequence_gen<0, low_desc.GetNumOfDimension(), 1>::type{},
         MapLower2Upper{});
 }
 
@@ -97,7 +121,7 @@ __host__ __device__ constexpr auto
 }
 
 template <typename Lengths, typename Strides>
-__host__ __device__ constexpr bool AreDimensionsUnfoldable(Lengths, Strides)
+__host__ __device__ constexpr bool are_dimensions_unfoldable(Lengths, Strides)
 {
     static_assert(Lengths::Size() == Strides::Size(), "wrong!");
 
@@ -129,7 +153,7 @@ __host__ __device__ constexpr auto unfold_tensor_descriptor(NativeTensorDescript
     constexpr auto right = typename arithmetic_sequence_gen<LastUnfoldDim + 1, nDim, 1>::type{};
 
     // sanity-checknfoldable
-    static_assert(AreDimensionsUnfoldable(desc.GetLengths(middle), desc.GetStrides(middle)),
+    static_assert(are_dimensions_unfoldable(desc.GetLengths(middle), desc.GetStrides(middle)),
                   "wrong! not unfoldable");
 
     // unfolded length, stride
@@ -147,30 +171,6 @@ __host__ __device__ constexpr auto unfold_tensor_descriptor(NativeTensorDescript
 
     return make_native_tensor_descriptor(new_lengths, new_strides);
 }
-
-#if 0
-// not implemented
-template <typename LowerTensorDescriptor,
-          typename PadDimensionIds,
-          typename LeftPads,
-          typename RightPads>
-__host__ __device__ constexpr auto
-    pad_tensor_descriptor(LowerTensorDescriptor, PadLowerDimensionIds, LeftPads, RightPads)
-{
-    constexpr index_t nDim = LowerTensorDescriptor::GetNumOfDimension();
-
-    constexpr auto non_pad_low_dim_ids = xxx;
-
-    return transform_tensor_descriptor(
-        LowerTensorDescriptor{},
-        make_tuple(Pad<decltype(LowerTensorDescriptor::GetLengths(PadLowerDimensionIds{})),
-                       LeftPads,
-                       RightPads>{})
-            .PushBack(PassThrough<xxxx>...),
-        make_tuple(PadLowerDimensionIds{}).PushBack(xxxx),
-        sequence_to_tuple(typename arithmetic_sequence_gen<0, nDim, 1> i::type{}));
-}
-#endif
 
 // a cluster map 1d index to N-d index
 template <typename Lengths, typename ArrangeOrder>
@@ -205,169 +205,7 @@ template <typename Lengths,
 __host__ __device__ constexpr auto make_cluster_descriptor(
     Lengths, ArrangeOrder order = typename arithmetic_sequence_gen<0, Lengths::Size(), 1>::type{})
 {
-    return ClusterDescriptor<Lengths, ArrangeOrder>{};
-}
-
-template <typename... NativeDimensions>
-__host__ __device__ void
-print_tensor_descriptor(const char* s, const NativeTensorDescriptor<NativeDimensions...>& desc)
-{
-    print_tensor_descriptor_impl(s, desc.GetLengths(), desc.GetStrides());
-}
-
-template <typename... Ts>
-__host__ __device__ void print_tensor_descriptor(const char* s,
-                                                 const TransformedTensorDescriptor<Ts...>& desc)
-{
-    print_tensor_descriptor_impl(s, desc.GetLengths());
-}
-
-template <index_t... Lengths, index_t... Strides>
-__host__ __device__ void
-print_tensor_descriptor_impl(const char* s, Sequence<Lengths...>, Sequence<Strides...>)
-{
-    constexpr index_t nDim = sizeof...(Lengths);
-
-    static_assert(nDim > 0 && nDim <= 12, "wrong!");
-
-    static_if<nDim == 1>{}([&](auto) {
-        printf("%s dim %u, lengths {%u}, strides {%u}\n", s, nDim, Lengths..., Strides...);
-    });
-
-    static_if<nDim == 2>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u}, strides {%u %u}\n", s, nDim, Lengths..., Strides...);
-    });
-
-    static_if<nDim == 3>{}([&](auto) {
-        printf(
-            "%s dim %u, lengths {%u %u %u}, strides {%u %u %u}\n", s, nDim, Lengths..., Strides...);
-    });
-
-    static_if<nDim == 4>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u}, strides {%u %u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 5>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u}, strides {%u %u %u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 6>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u}, strides {%u %u %u %u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 7>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 8>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 9>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u %u "
-               "%u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 10>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u %u "
-               "%u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 11>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u %u "
-               "%u %u "
-               "%u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-
-    static_if<nDim == 12>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u %u %u}, strides {%u %u %u %u %u "
-               "%u %u %u %u "
-               "%u %u %u}\n",
-               s,
-               nDim,
-               Lengths...,
-               Strides...);
-    });
-}
-
-template <index_t... Lengths>
-__host__ __device__ void print_tensor_descriptor_impl(const char* s, Sequence<Lengths...>)
-{
-    constexpr index_t nDim = sizeof...(Lengths);
-
-    static_assert(nDim > 0 && nDim <= 12, "wrong!");
-
-    static_if<nDim == 1>{}([&](auto) { printf("%s dim %u, lengths {%u}\n", s, nDim, Lengths...); });
-
-    static_if<nDim == 2>{}(
-        [&](auto) { printf("%s dim %u, lengths {%u %u}\n", s, nDim, Lengths...); });
-
-    static_if<nDim == 3>{}(
-        [&](auto) { printf("%s dim %u, lengths {%u %u %u}\n", s, nDim, Lengths...); });
-
-    static_if<nDim == 4>{}(
-        [&](auto) { printf("%s dim %u, lengths {%u %u %u %u}\n", s, nDim, Lengths...); });
-
-    static_if<nDim == 5>{}(
-        [&](auto) { printf("%s dim %u, lengths {%u %u %u %u %u}\n", s, nDim, Lengths...); });
-
-    static_if<nDim == 6>{}(
-        [&](auto) { printf("%s dim %u, lengths {%u %u %u %u %u %u}, \n", s, nDim, Lengths...); });
-
-    static_if<nDim == 7>{}(
-        [&](auto) { printf("%s dim %u, lengths {%u %u %u %u %u %u %u}\n", s, nDim, Lengths...); });
-
-    static_if<nDim == 8>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u}\n", s, nDim, Lengths...);
-    });
-
-    static_if<nDim == 9>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u}\n", s, nDim, Lengths...);
-    });
-
-    static_if<nDim == 10>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u}\n", s, nDim, Lengths...);
-    });
-
-    static_if<nDim == 11>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u %u}\n", s, nDim, Lengths...);
-    });
-
-    static_if<nDim == 12>{}([&](auto) {
-        printf("%s dim %u, lengths {%u %u %u %u %u %u %u %u %u %u %u %u}\n", s, nDim, Lengths...);
-    });
+    return ClusterDescriptor<Lengths, decltype(order)>{};
 }
 
 } // namespace ck

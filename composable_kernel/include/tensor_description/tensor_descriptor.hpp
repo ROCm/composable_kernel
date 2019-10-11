@@ -7,6 +7,8 @@
 
 namespace ck {
 
+// tensor descriptor for "native tensor"
+// A "native tensor" is a "true" tensor that can be represented by Lengths and Strides
 template <typename... NativeDimensions>
 struct NativeTensorDescriptor
 {
@@ -113,12 +115,10 @@ struct NativeTensorDescriptor
 
     __host__ __device__ static constexpr auto GetNonLinearDimensions() { return Sequence<>{}; }
 
-#if 0
     __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
     {
         return Tuple<>{};
     }
-#endif
 
     __host__ __device__ static constexpr bool
     IsUpperIndexMappedToValidOffset(const Index& /* idx */)
@@ -127,14 +127,11 @@ struct NativeTensorDescriptor
     }
 };
 
-// LowerTensorDescriptor
-// Transforms: Tuple<DimensionTransforms...>
-// LowerDimensionIds: Tuple<Sequence<...>>
-// UpperDimensionIds: Tuple<Sequence<...>>
-template <typename LowTensorDescriptor,
-          typename Transforms,
-          typename LowDimensionIds,
-          typename UpDimensionIds>
+// Tensor descriptor for "transformed tensor"
+template <typename LowTensorDescriptor, // NativeTensorDescriptor or TransformedTensorDescriptor
+          typename Transforms,          // Tuple<MultIndexTransforms...>
+          typename LowDimensionIds,     // Tuple<Sequence<...>>
+          typename UpDimensionIds>      // Tuple<Sequence<...>>
 struct TransformedTensorDescriptor
 {
     using type                          = TransformedTensorDescriptor;
@@ -412,6 +409,7 @@ struct TransformedTensorDescriptor
     {
 #if 0
         // create tuple of linear dimension masks, for all transformations
+        // TODO: this doesn't compile, because transform_tuples() complain about constexpr
         constexpr auto tuple_of_linear_dimension_mask =
             transform_tuples(lambda_get_linear_dimension_mask_of_single_tranform{},
                              Transforms{},
@@ -419,7 +417,7 @@ struct TransformedTensorDescriptor
                              UpDimensionIds{});
 #else
         // create tuple of linear dimension masks, for all transformations
-        // TODO: this is a hack, transform_tuples() doesn't compile, complain about constexpr
+        // TODO: this is a hack
         constexpr auto tuple_of_linear_dimension_mask = dummy_transform_tuples_impl(
             lambda_get_linear_dimension_mask_of_single_tranform{},
             Transforms{},
@@ -465,7 +463,7 @@ struct TransformedTensorDescriptor
 #if 0
     __host__ __device__ static constexpr auto GetNonLinearIndependentDimensionGroups()
     {
-        // not implemented
+        // TODO: not implemented
     }
 #endif
 

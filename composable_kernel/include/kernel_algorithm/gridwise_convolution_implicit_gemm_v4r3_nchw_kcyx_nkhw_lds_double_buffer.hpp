@@ -2,8 +2,8 @@
 #define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R3_NCHW_KCYX_NKHW_LDS_DOUBLE_BUFFER
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
-#include "ConstantMergedTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
+#include "ConstantMergedTensorDescriptor_deprecated.hpp"
 #include "ConstantMatrixDescriptor.hpp"
 #include "blockwise_generic_tensor_slice_copy.hpp"
 #include "blockwise_gemm.hpp"
@@ -165,7 +165,7 @@ struct GridwiseConvolutionImplicitGemm_v4r3_nchw_kcyx_nkhw_lds_double_buffer
         // input blockwise copy
         //     slice a merged tensor, reorder and copy to a normal tensor
         //     this copy operator already has blockwise offset built-in
-        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1<
+        auto blockwise_in_copy = BlockwiseGenericTensorSliceCopy_v1_deprecated<
             BlockSize,
             Float,
             decltype(in_e_n1_ho1_wo1_b_n2_ho2_wo2_global_merged_desc),
@@ -195,18 +195,18 @@ struct GridwiseConvolutionImplicitGemm_v4r3_nchw_kcyx_nkhw_lds_double_buffer
         //     slice a tensor, and copy it into another tensor
         //     this copy operator already have blockwise offset built-in
         auto blockwise_wei_copy =
-            BlockwiseGenericTensorSliceCopy_v1<BlockSize,
-                                               Float,
-                                               decltype(wei_e_k_global_desc),
-                                               decltype(wei_e_k_block_desc),
-                                               decltype(wei_e_k_block_desc.GetLengths()),
-                                               WeiBlockCopySubLengths_E_K,
-                                               WeiBlockCopyClusterLengths_E_K,
-                                               WeiBlockCopyThreadClusterArrangeOrder,
-                                               WeiBlockCopySrcAccessOrder,
-                                               WeiBlockCopyDstAccessOrder,
-                                               WeiBlockCopySrcDataPerRead_E,
-                                               WeiBlockCopyDstDataPerWrite_K>(
+            BlockwiseGenericTensorSliceCopy_v1_deprecated<BlockSize,
+                                                          Float,
+                                                          decltype(wei_e_k_global_desc),
+                                                          decltype(wei_e_k_block_desc),
+                                                          decltype(wei_e_k_block_desc.GetLengths()),
+                                                          WeiBlockCopySubLengths_E_K,
+                                                          WeiBlockCopyClusterLengths_E_K,
+                                                          WeiBlockCopyThreadClusterArrangeOrder,
+                                                          WeiBlockCopySrcAccessOrder,
+                                                          WeiBlockCopyDstAccessOrder,
+                                                          WeiBlockCopySrcDataPerRead_E,
+                                                          WeiBlockCopyDstDataPerWrite_K>(
                 {0, k_block_data_on_global}, {0, 0});
 
 #if 0

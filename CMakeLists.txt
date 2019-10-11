@@ -47,14 +47,17 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_description
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/kernel_algorithm
+    ${PROJECT_SOURCE_DIR}/external/include
     ${PROJECT_SOURCE_DIR}/driver/include
     ${PROJECT_BINARY_DIR}/composable_kernel/include/utility
 )
 
 if(DEVICE_BACKEND STREQUAL "AMD")
-    configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/utility/config_amd.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/utility/config.hpp")
+    configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/utility/config.amd.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/utility/config.hpp")
+    configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/utility/float_type.amd.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/utility/float_type.hpp")
 elseif(DEVICE_BACKEND STREQUAL "NVIDIA")
-    configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/utility/config_nvidia.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/utility/config.hpp")
+    configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/utility/config.nvidia.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/utility/config.hpp")
+    configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/utility/float_type.nvidia.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/utility/float_type.hpp")
 endif()
 
 add_subdirectory(driver)

@@ -3,30 +3,26 @@
 #include "device.hpp"
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
-#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buffer.hpp"
+#include "gridwise_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer_deprecated.hpp"
+
+using namespace ck;
 
 template <class T,
           class InDesc,
           class WeiDesc,
           class OutDesc,
           class ConvStrides,
-          class ConvDilations,
-          class LeftPads,
-          class RightPads>
-void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(InDesc,
-                                                                 const Tensor<T>& in_nchw,
-                                                                 WeiDesc,
-                                                                 const Tensor<T>& wei_kcyx,
-                                                                 OutDesc,
-                                                                 Tensor<T>& out_nkhw,
-                                                                 ConvStrides,
-                                                                 ConvDilations,
-                                                                 LeftPads,
-                                                                 RightPads,
-                                                                 ck::index_t nrepeat)
+          class ConvDilations>
+void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_deprecated(InDesc,
+                                                                     const Tensor<T>& in_nchw,
+                                                                     WeiDesc,
+                                                                     const Tensor<T>& wei_kcyx,
+                                                                     OutDesc,
+                                                                     Tensor<T>& out_nkhw,
+                                                                     ConvStrides,
+                                                                     ConvDilations,
+                                                                     ck::index_t nrepeat)
 {
-    using namespace ck;
-
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
@@ -168,9 +164,9 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(InDesc,
 
     constexpr auto gridwise_conv =
 #if 0
-        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded
+        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
 #else
-        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_padded_lds_double_buffer
+        GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw_lds_double_buffer_deprecated
 #endif
         <GridSize,
          BlockSize,
@@ -180,8 +176,6 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(InDesc,
          decltype(out_nkhw_desc),
          ConvStrides,
          ConvDilations,
-         LeftPads,
-         RightPads,
          BPerBlock,
          KPerBlock,
          EPerBlock,

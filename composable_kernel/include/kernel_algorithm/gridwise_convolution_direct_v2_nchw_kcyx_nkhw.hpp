@@ -2,7 +2,7 @@
 #define CK_GRIDWISE_CONVOLUTION_DIRECT_V2_NCHW_KCYX_NKHW
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
 #include "blockwise_2d_tensor_op.hpp"
 #include "blockwise_4d_tensor_op.hpp"
 #include "threadwise_tensor_slice_copy.hpp"

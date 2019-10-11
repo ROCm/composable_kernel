@@ -2,12 +2,12 @@
 #define CK_TENSOR_COORDINATE_DEPRECATED_HPP
 
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor.hpp"
-#include "ConstantMergedTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
+#include "ConstantMergedTensorDescriptor_deprecated.hpp"
 
 namespace ck {
 
-// TensorDesc is ConstantTensorDescriptor
+// TensorDesc is ConstantTensorDescriptor_deprecated
 template <class TensorDesc>
 struct NormalTensorCoordinate_deprecated
 {
@@ -95,18 +95,19 @@ struct NormalTensorCoordinate_deprecated
     index_t mOffset;
 };
 
-// TensorDesc is ConstantMergedTensorDescriptor
+// TensorDesc is ConstantMergedTensorDescriptor_deprecated
 template <class TensorDesc>
-struct MergedTensorCoordinate
+struct MergedTensorCoordinate_deprecated
 {
-    using type             = MergedTensorCoordinate;
+    using type             = MergedTensorCoordinate_deprecated;
     using tensor_desc_type = TensorDesc;
 
     static constexpr index_t nDim = tensor_desc_type::GetNumOfDimension();
     static constexpr index_t nOriginalDim =
         tensor_desc_type::GetOriginalTensorDescriptor().GetNumOfDimension();
 
-    __host__ __device__ constexpr MergedTensorCoordinate(Array<index_t, nDim> tensor_index)
+    __host__
+        __device__ constexpr MergedTensorCoordinate_deprecated(Array<index_t, nDim> tensor_index)
         : mOriginalIndex{tensor_desc_type::GetOriginalMultiIndexFromMultiIndex(tensor_index)}
     {
         // partial offset on each dimension
@@ -127,8 +128,8 @@ struct MergedTensorCoordinate
     }
 
     template <class... Xs>
-    __host__ __device__ constexpr MergedTensorCoordinate(Xs... xs)
-        : MergedTensorCoordinate(Array<index_t, nDim>{xs...})
+    __host__ __device__ constexpr MergedTensorCoordinate_deprecated(Xs... xs)
+        : MergedTensorCoordinate_deprecated(Array<index_t, nDim>{xs...})
     {
     }
 
@@ -311,7 +312,7 @@ struct MergedTensorCoordinate
     // dimensions, and those merged dimensions, that would never be involved in index
     // arithmetic after construction of TensorCoordinate.
     // TODO: refactor TensorCoordinate, after introducing the concept of "dimensions"
-    // and simplify implementation of ConstantMergedTensorDescriptor, so we don't need to
+    // and simplify implementation of ConstantMergedTensorDescriptor_deprecated, so we don't need to
     // count on compiler to optimize away those register memory for us
     Array<index_t, nOriginalDim> mOriginalIndex;
     Array<index_t, nDim> mPartialOffsets;
@@ -326,16 +327,17 @@ struct TensorCoordinate_deprecated
     private:
     template <class... Ts>
     __host__ __device__ static constexpr auto
-        MakeDummyTensorCoordinate(ConstantTensorDescriptor<Ts...>)
+        MakeDummyTensorCoordinate(ConstantTensorDescriptor_deprecated<Ts...>)
     {
-        return NormalTensorCoordinate_deprecated<ConstantTensorDescriptor<Ts...>>();
+        return NormalTensorCoordinate_deprecated<ConstantTensorDescriptor_deprecated<Ts...>>();
     }
 
     template <class... Ts>
     __host__ __device__ static constexpr auto
-        MakeDummyTensorCoordinate(ConstantMergedTensorDescriptor<Ts...>)
+        MakeDummyTensorCoordinate(ConstantMergedTensorDescriptor_deprecated<Ts...>)
     {
-        return MergedTensorCoordinate<ConstantMergedTensorDescriptor<Ts...>>();
+        return MergedTensorCoordinate_deprecated<
+            ConstantMergedTensorDescriptor_deprecated<Ts...>>();
     }
 
     public:

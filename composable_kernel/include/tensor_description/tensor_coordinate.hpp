@@ -1,5 +1,5 @@
-#ifndef CK_TENSOR_COORDINATE_V2_HPP
-#define CK_TENSOR_COORDINATE_V2_HPP
+#ifndef CK_TENSOR_COORDINATE_HPP
+#define CK_TENSOR_COORDINATE_HPP
 
 #include "common_header.hpp"
 #include "dimension.hpp"
@@ -8,9 +8,24 @@
 
 namespace ck {
 
+// A "tensor cooridnate" is an opaque object that represents a "point of location" inside a tensor
+// At the bare minimun, user should be able to query the following information from a tensor
+// coordinate:
+//   1. Tensor descriptor
+//   2. Location, represented in the form of multi-index
+//   3. Location, represented in the form of the offset to the origin of the tensor
+//   4. If the location is inside invalid area or not, i.e. the padding area of an implicitly padded
+//      tensor is considered invalid, because the padding area doesn't have any physical memory
+//      allocation
+// A tensor cooridnate also provides following functionality:
+//   1. Given step size in each dimension, update itself, or return a new tensor cooridnate, so user
+//      can freely move the "point of location" inside the tensor
+
+// wrapper class for NativeTensorCoordinate and TransformedTensorCoordinate
 template <typename TensorDesc>
 struct TensorCoordinate;
 
+// tensor coordinate for native tensor
 template <typename NativeTensorDesc>
 struct NativeTensorCoordinate
 {
@@ -78,12 +93,10 @@ struct NativeTensorCoordinate
         return coord;
     }
 
-#if 0 // tweaking
     __host__ __device__ static constexpr index_t CalculateOffsetDiff(const Index& idx_diff)
     {
         return tensor_desc_type::CalculateOffsetDiff(idx_diff);
     }
-#endif
 
     __host__ __device__ static constexpr bool IsUpperIndexMappedToValidOffset() { return true; }
 
@@ -96,6 +109,7 @@ struct NativeTensorCoordinate
     index_t mOffset;
 };
 
+// tensor coordinate for transformed tensor
 template <typename TransformedTensorDesc>
 struct TransformedTensorCoordinate
 {
@@ -177,10 +191,10 @@ struct TransformedTensorCoordinate
         return coord_up;
     }
 
-#if 0 // tweaking
     // Calculate offset diff without updating tensor-coordinate
     // If idx_up_diff is know at compile time, and has only non-zero entries on linear dimensions,
     //   then all calculation can be done at compile-time.
+    // TODO: this function is not compiled to expected ISA
     __host__ __device__ constexpr index_t CalculateOffsetDiff(const UpperIndex& idx_up_diff) const
     {
         // For transformation of multi-index difference, not all transformation functions need to
@@ -191,7 +205,6 @@ struct TransformedTensorCoordinate
 
         return GetLowerCoordinate().CalculateOffsetDiff(idx_low_diff);
     }
-#endif
 
     __host__ __device__ constexpr bool IsUpperIndexMappedToValidOffset() const
     {
