@@ -4,7 +4,9 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include "config.hpp"
-#include "ConstantTensorDescriptor.hpp"
+#include "ConstantTensorDescriptor_deprecated.hpp"
+#include "print_array.hpp"
+#include "print_sequence.hpp"
 #include "device.hpp"
 #include "conv_common.hpp"
 #include "host_conv.hpp"
@@ -14,12 +16,12 @@
 //#include "device_convolution_implicit_gemm_v1_nchw_cyxk_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v2_chwn_cyxk_khwn.hpp"
 //#include "device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw.hpp"
+#include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_deprecated.hpp"
 #include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded.hpp"
 //#include "device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v4r3_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_deprecated.hpp"
 #include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded.hpp"
 
 struct GeneratorTensor_1
 {
@@ -438,7 +440,17 @@ int main(int argc, char* argv[])
 #elif 0
     device_convolution_implicit_gemm_v3_nchw_cyxk_nkhw(
         (in_nchw_desc, in_nchw, wei_kcyx_desc, wei_kcyx, out_nkhw_desc, out_nkhw_device, nrepeat);
-#elif 1
+#elif 0
+    device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_deprecated(in_nchw_desc,
+                                                                    in_nchw,
+                                                                    wei_kcyx_desc,
+                                                                    wei_kcyx,
+                                                                    out_nkhw_desc,
+                                                                    out_nkhw_device,
+                                                                    ConvStrides{},
+                                                                    ConvDilations{},
+                                                                    nrepeat);
+#elif 0
     device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(in_nchw_desc,
                                                          in_nchw,
                                                          wei_kcyx_desc,
@@ -447,19 +459,9 @@ int main(int argc, char* argv[])
                                                          out_nkhw_device,
                                                          ConvStrides{},
                                                          ConvDilations{},
+                                                         LeftPads{},
+                                                         RightPads{},
                                                          nrepeat);
-#elif 1
-    device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_padded(in_nchw_desc,
-                                                                in_nchw,
-                                                                wei_kcyx_desc,
-                                                                wei_kcyx,
-                                                                out_nkhw_desc,
-                                                                out_nkhw_device,
-                                                                ConvStrides{},
-                                                                ConvDilations{},
-                                                                LeftPads{},
-                                                                RightPads{},
-                                                                nrepeat);
 #elif 0
     device_convolution_implicit_gemm_v4r2_nchw_kcyx_nkhw(in_nchw_desc,
                                                          in_nchw,
@@ -481,6 +483,16 @@ int main(int argc, char* argv[])
                                                          ConvDilations{},
                                                          nrepeat);
 #elif 0
+    device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_deprecated(in_nchw_desc,
+                                                                    in_nchw,
+                                                                    wei_kcyx_desc,
+                                                                    wei_kcyx,
+                                                                    out_nkhw_desc,
+                                                                    out_nkhw_device,
+                                                                    ConvStrides{},
+                                                                    ConvDilations{},
+                                                                    nrepeat);
+#elif 1
     device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(in_nchw_desc,
                                                          in_nchw,
                                                          wei_kcyx_desc,
@@ -489,19 +501,9 @@ int main(int argc, char* argv[])
                                                          out_nkhw_device,
                                                          ConvStrides{},
                                                          ConvDilations{},
+                                                         LeftPads{},
+                                                         RightPads{},
                                                          nrepeat);
-#elif 1
-    device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_padded(in_nchw_desc,
-                                                                in_nchw,
-                                                                wei_kcyx_desc,
-                                                                wei_kcyx,
-                                                                out_nkhw_desc,
-                                                                out_nkhw_device,
-                                                                ConvStrides{},
-                                                                ConvDilations{},
-                                                                LeftPads{},
-                                                                RightPads{},
-                                                                nrepeat);
 #endif
 
     if(do_verification)

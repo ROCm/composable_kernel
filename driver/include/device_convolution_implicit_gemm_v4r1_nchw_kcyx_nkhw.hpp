@@ -3,14 +3,17 @@
 #include "device.hpp"
 #include "tensor.hpp"
 #include "gridwise_convolution_kernel_wrapper.hpp"
+#include "convolution_common.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
-template <class T,
-          class InDesc,
-          class WeiDesc,
-          class OutDesc,
-          class ConvStrides,
-          class ConvDilations>
+template <typename T,
+          typename InDesc,
+          typename WeiDesc,
+          typename OutDesc,
+          typename ConvStrides,
+          typename ConvDilations,
+          typename LeftPads,
+          typename RightPads>
 void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
                                                           const Tensor<T>& in_nchw,
                                                           WeiDesc,
@@ -19,6 +22,8 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
                                                           Tensor<T>& out_nkhw,
                                                           ConvStrides,
                                                           ConvDilations,
+                                                          LeftPads,
+                                                          RightPads,
                                                           ck::index_t nrepeat)
 {
     using namespace ck;
@@ -28,9 +33,12 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr auto in_nchw_desc  = InDesc{};
-    constexpr auto wei_kcyx_desc = WeiDesc{};
-    constexpr auto out_nkhw_desc = OutDesc{};
+    constexpr auto in_nchw_desc =
+        make_native_tensor_descriptor(InDesc::GetLengths(), InDesc::GetStrides());
+    constexpr auto wei_kcyx_desc =
+        make_native_tensor_descriptor(WeiDesc::GetLengths(), WeiDesc::GetStrides());
+    constexpr auto out_nkhw_desc =
+        make_native_tensor_descriptor(OutDesc::GetLengths(), OutDesc::GetStrides());
 
     constexpr index_t N  = out_nkhw_desc.GetLength(I0);
     constexpr index_t K  = out_nkhw_desc.GetLength(I1);
@@ -47,7 +55,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
 #if 1
-    // BlockSize = 256, blockwise-GEMM 128x128, each thread hold 64 data
+    // BlockSize = 256, each thread hold 64 data
     constexpr index_t BlockSize = 256;
 
     constexpr index_t BPerBlock = 16;
@@ -84,7 +92,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
     constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
 #elif 0
-    // BlockSize = 64, blockwise-GEMM 64x64, each thread hold 64 data
+    // BlockSize = 64, each thread hold 64 data
     constexpr index_t BlockSize = 64;
 
     constexpr index_t BPerBlock = 8;
@@ -120,7 +128,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
     constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
-#elif 1
+#elif 0
     // BlockSize = 256, blockwise-GEMM 64x128, each thread hold 32 data
     constexpr index_t BlockSize = 256;
 
@@ -174,11 +182,15 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
             GridSize,
             BlockSize,
             T,
+            T,
             decltype(in_nchw_desc),
             decltype(wei_kcyx_desc),
             decltype(out_nkhw_desc),
             ConvStrides,
             ConvDilations,
+            LeftPads,
+            RightPads,
+            ConvolutionDirection::Forward,
             BPerBlock,
             KPerBlock,
             EPerBlock,

@@ -1,5 +1,5 @@
-#ifndef CK_ARRAY_HELPER_HPP
-#define CK_ARRAY_HELPER_HPP
+#ifndef CK_PRINT_ARRAY_HPP
+#define CK_PRINT_ARRAY_HPP
 
 #include "array.hpp"
 
