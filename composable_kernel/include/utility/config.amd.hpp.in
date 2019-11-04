@@ -31,11 +31,11 @@
 
 // AMD XDLOPS
 #ifndef CK_USE_AMD_XDLOPS
-#define CK_USE_AMD_XDLOPS 1
+#define CK_USE_AMD_XDLOPS 0
 #endif
 
 #ifndef CK_USE_AMD_XDLOPS_INLINE_ASM
-#define CK_USE_AMD_XDLOPS_INLINE_ASM 1
+#define CK_USE_AMD_XDLOPS_INLINE_ASM 0
 #endif
 
 // experimental implementation
