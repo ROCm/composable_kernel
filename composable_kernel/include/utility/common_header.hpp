@@ -24,4 +24,8 @@
 #include "amd_buffer_addressing.hpp"
 #endif
 
+#if CK_USE_AMD_XDLOPS
+#include "amd_xdlops.hpp"
+#endif
+
 #endif
