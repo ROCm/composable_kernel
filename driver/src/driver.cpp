@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<0, 0>;
     using RightPads = Sequence<0, 0>;
-#elif 1
+#elif 0
     // 3x3 filter, 2x2 stride, 35x35 input, 17x17 output
     // cudnn@V100 90%, ck@V100 93%, ck@P100 83%, ck@VII 81%
     constexpr index_t N  = 128;
@@ -343,7 +343,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<3, 0>;
     using RightPads = Sequence<3, 0>;
-#elif 0
+#elif 1
     // 1x7 filter, 0x3 pad, 17x17 input
     constexpr index_t N  = 128;
     constexpr index_t C  = 128;
@@ -450,7 +450,7 @@ int main(int argc, char* argv[])
                                                                     ConvStrides{},
                                                                     ConvDilations{},
                                                                     nrepeat);
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(in_nchw_desc,
                                                          in_nchw,
                                                          wei_kcyx_desc,
@@ -492,7 +492,7 @@ int main(int argc, char* argv[])
                                                                     ConvStrides{},
                                                                     ConvDilations{},
                                                                     nrepeat);
-#elif 1
+#elif 0
     device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(in_nchw_desc,
                                                          in_nchw,
                                                          wei_kcyx_desc,
