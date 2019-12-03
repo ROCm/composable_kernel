@@ -60,7 +60,7 @@ __host__ __device__ constexpr auto
 
 template <typename... Ts>
 __host__ __device__ constexpr auto
-    make_ConstantMatrixDescriptor(ConstantTensorDescriptor_deprecated<Ts...>)
+make_ConstantMatrixDescriptor(ConstantTensorDescriptor_deprecated<Ts...>)
 {
     using TDesc = ConstantTensorDescriptor_deprecated<Ts...>;
     static_assert(TDesc::GetNumOfDimension() == 2, "wrong");

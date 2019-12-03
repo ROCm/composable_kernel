@@ -1,0 +1,60 @@
+#ifndef CK_IN_MEMORY_OPERATION_NVIDIA_HPP
+#define CK_IN_MEMORY_OPERATION_NVIDIA_HPP
+
+namespace ck {
+
+template <typename T,
+          index_t DataPerAccess,
+          AddressSpace SrcAddressSpace,
+          AddressSpace DstAddressSpace>
+__device__ void copy_data(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset)
+{
+    using vector_t = typename vector_type<T, DataPerAccess>::MemoryType;
+
+    *reinterpret_cast<vector_t*>(&p_dst[dst_offset]) =
+        *reinterpret_cast<const vector_t*>(&p_src[src_offset]);
+}
+
+template <typename T,
+          index_t DataPerAccess,
+          AddressSpace SrcAddressSpace,
+          AddressSpace DstAddressSpace>
+__device__ void atomic_add_data(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset)
+{
+    using vector_t = typename vector_type<T, DataPerAccess>::MemoryType;
+
+    static_if<SrcAddressSpace == AddressSpace::vgpr && DstAddressSpace == AddressSpace::global>{}(
+        [&](auto) {
+            atomicAdd(reinterpret_cast<vector_t*>(&p_dst[dst_offset]),
+                      *reinterpret_cast<const vector_t*>(&p_src[src_offset]));
+        })
+        .Else([&](auto fwd) {
+            static_assert(fwd(false), "atomic_add doesn't support this memory space");
+        });
+}
+
+template <typename T,
+          index_t DataPerAccess,
+          AddressSpace SrcAddressSpace,
+          AddressSpace DstAddressSpace,
+          InMemoryDataOperation DstInMemOp>
+__device__ void move_data(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset)
+{
+    static_assert(DstInMemOp == InMemoryDataOperation::none ||
+                      DstInMemOp == InMemoryDataOperation::atomic_add,
+                  "wrong! InMemoryDataOperation not supported!");
+
+    // TODO: use static_if::ElseIf
+    static_if<DstInMemOp == InMemoryDataOperation::none>{}([&](auto) {
+        copy_data<T, DataPerAccess, SrcAddressSpace, DstAddressSpace>(
+            p_src, src_offset, p_dst, dst_offset);
+    });
+
+    static_if<DstInMemOp == InMemoryDataOperation::atomic_add>{}([&](auto) {
+        atomic_add_data<T, DataPerAccess, SrcAddressSpace, DstAddressSpace>(
+            p_src, src_offset, p_dst, dst_offset);
+    });
+}
+
+} // namespace ck
+#endif

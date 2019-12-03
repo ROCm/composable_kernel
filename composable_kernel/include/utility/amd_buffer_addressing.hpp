@@ -54,10 +54,18 @@ __device__ void __llvm_amdgcn_buffer_storex4(float4_t vdata,
                                              bool glc,
                                              bool slc) __asm("llvm.amdgcn.buffer.store.v4f32");
 
+// buffer_load requires:
+//   1) p_src must be in global memory space, d_dst must be vgpr
+//   2) p_src to be a block-invariant pointer.
+// It is user's responsibility to make sure that is true.
 template <typename T, index_t VectorSize>
 __device__ typename vector_type<T, VectorSize>::MemoryType amd_intrinsic_buffer_load(
     const T* p_src_block, index_t src_thread_data_offset, index_t src_const_data_offset);
 
+// buffer_store requires:
+//   1) p_src must be in vgpr space, d_dst must be global memory
+//   2) p_dst to be a block-invariant pointer.
+// It is user's responsibility to make sure that is true.
 template <typename T, index_t VectorSize>
 __device__ void
 amd_intrinsic_buffer_store(const typename vector_type<T, VectorSize>::MemoryType& src,

@@ -3,12 +3,14 @@
 
 #include "tensor.hpp"
 
-TensorDescriptor::TensorDescriptor(std::initializer_list<std::size_t> lens) : mLens(lens)
+template <typename X>
+TensorDescriptor::TensorDescriptor(std::vector<X> lens) : mLens(lens)
 {
     this->CalculateStrides();
 }
 
-TensorDescriptor::TensorDescriptor(std::vector<std::size_t> lens, std::vector<std::size_t> strides)
+template <typename X, typename Y>
+TensorDescriptor::TensorDescriptor(std::vector<X> lens, std::vector<Y> strides)
     : mLens(lens), mStrides(strides)
 {
 }

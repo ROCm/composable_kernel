@@ -97,12 +97,57 @@ __host__ __device__ constexpr T min(T x, Ts... xs)
     return x < y ? x : y;
 }
 
-// this is WRONG
-// TODO: implement least common multiple properly, instead of calling max()
-template <class T, class... Ts>
-__host__ __device__ constexpr T lcm(T x, Ts... xs)
+// highest common factor
+template <typename T>
+__host__ __device__ constexpr T hcf(T x, T y)
 {
-    return max(x, xs...);
+    if(x == 0)
+    {
+        return y;
+    }
+
+    if(y == 0)
+    {
+        return x;
+    }
+
+    if(x == y)
+    {
+        return x;
+    }
+
+    if(x > y)
+    {
+        return hcf(x - y, y);
+    }
+
+    return hcf(x, y - x);
+}
+
+template <index_t X, index_t Y>
+__host__ __device__ constexpr auto hcf(Number<X>, Number<Y>)
+{
+    constexpr auto result = hcf(X, Y);
+    return Number<result>{};
+}
+
+template <typename X, typename... Ys>
+__host__ __device__ constexpr auto hcf(X x, Ys... ys)
+{
+    return hcf(x, ys...);
+}
+
+// least common multiple
+template <typename T>
+__host__ __device__ constexpr T lcm(T x, T y)
+{
+    return (x * y) / hcf(x, y);
+}
+
+template <typename X, typename Y, typename... Zs>
+__host__ __device__ constexpr auto lcm(X x, Y y, Zs... zs)
+{
+    return lcm(x, lcm(y, zs...));
 }
 
 template <class T>

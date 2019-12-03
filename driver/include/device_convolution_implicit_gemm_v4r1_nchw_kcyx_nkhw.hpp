@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "tensor.hpp"
-#include "gridwise_convolution_kernel_wrapper.hpp"
+#include "gridwise_operation_wrapper.hpp"
 #include "convolution_common.hpp"
 #include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
@@ -54,8 +54,8 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     wei_kcyx_device_buf.ToDevice(wei_kcyx.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
-#if 1
-    // BlockSize = 256, each thread hold 64 data
+#if 0
+    // BlockSize = 256, EperBlock = 8, each thread hold 64 data
     constexpr index_t BlockSize = 256;
 
     constexpr index_t BPerBlock = 16;
@@ -85,6 +85,43 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     using WeiBlockCopySubLengths_E_K            = Sequence<4, 1>;
     using WeiBlockCopyClusterLengths_E_K        = Sequence<2, 128>;
+    using WeiBlockCopyThreadClusterArrangeOrder = Sequence<1, 0>; // [K, E]
+    using WeiBlockCopySrcAccessOrder            = Sequence<1, 0>; // [K, E]
+    using WeiBlockCopyDstAccessOrder            = Sequence<0, 1>; // [E, K]
+
+    constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
+    constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
+#elif 1
+    // BlockSize = 256, EPerBlock = 16, each thread hold 64 data
+    constexpr index_t BlockSize = 256;
+
+    constexpr index_t BPerBlock = 16;
+    constexpr index_t KPerBlock = 128;
+    constexpr index_t EPerBlock = 16;
+
+    constexpr index_t GemmNRepeat = 2;
+
+    constexpr index_t GemmMPerThreadSubC = 4;
+    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMLevel0Cluster = 4;
+    constexpr index_t GemmNLevel0Cluster = 4;
+    constexpr index_t GemmMLevel1Cluster = 4;
+    constexpr index_t GemmNLevel1Cluster = 4;
+    constexpr index_t GemmKPerThreadLoop = 1;
+    constexpr index_t GemmDataPerReadA   = 4;
+    constexpr index_t GemmDataPerReadB   = 4;
+
+    using InBlockCopySubLengths_E_N1_B_N2      = Sequence<1, 2, 1, 4>;
+    using InBlockCopyClusterLengths_E_N1_B_N2  = Sequence<16, 1, 16, 1>;
+    using InBlockCopyThreadClusterArrangeOrder = Sequence<0, 1, 3, 2>; // [E, N1, N2, B]
+    using InBlockCopySrcAccessOrder            = Sequence<0, 2, 1, 3>; // [E, B, N1, N2]
+    using InBlockCopyDstAccessOrder            = Sequence<0, 1, 2, 3>; // [E, N1, B, N2]
+
+    constexpr index_t InBlockCopySrcDataPerRead_B   = 1;
+    constexpr index_t InBlockCopyDstDataPerWrite_N2 = 4;
+
+    using WeiBlockCopySubLengths_E_K            = Sequence<4, 2>;
+    using WeiBlockCopyClusterLengths_E_K        = Sequence<4, 64>;
     using WeiBlockCopyThreadClusterArrangeOrder = Sequence<1, 0>; // [K, E]
     using WeiBlockCopySrcAccessOrder            = Sequence<1, 0>; // [K, E]
     using WeiBlockCopyDstAccessOrder            = Sequence<0, 1>; // [E, K]
@@ -221,13 +258,20 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
+        float time = launch_kernel(run_gridwise_operation<decltype(gridwise_conv),
+                                                          const T* const __restrict__,
+                                                          const T* const __restrict__,
+                                                          T* const __restrict__>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
                                    0,
-                                   static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
-                                   static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
-                                   static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+                                   gridwise_conv,
+                                   const_cast<const T* const __restrict__>(
+                                       static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer())),
+                                   const_cast<const T* const __restrict__>(
+                                       static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer())),
+                                   const_cast<T* const __restrict__>(
+                                       static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer())));
 
         printf("Elapsed time : %f ms, %f TFlop/s\n",
                time,
