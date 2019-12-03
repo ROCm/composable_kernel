@@ -1,49 +1,5 @@
 #pragma once
 #include "tensor.hpp"
-#include "common_header.hpp"
-#include "ConstantTensorDescriptor_deprecated.hpp"
-
-// this is ugly, only for 4d
-template <class TConstTensorDesc>
-void ostream_ConstantTensorDescriptor(TConstTensorDesc, std::ostream& os = std::cout)
-{
-    using namespace ck;
-
-    static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
-
-    constexpr auto I0   = Number<0>{};
-    constexpr auto I1   = Number<1>{};
-    constexpr auto I2   = Number<2>{};
-    constexpr auto I3   = Number<3>{};
-    constexpr auto desc = TConstTensorDesc{};
-
-    os << "Lengths: {" << desc.GetLength(I0) << ", " << desc.GetLength(I1) << ", "
-       << desc.GetLength(I2) << ", " << desc.GetLength(I3) << "}, "
-       << "Strides: {" << desc.GetStride(I0) << ", " << desc.GetStride(I1) << ", "
-       << desc.GetStride(I2) << ", " << desc.GetStride(I3) << "}" << std::endl;
-}
-
-// this is ugly, only for 4d
-template <class TConstTensorDesc>
-auto make_TensorDescriptor(TConstTensorDesc)
-{
-    using namespace ck;
-
-    static_assert(TConstTensorDesc::nDim == 4, "nDim is not 4");
-
-    constexpr auto I0   = Number<0>{};
-    constexpr auto I1   = Number<1>{};
-    constexpr auto I2   = Number<2>{};
-    constexpr auto I3   = Number<3>{};
-    constexpr auto desc = TConstTensorDesc{};
-
-    std::initializer_list<index_t> lengths = {
-        desc.GetLength(I0), desc.GetLength(I1), desc.GetLength(I2), desc.GetLength(I3)};
-    std::initializer_list<index_t> strides = {
-        desc.GetStride(I0), desc.GetStride(I1), desc.GetStride(I2), desc.GetStride(I3)};
-
-    return TensorDescriptor(lengths, strides);
-}
 
 template <class TIn,
           class TWei,
@@ -330,26 +286,4 @@ void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
     make_ParallelTensorFunctor(f_out_transform, N, K, HTile, WTile)(num_thread);
     make_ParallelTensorFunctor(f_out_hold, N, K, HTile, WTile)(num_thread);
     make_ParallelTensorFunctor(f_out, N, K, HTile, WTile)(num_thread);
-}
-
-template <class T>
-void check_error(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    float error     = 0;
-    float max_diff  = -1;
-    float ref_value = 0, result_value = 0;
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        if(max_diff < diff)
-        {
-            max_diff     = diff;
-            ref_value    = ref.mData[i];
-            result_value = result.mData[i];
-        }
-    }
-
-    std::cout << "error: " << error << std::endl;
-    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
 }

@@ -84,35 +84,14 @@ struct Pad
     __host__ __device__ constexpr bool
     IsUpperIndexMappedToValidLowerIndex(const UpperIndex& idx_up) const
     {
-#if 0
-        struct lambda_no_pad
-        {
-            __host__ __device__ constexpr bool operator()(index_t x) const { return x == 0; }
-        };
+        bool flag = true;
 
-        if(sequence_all_of(LeftPads{}, lambda_no_pad{}) &&
-           sequence_all_of(RightPads{}, lambda_no_pad{}))
-        {
-            return true;
-        }
-        else
-#endif
-        {
-            bool flag = true;
+        static_for<0, nDim, 1>{}([&](auto idim) {
+            flag = flag && (idx_up[idim] >= LeftPads::At(idim)) &&
+                   (idx_up[idim] < LeftPads::At(idim) + LowerLengths::At(idim));
+        });
 
-            static_for<0, nDim, 1>{}([&](auto idim) {
-                // only check if there is left-padding
-                static_if<(LeftPads::At(idim) != 0)>{}(
-                    [&](auto) { flag = flag && idx_up[idim] >= LeftPads::At(idim); });
-
-                // only check if there is right-padding
-                static_if<(RightPads::At(idim) != 0)>{}([&](auto) {
-                    flag = flag && (idx_up[idim] < LeftPads::At(idim) + LowerLengths::At(idim));
-                });
-            });
-
-            return flag;
-        }
+        return flag;
     }
 };
 
