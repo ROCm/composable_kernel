@@ -68,10 +68,12 @@ auto construct_f_unpack_args(F, T args)
 struct TensorDescriptor
 {
     TensorDescriptor() = delete;
-    TensorDescriptor(std::initializer_list<std::size_t> lens);
-    TensorDescriptor(std::initializer_list<std::size_t> lens,
-                     std::initializer_list<std::size_t> strides);
-    TensorDescriptor(std::vector<std::size_t> lens, std::vector<std::size_t> strides);
+
+    template <typename X>
+    TensorDescriptor(std::vector<X> lens);
+
+    template <typename X, typename Y>
+    TensorDescriptor(std::vector<X> lens, std::vector<Y> strides);
 
     void CalculateStrides();
 
@@ -268,5 +270,40 @@ struct Tensor
     TensorDescriptor mDesc;
     std::vector<T> mData;
 };
+
+void ostream_TensorDescriptor(const TensorDescriptor& desc, std::ostream& os = std::cout)
+{
+    os << "dim " << desc.GetNumOfDimension() << ", ";
+
+    os << "lengths {";
+    LogRange(os, desc.GetLengths(), ", ");
+    os << "}, ";
+
+    os << "strides {";
+    LogRange(os, desc.GetStrides(), ", ");
+    os << "}" << std::endl;
+}
+
+template <class T>
+void check_error(const Tensor<T>& ref, const Tensor<T>& result)
+{
+    float error     = 0;
+    float max_diff  = -1;
+    float ref_value = 0, result_value = 0;
+    for(int i = 0; i < ref.mData.size(); ++i)
+    {
+        error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
+        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
+        if(max_diff < diff)
+        {
+            max_diff     = diff;
+            ref_value    = ref.mData[i];
+            result_value = result.mData[i];
+        }
+    }
+
+    std::cout << "error: " << error << std::endl;
+    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
+}
 
 #endif

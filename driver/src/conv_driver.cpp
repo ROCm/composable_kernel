@@ -8,8 +8,10 @@
 #include "print_array.hpp"
 #include "print_sequence.hpp"
 #include "device.hpp"
+#include "tensor_generator.hpp"
 #include "conv_common.hpp"
 #include "host_conv.hpp"
+#include "device_tensor.hpp"
 //#include "device_convolution_direct_v2_nchw_kcyx_nkhw.hpp"
 //#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn.hpp"
 //#include "device_convolution_implicit_gemm_v1_chwn_cyxk_khwn_padded.hpp"
@@ -23,73 +25,24 @@
 #include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_deprecated.hpp"
 #include "device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
 
-struct GeneratorTensor_1
-{
-    template <class... Is>
-    double operator()(Is... is)
-    {
-        return 1;
-    }
-};
-
-struct GeneratorTensor_2
-{
-    int min_value = 0;
-    int max_value = 1;
-
-    template <class... Is>
-    double operator()(Is...)
-    {
-        return (std::rand() % (max_value - min_value)) + min_value;
-    }
-};
-
-struct GeneratorTensor_3
-{
-    template <class... Is>
-    double operator()(Is... is)
-    {
-        std::array<index_t, sizeof...(Is)> dims = {{static_cast<index_t>(is)...}};
-
-        auto f_acc = [](auto a, auto b) { return 10 * a + b; };
-
-        return std::accumulate(dims.begin(), dims.end(), index_t(0), f_acc);
-    }
-};
-
-struct GeneratorTensor_Checkboard
-{
-    template <class... Ts>
-    double operator()(Ts... Xs) const
-    {
-        std::array<index_t, sizeof...(Ts)> dims = {{Xs...}};
-        return std::accumulate(dims.begin(),
-                               dims.end(),
-                               true,
-                               [](bool init, index_t x) -> int { return init != (x % 2); })
-                   ? 1
-                   : -1;
-    }
-};
-
 int main(int argc, char* argv[])
 {
     using namespace ck;
 
 #if 0
-    constexpr index_t N  = 128;
-    constexpr index_t C  = 128;
-    constexpr index_t HI = 17;
-    constexpr index_t WI = 17;
-    constexpr index_t K  = 128;
-    constexpr index_t Y  = 1;
-    constexpr index_t X  = 7;
+    constexpr index_t N  = 8;
+    constexpr index_t C  = 32;
+    constexpr index_t HI = 28;
+    constexpr index_t WI = 28;
+    constexpr index_t K  = 32;
+    constexpr index_t Y  = 5;
+    constexpr index_t X  = 5;
 
     using ConvStrides   = Sequence<1, 1>;
-    using ConvDilations = Sequence<1, 1>;
+    using ConvDilations = Sequence<2, 2>;
 
-    using LeftPads  = Sequence<0, 3>;
-    using RightPads = Sequence<0, 3>;
+    using LeftPads  = Sequence<0, 0>;
+    using RightPads = Sequence<0, 0>;
 #elif 0
     // 3x3, 34x34
     constexpr index_t N  = 64;
@@ -297,7 +250,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<0, 0>;
     using RightPads = Sequence<0, 0>;
-#elif 0
+#elif 1
     // 3x3 filter, 2x2 stride, 35x35 input, 17x17 output
     // cudnn@V100 90%, ck@V100 93%, ck@P100 83%, ck@VII 81%
     constexpr index_t N  = 128;
@@ -343,7 +296,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<3, 0>;
     using RightPads = Sequence<3, 0>;
-#elif 1
+#elif 0
     // 1x7 filter, 0x3 pad, 17x17 input
     constexpr index_t N  = 128;
     constexpr index_t C  = 128;
@@ -362,7 +315,7 @@ int main(int argc, char* argv[])
 
     auto in_nchw_desc  = make_ConstantTensorDescriptor_packed(Sequence<N, C, HI, WI>{});
     auto wei_kcyx_desc = make_ConstantTensorDescriptor_packed(Sequence<K, C, Y, X>{});
-    auto out_nkhw_desc = get_convolution_with_padding_output_default_4d_tensor_descriptor(
+    auto out_nkhw_desc = get_convolution_output_default_4d_tensor_descriptor_deprecated(
         in_nchw_desc, wei_kcyx_desc, ConvStrides{}, ConvDilations{}, LeftPads{}, RightPads{});
 
     ostream_ConstantTensorDescriptor(in_nchw_desc, std::cout << "in_nchw_desc: ");
@@ -492,7 +445,7 @@ int main(int argc, char* argv[])
                                                                     ConvStrides{},
                                                                     ConvDilations{},
                                                                     nrepeat);
-#elif 0
+#elif 1
     device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(in_nchw_desc,
                                                          in_nchw,
                                                          wei_kcyx_desc,
