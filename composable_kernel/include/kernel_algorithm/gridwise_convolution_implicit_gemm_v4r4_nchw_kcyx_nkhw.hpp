@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_CONVOLUTION_BACKWARD_DATA_IMPLICIT_GEMM_V1R1_NCHW_KCYX_NKHW_HPP
-#define CK_GRIDWISE_CONVOLUTION_BACKWARD_DATA_IMPLICIT_GEMM_V1R1_NCHW_KCYX_NKHW_HPP
+#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R4_NCHW_KCYX_NKHW_HPP
+#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R4_NCHW_KCYX_NKHW_HPP
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -8,9 +8,9 @@
 
 namespace ck {
 
-// GemmM = C * Y * X
+// GemmM = K
 // GemmN = N * Ho * Wo
-// GemmK = K
+// GemmK = C * Y * X
 template <index_t GridSize,
           index_t BlockSize,
           typename Float,
@@ -36,18 +36,18 @@ template <index_t GridSize,
           index_t GemmThreadGemmDataPerReadN,
           typename GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
           typename GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
-          index_t GemmABlockCopySrcDataPerRead_GemmN,
-          index_t GemmABlockCopyDstDataPerWrite_GemmN,
+          index_t GemmABlockCopySrcDataPerRead_GemmK,
+          index_t GemmABlockCopyDstDataPerWrite_GemmM,
           typename GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
           typename GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
           index_t GemmBBlockCopySrcDataPerRead_GemmN,
           index_t GemmBBlockCopyDstDataPerWrite_GemmN,
           index_t GemmCThreadCopyDstDataPerWrite_GemmN1>
-struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
+struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
 {
-    __device__ void Run(Float* __restrict__ p_in_global,
-                        const Float* __restrict__ p_wei_global,
-                        const Float* __restrict__ p_out_global) const
+    __device__ void Run(const Float* const __restrict__ p_in_global,
+                        const Float* const __restrict__ p_wei_global,
+                        Float* const __restrict__ p_out_global) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -77,26 +77,16 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
         constexpr index_t ConvDilationW = ConvDilations{}[1];
 
         // sanity-check for vectorized memory load
-        // TODO: this logic may not be correct for bwd-data
-        static_assert(
-            (Wo == 1 || (ConvStrideW == 1 || GemmCThreadCopyDstDataPerWrite_GemmN1 == 1)) &&
-                (X == 1 || ConvDilationW % GemmCThreadCopyDstDataPerWrite_GemmN1 == 0),
-            "wrong! aligment requirement for vectorized global load of input tensor will "
-            "be violated");
-
-        // output tensor
-        constexpr auto out_n_k_howo_global_desc =
-            unfold_tensor_descriptor(out_n_k_ho_wo_global_desc, I2, I3);
-
-        constexpr auto out_k_b_global_desc =
-            transform_tensor_descriptor(out_n_k_howo_global_desc,
-                                        make_tuple(PassThrough<K>{}, Merge<Sequence<N, Ho * Wo>>{}),
-                                        make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+        static_assert((Wo == 1 || (ConvStrideW == 1 || GemmBBlockCopySrcDataPerRead_GemmN == 1)) &&
+                          (X == 1 || ConvDilationW % GemmBBlockCopySrcDataPerRead_GemmN == 0) &&
+                          InLeftPads{}[1] % GemmBBlockCopySrcDataPerRead_GemmN == 0 &&
+                          InRightPads{}[1] % GemmBBlockCopySrcDataPerRead_GemmN == 0,
+                      "wrong! aligment requirement for vectorized global load of input tensor will "
+                      "be violated");
 
         // weight tensor
-        constexpr auto wei_k_e_global_desc =
-            unfold_tensor_descriptor(wei_k_c_y_x_global_desc, I1, I3);
+        constexpr auto wei_e_k_global_desc = reorder_tensor_descriptor_given_upper2lower(
+            unfold_tensor_descriptor(wei_k_c_y_x_global_desc, I1, I3), Sequence<1, 0>{});
 
         // input tensor
         constexpr auto in_n_c_hip_wip_global_desc = transform_tensor_descriptor(
@@ -122,16 +112,23 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
             make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        // GEMM: atomic add
+        // output tensor
+        constexpr auto out_k_b_global_desc =
+            transform_tensor_descriptor(out_n_k_ho_wo_global_desc,
+                                        make_tuple(PassThrough<K>{}, Merge<Sequence<N, Ho, Wo>>{}),
+                                        make_tuple(Sequence<1>{}, Sequence<0, 2, 3>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        // GEMM
         constexpr auto gridwise_gemm =
             GridwiseGemmTransposedANormalBNormalC_v1<GridSize,
                                                      BlockSize,
                                                      Float,
                                                      AccFloat,
-                                                     decltype(wei_k_e_global_desc),
-                                                     decltype(out_k_b_global_desc),
+                                                     decltype(wei_e_k_global_desc),
                                                      decltype(in_e_b_global_desc),
-                                                     InMemoryDataOperation::atomic_add,
+                                                     decltype(out_k_b_global_desc),
+                                                     InMemoryDataOperation::none,
                                                      GemmMPerBlock,
                                                      GemmNPerBlock,
                                                      GemmKPerBlock,
@@ -146,11 +143,11 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
                                                      GemmThreadGemmDataPerReadN,
                                                      GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
                                                      GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
-                                                     Sequence<0, 1>,
-                                                     Sequence<0, 1>,
-                                                     1,
-                                                     GemmABlockCopySrcDataPerRead_GemmN,
-                                                     GemmABlockCopyDstDataPerWrite_GemmN,
+                                                     Sequence<1, 0>,
+                                                     Sequence<1, 0>,
+                                                     0,
+                                                     GemmABlockCopySrcDataPerRead_GemmK,
+                                                     GemmABlockCopyDstDataPerWrite_GemmM,
                                                      GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
                                                      GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
                                                      Sequence<0, 1>,
@@ -162,7 +159,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
                                                      3,
                                                      GemmCThreadCopyDstDataPerWrite_GemmN1>{};
 
-        gridwise_gemm.Run(p_wei_global, p_out_global, p_in_global);
+        gridwise_gemm.Run(p_wei_global, p_in_global, p_out_global);
     }
 };
 

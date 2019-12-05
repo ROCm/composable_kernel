@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
 {
     using namespace ck;
 
-#if 0
+#if 1
     constexpr index_t N  = 8;
     constexpr index_t C  = 128;
     constexpr index_t HI = 16;

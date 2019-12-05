@@ -8,9 +8,9 @@
 
 namespace ck {
 
-// GemmK = K * Ydot * Xdot;
 // GemmM = C * Ytilda * Xtilda;
 // GemmN = N * Htilda * Wtilda;
+// GemmK = K * Ydot * Xdot;
 template <index_t GridSize,
           index_t BlockSize,
           typename Float,
@@ -34,14 +34,15 @@ template <index_t GridSize,
           index_t GemmKPerThreadLoop,
           index_t GemmThreadGemmDataPerReadM,
           index_t GemmThreadGemmDataPerReadN,
-          typename GemmABlockCopySubLengths,     // Gemm-K, Gemm-M
-          typename GemmABlockCopyClusterLengths, // Gemm-K, Gemm-M
-          index_t GemmABlockCopyDataPerAccess,   // Gemm-M
-          typename GemmBBlockCopySubLengths,     // Gemm-K, Gemm-N
-          typename GemmBBlockCopyClusterLengths, // Gemm-K, Gemm-N
-          index_t GemmBBlockCopyDataPerAccess,   // Gemm-N
-          index_t GemmCThreadCopyDataPerAccess   // Gemm-N
-          >
+          typename GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
+          typename GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
+          index_t GemmABlockCopySrcDataPerRead_GemmM,
+          index_t GemmABlockCopyDstDataPerWrite_GemmM,
+          typename GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
+          typename GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
+          index_t GemmBBlockCopySrcDataPerRead_GemmN,
+          index_t GemmBBlockCopyDstDataPerWrite_GemmN,
+          index_t GemmCThreadCopyDstDataPerWrite_GemmN1>
 struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
 {
     __device__ void Run(Float* __restrict__ p_in_global,
@@ -71,10 +72,12 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
         constexpr index_t ConvDilationW = ConvDilations{}[1];
 
         // sanity-check for vectorized memory load
-        static_assert((Wo == 1 || (ConvStrideW == 1 || GemmCThreadCopyDataPerAccess == 1)) &&
-                          (X == 1 || ConvDilationW % GemmCThreadCopyDataPerAccess == 0),
-                      "wrong! aligment requirement for vectorized global load of input tensor will "
-                      "be violated");
+        // TODO: this logic may not be correct for bwd-data
+        static_assert(
+            (Wo == 1 || (ConvStrideW == 1 || GemmCThreadCopyDstDataPerWrite_GemmN1 == 1)) &&
+                (X == 1 || ConvDilationW % GemmCThreadCopyDstDataPerWrite_GemmN1 == 0),
+            "wrong! aligment requirement for vectorized global load of input tensor will "
+            "be violated");
 
         constexpr index_t hcf_stride_dilation_h = math::hcf(ConvStrideH, ConvDilationH);
         constexpr index_t hcf_stride_dilation_w = math::hcf(ConvStrideW, ConvDilationW);
@@ -172,33 +175,43 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
 
         // GEMM
         constexpr auto gridwise_gemm =
-            GridwiseGemmTransposedANormalBNormalC_v1r1<GridSize,
-                                                       BlockSize,
-                                                       Float,
-                                                       AccFloat,
-                                                       decltype(wei_gemmk_gemmm_global_desc),
-                                                       decltype(out_gemmk_gemmn_global_desc),
-                                                       decltype(in_gemmm_gemmn_global_desc),
-                                                       InMemoryDataOperation::none,
-                                                       GemmMPerBlock,
-                                                       GemmNPerBlock,
-                                                       GemmKPerBlock,
-                                                       GemmMPerThreadSubC,
-                                                       GemmNPerThreadSubC,
-                                                       GemmMLevel0Cluster,
-                                                       GemmNLevel0Cluster,
-                                                       GemmMLevel1Cluster,
-                                                       GemmNLevel1Cluster,
-                                                       GemmKPerThreadLoop,
-                                                       GemmThreadGemmDataPerReadM,
-                                                       GemmThreadGemmDataPerReadN,
-                                                       GemmABlockCopySubLengths,
-                                                       GemmABlockCopyClusterLengths,
-                                                       GemmABlockCopyDataPerAccess,
-                                                       GemmBBlockCopySubLengths,
-                                                       GemmBBlockCopyClusterLengths,
-                                                       GemmBBlockCopyDataPerAccess,
-                                                       GemmCThreadCopyDataPerAccess>{};
+            GridwiseGemmTransposedANormalBNormalC_v1<GridSize,
+                                                     BlockSize,
+                                                     Float,
+                                                     AccFloat,
+                                                     decltype(wei_gemmk_gemmm_global_desc),
+                                                     decltype(out_gemmk_gemmn_global_desc),
+                                                     decltype(in_gemmm_gemmn_global_desc),
+                                                     InMemoryDataOperation::none,
+                                                     GemmMPerBlock,
+                                                     GemmNPerBlock,
+                                                     GemmKPerBlock,
+                                                     GemmMPerThreadSubC,
+                                                     GemmNPerThreadSubC,
+                                                     GemmMLevel0Cluster,
+                                                     GemmNLevel0Cluster,
+                                                     GemmMLevel1Cluster,
+                                                     GemmNLevel1Cluster,
+                                                     GemmKPerThreadLoop,
+                                                     GemmThreadGemmDataPerReadM,
+                                                     GemmThreadGemmDataPerReadN,
+                                                     GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
+                                                     GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
+                                                     Sequence<0, 1>,
+                                                     Sequence<0, 1>,
+                                                     1,
+                                                     GemmABlockCopySrcDataPerRead_GemmM,
+                                                     GemmABlockCopyDstDataPerWrite_GemmM,
+                                                     GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
+                                                     GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
+                                                     Sequence<0, 1>,
+                                                     Sequence<0, 1>,
+                                                     1,
+                                                     GemmBBlockCopySrcDataPerRead_GemmN,
+                                                     GemmBBlockCopyDstDataPerWrite_GemmN,
+                                                     Sequence<0, 1, 2, 3>,
+                                                     3,
+                                                     GemmCThreadCopyDstDataPerWrite_GemmN1>{};
 
         gridwise_gemm.Run(p_wei_global, p_out_global, p_in_global);
     }

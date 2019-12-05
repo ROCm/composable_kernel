@@ -8,20 +8,19 @@
 
 namespace ck {
 
-// This version use multi-index transformation
 // This threadwise copy allow vector access of src and dst.
 // It allows the vector size to be different on src and dst.
 // The dimensions of vector access should be the same on src and dst.
 // The dimension access order should be the same on src and dst.
-// It is designed for cases, where one of src and dst is register, and
-// the other is device memory or LDS
+// Will do valid mapping check on src data: Read 0 if src data has a invalid mapping
+// Will do valid mapping check on dst data: No write if dst data has a invalid mapping
 template <typename SrcDesc,
           typename DstDesc,
           typename SliceLengths,
-          typename DimAccessOrder,
-          index_t VectorAccessDim,
-          index_t SrcDataPerAccess,
-          index_t DstDataPerAccess,
+          typename SrcDstDimAccessOrder,
+          index_t SrcDstVectorReadWriteDim,
+          index_t SrcDataPerRead,
+          index_t DstDataPerWrite,
           AddressSpace SrcAddressSpace     = AddressSpace::generic,
           AddressSpace DstAddressSpace     = AddressSpace::generic,
           InMemoryDataOperation DstInMemOp = InMemoryDataOperation::none>
@@ -39,16 +38,17 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
     {
         static_assert(nDim == SrcDesc::GetNumOfDimension() &&
                           nDim == DstDesc::GetNumOfDimension() && nDim == SliceLengths::Size() &&
-                          nDim == DimAccessOrder::Size(),
+                          nDim == SrcDstDimAccessOrder::Size(),
                       "wrong! # of dimensions not the same");
 
-        static_assert(is_valid_sequence_map<DimAccessOrder>{}, "wrong! map is not valid");
+        static_assert(is_valid_sequence_map<SrcDstDimAccessOrder>{}, "wrong! map is not valid");
 
-        static_assert(
-            SliceLengths{}[VectorAccessDim] % math::lcm(SrcDataPerAccess, DstDataPerAccess) == 0,
-            "wrong! cannot evenly divide");
+        static_assert(SliceLengths{}[SrcDstVectorReadWriteDim] %
+                              math::lcm(SrcDataPerRead, DstDataPerWrite) ==
+                          0,
+                      "wrong! cannot evenly divide");
 
-        // TODO:: sanity-check if vectorized memory access is allowed on src and dst
+        // TODO:: sanity-check if vectorized memory read/write is allowed on src and dst
     }
 
     __device__ constexpr ThreadwiseGenericTensorSliceCopy_v4r2()
@@ -67,22 +67,20 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         mDstSliceOrigin = dst_slice_origin;
     }
 
-    // Will do padding check on src data: Read 0 if src data is in padding area.
-    // Will do padding check on dst data: No write if dst data is in paddin area.
     template <typename SrcData, typename DstData>
     __device__ void Run(const SrcData* p_src, DstData* p_dst) const
     {
-        constexpr auto vector_access_dim = Number<VectorAccessDim>{};
+        constexpr auto vector_access_dim = Number<SrcDstVectorReadWriteDim>{};
 
-        constexpr auto src_data_per_access = Number<SrcDataPerAccess>{};
-        constexpr auto dst_data_per_access = Number<DstDataPerAccess>{};
+        constexpr auto src_data_per_access = Number<SrcDataPerRead>{};
+        constexpr auto dst_data_per_access = Number<DstDataPerWrite>{};
 
-        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerAccess, DstDataPerAccess)>{};
+        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerRead, DstDataPerWrite)>{};
 
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
 
-        ford<decltype(long_vector_access_lengths), DimAccessOrder>{}([&](
+        ford<decltype(long_vector_access_lengths), SrcDstDimAccessOrder>{}([&](
             auto long_vector_access_id) {
 
             // data id w.r.t slicing-window
@@ -109,13 +107,13 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 
                 const auto src_coord = mSrcSliceOrigin + (long_vector_data_begin_id + scalar_id);
 
-                // Check src vector's padding situation, only check the first data in this src
+                // Check src data's valid mapping situation, only check the first data in this src
                 //   vector. It's user's responsiblity to make sure all data in the src vector
-                //   has the same padding situation
+                //   has the valid/invalid mapping situation
                 if(src_coord.IsUpperIndexMappedToValidOffset())
                 {
                     move_data<SrcData,
-                              SrcDataPerAccess,
+                              SrcDataPerRead,
                               SrcAddressSpace,
                               AddressSpace::vgpr,
                               InMemoryDataOperation::none>(
@@ -141,13 +139,13 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
 
                 const auto dst_coord = mDstSliceOrigin + (long_vector_data_begin_id + scalar_id);
 
-                // Check dst vector's padding situation, only check the first data in this dst
+                // Check dst data's valid mapping situation, only check the first data in this dst
                 //   vector. It's user's responsiblity to make sure all data in the dst vector
-                //   has the same padding situation
+                //   has the valid/invalid mapping situation
                 if(dst_coord.IsUpperIndexMappedToValidOffset())
                 {
                     move_data<DstData,
-                              DstDataPerAccess,
+                              DstDataPerWrite,
                               AddressSpace::vgpr,
                               DstAddressSpace,
                               DstInMemOp>(
@@ -165,20 +163,20 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         return Sequence<(Mask ? Lengths : 1)...>{};
     }
 
-    // Will do padding check on src data: Read 0 if src data is in padding area.
-    // Will do padding check on dst data: No write if dst data is in paddin area.
+    // Will do valid mapping check on src data: Read 0 if src data has a invalid mapping
+    // Will do valid mapping check on dst data: No write if dst data has a invalid mapping
     // This version is optimized for address calculation of src tensor
     // TODO: this function is not compiled to expected ISA
     template <typename SrcData, typename DstData>
     __device__ void Run_optimized_src_address_calculation(const SrcData* p_src,
                                                           DstData* p_dst) const
     {
-        constexpr auto vector_access_dim = Number<VectorAccessDim>{};
+        constexpr auto vector_access_dim = Number<SrcDstVectorReadWriteDim>{};
 
-        constexpr auto src_data_per_access = Number<SrcDataPerAccess>{};
-        constexpr auto dst_data_per_access = Number<DstDataPerAccess>{};
+        constexpr auto src_data_per_access = Number<SrcDataPerRead>{};
+        constexpr auto dst_data_per_access = Number<DstDataPerWrite>{};
 
-        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerAccess, DstDataPerAccess)>{};
+        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerRead, DstDataPerWrite)>{};
 
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
@@ -187,10 +185,10 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto src_linear_dim_mask    = SrcDesc::GetLinearDimensionMask();
         constexpr auto src_nonlinear_dim_mask = SrcDesc::GetNonLinearDimensionMask();
 
-        static_assert(src_linear_dim_mask.At(VectorAccessDim) ||
-                          long_vector_size == SrcDataPerAccess,
-                      "Warning! VectorAccessDim is not SrcDesc's linear dimension, performance "
-                      "would drop");
+        static_assert(
+            src_linear_dim_mask.At(SrcDstVectorReadWriteDim) || long_vector_size == SrcDataPerRead,
+            "Warning! SrcDstVectorReadWriteDim is not SrcDesc's linear dimension, performance "
+            "would drop");
 
         // separate steps into linear and non-linear components, accoording to src tensor
         constexpr auto linear_long_vector_access_lengths =
@@ -230,13 +228,13 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     p_src_long_vector[i] = 0;
                 }
 
-                // Loop over VectorAccessDim, and load data from src to the
+                // Loop over SrcDstVectorReadWriteDim, and load data from src to the
                 //   long-vector buffer.
-                // If VectorAccessDim is src's linear dimension, then src's
+                // If SrcDstVectorReadWriteDim is src's linear dimension, then src's
                 //   offset-diff due to this looping is known at compile-time. If
-                //   VectorAccessDim is src's nonlinear dimension, then src's
+                //   SrcDstVectorReadWriteDim is src's nonlinear dimension, then src's
                 //   offset-diff due to this looping is only known at run-time. For best
-                //   performance, VectorAccessDim, should be src's linear dimension
+                //   performance, SrcDstVectorReadWriteDim, should be src's linear dimension
                 for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
                 {
                     auto scalar_id               = make_zero_array<index_t, nDim>();
@@ -258,13 +256,14 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                         src_coord.GetOffset() - src_nonlinear_coord.GetOffset();
 #endif
 
-                    // Check src vector's padding situation, only check the first data in
-                    //   this src vector. It's user's responsiblity to make sure all data in
-                    //   the src vector has the same padding situation
+                    // Check src data's valid mapping situation, only check the first data in this
+                    // src
+                    //   vector. It's user's responsiblity to make sure all data in the src vector
+                    //   has the valid/invalid mapping situation
                     if(src_coord.IsUpperIndexMappedToValidOffset())
                     {
                         move_data<SrcData,
-                                  SrcDataPerAccess,
+                                  SrcDataPerRead,
                                   SrcAddressSpace,
                                   AddressSpace::vgpr,
                                   InMemoryDataOperation::none>(p_src,
@@ -296,13 +295,14 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const auto dst_coord = mDstSliceOrigin + (nonlinear_dim_data_steps +
                                                               linear_dim_data_steps + scalar_id);
 
-                    // Check dst vector's padding situation, only check the first data in
-                    //   this dst vector. It's user's responsiblity to make sure all data in
-                    //   the dst vector has the same padding situation
+                    // Check dst data's valid mapping situation, only check the first data in this
+                    // dst
+                    //   vector. It's user's responsiblity to make sure all data in the dst vector
+                    //   has the valid/invalid mapping situation
                     if(dst_coord.IsUpperIndexMappedToValidOffset())
                     {
                         move_data<DstData,
-                                  DstDataPerAccess,
+                                  DstDataPerWrite,
                                   AddressSpace::vgpr,
                                   DstAddressSpace,
                                   DstInMemOp>(
@@ -313,20 +313,18 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         });
     }
 
-    // Will do padding check on src data: Read 0 if src data is in padding area.
-    // Will do padding check on dst data: No write if dst data is in paddin area.
     // This version is optimized for address calculation of dst tensor
     // TODO: this function is not compiled to expected ISA
     template <typename SrcData, typename DstData>
     __device__ void Run_optimized_dst_address_calculation(const SrcData* p_src,
                                                           DstData* p_dst) const
     {
-        constexpr auto vector_access_dim = Number<VectorAccessDim>{};
+        constexpr auto vector_access_dim = Number<SrcDstVectorReadWriteDim>{};
 
-        constexpr auto src_data_per_access = Number<SrcDataPerAccess>{};
-        constexpr auto dst_data_per_access = Number<DstDataPerAccess>{};
+        constexpr auto src_data_per_access = Number<SrcDataPerRead>{};
+        constexpr auto dst_data_per_access = Number<DstDataPerWrite>{};
 
-        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerAccess, DstDataPerAccess)>{};
+        constexpr auto long_vector_size = Number<math::lcm(SrcDataPerRead, DstDataPerWrite)>{};
 
         constexpr auto long_vector_access_lengths = SliceLengths::Modify(
             vector_access_dim, SliceLengths::Get(vector_access_dim) / long_vector_size);
@@ -335,10 +333,10 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
         constexpr auto dst_linear_dim_mask    = DstDesc::GetLinearDimensionMask();
         constexpr auto dst_nonlinear_dim_mask = DstDesc::GetNonLinearDimensionMask();
 
-        static_assert(dst_linear_dim_mask.At(VectorAccessDim) ||
-                          long_vector_size == DstDataPerAccess,
-                      "Warning! VectorAccessDim is not DstDesc's linear dimension, performance "
-                      "would drop");
+        static_assert(
+            dst_linear_dim_mask.At(SrcDstVectorReadWriteDim) || long_vector_size == DstDataPerWrite,
+            "Warning! SrcDstVectorReadWriteDim is not DstDesc's linear dimension, performance "
+            "would drop");
 
         // separate steps into linear and non-linear components, accoording to dst tensor
         constexpr auto linear_long_vector_access_lengths =
@@ -378,13 +376,13 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     p_src_long_vector[i] = 0;
                 }
 
-                // Loop over VectorAccessDim, and load data from src to the
+                // Loop over SrcDstVectorReadWriteDim, and load data from src to the
                 //   long-vector buffer.
-                // If VectorAccessDim is dst's linear dimension, then dst's
+                // If SrcDstVectorReadWriteDim is dst's linear dimension, then dst's
                 //   offset-diff due to this looping is known at compile-time. If
-                //   VectorAccessDim is dst's nonlinear dimension, then dst's
+                //   SrcDstVectorReadWriteDim is dst's nonlinear dimension, then dst's
                 //   offset-diff due to this looping is only known at run-time. For best
-                //   performance, VectorAccessDim, should be dst's linear dimension
+                //   performance, SrcDstVectorReadWriteDim, should be dst's linear dimension
                 for(index_t i = 0; i < long_vector_size / src_data_per_access; ++i)
                 {
                     auto scalar_id               = make_zero_array<index_t, nDim>();
@@ -397,13 +395,14 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     const auto src_coord = mSrcSliceOrigin + (nonlinear_dim_data_steps +
                                                               linear_dim_data_steps + scalar_id);
 
-                    // Check src vector's padding situation, only check the first data in
-                    //   this src vector. It's user's responsiblity to make sure all data in
-                    //   the src vector has the same padding situation
+                    // Check src data's valid mapping situation, only check the first data in this
+                    // src
+                    //   vector. It's user's responsiblity to make sure all data in the src vector
+                    //   has the valid/invalid mapping situation
                     if(src_coord.IsUpperIndexMappedToValidOffset())
                     {
                         move_data<SrcData,
-                                  SrcDataPerAccess,
+                                  SrcDataPerRead,
                                   SrcAddressSpace,
                                   AddressSpace::vgpr,
                                   InMemoryDataOperation::none>(
@@ -441,13 +440,14 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                         dst_coord.GetOffset() - dst_nonlinear_coord.GetOffset();
 #endif
 
-                    // Check dst vector's padding situation, only check the first data in
-                    //   this dst vector. It's user's responsiblity to make sure all data in
-                    //   the dst vector has the same padding situation
+                    // Check dst data's valid mapping situation, only check the first data in this
+                    // dst
+                    //   vector. It's user's responsiblity to make sure all data in the dst vector
+                    //   has the valid/invalid mapping situation
                     if(dst_coord.IsUpperIndexMappedToValidOffset())
                     {
                         move_data<DstData,
-                                  DstDataPerAccess,
+                                  DstDataPerWrite,
                                   AddressSpace::vgpr,
                                   DstAddressSpace,
                                   DstInMemOp>(p_dst_long_vector,
