@@ -9,6 +9,12 @@
 
 namespace ck {
 
+// This threadwise copy allow vector access of src and dst.
+// It allows the vector size to be different on src and dst.
+// The dimension of vector access can be different for src and dst.
+// The dimension access order can be different for src and dst.
+// Will do valid mapping check on src data: Read 0 if src data has a invalid mapping
+// Will do valid mapping check on dst data: No write if dst data has a invalid mapping
 template <index_t BlockSize,
           typename BlockSrcDesc,
           typename BlockDstDesc,
@@ -18,10 +24,10 @@ template <index_t BlockSize,
           typename ThreadClusterArrangeOrder,
           typename SrcDimAccessOrder,
           typename DstDimAccessOrder,
-          index_t SrcVectorAccessDim,
-          index_t DstVectorAccessDim,
-          index_t SrcDataPerAccess,
-          index_t DstDataPerAccess,
+          index_t SrcVectoReadDim,
+          index_t DstVectorWriteDim,
+          index_t SrcDataPerRead,
+          index_t DstDataPerWrite,
           AddressSpace SrcAddressSpace          = AddressSpace::generic,
           AddressSpace ThreadBufferAddressSpace = AddressSpace::generic,
           AddressSpace DstAddressSpace          = AddressSpace::generic,
@@ -146,8 +152,8 @@ struct BlockwiseGenericTensorSliceCopy_v4
                                                                  ThreadBufferDesc,
                                                                  ThreadSliceLengths,
                                                                  SrcDimAccessOrder,
-                                                                 SrcVectorAccessDim,
-                                                                 SrcDataPerAccess,
+                                                                 SrcVectoReadDim,
+                                                                 SrcDataPerRead,
                                                                  1,
                                                                  SrcAddressSpace,
                                                                  ThreadBufferAddressSpace,
@@ -157,9 +163,9 @@ struct BlockwiseGenericTensorSliceCopy_v4
                                                                   BlockDstDesc,
                                                                   ThreadSliceLengths,
                                                                   DstDimAccessOrder,
-                                                                  DstVectorAccessDim,
+                                                                  DstVectorWriteDim,
                                                                   1,
-                                                                  DstDataPerAccess,
+                                                                  DstDataPerWrite,
                                                                   ThreadBufferAddressSpace,
                                                                   DstAddressSpace,
                                                                   DstInMemOp>;
