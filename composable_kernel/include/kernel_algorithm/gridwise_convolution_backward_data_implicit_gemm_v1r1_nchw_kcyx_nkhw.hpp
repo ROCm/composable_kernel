@@ -111,8 +111,12 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
             in_n_c_hip_wip_global_desc,
             make_tuple(PassThrough<N>{},
                        PassThrough<C>{},
-                       Embed<Sequence<Y, Ho>, Sequence<ConvDilationH, ConvStrideH, 0>>{},
-                       Embed<Sequence<X, Wo>, Sequence<ConvDilationW, ConvStrideW, 0>>{}),
+                       Embed<Hi + InLeftPads::At(0) + InRightPads::At(0),
+                             Sequence<Y, Ho>,
+                             Sequence<ConvDilationH, ConvStrideH, 0>>{},
+                       Embed<Wi + InLeftPads::At(1) + InRightPads::At(1),
+                             Sequence<X, Wo>,
+                             Sequence<ConvDilationW, ConvStrideW, 0>>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 
@@ -122,7 +126,11 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
             make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        // GEMM: atomic add
+        // GEMM
+        constexpr auto in_memory_op = (Y <= ConvStrideH && X <= ConvStrideW)
+                                          ? InMemoryDataOperation::none
+                                          : InMemoryDataOperation::atomic_add;
+
         constexpr auto gridwise_gemm =
             GridwiseGemmTransposedANormalBNormalC_v1<GridSize,
                                                      BlockSize,
@@ -131,7 +139,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
                                                      decltype(wei_k_e_global_desc),
                                                      decltype(out_k_b_global_desc),
                                                      decltype(in_e_b_global_desc),
-                                                     InMemoryDataOperation::atomic_add,
+                                                     in_memory_op,
                                                      GemmMPerBlock,
                                                      GemmNPerBlock,
                                                      GemmKPerBlock,

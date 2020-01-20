@@ -110,7 +110,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 // Check src data's valid mapping situation, only check the first data in this src
                 //   vector. It's user's responsiblity to make sure all data in the src vector
                 //   has the valid/invalid mapping situation
-                if(src_coord.IsUpperIndexMappedToValidOffset())
+                if(src_coord.IsOffsetValidAssumingUpperIndexIsValid())
                 {
                     move_data<SrcData,
                               SrcDataPerRead,
@@ -142,7 +142,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                 // Check dst data's valid mapping situation, only check the first data in this dst
                 //   vector. It's user's responsiblity to make sure all data in the dst vector
                 //   has the valid/invalid mapping situation
-                if(dst_coord.IsUpperIndexMappedToValidOffset())
+                if(dst_coord.IsOffsetValidAssumingUpperIndexIsValid())
                 {
                     move_data<DstData,
                               DstDataPerWrite,
@@ -260,7 +260,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     // src
                     //   vector. It's user's responsiblity to make sure all data in the src vector
                     //   has the valid/invalid mapping situation
-                    if(src_coord.IsUpperIndexMappedToValidOffset())
+                    if(src_coord.IsOffsetValidAssumingUpperIndexIsValid())
                     {
                         move_data<SrcData,
                                   SrcDataPerRead,
@@ -299,7 +299,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     // dst
                     //   vector. It's user's responsiblity to make sure all data in the dst vector
                     //   has the valid/invalid mapping situation
-                    if(dst_coord.IsUpperIndexMappedToValidOffset())
+                    if(dst_coord.IsOffsetValidAssumingUpperIndexIsValid())
                     {
                         move_data<DstData,
                                   DstDataPerWrite,
@@ -399,7 +399,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     // src
                     //   vector. It's user's responsiblity to make sure all data in the src vector
                     //   has the valid/invalid mapping situation
-                    if(src_coord.IsUpperIndexMappedToValidOffset())
+                    if(src_coord.IsOffsetValidAssumingUpperIndexIsValid())
                     {
                         move_data<SrcData,
                                   SrcDataPerRead,
@@ -444,7 +444,7 @@ struct ThreadwiseGenericTensorSliceCopy_v4r2
                     // dst
                     //   vector. It's user's responsiblity to make sure all data in the dst vector
                     //   has the valid/invalid mapping situation
-                    if(dst_coord.IsUpperIndexMappedToValidOffset())
+                    if(dst_coord.IsOffsetValidAssumingUpperIndexIsValid())
                     {
                         move_data<DstData,
                                   DstDataPerWrite,

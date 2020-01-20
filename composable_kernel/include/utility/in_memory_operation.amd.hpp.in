@@ -52,8 +52,13 @@ __device__ void atomic_add_data(const T* p_src, index_t src_offset, T* p_dst, in
 
     static_if<SrcAddressSpace == AddressSpace::vgpr && DstAddressSpace == AddressSpace::global>{}(
         [&](auto) {
+#if CK_USE_AMD_BUFFER_ATOMIC_ADD
+            amd_intrinsic_buffer_atomic_add<T, DataPerAccess>(
+                *reinterpret_cast<const vector_t*>(&p_src[src_offset]), p_dst, dst_offset, 0);
+#else
             atomicAdd(reinterpret_cast<vector_t*>(&p_dst[dst_offset]),
                       *reinterpret_cast<const vector_t*>(&p_src[src_offset]));
+#endif
         })
         .Else([&](auto fwd) {
             static_assert(fwd(false), "atomic_add doesn't support this memory space");

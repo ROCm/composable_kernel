@@ -352,8 +352,16 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
             }
         }
 
-        // input: register to global memory, atomic add
         {
+#if 1       // debug
+            // input: register to global memory, atomic add
+            constexpr auto in_memory_op = (Y <= ConvStrideH && X <= ConvStrideW)
+                                              ? InMemoryDataOperation::none
+                                              : InMemoryDataOperation::atomic_add;
+#else
+            constexpr auto in_memory_op = InMemoryDataOperation::atomic_add;
+#endif
+
             constexpr index_t E1 = GemmMLevel0Cluster * GemmMLevel1Cluster;
             constexpr index_t E0 = E / E1;
 
@@ -378,8 +386,12 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                 in_n_c_hip_wip_global_desc,
                 make_tuple(UnMerge<Sequence<N0, N1>>{},
                            UnMerge<Sequence<C0, C1>>{},
-                           Embed<Sequence<Y, Ho>, Sequence<ConvDilationH, ConvStrideH, 0>>{},
-                           Embed<Sequence<X, Wo>, Sequence<ConvDilationW, ConvStrideW, 0>>{}),
+                           Embed<Hi + LeftPads::At(0) + RightPads::At(0),
+                                 Sequence<Y, Ho>,
+                                 Sequence<ConvDilationH, ConvStrideH, 0>>{},
+                           Embed<Wi + LeftPads::At(1) + RightPads::At(1),
+                                 Sequence<X, Wo>,
+                                 Sequence<ConvDilationW, ConvStrideW, 0>>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}, Sequence<6, 7>{}));
 
@@ -422,13 +434,13 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                 InThreadCopyDstDataPerWrite_B,
                 AddressSpace::vgpr,
                 AddressSpace::global,
-                InMemoryDataOperation::atomic_add>({0, 0, 0, 0, 0, 0},
-                                                   {e_thread_data_on_global / E1,
-                                                    e_thread_data_on_global % E1,
-                                                    0,
-                                                    b_thread_data_on_global / B1,
-                                                    b_thread_data_on_global % B1,
-                                                    0})
+                in_memory_op>({0, 0, 0, 0, 0, 0},
+                              {e_thread_data_on_global / E1,
+                               e_thread_data_on_global % E1,
+                               0,
+                               b_thread_data_on_global / B1,
+                               b_thread_data_on_global % B1,
+                               0})
                 .Run(p_in_thread, p_in_global);
         }
     }

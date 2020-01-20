@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_CONVOLUTION_BACKWARD_DATA_IMPLICIT_GEMM_V2R1_NCHW_KCYX_NKHW_HPP
-#define CK_GRIDWISE_CONVOLUTION_BACKWARD_DATA_IMPLICIT_GEMM_V2R1_NCHW_KCYX_NKHW_HPP
+#ifndef CK_GRIDWISE_CONVOLUTION_BACKWARD_DATA_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_HPP
+#define CK_GRIDWISE_CONVOLUTION_BACKWARD_DATA_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_HPP
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -8,9 +8,9 @@
 
 namespace ck {
 
-// GemmM = C * Ytilda * Xtilda;
-// GemmN = N * HtildaNonZero * WtildaNonZero;
-// GemmK = K * Ydot * Xdot;
+// GemmM = C
+// GemmN = N * Htilda * Wtilda;
+// GemmK = K * YdotNonZero * XdotNonZero
 template <index_t GridSize,
           index_t BlockSize,
           typename Float,
@@ -22,6 +22,8 @@ template <index_t GridSize,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads,
+          index_t Iter_ytilda,
+          index_t Iter_xtilda,
           index_t GemmMPerBlock,
           index_t GemmNPerBlock,
           index_t GemmKPerBlock,
@@ -43,7 +45,7 @@ template <index_t GridSize,
           index_t GemmBBlockCopySrcDataPerRead_GemmN,
           index_t GemmBBlockCopyDstDataPerWrite_GemmN,
           index_t GemmCThreadCopyDstDataPerWrite_GemmN1>
-struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
+struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
 {
     __device__ void Run(Float* __restrict__ p_in_global,
                         const Float* __restrict__ p_wei_global,
@@ -108,6 +110,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
         constexpr index_t HtildaTrim = HtildaRight - HtildaLeft;
         constexpr index_t WtildaTrim = WtildaRight - WtildaLeft;
 
+        constexpr bool wei_skip_all_out_of_bound_check = true;
+
         // weight tensor
         constexpr auto wei_k_c_ydot_ytilda_xdot_xtilda_global_desc = transform_tensor_descriptor(
             wei_k_c_y_x_global_desc,
@@ -115,18 +119,20 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
                        PassThrough<C>{},
                        Embed<Y,
                              Sequence<Ydot, Ytilda>,
-                             Sequence<ConvStrideH / hcf_stride_dilation_h, 1, 0>>{},
+                             Sequence<ConvStrideH / hcf_stride_dilation_h, 1, 0>,
+                             wei_skip_all_out_of_bound_check>{},
                        Embed<X,
                              Sequence<Xdot, Xtilda>,
-                             Sequence<ConvStrideW / hcf_stride_dilation_w, 1, 0>>{}),
+                             Sequence<ConvStrideW / hcf_stride_dilation_w, 1, 0>,
+                             wei_skip_all_out_of_bound_check>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 
-        constexpr auto wei_gemmk_gemmm_global_desc = transform_tensor_descriptor(
-            wei_k_c_ydot_ytilda_xdot_xtilda_global_desc,
-            make_tuple(Merge<Sequence<K, Ydot, Xdot>>{}, Merge<Sequence<C, Ytilda, Xtilda>>{}),
-            make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+#if 1 // debug
+        constexpr bool out_skip_all_out_of_bound_check = false;
+#else
+        constexpr bool out_skip_all_out_of_bound_check = true;
+#endif
 
         // output tensor
         constexpr auto out_n_k_ydot_htilda_xdot_wtilda_global_desc = transform_tensor_descriptor(
@@ -135,10 +141,12 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
                        PassThrough<K>{},
                        Embed<Ho,
                              Sequence<Ydot, Htilda>,
-                             Sequence<-ConvDilationH / hcf_stride_dilation_h, 1, 0>>{},
+                             Sequence<-ConvDilationH / hcf_stride_dilation_h, 1, 0>,
+                             out_skip_all_out_of_bound_check>{},
                        Embed<Wo,
                              Sequence<Xdot, Wtilda>,
-                             Sequence<-ConvDilationW / hcf_stride_dilation_w, 1, 0>>{}),
+                             Sequence<-ConvDilationW / hcf_stride_dilation_w, 1, 0>,
+                             out_skip_all_out_of_bound_check>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 
@@ -157,17 +165,10 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
                 make_tuple(
                     Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<4>{}, Sequence<3, 5>{}));
 
-        constexpr auto out_gemmk_gemmn_global_desc =
-            transform_tensor_descriptor(out_n_k_ydot_htildatrim_xdot_wtildatrim_global_desc,
-                                        make_tuple(Merge<Sequence<K, Ydot, Xdot>>{},
-                                                   Merge<Sequence<N, HtildaTrim, WtildaTrim>>{}),
-                                        make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-
 #if 1 // debug
         constexpr bool in_skip_all_out_of_bound_check = false;
 #else
-        constexpr bool in_skip_all_out_of_bound_check = true;
+        constexpr bool in_skip_all_out_of_bound_check  = true;
 #endif
 
         // input tensor
@@ -213,14 +214,78 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
                 make_tuple(
                     Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<4>{}, Sequence<3, 5>{}));
 
-        constexpr auto in_gemmm_gemmn_global_desc =
-            transform_tensor_descriptor(in_n_c_ytilda_htildatrim_xtilda_wtildatrim_global_desc,
-                                        make_tuple(Merge<Sequence<C, Ytilda, Xtilda>>{},
-                                                   Merge<Sequence<N, HtildaTrim, WtildaTrim>>{}),
-                                        make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-
         // GEMM
+        constexpr index_t ytilda = Iter_ytilda;
+        constexpr index_t xtilda = Iter_xtilda;
+
+        constexpr index_t YdotNonZero = (ytilda + 1) * Ydot <= Y ? Ydot : Y % Ydot;
+        constexpr index_t XdotNonZero = (xtilda + 1) * Xdot <= X ? Xdot : X % Xdot;
+
+        // A matrix
+        constexpr auto wei_k_c_YdotNonZero_1_XdotNonZero_1_global_desc =
+            transform_tensor_descriptor(
+                wei_k_c_ydot_ytilda_xdot_xtilda_global_desc,
+                make_tuple(PassThrough<K>{},
+                           PassThrough<C>{},
+                           Slice<Sequence<Ydot, Xdot>,
+                                 Sequence<0, 0>,
+                                 Sequence<YdotNonZero, XdotNonZero>>{},
+                           Slice<Sequence<Ytilda, Xtilda>,
+                                 Sequence<ytilda, xtilda>,
+                                 Sequence<ytilda + 1, xtilda + 1>>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3, 5>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3, 5>{}));
+
+        constexpr auto wei_gemmk_gemmm_global_desc = transform_tensor_descriptor(
+            wei_k_c_YdotNonZero_1_XdotNonZero_1_global_desc,
+            make_tuple(Merge<Sequence<K, YdotNonZero, XdotNonZero>>{}, Merge<Sequence<C, 1, 1>>{}),
+            make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        // B matrix
+        constexpr auto out_n_k_YdotNonZero_htildatrim_XdotNonZero_wtildatrim_global_desc =
+            transform_tensor_descriptor(
+                out_n_k_ydot_htildatrim_xdot_wtildatrim_global_desc,
+                make_tuple(PassThrough<N>{},
+                           PassThrough<K>{},
+                           PassThrough<HtildaTrim>{},
+                           PassThrough<WtildaTrim>{},
+                           Slice<Sequence<Ydot, Xdot>,
+                                 Sequence<0, 0>,
+                                 Sequence<YdotNonZero, XdotNonZero>>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<5>{}, Sequence<2, 4>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<5>{}, Sequence<2, 4>{}));
+
+        constexpr auto out_gemmk_gemmn_global_desc = transform_tensor_descriptor(
+            out_n_k_YdotNonZero_htildatrim_XdotNonZero_wtildatrim_global_desc,
+            make_tuple(Merge<Sequence<K, YdotNonZero, XdotNonZero>>{},
+                       Merge<Sequence<N, HtildaTrim, WtildaTrim>>{}),
+            make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        // C matrix
+        constexpr auto in_n_c_1_htildatrim_1_wtildatrim_global_desc = transform_tensor_descriptor(
+            in_n_c_ytilda_htildatrim_xtilda_wtildatrim_global_desc,
+            make_tuple(PassThrough<N>{},
+                       PassThrough<C>{},
+                       PassThrough<HtildaTrim>{},
+                       PassThrough<WtildaTrim>{},
+                       Slice<Sequence<Ytilda, Xtilda>,
+                             Sequence<ytilda, xtilda>,
+                             Sequence<ytilda + 1, xtilda + 1>>{}),
+            make_tuple(
+                Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<5>{}, Sequence<2, 4>{}),
+            make_tuple(
+                Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<5>{}, Sequence<2, 4>{}));
+
+        constexpr auto in_gemmm_gemmn_global_desc = transform_tensor_descriptor(
+            in_n_c_1_htildatrim_1_wtildatrim_global_desc,
+            make_tuple(Merge<Sequence<C, 1, 1>>{}, Merge<Sequence<N, HtildaTrim, WtildaTrim>>{}),
+            make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
         constexpr auto gridwise_gemm =
             GridwiseGemmTransposedANormalBNormalC_v1<GridSize,
                                                      BlockSize,
