@@ -5,6 +5,10 @@
 #include "gridwise_operation_wrapper.hpp"
 #include "gridwise_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw.hpp"
 
+namespace launcher {
+
+using namespace ck;
+
 template <typename T,
           typename InDesc,
           typename WeiDesc,
@@ -121,20 +125,18 @@ void device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw(InDesc i
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(run_gridwise_operation<decltype(gridwise_conv),
-                                                          T* const __restrict__,
-                                                          const T* const __restrict__,
-                                                          const T* const __restrict__>,
-                                   dim3(GridSize),
-                                   dim3(BlockSize),
-                                   0,
-                                   gridwise_conv,
-                                   const_cast<T* const __restrict__>(
-                                       static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer())),
-                                   const_cast<const T* const __restrict__>(
-                                       static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer())),
-                                   const_cast<const T* const __restrict__>(
-                                       static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer())));
+        float time = launch_and_time_kernel(run_gridwise_operation<decltype(gridwise_conv),
+                                                                   T* const __restrict__,
+                                                                   const T* const __restrict__,
+                                                                   const T* const __restrict__>,
+                                            dim3(GridSize),
+                                            dim3(BlockSize),
+                                            0,
+                                            0,
+                                            gridwise_conv,
+                                            static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
+                                            static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
+                                            static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms, %f TFlop/s\n",
                time,
@@ -145,3 +147,5 @@ void device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw(InDesc i
 
     in_nchw_device_buf.FromDevice(in_nchw.mData.data());
 }
+
+} // namespace launcher

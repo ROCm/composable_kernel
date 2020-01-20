@@ -205,7 +205,8 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw_deprecated(InDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
+        float time =
+            launch_and_time_kernel(run_gridwise_convolution_kernel<decltype(gridwise_conv), T>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
                                    0,

@@ -97,12 +97,15 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}));
 
+        constexpr index_t Hip = in_n_c_hip_wip_global_desc.GetLengths()[2];
+        constexpr index_t Wip = in_n_c_hip_wip_global_desc.GetLengths()[3];
+
         constexpr auto in_n_c_y_ho_x_wo_global_desc = transform_tensor_descriptor(
             in_n_c_hip_wip_global_desc,
             make_tuple(PassThrough<N>{},
                        PassThrough<C>{},
-                       Embed<Sequence<Y, Ho>, Sequence<ConvDilationH, ConvStrideH, 0>>{},
-                       Embed<Sequence<X, Wo>, Sequence<ConvDilationW, ConvStrideW, 0>>{}),
+                       Embed<Hip, Sequence<Y, Ho>, Sequence<ConvDilationH, ConvStrideH, 0>>{},
+                       Embed<Wip, Sequence<X, Wo>, Sequence<ConvDilationW, ConvStrideW, 0>>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 

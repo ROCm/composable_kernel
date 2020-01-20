@@ -82,13 +82,13 @@ void device_convolution_direct_v2_nchw_kcyx_nkhw(InDesc,
                                                                           WoPerThread,
                                                                           InBlockCopyDataPerRead,
                                                                           WeiBlockCopyDataPerRead>;
-        float time = launch_kernel(run_gridwise_convolution_kernel<gridwise_conv, T>,
-                                   dim3(GridSize),
-                                   dim3(BlockSize),
-                                   0,
-                                   static_cast<T*>(in_device_buf.GetDeviceBuffer()),
-                                   static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
-                                   static_cast<T*>(out_device_buf.GetDeviceBuffer()));
+        float time = launch_and_time_kernel(run_gridwise_convolution_kernel<gridwise_conv, T>,
+                                            dim3(GridSize),
+                                            dim3(BlockSize),
+                                            0,
+                                            static_cast<T*>(in_device_buf.GetDeviceBuffer()),
+                                            static_cast<T*>(wei_device_buf.GetDeviceBuffer()),
+                                            static_cast<T*>(out_device_buf.GetDeviceBuffer()));
 
         printf("Elapsed time : %f ms\n", time);
         usleep(std::min(time * 1000, float(10000)));

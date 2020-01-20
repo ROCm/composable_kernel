@@ -178,7 +178,7 @@ void device_direct_convolution_2_vectorized_nchw_kcyx_nkhw(InDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(
+        float time = launch_and_time_kernel(
             gridwise_direct_convolution_2_vectorized_nchw_kcyx_nkhw<TInWei,
                                                                     TOut,
                                                                     accum_t,

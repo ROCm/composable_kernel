@@ -88,7 +88,8 @@ void device_col2im_eb_nchw(ColDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(run_gridwise_operation<decltype(gridwise_col2im),
+        float time =
+            launch_and_time_kernel(run_gridwise_operation<decltype(gridwise_col2im),
                                                           const T* const __restrict__,
                                                           T* const __restrict__>,
                                    dim3(GridSize),
