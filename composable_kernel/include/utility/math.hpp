@@ -50,6 +50,12 @@ struct integer_divide_ceiler
 };
 
 template <class X, class Y>
+__host__ __device__ constexpr auto integer_divide_floor(X x, Y y)
+{
+    return x / y;
+}
+
+template <class X, class Y>
 __host__ __device__ constexpr auto integer_divide_ceil(X x, Y y)
 {
     return (x + y - 1) / y;

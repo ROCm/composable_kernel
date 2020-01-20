@@ -54,7 +54,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
     wei_kcyx_device_buf.ToDevice(wei_kcyx.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
-#if 0
+#if 1
     // BlockSize = 256, EperBlock = 8, each thread hold 64 data
     constexpr index_t BlockSize = 256;
 
@@ -128,7 +128,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t WeiBlockCopySrcDataPerRead_E  = 4;
     constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
-#elif 0
+#elif 1
     // BlockSize = 64, each thread hold 64 data
     constexpr index_t BlockSize = 64;
 
@@ -258,12 +258,14 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        float time = launch_kernel(run_gridwise_operation<decltype(gridwise_conv),
+        float time =
+            launch_and_time_kernel(run_gridwise_operation<decltype(gridwise_conv),
                                                           const T* const __restrict__,
                                                           const T* const __restrict__,
                                                           T* const __restrict__>,
                                    dim3(GridSize),
                                    dim3(BlockSize),
+                                   0,
                                    0,
                                    gridwise_conv,
                                    const_cast<const T* const __restrict__>(
