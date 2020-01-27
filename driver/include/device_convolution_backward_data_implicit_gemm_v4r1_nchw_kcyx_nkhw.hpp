@@ -2,12 +2,17 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "tensor.hpp"
-#include "gridwise_operation_wrapper.hpp"
 #include "gridwise_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
 
 namespace launcher {
 
 using namespace ck;
+
+template <typename GridwiseOp, index_t GemmId, typename... Xs>
+__global__ void run_gridwise_convolution_backward_data_v4r1(Xs... xs)
+{
+    GridwiseOp::template Run<GemmId>(xs...);
+}
 
 template <typename T,
           typename InDesc,
@@ -119,11 +124,11 @@ void device_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 1;
 #endif
 
-    constexpr index_t hcf_stride_dilation_h = math::hcf(ConvStrideH, ConvDilationH);
-    constexpr index_t hcf_stride_dilation_w = math::hcf(ConvStrideW, ConvDilationW);
+    constexpr index_t gcd_stride_dilation_h = math::gcd(ConvStrideH, ConvDilationH);
+    constexpr index_t gcd_stride_dilation_w = math::gcd(ConvStrideW, ConvDilationW);
 
-    constexpr index_t Ytilda = ConvStrideH / hcf_stride_dilation_h;
-    constexpr index_t Xtilda = ConvStrideW / hcf_stride_dilation_w;
+    constexpr index_t Ytilda = ConvStrideH / gcd_stride_dilation_h;
+    constexpr index_t Xtilda = ConvStrideW / gcd_stride_dilation_w;
 
     constexpr index_t Ydot = math::integer_divide_ceil(Y, Ytilda);
     constexpr index_t Xdot = math::integer_divide_ceil(X, Xtilda);
@@ -154,69 +159,61 @@ void device_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc i
 
     for(index_t i = 0; i < nrepeat; ++i)
     {
-        KernelTimer timer;
+        using GridwiseConv = GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw<
+            GridSize,
+            BlockSize,
+            T,
+            T,
+            decltype(in_nchw_desc),
+            decltype(wei_kcyx_desc),
+            decltype(out_nkhw_desc),
+            ConvStrides,
+            ConvDilations,
+            InLeftPads,
+            InRightPads,
+            GemmMPerBlock,
+            GemmNPerBlock,
+            GemmKPerBlock,
+            GemmMPerThreadSubC,
+            GemmNPerThreadSubC,
+            GemmMLevel0Cluster,
+            GemmNLevel0Cluster,
+            GemmMLevel1Cluster,
+            GemmNLevel1Cluster,
+            GemmKPerThreadLoop,
+            GemmThreadGemmDataPerReadM,
+            GemmThreadGemmDataPerReadN,
+            GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
+            GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
+            GemmABlockCopySrcDataPerRead_GemmM,
+            GemmABlockCopyDstDataPerWrite_GemmM,
+            GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
+            GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
+            GemmBBlockCopySrcDataPerRead_GemmN,
+            GemmBBlockCopyDstDataPerWrite_GemmN,
+            GemmCThreadCopyDstDataPerWrite_GemmN1>;
 
+        KernelTimer timer;
         timer.Start();
 
-        static_for<0, Ytilda, 1>{}([&](auto ytilda_) {
-            static_for<0, Xtilda, 1>{}([&](auto xtilda_) {
-                constexpr index_t ytilda = decltype(ytilda_){};
-                constexpr index_t xtilda = decltype(xtilda_){};
+        static_for<0, GridwiseConv::GetNumberOfGemm(), 1>{}([&](auto gemm_id_) {
+            constexpr index_t gemm_id = decltype(gemm_id_){};
 
-                constexpr auto gridwise_conv =
-                    GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw<
-                        GridSize,
-                        BlockSize,
-                        T,
-                        T,
-                        decltype(in_nchw_desc),
-                        decltype(wei_kcyx_desc),
-                        decltype(out_nkhw_desc),
-                        ConvStrides,
-                        ConvDilations,
-                        InLeftPads,
-                        InRightPads,
-                        ytilda,
-                        xtilda,
-                        GemmMPerBlock,
-                        GemmNPerBlock,
-                        GemmKPerBlock,
-                        GemmMPerThreadSubC,
-                        GemmNPerThreadSubC,
-                        GemmMLevel0Cluster,
-                        GemmNLevel0Cluster,
-                        GemmMLevel1Cluster,
-                        GemmNLevel1Cluster,
-                        GemmKPerThreadLoop,
-                        GemmThreadGemmDataPerReadM,
-                        GemmThreadGemmDataPerReadN,
-                        GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
-                        GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
-                        GemmABlockCopySrcDataPerRead_GemmM,
-                        GemmABlockCopyDstDataPerWrite_GemmM,
-                        GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
-                        GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
-                        GemmBBlockCopySrcDataPerRead_GemmN,
-                        GemmBBlockCopyDstDataPerWrite_GemmN,
-                        GemmCThreadCopyDstDataPerWrite_GemmN1>{};
-
-                launch_and_time_kernel(run_gridwise_operation<decltype(gridwise_conv),
-                                                              T* const __restrict__,
-                                                              const T* const __restrict__,
-                                                              const T* const __restrict__>,
-                                       dim3(GridSize),
-                                       dim3(BlockSize),
-                                       0,
-                                       0,
-                                       gridwise_conv,
-                                       static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
-                                       static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
-                                       static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
-            });
+            launch_kernel(run_gridwise_convolution_backward_data_v4r1<GridwiseConv,
+                                                                      gemm_id,
+                                                                      T* const __restrict__,
+                                                                      const T* const __restrict__,
+                                                                      const T* const __restrict__>,
+                          dim3(GridSize),
+                          dim3(BlockSize),
+                          0,
+                          0,
+                          static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
         });
 
         timer.End();
-
         float time = timer.GetElapsedTime();
 
         printf("Elapsed time : %f ms, %f TFlop/s\n",

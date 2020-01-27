@@ -81,11 +81,11 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
             "be violated");
 #endif
 
-        constexpr index_t hcf_stride_dilation_h = math::hcf(ConvStrideH, ConvDilationH);
-        constexpr index_t hcf_stride_dilation_w = math::hcf(ConvStrideW, ConvDilationW);
+        constexpr index_t gcd_stride_dilation_h = math::gcd(ConvStrideH, ConvDilationH);
+        constexpr index_t gcd_stride_dilation_w = math::gcd(ConvStrideW, ConvDilationW);
 
-        constexpr index_t Ytilda = ConvStrideH / hcf_stride_dilation_h;
-        constexpr index_t Xtilda = ConvStrideW / hcf_stride_dilation_w;
+        constexpr index_t Ytilda = ConvStrideH / gcd_stride_dilation_h;
+        constexpr index_t Xtilda = ConvStrideW / gcd_stride_dilation_w;
 
         constexpr index_t Ydot = math::integer_divide_ceil(Y, Ytilda);
         constexpr index_t Xdot = math::integer_divide_ceil(X, Xtilda);
@@ -115,10 +115,10 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
                        PassThrough<C>{},
                        Embed<Y,
                              Sequence<Ydot, Ytilda>,
-                             Sequence<ConvStrideH / hcf_stride_dilation_h, 1, 0>>{},
+                             Sequence<ConvStrideH / gcd_stride_dilation_h, 1, 0>>{},
                        Embed<X,
                              Sequence<Xdot, Xtilda>,
-                             Sequence<ConvStrideW / hcf_stride_dilation_w, 1, 0>>{}),
+                             Sequence<ConvStrideW / gcd_stride_dilation_w, 1, 0>>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 
@@ -135,10 +135,10 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v2r1_nchw_kcyx_nkhw
                        PassThrough<K>{},
                        Embed<Ho,
                              Sequence<Ydot, Htilda>,
-                             Sequence<-ConvDilationH / hcf_stride_dilation_h, 1, 0>>{},
+                             Sequence<-ConvDilationH / gcd_stride_dilation_h, 1, 0>>{},
                        Embed<Wo,
                              Sequence<Xdot, Wtilda>,
-                             Sequence<-ConvDilationW / hcf_stride_dilation_w, 1, 0>>{}),
+                             Sequence<-ConvDilationW / gcd_stride_dilation_w, 1, 0>>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 

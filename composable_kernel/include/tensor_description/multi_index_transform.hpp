@@ -47,6 +47,9 @@ struct PassThrough
     }
 };
 
+// By default, will automatically judge if is-valid check for upper-to-lower-index-mapping is
+// necessary
+// However, the check will be skipped if SkipIsValidCheck is set to true by user
 // LowerLengths: Sequence<...>
 template <typename LowerLengths,
           typename LeftPads,
@@ -92,12 +95,12 @@ struct Pad
 
     __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
     {
-#if 1 // debug
+        // skip valid check if user request it
         if(SkipIsValidCheck)
         {
             return true;
         }
-#endif
+
         bool flag = true;
 
         for(index_t i = 0; i < nDim; ++i)
@@ -384,6 +387,9 @@ struct UnMerge
     }
 };
 
+// By default, will automatically judge if is-valid check for upper-to-lower-index-mapping is
+// necessary
+// However, the check will be skipped if SkipIsValidCheck is set to true by user
 // UpperLengths: Sequence<...>
 // Coefficients: Sequence<...>
 // idx_low = coefficients[0, ...nDimUp-1] * idx_up[0, ...nDimUp-1] + coefficients[nDimUp]
@@ -442,12 +448,12 @@ struct Embed
 
     __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
     {
-#if 1 // debug
+        // skip valid check if user request it
         if(SkipIsValidCheck)
         {
             return true;
         }
-#endif
+
         bool flag = true;
 
         index_t ncorner = 1;
