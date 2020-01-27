@@ -353,7 +353,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
         }
 
         {
-#if 1       // debug
+#if 1 // debug
             // input: register to global memory, atomic add
             constexpr auto in_memory_op = (Y <= ConvStrideH && X <= ConvStrideW)
                                               ? InMemoryDataOperation::none
