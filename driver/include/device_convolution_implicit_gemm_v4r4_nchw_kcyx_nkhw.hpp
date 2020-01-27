@@ -84,7 +84,7 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
     constexpr index_t GemmBBlockCopyDstDataPerWrite_GemmN = 1;
 
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 1;
-#elif 1
+#elif 0
     // BlockSize = 256, GemmKPerBlock = 16
     constexpr index_t BlockSize = 256;
 
@@ -117,7 +117,7 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 1;
 #elif 0
     // BlockSize = 256, GemmKPerBlock = 8
-    // 1x1 filter, 8x8 image
+    // for 1x1 filter, vector-read-b = 4
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlock = 128;
@@ -149,7 +149,7 @@ void device_convolution_implicit_gemm_v4r4_nchw_kcyx_nkhw(InDesc,
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 4;
 #elif 1
     // BlockSize = 256, GemmKPerBlock = 16
-    // 1x1 filter, 8x8 image
+    // for 1x1 filter, vector-read-b = 4
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlock = 128;

@@ -38,7 +38,7 @@ template <typename T,
           AddressSpace SrcAddressSpace,
           AddressSpace DstAddressSpace,
           InMemoryDataOperation DstInMemOp>
-__device__ void move_data(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset)
+__device__ void transfer_data(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset)
 {
     static_assert(DstInMemOp == InMemoryDataOperation::none ||
                       DstInMemOp == InMemoryDataOperation::atomic_add,

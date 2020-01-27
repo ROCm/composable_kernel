@@ -91,11 +91,11 @@ void device_convolution_backward_data_implicit_gemm_v3r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 1;
 #endif
 
-    constexpr index_t hcf_stride_dilation_h = math::hcf(ConvStrideH, ConvDilationH);
-    constexpr index_t hcf_stride_dilation_w = math::hcf(ConvStrideW, ConvDilationW);
+    constexpr index_t gcd_stride_dilation_h = math::gcd(ConvStrideH, ConvDilationH);
+    constexpr index_t gcd_stride_dilation_w = math::gcd(ConvStrideW, ConvDilationW);
 
-    constexpr index_t Ytilda = ConvStrideH / hcf_stride_dilation_h;
-    constexpr index_t Xtilda = ConvStrideW / hcf_stride_dilation_w;
+    constexpr index_t Ytilda = ConvStrideH / gcd_stride_dilation_h;
+    constexpr index_t Xtilda = ConvStrideW / gcd_stride_dilation_w;
 
     constexpr index_t Ydot = math::integer_divide_ceil(Y, Ytilda);
     constexpr index_t Xdot = math::integer_divide_ceil(X, Xtilda);

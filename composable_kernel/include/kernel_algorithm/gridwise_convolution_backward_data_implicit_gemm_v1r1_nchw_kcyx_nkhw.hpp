@@ -49,7 +49,6 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
                         const Float* __restrict__ p_wei_global,
                         const Float* __restrict__ p_out_global) const
     {
-        constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
@@ -85,11 +84,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw
             "be violated");
 
         // output tensor
-        constexpr auto out_n_k_howo_global_desc =
-            unfold_tensor_descriptor(out_n_k_ho_wo_global_desc, I2, I3);
-
         constexpr auto out_k_b_global_desc =
-            transform_tensor_descriptor(out_n_k_howo_global_desc,
+            transform_tensor_descriptor(unfold_tensor_descriptor(out_n_k_ho_wo_global_desc, I2, I3),
                                         make_tuple(PassThrough<K>{}, Merge<Sequence<N, Ho * Wo>>{}),
                                         make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));

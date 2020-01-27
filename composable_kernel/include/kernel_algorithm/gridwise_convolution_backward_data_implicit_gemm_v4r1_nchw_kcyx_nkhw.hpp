@@ -22,8 +22,6 @@ template <index_t GridSize,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads,
-          index_t Iter_ytilda,
-          index_t Iter_xtilda,
           index_t GemmMPerBlock,
           index_t GemmNPerBlock,
           index_t GemmKPerBlock,
@@ -47,9 +45,27 @@ template <index_t GridSize,
           index_t GemmCThreadCopyDstDataPerWrite_GemmN1>
 struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
 {
-    __device__ void Run(Float* __restrict__ p_in_global,
-                        const Float* __restrict__ p_wei_global,
-                        const Float* __restrict__ p_out_global) const
+    __host__ __device__ static constexpr index_t GetNumberOfGemm()
+    {
+        constexpr index_t ConvStrideH = ConvStrides{}[0];
+        constexpr index_t ConvStrideW = ConvStrides{}[1];
+
+        constexpr index_t ConvDilationH = ConvDilations{}[0];
+        constexpr index_t ConvDilationW = ConvDilations{}[1];
+
+        constexpr index_t gcd_stride_dilation_h = math::gcd(ConvStrideH, ConvDilationH);
+        constexpr index_t gcd_stride_dilation_w = math::gcd(ConvStrideW, ConvDilationW);
+
+        constexpr index_t Ytilda = ConvStrideH / gcd_stride_dilation_h;
+        constexpr index_t Xtilda = ConvStrideW / gcd_stride_dilation_w;
+
+        return Ytilda * Xtilda;
+    }
+
+    template <index_t iYTilda, index_t iXTilda>
+    __device__ static void RunImpl(Float* __restrict__ p_in_global,
+                                   const Float* __restrict__ p_wei_global,
+                                   const Float* __restrict__ p_out_global)
     {
         constexpr auto in_n_c_hi_wi_global_desc  = InGlobalDesc{};
         constexpr auto wei_k_c_y_x_global_desc   = WeiGlobalDesc{};
@@ -83,11 +99,11 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
             "be violated");
 #endif
 
-        constexpr index_t hcf_stride_dilation_h = math::hcf(ConvStrideH, ConvDilationH);
-        constexpr index_t hcf_stride_dilation_w = math::hcf(ConvStrideW, ConvDilationW);
+        constexpr index_t gcd_stride_dilation_h = math::gcd(ConvStrideH, ConvDilationH);
+        constexpr index_t gcd_stride_dilation_w = math::gcd(ConvStrideW, ConvDilationW);
 
-        constexpr index_t Ytilda = ConvStrideH / hcf_stride_dilation_h;
-        constexpr index_t Xtilda = ConvStrideW / hcf_stride_dilation_w;
+        constexpr index_t Ytilda = ConvStrideH / gcd_stride_dilation_h;
+        constexpr index_t Xtilda = ConvStrideW / gcd_stride_dilation_w;
 
         constexpr index_t Ydot = math::integer_divide_ceil(Y, Ytilda);
         constexpr index_t Xdot = math::integer_divide_ceil(X, Xtilda);
@@ -119,11 +135,11 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
                        PassThrough<C>{},
                        Embed<Y,
                              Sequence<Ydot, Ytilda>,
-                             Sequence<ConvStrideH / hcf_stride_dilation_h, 1, 0>,
+                             Sequence<ConvStrideH / gcd_stride_dilation_h, 1, 0>,
                              wei_skip_all_out_of_bound_check>{},
                        Embed<X,
                              Sequence<Xdot, Xtilda>,
-                             Sequence<ConvStrideW / hcf_stride_dilation_w, 1, 0>,
+                             Sequence<ConvStrideW / gcd_stride_dilation_w, 1, 0>,
                              wei_skip_all_out_of_bound_check>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
@@ -141,11 +157,11 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
                        PassThrough<K>{},
                        Embed<Ho,
                              Sequence<Ydot, Htilda>,
-                             Sequence<-ConvDilationH / hcf_stride_dilation_h, 1, 0>,
+                             Sequence<-ConvDilationH / gcd_stride_dilation_h, 1, 0>,
                              out_skip_all_out_of_bound_check>{},
                        Embed<Wo,
                              Sequence<Xdot, Wtilda>,
-                             Sequence<-ConvDilationW / hcf_stride_dilation_w, 1, 0>,
+                             Sequence<-ConvDilationW / gcd_stride_dilation_w, 1, 0>,
                              out_skip_all_out_of_bound_check>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
@@ -215,8 +231,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
                     Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<4>{}, Sequence<3, 5>{}));
 
         // GEMM
-        constexpr index_t ytilda = Iter_ytilda;
-        constexpr index_t xtilda = Iter_xtilda;
+        constexpr index_t ytilda = iYTilda;
+        constexpr index_t xtilda = iXTilda;
 
         constexpr index_t YdotNonZero = (ytilda + 1) * Ydot <= Y ? Ydot : Y % Ydot;
         constexpr index_t XdotNonZero = (xtilda + 1) * Xdot <= X ? Xdot : X % Xdot;
@@ -326,6 +342,31 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
                                                      GemmCThreadCopyDstDataPerWrite_GemmN1>{};
 
         gridwise_gemm.Run(p_wei_global, p_out_global, p_in_global);
+    }
+
+    template <index_t GemmId>
+    __device__ static void Run(Float* __restrict__ p_in_global,
+                               const Float* __restrict__ p_wei_global,
+                               const Float* __restrict__ p_out_global)
+    {
+        constexpr index_t ConvStrideH = ConvStrides{}[0];
+        constexpr index_t ConvStrideW = ConvStrides{}[1];
+
+        constexpr index_t ConvDilationH = ConvDilations{}[0];
+        constexpr index_t ConvDilationW = ConvDilations{}[1];
+
+        constexpr index_t gcd_stride_dilation_h = math::gcd(ConvStrideH, ConvDilationH);
+        constexpr index_t gcd_stride_dilation_w = math::gcd(ConvStrideW, ConvDilationW);
+
+        constexpr index_t Ytilda = ConvStrideH / gcd_stride_dilation_h;
+        constexpr index_t Xtilda = ConvStrideW / gcd_stride_dilation_w;
+
+        constexpr index_t iYTilda = GemmId / Xtilda;
+        constexpr index_t iXTilda = GemmId % Xtilda;
+
+        static_assert(iYTilda < Ytilda && iXTilda < Xtilda, "wrong! iYtilda, iXtilda");
+
+        RunImpl<iYTilda, iXTilda>(p_in_global, p_wei_global, p_out_global);
     }
 };
 
