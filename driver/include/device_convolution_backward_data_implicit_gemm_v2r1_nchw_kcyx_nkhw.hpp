@@ -66,13 +66,13 @@ void device_convolution_backward_data_implicit_gemm_v2r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmMPerBlock              = 128;
     constexpr index_t GemmNPerBlock              = 128;
     constexpr index_t GemmKPerBlock              = 8;
-    constexpr index_t GemmMPerThreadSubC         = 4;
-    constexpr index_t GemmNPerThreadSubC         = 4;
+    constexpr index_t GemmMPerThread             = 4;
+    constexpr index_t GemmNPerThread             = 4;
+    constexpr index_t GemmKPerThread             = 1;
     constexpr index_t GemmMLevel0Cluster         = 4;
     constexpr index_t GemmNLevel0Cluster         = 4;
     constexpr index_t GemmMLevel1Cluster         = 4;
     constexpr index_t GemmNLevel1Cluster         = 4;
-    constexpr index_t GemmKPerThreadLoop         = 1;
     constexpr index_t GemmThreadGemmDataPerReadM = 4;
     constexpr index_t GemmThreadGemmDataPerReadN = 4;
 
@@ -96,13 +96,13 @@ void device_convolution_backward_data_implicit_gemm_v2r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmMPerBlock              = 128;
     constexpr index_t GemmNPerBlock              = 128;
     constexpr index_t GemmKPerBlock              = 8;
-    constexpr index_t GemmMPerThreadSubC         = 4;
-    constexpr index_t GemmNPerThreadSubC         = 4;
+    constexpr index_t GemmMPerThread             = 4;
+    constexpr index_t GemmNPerThread             = 4;
+    constexpr index_t GemmKPerThread             = 1;
     constexpr index_t GemmMLevel0Cluster         = 4;
     constexpr index_t GemmNLevel0Cluster         = 4;
     constexpr index_t GemmMLevel1Cluster         = 4;
     constexpr index_t GemmNLevel1Cluster         = 4;
-    constexpr index_t GemmKPerThreadLoop         = 1;
     constexpr index_t GemmThreadGemmDataPerReadM = 4;
     constexpr index_t GemmThreadGemmDataPerReadN = 4;
 
@@ -127,13 +127,13 @@ void device_convolution_backward_data_implicit_gemm_v2r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmMPerBlock              = 128;
     constexpr index_t GemmNPerBlock              = 128;
     constexpr index_t GemmKPerBlock              = 8;
-    constexpr index_t GemmMPerThreadSubC         = 4;
-    constexpr index_t GemmNPerThreadSubC         = 4;
+    constexpr index_t GemmMPerThread             = 4;
+    constexpr index_t GemmNPerThread             = 4;
+    constexpr index_t GemmKPerThread             = 1;
     constexpr index_t GemmMLevel0Cluster         = 4;
     constexpr index_t GemmNLevel0Cluster         = 4;
     constexpr index_t GemmMLevel1Cluster         = 4;
     constexpr index_t GemmNLevel1Cluster         = 4;
-    constexpr index_t GemmKPerThreadLoop         = 1;
     constexpr index_t GemmThreadGemmDataPerReadM = 4;
     constexpr index_t GemmThreadGemmDataPerReadN = 4;
 
@@ -152,33 +152,33 @@ void device_convolution_backward_data_implicit_gemm_v2r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 4;
 #endif
 
-    constexpr index_t gcd_stride_dilation_h = math::gcd(ConvStrideH, ConvDilationH);
-    constexpr index_t gcd_stride_dilation_w = math::gcd(ConvStrideW, ConvDilationW);
+    constexpr index_t GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
+    constexpr index_t GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
 
-    constexpr index_t Ytilda = ConvStrideH / gcd_stride_dilation_h;
-    constexpr index_t Xtilda = ConvStrideW / gcd_stride_dilation_w;
+    constexpr index_t YTilda = ConvStrideH / GcdStrideDilationH;
+    constexpr index_t XTilda = ConvStrideW / GcdStrideDilationW;
 
-    constexpr index_t Ydot = math::integer_divide_ceil(Y, Ytilda);
-    constexpr index_t Xdot = math::integer_divide_ceil(X, Xtilda);
+    constexpr index_t YDot = math::integer_divide_ceil(Y, YTilda);
+    constexpr index_t XDot = math::integer_divide_ceil(X, XTilda);
 
-    constexpr index_t Htilda = Ho + math::integer_divide_ceil(ConvDilationH * (Y - 1), ConvStrideH);
-    constexpr index_t Wtilda = Wo + math::integer_divide_ceil(ConvDilationW * (X - 1), ConvStrideW);
+    constexpr index_t HTilda = Ho + math::integer_divide_ceil(ConvDilationH * (Y - 1), ConvStrideH);
+    constexpr index_t WTilda = Wo + math::integer_divide_ceil(ConvDilationW * (X - 1), ConvStrideW);
 
-    constexpr index_t HtildaLeft = math::integer_divide_floor(
-        math::max(0, InLeftPads{}[0] - ConvDilationH * (Ytilda - 1)), ConvStrides{}[0]);
-    constexpr index_t WtildaLeft = math::integer_divide_floor(
-        math::max(0, InLeftPads{}[1] - ConvDilationW * (Xtilda - 1)), ConvStrides{}[1]);
+    constexpr index_t HTildaLeft = math::integer_divide_floor(
+        math::max(0, InLeftPads{}[0] - ConvDilationH * (YTilda - 1)), ConvStrides{}[0]);
+    constexpr index_t WTildaLeft = math::integer_divide_floor(
+        math::max(0, InLeftPads{}[1] - ConvDilationW * (XTilda - 1)), ConvStrides{}[1]);
 
-    constexpr index_t HtildaRight = math::min(
-        Htilda, math::integer_divide_ceil(InLeftPads{}[0] + Hi - 1, ConvStrides{}[0]) + 1);
-    constexpr index_t WtildaRight = math::min(
-        Wtilda, math::integer_divide_ceil(InLeftPads{}[1] + Wi - 1, ConvStrides{}[1]) + 1);
+    constexpr index_t HTildaRight = math::min(
+        HTilda, math::integer_divide_ceil(InLeftPads{}[0] + Hi - 1, ConvStrides{}[0]) + 1);
+    constexpr index_t WTildaRight = math::min(
+        WTilda, math::integer_divide_ceil(InLeftPads{}[1] + Wi - 1, ConvStrides{}[1]) + 1);
 
-    constexpr index_t HtildaTrim = HtildaRight - HtildaLeft;
-    constexpr index_t WtildaTrim = WtildaRight - WtildaLeft;
+    constexpr index_t HTildaSlice = HTildaRight - HTildaLeft;
+    constexpr index_t WTildaSlice = WTildaRight - WTildaLeft;
 
-    constexpr index_t GemmM = C * Ytilda * Xtilda;
-    constexpr index_t GemmN = N * HtildaTrim * WtildaTrim;
+    constexpr index_t GemmM = C * YTilda * XTilda;
+    constexpr index_t GemmN = N * HTildaSlice * WTildaSlice;
 
     constexpr index_t GridSize = math::integer_divide_ceil(GemmM, GemmMPerBlock) *
                                  math::integer_divide_ceil(GemmN, GemmNPerBlock);
@@ -200,13 +200,13 @@ void device_convolution_backward_data_implicit_gemm_v2r1_nchw_kcyx_nkhw(InDesc i
         GemmMPerBlock,
         GemmNPerBlock,
         GemmKPerBlock,
-        GemmMPerThreadSubC,
-        GemmNPerThreadSubC,
+        GemmMPerThread,
+        GemmNPerThread,
+        GemmKPerThread,
         GemmMLevel0Cluster,
         GemmNLevel0Cluster,
         GemmMLevel1Cluster,
         GemmNLevel1Cluster,
-        GemmKPerThreadLoop,
         GemmThreadGemmDataPerReadM,
         GemmThreadGemmDataPerReadN,
         GemmABlockCopyThreadSliceLengths_GemmK_GemmM,

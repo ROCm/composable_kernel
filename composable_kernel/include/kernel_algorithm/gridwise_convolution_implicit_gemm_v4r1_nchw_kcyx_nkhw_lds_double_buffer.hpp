@@ -229,10 +229,10 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                                                3,
                                                InBlockCopySrcDataPerRead_B,
                                                InBlockCopyDstDataPerWrite_N2,
-                                               AddressSpace::global,
-                                               AddressSpace::vgpr,
-                                               AddressSpace::lds,
-                                               InMemoryDataOperation::none>(
+                                               AddressSpace::Global,
+                                               AddressSpace::Vgpr,
+                                               AddressSpace::Lds,
+                                               InMemoryDataOperation::Set>(
                 {0, 0, b_block_data_on_global, 0}, {0, 0, 0, 0});
 
         // weight tensor
@@ -269,10 +269,10 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                                                1,
                                                WeiBlockCopySrcDataPerRead_E,
                                                WeiBlockCopyDstDataPerWrite_K,
-                                               AddressSpace::global,
-                                               AddressSpace::vgpr,
-                                               AddressSpace::lds,
-                                               InMemoryDataOperation::none>(
+                                               AddressSpace::Global,
+                                               AddressSpace::Vgpr,
+                                               AddressSpace::Lds,
+                                               InMemoryDataOperation::Set>(
                 {0, k_block_data_on_global}, {0, 0});
 
         // GEMM definition
@@ -344,6 +344,9 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
             blockwise_wei_copy.Run(p_wei_global, p_wei_block_double);
         }
 
+        constexpr auto in_block_slice_copy_steps  = Sequence<EPerBlock, 0, 0, 0>{};
+        constexpr auto wei_block_slice_copy_steps = Sequence<EPerBlock, 0>{};
+
         // LDS double buffer: main body
         for(index_t e_block_data_begin = 0; e_block_data_begin + 2 * EPerBlock < E;
             e_block_data_begin += 2 * EPerBlock)
@@ -366,8 +369,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 Float p_in_thread_buffer[blockwise_in_copy.GetThreadBufferSize()];
                 Float p_wei_thread_buffer[blockwise_wei_copy.GetThreadBufferSize()];
 
-                blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
-                blockwise_wei_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
+                blockwise_in_copy.MoveSrcSliceWindow(in_block_slice_copy_steps, True);
+                blockwise_wei_copy.MoveSrcSliceWindow(wei_block_slice_copy_steps, True);
 
                 __syncthreads();
 
@@ -393,8 +396,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 Float p_in_thread_buffer[blockwise_in_copy.GetThreadBufferSize()];
                 Float p_wei_thread_buffer[blockwise_wei_copy.GetThreadBufferSize()];
 
-                blockwise_in_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0, 0, 0>{}, True);
-                blockwise_wei_copy.MoveSrcSliceWindow(Sequence<EPerBlock, 0>{}, True);
+                blockwise_in_copy.MoveSrcSliceWindow(in_block_slice_copy_steps, True);
+                blockwise_wei_copy.MoveSrcSliceWindow(wei_block_slice_copy_steps, True);
 
                 __syncthreads();
 
@@ -482,14 +485,14 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 3,
                 1,
                 1,
-                AddressSpace::vgpr,
-                AddressSpace::global,
-                InMemoryDataOperation::none>({0, 0, 0, 0, 0},
-                                             {k_thread_data_on_global / K1,
-                                              k_thread_data_on_global % K1,
-                                              0,
-                                              b_thread_data_on_global,
-                                              0})
+                AddressSpace::Vgpr,
+                AddressSpace::Global,
+                InMemoryDataOperation::Set>({0, 0, 0, 0, 0},
+                                            {k_thread_data_on_global / K1,
+                                             k_thread_data_on_global % K1,
+                                             0,
+                                             b_thread_data_on_global,
+                                             0})
                 .Run(p_out_thread, p_out_global);
         }
     }

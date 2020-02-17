@@ -22,15 +22,15 @@ template <index_t GridSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
-          index_t MPerThreadSubC,
-          index_t NPerThreadSubC,
+          index_t MPerThread,
+          index_t NPerThread,
+          index_t KPerThread,
           index_t MLevel0Cluster,
           index_t NLevel0Cluster,
           index_t MLevel1Cluster,
           index_t NLevel1Cluster,
-          index_t KPerThreadLoop,
-          index_t ThreadGemmDataPerReadM,
-          index_t ThreadGemmDataPerReadN,
+          index_t ThreadGemmAThreadCopySrcDataPerRead_M,
+          index_t ThreadGemmBThreadCopySrcDataPerRead_N,
           typename ABlockCopyThreadSliceLengths_K_M,
           typename ABlockCopyThreadClusterLengths_K_M,
           typename ABlockCopyThreadClusterArrangeOrder,
@@ -54,8 +54,8 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
     {
         constexpr index_t max_lds_align = math::lcm(ABlockCopyDstDataPerWrite_M,
                                                     BBlockCopyDstDataPerWrite_N,
-                                                    ThreadGemmDataPerReadM,
-                                                    ThreadGemmDataPerReadN);
+                                                    ThreadGemmAThreadCopySrcDataPerRead_M,
+                                                    ThreadGemmBThreadCopySrcDataPerRead_N);
 
         // A matrix in LDS memory, dst of blockwise copy
         //   be careful of LDS alignment
@@ -101,8 +101,8 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
         // lds max alignment
         constexpr index_t max_lds_align = math::lcm(ABlockCopyDstDataPerWrite_M,
                                                     BBlockCopyDstDataPerWrite_N,
-                                                    ThreadGemmDataPerReadM,
-                                                    ThreadGemmDataPerReadN);
+                                                    ThreadGemmAThreadCopySrcDataPerRead_M,
+                                                    ThreadGemmBThreadCopySrcDataPerRead_N);
 
         // divide block work by [M, N]
         static_assert(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0,
@@ -139,10 +139,10 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
                                                1,
                                                ABlockCopySrcDataPerRead,
                                                ABlockCopyDstDataPerWrite_M,
-                                               AddressSpace::global,
-                                               AddressSpace::vgpr,
-                                               AddressSpace::lds,
-                                               InMemoryDataOperation::none>(
+                                               AddressSpace::Global,
+                                               AddressSpace::Vgpr,
+                                               AddressSpace::Lds,
+                                               InMemoryDataOperation::Set>(
                 {0, m_block_data_on_global}, {0, 0});
 
         // B matrix in LDS memory, dst of blockwise copy
@@ -165,10 +165,10 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
                                                1,
                                                BBlockCopySrcDataPerRead,
                                                BBlockCopyDstDataPerWrite_N,
-                                               AddressSpace::global,
-                                               AddressSpace::vgpr,
-                                               AddressSpace::lds,
-                                               InMemoryDataOperation::none>(
+                                               AddressSpace::Global,
+                                               AddressSpace::Vgpr,
+                                               AddressSpace::Lds,
+                                               InMemoryDataOperation::Set>(
                 {0, n_block_data_on_global}, {0, 0});
 
         // GEMM definition
@@ -181,35 +181,33 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
         constexpr auto b_k_n_block_mtx_desc = make_ConstantMatrixDescriptor(b_k_n_block_desc);
 
         // sanity check
-        static_assert(MPerBlock % (MPerThreadSubC * MLevel0Cluster * MLevel1Cluster) == 0 &&
-                          NPerBlock % (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster) == 0,
+        static_assert(MPerBlock % (MPerThread * MLevel0Cluster * MLevel1Cluster) == 0 &&
+                          NPerBlock % (NPerThread * NLevel0Cluster * NLevel1Cluster) == 0,
                       "wrong!");
 
-        constexpr index_t GemmMRepeat =
-            MPerBlock / (MPerThreadSubC * MLevel0Cluster * MLevel1Cluster);
+        constexpr index_t GemmMRepeat = MPerBlock / (MPerThread * MLevel0Cluster * MLevel1Cluster);
 
-        constexpr index_t GemmNRepeat =
-            NPerBlock / (NPerThreadSubC * NLevel0Cluster * NLevel1Cluster);
+        constexpr index_t GemmNRepeat = NPerBlock / (NPerThread * NLevel0Cluster * NLevel1Cluster);
 
         // c_thread_mtx definition: this is a mess
         // TODO:: more elegent way of defining c_thread_mtx
         constexpr auto c_m0m1_n0n1_thread_mtx_desc = make_ConstantMatrixDescriptor_packed(
-            Number<GemmMRepeat * MPerThreadSubC>{}, Number<GemmNRepeat * NPerThreadSubC>{});
+            Number<GemmMRepeat * MPerThread>{}, Number<GemmNRepeat * NPerThread>{});
 
         const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<
             BlockSize,
             decltype(a_k_m_block_mtx_desc),
             decltype(b_k_n_block_mtx_desc),
             decltype(c_m0m1_n0n1_thread_mtx_desc),
-            MPerThreadSubC,
-            NPerThreadSubC,
+            MPerThread,
+            NPerThread,
             MLevel0Cluster,
             NLevel0Cluster,
             MLevel1Cluster,
             NLevel1Cluster,
-            KPerThreadLoop,
-            ThreadGemmDataPerReadM,
-            ThreadGemmDataPerReadN>{};
+            KPerThread,
+            ThreadGemmAThreadCopySrcDataPerRead_M,
+            ThreadGemmBThreadCopySrcDataPerRead_N>{};
 
         // LDS allocation for A and B: be careful of alignment
         constexpr index_t a_block_space =
@@ -233,6 +231,9 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
             b_blockwise_copy.Run(p_b_global, p_b_block_double);
         }
 
+        constexpr auto a_block_slice_copy_steps = Sequence<KPerBlock, 0>{};
+        constexpr auto b_block_slice_copy_steps = Sequence<KPerBlock, 0>{};
+
         // LDS double buffer: main body
         for(index_t k_block_data_begin = 0; k_block_data_begin + 2 * KPerBlock < K;
             k_block_data_begin += 2 * KPerBlock)
@@ -255,8 +256,8 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
                 Float p_a_thread_buffer[a_blockwise_copy.GetThreadBufferSize()];
                 Float p_b_thread_buffer[b_blockwise_copy.GetThreadBufferSize()];
 
-                a_blockwise_copy.MoveSrcSliceWindow(Sequence<KPerBlock, 0>{}, True);
-                b_blockwise_copy.MoveSrcSliceWindow(Sequence<KPerBlock, 0>{}, True);
+                a_blockwise_copy.MoveSrcSliceWindow(a_block_slice_copy_steps, True);
+                b_blockwise_copy.MoveSrcSliceWindow(b_block_slice_copy_steps, True);
 
                 __syncthreads();
 
@@ -282,8 +283,8 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
                 Float p_a_thread_buffer[a_blockwise_copy.GetThreadBufferSize()];
                 Float p_b_thread_buffer[b_blockwise_copy.GetThreadBufferSize()];
 
-                a_blockwise_copy.MoveSrcSliceWindow(Sequence<KPerBlock, 0>{}, True);
-                b_blockwise_copy.MoveSrcSliceWindow(Sequence<KPerBlock, 0>{}, True);
+                a_blockwise_copy.MoveSrcSliceWindow(a_block_slice_copy_steps, True);
+                b_blockwise_copy.MoveSrcSliceWindow(b_block_slice_copy_steps, True);
 
                 __syncthreads();
 
@@ -317,16 +318,16 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
 
         // input: register to global memory
         {
-            constexpr index_t M1 = MPerThreadSubC * MLevel0Cluster * MLevel1Cluster;
+            constexpr index_t M1 = MPerThread * MLevel0Cluster * MLevel1Cluster;
             constexpr index_t M0 = M / M1;
 
-            constexpr index_t N1 = NPerThreadSubC * NLevel0Cluster * NLevel1Cluster;
+            constexpr index_t N1 = NPerThread * NLevel0Cluster * NLevel1Cluster;
             constexpr index_t N0 = N / N1;
 
             // define input tensor descriptor for threadwise copy
             //     thread input tensor, src of threadwise copy
             constexpr auto c_m0_m1_n0_n1_thread_desc = make_native_tensor_descriptor_packed(
-                Sequence<GemmMRepeat, MPerThreadSubC, GemmNRepeat, NPerThreadSubC>{});
+                Sequence<GemmMRepeat, MPerThread, GemmNRepeat, NPerThread>{});
 
             constexpr auto c_m0_m1_n0_n1_global_desc = transform_tensor_descriptor(
                 c_m_n_global_desc,
@@ -352,8 +353,8 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
                                                   CThreadCopySrcDstVectorReadWriteDim,
                                                   1,
                                                   CThreadCopyDstDataPerWrite,
-                                                  AddressSpace::vgpr,
-                                                  AddressSpace::global,
+                                                  AddressSpace::Vgpr,
+                                                  AddressSpace::Global,
                                                   CGlobalMemoryDataOperation>(
                 {0, 0, 0, 0},
                 {m_thread_data_on_global / M1,
