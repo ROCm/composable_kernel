@@ -23,14 +23,13 @@ __device__ void atomic_add_data(const T* p_src, index_t src_offset, T* p_dst, in
 {
     using vector_t = typename vector_type<T, DataPerAccess>::MemoryType;
 
-    static_if<SrcAddressSpace == AddressSpace::vgpr && DstAddressSpace == AddressSpace::global>{}(
-        [&](auto) {
-            atomicAdd(reinterpret_cast<vector_t*>(&p_dst[dst_offset]),
-                      *reinterpret_cast<const vector_t*>(&p_src[src_offset]));
-        })
-        .Else([&](auto fwd) {
-            static_assert(fwd(false), "atomic_add doesn't support this memory space");
-        });
+    static_if<SrcAddressSpace == AddressSpace::Vgpr &&
+              DstAddressSpace == AddressSpace::Global>{}([&](auto) {
+        atomicAdd(reinterpret_cast<vector_t*>(&p_dst[dst_offset]),
+                  *reinterpret_cast<const vector_t*>(&p_src[src_offset]));
+    }).Else([&](auto fwd) {
+        static_assert(fwd(false), "atomic_add doesn't support this memory space");
+    });
 }
 
 template <typename T,
@@ -40,17 +39,17 @@ template <typename T,
           InMemoryDataOperation DstInMemOp>
 __device__ void transfer_data(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset)
 {
-    static_assert(DstInMemOp == InMemoryDataOperation::none ||
-                      DstInMemOp == InMemoryDataOperation::atomic_add,
+    static_assert(DstInMemOp == InMemoryDataOperation::Set ||
+                      DstInMemOp == InMemoryDataOperation::AtomicAdd,
                   "wrong! InMemoryDataOperation not supported!");
 
     // TODO: use static_if::ElseIf
-    static_if<DstInMemOp == InMemoryDataOperation::none>{}([&](auto) {
+    static_if<DstInMemOp == InMemoryDataOperation::Set>{}([&](auto) {
         copy_data<T, DataPerAccess, SrcAddressSpace, DstAddressSpace>(
             p_src, src_offset, p_dst, dst_offset);
     });
 
-    static_if<DstInMemOp == InMemoryDataOperation::atomic_add>{}([&](auto) {
+    static_if<DstInMemOp == InMemoryDataOperation::AtomicAdd>{}([&](auto) {
         atomic_add_data<T, DataPerAccess, SrcAddressSpace, DstAddressSpace>(
             p_src, src_offset, p_dst, dst_offset);
     });

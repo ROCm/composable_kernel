@@ -9,7 +9,7 @@
 
 namespace ck {
 
-// This threadwise copy allow vector access of src and dst.
+// This blockwise copy allow vector access of src and dst.
 // It allows the vector size to be different on src and dst.
 // The dimension of vector access can be different for src and dst.
 // The dimension access order can be different for src and dst.
@@ -28,10 +28,10 @@ template <index_t BlockSize,
           index_t DstVectorWriteDim,
           index_t SrcDataPerRead,
           index_t DstDataPerWrite,
-          AddressSpace SrcAddressSpace          = AddressSpace::generic,
-          AddressSpace ThreadBufferAddressSpace = AddressSpace::generic,
-          AddressSpace DstAddressSpace          = AddressSpace::generic,
-          InMemoryDataOperation DstInMemOp      = InMemoryDataOperation::none>
+          AddressSpace SrcAddressSpace          = AddressSpace::Generic,
+          AddressSpace ThreadBufferAddressSpace = AddressSpace::Generic,
+          AddressSpace DstAddressSpace          = AddressSpace::Generic,
+          InMemoryDataOperation DstInMemOp      = InMemoryDataOperation::Set>
 struct BlockwiseGenericTensorSliceCopy_v4
 {
     static constexpr index_t nDim = BlockSrcDesc::GetNumOfDimension();
@@ -115,7 +115,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
     template <typename BlockSrcData, typename BlockDstData>
     __device__ void Run(const BlockSrcData* p_block_src, BlockDstData* p_block_dst) const
     {
-        static_assert(ThreadBufferAddressSpace == AddressSpace::vgpr,
+        static_assert(ThreadBufferAddressSpace == AddressSpace::Vgpr,
                       "wrong! This function use vgpr as its thread "
                       "buffer. However, you have set RunLoadThreadBuffer and RunStoreThreadBuffer "
                       "to use ThreadBufferAddressSpace as their thread buffer, which is not vgpr. "
@@ -157,7 +157,7 @@ struct BlockwiseGenericTensorSliceCopy_v4
                                                                  1,
                                                                  SrcAddressSpace,
                                                                  ThreadBufferAddressSpace,
-                                                                 InMemoryDataOperation::none>;
+                                                                 InMemoryDataOperation::Set>;
 
     using ThreadwiseStore = ThreadwiseGenericTensorSliceCopy_v4r2<ThreadBufferDesc,
                                                                   BlockDstDesc,

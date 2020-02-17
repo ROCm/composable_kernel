@@ -147,10 +147,10 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                                                2,
                                                OutBlockCopySrcDataPerRead_B,
                                                OutBlockCopyDstDataPerWrite_N0,
-                                               AddressSpace::global,
-                                               AddressSpace::vgpr,
-                                               AddressSpace::lds,
-                                               InMemoryDataOperation::none>(
+                                               AddressSpace::Global,
+                                               AddressSpace::Vgpr,
+                                               AddressSpace::Lds,
+                                               InMemoryDataOperation::Set>(
                 {0, b_block_data_on_global, 0}, {0, 0, 0});
 
         // weight tensor
@@ -187,10 +187,10 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                                                2,
                                                WeiBlockCopySrcDataPerRead_E,
                                                WeiBlockCopyDstDataPerWrite_C0,
-                                               AddressSpace::global,
-                                               AddressSpace::vgpr,
-                                               AddressSpace::lds,
-                                               InMemoryDataOperation::none>(
+                                               AddressSpace::Global,
+                                               AddressSpace::Vgpr,
+                                               AddressSpace::Lds,
+                                               InMemoryDataOperation::Set>(
                 {0, e_block_data_on_global, 0}, {0, 0, 0});
 
         // GEMM definition
@@ -356,10 +356,10 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
 #if 1 // debug
             // input: register to global memory, atomic add
             constexpr auto in_memory_op = (Y <= ConvStrideH && X <= ConvStrideW)
-                                              ? InMemoryDataOperation::none
-                                              : InMemoryDataOperation::atomic_add;
+                                              ? InMemoryDataOperation::Set
+                                              : InMemoryDataOperation::AtomicAdd;
 #else
-            constexpr auto in_memory_op = InMemoryDataOperation::atomic_add;
+            constexpr auto in_memory_op = InMemoryDataOperation::AtomicAdd;
 #endif
 
             constexpr index_t E1 = GemmMLevel0Cluster * GemmMLevel1Cluster;
@@ -432,8 +432,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                 4,
                 1,
                 InThreadCopyDstDataPerWrite_B,
-                AddressSpace::vgpr,
-                AddressSpace::global,
+                AddressSpace::Vgpr,
+                AddressSpace::Global,
                 in_memory_op>({0, 0, 0, 0, 0, 0},
                               {e_thread_data_on_global / E1,
                                e_thread_data_on_global % E1,
