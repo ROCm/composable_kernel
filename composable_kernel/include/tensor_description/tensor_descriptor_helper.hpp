@@ -64,10 +64,10 @@ template <typename LowerTensorDescriptor,
           index_t... LowerDimensionIds,
           index_t... UpperDimensionIds>
 __host__ __device__ constexpr auto
-reorder_transformed_tensor_descriptor_impl(LowerTensorDescriptor,
-                                           Sequence<LowerLengths...>,
-                                           Sequence<LowerDimensionIds...>,
-                                           Sequence<UpperDimensionIds...>)
+    reorder_transformed_tensor_descriptor_impl(LowerTensorDescriptor,
+                                               Sequence<LowerLengths...>,
+                                               Sequence<LowerDimensionIds...>,
+                                               Sequence<UpperDimensionIds...>)
 {
     return TransformedTensorDescriptor<LowerTensorDescriptor,
                                        Tuple<PassThrough<LowerLengths>...>,
@@ -78,7 +78,7 @@ reorder_transformed_tensor_descriptor_impl(LowerTensorDescriptor,
 // reorder a NativeTensorDescriptor
 template <typename... Ts, typename MapLower2Upper>
 __host__ __device__ constexpr auto
-reorder_tensor_descriptor_given_lower2upper(NativeTensorDescriptor<Ts...>, MapLower2Upper)
+    reorder_tensor_descriptor_given_lower2upper(NativeTensorDescriptor<Ts...>, MapLower2Upper)
 {
     static_assert(is_valid_sequence_map<MapLower2Upper>{},
                   "wrong! MapLower2Upper is not a valid map");
@@ -96,7 +96,7 @@ reorder_tensor_descriptor_given_lower2upper(NativeTensorDescriptor<Ts...>, MapLo
 // reorder a TransformedTensorDescriptor
 template <typename... Ts, typename MapLower2Upper>
 __host__ __device__ constexpr auto
-reorder_tensor_descriptor_given_lower2upper(TransformedTensorDescriptor<Ts...>, MapLower2Upper)
+    reorder_tensor_descriptor_given_lower2upper(TransformedTensorDescriptor<Ts...>, MapLower2Upper)
 {
     static_assert(is_valid_sequence_map<MapLower2Upper>{},
                   "wrong! MapLower2Upper is not a valid map");
@@ -152,9 +152,9 @@ __host__ __device__ constexpr auto unfold_tensor_descriptor(NativeTensorDescript
         typename arithmetic_sequence_gen<FirstUnfoldDim, LastUnfoldDim + 1, 1>::type{};
     constexpr auto right = typename arithmetic_sequence_gen<LastUnfoldDim + 1, nDim, 1>::type{};
 
-    // sanity-checknfoldable
+    // sanity-check if unfold-able
     static_assert(are_dimensions_unfoldable(desc.GetLengths(middle), desc.GetStrides(middle)),
-                  "wrong! not unfoldable");
+                  "wrong! not unfold-able");
 
     // unfolded length, stride
     constexpr index_t unfold_length =
