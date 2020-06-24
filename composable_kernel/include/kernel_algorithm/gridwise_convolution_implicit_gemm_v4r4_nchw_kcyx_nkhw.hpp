@@ -75,6 +75,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
         constexpr index_t ConvDilationH = ConvDilations{}[0];
         constexpr index_t ConvDilationW = ConvDilations{}[1];
 
+#if 0
         // sanity-check for vectorized memory load
         static_assert((Wo == 1 || (ConvStrideW == 1 || GemmBBlockCopySrcDataPerRead_GemmN == 1)) &&
                           (X == 1 || ConvDilationW % GemmBBlockCopySrcDataPerRead_GemmN == 0) &&
@@ -82,9 +83,10 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
                           InRightPads{}[1] % GemmBBlockCopySrcDataPerRead_GemmN == 0,
                       "wrong! aligment requirement for vectorized global load of input tensor will "
                       "be violated");
+#endif
 
         // weight tensor
-        constexpr auto wei_e_k_global_desc = reorder_tensor_descriptor_given_upper2lower(
+        constexpr auto wei_gemmk_gemmm_global_desc = reorder_tensor_descriptor_given_upper2lower(
             unfold_tensor_descriptor(wei_k_c_y_x_global_desc, I1, I3), Sequence<1, 0>{});
 
         // input tensor
@@ -108,14 +110,14 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 
-        constexpr auto in_e_b_global_desc = transform_tensor_descriptor(
+        constexpr auto in_gemmm_gemmn_global_desc = transform_tensor_descriptor(
             in_n_c_y_ho_x_wo_global_desc,
             make_tuple(Merge<Sequence<C, Y, X>>{}, Merge<Sequence<N, Ho, Wo>>{}),
             make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         // output tensor
-        constexpr auto out_k_b_global_desc =
+        constexpr auto out_gemmk_gemmn_global_desc =
             transform_tensor_descriptor(unfold_tensor_descriptor(out_n_k_ho_wo_global_desc, I2, I3),
                                         make_tuple(PassThrough<K>{}, Merge<Sequence<N, Ho * Wo>>{}),
                                         make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
@@ -127,9 +129,9 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
                                                      BlockSize,
                                                      Float,
                                                      AccFloat,
-                                                     decltype(wei_e_k_global_desc),
-                                                     decltype(in_e_b_global_desc),
-                                                     decltype(out_k_b_global_desc),
+                                                     decltype(wei_gemmk_gemmm_global_desc),
+                                                     decltype(in_gemmm_gemmn_global_desc),
+                                                     decltype(out_gemmk_gemmn_global_desc),
                                                      InMemoryDataOperation::Set,
                                                      GemmMPerBlock,
                                                      GemmNPerBlock,
@@ -157,7 +159,7 @@ struct GridwiseConvolutionImplicitGemm_v4r4_nchw_kcyx_nkhw
                                                      1,
                                                      GemmBBlockCopySrcDataPerRead_GemmN,
                                                      GemmBBlockCopyDstDataPerWrite_GemmN,
-                                                     Sequence<0, 1, 2, 3>,
+                                                     Sequence<2, 3, 0, 1>,
                                                      3,
                                                      GemmCThreadCopyDstDataPerWrite_GemmN1>{};
 

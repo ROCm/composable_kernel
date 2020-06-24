@@ -1,0 +1,13 @@
+#ifndef CK_SYNCHRONIZATION_NVIDIA_HPP
+#define CK_SYNCHRONIZATION_NVIDIA_HPP
+
+#include "config.hpp"
+
+namespace ck {
+
+__device__ void block_sync_lds() { __syncthreads(); }
+
+__device__ void block_sync_lds_vmem() { __syncthreads(); }
+
+} // namespace ck
+#endif

@@ -419,7 +419,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw
     template <index_t GemmId>
     __device__ static void Run(Float* __restrict__ p_in_global,
                                const Float* __restrict__ p_wei_global,
-                               const Float* __restrict__ p_out_global)
+                               const Float* __restrict__ p_out_global,
+                               Number<GemmId>)
     {
         constexpr index_t ConvStrideH = ConvStrides{}[0];
         constexpr index_t ConvStrideW = ConvStrides{}[1];

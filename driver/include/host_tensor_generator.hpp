@@ -1,5 +1,5 @@
-#ifndef TENSOR_GENERATOR_HPP
-#define TENSOR_GENERATOR_HPP
+#ifndef HOST_TENSOR_GENERATOR_HPP
+#define HOST_TENSOR_GENERATOR_HPP
 
 #include "config.hpp"
 

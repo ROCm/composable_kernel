@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "tensor.hpp"
+#include "host_tensor.hpp"
 #include "gridwise_operation_wrapper.hpp"
 #include "gridwise_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
@@ -55,25 +55,27 @@ void device_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw(InDesc i
 
     constexpr index_t BPerBlock = 32;
     constexpr index_t EPerBlock = 32;
-    constexpr index_t KPerBlock = 8;
+    constexpr index_t KPerBlock = 16;
 
-    constexpr index_t GemmMPerThreadSubC = 4;
-    constexpr index_t GemmNPerThreadSubC = 4;
+    constexpr index_t GemmMPerThread = 4;
+    constexpr index_t GemmNPerThread = 4;
+    constexpr index_t GemmKPerThread = 1;
+
     constexpr index_t GemmMLevel0Cluster = 4;
     constexpr index_t GemmNLevel0Cluster = 4;
     constexpr index_t GemmMLevel1Cluster = 4;
     constexpr index_t GemmNLevel1Cluster = 4;
-    constexpr index_t GemmKPerThreadLoop = 1;
-    constexpr index_t GemmDataPerReadA   = 4;
-    constexpr index_t GemmDataPerReadB   = 4;
 
-    using OutBlockCopySubLengths_K_B_N0     = Sequence<1, 1, 4>;
+    constexpr index_t GemmDataPerReadA = 4;
+    constexpr index_t GemmDataPerReadB = 4;
+
+    using OutBlockCopySubLengths_K_B_N0     = Sequence<2, 1, 4>;
     using OutBlockCopyClusterLengths_K_B_N0 = Sequence<8, 32, 1>;
 
     constexpr index_t OutBlockCopySrcDataPerRead_B   = 1;
     constexpr index_t OutBlockCopyDstDataPerWrite_N0 = 4;
 
-    using WeiBlockCopySubLengths_K_E_C0     = Sequence<1, 4, 1>;
+    using WeiBlockCopySubLengths_K_E_C0     = Sequence<2, 4, 1>;
     using WeiBlockCopyClusterLengths_K_E_C0 = Sequence<8, 8, 4>;
 
     constexpr index_t WeiBlockCopySrcDataPerRead_E   = 4;
@@ -82,8 +84,8 @@ void device_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw(InDesc i
     constexpr index_t InThreadCopyDstDataPerWrite_B = 1;
 #endif
 
-    constexpr index_t C0 = GemmMPerThreadSubC;
-    constexpr index_t N0 = GemmNPerThreadSubC;
+    constexpr index_t C0 = GemmMPerThread;
+    constexpr index_t N0 = GemmNPerThread;
 
     constexpr index_t C1 = C / C0;
     constexpr index_t N1 = N / N0;
@@ -96,7 +98,7 @@ void device_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw(InDesc i
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    constexpr auto gridwise_conv =
+    using gridwise_conv_bwd_data =
         GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_double_buffer<
             GridSize,
             BlockSize,
@@ -112,13 +114,13 @@ void device_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw(InDesc i
             EPerBlock,
             BPerBlock,
             KPerBlock,
-            GemmMPerThreadSubC,
-            GemmNPerThreadSubC,
+            GemmMPerThread,
+            GemmNPerThread,
+            GemmKPerThread,
             GemmMLevel0Cluster,
             GemmNLevel0Cluster,
             GemmMLevel1Cluster,
             GemmNLevel1Cluster,
-            GemmKPerThreadLoop,
             GemmDataPerReadA,
             GemmDataPerReadB,
             OutBlockCopySubLengths_K_B_N0,
@@ -129,28 +131,38 @@ void device_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw(InDesc i
             WeiBlockCopyClusterLengths_K_E_C0,
             WeiBlockCopySrcDataPerRead_E,
             WeiBlockCopyDstDataPerWrite_C0,
-            InThreadCopyDstDataPerWrite_B>{};
+            InThreadCopyDstDataPerWrite_B>;
 
-    for(index_t i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < 5; ++i)
     {
-        float time = launch_and_time_kernel(run_gridwise_operation<decltype(gridwise_conv),
-                                                                   T* const __restrict__,
-                                                                   const T* const __restrict__,
-                                                                   const T* const __restrict__>,
-                                            dim3(GridSize),
-                                            dim3(BlockSize),
-                                            0,
-                                            0,
-                                            gridwise_conv,
-                                            static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
-                                            static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
-                                            static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+        std::cout << "Start running " << nrepeat << " times..." << std::endl;
 
-        printf("Elapsed time : %f ms, %f TFlop/s\n",
-               time,
-               (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
-                   (std::size_t(1000) * 1000 * 1000) / time);
-        usleep(std::min(time * 1000, float(10000)));
+        KernelTimer timer;
+        timer.Start();
+
+        for(index_t j = 0; j < nrepeat; ++j)
+        {
+            launch_kernel(run_gridwise_operation<gridwise_conv_bwd_data,
+                                                 T* const __restrict__,
+                                                 const T* const __restrict__,
+                                                 const T* const __restrict__>,
+                          dim3(GridSize),
+                          dim3(BlockSize),
+                          0,
+                          0,
+                          static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+        }
+
+        timer.End();
+
+        float ave_time = timer.GetElapsedTime() / nrepeat;
+
+        float perf = (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
+                     (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+        std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
     }
 
     in_nchw_device_buf.FromDevice(in_nchw.mData.data());

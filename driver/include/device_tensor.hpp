@@ -1,28 +1,26 @@
 #pragma once
-#include "tensor.hpp"
+#include "host_tensor.hpp"
 #include "common_header.hpp"
-#include "ConstantTensorDescriptor_deprecated.hpp"
 #include "tensor_descriptor.hpp"
 
-template <typename ConstTensorDesc, std::size_t... Is>
-auto make_TensorDescriptor_impl(ConstTensorDesc, std::integer_sequence<std::size_t, Is...>)
+template <typename TensorDesc, std::size_t... Is>
+auto make_HostTensorDescriptor_impl(TensorDesc, std::integer_sequence<std::size_t, Is...>)
 {
-    std::initializer_list<std::size_t> lengths = {ConstTensorDesc::GetLengths()[Is]...};
-    std::initializer_list<std::size_t> strides = {ConstTensorDesc::GetStrides()[Is]...};
+    std::initializer_list<std::size_t> lengths = {TensorDesc::GetLengths()[Is]...};
+    std::initializer_list<std::size_t> strides = {TensorDesc::GetStrides()[Is]...};
 
-    return TensorDescriptor(lengths, strides);
+    return HostTensorDescriptor(lengths, strides);
 }
 
-template <typename ConstTensorDesc>
-auto make_TensorDescriptor(ConstTensorDesc)
+template <typename TensorDesc>
+auto make_HostTensorDescriptor(TensorDesc)
 {
-    return make_TensorDescriptor_impl(
-        ConstTensorDesc{},
-        std::make_integer_sequence<std::size_t, ConstTensorDesc::GetNumOfDimension()>{});
+    return make_HostTensorDescriptor_impl(
+        TensorDesc{}, std::make_integer_sequence<std::size_t, TensorDesc::GetNumOfDimension()>{});
 }
 
-template <typename ConstTensorDesc>
-void ostream_ConstantTensorDescriptor(ConstTensorDesc, std::ostream& os = std::cout)
+template <typename TensorDesc>
+void ostream_tensor_descriptor(TensorDesc, std::ostream& os = std::cout)
 {
-    ostream_TensorDescriptor(make_TensorDescriptor(ConstTensorDesc{}), os);
+    ostream_HostTensorDescriptor(make_HostTensorDescriptor(TensorDesc{}), os);
 }

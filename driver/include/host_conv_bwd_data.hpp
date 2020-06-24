@@ -1,5 +1,5 @@
 #pragma once
-#include "tensor.hpp"
+#include "host_tensor.hpp"
 
 template <typename TIn,
           typename TWei,

@@ -1,18 +1,13 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "tensor.hpp"
+#include "host_tensor.hpp"
+#include "gridwise_operation_wrapper.hpp"
 #include "gridwise_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw.hpp"
 
 namespace launcher {
 
 using namespace ck;
-
-template <typename GridwiseOp, index_t GemmId, typename... Xs>
-__global__ void run_gridwise_convolution_backward_data_v4r1(Xs... xs)
-{
-    GridwiseOp::template Run<GemmId>(xs...);
-}
 
 template <typename T,
           typename InDesc,
@@ -92,36 +87,6 @@ void device_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmBBlockCopyDstDataPerWrite_GemmN = 1;
 
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 1;
-#elif 1
-    // BlockSize = 256, each thread hold 64 data
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t GemmMPerBlock              = 128;
-    constexpr index_t GemmNPerBlock              = 128;
-    constexpr index_t GemmKPerBlock              = 16;
-    constexpr index_t GemmMPerThread             = 4;
-    constexpr index_t GemmNPerThread             = 4;
-    constexpr index_t GemmKPerThread             = 1;
-    constexpr index_t GemmMLevel0Cluster         = 4;
-    constexpr index_t GemmNLevel0Cluster         = 4;
-    constexpr index_t GemmMLevel1Cluster         = 4;
-    constexpr index_t GemmNLevel1Cluster         = 4;
-    constexpr index_t GemmThreadGemmDataPerReadM = 4;
-    constexpr index_t GemmThreadGemmDataPerReadN = 4;
-
-    using GemmABlockCopyThreadSliceLengths_GemmK_GemmM   = Sequence<8, 1>;
-    using GemmABlockCopyThreadClusterLengths_GemmK_GemmM = Sequence<2, 128>;
-
-    constexpr index_t GemmABlockCopySrcDataPerRead_GemmM  = 1;
-    constexpr index_t GemmABlockCopyDstDataPerWrite_GemmM = 1;
-
-    using GemmBBlockCopyThreadSliceLengths_GemmK_GemmN   = Sequence<8, 1>;
-    using GemmBBlockCopyThreadClusterLengths_GemmK_GemmN = Sequence<2, 128>;
-
-    constexpr index_t GemmBBlockCopySrcDataPerRead_GemmN  = 1;
-    constexpr index_t GemmBBlockCopyDstDataPerWrite_GemmN = 1;
-
-    constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 1;
 #endif
 
     constexpr index_t GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
@@ -157,78 +122,82 @@ void device_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc i
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    for(index_t i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < 5; ++i)
     {
-        using GridwiseConvBwdData = GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw<
-            GridSize,
-            BlockSize,
-            T,
-            T,
-            decltype(in_nchw_desc),
-            decltype(wei_kcyx_desc),
-            decltype(out_nkhw_desc),
-            ConvStrides,
-            ConvDilations,
-            InLeftPads,
-            InRightPads,
-            GemmMPerBlock,
-            GemmNPerBlock,
-            GemmKPerBlock,
-            GemmMPerThread,
-            GemmNPerThread,
-            GemmKPerThread,
-            GemmMLevel0Cluster,
-            GemmNLevel0Cluster,
-            GemmMLevel1Cluster,
-            GemmNLevel1Cluster,
-            GemmThreadGemmDataPerReadM,
-            GemmThreadGemmDataPerReadN,
-            GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
-            GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
-            GemmABlockCopySrcDataPerRead_GemmM,
-            GemmABlockCopyDstDataPerWrite_GemmM,
-            GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
-            GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
-            GemmBBlockCopySrcDataPerRead_GemmN,
-            GemmBBlockCopyDstDataPerWrite_GemmN,
-            GemmCThreadCopyDstDataPerWrite_GemmN1>;
+        std::cout << "Start running " << nrepeat << " times..." << std::endl;
 
         KernelTimer timer;
         timer.Start();
 
-        static_for<0, GridwiseConvBwdData::GetNumberOfGemm(), 1>{}([&](auto gemm_id_) {
-            constexpr index_t gemm_id = decltype(gemm_id_){};
+        for(index_t i = 0; i < nrepeat; ++i)
+        {
+            using GridwiseConvBwdData =
+                GridwiseConvolutionBackwardDataImplicitGemm_v4r1_nchw_kcyx_nkhw<
+                    GridSize,
+                    BlockSize,
+                    T,
+                    T,
+                    decltype(in_nchw_desc),
+                    decltype(wei_kcyx_desc),
+                    decltype(out_nkhw_desc),
+                    ConvStrides,
+                    ConvDilations,
+                    InLeftPads,
+                    InRightPads,
+                    GemmMPerBlock,
+                    GemmNPerBlock,
+                    GemmKPerBlock,
+                    GemmMPerThread,
+                    GemmNPerThread,
+                    GemmKPerThread,
+                    GemmMLevel0Cluster,
+                    GemmNLevel0Cluster,
+                    GemmMLevel1Cluster,
+                    GemmNLevel1Cluster,
+                    GemmThreadGemmDataPerReadM,
+                    GemmThreadGemmDataPerReadN,
+                    GemmABlockCopyThreadSliceLengths_GemmK_GemmM,
+                    GemmABlockCopyThreadClusterLengths_GemmK_GemmM,
+                    GemmABlockCopySrcDataPerRead_GemmM,
+                    GemmABlockCopyDstDataPerWrite_GemmM,
+                    GemmBBlockCopyThreadSliceLengths_GemmK_GemmN,
+                    GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
+                    GemmBBlockCopySrcDataPerRead_GemmN,
+                    GemmBBlockCopyDstDataPerWrite_GemmN,
+                    GemmCThreadCopyDstDataPerWrite_GemmN1>;
 
-            constexpr auto gemm_sizes        = GridwiseConvBwdData::GetGemmSize(gemm_id);
-            constexpr index_t gemm_k         = gemm_sizes.At(2);
-            constexpr bool is_gemm_not_empty = gemm_k > 0;
+            static_for<0, GridwiseConvBwdData::GetNumberOfGemm(), 1>{}([&](auto gemm_id) {
+                constexpr auto gemm_sizes        = GridwiseConvBwdData::GetGemmSize(gemm_id);
+                constexpr index_t gemm_k         = gemm_sizes.At(2);
+                constexpr bool is_gemm_not_empty = gemm_k > 0;
 
-            // only compile and run if GEMM is no empty
-            static_if<is_gemm_not_empty>{}([&](auto fwd) {
-                launch_kernel(
-                    run_gridwise_convolution_backward_data_v4r1<GridwiseConvBwdData,
-                                                                fwd(gemm_id),
-                                                                T* const __restrict__,
-                                                                const T* const __restrict__,
-                                                                const T* const __restrict__>,
-                    dim3(GridSize),
-                    dim3(BlockSize),
-                    0,
-                    0,
-                    static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
-                    static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
-                    static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+                // only compile and run if GEMM is no empty
+                static_if<is_gemm_not_empty>{}([&](auto fwd) {
+                    launch_kernel(run_gridwise_operation<GridwiseConvBwdData,
+                                                         T* const __restrict__,
+                                                         const T* const __restrict__,
+                                                         const T* const __restrict__,
+                                                         decltype(gemm_id)>,
+                                  dim3(GridSize),
+                                  dim3(BlockSize),
+                                  0,
+                                  0,
+                                  static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
+                                  static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
+                                  static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()),
+                                  fwd(gemm_id));
+                });
             });
-        });
+        }
 
         timer.End();
-        float time = timer.GetElapsedTime();
 
-        printf("Elapsed time : %f ms, %f TFlop/s\n",
-               time,
-               (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
-                   (std::size_t(1000) * 1000 * 1000) / time);
-        usleep(std::min(time * 1000, float(10000)));
+        float ave_time = timer.GetElapsedTime() / nrepeat;
+
+        float perf = (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
+                     (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+        std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
     }
 
     in_nchw_device_buf.FromDevice(in_nchw.mData.data());

@@ -1,5 +1,5 @@
 #pragma once
-#include "tensor.hpp"
+#include "host_tensor.hpp"
 
 template <class TIn,
           class TWei,
@@ -34,7 +34,8 @@ void host_direct_convolution(const Tensor<TIn>& in_nchw,
                     if(hi >= 0 && hi < in_nchw.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in_nchw.mDesc.GetLengths()[3])
                     {
-                        v += double(in_nchw(n, c, hi, wi)) * double(wei_kcyx(k, c, y, x));
+                        v += static_cast<const double>(in_nchw(n, c, hi, wi)) *
+                             static_cast<const double>(wei_kcyx(k, c, y, x));
                     }
                 }
             }

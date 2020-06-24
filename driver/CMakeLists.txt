@@ -1,5 +1,5 @@
 set(TENSOR_SOURCE 
-    src/tensor.cpp;
+    src/host_tensor.cpp;
     src/device.cpp;
 )
 
@@ -25,8 +25,6 @@ elseif(DEVICE_BACKEND STREQUAL "NVIDIA")
 endif()
 
 add_executable(conv_driver ${CONV_SOURCE}) 
-add_executable(col2im_driver ${COL2IM_SOURCE}) 
 add_executable(conv_bwd_data_driver ${CONV_BWD_DATA_SOURCE}) 
 target_link_libraries(conv_driver PRIVATE host)
-target_link_libraries(col2im_driver PRIVATE host)
 target_link_libraries(conv_bwd_data_driver PRIVATE host)

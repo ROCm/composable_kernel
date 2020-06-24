@@ -1,7 +1,7 @@
 #pragma once
 #include <unistd.h>
 #include "device.hpp"
-#include "tensor.hpp"
+#include "host_tensor.hpp"
 #include "gridwise_operation_wrapper.hpp"
 #include "gridwise_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw.hpp"
 
@@ -49,16 +49,16 @@ void device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw(InDesc i
     wei_kcyx_device_buf.ToDevice(wei_kcyx.mData.data());
     out_nkhw_device_buf.ToDevice(out_nkhw.mData.data());
 
-#if 0
+#if 1
     // BlockSize = 256, each thread hold 64 data
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlock              = 128;
     constexpr index_t GemmNPerBlock              = 128;
     constexpr index_t GemmKPerBlock              = 8;
-    constexpr index_t GemmMPerThread         = 4;
-    constexpr index_t GemmNPerThread         = 4;
-    constexpr index_t GemmKPerThread         = 1;
+    constexpr index_t GemmMPerThread             = 4;
+    constexpr index_t GemmNPerThread             = 4;
+    constexpr index_t GemmKPerThread             = 1;
     constexpr index_t GemmMLevel0Cluster         = 4;
     constexpr index_t GemmNLevel0Cluster         = 4;
     constexpr index_t GemmMLevel1Cluster         = 4;
@@ -79,6 +79,36 @@ void device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw(InDesc i
     constexpr index_t GemmBBlockCopyDstDataPerWrite_GemmN = 1;
 
     constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 1;
+#elif 1
+    // BlockSize = 256, each thread hold 64 data
+    constexpr index_t BlockSize = 256;
+
+    constexpr index_t GemmMPerBlock              = 128;
+    constexpr index_t GemmNPerBlock              = 128;
+    constexpr index_t GemmKPerBlock              = 8;
+    constexpr index_t GemmMPerThread             = 4;
+    constexpr index_t GemmNPerThread             = 4;
+    constexpr index_t GemmKPerThread             = 1;
+    constexpr index_t GemmMLevel0Cluster         = 4;
+    constexpr index_t GemmNLevel0Cluster         = 4;
+    constexpr index_t GemmMLevel1Cluster         = 4;
+    constexpr index_t GemmNLevel1Cluster         = 4;
+    constexpr index_t GemmThreadGemmDataPerReadM = 4;
+    constexpr index_t GemmThreadGemmDataPerReadN = 4;
+
+    using GemmABlockCopyThreadSliceLengths_GemmK_GemmM   = Sequence<1, 4>;
+    using GemmABlockCopyThreadClusterLengths_GemmK_GemmM = Sequence<8, 32>;
+
+    constexpr index_t GemmABlockCopySrcDataPerRead_GemmM  = 4;
+    constexpr index_t GemmABlockCopyDstDataPerWrite_GemmM = 4;
+
+    using GemmBBlockCopyThreadSliceLengths_GemmK_GemmN   = Sequence<1, 4>;
+    using GemmBBlockCopyThreadClusterLengths_GemmK_GemmN = Sequence<8, 32>;
+
+    constexpr index_t GemmBBlockCopySrcDataPerRead_GemmN  = 4;
+    constexpr index_t GemmBBlockCopyDstDataPerWrite_GemmN = 4;
+
+    constexpr index_t GemmCThreadCopyDstDataPerWrite_GemmN1 = 4;
 #elif 1
     // BlockSize = 256, each thread hold 64 data
     constexpr index_t BlockSize = 256;
@@ -119,7 +149,7 @@ void device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw(InDesc i
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    constexpr auto gridwise_conv = GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw<
+    using gridwise_conv_bwd_data = GridwiseConvolutionBackwardDataImplicitGemm_v1r1_nchw_kcyx_nkhw<
         GridSize,
         BlockSize,
         T,
@@ -151,28 +181,38 @@ void device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw(InDesc i
         GemmBBlockCopyThreadClusterLengths_GemmK_GemmN,
         GemmBBlockCopySrcDataPerRead_GemmN,
         GemmBBlockCopyDstDataPerWrite_GemmN,
-        GemmCThreadCopyDstDataPerWrite_GemmN1>{};
+        GemmCThreadCopyDstDataPerWrite_GemmN1>;
 
-    for(index_t i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < 5; ++i)
     {
-        float time = launch_and_time_kernel(run_gridwise_operation<decltype(gridwise_conv),
-                                                                   T* const __restrict__,
-                                                                   const T* const __restrict__,
-                                                                   const T* const __restrict__>,
-                                            dim3(GridSize),
-                                            dim3(BlockSize),
-                                            0,
-                                            0,
-                                            gridwise_conv,
-                                            static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
-                                            static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
-                                            static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+        std::cout << "Start running " << nrepeat << " times..." << std::endl;
 
-        printf("Elapsed time : %f ms, %f TFlop/s\n",
-               time,
-               (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
-                   (std::size_t(1000) * 1000 * 1000) / time);
-        usleep(std::min(time * 1000, float(10000)));
+        KernelTimer timer;
+        timer.Start();
+
+        for(index_t j = 0; j < nrepeat; ++j)
+        {
+            launch_kernel(run_gridwise_operation<gridwise_conv_bwd_data,
+                                                 T* const __restrict__,
+                                                 const T* const __restrict__,
+                                                 const T* const __restrict__>,
+                          dim3(GridSize),
+                          dim3(BlockSize),
+                          0,
+                          0,
+                          static_cast<T*>(in_nchw_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(wei_kcyx_device_buf.GetDeviceBuffer()),
+                          static_cast<T*>(out_nkhw_device_buf.GetDeviceBuffer()));
+        }
+
+        timer.End();
+
+        float ave_time = timer.GetElapsedTime() / nrepeat;
+
+        float perf = (float)calculate_convolution_flops(InDesc{}, WeiDesc{}, OutDesc{}) /
+                     (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+        std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
     }
 
     in_nchw_device_buf.FromDevice(in_nchw.mData.data());
