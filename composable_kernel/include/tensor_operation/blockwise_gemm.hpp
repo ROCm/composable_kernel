@@ -18,11 +18,11 @@ template <index_t BlockSize,
           typename ThreadMatrixC,
           index_t MPerThreadSubC,
           index_t NPerThreadSubC,
+          index_t KPerThreadLoop,
           index_t MLevel0ThreadCluster,
           index_t NLevel0ThreadCluster,
           index_t MLevel1ThreadCluster,
           index_t NLevel1ThreadCluster,
-          index_t KPerThreadLoop,
           index_t ThreadGemmADataPerRead_M,
           index_t ThreadGemmBDataPerRead_N>
 struct BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2
