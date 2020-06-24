@@ -25,13 +25,13 @@ template <index_t GridSize,
           index_t EPerBlock,
           index_t BPerBlock,
           index_t KPerBlock,
-          index_t GemmMPerThreadSubC,
-          index_t GemmNPerThreadSubC,
+          index_t GemmMPerThread,
+          index_t GemmNPerThread,
+          index_t GemmKPerThread,
           index_t GemmMLevel0Cluster,
           index_t GemmNLevel0Cluster,
           index_t GemmMLevel1Cluster,
           index_t GemmNLevel1Cluster,
-          index_t GemmKPerThreadLoop,
           index_t GemmDataPerReadA,
           index_t GemmDataPerReadB,
           typename OutBlockCopySubLengths_K_B_N0,
@@ -78,8 +78,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
         constexpr index_t ConvDilationH = ConvDilations{}[0];
         constexpr index_t ConvDilationW = ConvDilations{}[1];
 
-        constexpr index_t C0 = GemmMPerThreadSubC;
-        constexpr index_t N0 = GemmNPerThreadSubC;
+        constexpr index_t C0 = GemmMPerThread;
+        constexpr index_t N0 = GemmNPerThread;
 
         static_assert(C % C0 == 0 && N % N0 == 0, "wrong!");
 
@@ -225,20 +225,20 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
         // c_thread_mtx definition: this is a mess
         // TODO:: more elegent way of defining c_thread_mtx
         constexpr auto c_e0e1c0_b0b1n0_thread_mtx_desc = make_ConstantMatrixDescriptor_packed(
-            Number<GemmMRepeat * GemmMPerThreadSubC>{}, Number<GemmNRepeat * GemmNPerThreadSubC>{});
+            Number<GemmMRepeat * GemmMPerThread>{}, Number<GemmNRepeat * GemmNPerThread>{});
 
         const auto blockwise_gemm = BlockwiseGemmBlockABlockBThreadCTransANormalBNormalC_v2<
             BlockSize,
             decltype(a_k_ec0_block_mtx_desc),
             decltype(b_k_bn0_block_mtx_desc),
             decltype(c_e0e1c0_b0b1n0_thread_mtx_desc),
-            GemmMPerThreadSubC,
-            GemmNPerThreadSubC,
+            GemmMPerThread,
+            GemmNPerThread,
+            GemmKPerThread,
             GemmMLevel0Cluster,
             GemmNLevel0Cluster,
             GemmMLevel1Cluster,
             GemmNLevel1Cluster,
-            GemmKPerThreadLoop,
             GemmDataPerReadA,
             GemmDataPerReadB>{};
 
@@ -371,7 +371,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
             // define input tensor descriptor for threadwise copy
             //     thread input tensor, src of threadwise copy
             constexpr auto in_e0_e1_c0_b0_b1_n0_thread_desc = make_native_tensor_descriptor_packed(
-                Sequence<GemmMRepeat, 1, GemmMPerThreadSubC, GemmNRepeat, 1, GemmNPerThreadSubC>{});
+                Sequence<GemmMRepeat, 1, GemmMPerThread, GemmNRepeat, 1, GemmNPerThread>{});
 
             //     global input tensor, dst of threadwise copy
             constexpr auto in_n_c_hip_wip_global_desc = transform_tensor_descriptor(
@@ -419,10 +419,10 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                 blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
             const index_t e_thread_data_on_global =
-                e_block_data_on_global + c_thread_mtx_on_block.row / GemmMPerThreadSubC;
+                e_block_data_on_global + c_thread_mtx_on_block.row / GemmMPerThread;
 
             const index_t b_thread_data_on_global =
-                b_block_data_on_global + c_thread_mtx_on_block.col / GemmNPerThreadSubC;
+                b_block_data_on_global + c_thread_mtx_on_block.col / GemmNPerThread;
 
             ThreadwiseGenericTensorSliceCopy_v4r2<
                 decltype(in_e0_e1_c0_b0_b1_n0_thread_desc),

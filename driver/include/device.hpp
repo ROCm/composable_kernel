@@ -60,7 +60,7 @@ float launch_and_time_kernel(F kernel,
 
     timer.End();
 
-    hipGetErrorString(hipGetLastError());
+    hipGetLastError();
 
     return timer.GetElapsedTime();
 }
@@ -100,8 +100,6 @@ float launch_and_time_kernel(F kernel,
     cudaError_t error = cudaLaunchKernel(f, grid_dim, block_dim, p_args, lds_byte, stream_id);
 
     timer.End();
-
-    checkCudaErrors(error);
 
     return timer.GetElapsedTime();
 }

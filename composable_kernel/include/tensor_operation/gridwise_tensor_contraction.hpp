@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_GEMM_HPP
-#define CK_GRIDWISE_GEMM_HPP
+#ifndef CK_GRIDWISE_TENSOR_CONTRACTION_HPP
+#define CK_GRIDWISE_TENSOR_CONTRACTION_HPP
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -18,79 +18,28 @@ template <index_t GridSize,
           typename AGlobalDesc,
           typename BGlobalDesc,
           typename CGlobalDesc,
-          InMemoryDataOperation CGlobalMemoryDataOperation,
-          index_t MPerBlock,
-          index_t NPerBlock,
+          typename CBlockLengths,
           index_t KPerBlock,
-          index_t MPerThread,
-          index_t NPerThread,
-          index_t KPerThread,
-          index_t MLevel0Cluster,
-          index_t NLevel0Cluster,
-          index_t MLevel1Cluster,
-          index_t NLevel1Cluster,
-          index_t ThreadGemmAThreadCopySrcDataPerRead_M,
-          index_t ThreadGemmBThreadCopySrcDataPerRead_N,
-          typename ABlockCopyThreadSliceLengths_K_M,
-          typename ABlockCopyThreadClusterLengths_K_M,
-          typename ABlockCopyThreadClusterArrangeOrder,
-          typename ABlockCopySrcAccessOrder,
-          index_t ABlockCopySrcVectorReadDim,
-          index_t ABlockCopySrcDataPerRead,
-          index_t ABlockCopyDstDataPerWrite_M,
-          typename BBlockCopyThreadSliceLengths_K_N,
-          typename BBlockCopyThreadClusterLengths_K_N,
-          typename BBlockCopyThreadClusterArrangeOrder,
-          typename BBlockCopySrcAccessOrder,
-          index_t BBlockCopySrcVectorReadDim,
-          index_t BBlockCopySrcDataPerRead,
-          index_t BBlockCopyDstDataPerWrite_N,
-          typename CThreadCopySrcDstAccessOrder,
-          index_t CThreadCopySrcDstVectorReadWriteDim,
-          index_t CThreadCopyDstDataPerWrite>
-struct GridwiseGemmTransposedANormalBNormalC_v1
+          InMemoryDataOperation CGlobalMemoryDataOperation>
+struct GridwiseTensorContraction_v1
 {
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
-    {
-        constexpr index_t max_lds_align = math::lcm(ABlockCopyDstDataPerWrite_M,
-                                                    BBlockCopyDstDataPerWrite_N,
-                                                    ThreadGemmAThreadCopySrcDataPerRead_M,
-                                                    ThreadGemmBThreadCopySrcDataPerRead_N);
-
-        // A matrix in LDS memory, dst of blockwise copy
-        //   be careful of LDS alignment
-        constexpr auto a_k_m_block_desc = make_native_tensor_descriptor_aligned(
-            Sequence<KPerBlock, MPerBlock>{}, Number<max_lds_align>{});
-
-        // B matrix in LDS memory, dst of blockwise copy
-        //   be careful of LDS alignment
-        constexpr auto b_k_n_block_desc = make_native_tensor_descriptor_aligned(
-            Sequence<KPerBlock, NPerBlock>{}, Number<max_lds_align>{});
-
-        // LDS allocation for A and B: be careful of alignment
-        constexpr index_t a_block_space =
-            math::integer_least_multiple(a_k_m_block_desc.GetElementSpace(), max_lds_align);
-
-        constexpr index_t b_block_space =
-            math::integer_least_multiple(b_k_n_block_desc.GetElementSpace(), max_lds_align);
-
-        return 2 * (a_block_space + b_block_space) * sizeof(Float);
-    }
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte() {}
 
     __device__ void Run(const Float* __restrict__ p_a_global,
                         const Float* __restrict__ p_b_global,
                         Float* __restrict__ p_c_global,
                         Float* __restrict__ p_shared_block) const
     {
+        /// \todo sanity-check on AGlobalDesc, BGlboalDesc, CGlobalDesc length consisitency
+        /// \todo santiy-check on CBlockLengtsh
+
         constexpr auto True = integral_constant<bool, true>{};
 
-        constexpr auto a_k_m_global_desc = AGlobalDesc{};
-        constexpr auto b_k_n_global_desc = BGlobalDesc{};
-        constexpr auto c_m_n_global_desc = CGlobalDesc{};
+        constexpr auto a_global_desc = AGlobalDesc{};
+        constexpr auto b_global_desc = BGlobalDesc{};
+        constexpr auto c_global_desc = CGlobalDesc{};
 
-        constexpr auto K = a_k_m_global_desc.GetLengths()[0];
-        constexpr auto M = a_k_m_global_desc.GetLengths()[1];
-        constexpr auto N = b_k_n_global_desc.GetLengths()[1];
+        constexpr auto K = a_global_desc.GetLengths()[0];
 
         // don't do anything if K == 0
         if(K == 0)
@@ -127,8 +76,8 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseGenericTensorSliceCopy_v4<BlockSize,
-                                               decltype(a_k_m_global_desc),
-                                               decltype(a_k_m_block_desc),
+                                               AGlobalDesc,
+                                               decltype(a_block_desc),
                                                decltype(a_k_m_block_desc.GetLengths()),
                                                ABlockCopyThreadSliceLengths_K_M,
                                                ABlockCopyThreadClusterLengths_K_M,
@@ -186,6 +135,7 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
                       "wrong!");
 
         constexpr index_t GemmMRepeat = MPerBlock / (MPerThread * MLevel0Cluster * MLevel1Cluster);
+
         constexpr index_t GemmNRepeat = NPerBlock / (NPerThread * NLevel0Cluster * NLevel1Cluster);
 
         // c_thread_mtx definition: this is a mess
@@ -200,11 +150,11 @@ struct GridwiseGemmTransposedANormalBNormalC_v1
             decltype(c_m0m1_n0n1_thread_mtx_desc),
             MPerThread,
             NPerThread,
-            KPerThread,
             MLevel0Cluster,
             NLevel0Cluster,
             MLevel1Cluster,
             NLevel1Cluster,
+            KPerThread,
             ThreadGemmAThreadCopySrcDataPerRead_M,
             ThreadGemmBThreadCopySrcDataPerRead_N>{};
 

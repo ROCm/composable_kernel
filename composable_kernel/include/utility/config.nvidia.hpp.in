@@ -1,10 +1,9 @@
 #ifndef CK_CONFIG_NVIDIA_HPP
 #define CK_CONFIG_NVIDIA_HPP
 
-#include "cuda_runtime.h"
-#include "cuda_fp16.h"
-#include "nvToolsExt.h"
-#include "helper_cuda.h"
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+#include <nvToolsExt.h>
 
 // index type: unsigned or signed
 #define CK_UNSIGNED_INDEX_TYPE 0
@@ -19,6 +18,7 @@
 #define CK_USE_AMD_BUFFER_ADDRESSING_INTRINSIC 0
 #define CK_USE_AMD_XDLOPS 0
 #define CK_USE_AMD_XDLOPS_INLINE_ASM 0
+#define CK_USE_AMD_XDLOPS_EMULATE 0
 
 // experimental implementation
 #define CK_EXPERIMENTAL_BLOCKWISE_GEMM_USE_PIPELINE 0
@@ -32,16 +32,16 @@ namespace ck {
 
 enum AddressSpace
 {
-    generic,
-    global,
-    lds,
-    vgpr
+    Generic,
+    Global,
+    Lds,
+    Vgpr
 };
 
 enum InMemoryDataOperation
 {
-    none,
-    atomic_add
+    Set,
+    AtomicAdd
 };
 
 #if CK_UNSIGNED_INDEX_TYPE

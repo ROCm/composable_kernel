@@ -6,7 +6,7 @@ DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
 #if CK_DEVICE_BACKEND_AMD
     hipGetErrorString(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
 #elif CK_DEVICE_BACKEND_NVIDIA
-    checkCudaErrors(cudaMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+    cudaMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize);
 #endif
 }
 
@@ -18,8 +18,7 @@ void DeviceMem::ToDevice(const void* p)
     hipGetErrorString(
         hipMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, hipMemcpyHostToDevice));
 #elif CK_DEVICE_BACKEND_NVIDIA
-    checkCudaErrors(
-        cudaMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, cudaMemcpyHostToDevice));
+    cudaMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, cudaMemcpyHostToDevice);
 #endif
 }
 
@@ -28,7 +27,7 @@ void DeviceMem::FromDevice(void* p)
 #if CK_DEVICE_BACKEND_AMD
     hipGetErrorString(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
 #elif CK_DEVICE_BACKEND_NVIDIA
-    checkCudaErrors(cudaMemcpy(p, mpDeviceBuf, mMemSize, cudaMemcpyDeviceToHost));
+    cudaMemcpy(p, mpDeviceBuf, mMemSize, cudaMemcpyDeviceToHost);
 #endif
 }
 
@@ -37,7 +36,7 @@ DeviceMem::~DeviceMem()
 #if CK_DEVICE_BACKEND_AMD
     hipGetErrorString(hipFree(mpDeviceBuf));
 #elif CK_DEVICE_BACKEND_NVIDIA
-    checkCudaErrors(cudaFree(mpDeviceBuf));
+    cudaFree(mpDeviceBuf);
 #endif
 }
 
@@ -68,8 +67,10 @@ struct KernelTimerImpl
     void Start()
     {
 #if CK_DEVICE_BACKEND_AMD
+        hipDeviceSynchronize();
         hipEventRecord(mStart, 0);
 #elif CK_DEVICE_BACKEND_NVIDIA
+        cudaDeviceSynchronize();
         cudaEventRecord(mStart, 0);
 #endif
     }
