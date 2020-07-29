@@ -84,21 +84,10 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunLoadThreadBuffer(const BlockSrcData* p_block_src,
                                         ThreadBufferData* p_thread_buffer) const
     {
-        constexpr bool has_optimized_address_calculation =
-            decltype(mThreadwiseStore)::HasWorkingOptimizedAddressCalculation();
-
         if(BlockSize == mThreadClusterDesc.GetElementSize() or
            get_thread_local_1d_id() < mThreadClusterDesc.GetElementSize())
         {
-            // TODO: threadwise copy is still being tweaked
-            if(has_optimized_address_calculation)
-            {
-                mThreadwiseLoad.Run_optimized_src_address_calculation(p_block_src, p_thread_buffer);
-            }
-            else
-            {
-                mThreadwiseLoad.Run(p_block_src, p_thread_buffer);
-            }
+            mThreadwiseLoad.Run(p_block_src, p_thread_buffer);
         }
     }
 
@@ -106,22 +95,10 @@ struct BlockwiseGenericTensorSliceCopy_v4
     __device__ void RunStoreThreadBuffer(const ThreadBufferData* p_thread_buffer,
                                          BlockDstData* p_block_dst) const
     {
-        constexpr bool has_optimized_address_calculation =
-            decltype(mThreadwiseStore)::HasWorkingOptimizedAddressCalculation();
-
         if(BlockSize == mThreadClusterDesc.GetElementSize() or
            get_thread_local_1d_id() < mThreadClusterDesc.GetElementSize())
         {
-            // TODO: threadwise copy is still being tweaked
-            if(has_optimized_address_calculation)
-            {
-                mThreadwiseStore.Run_optimized_dst_address_calculation(p_thread_buffer,
-                                                                       p_block_dst);
-            }
-            else
-            {
-                mThreadwiseStore.Run(p_thread_buffer, p_block_dst);
-            }
+            mThreadwiseStore.Run(p_thread_buffer, p_block_dst);
         }
     }
 
