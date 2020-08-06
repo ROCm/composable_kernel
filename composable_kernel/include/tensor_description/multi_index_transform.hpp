@@ -488,6 +488,49 @@ struct Embed
     }
 };
 
+// LowerLengths: Sequence<...>
+// LowerFreezePoint: Sequence<...>
+template <typename LowerLengths, typename LowerFreezePoint>
+struct Freeze
+{
+    static constexpr index_t nDimLow = LowerLengths::Size();
+    static constexpr index_t nDimUp  = 0;
+
+    using LowerIndex = MultiIndex<nDimLow>;
+    using UpperIndex = MultiIndex<nDimUp>;
+
+    __host__ __device__ explicit constexpr Freeze()
+    {
+        // TODO: sanity check: LowerFreezePoint should be within range of LowerLengths
+    }
+
+    __host__ __device__ static constexpr auto GetNumOfLowerDimension() { return Number<nDimLow>{}; }
+
+    __host__ __device__ static constexpr auto GetNumOfUpperDimension() { return Number<0>{}; }
+
+    __host__ __device__ static constexpr auto GetUpperLengths() { return Sequence<>{}; }
+
+    __host__ __device__ static constexpr auto CalculateLowerIndex(const UpperIndex& /*idx_up*/)
+    {
+        return to_array(LowerFreezePoint{});
+    }
+
+    __host__ __device__ static constexpr auto
+    CalculateLowerIndexDiff(const UpperIndex& /* idx_up_diff */,
+                            const UpperIndex& /* idx_up_old */,
+                            const LowerIndex& /* idx_low_old */)
+    {
+        return make_zero_array<index_t, nDimLow>();
+    }
+
+    __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+};
+
 template <index_t LowerLength, index_t VectorSize>
 struct Vectorize
 {
