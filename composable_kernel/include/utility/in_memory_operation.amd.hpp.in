@@ -108,8 +108,12 @@ struct SetData
     {
         const auto zeros = vector_t(0);
 
-        amd_buffer_store<T, DataPerAccess>(
-            src_valid ? &(p_src[src_offset]) : &zeros, p_dst, dst_offset, dst_valid, dst_range);
+        amd_buffer_store<T, DataPerAccess>(src_valid ? &(p_src[src_offset])
+                                                     : reinterpret_cast<const T*>(&zeros),
+                                           p_dst,
+                                           dst_offset,
+                                           dst_valid,
+                                           dst_range);
     }
 #endif
 };
@@ -145,19 +149,17 @@ struct AtomicAddData
     template <>
     __device__ void Run<AddressSpace::Vgpr, AddressSpace::Global>(const T* p_src,
                                                                   index_t src_offset,
+                                                                  bool src_valid,
                                                                   index_t /* src_range */,
-                                                                  bool src_valid T* p_dst,
+                                                                  T* p_dst,
                                                                   index_t dst_offset,
                                                                   bool dst_valid,
                                                                   index_t dst_range) const
     {
         const auto zeros = vector_t(0);
 
-        amd_buffer_atomic_add<T, DataPerAccess>(src_valid ? &(p_src[src_offset]) : &zeros,
-                                                p_dst,
-                                                dst_offset,
-                                                dst_valid,
-                                                index_t dst_range);
+        amd_buffer_atomic_add<T, DataPerAccess>(
+            src_valid ? &(p_src[src_offset]) : &zeros, p_dst, dst_offset, dst_valid, dst_range);
     }
 #endif
 };
