@@ -12,6 +12,7 @@ struct Array
     using type      = Array<TData, NSize>;
     using data_type = TData;
 
+    // TODO: implement empty Array
     index_t mData[NSize];
 
     __host__ __device__ explicit constexpr Array() {}
