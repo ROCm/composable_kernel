@@ -273,7 +273,7 @@ void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
             std::size_t ho = HoPerTile * htile + j;
             for(int i = 0; i < WoPerTile; ++i)
             {
-                std::size_t wo = WoPerTile * wtile + i;
+                std::size_t wo         = WoPerTile * wtile + i;
                 out_nkhw(n, k, ho, wo) = out_hold(n, k, htile, wtile, j, i);
             }
         }

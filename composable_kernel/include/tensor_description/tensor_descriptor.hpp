@@ -311,13 +311,13 @@ struct TransformedTensorDescriptor
         static_for<0, nTransform, 1>{}([&](auto itran) {
             constexpr auto tran = Transforms{}.At(itran);
 
-            const auto idx_up_part = pick_array_element(idx_up, UpDimensionIds{}.At(itran));
-            auto idx_low_part      = pick_array_element(idx_low, LowDimensionIds{}.At(itran));
+            const auto idx_up_part = pick_container_element(idx_up, UpDimensionIds{}.At(itran));
+            auto idx_low_part      = pick_container_element(idx_low, LowDimensionIds{}.At(itran));
 
             // this assume each lower (single) index is only assocaited with one transformation,
             //   which is required for index transformation, and has been checked during constructor
             //   of TransformedTensorDescriptor
-            idx_low_part = tran.CalculateLowerIndex(to_array(idx_up_part));
+            idx_low_part = tran.CalculateLowerIndex(to_multi_index(idx_up_part));
         });
 
         return idx_low;
@@ -333,20 +333,23 @@ struct TransformedTensorDescriptor
             constexpr auto tran = Transforms{}.At(itran);
 
             const auto idx_up_diff_part =
-                pick_array_element(idx_up_diff, UpDimensionIds{}.At(itran));
+                pick_container_element(idx_up_diff, UpDimensionIds{}.At(itran));
 
-            const auto idx_up_old_part = pick_array_element(idx_up_old, UpDimensionIds{}.At(itran));
+            const auto idx_up_old_part =
+                pick_container_element(idx_up_old, UpDimensionIds{}.At(itran));
 
             const auto idx_low_old_part =
-                pick_array_element(idx_low_old, LowDimensionIds{}.At(itran));
+                pick_container_element(idx_low_old, LowDimensionIds{}.At(itran));
 
-            auto idx_low_diff_part = pick_array_element(idx_low_diff, LowDimensionIds{}.At(itran));
+            auto idx_low_diff_part =
+                pick_container_element(idx_low_diff, LowDimensionIds{}.At(itran));
 
             // this assume each lower (single) index is associated with only one transformation,
             //   which is required for index transformation, and has been checked during constructor
             //   of TransformedTensorDescriptor
-            idx_low_diff_part = tran.CalculateLowerIndexDiff(
-                to_array(idx_up_diff_part), to_array(idx_up_old_part), to_array(idx_low_old_part));
+            idx_low_diff_part = tran.CalculateLowerIndexDiff(to_multi_index(idx_up_diff_part),
+                                                             to_multi_index(idx_up_old_part),
+                                                             to_multi_index(idx_low_old_part));
         });
 
         return idx_low_diff;
@@ -506,12 +509,12 @@ struct TransformedTensorDescriptor
                 constexpr auto low_dims_part = LowDimensionIds{}.At(itran);
                 constexpr auto low_lengths_part =
                     GetLowerTensorDescriptor().GetLengths(low_dims_part);
-                const auto idx_low_part = to_array(pick_array_element(idx_low, low_dims_part));
+                const auto idx_low_part =
+                    to_multi_index(pick_container_element(idx_low, low_dims_part));
 
-                for(index_t i = 0; i < low_dims_part.Size(); ++i)
-                {
+                static_for<0, decltype(low_dims_part)::Size(), 1>{}([&](auto i) {
                     flag = flag && idx_low_part[i] >= 0 && idx_low_part[i] < low_lengths_part[i];
-                }
+                });
             }
         });
 

@@ -3,7 +3,7 @@ project(modular_convolution)
 
 #c++
 enable_language(CXX)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
@@ -53,6 +53,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_description
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/kernel_algorithm
+    ${PROJECT_SOURCE_DIR}/composable_kernel/include/driver
     ${PROJECT_SOURCE_DIR}/external/half/include
     ${PROJECT_SOURCE_DIR}/driver/include
     ${PROJECT_BINARY_DIR}/composable_kernel/include/utility

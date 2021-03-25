@@ -4,10 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include "config.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "print_array.hpp"
-#include "print_sequence.hpp"
+#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
@@ -54,10 +51,10 @@ int main(int argc, char* argv[])
 #elif 0
     // 3x3, 28x28
     constexpr index_t N  = 128;
-    constexpr index_t C  = 256;
+    constexpr index_t C  = 128;
     constexpr index_t HI = 28;
     constexpr index_t WI = 28;
-    constexpr index_t K  = 1024;
+    constexpr index_t K  = 128;
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
 
@@ -156,13 +153,13 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<2, 2>;
     using RightPads = Sequence<2, 2>;
-#elif 0
+#elif 1
     // 1x7 filter, 0x3 pad, 17x17 input
     constexpr index_t N  = 128;
-    constexpr index_t C  = 256;
+    constexpr index_t C  = 128;
     constexpr index_t HI = 17;
     constexpr index_t WI = 17;
-    constexpr index_t K  = 1024;
+    constexpr index_t K  = 128;
     constexpr index_t Y  = 1;
     constexpr index_t X  = 7;
 
@@ -197,7 +194,7 @@ int main(int argc, char* argv[])
     constexpr index_t X  = 3;
 
     using ConvStrides   = Sequence<2, 2>;
-    using ConvDilations = Sequence<1, 1>;
+    using ConvDilations = Sequence<2, 2>;
 
     using LeftPads  = Sequence<0, 0>;
     using RightPads = Sequence<0, 0>;
@@ -211,11 +208,11 @@ int main(int argc, char* argv[])
     ostream_tensor_descriptor(in_nchw_desc, std::cout << "in_nchw_desc: ");
     ostream_tensor_descriptor(wei_kcyx_desc, std::cout << "wei_kcyx_desc: ");
     ostream_tensor_descriptor(out_nkhw_desc, std::cout << "out_nkhw_desc: ");
-    print_sequence("LeftPads", LeftPads{});
-    print_sequence("LeftPads", LeftPads{});
-    print_sequence("RightPads", RightPads{});
-    print_sequence("ConvStrides", ConvStrides{});
-    print_sequence("ConvDilations", ConvDilations{});
+    print_array("LeftPads", LeftPads{});
+    print_array("LeftPads", LeftPads{});
+    print_array("RightPads", RightPads{});
+    print_array("ConvStrides", ConvStrides{});
+    print_array("ConvDilations", ConvDilations{});
 
     Tensor<float> in_nchw_device(make_HostTensorDescriptor(in_nchw_desc));
     Tensor<float> in_nchw_host(make_HostTensorDescriptor(in_nchw_desc));
@@ -248,7 +245,7 @@ int main(int argc, char* argv[])
     device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw
 #elif 0
     device_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw
-#elif 0
+#elif 1
     device_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw
 #elif 1
     device_convolution_backward_data_implicit_gemm_v5r1_nhwc_kyxc_nhwk

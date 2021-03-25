@@ -2,7 +2,6 @@
 #define CK_FUNCTIONAL_HPP
 
 #include "integral_constant.hpp"
-#include "sequence.hpp"
 #include "type.hpp"
 
 namespace ck {
@@ -56,8 +55,10 @@ struct static_if<true>
     __host__ __device__ constexpr auto operator()(F f) const
     {
         // This is a trick for compiler:
-        //   Pass forwarder to lambda "f" as "auto" argument, and make sure "f" will use it,
-        //   this will make "f" a generic lambda, so that "f" won't be compiled until being
+        //   Pass forwarder to lambda "f" as "auto" argument, and make sure "f" will
+        //   use it,
+        //   this will make "f" a generic lambda, so that "f" won't be compiled
+        //   until being
         //   instantiated here
         f(forwarder{});
         return Type{};
@@ -84,8 +85,10 @@ struct static_if<false>
     __host__ __device__ static void Else(F f)
     {
         // This is a trick for compiler:
-        //   Pass forwarder to lambda "f" as "auto" argument, and make sure "f" will use it,
-        //   this will make "f" a generic lambda, so that "f" won't be compiled until being
+        //   Pass forwarder to lambda "f" as "auto" argument, and make sure "f" will
+        //   use it,
+        //   this will make "f" a generic lambda, so that "f" won't be compiled
+        //   until being
         //   instantiated here
         f(forwarder{});
     }

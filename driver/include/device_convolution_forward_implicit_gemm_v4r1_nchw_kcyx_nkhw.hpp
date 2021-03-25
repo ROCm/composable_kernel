@@ -3,7 +3,7 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "gridwise_operation_wrapper.hpp"
-#include "gridwise_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer.hpp"
+#include "gridwise_convolution_forward_implicit_gemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer.hpp"
 
 template <typename T,
           typename InDesc,
@@ -13,18 +13,20 @@ template <typename T,
           typename ConvDilations,
           typename LeftPads,
           typename RightPads>
-void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
-                                                          const Tensor<T>& in_nchw,
-                                                          WeiDesc,
-                                                          const Tensor<T>& wei_kcyx,
-                                                          OutDesc,
-                                                          Tensor<T>& out_nkhw,
-                                                          ConvStrides,
-                                                          ConvDilations,
-                                                          LeftPads,
-                                                          RightPads,
-                                                          ck::index_t nrepeat)
+void device_convolution_forward_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
+                                                                  const Tensor<T>& in_nchw,
+                                                                  WeiDesc,
+                                                                  const Tensor<T>& wei_kcyx,
+                                                                  OutDesc,
+                                                                  Tensor<T>& out_nkhw,
+                                                                  ConvStrides,
+                                                                  ConvDilations,
+                                                                  LeftPads,
+                                                                  RightPads,
+                                                                  ck::index_t nrepeat)
 {
+    std::cout << "device_convolution_forward_implicit_gemm_v4r1_nchw_kcyx_nkhw" << std::endl;
+
     using namespace ck;
 
     using TDevice = typename conditional<is_same<half_float::half, T>::value, half_t, T>::type;
@@ -133,7 +135,7 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     constexpr index_t WeiBlockCopySrcDataPerRead_E  = 2;
     constexpr index_t WeiBlockCopyDstDataPerWrite_K = 1;
-#elif 0
+#elif 1
     // cdata = 64, BlockSize = 256, 128x128x8
     constexpr index_t BlockSize = 256;
 
@@ -770,45 +772,46 @@ void device_convolution_implicit_gemm_v4r1_nchw_kcyx_nkhw(InDesc,
 
     printf("%s: BlockSize %u, GridSize %u \n", __func__, BlockSize, GridSize);
 
-    using gridwise_conv = GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer<
-        GridSize,
-        BlockSize,
-        T,
-        T,
-        decltype(in_nchw_desc),
-        decltype(wei_kcyx_desc),
-        decltype(out_nkhw_desc),
-        ConvStrides,
-        ConvDilations,
-        LeftPads,
-        RightPads,
-        BPerBlock,
-        KPerBlock,
-        EPerBlock,
-        GemmNRepeat,
-        GemmMPerThread,
-        GemmNPerThread,
-        GemmKPerThread,
-        GemmMLevel0Cluster,
-        GemmNLevel0Cluster,
-        GemmMLevel1Cluster,
-        GemmNLevel1Cluster,
-        GemmDataPerReadA,
-        GemmDataPerReadB,
-        InBlockCopySubLengths_E_N1_B_N2,
-        InBlockCopyClusterLengths_E_N1_B_N2,
-        InBlockCopyThreadClusterArrangeOrder,
-        InBlockCopySrcAccessOrder,
-        InBlockCopyDstAccessOrder,
-        InBlockCopySrcDataPerRead_B,
-        InBlockCopyDstDataPerWrite_N2,
-        WeiBlockCopySubLengths_E_K,
-        WeiBlockCopyClusterLengths_E_K,
-        WeiBlockCopyThreadClusterArrangeOrder,
-        WeiBlockCopySrcAccessOrder,
-        WeiBlockCopyDstAccessOrder,
-        WeiBlockCopySrcDataPerRead_E,
-        WeiBlockCopyDstDataPerWrite_K>;
+    using gridwise_conv =
+        GridwiseConvolutionForwardImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer<
+            GridSize,
+            BlockSize,
+            T,
+            T,
+            decltype(in_nchw_desc),
+            decltype(wei_kcyx_desc),
+            decltype(out_nkhw_desc),
+            ConvStrides,
+            ConvDilations,
+            LeftPads,
+            RightPads,
+            BPerBlock,
+            KPerBlock,
+            EPerBlock,
+            GemmNRepeat,
+            GemmMPerThread,
+            GemmNPerThread,
+            GemmKPerThread,
+            GemmMLevel0Cluster,
+            GemmNLevel0Cluster,
+            GemmMLevel1Cluster,
+            GemmNLevel1Cluster,
+            GemmDataPerReadA,
+            GemmDataPerReadB,
+            InBlockCopySubLengths_E_N1_B_N2,
+            InBlockCopyClusterLengths_E_N1_B_N2,
+            InBlockCopyThreadClusterArrangeOrder,
+            InBlockCopySrcAccessOrder,
+            InBlockCopyDstAccessOrder,
+            InBlockCopySrcDataPerRead_B,
+            InBlockCopyDstDataPerWrite_N2,
+            WeiBlockCopySubLengths_E_K,
+            WeiBlockCopyClusterLengths_E_K,
+            WeiBlockCopyThreadClusterArrangeOrder,
+            WeiBlockCopySrcAccessOrder,
+            WeiBlockCopyDstAccessOrder,
+            WeiBlockCopySrcDataPerRead_E,
+            WeiBlockCopyDstDataPerWrite_K>;
 
     for(index_t i = 0; i < 5; ++i)
     {

@@ -51,26 +51,24 @@ constexpr auto get_convolution_output_default_4d_tensor_descriptor(
 }
 
 template <class InDesc, class WeiDesc, class OutDesc>
-constexpr std::size_t calculate_convolution_flops(InDesc, WeiDesc, OutDesc)
+constexpr std::size_t
+calculate_convolution_flops(const InDesc& in_desc, const WeiDesc& wei_desc, const OutDesc& out_desc)
 {
     using namespace ck;
-
-    constexpr auto wei_desc = WeiDesc{};
-    constexpr auto out_desc = OutDesc{};
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr index_t N  = out_desc.GetLength(I0);
-    constexpr index_t K  = out_desc.GetLength(I1);
-    constexpr index_t Ho = out_desc.GetLength(I2);
-    constexpr index_t Wo = out_desc.GetLength(I3);
+    const index_t N  = out_desc.GetLength(I0);
+    const index_t K  = out_desc.GetLength(I1);
+    const index_t Ho = out_desc.GetLength(I2);
+    const index_t Wo = out_desc.GetLength(I3);
 
-    constexpr index_t C = wei_desc.GetLength(I1);
-    constexpr index_t Y = wei_desc.GetLength(I2);
-    constexpr index_t X = wei_desc.GetLength(I3);
+    const index_t C = wei_desc.GetLength(I1);
+    const index_t Y = wei_desc.GetLength(I2);
+    const index_t X = wei_desc.GetLength(I3);
 
     return std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 }
