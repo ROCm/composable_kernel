@@ -1,15 +1,42 @@
 #ifndef CK_CONFIG_AMD_HPP
 #define CK_CONFIG_AMD_HPP
 
+#ifndef MIOPEN_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
+#endif
 #include "bfloat16_dev.hpp"
-
-// index type: unsigned or signed
-#define CK_UNSIGNED_INDEX_TYPE 0
 
 // device backend
 #define CK_DEVICE_BACKEND_AMD 1
+
+// GPU ID
+#define CK_AMD_GPU_GFX906 1
+#define CK_AMD_GPU_GFX908 0
+#define CK_AMD_GPU_GFX1030 0
+
+// HIP version
+#ifndef CK_HIP_VERSION_FLAT
+#define CK_HIP_VERSION_FLAT 0
+#endif
+
+// launch bounds
+#define CK_USE_LAUNCH_BOUNDS 0
+
+#ifdef CK_USE_LAUNCH_BOUNDS
+#define CK_MAX_THREAD_PER_BLOCK 256
+#define CK_MIN_BLOCK_PER_CU 1
+#endif
+
+// buffer resourse
+#if defined(CK_AMD_GPU_GFX906) || defined(CK_AMD_GPU_GFX908)
+#define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
+#elif defined(CK_AMD_GPU_GFX1030)
+#define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
+#endif
+
+// multi index
+#define CK_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 0
 
 // AMD inline asm
 #ifndef CK_USE_AMD_INLINE_ASM
@@ -20,14 +47,18 @@
 #define CK_THREADWISE_GEMM_USE_AMD_INLINE_ASM 1
 #endif
 
+#ifndef CK_USE_AMD_V_FMAC_F32
+#define CK_USE_AMD_V_FMAC_F32 1
+#endif
+
 // AMD buffer addressing
 #ifndef CK_USE_AMD_BUFFER_ADDRESSING
 #define CK_USE_AMD_BUFFER_ADDRESSING 1
 #endif
 
 // only gfx908 support native floating point atomic add
-#ifndef CK_USE_AMD_BUFFER_ATOMIC_ADD
-#define CK_USE_AMD_BUFFER_ATOMIC_ADD 0
+#ifndef CK_USE_AMD_BUFFER_ATOMIC_FADD
+#define CK_USE_AMD_BUFFER_ATOMIC_FADD 0
 #endif
 
 // AMD XDLOPS
@@ -49,8 +80,16 @@
 #endif
 
 // experimental implementation
-#ifndef CK_EXPERIMENTAL_AMD_BUFFER_ADDRESSING_USE_OFFSET_TRICK
-#define CK_EXPERIMENTAL_AMD_BUFFER_ADDRESSING_USE_OFFSET_TRICK 1
+#ifndef CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
+#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 1
+#endif
+
+#ifndef CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
+#define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
+#endif
+
+#ifndef CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_OOB_CHECK_OFFSET_TRICK
+#define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_OOB_CHECK_OFFSET_TRICK 1
 #endif
 
 #ifndef CK_EXPERIMENTAL_BLOCKWISE_GEMM_USE_PIPELINE
@@ -65,14 +104,33 @@
 #define CK_EXPERIMENTAL_IMPLICIT_GEMM_BACKWARD_DATA_V4R1_INPUT_SKIP_OUT_OF_BOUND_CHECK 0
 #endif
 
+// pass tensor descriptor by value, pointer or void*
+#define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE 1
+#define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_POINTER 0
+#define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER 0
+
+// hack: have underlying assumption that need to be satsified, otherwise it's a bug
+// hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
+// thread-invariant, otherwise it's a bug
+// TODO: separate index calculation into "compile-time", "global", "block", "wave", "thread"
+#ifndef CK_HACK_DYNAMIC_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE
+#define CK_HACK_DYNAMIC_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE 0
+#endif
+
 // workaround: put all workaround here
-// workaround for unnecessary VGPA <--> AGRP data movement when using mfma LLVM intrinsic
+// workaround for unnecessary VGPR <--> AGPR data movement when using mfma LLVM intrinsic
 #ifndef CK_WORKAROUND_SWDEV_229564
 #define CK_WORKAROUND_SWDEV_229564 1
 #endif
-// workaround for buffer load/store fp16/bfp16 intrinsic bug
-#ifndef CK_WORKAROUND_SWDEV_231101
-#define CK_WORKAROUND_SWDEV_231101 1
+
+// workaround for accvgpr over-allocation
+#ifndef CK_WORKAROUND_SWDEV_241664
+#define CK_WORKAROUND_SWDEV_241664 1
+#endif
+
+// workaround for compiler crash when compiling recursive lambda
+#ifndef CK_WORKAROUND_SWDEV_275126
+#define CK_WORKAROUND_SWDEV_275126 1
 #endif
 
 namespace ck {
@@ -91,14 +149,8 @@ enum InMemoryDataOperation
     AtomicAdd
 };
 
-#if CK_UNSIGNED_INDEX_TYPE
-using index_t = uint32_t;
-#else
+// index type
 using index_t = int32_t;
-#endif
-
-// int32x4_t use by buffer_load and buffer_store llvm intrinsic
-typedef int32_t int32x4_t __attribute__((ext_vector_type(4)));
 
 } // namespace ck
 #endif

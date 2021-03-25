@@ -37,7 +37,7 @@ __device__ void atomic_add_impl<float4_t>(float4_t* p_dst, float4_t src)
 template <typename T, index_t DataPerAccess>
 struct SetData
 {
-    using vector_t = typename vector_type<T, DataPerAccess>::MemoryType;
+    using vector_t = typename vector_type<T, DataPerAccess>::type;
 
     template <AddressSpace SrcAddressSpace, AddressSpace DstAddressSpace>
     __device__ void Run(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset) const
@@ -50,7 +50,7 @@ struct SetData
 template <typename T, index_t DataPerAccess>
 struct AtomicAddData
 {
-    using vector_t = typename vector_type<T, DataPerAccess>::MemoryType;
+    using vector_t = typename vector_type<T, DataPerAccess>::type;
 
     template <AddressSpace SrcAddressSpace, AddressSpace DstAddressSpace>
     __device__ void Run(const T* p_src, index_t src_offset, T* p_dst, index_t dst_offset) const

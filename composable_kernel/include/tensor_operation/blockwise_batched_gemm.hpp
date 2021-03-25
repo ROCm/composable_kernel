@@ -210,17 +210,16 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 #pragma unroll
                     for(index_t m_repeat = 0; m_repeat < MRepeat; ++m_repeat)
                     {
-                        threadwise_matrix_copy(
-                            a_block_mtx,
-                            p_a_block +
-                                a_block_mtx.GetOffsetFromMultiIndex(k_begin,
-                                                                    m_repeat * MPerLevel1Cluster) +
-                                ib * BlockMatrixStrideA + mMyThreadOffsetA,
-                            a_thread_mtx,
-                            p_a_thread +
-                                a_thread_mtx.GetOffsetFromMultiIndex(0, m_repeat * MPerThreadSubC),
-                            a_thread_sub_mtx.GetLengths(),
-                            Number<DataPerReadA>{});
+                        threadwise_matrix_copy(a_block_mtx,
+                                               p_a_block +
+                                                   a_block_mtx.GetOffsetFromMultiIndex(
+                                                       k_begin, m_repeat * MPerLevel1Cluster) +
+                                                   ib * BlockMatrixStrideA + mMyThreadOffsetA,
+                                               a_thread_mtx,
+                                               p_a_thread + a_thread_mtx.GetOffsetFromMultiIndex(
+                                                                0, m_repeat * MPerThreadSubC),
+                                               a_thread_sub_mtx.GetLengths(),
+                                               Number<DataPerReadA>{});
                     }
                 }
 
@@ -229,17 +228,16 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
 #pragma unroll
                     for(index_t n_repeat = 0; n_repeat < NRepeat; ++n_repeat)
                     {
-                        threadwise_matrix_copy(
-                            b_block_mtx,
-                            p_b_block +
-                                b_block_mtx.GetOffsetFromMultiIndex(k_begin,
-                                                                    n_repeat * NPerLevel1Cluster) +
-                                ib * BlockMatrixStrideB + mMyThreadOffsetB,
-                            b_thread_mtx,
-                            p_b_thread +
-                                b_thread_mtx.GetOffsetFromMultiIndex(0, n_repeat * NPerThreadSubC),
-                            b_thread_sub_mtx.GetLengths(),
-                            Number<DataPerReadB>{});
+                        threadwise_matrix_copy(b_block_mtx,
+                                               p_b_block +
+                                                   b_block_mtx.GetOffsetFromMultiIndex(
+                                                       k_begin, n_repeat * NPerLevel1Cluster) +
+                                                   ib * BlockMatrixStrideB + mMyThreadOffsetB,
+                                               b_thread_mtx,
+                                               p_b_thread + b_thread_mtx.GetOffsetFromMultiIndex(
+                                                                0, n_repeat * NPerThreadSubC),
+                                               b_thread_sub_mtx.GetLengths(),
+                                               Number<DataPerReadB>{});
                     }
                 }
 
@@ -307,7 +305,7 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
                       "Run_amd_asm can only deal with BlockMatrixStrideA == 0 && BatchPerThread == "
                       "1 for now\n");
 
-        using Float4 = vector_type<float, 4>::MemoryType;
+        using Float4 = vector_type<float, 4>::type;
 
         Float4* reg_a = (Float4*)(p_a_thread);
         Float4* reg_b = (Float4*)(p_b_thread);
@@ -391,9 +389,8 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
             {
                 threadwise_matrix_copy(
                     c_thread_sub_mtx,
-                    p_c_thread +
-                        c_thread_sub_mtx.GetOffsetFromMultiIndex(m_repeat * MPerLevel1Cluster,
-                                                                 n_repeat * NPerLevel1Cluster),
+                    p_c_thread + c_thread_sub_mtx.GetOffsetFromMultiIndex(
+                                     m_repeat * MPerLevel1Cluster, n_repeat * NPerLevel1Cluster),
                     c_block_mtx,
                     p_c_block +
                         c_block_mtx.GetOffsetFromMultiIndex(m_repeat * MPerLevel1Cluster,
@@ -405,5 +402,5 @@ struct BlockwiseBatchGemmBlockABlockBThreadCTransANormalBNormalC_V2
     }
 };
 
-} // namespace
+} // namespace ck
 #endif

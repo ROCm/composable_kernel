@@ -5,6 +5,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "tensor_coordinate.hpp"
+#include "cluster_descriptor.hpp"
 #include "threadwise_generic_tensor_slice_copy.hpp"
 
 namespace ck {
@@ -68,9 +69,9 @@ struct BlockwiseGenericTensorSliceCopy_v4
             const auto thread_data_id_begin = thread_cluster_id * ThreadSliceLengths{};
 
             mThreadwiseLoad.SetSrcSliceOrigin(src_block_slice_origin + thread_data_id_begin);
-            mThreadwiseLoad.SetDstSliceOrigin(make_zero_array<index_t, nDim>());
+            mThreadwiseLoad.SetDstSliceOrigin(make_zero_multi_index<nDim>());
 
-            mThreadwiseStore.SetSrcSliceOrigin(make_zero_array<index_t, nDim>());
+            mThreadwiseStore.SetSrcSliceOrigin(make_zero_multi_index<nDim>());
             mThreadwiseStore.SetDstSliceOrigin(dst_block_slice_origin + thread_data_id_begin);
         }
     }
