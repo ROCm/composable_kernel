@@ -508,8 +508,8 @@ template <bool B>
 struct bool_type : std::integral_constant<bool, B>
 {
 };
-using std::true_type;
 using std::false_type;
+using std::true_type;
 
 /// Type traits for floating-point types.
 template <typename T>
@@ -854,8 +854,8 @@ inline HALF_CONSTEXPR_NOERR unsigned int signal(unsigned int x, unsigned int y, 
           ((x & 0x7FFF) > 0x7C00 && !(x & 0x200)) || ((y & 0x7FFF) > 0x7C00 && !(y & 0x200)) ||
               ((z & 0x7FFF) > 0x7C00 && !(z & 0x200)));
 #endif
-    return ((x & 0x7FFF) > 0x7C00) ? (x | 0x200) : ((y & 0x7FFF) > 0x7C00) ? (y | 0x200)
-                                                                           : (z | 0x200);
+    return ((x & 0x7FFF) > 0x7C00) ? (x | 0x200)
+                                   : ((y & 0x7FFF) > 0x7C00) ? (y | 0x200) : (z | 0x200);
 }
 
 /// Select value or signaling NaN.
@@ -1756,9 +1756,9 @@ uint32 mulhi(uint32 x, uint32 y)
     uint32 xy = (x >> 16) * (y & 0xFFFF), yx = (x & 0xFFFF) * (y >> 16),
            c = (xy & 0xFFFF) + (yx & 0xFFFF) + (((x & 0xFFFF) * (y & 0xFFFF)) >> 16);
     return (x >> 16) * (y >> 16) + (xy >> 16) + (yx >> 16) + (c >> 16) +
-           ((R == std::round_to_nearest) ? ((c >> 15) & 1) : (R == std::round_toward_infinity)
-                                                                 ? ((c & 0xFFFF) != 0)
-                                                                 : 0);
+           ((R == std::round_to_nearest)
+                ? ((c >> 15) & 1)
+                : (R == std::round_toward_infinity) ? ((c & 0xFFFF) != 0) : 0);
 }
 
 /// 64-bit multiplication.
@@ -2247,7 +2247,7 @@ unsigned int area(unsigned int arg)
     {
         if(expy < 0)
         {
-            r = 0x40000000 + ((expy > -30) ? ((r >> -expy) |
+            r    = 0x40000000 + ((expy > -30) ? ((r >> -expy) |
                                               ((r & ((static_cast<uint32>(1) << -expy) - 1)) != 0))
                                            : 1);
             expy = 0;
@@ -2379,10 +2379,12 @@ unsigned int erf(unsigned int arg)
             t /
             ((x2.exp < 0) ? f31(exp2((x2.exp > -32) ? (x2.m >> -x2.exp) : 0, 30), 0)
                           : f31(exp2((x2.m << x2.exp) & 0x7FFFFFFF, 22), x2.m >> (31 - x2.exp)));
-    return (!C || sign) ? fixed2half<R, 31, false, true, true>(
-                              0x80000000 - (e.m >> (C - e.exp)), 14 + C, sign & (C - 1U))
-                        : (e.exp < -25) ? underflow<R>() : fixed2half<R, 30, false, false, true>(
-                                                               e.m >> 1, e.exp + 14, 0, e.m & 1);
+    return (!C || sign)
+               ? fixed2half<R, 31, false, true, true>(
+                     0x80000000 - (e.m >> (C - e.exp)), 14 + C, sign & (C - 1U))
+               : (e.exp < -25)
+                     ? underflow<R>()
+                     : fixed2half<R, 30, false, false, true>(e.m >> 1, e.exp + 14, 0, e.m & 1);
 }
 
 /// Gamma function and postprocessing.
@@ -2402,8 +2404,7 @@ unsigned int gamma(unsigned int arg)
 			for(unsigned int i=0; i<5; ++i)
 				s += p[i+1] / (arg+i);
 			return std::log(s) + (arg-0.5)*std::log(t) - t;
-*/ static const f31
-        pi(0xC90FDAA2, 1),
+*/ static const f31 pi(0xC90FDAA2, 1),
         lbe(0xB8AA3B29, 0);
     unsigned int abs = arg & 0x7FFF, sign = arg & 0x8000;
     bool bsign = sign != 0;
@@ -2490,7 +2491,7 @@ unsigned int gamma(unsigned int arg)
         {
             if(z.exp < 0)
                 s = s * z;
-            s     = pi / s;
+            s = pi / s;
             if(s.exp < -24)
                 return underflow<R>(sign);
         }
@@ -2789,7 +2790,7 @@ inline half operator"" _h(long double value)
 {
     return half(detail::binary, detail::float2half<half::round_style>(value));
 }
-}
+} // namespace literal
 #endif
 
 namespace detail {
@@ -2837,8 +2838,8 @@ struct half_caster<half, half, R>
 {
     static half cast(half arg) { return arg; }
 };
-}
-}
+} // namespace detail
+} // namespace half_float
 
 /// Extensions to the C++ standard library.
 namespace std {
@@ -3003,7 +3004,7 @@ struct hash<half_float::half>
     }
 };
 #endif
-}
+} // namespace std
 
 namespace half_float {
 /// \anchor compop
@@ -3122,13 +3123,14 @@ inline half operator+(half x, half y)
         return half(detail::binary,
                     (absx > 0x7C00 || absy > 0x7C00)
                         ? detail::signal(x.data_, y.data_)
-                        : (absy != 0x7C00) ? x.data_ : (sub && absx == 0x7C00) ? detail::invalid()
-                                                                               : y.data_);
+                        : (absy != 0x7C00) ? x.data_
+                                           : (sub && absx == 0x7C00) ? detail::invalid() : y.data_);
     if(!absx)
-        return absy ? y : half(detail::binary,
-                               (half::round_style == std::round_toward_neg_infinity)
-                                   ? (x.data_ | y.data_)
-                                   : (x.data_ & y.data_));
+        return absy ? y
+                    : half(detail::binary,
+                           (half::round_style == std::round_toward_neg_infinity)
+                               ? (x.data_ | y.data_)
+                               : (x.data_ & y.data_));
     if(!absy)
         return x;
     unsigned int sign = ((sub && absy > absx) ? y.data_ : x.data_) & 0x8000;
@@ -3449,10 +3451,11 @@ inline half fma(half x, half y, half z)
                                                                     : (sign | 0x7C00))
                                                          : z;
     if(!absx || !absy)
-        return absz ? z : half(detail::binary,
-                               (half::round_style == std::round_toward_neg_infinity)
-                                   ? (z.data_ | sign)
-                                   : (z.data_ & sign));
+        return absz
+                   ? z
+                   : half(detail::binary,
+                          (half::round_style == std::round_toward_neg_infinity) ? (z.data_ | sign)
+                                                                                : (z.data_ & sign));
     for(; absx < 0x400; absx <<= 1, --exp)
         ;
     for(; absy < 0x400; absy <<= 1, --exp)
@@ -3516,9 +3519,8 @@ inline half fma(half x, half y, half z)
 inline HALF_CONSTEXPR_NOERR half fmax(half x, half y)
 {
     return half(detail::binary,
-                (!isnan(y) && (isnan(x) ||
-                               (x.data_ ^ (0x8000 | (0x8000 - (x.data_ >> 15)))) <
-                                   (y.data_ ^ (0x8000 | (0x8000 - (y.data_ >> 15))))))
+                (!isnan(y) && (isnan(x) || (x.data_ ^ (0x8000 | (0x8000 - (x.data_ >> 15)))) <
+                                               (y.data_ ^ (0x8000 | (0x8000 - (y.data_ >> 15))))))
                     ? detail::select(y.data_, x.data_)
                     : detail::select(x.data_, y.data_));
 }
@@ -3533,9 +3535,8 @@ inline HALF_CONSTEXPR_NOERR half fmax(half x, half y)
 inline HALF_CONSTEXPR_NOERR half fmin(half x, half y)
 {
     return half(detail::binary,
-                (!isnan(y) && (isnan(x) ||
-                               (x.data_ ^ (0x8000 | (0x8000 - (x.data_ >> 15)))) >
-                                   (y.data_ ^ (0x8000 | (0x8000 - (y.data_ >> 15))))))
+                (!isnan(y) && (isnan(x) || (x.data_ ^ (0x8000 | (0x8000 - (x.data_ >> 15)))) >
+                                               (y.data_ ^ (0x8000 | (0x8000 - (y.data_ >> 15))))))
                     ? detail::select(y.data_, x.data_)
                     : detail::select(x.data_, y.data_));
 }
@@ -3886,9 +3887,9 @@ inline half log1p(half arg)
 #else
     if(arg.data_ >= 0xBC00)
         return half(detail::binary,
-                    (arg.data_ == 0xBC00) ? detail::pole(0x8000) : (arg.data_ <= 0xFC00)
-                                                                       ? detail::invalid()
-                                                                       : detail::signal(arg.data_));
+                    (arg.data_ == 0xBC00)
+                        ? detail::pole(0x8000)
+                        : (arg.data_ <= 0xFC00) ? detail::invalid() : detail::signal(arg.data_));
     int abs = arg.data_ & 0x7FFF, exp = -15;
     if(!abs || abs >= 0x7C00)
         return (abs > 0x7C00) ? half(detail::binary, detail::signal(arg.data_)) : arg;
@@ -4395,7 +4396,7 @@ inline half cos(half arg)
     if(half::round_style != std::round_to_nearest && abs == 0x598C)
         return half(detail::binary, detail::rounded<half::round_style, true>(0x80FC, 1, 1));
     std::pair<detail::uint32, detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 28);
-    detail::uint32 sign = -static_cast<detail::uint32>(((k >> 1) ^ k) & 1);
+    detail::uint32 sign                          = -static_cast<detail::uint32>(((k >> 1) ^ k) & 1);
     return half(detail::binary,
                 detail::fixed2half<half::round_style, 30, true, true, true>(
                     (((k & 1) ? sc.first : sc.second) ^ sign) - sign));
@@ -4439,7 +4440,7 @@ inline half tan(half arg)
         }
     std::pair<detail::uint32, detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 30);
     if(k & 1)
-        sc               = std::make_pair(-sc.second, sc.first);
+        sc = std::make_pair(-sc.second, sc.first);
     detail::uint32 signy = detail::sign_mask(sc.first), signx = detail::sign_mask(sc.second);
     detail::uint32 my = (sc.first ^ signy) - signy, mx = (sc.second ^ signx) - signx;
     for(; my < 0x80000000; my <<= 1, --exp)
@@ -4517,7 +4518,7 @@ inline half acos(half arg)
                               ? detail::invalid()
                               : sign ? detail::rounded<half::round_style, true>(0x4248, 0, 1) : 0);
     std::pair<detail::uint32, detail::uint32> cs = detail::atan2_args(abs);
-    detail::uint32 m = detail::atan2(cs.second, cs.first, 28);
+    detail::uint32 m                             = detail::atan2(cs.second, cs.first, 28);
     return half(detail::binary,
                 detail::fixed2half<half::round_style, 31, false, true, true>(
                     sign ? (0xC90FDAA2 - m) : m, 15, 0, sign));
@@ -5354,13 +5355,13 @@ inline HALF_CONSTEXPR half copysign(half x, half y)
 /// \retval FP_NORMAL for all other (normal) values
 inline HALF_CONSTEXPR int fpclassify(half arg)
 {
-    return !(arg.data_ & 0x7FFF) ? FP_ZERO : ((arg.data_ & 0x7FFF) < 0x400)
-                                                 ? FP_SUBNORMAL
-                                                 : ((arg.data_ & 0x7FFF) < 0x7C00)
-                                                       ? FP_NORMAL
-                                                       : ((arg.data_ & 0x7FFF) == 0x7C00)
-                                                             ? FP_INFINITE
-                                                             : FP_NAN;
+    return !(arg.data_ & 0x7FFF)
+               ? FP_ZERO
+               : ((arg.data_ & 0x7FFF) < 0x400)
+                     ? FP_SUBNORMAL
+                     : ((arg.data_ & 0x7FFF) < 0x7C00)
+                           ? FP_NORMAL
+                           : ((arg.data_ & 0x7FFF) == 0x7C00) ? FP_INFINITE : FP_NAN;
 }
 
 /// Check if finite number.
@@ -5652,7 +5653,7 @@ inline void fethrowexcept(int excepts, const char* msg = "")
         throw std::range_error(msg);
 }
 /// \}
-}
+} // namespace half_float
 
 #undef HALF_UNUSED_NOERR
 #undef HALF_CONSTEXPR

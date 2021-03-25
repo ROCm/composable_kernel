@@ -158,7 +158,7 @@ struct ParallelTensorFunctor
         return indices;
     }
 
-    void operator()(std::size_t num_thread) const
+    void operator()(std::size_t num_thread = std::thread::hardware_concurrency()) const
     {
         std::size_t work_per_thread = (mN1d + num_thread - 1) / num_thread;
 

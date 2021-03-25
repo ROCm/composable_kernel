@@ -107,8 +107,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
 
         const auto block_work_id = block_work_desc.CalculateClusterIndex(get_block_1d_id());
 
-        const index_t e_block_data_on_global = block_work_id[0] * EPerBlock;
-        const index_t b_block_data_on_global = block_work_id[1] * BPerBlock;
+        const index_t e_block_data_on_global = block_work_id[Number<0>{}] * EPerBlock;
+        const index_t b_block_data_on_global = block_work_id[Number<1>{}] * BPerBlock;
 
         // output tensor
         //     global tensor in global memory, src of blockwise copy
@@ -151,7 +151,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                                                AddressSpace::Vgpr,
                                                AddressSpace::Lds,
                                                InMemoryDataOperation::Set>(
-                {0, b_block_data_on_global, 0}, {0, 0, 0});
+                make_multi_index(0, b_block_data_on_global, 0), make_multi_index(0, 0, 0));
 
         // weight tensor
         //     global tensor in global memory, src of blockwise copy
@@ -191,7 +191,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                                                AddressSpace::Vgpr,
                                                AddressSpace::Lds,
                                                InMemoryDataOperation::Set>(
-                {0, e_block_data_on_global, 0}, {0, 0, 0});
+                make_multi_index(0, e_block_data_on_global, 0), make_multi_index(0, 0, 0));
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
@@ -354,7 +354,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
 
         {
 #if 1 // debug
-            // input: register to global memory, atomic add
+      // input: register to global memory, atomic add
             constexpr auto in_memory_op = (Y <= ConvStrideH && X <= ConvStrideW)
                                               ? InMemoryDataOperation::Set
                                               : InMemoryDataOperation::AtomicAdd;
@@ -434,13 +434,13 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v1r2_nchw_kcyx_nkhw_lds_doubl
                 InThreadCopyDstDataPerWrite_B,
                 AddressSpace::Vgpr,
                 AddressSpace::Global,
-                in_memory_op>({0, 0, 0, 0, 0, 0},
-                              {e_thread_data_on_global / E1,
-                               e_thread_data_on_global % E1,
-                               0,
-                               b_thread_data_on_global / B1,
-                               b_thread_data_on_global % B1,
-                               0})
+                in_memory_op>(make_multi_index(0, 0, 0, 0, 0, 0),
+                              make_multi_index(e_thread_data_on_global / E1,
+                                               e_thread_data_on_global % E1,
+                                               0,
+                                               b_thread_data_on_global / B1,
+                                               b_thread_data_on_global % B1,
+                                               0))
                 .Run(p_in_thread, p_in_global);
         }
     }

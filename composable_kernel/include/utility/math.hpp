@@ -33,6 +33,15 @@ struct multiplies
     __host__ __device__ constexpr T operator()(T a, T b) const { return a * b; }
 };
 
+struct multiplies_v2
+{
+    template <typename A, typename B>
+    __host__ __device__ constexpr auto operator()(const A& a, const B& b) const
+    {
+        return a * b;
+    }
+};
+
 template <class T>
 struct maxer
 {
@@ -105,8 +114,7 @@ __host__ __device__ constexpr T min(T x, Ts... xs)
 }
 
 // greatest common divisor, aka highest common factor
-template <typename T>
-__host__ __device__ constexpr T gcd(T x, T y)
+__host__ __device__ constexpr index_t gcd(index_t x, index_t y)
 {
     if(x == y || x == 0)
     {
@@ -129,24 +137,29 @@ __host__ __device__ constexpr T gcd(T x, T y)
 template <index_t X, index_t Y>
 __host__ __device__ constexpr auto gcd(Number<X>, Number<Y>)
 {
-    constexpr auto result = gcd(X, Y);
-    return Number<result>{};
+    constexpr auto r = gcd(X, Y);
+
+    return Number<r>{};
 }
 
-template <typename X, typename... Ys>
+template <typename X,
+          typename... Ys,
+          typename std::enable_if<sizeof...(Ys) >= 2, bool>::type = false>
 __host__ __device__ constexpr auto gcd(X x, Ys... ys)
 {
     return gcd(x, ys...);
 }
 
 // least common multiple
-template <typename T>
-__host__ __device__ constexpr T lcm(T x, T y)
+template <typename X, typename Y>
+__host__ __device__ constexpr auto lcm(X x, Y y)
 {
     return (x * y) / gcd(x, y);
 }
 
-template <typename X, typename... Ys>
+template <typename X,
+          typename... Ys,
+          typename std::enable_if<sizeof...(Ys) >= 2, bool>::type = false>
 __host__ __device__ constexpr auto lcm(X x, Ys... ys)
 {
     return lcm(x, lcm(ys...));
@@ -165,6 +178,6 @@ struct less
 };
 
 } // namespace math
-} // namspace ck
+} // namespace ck
 
 #endif

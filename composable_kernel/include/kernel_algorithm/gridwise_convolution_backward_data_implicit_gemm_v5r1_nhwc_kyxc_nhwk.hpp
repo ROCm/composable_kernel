@@ -125,7 +125,7 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v5r1_nhwc_kyxc_nhwk
         index_t GemmK1 = XDotSlice;
         index_t GemmK2 = K;
 
-        return Array<index_t, 5>{GemmM, GemmN, GemmK0, GemmK1, GemmK2};
+        return make_multi_index(GemmM, GemmN, GemmK0, GemmK1, GemmK2);
     }
 
     __host__ __device__ static constexpr auto GetGemmSize(index_t gemm_id)

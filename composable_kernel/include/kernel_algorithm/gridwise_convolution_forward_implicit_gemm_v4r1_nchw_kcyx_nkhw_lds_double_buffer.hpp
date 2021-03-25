@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_LDS_DOUBLE_BUFFER_HPP
-#define CK_GRIDWISE_CONVOLUTION_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_LDS_DOUBLE_BUFFER_HPP
+#ifndef CK_GRIDWISE_CONVOLUTION_FORWARD_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_LDS_DOUBLE_BUFFER_HPP
+#define CK_GRIDWISE_CONVOLUTION_FORWARD_IMPLICIT_GEMM_V4R1_NCHW_KCYX_NKHW_LDS_DOUBLE_BUFFER_HPP
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -49,7 +49,7 @@ template <index_t GridSize,
           typename WeiBlockCopyDstAccessOrder,
           index_t WeiBlockCopySrcDataPerRead_E,
           index_t WeiBlockCopyDstDataPerWrite_K>
-struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
+struct GridwiseConvolutionForwardImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
 {
     __device__ void Run(const Float* const __restrict__ p_in_global,
                         const Float* const __restrict__ p_wei_global,
@@ -119,8 +119,8 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
 
         const auto block_work_id = block_work_desc.CalculateClusterIndex(get_block_1d_id());
 
-        const index_t k_block_data_on_global = block_work_id[0] * KPerBlock;
-        const index_t b_block_data_on_global = block_work_id[1] * BPerBlock;
+        const index_t k_block_data_on_global = block_work_id[I0] * KPerBlock;
+        const index_t b_block_data_on_global = block_work_id[I1] * BPerBlock;
 
         // input tensor
         //     global tensor in global memory
@@ -183,7 +183,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                                                AddressSpace::Vgpr,
                                                AddressSpace::Lds,
                                                InMemoryDataOperation::Set>(
-                {0, 0, b_block_data_on_global, 0}, {0, 0, 0, 0});
+                make_multi_index(0, 0, b_block_data_on_global, 0), make_multi_index(0, 0, 0, 0));
 
         // weight tensor
         //     global tensor in global memory, src of blockwise copy
@@ -226,7 +226,7 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                                                AddressSpace::Vgpr,
                                                AddressSpace::Lds,
                                                InMemoryDataOperation::Set>(
-                {0, k_block_data_on_global}, {0, 0});
+                make_multi_index(0, k_block_data_on_global), make_multi_index(0, 0));
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
@@ -439,12 +439,12 @@ struct GridwiseConvolutionImplicitGemm_v4r1_nchw_kcyx_nkhw_lds_double_buffer
                 1,
                 AddressSpace::Vgpr,
                 AddressSpace::Global,
-                InMemoryDataOperation::Set>({0, 0, 0, 0, 0},
-                                            {k_thread_data_on_global / K1,
-                                             k_thread_data_on_global % K1,
-                                             0,
-                                             b_thread_data_on_global,
-                                             0})
+                InMemoryDataOperation::Set>(make_multi_index(0, 0, 0, 0, 0),
+                                            make_multi_index(k_thread_data_on_global / K1,
+                                                             k_thread_data_on_global % K1,
+                                                             0,
+                                                             b_thread_data_on_global,
+                                                             0))
                 .Run(p_out_thread, p_out_global);
         }
     }

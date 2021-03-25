@@ -183,7 +183,7 @@ void device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw(InDesc i
         GemmBBlockCopyDstDataPerWrite_GemmN,
         GemmCThreadCopyDstDataPerWrite_GemmN1>;
 
-    for(index_t i = 0; i < 5; ++i)
+    for(index_t i = 0; i < 1; ++i)
     {
         std::cout << "Start running " << nrepeat << " times..." << std::endl;
 

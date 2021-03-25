@@ -222,7 +222,7 @@ void device_convolution_backward_data_implicit_gemm_v5r1_nhwc_kyxc_nhwk(InDesc i
 
             static_for<0, GridwiseConvBwdData::GetNumberOfGemm(), 1>{}([&](auto gemm_id) {
                 constexpr auto gemm_sizes        = GridwiseConvBwdData::GetGemmSize(gemm_id);
-                constexpr index_t gemm_k2        = gemm_sizes.At(4);
+                constexpr index_t gemm_k2        = gemm_sizes[Number<4>{}];
                 constexpr bool is_gemm_not_empty = gemm_k2 > 0;
 
                 // only compile and run if GEMM is no empty

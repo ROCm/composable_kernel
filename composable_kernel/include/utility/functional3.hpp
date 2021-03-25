@@ -4,7 +4,7 @@
 #include "functional.hpp"
 #include "functional2.hpp"
 #include "sequence.hpp"
-#include "array.hpp"
+#include "multi_index.hpp"
 
 namespace ck {
 
@@ -63,7 +63,7 @@ struct ford_impl
         for(index_t i = 0; i < RemainLengths::Front(); ++i)
         {
             ford_impl<decltype(RemainLengths::PopFront()), Orders>{}(
-                f, current_ordered_id.PushBack(i));
+                f, container_push_back(current_ordered_id, i));
         }
     }
 };
@@ -77,14 +77,16 @@ struct ford_impl<Sequence<>, Orders>
     __host__ __device__ constexpr void operator()(F f, CurrentOrderedId current_ordered_id) const
     {
         // retrive unordered Id
-        f(reorder_array_given_old2new(current_ordered_id, Orders{}));
+        f(container_reorder_given_old2new(current_ordered_id, Orders{}));
     }
 };
 
 } // namespace detail
 
-// Lengths is Sequence<...>, it is the length of each dimension for N-dimensional loop
-// Orders is Sequence<...>, it is the order of dimension in which static_ford will loop over each
+// Lengths is Sequence<...>, it is the length of each dimension for
+// N-dimensional loop
+// Orders is Sequence<...>, it is the order of dimension in which static_ford
+// will loop over each
 // dimension
 template <class Lengths,
           class Orders = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::type>
@@ -106,8 +108,10 @@ struct static_ford
     }
 };
 
-// Lengths is Sequence<...>, it is the length of each dimension for N-dimensional loop
-// Orders is Sequence<...>, it is the order of dimension in which ford will loop over each
+// Lengths is Sequence<...>, it is the length of each dimension for
+// N-dimensional loop
+// Orders is Sequence<...>, it is the order of dimension in which ford will loop
+// over each
 // dimension
 template <class Lengths,
           class Orders = typename arithmetic_sequence_gen<0, Lengths::GetSize(), 1>::type>
@@ -129,7 +133,7 @@ struct ford
         for(index_t i = 0; i < ordered_lengths.Front(); ++i)
         {
             detail::ford_impl<decltype(ordered_lengths.PopFront()), Orders>{}(f,
-                                                                              Array<index_t, 1>{i});
+                                                                              make_multi_index(i));
         }
     }
 };
