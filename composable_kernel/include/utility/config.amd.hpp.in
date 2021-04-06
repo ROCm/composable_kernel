@@ -11,9 +11,13 @@
 #define CK_DEVICE_BACKEND_AMD 1
 
 // GPU ID
+#if 0
 #define CK_AMD_GPU_GFX906 1
-#define CK_AMD_GPU_GFX908 0
-#define CK_AMD_GPU_GFX1030 0
+#elif 0
+#define CK_AMD_GPU_GFX908 1
+#elif 1
+#define CK_AMD_GPU_GFX1030 1
+#endif
 
 // HIP version
 #ifndef CK_HIP_VERSION_FLAT
