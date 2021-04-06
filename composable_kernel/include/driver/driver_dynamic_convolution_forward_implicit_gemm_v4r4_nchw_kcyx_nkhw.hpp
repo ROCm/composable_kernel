@@ -370,173 +370,6 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v4r4_nchw_kcyx_nkhw_pad
             std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
                       << std::endl;
         }
-#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_POINTER
-        using ADesc = decltype(wei_gemmk_gemmm_global_desc);
-        using BDesc = decltype(in_gemmk_gemmn_global_desc);
-        using CDesc = decltype(out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc);
-
-        DeviceMem wei_gemmk_gemmm_global_desc_device_buf(sizeof(ADesc));
-        DeviceMem in_gemmk_gemmn_global_desc_device_buf(sizeof(BDesc));
-        DeviceMem out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf(sizeof(CDesc));
-
-        wei_gemmk_gemmm_global_desc_device_buf.ToDevice(&wei_gemmk_gemmm_global_desc);
-        in_gemmk_gemmn_global_desc_device_buf.ToDevice(&in_gemmk_gemmn_global_desc);
-        out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf.ToDevice(
-            &out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc);
-
-        index_t nrepeat = 100;
-
-        for(index_t i = 0; i < 5; ++i)
-        {
-            std::cout << "Start running " << nrepeat << " times..." << std::endl;
-
-            KernelTimer timer;
-            timer.Start();
-
-            for(index_t j = 0; j < nrepeat; ++j)
-            {
-                if(has_main_k_block_loop && has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               const decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, true>,
-                                               integral_constant<bool, true>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, true>{});
-                }
-                else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               const decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, true>,
-                                               integral_constant<bool, false>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, false>{});
-                }
-                else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               const decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, false>,
-                                               integral_constant<bool, true>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, true>{});
-                }
-                else
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               const decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               const decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, false>,
-                                               integral_constant<bool, false>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, false>{});
-                }
-            }
-
-            timer.End();
-
-            float ave_time = timer.GetElapsedTime() / nrepeat;
-
-            float perf = (float)calculate_convolution_flops(in_n_c_hi_wi_global_desc,
-                                                            wei_k_c_y_x_global_desc,
-                                                            out_n_k_ho_wo_global_desc) /
-                         (std::size_t(1000) * 1000 * 1000) / ave_time;
-
-            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
-                      << std::endl;
-        }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
         using ADesc = decltype(wei_gemmk_gemmm_global_desc);
         using BDesc = decltype(in_gemmk_gemmn_global_desc);
@@ -564,111 +397,115 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v4r4_nchw_kcyx_nkhw_pad
             {
                 if(has_main_k_block_loop && has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, true>,
-                                                               integral_constant<bool, true>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     true,
+                                                                     true>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, true>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, true>,
-                                                               integral_constant<bool, false>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     true,
+                                                                     false>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, false>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, false>,
-                                                               integral_constant<bool, true>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     false,
+                                                                     true>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, true>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, false>,
-                                                               integral_constant<bool, false>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     false,
+                                                                     false>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, false>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
             }
 
@@ -1043,173 +880,6 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v4r4_nchw_kcyx_nkhw_no_pad
             std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
                       << std::endl;
         }
-#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_POINTER
-        using ADesc = decltype(wei_gemmk_gemmm_global_desc);
-        using BDesc = decltype(in_gemmk_gemmn_global_desc);
-        using CDesc = decltype(out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc);
-
-        DeviceMem wei_gemmk_gemmm_global_desc_device_buf(sizeof(ADesc));
-        DeviceMem in_gemmk_gemmn_global_desc_device_buf(sizeof(BDesc));
-        DeviceMem out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf(sizeof(CDesc));
-
-        wei_gemmk_gemmm_global_desc_device_buf.ToDevice(&wei_gemmk_gemmm_global_desc);
-        in_gemmk_gemmn_global_desc_device_buf.ToDevice(&in_gemmk_gemmn_global_desc);
-        out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf.ToDevice(
-            &out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc);
-
-        index_t nrepeat = 100;
-
-        for(index_t i = 0; i < 5; ++i)
-        {
-            std::cout << "Start running " << nrepeat << " times..." << std::endl;
-
-            KernelTimer timer;
-            timer.Start();
-
-            for(index_t j = 0; j < nrepeat; ++j)
-            {
-                if(has_main_k_block_loop && has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, true>,
-                                               integral_constant<bool, true>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, true>{});
-                }
-                else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, true>,
-                                               integral_constant<bool, false>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, false>{});
-                }
-                else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, false>,
-                                               integral_constant<bool, true>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, true>{});
-                }
-                else
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, false>,
-                                               integral_constant<bool, false>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, false>{});
-                }
-            }
-
-            timer.End();
-
-            float ave_time = timer.GetElapsedTime() / nrepeat;
-
-            float perf = (float)calculate_convolution_flops(in_n_c_hi_wi_global_desc,
-                                                            wei_k_c_y_x_global_desc,
-                                                            out_n_k_ho_wo_global_desc) /
-                         (std::size_t(1000) * 1000 * 1000) / ave_time;
-
-            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
-                      << std::endl;
-        }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
         using ADesc = decltype(wei_gemmk_gemmm_global_desc);
         using BDesc = decltype(in_gemmk_gemmn_global_desc);
@@ -1237,111 +907,115 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v4r4_nchw_kcyx_nkhw_no_pad
             {
                 if(has_main_k_block_loop && has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, true>,
-                                                               integral_constant<bool, true>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     true,
+                                                                     true>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, true>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, true>,
-                                                               integral_constant<bool, false>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     true,
+                                                                     false>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, false>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, false>,
-                                                               integral_constant<bool, true>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     false,
+                                                                     true>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, true>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, false>,
-                                                               integral_constant<bool, false>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     false,
+                                                                     false>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, false>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
             }
 
@@ -1702,173 +1376,6 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v4r4_nchw_kcyx_nkhw_1x1
             std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
                       << std::endl;
         }
-#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_POINTER
-        using ADesc = decltype(wei_gemmk_gemmm_global_desc);
-        using BDesc = decltype(in_gemmk_gemmn_global_desc);
-        using CDesc = decltype(out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc);
-
-        DeviceMem wei_gemmk_gemmm_global_desc_device_buf(sizeof(ADesc));
-        DeviceMem in_gemmk_gemmn_global_desc_device_buf(sizeof(BDesc));
-        DeviceMem out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf(sizeof(CDesc));
-
-        wei_gemmk_gemmm_global_desc_device_buf.ToDevice(&wei_gemmk_gemmm_global_desc);
-        in_gemmk_gemmn_global_desc_device_buf.ToDevice(&in_gemmk_gemmn_global_desc);
-        out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf.ToDevice(
-            &out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc);
-
-        index_t nrepeat = 100;
-
-        for(index_t i = 0; i < 5; ++i)
-        {
-            std::cout << "Start running " << nrepeat << " times..." << std::endl;
-
-            KernelTimer timer;
-            timer.Start();
-
-            for(index_t j = 0; j < nrepeat; ++j)
-            {
-                if(has_main_k_block_loop && has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, true>,
-                                               integral_constant<bool, true>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, true>{});
-                }
-                else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, true>,
-                                               integral_constant<bool, false>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, false>{});
-                }
-                else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, false>,
-                                               integral_constant<bool, true>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, true>{});
-                }
-                else
-                {
-                    const auto kernel =
-                        run_gridwise_operation<gridwise_gemm,
-                                               decltype(wei_gemmk_gemmm_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(in_gemmk_gemmn_global_desc)*,
-                                               const FloatAB*,
-                                               decltype(
-                                                   out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc)*,
-                                               FloatC*,
-                                               integral_constant<bool, false>,
-                                               integral_constant<bool, false>>;
-
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  reinterpret_cast<const ADesc*>(
-                                      wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_wei_global,
-                                  reinterpret_cast<const BDesc*>(
-                                      in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer()),
-                                  p_in_global,
-                                  reinterpret_cast<const CDesc*>(
-                                      out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                          .GetDeviceBuffer()),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, false>{});
-                }
-            }
-
-            timer.End();
-
-            float ave_time = timer.GetElapsedTime() / nrepeat;
-
-            float perf = (float)calculate_convolution_flops(in_n_c_hi_wi_global_desc,
-                                                            wei_k_c_y_x_global_desc,
-                                                            out_n_k_ho_wo_global_desc) /
-                         (std::size_t(1000) * 1000 * 1000) / ave_time;
-
-            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
-                      << std::endl;
-        }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
         using ADesc = decltype(wei_gemmk_gemmm_global_desc);
         using BDesc = decltype(in_gemmk_gemmn_global_desc);
@@ -1896,111 +1403,115 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v4r4_nchw_kcyx_nkhw_1x1
             {
                 if(has_main_k_block_loop && has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, true>,
-                                                               integral_constant<bool, true>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     true,
+                                                                     true>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, true>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, true>,
-                                                               integral_constant<bool, false>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     true,
+                                                                     false>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, true>{},
-                                  integral_constant<bool, false>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, false>,
-                                                               integral_constant<bool, true>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     false,
+                                                                     true>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, true>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
                 else
                 {
-                    const auto kernel = run_gridwise_operation<gridwise_gemm,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               const FloatAB*,
-                                                               const void*,
-                                                               FloatC*,
-                                                               integral_constant<bool, false>,
-                                                               integral_constant<bool, false>>;
+                    const auto kernel = run_gridwise_dynamic_gemm_v1<gridwise_gemm,
+                                                                     ADesc,
+                                                                     FloatAB,
+                                                                     BDesc,
+                                                                     FloatAB,
+                                                                     CDesc,
+                                                                     FloatC,
+                                                                     false,
+                                                                     false>;
 
-                    launch_kernel(kernel,
-                                  dim3(GridSize),
-                                  dim3(BlockSize),
-                                  0,
-                                  0,
-                                  wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_wei_global,
-                                  in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
-                                  p_in_global,
-                                  out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
-                                      .GetDeviceBuffer(),
-                                  p_out_global,
-                                  integral_constant<bool, false>{},
-                                  integral_constant<bool, false>{});
+                    launch_kernel(
+                        kernel,
+                        dim3(GridSize),
+                        dim3(BlockSize),
+                        0,
+                        0,
+                        (void __CONSTANT__*)
+                            wei_gemmk_gemmm_global_desc_device_buf.GetDeviceBuffer(),
+                        p_wei_global,
+                        (void __CONSTANT__*)in_gemmk_gemmn_global_desc_device_buf.GetDeviceBuffer(),
+                        p_in_global,
+                        (void __CONSTANT__*)
+                            out_gemmm0_gemmm1_gemmn0_gemmn1_global_desc_desc_device_buf
+                                .GetDeviceBuffer(),
+                        p_out_global);
                 }
             }
 

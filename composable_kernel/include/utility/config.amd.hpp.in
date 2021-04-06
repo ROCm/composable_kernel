@@ -7,6 +7,9 @@
 #endif
 #include "bfloat16_dev.hpp"
 
+// address space for kernel parameter
+#define __CONSTANT__ __attribute__((address_space(4)))
+
 // device backend
 #define CK_DEVICE_BACKEND_AMD 1
 
@@ -108,9 +111,8 @@
 #define CK_EXPERIMENTAL_IMPLICIT_GEMM_BACKWARD_DATA_V4R1_INPUT_SKIP_OUT_OF_BOUND_CHECK 0
 #endif
 
-// pass tensor descriptor by value, pointer or void*
+// pass tensor descriptor by value or void*
 #define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE 1
-#define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_POINTER 0
 #define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER 0
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug

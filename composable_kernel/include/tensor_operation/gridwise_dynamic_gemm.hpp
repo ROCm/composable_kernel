@@ -11,6 +11,47 @@
 
 namespace ck {
 
+#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
+// pass tensor descriptor by __CONSTANT__ void pointer
+// __CONSTANT__ is needed to inform compiler void pointers in the kernel signature are pointing to
+// non-modifiable parameter address space, so compiler can enable corresponding optimization
+template <typename GridwiseGemm,
+          typename AGlobalDesc,
+          typename FloatA,
+          typename BGlobalDesc,
+          typename FloatB,
+          typename CGlobalDesc,
+          typename FloatC,
+          bool HasMainKBlockLoop,
+          bool HasDoubleTailKBlockLoop>
+__global__ void run_gridwise_dynamic_gemm_v1(const void __CONSTANT__* p_a_k_m_global_desc,
+                                             const FloatA* __restrict__ p_a_global,
+                                             const void __CONSTANT__* p_b_k_n_global_desc,
+                                             const FloatB* __restrict__ p_b_global,
+                                             const void __CONSTANT__* p_c_m0_m1_n0_n1_global_desc,
+                                             FloatC* __restrict__ p_c_global)
+{
+    // first cast void __CONSTANT__* to void*
+    // second cast void* to Desc*
+    // the copy constructor of tensor descriptor doesn't take address_space(4)
+    const auto a_k_m_global_desc =
+        *reinterpret_cast<const AGlobalDesc*>((const void*)p_a_k_m_global_desc);
+    const auto b_k_n_global_desc =
+        *reinterpret_cast<const BGlobalDesc*>((const void*)p_b_k_n_global_desc);
+    const auto c_m0_m1_n0_n1_global_desc =
+        *reinterpret_cast<const CGlobalDesc*>((const void*)p_c_m0_m1_n0_n1_global_desc);
+
+    GridwiseGemm{}.Run(a_k_m_global_desc,
+                       p_a_global,
+                       b_k_n_global_desc,
+                       p_b_global,
+                       c_m0_m1_n0_n1_global_desc,
+                       p_c_global,
+                       integral_constant<bool, HasMainKBlockLoop>{},
+                       integral_constant<bool, HasDoubleTailKBlockLoop>{});
+}
+#endif
+
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
@@ -427,7 +468,6 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
         }
     }
 
-    // pass tensor descriptor by reference
     template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
     __device__ void Run(const AGlobalDesc& a_k_m_global_desc,
                         const FloatAB* __restrict__ p_a_global,
@@ -449,57 +489,6 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
             c_m0_m1_n0_n1_global_desc,
             p_c_global,
             p_shared_block,
-            integral_constant<bool, HasMainKBlockLoop>{},
-            integral_constant<bool, HasDoubleTailKBlockLoop>{});
-    }
-
-    // pass tensor descriptors by pointers
-    template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
-    __device__ void Run(const AGlobalDesc* p_a_k_m_global_desc,
-                        const FloatAB* __restrict__ p_a_global,
-                        const BGlobalDesc* p_b_k_n_global_desc,
-                        const FloatAB* __restrict__ p_b_global,
-                        const CGlobalDesc* p_c_m0_m1_n0_n1_global_desc,
-                        FloatC* __restrict__ p_c_global,
-                        integral_constant<bool, HasMainKBlockLoop>,
-                        integral_constant<bool, HasDoubleTailKBlockLoop>) const
-    {
-        const auto a_k_m_global_desc         = *p_a_k_m_global_desc;
-        const auto b_k_n_global_desc         = *p_b_k_n_global_desc;
-        const auto c_m0_m1_n0_n1_global_desc = *p_c_m0_m1_n0_n1_global_desc;
-
-        Run(a_k_m_global_desc,
-            p_a_global,
-            b_k_n_global_desc,
-            p_b_global,
-            c_m0_m1_n0_n1_global_desc,
-            p_c_global,
-            integral_constant<bool, HasMainKBlockLoop>{},
-            integral_constant<bool, HasDoubleTailKBlockLoop>{});
-    }
-
-    // pass tensor descriptors by void*
-    template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
-    __device__ void Run(const void* p_a_k_m_global_desc,
-                        const FloatAB* __restrict__ p_a_global,
-                        const void* p_b_k_n_global_desc,
-                        const FloatAB* __restrict__ p_b_global,
-                        const void* p_c_m0_m1_n0_n1_global_desc,
-                        FloatC* __restrict__ p_c_global,
-                        integral_constant<bool, HasMainKBlockLoop>,
-                        integral_constant<bool, HasDoubleTailKBlockLoop>) const
-    {
-        const auto a_k_m_global_desc = *reinterpret_cast<const AGlobalDesc*>(p_a_k_m_global_desc);
-        const auto b_k_n_global_desc = *reinterpret_cast<const BGlobalDesc*>(p_b_k_n_global_desc);
-        const auto c_m0_m1_n0_n1_global_desc =
-            *reinterpret_cast<const CGlobalDesc*>(p_c_m0_m1_n0_n1_global_desc);
-
-        Run(a_k_m_global_desc,
-            p_a_global,
-            b_k_n_global_desc,
-            p_b_global,
-            c_m0_m1_n0_n1_global_desc,
-            p_c_global,
             integral_constant<bool, HasMainKBlockLoop>{},
             integral_constant<bool, HasDoubleTailKBlockLoop>{});
     }
