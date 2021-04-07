@@ -166,6 +166,53 @@ __device__ void amd_assembly_outer_product_1x4(half4_t a,
                    "3"(c3));
 }
 
+__device__ void amd_assembly_outer_product_1x4(half8_t a,
+                                               half8_t b0,
+                                               half8_t b1,
+                                               half8_t b2,
+                                               half8_t b3,
+                                               float& c0,
+                                               float& c1,
+                                               float& c2,
+                                               float& c3)
+{
+
+    const half4_t* p_a_half4  = reinterpret_cast<const half4_t*>(&a);
+    const half4_t* p_b0_half4 = reinterpret_cast<const half4_t*>(&b0);
+    const half4_t* p_b1_half4 = reinterpret_cast<const half4_t*>(&b1);
+    const half4_t* p_b2_half4 = reinterpret_cast<const half4_t*>(&b2);
+    const half4_t* p_b3_half4 = reinterpret_cast<const half4_t*>(&b3);
+
+    amd_assembly_outer_product_1x4(
+        p_a_half4[0], p_b0_half4[0], p_b1_half4[0], p_b2_half4[0], p_b3_half4[0], c0, c1, c2, c3);
+
+    amd_assembly_outer_product_1x4(
+        p_a_half4[1], p_b0_half4[1], p_b1_half4[1], p_b2_half4[1], p_b3_half4[1], c0, c1, c2, c3);
+}
+
+__device__ void amd_assembly_outer_product_1x4(half16_t a,
+                                               half16_t b0,
+                                               half16_t b1,
+                                               half16_t b2,
+                                               half16_t b3,
+                                               float& c0,
+                                               float& c1,
+                                               float& c2,
+                                               float& c3)
+{
+    const half8_t* p_a_half8  = reinterpret_cast<const half8_t*>(&a);
+    const half8_t* p_b0_half8 = reinterpret_cast<const half8_t*>(&b0);
+    const half8_t* p_b1_half8 = reinterpret_cast<const half8_t*>(&b1);
+    const half8_t* p_b2_half8 = reinterpret_cast<const half8_t*>(&b2);
+    const half8_t* p_b3_half8 = reinterpret_cast<const half8_t*>(&b3);
+
+    amd_assembly_outer_product_1x4(
+        p_a_half8[0], p_b0_half8[0], p_b1_half8[0], p_b2_half8[0], p_b3_half8[0], c0, c1, c2, c3);
+
+    amd_assembly_outer_product_1x4(
+        p_a_half8[1], p_b0_half8[1], p_b1_half8[1], p_b2_half8[1], p_b3_half8[1], c0, c1, c2, c3);
+}
+
 // c0 += inner_product(a, b0)
 // c1 += inner_product(a, b1)
 __device__ void
@@ -213,6 +260,83 @@ __device__ void amd_assembly_outer_product_1x4(int8x4_t a,
     c2 = __builtin_amdgcn_sdot4(a, b2, c2, false);
     c3 = __builtin_amdgcn_sdot4(a, b3, c3, false);
 #endif
+}
+
+__device__ void amd_assembly_outer_product_1x4(int8x8_t a,
+                                               int8x8_t b0,
+                                               int8x8_t b1,
+                                               int8x8_t b2,
+                                               int8x8_t b3,
+                                               int32_t& c0,
+                                               int32_t& c1,
+                                               int32_t& c2,
+                                               int32_t& c3)
+{
+
+    const int8x4_t* p_a_int8x4_t  = reinterpret_cast<const int8x4_t*>(&a);
+    const int8x4_t* p_b0_int8x4_t = reinterpret_cast<const int8x4_t*>(&b0);
+    const int8x4_t* p_b1_int8x4_t = reinterpret_cast<const int8x4_t*>(&b1);
+    const int8x4_t* p_b2_int8x4_t = reinterpret_cast<const int8x4_t*>(&b2);
+    const int8x4_t* p_b3_int8x4_t = reinterpret_cast<const int8x4_t*>(&b3);
+
+    amd_assembly_outer_product_1x4(p_a_int8x4_t[0],
+                                   p_b0_int8x4_t[0],
+                                   p_b1_int8x4_t[0],
+                                   p_b2_int8x4_t[0],
+                                   p_b3_int8x4_t[0],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
+
+    amd_assembly_outer_product_1x4(p_a_int8x4_t[1],
+                                   p_b0_int8x4_t[1],
+                                   p_b1_int8x4_t[1],
+                                   p_b2_int8x4_t[1],
+                                   p_b3_int8x4_t[1],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
+}
+
+__device__ void amd_assembly_outer_product_1x4(int8x16_t a,
+                                               int8x16_t b0,
+                                               int8x16_t b1,
+                                               int8x16_t b2,
+                                               int8x16_t b3,
+                                               int32_t& c0,
+                                               int32_t& c1,
+                                               int32_t& c2,
+                                               int32_t& c3)
+
+{
+
+    const int8x8_t* p_a_int8x8_t  = reinterpret_cast<const int8x8_t*>(&a);
+    const int8x8_t* p_b0_int8x8_t = reinterpret_cast<const int8x8_t*>(&b0);
+    const int8x8_t* p_b1_int8x8_t = reinterpret_cast<const int8x8_t*>(&b1);
+    const int8x8_t* p_b2_int8x8_t = reinterpret_cast<const int8x8_t*>(&b2);
+    const int8x8_t* p_b3_int8x8_t = reinterpret_cast<const int8x8_t*>(&b3);
+
+    amd_assembly_outer_product_1x4(p_a_int8x8_t[0],
+                                   p_b0_int8x8_t[0],
+                                   p_b1_int8x8_t[0],
+                                   p_b2_int8x8_t[0],
+                                   p_b3_int8x8_t[0],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
+
+    amd_assembly_outer_product_1x4(p_a_int8x8_t[1],
+                                   p_b0_int8x8_t[1],
+                                   p_b1_int8x8_t[1],
+                                   p_b2_int8x8_t[1],
+                                   p_b3_int8x8_t[1],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
 }
 
 } // namespace ck

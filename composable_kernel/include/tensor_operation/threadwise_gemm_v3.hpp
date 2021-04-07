@@ -37,6 +37,8 @@ __device__ void threadwise_matrix_set_zero_v3(Desc, Float* __restrict__ p_thread
 template <typename ADesc,
           typename BDesc,
           typename CDesc,
+          index_t H,
+          index_t W,
           typename std::enable_if<ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
                                       CDesc::IsKnownAtCompileTime(),
                                   bool>::type = false>
@@ -53,11 +55,6 @@ struct ThreadwiseGemm_km_kn_mn_v3
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
-
-        // constexpr auto H = BDesc{}.GetLength(I2);
-        // constexpr auto W = BDesc{}.GetLength(I3);
-        constexpr auto H = 2;
-        constexpr auto W = 2;
 
         constexpr auto E = ADesc{}.GetLength(I0);
         constexpr auto K = ADesc{}.GetLength(I1);
