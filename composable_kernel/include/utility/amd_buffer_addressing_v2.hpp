@@ -59,7 +59,26 @@ __llvm_amdgcn_raw_buffer_load_i32x4(int32x4_t srsrc,
                                     index_t voffset,
                                     index_t soffset,
                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4i32");
+// half
+__device__ half_t
+__llvm_amdgcn_raw_buffer_load_fp16(int32x4_t srsrc,
+                                   index_t voffset,
+                                   index_t soffset,
+                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.f16");
 
+__device__ half2_t
+__llvm_amdgcn_raw_buffer_load_fp16x2(int32x4_t srsrc,
+                                     index_t voffset,
+                                     index_t soffset,
+                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2f16");
+
+__device__ half4_t
+__llvm_amdgcn_raw_buffer_load_fp16x4(int32x4_t srsrc,
+                                     index_t voffset,
+                                     index_t soffset,
+                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4f16");
+
+// float
 __device__ float
 __llvm_amdgcn_raw_buffer_load_fp32(int32x4_t srsrc,
                                    index_t voffset,
@@ -114,6 +133,28 @@ __llvm_amdgcn_raw_buffer_store_i32x4(int32x4_t vdata,
                                      index_t soffset,
                                      index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i32");
 
+// half
+__device__ void
+__llvm_amdgcn_raw_buffer_store_fp16(half_t vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.f16");
+
+__device__ void
+__llvm_amdgcn_raw_buffer_store_fp16x2(half2_t vdata,
+                                      int32x4_t rsrc,
+                                      index_t voffset,
+                                      index_t soffset,
+                                      index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2f16");
+
+__device__ void
+__llvm_amdgcn_raw_buffer_store_fp16x4(half4_t vdata,
+                                      int32x4_t rsrc,
+                                      index_t voffset,
+                                      index_t soffset,
+                                      index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4f16");
+// float
 __device__ void
 __llvm_amdgcn_raw_buffer_store_fp32(float vdata,
                                     int32x4_t rsrc,
@@ -142,7 +183,13 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
                         index_t src_wave_addr_offset)
 {
     static_assert((is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-                      (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)),
+                      (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4)) ||
+                      (is_same<T, half2_t>::value && (N == 1)) ||
+                      (is_same<T, half4_t>::value && (N == 1)) ||
+                      (is_same<T, half8_t>::value && (N == 1)) ||
+                      (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+                      (is_same<T, int32x2_t>::value && (N == 1)) ||
+                      (is_same<T, int32x4_t>::value && (N == 1)),
                   "wrong! not implemented");
 
     if constexpr(is_same<T, float>::value)
@@ -169,8 +216,63 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
             tmp.Vectors(Number<4>{})(Number<0>{}) = __llvm_amdgcn_raw_buffer_load_fp32x4(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
 
-            tmp.Vectors(Number<4>{})(Number<1>{}) = __llvm_amdgcn_raw_buffer_load_fp32x4(
-                src_wave_buffer_resource, src_thread_addr_offset, 4 * sizeof(float), 0);
+            tmp.Vectors(Number<4>{})(Number<1>{}) =
+                __llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                     src_thread_addr_offset,
+                                                     src_wave_addr_offset + 4 * sizeof(float),
+                                                     0);
+
+            return tmp.Vector();
+        }
+    }
+    else if constexpr(is_same<T, half_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            return __llvm_amdgcn_raw_buffer_load_fp16(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+        }
+        else if constexpr(N == 2)
+        {
+            return __llvm_amdgcn_raw_buffer_load_fp16x2(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+        }
+        else if constexpr(N == 4)
+        {
+            return __llvm_amdgcn_raw_buffer_load_fp16x4(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+        }
+    }
+    else if constexpr(is_same<T, half2_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            return __llvm_amdgcn_raw_buffer_load_fp16x2(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+        }
+    }
+    else if constexpr(is_same<T, half4_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            return __llvm_amdgcn_raw_buffer_load_fp16x4(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+        }
+    }
+    else if constexpr(is_same<T, half8_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            vector_type<half_t, 8> tmp;
+
+            tmp.Vectors(Number<4>{})(Number<0>{}) = __llvm_amdgcn_raw_buffer_load_fp16x4(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+
+            tmp.Vectors(Number<4>{})(Number<1>{}) =
+                __llvm_amdgcn_raw_buffer_load_fp16x4(src_wave_buffer_resource,
+                                                     src_thread_addr_offset,
+                                                     src_wave_addr_offset + 4 * sizeof(half_t),
+                                                     0);
 
             return tmp.Vector();
         }
@@ -199,10 +301,29 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
             tmp.Vectors(Number<4>{})(Number<0>{}) = __llvm_amdgcn_raw_buffer_load_i32x4(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
 
-            tmp.Vectors(Number<4>{})(Number<1>{}) = __llvm_amdgcn_raw_buffer_load_i32x4(
-                src_wave_buffer_resource, src_thread_addr_offset, 4 * sizeof(int32_t), 0);
+            tmp.Vectors(Number<4>{})(Number<1>{}) =
+                __llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+                                                    src_thread_addr_offset,
+                                                    src_wave_addr_offset + 4 * sizeof(int32_t),
+                                                    0);
 
             return tmp.Vector();
+        }
+    }
+    else if constexpr(is_same<T, int32x2_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            return __llvm_amdgcn_raw_buffer_load_i32x2(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+        }
+    }
+    else if constexpr(is_same<T, int32x4_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            return __llvm_amdgcn_raw_buffer_load_i32x4(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
         }
     }
 }
@@ -213,10 +334,12 @@ __device__ void amd_buffer_store_impl_v2(const typename vector_type<T, N>::type 
                                          index_t dst_thread_addr_offset,
                                          index_t dst_wave_addr_offset)
 {
-    static_assert((is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
-                      (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4)) ||
-                      (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4)),
-                  "wrong! not implemented");
+    static_assert(
+        (is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
+            (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4)) ||
+            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)),
+        "wrong! not implemented");
 
     if constexpr(is_same<T, float>::value)
     {
@@ -297,6 +420,65 @@ __device__ void amd_buffer_store_impl_v2(const typename vector_type<T, N>::type 
                                                dst_thread_addr_offset,
                                                dst_wave_addr_offset,
                                                0);
+        }
+        else if constexpr(N == 8)
+        {
+            __llvm_amdgcn_raw_buffer_store_i32x2(src_thread_data,
+                                                 dst_wave_buffer_resource,
+                                                 dst_thread_addr_offset,
+                                                 dst_wave_addr_offset,
+                                                 0);
+        }
+        else if constexpr(N == 16)
+        {
+            __llvm_amdgcn_raw_buffer_store_i32x4(src_thread_data,
+                                                 dst_wave_buffer_resource,
+                                                 dst_thread_addr_offset,
+                                                 dst_wave_addr_offset,
+                                                 0);
+        }
+    }
+    else if constexpr(is_same<T, half_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            __llvm_amdgcn_raw_buffer_store_fp16(src_thread_data,
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                0);
+        }
+        else if constexpr(N == 2)
+        {
+            __llvm_amdgcn_raw_buffer_store_fp16x2(src_thread_data,
+                                                  dst_wave_buffer_resource,
+                                                  dst_thread_addr_offset,
+                                                  dst_wave_addr_offset,
+                                                  0);
+        }
+        else if constexpr(N == 4)
+        {
+            __llvm_amdgcn_raw_buffer_store_fp16x4(src_thread_data,
+                                                  dst_wave_buffer_resource,
+                                                  dst_thread_addr_offset,
+                                                  dst_wave_addr_offset,
+                                                  0);
+        }
+        else if constexpr(N == 8)
+        {
+            vector_type<half_t, 8> tmp{src_thread_data};
+
+            __llvm_amdgcn_raw_buffer_store_fp16x4(tmp.Vectors(Number<4>{})[Number<0>{}],
+                                                  dst_wave_buffer_resource,
+                                                  dst_thread_addr_offset,
+                                                  dst_wave_addr_offset,
+                                                  0);
+
+            __llvm_amdgcn_raw_buffer_store_fp16x4(tmp.Vectors(Number<4>{})[Number<1>{}],
+                                                  dst_wave_buffer_resource,
+                                                  dst_thread_addr_offset,
+                                                  dst_wave_addr_offset + 4 * sizeof(half_t),
+                                                  0);
         }
     }
 }
