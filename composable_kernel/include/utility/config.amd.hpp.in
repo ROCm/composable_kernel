@@ -14,11 +14,11 @@
 #define CK_DEVICE_BACKEND_AMD 1
 
 // GPU ID
-#if 0
+#if 1
 #define CK_AMD_GPU_GFX906 1
 #elif 0
 #define CK_AMD_GPU_GFX908 1
-#elif 1
+#elif 0
 #define CK_AMD_GPU_GFX1030 1
 #endif
 
@@ -88,7 +88,7 @@
 
 // experimental implementation
 #ifndef CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
-#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 1
+#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
 #endif
 
 #ifndef CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
@@ -140,6 +140,11 @@
 // workaround for compiler crash when compiling recursive lambda
 #ifndef CK_WORKAROUND_SWDEV_275126
 #define CK_WORKAROUND_SWDEV_275126 1
+#endif
+
+// workaround for compiler crash when using buffer load/store for i8
+#ifndef CK_WORKAROUND_SWDEV_XXXXXX
+#define CK_WORKAROUND_SWDEV_XXXXXX 1
 #endif
 
 namespace ck {

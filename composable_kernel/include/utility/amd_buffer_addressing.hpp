@@ -6,6 +6,17 @@
 
 namespace ck {
 
+template <typename T>
+union BufferResource
+{
+    // 128 bit SGPRs to supply buffer resource in buffer instructions
+    // https://rocm-documentation.readthedocs.io/en/latest/GCN_ISA_Manuals/testdocbook.html#vector-memory-buffer-instructions
+    int32x4_t data;
+    T* address[2];
+    int32_t range[4];
+    int32_t config[4];
+};
+
 __device__ float __llvm_amdgcn_buffer_load_f32(int32x4_t srsrc,
                                                index_t vindex,
                                                index_t offset,

@@ -83,10 +83,10 @@ void device_dynamic_convolution_forward_implicit_gemm_v5r1_nchw_kcyx_nkhw(
     const auto out_n_k0_ho_wo_k1_desc =
         make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(N, K0, Ho, Wo, K1));
 
-    const auto conv_strides     = sequence_to_tuple_of_number(ConvStrides{});
-    const auto conv_dilations   = sequence_to_tuple_of_number(ConvDilations{});
-    const auto in_left_pads     = sequence_to_tuple_of_number(InLeftPads{});
-    const auto in_right_pads    = sequence_to_tuple_of_number(InRightPads{});
+    const auto conv_strides   = sequence_to_tuple_of_number(ConvStrides{});
+    const auto conv_dilations = sequence_to_tuple_of_number(ConvDilations{});
+    const auto in_left_pads   = sequence_to_tuple_of_number(InLeftPads{});
+    const auto in_right_pads  = sequence_to_tuple_of_number(InRightPads{});
 #endif
 
     Tensor<TInWei> in_n_c0_hi_wi_c1(make_HostTensorDescriptor(

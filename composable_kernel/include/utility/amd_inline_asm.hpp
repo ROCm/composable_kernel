@@ -72,6 +72,7 @@ amd_assembly_outer_product_1x2(half2_t a, half2_t b0, half2_t b1, float& c0, flo
 __device__ void
 amd_assembly_outer_product_1x2(half4_t a, half4_t b0, half4_t b1, float& c0, float& c1)
 {
+    // TODO remove pointer casting
     const half2_t* p_a_half2  = reinterpret_cast<const half2_t*>(&a);
     const half2_t* p_b0_half2 = reinterpret_cast<const half2_t*>(&b0);
     const half2_t* p_b1_half2 = reinterpret_cast<const half2_t*>(&b1);
@@ -132,6 +133,7 @@ __device__ void amd_assembly_outer_product_1x4(half4_t a,
                                                float& c2,
                                                float& c3)
 {
+    // TODO remove pointer casting
     const half2_t* p_a_half2  = reinterpret_cast<const half2_t*>(&a);
     const half2_t* p_b0_half2 = reinterpret_cast<const half2_t*>(&b0);
     const half2_t* p_b1_half2 = reinterpret_cast<const half2_t*>(&b1);
@@ -177,6 +179,7 @@ __device__ void amd_assembly_outer_product_1x4(half8_t a,
                                                float& c3)
 {
 
+    // TODO remove pointer casting
     const half4_t* p_a_half4  = reinterpret_cast<const half4_t*>(&a);
     const half4_t* p_b0_half4 = reinterpret_cast<const half4_t*>(&b0);
     const half4_t* p_b1_half4 = reinterpret_cast<const half4_t*>(&b1);
@@ -200,6 +203,7 @@ __device__ void amd_assembly_outer_product_1x4(half16_t a,
                                                float& c2,
                                                float& c3)
 {
+    // TODO remove pointer casting
     const half8_t* p_a_half8  = reinterpret_cast<const half8_t*>(&a);
     const half8_t* p_b0_half8 = reinterpret_cast<const half8_t*>(&b0);
     const half8_t* p_b1_half8 = reinterpret_cast<const half8_t*>(&b1);
@@ -224,10 +228,14 @@ amd_assembly_outer_product_1x2(int8x4_t a, int8x4_t b0, int8x4_t b1, int32_t& c0
             v_dot4_i32_i8 %1, %2, %4, %1\n \
             "
                  : "=v"(c0), "=v"(c1)
-                 : "v"(a), "v"(b0), "v"(b1), "0"(c0), "1"(c1));
+                 : "v"(as_type<int32_t>(a)),
+                   "v"(as_type<int32_t>(b0)),
+                   "v"(as_type<int32_t>(b1)),
+                   "0"(c0),
+                   "1"(c1));
 #else
-    c0 = __builtin_amdgcn_sdot4(a, b0, c0, false);
-    c1 = __builtin_amdgcn_sdot4(a, b1, c1, false);
+    c0 = __builtin_amdgcn_sdot4(as_type<int32_t>(a), as_type<int32_t>(b0), c0, false);
+    c1 = __builtin_amdgcn_sdot4(as_type<int32_t>(a), as_type<int32_t>(b1), c1, false);
 #endif
 }
 
@@ -253,12 +261,20 @@ __device__ void amd_assembly_outer_product_1x4(int8x4_t a,
             v_dot4_i32_i8 %3, %4, %8, %3\n \
             "
                  : "=v"(c0), "=v"(c1), "=v"(c2), "=v"(c3)
-                 : "v"(a), "v"(b0), "v"(b1), "v"(b2), "v"(b3), "0"(c0), "1"(c1), "2"(c2), "3"(c3));
+                 : "v"(as_type<int32_t>(a)),
+                   "v"(as_type<int32_t>(b0)),
+                   "v"(as_type<int32_t>(b1)),
+                   "v"(as_type<int32_t>(b2)),
+                   "v"(as_type<int32_t>(b3)),
+                   "0"(c0),
+                   "1"(c1),
+                   "2"(c2),
+                   "3"(c3));
 #else
-    c0 = __builtin_amdgcn_sdot4(a, b0, c0, false);
-    c1 = __builtin_amdgcn_sdot4(a, b1, c1, false);
-    c2 = __builtin_amdgcn_sdot4(a, b2, c2, false);
-    c3 = __builtin_amdgcn_sdot4(a, b3, c3, false);
+    c0 = __builtin_amdgcn_sdot4(as_type<int32_t>(a), as_type<int32_t>(b0), c0, false);
+    c1 = __builtin_amdgcn_sdot4(as_type<int32_t>(a), as_type<int32_t>(b1), c1, false);
+    c2 = __builtin_amdgcn_sdot4(as_type<int32_t>(a), as_type<int32_t>(b2), c2, false);
+    c3 = __builtin_amdgcn_sdot4(as_type<int32_t>(a), as_type<int32_t>(b3), c3, false);
 #endif
 }
 
@@ -272,28 +288,24 @@ __device__ void amd_assembly_outer_product_1x4(int8x8_t a,
                                                int32_t& c2,
                                                int32_t& c3)
 {
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
 
-    const int8x4_t* p_a_int8x4_t  = reinterpret_cast<const int8x4_t*>(&a);
-    const int8x4_t* p_b0_int8x4_t = reinterpret_cast<const int8x4_t*>(&b0);
-    const int8x4_t* p_b1_int8x4_t = reinterpret_cast<const int8x4_t*>(&b1);
-    const int8x4_t* p_b2_int8x4_t = reinterpret_cast<const int8x4_t*>(&b2);
-    const int8x4_t* p_b3_int8x4_t = reinterpret_cast<const int8x4_t*>(&b3);
-
-    amd_assembly_outer_product_1x4(p_a_int8x4_t[0],
-                                   p_b0_int8x4_t[0],
-                                   p_b1_int8x4_t[0],
-                                   p_b2_int8x4_t[0],
-                                   p_b3_int8x4_t[0],
+    amd_assembly_outer_product_1x4(vector_type<int8_t, 8>{a}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 8>{b0}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 8>{b1}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 8>{b2}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 8>{b3}.AsType<int8x4_t>()[I0],
                                    c0,
                                    c1,
                                    c2,
                                    c3);
 
-    amd_assembly_outer_product_1x4(p_a_int8x4_t[1],
-                                   p_b0_int8x4_t[1],
-                                   p_b1_int8x4_t[1],
-                                   p_b2_int8x4_t[1],
-                                   p_b3_int8x4_t[1],
+    amd_assembly_outer_product_1x4(vector_type<int8_t, 8>{a}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 8>{b0}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 8>{b1}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 8>{b2}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 8>{b3}.AsType<int8x4_t>()[I1],
                                    c0,
                                    c1,
                                    c2,
@@ -311,28 +323,46 @@ __device__ void amd_assembly_outer_product_1x4(int8x16_t a,
                                                int32_t& c3)
 
 {
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
 
-    const int8x8_t* p_a_int8x8_t  = reinterpret_cast<const int8x8_t*>(&a);
-    const int8x8_t* p_b0_int8x8_t = reinterpret_cast<const int8x8_t*>(&b0);
-    const int8x8_t* p_b1_int8x8_t = reinterpret_cast<const int8x8_t*>(&b1);
-    const int8x8_t* p_b2_int8x8_t = reinterpret_cast<const int8x8_t*>(&b2);
-    const int8x8_t* p_b3_int8x8_t = reinterpret_cast<const int8x8_t*>(&b3);
-
-    amd_assembly_outer_product_1x4(p_a_int8x8_t[0],
-                                   p_b0_int8x8_t[0],
-                                   p_b1_int8x8_t[0],
-                                   p_b2_int8x8_t[0],
-                                   p_b3_int8x8_t[0],
+    amd_assembly_outer_product_1x4(vector_type<int8_t, 16>{a}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 16>{b0}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 16>{b1}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 16>{b2}.AsType<int8x4_t>()[I0],
+                                   vector_type<int8_t, 16>{b3}.AsType<int8x4_t>()[I0],
                                    c0,
                                    c1,
                                    c2,
                                    c3);
 
-    amd_assembly_outer_product_1x4(p_a_int8x8_t[1],
-                                   p_b0_int8x8_t[1],
-                                   p_b1_int8x8_t[1],
-                                   p_b2_int8x8_t[1],
-                                   p_b3_int8x8_t[1],
+    amd_assembly_outer_product_1x4(vector_type<int8_t, 16>{a}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 16>{b0}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 16>{b1}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 16>{b2}.AsType<int8x4_t>()[I1],
+                                   vector_type<int8_t, 16>{b3}.AsType<int8x4_t>()[I1],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
+
+    amd_assembly_outer_product_1x4(vector_type<int8_t, 16>{a}.AsType<int8x4_t>()[I2],
+                                   vector_type<int8_t, 16>{b0}.AsType<int8x4_t>()[I2],
+                                   vector_type<int8_t, 16>{b1}.AsType<int8x4_t>()[I2],
+                                   vector_type<int8_t, 16>{b2}.AsType<int8x4_t>()[I2],
+                                   vector_type<int8_t, 16>{b3}.AsType<int8x4_t>()[I2],
+                                   c0,
+                                   c1,
+                                   c2,
+                                   c3);
+
+    amd_assembly_outer_product_1x4(vector_type<int8_t, 16>{a}.AsType<int8x4_t>()[I3],
+                                   vector_type<int8_t, 16>{b0}.AsType<int8x4_t>()[I3],
+                                   vector_type<int8_t, 16>{b1}.AsType<int8x4_t>()[I3],
+                                   vector_type<int8_t, 16>{b2}.AsType<int8x4_t>()[I3],
+                                   vector_type<int8_t, 16>{b3}.AsType<int8x4_t>()[I3],
                                    c0,
                                    c1,
                                    c2,
