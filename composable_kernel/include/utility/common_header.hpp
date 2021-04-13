@@ -22,6 +22,7 @@
 #include "tuple_helper.hpp"
 #include "type.hpp"
 #include "utility.hpp"
+#include "magic_division.hpp"
 
 #if CK_USE_AMD_INLINE_ASM
 #include "amd_inline_asm.hpp"

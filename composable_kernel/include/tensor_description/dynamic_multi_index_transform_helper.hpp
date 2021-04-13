@@ -53,7 +53,11 @@ __host__ __device__ constexpr auto make_embed_transform(const UpLengths& up_leng
 template <typename LowLengths>
 __host__ __device__ constexpr auto make_merge_transform(const LowLengths& low_lengths)
 {
-    return DynamicMerge<LowLengths>{low_lengths};
+#if !CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
+    return DynamicMerge_v1_carry_check<LowLengths>{low_lengths};
+#else
+    return DynamicMerge_v2_magic_division<LowLengths>{low_lengths};
+#endif
 }
 
 template <typename UpLengths, bool Use24BitIntegerCalculation = false>
