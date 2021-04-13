@@ -53,7 +53,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
     constexpr auto C0 = C / Number<InWeiVectorSize>{};
     constexpr auto C1 = Number<InWeiVectorSize>{};
 
-#if 0
+#if 1
     // run-time variables
     constexpr auto in_n_hi_wi_c0_desc =
         make_dynamic_naive_tensor_descriptor_packed_v2(make_multi_index(N, Hi, Wi, C0));
@@ -112,7 +112,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
     wei_k_y_x_c_device_buf.ToDevice(wei_k_y_x_c.mData.data());
     out_n_ho_wo_k_device_buf.ToDevice(out_n_ho_wo_k.mData.data());
 
-#if 1
+#if 0
     // cdata = 16, BlockSize = 64, 16x64x4
     constexpr index_t BlockSize = 64;
 
@@ -211,7 +211,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmN = 1;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector_GemmM1 = 4;
-#elif 1
+#elif 0
     // cdata = 64, BlockSize = 64, 16x256x4
     constexpr index_t BlockSize = 64;
 
@@ -310,7 +310,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmN = 1;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector_GemmM1 = 4;
-#elif 0
+#elif 1
     // cdata = 64, BlockSize = 256, 128x128x8
     constexpr index_t BlockSize = 256;
 

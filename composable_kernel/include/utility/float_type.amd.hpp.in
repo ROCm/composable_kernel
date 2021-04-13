@@ -3,13 +3,106 @@
 
 namespace ck {
 
+using half_t = _Float16;
+
+// vector_type
 template <typename T, index_t N>
 struct vector_type;
 
+// Caution: DO NOT REMOVE
+// intentionally have only declaration but no definition to cause compilation failure when trying to
+// instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
+// vectors"
+template <typename T, index_t V, index_t N>
+struct vector_type<T __attribute__((ext_vector_type(V))), N>;
+
+// Caution: DO NOT REMOVE
+// intentionally have only declaration but no definition to cause compilation failure when trying to
+// instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
+// vectors"
+template <typename T, index_t V, index_t N>
+struct vector_type<vector_type<T, V>, N>;
+
+// vector_type_maker
+// This is the right way to handle "vector of vectors": making a bigger vector instead
+template <typename T, index_t N>
+struct vector_type_maker
+{
+    using type = vector_type<T, N>;
+};
+
+template <typename T, index_t N0, index_t N1>
+struct vector_type_maker<T __attribute__((ext_vector_type(N1))), N0>
+{
+    using type = vector_type<T, N0 * N1>;
+};
+
+template <typename T, index_t N0, index_t N1>
+struct vector_type_maker<vector_type<T, N1>, N0>
+{
+    using type = vector_type<T, N0 * N1>;
+};
+
+// scalar_type
+template <typename TV>
+struct scalar_type;
+
+template <typename T, index_t N>
+struct scalar_type<T __attribute__((ext_vector_type(N)))>
+{
+    using type                           = T;
+    static constexpr index_t vector_size = N;
+};
+
+template <typename T, index_t N>
+struct scalar_type<vector_type<T, N>>
+{
+    using type                           = T;
+    static constexpr index_t vector_size = N;
+};
+
+//
+template <>
+struct scalar_type<float>
+{
+    using type                           = float;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<half_t>
+{
+    using type                           = half_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<ushort>
+{
+    using type                           = ushort;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<int32_t>
+{
+    using type                           = int32_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<int8_t>
+{
+    using type                           = int8_t;
+    static constexpr index_t vector_size = 1;
+};
+
+//
 template <typename T>
 struct vector_type<T, 1>
 {
-    using type = T;
+    using d1_t = T;
+    using type = d1_t;
 
     union
     {
@@ -21,19 +114,21 @@ struct vector_type<T, 1>
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
-    __host__ __device__ static constexpr index_t Size() { return 1; }
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value, "wrong!");
 
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d1_; }
+        return data_.d1x1_;
+    }
 
-    __host__ __device__ constexpr auto& Vector() { return data_.d1_; }
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value, "wrong!");
 
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x1_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x1_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x1_; }
+        return data_.d1x1_;
+    }
 };
 
 template <typename T>
@@ -55,23 +150,35 @@ struct vector_type<T, 2>
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
-    __host__ __device__ static constexpr index_t Size() { return 2; }
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value, "wrong!");
 
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d2_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x2_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x1_;
+        }
+    }
 
-    __host__ __device__ constexpr auto& Vector() { return data_.d2_; }
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value, "wrong!");
 
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x2_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x1_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x2_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x1_;
+        }
+    }
 };
 
 template <typename T>
@@ -95,27 +202,45 @@ struct vector_type<T, 4>
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
-    __host__ __device__ static constexpr index_t Size() { return 4; }
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
+                      "wrong!");
 
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d4_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x4_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x2_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+    }
 
-    __host__ __device__ constexpr auto& Vector() { return data_.d4_; }
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d4_t>::value,
+                      "wrong!");
 
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x4_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<4>) const { return data_.d4x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x4_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<4>) { return data_.d4x1_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x4_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x2_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x1_;
+        }
+    }
 };
 
 template <typename T>
@@ -141,31 +266,55 @@ struct vector_type<T, 8>
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
-    __host__ __device__ static constexpr index_t Size() { return 8; }
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
+                      "wrong!");
 
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d8_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x8_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x4_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x2_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x1_;
+        }
+    }
 
-    __host__ __device__ constexpr auto& Vector() { return data_.d8_; }
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
+                      "wrong!");
 
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x8_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x8_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x8_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<4>) const { return data_.d4x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<8>) const { return data_.d8x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x8_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x4_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<4>) { return data_.d4x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<8>) { return data_.d8x1_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x8_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x4_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x2_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x1_;
+        }
+    }
 };
 
 template <typename T>
@@ -193,35 +342,65 @@ struct vector_type<T, 16>
 
     __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
-    __host__ __device__ static constexpr index_t Size() { return 16; }
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
+                          is_same<X, d16_t>::value,
+                      "wrong!");
 
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d16_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x16_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x8_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x4_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x2_;
+        }
+        else if constexpr(is_same<X, d16_t>::value)
+        {
+            return data_.d16x1_;
+        }
+    }
 
-    __host__ __device__ constexpr auto& Vector() { return data_.d16_; }
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
+                          is_same<X, d16_t>::value,
+                      "wrong!");
 
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x16_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x16_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x16_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x8_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<4>) const { return data_.d4x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<8>) const { return data_.d8x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<16>) const { return data_.d16x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x16_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x8_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<4>) { return data_.d4x4_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<8>) { return data_.d8x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<16>) { return data_.d16x1_; }
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x16_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x8_;
+        }
+        else if constexpr(is_same<X, d4_t>::value)
+        {
+            return data_.d4x4_;
+        }
+        else if constexpr(is_same<X, d8_t>::value)
+        {
+            return data_.d8x2_;
+        }
+        else if constexpr(is_same<X, d16_t>::value)
+        {
+            return data_.d16x1_;
+        }
+    }
 };
 
 // fp32
@@ -230,7 +409,6 @@ using float4_t = typename vector_type<float, 4>::type;
 using float8_t = typename vector_type<float, 8>::type;
 
 // fp16
-using half_t   = _Float16;
 using half2_t  = typename vector_type<half_t, 2>::type;
 using half4_t  = typename vector_type<half_t, 4>::type;
 using half8_t  = typename vector_type<half_t, 8>::type;
@@ -246,197 +424,8 @@ using int32x2_t = typename vector_type<int32_t, 2>::type;
 using int32x4_t = typename vector_type<int32_t, 4>::type;
 using int32x8_t = typename vector_type<int32_t, 8>::type;
 
-template <>
-struct vector_type<int8_t, 2>
-{
-    using d1_t = int8_t;
-    typedef int16_t d2_t;
-
-    using type = d2_t;
-
-    union
-    {
-        d2_t d2_;
-        StaticallyIndexedArray<d1_t, 2> d1x2_;
-        StaticallyIndexedArray<d2_t, 1> d2x1_;
-    } data_;
-
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
-
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
-
-    __host__ __device__ static constexpr index_t Size() { return 2; }
-
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d2_; }
-
-    __host__ __device__ constexpr auto& Vector() { return data_.d2_; }
-
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x2_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x1_; }
-};
-
-template <>
-struct vector_type<int8_t, 4>
-{
-    using d1_t = int8_t;
-    typedef int16_t d2_t;
-    typedef int32_t d4_t;
-
-    using type = d4_t;
-
-    union
-    {
-        d4_t d4_;
-        StaticallyIndexedArray<d1_t, 4> d1x4_;
-        StaticallyIndexedArray<d2_t, 2> d2x2_;
-        StaticallyIndexedArray<d4_t, 1> d4x1_;
-    } data_;
-
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
-
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
-
-    __host__ __device__ static constexpr index_t Size() { return 4; }
-
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d4_; }
-
-    __host__ __device__ constexpr auto& Vector() { return data_.d4_; }
-
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x4_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<4>) const { return data_.d4x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x4_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<4>) { return data_.d4x1_; }
-};
-
-template <>
-struct vector_type<int8_t, 8>
-{
-    using d1_t = int8_t;
-    typedef int16_t d2_t;
-    typedef int32_t d4_t;
-    typedef int32x2_t d8_t;
-
-    using type = d8_t;
-
-    union
-    {
-        d8_t d8_;
-        StaticallyIndexedArray<d1_t, 8> d1x8_;
-        StaticallyIndexedArray<d2_t, 4> d2x4_;
-        StaticallyIndexedArray<d4_t, 2> d4x2_;
-        StaticallyIndexedArray<d8_t, 1> d8x1_;
-    } data_;
-
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
-
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
-
-    __host__ __device__ static constexpr index_t Size() { return 8; }
-
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d8_; }
-
-    __host__ __device__ constexpr auto& Vector() { return data_.d8_; }
-
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x8_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x8_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x8_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<4>) const { return data_.d4x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<8>) const { return data_.d8x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x8_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x4_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<4>) { return data_.d4x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<8>) { return data_.d8x1_; }
-};
-
-template <>
-struct vector_type<int8_t, 16>
-{
-    using d1_t = int8_t;
-    typedef int16_t d2_t;
-    typedef int32_t d4_t;
-    typedef int32x2_t d8_t;
-    typedef int32x4_t d16_t;
-
-    using type = d16_t;
-
-    union
-    {
-        d16_t d16_;
-        StaticallyIndexedArray<d1_t, 16> d1x16_;
-        StaticallyIndexedArray<d2_t, 8> d2x8_;
-        StaticallyIndexedArray<d4_t, 4> d4x4_;
-        StaticallyIndexedArray<d8_t, 2> d8x2_;
-        StaticallyIndexedArray<d8_t, 1> d16x1_;
-    } data_;
-
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
-
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
-
-    __host__ __device__ static constexpr index_t Size() { return 16; }
-
-    __host__ __device__ constexpr const auto& Vector() const { return data_.d16_; }
-
-    __host__ __device__ constexpr auto& Vector() { return data_.d16_; }
-
-    __host__ __device__ constexpr const auto& Scalars() const { return data_.d1x16_; }
-
-    __host__ __device__ constexpr auto& Scalars() { return data_.d1x16_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<1>) const { return data_.d1x16_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<2>) const { return data_.d2x8_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<4>) const { return data_.d4x4_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<8>) const { return data_.d8x2_; }
-
-    __host__ __device__ constexpr const auto& Vectors(Number<16>) const { return data_.d16x1_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<1>) { return data_.d1x16_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<2>) { return data_.d2x8_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<4>) { return data_.d4x4_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<8>) { return data_.d8x2_; }
-
-    __host__ __device__ constexpr auto& Vectors(Number<16>) { return data_.d16x1_; }
-};
-
 // i8
-// hack for int8x4_t, because compiler does not have native support for int8x4_t
-// int8x4_t is defined as int32_t
+using int8x2_t  = typename vector_type<int8_t, 2>::type;
 using int8x4_t  = typename vector_type<int8_t, 4>::type;
 using int8x8_t  = typename vector_type<int8_t, 8>::type;
 using int8x16_t = typename vector_type<int8_t, 16>::type;
@@ -489,8 +478,6 @@ struct inner_product_with_conversion
 
     __device__ T operator()(float_t a, float_t b) const { return convert(a) * convert(b); }
 
-    // hack for int8x4_t, because compiler does not have native support for int8x4_t
-    // int8x4_t is defined as int32_t
     __device__ T operator()(int8x4_t a, int8x4_t b) const
     {
         const vector_type<int8_t, 4> a_vector{a};
@@ -499,7 +486,7 @@ struct inner_product_with_conversion
         T acc = 0;
 
         static_for<0, 4, 1>{}([&](auto i) {
-            acc += convert(a_vector.Scalars()[i]) * convert(b_vector.Scalars()[i]);
+            acc += convert(a_vector.AsType<int8_t>()[i]) * convert(b_vector.AsType<int8_t>()[i]);
         });
 
         return acc;
@@ -513,7 +500,7 @@ struct inner_product_with_conversion
         T acc = 0;
 
         static_for<0, 8, 1>{}([&](auto i) {
-            acc += convert(a_vector.Scalars()[i]) * convert(b_vector.Scalars()[i]);
+            acc += convert(a_vector.AsType<int8_t>()[i]) * convert(b_vector.AsType<int8_t>()[i]);
         });
 
         return acc;
@@ -527,7 +514,7 @@ struct inner_product_with_conversion
         T acc = 0;
 
         static_for<0, 16, 1>{}([&](auto i) {
-            acc += convert(a_vector.Scalars()[i]) * convert(b_vector.Scalars()[i]);
+            acc += convert(a_vector.AsType<int8_t>()[i]) * convert(b_vector.AsType<int8_t>()[i]);
         });
 
         return acc;
