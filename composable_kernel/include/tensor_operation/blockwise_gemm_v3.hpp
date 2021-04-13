@@ -104,7 +104,7 @@ struct BlockwiseGemm_km_kn_m0m1n0n1_v3
             static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                           "wrong! Desc should be known at compile-time");
 
-            using vector_t = typename vector_type<Data, DataPerAccess>::type;
+            using vector_t = typename vector_type_maker<Data, DataPerAccess>::type::type;
 
             static_for<0, NSliceRow, 1>{}([&](auto i) {
                 static_for<0, NSliceCol, DataPerAccess>{}([&](auto j) {
