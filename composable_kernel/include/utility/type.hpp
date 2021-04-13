@@ -42,5 +42,19 @@ struct is_known_at_compile_time<integral_constant<T, X>>
     static constexpr bool value = true;
 };
 
+template <typename Y,
+          typename X,
+          typename std::enable_if<sizeof(X) == sizeof(Y), bool>::type = false>
+__host__ __device__ constexpr Y as_type(X x)
+{
+    union AsType
+    {
+        X x;
+        Y y;
+    };
+
+    return AsType{x}.y;
+}
+
 } // namespace ck
 #endif
