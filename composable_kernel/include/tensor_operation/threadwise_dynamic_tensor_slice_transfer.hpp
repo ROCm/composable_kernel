@@ -7,6 +7,15 @@
 
 namespace ck {
 
+// Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
+// and sometimes useless instructions:
+//   1. Don't save a reference to tensor descriptor in class, pass in tensor descriptor as argument
+//   instead
+//   2. Don't construct a new tensor coordinate everytime when using it, update and reuse the same
+//   tensor coordinate instead
+//   3. Don't use a pointer to VGPR buffer, use vector instead
+
+namespace detail {
 // TODO: How to fix this? It uses an struct instead of lambda because lambda
 // doesn't have constructor
 template <index_t VectorDim, index_t ScalarPerVector>
@@ -26,12 +35,17 @@ struct lambda_scalar_step_in_vector
         return (i == VectorDim) ? 1 : 0;
     }
 };
+} // namespace detail
 
-// this version is less likely to have scratch memory issue, due to:
-//   1. It does not keep reference to tensor descriptor
-//   2. It does not construct new tensor coordinate for this->Run()
-// Assume src_slice_origin_idx is 0
-// TODO: support non-zero src_slice_oring_idx
+// Assume:
+//   1. src:
+//     1. SrcDesc is known at compile-time
+//     2. SrcBuffer is StaticBuffer
+//     3. SrcSliceOrginIdx is known at compile-time
+//   2. dst:
+//     1. DstDesc is not known at compile-time
+//     2. DstBuffer is DynamicBuffer
+//     3. DstSliceOrginIdx is not known at compile time
 template <typename SrcData,
           typename DstData,
           typename SrcDesc,
@@ -69,10 +83,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v1r3
         dst_slice_origin_coord_ = make_dynamic_tensor_coordinate(dst_desc, dst_slice_origin_idx);
     }
 
-    template <typename SrcSliceOriginIdx, typename DstIteratorHacks>
+    template <typename SrcSliceOriginIdx, typename SrcBuffer, typename DstIteratorHacks>
     __device__ void Run(const SrcDesc&,
                         const SrcSliceOriginIdx&,
-                        const SrcData* p_src,
+                        const SrcBuffer& src_buf,
                         const DstDesc& dst_desc,
                         DstData* p_dst,
                         const DstIteratorHacks& dst_iterator_hacks)
@@ -84,9 +98,15 @@ struct ThreadwiseDynamicTensorSliceTransfer_v1r3
             is_known_at_compile_time<remove_cv_t<remove_reference_t<SrcSliceOriginIdx>>>::value,
             "wrong! SrcSliceOrigin need to known at compile-time");
 
+        static_assert(SrcBuffer::IsStaticBuffer(), "wrong! SrcBuffer need to be StaticBuffer");
+
+        static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
+                              remove_cv_t<remove_reference_t<SrcData>>>::value,
+                      "wrong! SrcBuffer data type is wrong");
+
         // SrcDesc and src_slice_origin_idx are known at compile-time
         constexpr auto src_desc             = remove_cv_t<remove_reference_t<SrcDesc>>{};
-        constexpr auto src_slice_origin_idx = SrcSliceOriginIdx{};
+        constexpr auto src_slice_origin_idx = to_multi_index(SrcSliceOriginIdx{});
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -94,10 +114,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v1r3
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto dst_scalar_step_in_vector =
-            generate_sequence(lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
+            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
 
         constexpr auto access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -178,12 +198,11 @@ struct ThreadwiseDynamicTensorSliceTransfer_v1r3
                 typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                constexpr index_t src_offset =
-                    src_desc.CalculateOffset(to_multi_index(src_slice_origin_idx) + dst_data_idx +
-                                             i * dst_scalar_step_in_vector);
+                constexpr index_t src_offset = src_desc.CalculateOffset(
+                    src_slice_origin_idx + dst_data_idx + i * dst_scalar_step_in_vector);
 
                 dst_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>{}(p_src[Number<src_offset>{}]);
+                    type_convert<DstData>{}(src_buf[Number<src_offset>{}]);
             });
 
             const bool is_dst_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
@@ -284,7 +303,7 @@ struct ThreadwiseDynamicTensorSliceTransfer_v1r3
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -359,10 +378,11 @@ struct ThreadwiseDynamicTensorSliceTransfer_v1r3
     DstCoord dst_slice_origin_coord_;
 }; // namespace ck
 
-// this version is less likely to have scratch memory issue, due to:
-//   1. It does not keep reference to tensor descriptor
-//   2. It does not construct new tensor coordinate for this->Run()
-// Assume dst_slice_origin_idx is 0
+// Assume:
+//   1. src_desc is not known at compile-time
+//   2. dst_desc is known at compile-time
+//   3. src_slice_origin_idx is not known at compile-time
+//   4. dst_slice_origin_idx is known at compile-time and it's 0
 template <typename SrcData,
           typename DstData,
           typename SrcDesc,
@@ -399,12 +419,12 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
         src_slice_origin_coord_ = make_dynamic_tensor_coordinate(src_desc, src_slice_origin_idx);
     }
 
-    template <typename DstSliceOriginIdx, typename SrcIteratorHacks>
+    template <typename DstBuffer, typename DstSliceOriginIdx, typename SrcIteratorHacks>
     __device__ void Run(const SrcDesc& src_desc,
                         const SrcData* p_src,
                         const DstDesc&,
                         const DstSliceOriginIdx&,
-                        DstData* p_dst,
+                        DstBuffer& dst_buf,
                         const SrcIteratorHacks& src_iterator_hacks)
     {
         static_assert(DstDesc::IsKnownAtCompileTime(),
@@ -413,6 +433,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
         static_assert(
             is_known_at_compile_time<remove_cv_t<remove_reference_t<DstSliceOriginIdx>>>::value,
             "wrong! DstSliceOrigin need to known at compile-time");
+
+        static_assert(is_same<remove_cv_t<remove_reference_t<typename DstBuffer::type>>,
+                              remove_cv_t<remove_reference_t<DstData>>>::value &&
+                      "wrong! inconsistent type");
 
         // DstDesc and dst_slice_origin_idx are known at compile-time
         constexpr auto dst_desc             = remove_cv_t<remove_reference_t<DstDesc>>{};
@@ -424,10 +448,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_scalar_step_in_vector =
-            generate_sequence(lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
+            generate_sequence(detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
 
         constexpr auto access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -541,7 +565,7 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
                     dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
                                              i * src_scalar_step_in_vector);
 
-                p_dst[Number<dst_offset>{}] = src_vector.template AsType<SrcData>()[i];
+                dst_buf(Number<dst_offset>{}) = src_vector.template AsType<SrcData>()[i];
             });
 
             constexpr auto move_on_dim = [&]() constexpr
@@ -590,7 +614,12 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
         }
     }
 
-    __device__ void Run(const SrcDesc& src_desc, const SrcData* p_src, DstData* p_dst)
+    template <typename DstBuffer, typename DstSliceOriginIdx>
+    __device__ void Run(const SrcDesc& src_desc,
+                        const SrcData* p_src,
+                        const DstDesc&,
+                        const DstSliceOriginIdx&,
+                        DstBuffer& dst_buf)
     {
         constexpr index_t ntransform_src = SrcDesc::GetNumOfTransform();
 
@@ -600,7 +629,7 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
             make_tuple(generate_tuple([&](auto) { return zeros; }, Number<nDim>{}),
                        generate_tuple([&](auto) { return zeros; }, Number<nDim>{}));
 
-        Run(src_desc, p_src, p_dst, src_iterator_hacks);
+        Run(src_desc, p_src, DstDesc{}, DstSliceOriginIdx{}, dst_buf, src_iterator_hacks);
     }
 
     __device__ static constexpr auto GetSrcCoordinateResetStep()
@@ -610,7 +639,7 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -685,12 +714,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v2
     SrcCoord src_slice_origin_coord_;
 }; // namespace ck
 
-// this version does following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
-// and sometimes useless instructions
-// 1. It does not keep reference to tensor descriptor
-// 2. It does not construct new tensor coordinate for this->Run()
-// 3. It does not use pointer for VGPR thread buffer
-// 4. It calculate offset for thread buffer directly, instead of moving the coordinate
+// Assume:
+//   1. src_desc and dst_desc are not known at compile-time
+//   2. src_slice_origin and dst_slice_origin are not known at compile-time,
+//   3. Use thread buffer
 template <typename SliceLengths,
           InMemoryDataOperation DstInMemOp,
           typename SrcData,
@@ -737,6 +764,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
         static_assert(DstAddressSpace == AddressSpace::Global or
                           DstAddressSpace == AddressSpace::Lds,
                       "wrong!");
+
+        // TODO: fix this
+        static_assert(is_same<SrcData, DstData>::value,
+                      "wrong! current implementation assume SrcData and DstData are same type");
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -760,10 +791,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_scalar_step_in_vector =
-            generate_sequence(lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
+            generate_sequence(detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -838,11 +869,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
                 return src_data_idx;
             }();
 
-            // copy data
-            typename vector_type_maker<SrcData, SrcScalarPerVector>::type src_vector;
+            // copy data from src_buf to src_tmp_vector
+            vector_type_maker_t<SrcData, SrcScalarPerVector> src_tmp_vector;
 
-            using src_vector_t =
-                typename vector_type_maker<SrcData, SrcScalarPerVector>::type::type;
+            using src_vector_t = typename decltype(src_tmp_vector)::type;
 
             const bool is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
                 src_desc, src_slice_origin_coord_);
@@ -850,14 +880,14 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
             if constexpr(SrcAddressSpace == AddressSpace::Global)
             {
 #if CK_USE_AMD_BUFFER_ADDRESSING
-                src_vector.template AsType<src_vector_t>()(Number<0>{}) =
+                src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     amd_buffer_load_v2<SrcData, SrcScalarPerVector>(
                         p_src,
                         src_slice_origin_coord_.GetOffset(),
                         is_src_valid,
                         src_desc.GetElementSpaceSize());
 #else
-                src_vector.template AsType<src_vector_t>()(Number<0>{}) =
+                src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     is_src_valid ? *reinterpret_cast<const src_vector_t*>(
                                        &p_src[src_slice_origin_coord_.GetOffset()])
                                  : src_vector_t{0};
@@ -865,17 +895,18 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
             }
             else
             {
-                src_vector.template AsType<src_vector_t>()(Number<0>{}) =
+                src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     is_src_valid ? *reinterpret_cast<const src_vector_t*>(
                                        &p_src[src_slice_origin_coord_.GetOffset()])
                                  : src_vector_t{0};
             }
 
+            // copy data from src_tmp_vector to buffer_
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                 constexpr index_t buffer_offset =
                     buffer_desc_.CalculateOffset(src_data_idx + i * src_scalar_step_in_vector);
 
-                buffer_(Number<buffer_offset>{}) = src_vector.template AsType<SrcData>()[i];
+                buffer_(Number<buffer_offset>{}) = src_tmp_vector.template AsType<SrcData>()[i];
             });
 
             constexpr auto move_on_dim = [&]() constexpr
@@ -937,10 +968,10 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
         // src scalar per access on each dim
         // TODO: don't use this
         constexpr auto dst_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto dst_scalar_step_in_vector =
-            generate_sequence(lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
+            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -1026,20 +1057,21 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
                               DstInMemOp == InMemoryDataOperation::Set,
                           "wrong! hardcoded for ds_write");
 
-            typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
+            vector_type_maker_t<DstData, DstScalarPerVector> dst_tmp_vector;
 
+            // copy data from buffer_ to dst_tmp_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
                 constexpr index_t buffer_offset =
                     buffer_desc_.CalculateOffset(dst_data_idx + i * dst_scalar_step_in_vector);
 
-                dst_vector.template AsType<DstData>()(i) = buffer_[Number<buffer_offset>{}];
+                dst_tmp_vector.template AsType<DstData>()(i) = buffer_[Number<buffer_offset>{}];
             });
 
-            using DstVectorType =
-                typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
+            using dst_vector_t = typename decltype(dst_tmp_vector)::type;
 
-            *reinterpret_cast<DstVectorType*>(p_dst + dst_slice_origin_coord_.GetOffset()) =
-                dst_vector.template AsType<DstVectorType>()[Number<0>{}];
+            // copy data from dst_tmp_vector to dst_buf
+            *reinterpret_cast<dst_vector_t*>(p_dst + dst_slice_origin_coord_.GetOffset()) =
+                dst_tmp_vector.template AsType<dst_vector_t>()[Number<0>{}];
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -1123,7 +1155,7 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
@@ -1185,7 +1217,7 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
-            lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
         constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
 
@@ -1274,7 +1306,6 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
 
         move_dynamic_tensor_coordinate(src_desc, src_slice_origin_coord_, adjusted_step);
     }
-
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
     __device__ void MoveDstSliceWindow(const DstDesc& dst_desc,
                                        const Index& dst_slice_origin_step_idx)
@@ -1297,10 +1328,202 @@ struct ThreadwiseDynamicTensorSliceTransfer_v3
 
     static constexpr auto buffer_size_ = buffer_desc_.GetElementSpaceSize();
 
-    StaticallyIndexedArray<SrcData, buffer_size_> buffer_;
+    StaticBuffer<SrcData, buffer_size_> buffer_;
 
     SrcCoord src_slice_origin_coord_;
     DstCoord dst_slice_origin_coord_;
+};
+
+// Assume:
+//   1. src:
+//     1. SrcDesc is known at compile-time
+//     2. SrcBuffer is DynamicBuffer
+//     3. src_ref_idx is known at run-time
+//     4. SrcRefToOriginDisplacement is known at compile-time
+//     5. use #-iterator
+//   2. dst:
+//     1. DstDesc is known at compile-time
+//     2. DstBuffer is StaticBuffer
+//     3. DstOriginIdx is known at compile-time
+//     4. use direct address calculation
+//   3. vector access on src
+template <
+    typename SrcData,
+    typename DstData,
+    typename SrcDesc,
+    typename DstDesc,
+    typename SliceLengths,
+    typename DimAccessOrder,
+    index_t SrcVectorDim,
+    index_t SrcScalarPerVector,
+    AddressSpace SrcAddressSpace,
+    AddressSpace DstAddressSpace,
+    index_t SrcScalarStrideInVector,
+    typename std::enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
+                            bool>::type = false>
+struct ThreadwiseDynamicTensorSliceTransfer_v4
+{
+    static constexpr index_t nDim = SliceLengths::Size();
+
+    using Index = MultiIndex<nDim>;
+
+    using SrcCoord = decltype(make_dynamic_tensor_coordinate(SrcDesc{}, Index{}));
+
+    using SrcCoordIterator = decltype(make_dynamic_tensor_coordinate_iterator(SrcDesc{}, Index{}));
+
+    __device__ constexpr ThreadwiseDynamicTensorSliceTransfer_v4(const Index& src_ref_idx)
+        : src_ref_coord_(make_dynamic_tensor_coordinate(SrcDesc{}, src_ref_idx))
+    {
+        static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
+                      "wrong! SrcDesc and DstDesc need to known at compile-time");
+    }
+
+    template <typename SrcRefToOriginDisplacement,
+              typename DstOriginIdx,
+              typename SrcBuffer,
+              typename DstBuffer>
+    __device__ void Run(const SrcDesc&,
+                        const SrcRefToOriginDisplacement&,
+                        const SrcBuffer& src_buf,
+                        const DstDesc&,
+                        const DstOriginIdx&,
+                        DstBuffer& dst_buf) const
+    {
+        static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
+                      "wrong! SrcDesc and DstDesc need to known at compile-time");
+
+        static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
+                              remove_cv_t<remove_reference_t<SrcData>>>::value &&
+                          is_same<remove_cv_t<remove_reference_t<typename DstBuffer::type>>,
+                                  remove_cv_t<remove_reference_t<DstData>>>::value,
+                      "wrong! SrcBuffer or DstBuffer data type is wrong");
+
+        static_assert(DstBuffer::IsStaticBuffer(), "wrong! DstBuffer need to be StaticBuffer");
+
+        static_assert(
+            is_known_at_compile_time<
+                remove_cv_t<remove_reference_t<SrcRefToOriginDisplacement>>>::value &&
+                is_known_at_compile_time<remove_cv_t<remove_reference_t<DstOriginIdx>>>::value,
+            "wrong! SrcOriginToRefDistance and DstOriginToRefDistance need to be known "
+            "at compile-time");
+
+        // SrcDesc and DstDesc are known at compile-time
+        constexpr auto src_desc = remove_cv_t<remove_reference_t<SrcDesc>>{};
+        constexpr auto dst_desc = remove_cv_t<remove_reference_t<DstDesc>>{};
+
+        // SrcOriginToRefDisttance and DstOriginToRefDistance are known at compile-time
+        constexpr auto src_ref_to_origin_disp_idx = to_multi_index(SrcRefToOriginDisplacement{});
+        constexpr auto dst_origin_idx             = to_multi_index(DstOriginIdx{});
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+
+        // scalar per access of each dim
+        constexpr auto src_scalar_per_access = generate_sequence_v2(
+            [&](auto i) constexpr {
+                if constexpr(i == SrcVectorDim)
+                {
+                    return Number<SrcScalarPerVector>{};
+                }
+                else
+                {
+                    return Number<1>{};
+                }
+            },
+            Number<nDim>{});
+
+        // scalar step (if steping on SrcVectorDim) of each dim
+        constexpr auto src_scalar_step_in_vector = generate_sequence_v2(
+            [&](auto i) constexpr {
+                if constexpr(i == SrcVectorDim)
+                {
+                    return Number<1>{};
+                }
+                else
+                {
+                    return Number<0>{};
+                }
+            },
+            Number<nDim>{});
+
+        constexpr auto access_lengths = SliceLengths{} / src_scalar_per_access;
+
+        constexpr auto dim_access_order = DimAccessOrder{};
+
+        constexpr auto ordered_access_lengths =
+            container_reorder_given_new2old(access_lengths, dim_access_order);
+
+        static_ford<decltype(ordered_access_lengths)>{}([&](auto ordered_access_idx) {
+#if 0
+            // TODO: unable to compile
+            // position in slice window
+            constexpr auto data_to_origin_disp_idx =
+                container_reorder_given_old2new(ordered_access_idx, dim_access_order) *
+                src_scalar_per_access;
+#else
+            // position in slice window
+            constexpr auto data_to_origin_disp_idx =
+                ordered_access_idx.ReorderGivenOld2New(dim_access_order) * src_scalar_per_access;
+#endif
+
+            // src coordinate
+            constexpr auto src_ref_to_data_disp_idx =
+                src_ref_to_origin_disp_idx + data_to_origin_disp_idx;
+
+            constexpr auto src_ref_to_data_disp_coord_iterator =
+                make_dynamic_tensor_coordinate_iterator(src_desc, src_ref_to_data_disp_idx);
+
+            auto src_data_coord = src_ref_coord_;
+
+            move_dynamic_tensor_coordinate(
+                src_desc, src_data_coord, src_ref_to_data_disp_coord_iterator);
+
+            // copy data from src_buf into src_tmp_buffer
+            vector_type_maker_t<SrcData, SrcScalarPerVector> src_tmp_vector;
+
+            using src_vector_t = typename decltype(src_tmp_vector)::type;
+
+            const bool is_src_valid = coordinate_has_valid_offset_assuming_visible_index_is_valid(
+                src_desc, src_data_coord);
+
+            src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
+                is_src_valid ? src_buf.template Get<src_vector_t>(src_data_coord.GetOffset())
+                             : src_vector_t{0};
+
+            // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
+            // DstData)
+            vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
+
+            // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
+            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                dst_tmp_vector.template AsType<DstData>()(i) =
+                    type_convert<DstData>{}(src_tmp_vector.template AsType<SrcData>()[i]);
+            });
+
+            // copy data from dst_tmp_vector into dst_buf
+            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                    dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
+
+                dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
+            });
+        });
+    }
+
+    template <typename SrcSliceMoveStepIdx>
+    __device__ void MoveSrcSliceWindow(const SrcDesc&,
+                                       const SrcSliceMoveStepIdx& src_slice_move_step_idx)
+    {
+        constexpr auto src_desc = SrcDesc{};
+
+        const auto src_slice_move_step_iter = make_dynamic_tensor_coordinate_iterator(
+            src_desc, to_multi_index(src_slice_move_step_idx));
+
+        move_dynamic_tensor_coordinate(SrcDesc{}, src_ref_coord_, src_slice_move_step_iter);
+    }
+
+    private:
+    SrcCoord src_ref_coord_;
 };
 
 } // namespace ck

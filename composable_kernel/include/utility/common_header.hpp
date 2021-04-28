@@ -7,6 +7,7 @@
 #include "statically_indexed_array.hpp"
 #include "container_element_picker.hpp"
 #include "float_type.hpp"
+#include "buffer.hpp"
 #include "functional.hpp"
 #include "functional2.hpp"
 #include "functional3.hpp"
