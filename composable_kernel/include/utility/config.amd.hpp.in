@@ -14,11 +14,11 @@
 #define CK_DEVICE_BACKEND_AMD 1
 
 // GPU ID
-#if 1
+#if 0
 #define CK_AMD_GPU_GFX906 1
 #elif 0
 #define CK_AMD_GPU_GFX908 1
-#elif 0
+#elif 1
 #define CK_AMD_GPU_GFX1030 1
 #endif
 
@@ -28,7 +28,7 @@
 #endif
 
 // launch bounds
-#define CK_USE_LAUNCH_BOUNDS 0
+#define CK_USE_LAUNCH_BOUNDS 1
 
 #ifdef CK_USE_LAUNCH_BOUNDS
 #define CK_MAX_THREAD_PER_BLOCK 256

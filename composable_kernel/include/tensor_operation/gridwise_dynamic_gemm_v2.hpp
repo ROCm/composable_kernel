@@ -145,17 +145,19 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
             make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(
                 Number<KPerThread>{}, Number<1>{}, Number<HoPerThread>{}, Number<WoPerThread>{}));
 
-        const auto blockwise_gemm =
-            BlockwiseGemm_km_kn_m0m1n0n1_v3<BlockSize,
-                                            decltype(a_e_k_block_desc),
-                                            decltype(b_e_n_ho_wo_block_desc),
-                                            decltype(c_k_n_ho_wo_thread_desc),
-                                            KPerThread,
-                                            HoPerThread,
-                                            WoPerThread,
-                                            EPerThread,
-                                            ABlockTransferSrcScalarPerVector,
-                                            ABlockTransferDstScalarPerVector_K>{};
+        auto blockwise_gemm = BlockwiseGemm_km_kn_m0m1n0n1_v3<BlockSize,
+                                                              FloatAB,
+                                                              FloatAB,
+                                                              FloatAcc,
+                                                              decltype(a_e_k_block_desc),
+                                                              decltype(b_e_n_ho_wo_block_desc),
+                                                              decltype(c_k_n_ho_wo_thread_desc),
+                                                              KPerThread,
+                                                              HoPerThread,
+                                                              WoPerThread,
+                                                              EPerThread,
+                                                              ABlockTransferSrcScalarPerVector,
+                                                              ABlockTransferDstScalarPerVector_K>{};
 
         auto c_thread_mtx_index = blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
@@ -223,11 +225,16 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
 
         FloatAB* p_a_block = p_shared_block;
 
-        // register allocation for output
-        FloatAcc p_c_thread[c_k_n_ho_wo_thread_desc.GetElementSpaceSize()];
+        auto a_block_buf = make_dynamic_buffer(p_a_block);
 
-        // zero out threadwise output
-        threadwise_matrix_set_zero_v3(c_k_n_ho_wo_thread_desc, p_c_thread);
+        // register allocation for output
+        StaticBuffer<FloatAcc, c_k_n_ho_wo_thread_desc.GetElementSpaceSize()> c_thread_buf;
+
+        // initialize output thread tensor
+        ThreadwiseDynamicTensorSliceSet_v1<FloatAcc,
+                                           decltype(c_k_n_ho_wo_thread_desc),
+                                           Sequence<KPerThread, 1, HoPerThread, WoPerThread>>{}
+            .Run(c_k_n_ho_wo_thread_desc, make_tuple(I0, I0, I0, I0), c_thread_buf, FloatAcc{0});
 
         constexpr auto b_thread_slice_copy_step = make_multi_index(EPerBlock, 0, 0, 0);
 
@@ -242,12 +249,11 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
         constexpr auto b_e_n_ho_wo_global_move_slice_window_iterator_hack =
             BGlobalMoveSliceWindowIteratorHacks{};
 
-        constexpr auto b_thread_space_size = b_e_n_ho_wo_thread_desc.GetElementSpaceSize();
-        FloatAB p_b_thread[b_thread_space_size * 2];
+        // double regsiter buffer for b
+        StaticBuffer<FloatAB, b_e_n_ho_wo_thread_desc.GetElementSpaceSize()> b_thread_even_buf,
+            b_thread_odd_buf;
 
-        FloatAB* p_b_thread_double = p_b_thread;
-
-        // LDS double buffer: preload data into LDS
+        // LDS double buffer: preload data
         {
             a_blockwise_copy.RunRead(a_e_k_global_desc, p_a_global, a_e_k_global_iterator_hacks);
 
@@ -255,7 +261,7 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
                                       p_b_global,
                                       b_e_n_ho_wo_thread_desc,
                                       make_tuple(I0, I0, I0, I0),
-                                      p_b_thread_double,
+                                      b_thread_even_buf,
                                       b_e_n_ho_wo_global_iterator_hacks);
 
             a_blockwise_copy.RunWrite(a_e_k_desc, p_a_block);
@@ -263,13 +269,9 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
 
         __syncthreads();
 
-        index_t b_block_data_begin = 0;
-
-#if 1
         if constexpr(HasMainKBlockLoop)
         {
-            FloatAB* p_b_thread_even = p_b_thread_double;
-            FloatAB* p_b_thread_odd  = p_b_thread_double + b_thread_space_size;
+            index_t e_block_data_begin = 0;
 
             // LDS double buffer: main body
             // use Do-While loop instead of For loop to simplify control flow
@@ -283,16 +285,14 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
                                           p_b_global,
                                           b_e_n_ho_wo_thread_desc,
                                           make_tuple(I0, I0, I0, I0),
-                                          p_b_thread_odd,
+                                          b_thread_odd_buf,
                                           b_e_n_ho_wo_global_iterator_hacks);
 
                 // LDS double buffer: GEMM on current data
-                blockwise_gemm.Run(
-                    p_a_block + a_e_k_block_desc.CalculateOffset(make_tuple(b_block_data_begin, 0)),
-                    p_b_thread_even,
-                    p_c_thread);
+                // TODO: @Zhang Jing: blockwise gemm should be able to move slice window
+                blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
 
-                b_block_data_begin += EPerBlock;
+                blockwise_gemm.MoveASliceWindow(a_e_k_block_desc, make_tuple(EPerBlock, 0));
 
                 b_threadwise_transfer.MoveSrcSliceWindow(b_e_n_ho_wo_global_desc,
                                                          b_thread_slice_copy_step);
@@ -301,18 +301,17 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
                                           p_b_global,
                                           b_e_n_ho_wo_thread_desc,
                                           make_tuple(I0, I0, I0, I0),
-                                          p_b_thread_even,
+                                          b_thread_even_buf,
                                           b_e_n_ho_wo_global_iterator_hacks);
 
                 // LDS double buffer: GEMM on current data
-                blockwise_gemm.Run(
-                    p_a_block + a_e_k_block_desc.CalculateOffset(make_tuple(b_block_data_begin, 0)),
-                    p_b_thread_odd,
-                    p_c_thread);
+                blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
 
-                b_block_data_begin += EPerBlock;
+                blockwise_gemm.MoveASliceWindow(a_e_k_block_desc, make_tuple(EPerBlock, 0));
 
-            } while(b_block_data_begin < E - 2 * EPerBlock);
+                e_block_data_begin += 2 * EPerBlock;
+
+            } while(e_block_data_begin < E - 2 * EPerBlock);
         }
 
         // LDS double buffer: tail
@@ -325,34 +324,23 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
                                       p_b_global,
                                       b_e_n_ho_wo_thread_desc,
                                       make_tuple(I0, I0, I0, I0),
-                                      p_b_thread_double + b_thread_space_size,
+                                      b_thread_odd_buf,
                                       b_e_n_ho_wo_global_iterator_hacks);
 
             // LDS double buffer: GEMM on 2nd-last data
-            blockwise_gemm.Run(
-                p_a_block + a_e_k_block_desc.CalculateOffset(make_tuple(b_block_data_begin, 0)),
-                p_b_thread_double,
-                p_c_thread);
+            blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
 
-            b_block_data_begin += EPerBlock;
+            blockwise_gemm.MoveASliceWindow(a_e_k_block_desc, make_tuple(EPerBlock, 0));
 
             // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(
-                p_a_block + a_e_k_block_desc.CalculateOffset(make_tuple(b_block_data_begin, 0)),
-                p_b_thread_double + b_thread_space_size,
-                p_c_thread);
+            blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
         }
         else // if has 1 iteration left
         {
             // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(
-                p_a_block + a_e_k_block_desc.CalculateOffset(make_tuple(b_block_data_begin, 0)),
-                p_b_thread_double,
-                p_c_thread);
+            blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
         }
-#endif
 
-#if 1
         // output: register to global memory
         {
             // hack to control index calculation when iterating over c_k_n_ho_wo_global tensor
@@ -380,12 +368,11 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
                     k_thread_data_on_global, 0, ho_thread_data_on_global, wo_thread_data_on_global))
                 .Run(c_k_n_ho_wo_thread_desc,
                      make_tuple(I0, I0, I0, I0),
-                     p_c_thread,
+                     c_thread_buf,
                      c_k_n_ho_wo_global_desc,
                      p_c_global,
                      c_k_n_ho_wo_global_tensor_iterator_hacks);
         }
-#endif
     }
 
     // pass tensor descriptor by reference
