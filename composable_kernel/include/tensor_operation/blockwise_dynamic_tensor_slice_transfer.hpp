@@ -67,24 +67,16 @@ struct BlockwiseDynamicTensorSliceTransfer_v4
         if(BlockSize == thread_cluster_desc_.GetElementSize() or
            get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
         {
-            const auto thread_cluster_id =
-                thread_cluster_desc_.CalculateClusterIndex(get_thread_local_1d_id());
+            const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
+                make_multi_index(get_thread_local_1d_id()));
 
-            const auto thread_data_id_begin = thread_cluster_id * ThreadSliceLengths{};
+            const auto thread_data_idx_begin = thread_cluster_idx * ThreadSliceLengths{};
 
             threadwise_transfer_.SetSrcSliceOrigin(src_desc,
-                                                   src_block_slice_origin + thread_data_id_begin);
+                                                   src_block_slice_origin + thread_data_idx_begin);
             threadwise_transfer_.SetDstSliceOrigin(dst_desc,
-                                                   dst_block_slice_origin + thread_data_id_begin);
+                                                   dst_block_slice_origin + thread_data_idx_begin);
         }
-    }
-
-    __device__ static constexpr auto CalculateThreadDataBegin()
-    {
-        const auto thread_cluster_id =
-            thread_cluster_desc_.CalculateClusterIndex(get_thread_local_1d_id());
-
-        return thread_cluster_id * ThreadSliceLengths{};
     }
 
     template <typename SrcIteratorHacks>
@@ -141,8 +133,9 @@ struct BlockwiseDynamicTensorSliceTransfer_v4
         }
     }
 
+    private:
     static constexpr auto thread_cluster_desc_ =
-        make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
+        make_cluster_descriptor_v2(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
         ThreadwiseDynamicTensorSliceTransfer_v3<ThreadSliceLengths,

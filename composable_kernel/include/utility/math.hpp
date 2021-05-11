@@ -43,9 +43,15 @@ struct multiplies_v2
 };
 
 template <class T>
-struct maxer
+struct maximize
 {
     __host__ __device__ constexpr T operator()(T a, T b) const { return a >= b ? a : b; }
+};
+
+template <class T>
+struct minimize
+{
+    __host__ __device__ constexpr T operator()(T a, T b) const { return a <= b ? a : b; }
 };
 
 template <class T>

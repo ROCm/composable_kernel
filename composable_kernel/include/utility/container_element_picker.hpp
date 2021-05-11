@@ -20,7 +20,8 @@ struct ContainerElementPicker
 
     __host__ __device__ constexpr ContainerElementPicker(Arr& array) : mArray{array}
     {
-        constexpr index_t imax = reduce_on_sequence(Picks{}, math::maxer<index_t>{}, Number<0>{});
+        constexpr index_t imax =
+            reduce_on_sequence(Picks{}, math::maximize<index_t>{}, Number<0>{});
 
         static_assert(imax < Arr::Size(), "wrong! exceeding # array element");
     }
@@ -85,7 +86,8 @@ struct ConstantContainerElementPicker
 
     __host__ __device__ constexpr ConstantContainerElementPicker(const Arr& array) : mArray{array}
     {
-        constexpr index_t imax = reduce_on_sequence(Picks{}, math::maxer<index_t>{}, Number<0>{});
+        constexpr index_t imax =
+            reduce_on_sequence(Picks{}, math::maximize<index_t>{}, Number<0>{});
 
         static_assert(imax < Arr::Size(), "wrong! exceeding # array element");
     }

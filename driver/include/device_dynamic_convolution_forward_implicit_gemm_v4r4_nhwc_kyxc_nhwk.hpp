@@ -29,13 +29,17 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
 {
     using namespace ck;
 
-    std::cout << "device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk"
-              << std::endl;
+    std::cout << __func__ << std::endl;
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
+    constexpr auto I4 = Number<4>{};
+    constexpr auto I5 = Number<5>{};
+    constexpr auto I6 = Number<6>{};
+    constexpr auto I7 = Number<7>{};
+    constexpr auto I8 = Number<8>{};
 
     constexpr auto N = OutDesc::GetLengths()[I0];
     constexpr auto K = OutDesc::GetLengths()[I1];
@@ -53,7 +57,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
     constexpr auto C0 = C / Number<InWeiVectorSize>{};
     constexpr auto C1 = Number<InWeiVectorSize>{};
 
-#if 0
+#if 1
     // run-time variables
     constexpr auto in_n_hi_wi_c0_desc =
         make_dynamic_naive_tensor_descriptor_packed_v2(make_multi_index(N, Hi, Wi, C0));
@@ -112,7 +116,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
     wei_k_y_x_c_device_buf.ToDevice(wei_k_y_x_c.mData.data());
     out_n_ho_wo_k_device_buf.ToDevice(out_n_ho_wo_k.mData.data());
 
-#if 1
+#if 0
     // cdata = 16, BlockSize = 64, 16x64x4
     constexpr index_t BlockSize = 64;
 
@@ -372,51 +376,92 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk(
     constexpr index_t GemmCThreadTransferDstScalarPerVector_GemmM1 = 4;
 #endif
 
-    constexpr auto conv_driver =
+    constexpr index_t GemmM1 = GemmMPerThread * GemmMLevel0Cluster * GemmMLevel1Cluster;
+    constexpr index_t GemmN1 = GemmNPerThread * GemmNLevel0Cluster * GemmNLevel1Cluster;
+
+    const auto descs =
 #if 1
-        DriverDynamicConvolutionForwardImplicitGemm_v4r4_nhwc_kyxc_nhwk_pad
-#elif 0
-        DriverDynamicConvolutionForwardImplicitGemm_v4r4_nhwc_kyxc_nhwk_no_pad
-#elif 1
-        DriverDynamicConvolutionForwardImplicitGemm_v4r4_nhwc_kyxc_nhwk_1x1
+        transform_forward_convolution_into_gemm_v4r4_nhwc_kyxc_nhwk_pad
+#else
+        transform_forward_convolution_into_gemm_v4r4_nhwc_kyxc_nhwk_1x1
 #endif
-        <BlockSize,
-         typename vector_type<TInWei, InWeiVectorSize>::type,
-         TAcc,
-         TOut,
-         GemmMPerBlock,
-         GemmNPerBlock,
-         GemmKPerBlock,
-         GemmMPerThread,
-         GemmNPerThread,
-         GemmKPerThread,
-         GemmMLevel0Cluster,
-         GemmNLevel0Cluster,
-         GemmMLevel1Cluster,
-         GemmNLevel1Cluster,
-         GemmABlockTransferThreadSliceLengths_GemmK_GemmM,
-         GemmABlockTransferThreadClusterLengths_GemmK_GemmM,
-         GemmABlockTransferSrcScalarPerVector_GemmK,
-         GemmABlockTransferDstScalarPerVector_GemmM,
-         GemmBBlockTransferThreadSliceLengths_GemmK_GemmN,
-         GemmBBlockTransferThreadClusterLengths_GemmK_GemmN,
-         GemmBBlockTransferSrcScalarPerVector_GemmK,
-         GemmBBlockTransferDstScalarPerVector_GemmN,
-         GemmCThreadTransferDstScalarPerVector_GemmM1>{};
+        <GemmMPerBlock, GemmNPerBlock, GemmM1, GemmN1>(wei_k_y_x_c0_desc,
+                                                       in_n_hi_wi_c0_desc,
+                                                       out_n_ho_wo_k_desc,
+                                                       conv_strides,
+                                                       conv_dilations,
+                                                       in_left_pads,
+                                                       in_right_pads);
 
-    conv_driver.Run(wei_k_y_x_c0_desc,
-                    in_n_hi_wi_c0_desc,
-                    out_n_ho_wo_k_desc,
-                    conv_strides,
-                    conv_dilations,
-                    in_left_pads,
-                    in_right_pads,
-                    static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
-                        wei_k_y_x_c_device_buf.GetDeviceBuffer()),
-                    static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
-                        in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
-                    static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()));
+    for(index_t i = 0; i < 5; ++i)
+    {
+        float ave_time = launch_kernel_dynamic_gemm_v1<
+            BlockSize,
+            typename vector_type<TInWei, InWeiVectorSize>::type,
+            TAcc,
+            TOut,
+            InMemoryDataOperation::Set,
+            decltype(descs[I0]),
+            decltype(descs[I1]),
+            decltype(descs[I2]),
+            decltype(descs[I3]),
+            GemmMPerBlock,
+            GemmNPerBlock,
+            GemmKPerBlock,
+            GemmMPerThread,
+            GemmNPerThread,
+            GemmKPerThread,
+            GemmMLevel0Cluster,
+            GemmNLevel0Cluster,
+            GemmMLevel1Cluster,
+            GemmNLevel1Cluster,
+            GemmABlockTransferThreadSliceLengths_GemmK_GemmM,
+            GemmABlockTransferThreadClusterLengths_GemmK_GemmM,
+            Sequence<1, 0>,
+            Sequence<1, 0>,
+            0,
+            GemmABlockTransferSrcScalarPerVector_GemmK,
+            GemmABlockTransferDstScalarPerVector_GemmM,
+            false, // don't move back src coordinate after threadwise copy
+            GemmBBlockTransferThreadSliceLengths_GemmK_GemmN,
+            GemmBBlockTransferThreadClusterLengths_GemmK_GemmN,
+            Sequence<1, 0>,
+            Sequence<1, 0>,
+            0,
+            GemmBBlockTransferSrcScalarPerVector_GemmK,
+            GemmBBlockTransferDstScalarPerVector_GemmN,
+            false, // don't move back src coordinate after threadwise copy, which will be fused with
+                   // MoveSrcSliceWindow() to save addr computation
+            Sequence<2, 3, 0, 1>,
+            1,
+            GemmCThreadTransferDstScalarPerVector_GemmM1,
+            decltype(descs[I4]),
+            decltype(descs[I5]),
+            decltype(descs[I6]),
+            decltype(descs[I7]),
+            decltype(descs[I8])>(static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
+                                     wei_k_y_x_c_device_buf.GetDeviceBuffer()),
+                                 static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
+                                     in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
+                                 static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
+                                 descs[I0],
+                                 descs[I1],
+                                 descs[I2],
+                                 descs[I3],
+                                 descs[I4],
+                                 descs[I5],
+                                 descs[I6],
+                                 descs[I7],
+                                 descs[I8],
+                                 nrepeat);
 
+        float perf = (float)(std::size_t(2) * N * K * Ho * Wo * C * Y * X) /
+                     (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+        std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
+    }
+
+    // copy result back to host
     out_n_ho_wo_k_device_buf.FromDevice(out_n_ho_wo_k.mData.data());
 
     auto f_nhwk2nkhw = [&](auto n, auto k, auto ho, auto wo) {

@@ -1376,6 +1376,8 @@ struct ThreadwiseDynamicTensorSliceTransfer_v4
     {
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
+
+        static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0, "wrong!");
     }
 
     template <typename SrcRefToOriginDisplacement,
