@@ -12,7 +12,36 @@
 
 namespace ck {
 
-#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
+#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
+template <typename GridwiseGemm,
+          typename AGlobalDesc,
+          typename FloatA,
+          typename BGlobalDesc,
+          typename FloatB,
+          typename CGlobalDesc,
+          typename FloatC,
+          typename CBlockClusterDesc,
+          bool HasMainKBlockLoop,
+          bool HasDoubleTailKBlockLoop>
+__global__ void kernel_dynamic_gemm_v1(const AGlobalDesc a_k_m_global_desc,
+                                       const FloatA* __restrict__ p_a_global,
+                                       const BGlobalDesc b_k_n_global_desc,
+                                       const FloatB* __restrict__ p_b_global,
+                                       const CGlobalDesc c_m0_m1_n0_n1_global_desc,
+                                       FloatC* __restrict__ p_c_global,
+                                       const CBlockClusterDesc c_block_cluster_desc)
+{
+    GridwiseGemm{}.Run(a_k_m_global_desc,
+                       p_a_global,
+                       b_k_n_global_desc,
+                       p_b_global,
+                       c_m0_m1_n0_n1_global_desc,
+                       p_c_global,
+                       c_block_cluster_desc,
+                       integral_constant<bool, HasMainKBlockLoop>{},
+                       integral_constant<bool, HasDoubleTailKBlockLoop>{});
+}
+#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 // pass tensor descriptor by __CONSTANT__ void pointer
 // __CONSTANT__ is needed to inform compiler void pointers in the kernel signature are pointing to
 // non-modifiable parameter address space, so compiler can enable corresponding optimization
@@ -23,16 +52,18 @@ template <typename GridwiseGemm,
           typename FloatB,
           typename CGlobalDesc,
           typename FloatC,
+          typename CBlockClusterDesc,
           bool HasMainKBlockLoop,
           bool HasDoubleTailKBlockLoop>
-__global__ void run_gridwise_dynamic_gemm_v1(const void __CONSTANT__* p_a_k_m_global_desc,
-                                             const FloatA* __restrict__ p_a_global,
-                                             const void __CONSTANT__* p_b_k_n_global_desc,
-                                             const FloatB* __restrict__ p_b_global,
-                                             const void __CONSTANT__* p_c_m0_m1_n0_n1_global_desc,
-                                             FloatC* __restrict__ p_c_global)
+__global__ void kernel_dynamic_gemm_v1(const void __CONSTANT__* p_a_k_m_global_desc,
+                                       const FloatA* __restrict__ p_a_global,
+                                       const void __CONSTANT__* p_b_k_n_global_desc,
+                                       const FloatB* __restrict__ p_b_global,
+                                       const void __CONSTANT__* p_c_m0_m1_n0_n1_global_desc,
+                                       FloatC* __restrict__ p_c_global,
+                                       const void __CONSTANT__* p_c_block_cluster_desc)
 {
-    // first cast void __CONSTANT__* to void*
+    // first cast void __CONSTANT__ void* to void*
     // second cast void* to Desc*
     // the copy constructor of tensor descriptor doesn't take address_space(4)
     const auto a_k_m_global_desc =
@@ -42,12 +73,16 @@ __global__ void run_gridwise_dynamic_gemm_v1(const void __CONSTANT__* p_a_k_m_gl
     const auto c_m0_m1_n0_n1_global_desc =
         *reinterpret_cast<const CGlobalDesc*>((const void*)p_c_m0_m1_n0_n1_global_desc);
 
+    const auto c_block_cluster_desc =
+        *reinterpret_cast<const CBlockClusterDesc*>((const void*)p_c_block_cluster_desc);
+
     GridwiseGemm{}.Run(a_k_m_global_desc,
                        p_a_global,
                        b_k_n_global_desc,
                        p_b_global,
                        c_m0_m1_n0_n1_global_desc,
                        p_c_global,
+                       c_block_cluster_desc,
                        integral_constant<bool, HasMainKBlockLoop>{},
                        integral_constant<bool, HasDoubleTailKBlockLoop>{});
 }
@@ -61,6 +96,7 @@ template <index_t BlockSize,
           typename AGlobalDesc,
           typename BGlobalDesc,
           typename CGlobalDesc,
+          typename CBlockClusterDesc,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -131,37 +167,30 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
                         const FloatAB* __restrict__ p_b_global,
                         const CGlobalDesc& c_m0_m1_n0_n1_global_desc,
                         FloatC* __restrict__ p_c_global,
+                        const CBlockClusterDesc& c_block_cluster_desc,
                         FloatAB* __restrict__ p_shared_block,
                         integral_constant<bool, HasMainKBlockLoop>,
                         integral_constant<bool, HasDoubleTailKBlockLoop>) const
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
 
         const auto K = a_k_m_global_desc.GetLength(I0);
         const auto M = a_k_m_global_desc.GetLength(I1);
         const auto N = b_k_n_global_desc.GetLength(I1);
 
         // divide block work by [M, N]
-#if 0
-        const auto m_block_work_num = M / Number<MPerBlock>{};
-        const auto n_block_work_num = N / Number<NPerBlock>{};
+        const auto block_work_idx =
+            c_block_cluster_desc.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
-        const index_t m_block_work_id = get_block_1d_id() / n_block_work_num;
-        const index_t n_block_work_id = get_block_1d_id() - m_block_work_id * n_block_work_num;
+        // HACK: this force m/n_block_data_idx_on_global into SGPR
+        const index_t m_block_data_idx_on_global =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
 
-#else
-        // Hack: this force result into SGPR
-        const index_t m_block_work_num = __builtin_amdgcn_readfirstlane(M / MPerBlock);
-        const index_t n_block_work_num = __builtin_amdgcn_readfirstlane(N / NPerBlock);
-
-        const index_t m_block_work_id =
-            __builtin_amdgcn_readfirstlane(get_block_1d_id() / n_block_work_num);
-        const index_t n_block_work_id = get_block_1d_id() - m_block_work_id * n_block_work_num;
-#endif
-
-        const index_t m_block_data_on_global = m_block_work_id * MPerBlock;
-        const index_t n_block_data_on_global = n_block_work_id * NPerBlock;
+        const index_t n_block_data_idx_on_global =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(Number<ABlockTransferDstScalarPerVector_M>{},
@@ -204,7 +233,7 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
                                                    AThreadTransferSrcResetCoordinateAfterRun,
                                                    true>(
                 a_k_m_global_desc,
-                make_multi_index(0, m_block_data_on_global),
+                make_multi_index(0, m_block_data_idx_on_global),
                 a_k_m_block_desc,
                 make_multi_index(0, 0));
 
@@ -233,7 +262,7 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
                                                    BThreadTransferSrcResetCoordinateAfterRun,
                                                    true>(
                 b_k_n_global_desc,
-                make_multi_index(0, n_block_data_on_global),
+                make_multi_index(0, n_block_data_idx_on_global),
                 b_k_n_block_desc,
                 make_multi_index(0, 0));
 
@@ -251,28 +280,45 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
         constexpr index_t MRepeat = MPerBlock / (MPerThread * MLevel0Cluster * MLevel1Cluster);
         constexpr index_t NRepeat = NPerBlock / (NPerThread * NLevel0Cluster * NLevel1Cluster);
 
-        // c_thread_mtx definition: this is a mess
-        // TODO:: more elegent way of defining c_thread_mtx
-        constexpr auto c_m0m1_n0n1_thread_desc = make_dynamic_naive_tensor_descriptor_packed_v2(
-            make_tuple(Number<MRepeat * MPerThread>{}, Number<NRepeat * NPerThread>{}));
+        constexpr auto a_k_m0_m1_block_desc = transform_dynamic_tensor_descriptor(
+            a_k_m_block_desc,
+            make_tuple(
+                make_pass_through_transform(Number<KPerBlock>{}),
+                make_unmerge_transform(make_tuple(
+                    Number<MRepeat>{}, Number<MPerThread * MLevel0Cluster * MLevel1Cluster>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}));
+
+        constexpr auto b_k_n0_n1_block_desc = transform_dynamic_tensor_descriptor(
+            b_k_n_block_desc,
+            make_tuple(
+                make_pass_through_transform(Number<KPerBlock>{}),
+                make_unmerge_transform(make_tuple(
+                    Number<NRepeat>{}, Number<NPerThread * NLevel0Cluster * NLevel1Cluster>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}));
+
+        constexpr auto c_m0_m1_n0_n1_thread_desc =
+            make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(
+                Number<MRepeat>{}, Number<MPerThread>{}, Number<NRepeat>{}, Number<NPerThread>{}));
 
         const auto blockwise_gemm =
-            BlockwiseGemm_km_kn_m0m1n0n1_v1r1<BlockSize,
-                                              FloatAB,
-                                              FloatAB,
-                                              FloatAcc,
-                                              decltype(a_k_m_block_desc),
-                                              decltype(b_k_n_block_desc),
-                                              decltype(c_m0m1_n0n1_thread_desc),
-                                              MPerThread,
-                                              NPerThread,
-                                              KPerThread,
-                                              MLevel0Cluster,
-                                              NLevel0Cluster,
-                                              MLevel1Cluster,
-                                              NLevel1Cluster,
-                                              MPerThread,
-                                              NPerThread>{};
+            BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v2_pipeline_2x2<BlockSize,
+                                                               FloatAB,
+                                                               FloatAB,
+                                                               FloatAcc,
+                                                               decltype(a_k_m0_m1_block_desc),
+                                                               decltype(b_k_n0_n1_block_desc),
+                                                               decltype(c_m0_m1_n0_n1_thread_desc),
+                                                               MPerThread,
+                                                               NPerThread,
+                                                               KPerThread,
+                                                               MLevel0Cluster,
+                                                               NLevel0Cluster,
+                                                               MLevel1Cluster,
+                                                               NLevel1Cluster,
+                                                               MPerThread,
+                                                               NPerThread>{};
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size =
@@ -286,12 +332,12 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
 
         // register allocation for output
         auto c_thread_buf =
-            make_static_buffer<FloatAcc>(c_m0m1_n0n1_thread_desc.GetElementSpaceSize());
+            make_static_buffer<FloatAcc>(c_m0_m1_n0_n1_thread_desc.GetElementSpaceSize());
 
         ThreadwiseDynamicTensorSliceSet_v1<FloatAcc,
-                                           decltype(c_m0m1_n0n1_thread_desc),
-                                           Sequence<MRepeat * MPerThread, NRepeat * NPerThread>>{}
-            .Run(c_m0m1_n0n1_thread_desc, make_tuple(I0, I0), c_thread_buf, FloatAcc{0});
+                                           decltype(c_m0_m1_n0_n1_thread_desc),
+                                           Sequence<MRepeat, MPerThread, NRepeat, NPerThread>>{}
+            .Run(c_m0_m1_n0_n1_thread_desc, make_tuple(I0, I0, I0, I0), c_thread_buf, FloatAcc{0});
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock, 0);
@@ -427,30 +473,11 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
             constexpr auto M1 = Number<MPerThread * MLevel0Cluster * MLevel1Cluster>{};
             constexpr auto N1 = Number<NPerThread * NLevel0Cluster * NLevel1Cluster>{};
 
-            // define input tensor descriptor for threadwise copy
-            //     thread input tensor, src of threadwise copy
-            constexpr auto c_m0_m1_n0_n1_thread_desc =
-                make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(Number<MRepeat>{},
-                                                                          Number<MPerThread>{},
-                                                                          Number<NRepeat>{},
-                                                                          Number<NPerThread>{}));
-
-            // calculate origin of thread input tensor on global memory
-            //     blockwise GEMM c matrix starting index
-            const auto c_thread_mtx_on_block =
-                blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
-
-            const index_t m_thread_data_on_global =
-                m_block_data_on_global + c_thread_mtx_on_block.row;
-
-            const index_t n_thread_data_on_global =
-                n_block_data_on_global + c_thread_mtx_on_block.col;
-
             // hack to control index calculation when iterating over c_m0_m1_n0_n1_global tensor
             constexpr auto c_m0_m1_n0_n1_global_tensor_iterator_hacks = CGlobalIteratorHacks{};
 
-            constexpr auto tmp = make_unmerge_transform(make_tuple(
-                Number<MRepeat>{}, Number<MPerThread>{}, Number<NRepeat>{}, Number<NPerThread>{}));
+            const auto c_thread_data_idx_on_block =
+                blockwise_gemm.CalculateCThreadOriginDataIndex(get_thread_local_1d_id());
 
             ThreadwiseDynamicTensorSliceTransfer_v1r3<
                 FloatAcc,
@@ -465,11 +492,12 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
                 AddressSpace::Global,
                 CGlobalMemoryDataOperation,
                 1,
-                true>(c_m0_m1_n0_n1_global_desc,
-                      make_multi_index(m_thread_data_on_global / M1,
-                                       m_thread_data_on_global % M1,
-                                       n_thread_data_on_global / N1,
-                                       n_thread_data_on_global % N1))
+                true>{
+                c_m0_m1_n0_n1_global_desc,
+                make_multi_index(m_block_data_idx_on_global / M1 + c_thread_data_idx_on_block[I0],
+                                 c_thread_data_idx_on_block[I1],
+                                 n_block_data_idx_on_global / N1 + c_thread_data_idx_on_block[I2],
+                                 c_thread_data_idx_on_block[I3])}
                 .Run(c_m0_m1_n0_n1_thread_desc,
                      make_tuple(I0, I0, I0, I0),
                      c_thread_buf,
@@ -486,6 +514,7 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
                         const FloatAB* __restrict__ p_b_global,
                         const CGlobalDesc& c_m0_m1_n0_n1_global_desc,
                         FloatC* __restrict__ p_c_global,
+                        const CBlockClusterDesc& c_block_cluster_desc,
                         integral_constant<bool, HasMainKBlockLoop>,
                         integral_constant<bool, HasDoubleTailKBlockLoop>) const
     {
@@ -499,6 +528,7 @@ struct GridwiseDynamicGemm_km_kn_m0m1n0n1_v1
             p_b_global,
             c_m0_m1_n0_n1_global_desc,
             p_c_global,
+            c_block_cluster_desc,
             p_shared_block,
             integral_constant<bool, HasMainKBlockLoop>{},
             integral_constant<bool, HasDoubleTailKBlockLoop>{});

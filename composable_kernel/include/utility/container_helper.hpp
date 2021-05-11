@@ -26,13 +26,13 @@ __host__ __device__ constexpr auto container_push_back(const Array<TData, NSize>
 template <typename... Ts, typename T>
 __host__ __device__ constexpr auto container_push_front(const Tuple<Ts...>& a, const T& x)
 {
-    return container_cat(make_tuple(x), a);
+    return container_concat(make_tuple(x), a);
 }
 
 template <typename... Ts, typename T>
 __host__ __device__ constexpr auto container_push_back(const Tuple<Ts...>& a, const T& x)
 {
-    return container_cat(a, make_tuple(x));
+    return container_concat(a, make_tuple(x));
 }
 
 template <typename TData, index_t NSize, index_t... IRs>
@@ -158,6 +158,7 @@ __host__ __device__ constexpr auto container_reduce_impl(
 }
 
 // rocm-4.1 compiler would crash for recursive lambda
+// container reduce with initial value
 template <typename Container,
           typename Reduce,
           typename Init,
@@ -299,27 +300,27 @@ container_reverse_inclusive_scan(const Tuple<Xs...>& x, Reduce f, TData init)
 }
 
 template <typename X, typename... Ys>
-__host__ __device__ constexpr auto container_cat(const X& x, const Ys&... ys)
+__host__ __device__ constexpr auto container_concat(const X& x, const Ys&... ys)
 {
-    return container_cat(x, container_cat(ys...));
+    return container_concat(x, container_concat(ys...));
 }
 
 template <typename T, index_t NX, index_t NY>
-__host__ __device__ constexpr auto container_cat(const Array<T, NX>& ax, const Array<T, NY>& ay)
+__host__ __device__ constexpr auto container_concat(const Array<T, NX>& ax, const Array<T, NY>& ay)
 {
     return unpack2(
         [&](auto&&... zs) { return make_array(std::forward<decltype(zs)>(zs)...); }, ax, ay);
 }
 
 template <typename... X, typename... Y>
-__host__ __device__ constexpr auto container_cat(const Tuple<X...>& tx, const Tuple<Y...>& ty)
+__host__ __device__ constexpr auto container_concat(const Tuple<X...>& tx, const Tuple<Y...>& ty)
 {
     return unpack2(
         [&](auto&&... zs) { return make_tuple(std::forward<decltype(zs)>(zs)...); }, tx, ty);
 }
 
 template <typename Container>
-__host__ __device__ constexpr auto container_cat(const Container& x)
+__host__ __device__ constexpr auto container_concat(const Container& x)
 {
     return x;
 }

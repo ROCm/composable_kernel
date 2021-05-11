@@ -1282,7 +1282,7 @@ struct DynamicFreeze
     __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
                                                            const UpIdx& idx_up) const
     {
-        static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
+        static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 0,
                       "wrong! inconsistent # of dimension");
 
         idx_low = low_idx_;
@@ -1299,7 +1299,7 @@ struct DynamicFreeze
                                                      const UpIdx& idx_up_new,
                                                      Number<Hack>)
     {
-        idx_diff_low(Number<0>{}) = index_t{Number<0>{}};
+        idx_diff_low(Number<0>{}) = 0;
     }
 
     __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
@@ -1325,6 +1325,91 @@ struct DynamicFreeze
     {
         printf("DynamicFreeze");
         printf("low_idx_ %d", index_t{low_idx_});
+    }
+};
+
+template <typename VectorSize, typename UpLength>
+struct DynamicVectorize
+{
+    using LowerIndex = MultiIndex<1>;
+    using UpperIndex = MultiIndex<1>;
+
+    using UpLengths = decltype(make_tuple(UpLength{}));
+
+    UpLengths up_lengths_;
+    VectorSize vector_size_;
+
+    __host__ __device__ constexpr DynamicVectorize() = default;
+
+    __host__ __device__ constexpr DynamicVectorize(const VectorSize& vector_size,
+                                                   const UpLength& up_length)
+        : vector_size_{vector_size}, up_lengths_{make_tuple(up_length)}
+    {
+    }
+
+    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return 1; }
+
+    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
+
+    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ __device__ void CalculateLowerIndex(LowIdx& idx_low, const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(Number<0>{}) = vector_size_ * idx_up[Number<0>{}];
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    __host__ __device__ void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                                              const UpIdxDiff& idx_diff_up,
+                                              LowIdx& idx_low,
+                                              const UpIdx& idx_up_new,
+                                              Number<Hack>) const
+    {
+        static_assert(LowIdxDiff::Size() == 1 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 1 &&
+                          UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        constexpr auto I0 = Number<0>{};
+
+        idx_diff_low(I0) = vector_size_ * idx_diff_up[I0];
+
+        idx_low += idx_diff_low;
+    }
+
+    __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    __host__ __device__ static constexpr bool
+    IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<UpLengths>::value;
+    }
+
+    __host__ __device__ void Print() const
+    {
+        printf("{");
+        printf("DynamicVectorize, ");
+        printf("up_lengths_");
+        print_multi_index(up_lengths_);
+        printf("}");
     }
 };
 
