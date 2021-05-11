@@ -74,5 +74,12 @@ __host__ __device__ constexpr auto make_freeze_transform(const LowerIndex& low_i
     return DynamicFreeze<LowerIndex>{low_idx};
 }
 
+template <typename VectorSize, typename UpLength>
+__host__ __device__ constexpr auto make_vectorize_transform(const VectorSize& vector_size,
+                                                            const UpLength& up_length)
+{
+    return DynamicVectorize<VectorSize, UpLength>{vector_size, up_length};
+}
+
 } // namespace ck
 #endif

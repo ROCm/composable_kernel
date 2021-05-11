@@ -140,5 +140,103 @@ struct ThreadwiseGemm_km_kn_mn_v1r1
     }
 };
 
+// C[M0, M1, N0, N1] += A[K, M0, M1] * B[K, N0, N1]
+//   Tensor element can be vectorized data
+// Assume:
+//   1. ADesc, BDesc, CDesc are known at compile-time
+//   2. AOriginIdx, BOriginIdx, COriginIdx are known at compile-time
+template <typename FloatA,
+          typename FloatB,
+          typename FloatC,
+          typename ADesc,
+          typename BDesc,
+          typename CDesc,
+          typename KLengths,
+          typename MLengths,
+          typename NLengths,
+          typename std::enable_if<ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
+                                      CDesc::IsKnownAtCompileTime(),
+                                  bool>::type = false>
+struct ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1
+{
+    __device__ constexpr ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1()
+    {
+        static_assert(ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
+                          CDesc::IsKnownAtCompileTime(),
+                      "wrong! Desc should be known at compile-time");
+
+        // TODO: sanity-check: compare ADesc, BDesc, CDesc Size with KLenghts, MLengths and NLengths
+
+        // TODO remove this restriction
+        static_assert(KLengths::Size() == 1 && MLengths::Size() == 2 && NLengths::Size() == 2,
+                      "wrong!");
+    }
+
+    template <typename ABuffer,
+              typename AOriginIdx,
+              typename BBuffer,
+              typename BOriginIdx,
+              typename CBuffer,
+              typename COriginIdx>
+    __device__ static void Run(const ABuffer& a_buf,
+                               AOriginIdx,
+                               const BBuffer& b_buf,
+                               BOriginIdx,
+                               CBuffer& c_buf,
+                               COriginIdx)
+    {
+        static_assert(
+            is_known_at_compile_time<remove_cv_t<remove_reference_t<AOriginIdx>>>::value &&
+                is_known_at_compile_time<remove_cv_t<remove_reference_t<BOriginIdx>>>::value &&
+                is_known_at_compile_time<remove_cv_t<remove_reference_t<COriginIdx>>>::value,
+            "wrong! AOriginIdx, BOriginIdx, COringinIdx should be known at compile-time");
+
+        static_assert(is_same<remove_cv_t<remove_reference_t<typename ABuffer::type>>,
+                              remove_cv_t<remove_reference_t<FloatA>>>::value &&
+                      is_same<remove_cv_t<remove_reference_t<typename BBuffer::type>>,
+                              remove_cv_t<remove_reference_t<FloatB>>>::value &&
+                      is_same<remove_cv_t<remove_reference_t<typename CBuffer::type>>,
+                              remove_cv_t<remove_reference_t<FloatC>>>::value &&
+                      "wrong! inconsistent type");
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
+        constexpr auto K  = KLengths{}[I0];
+        constexpr auto M0 = MLengths{}[I0];
+        constexpr auto M1 = MLengths{}[I1];
+        constexpr auto N0 = NLengths{}[I0];
+        constexpr auto N1 = NLengths{}[I1];
+
+        constexpr auto a_origin_idx = to_multi_index(AOriginIdx{});
+        constexpr auto b_origin_idx = to_multi_index(BOriginIdx{});
+        constexpr auto c_origin_idx = to_multi_index(COriginIdx{});
+
+        static_for<0, K, 1>{}([&](auto k) {
+            static_for<0, M0, 1>{}([&](auto m0) {
+                static_for<0, M1, 1>{}([&](auto m1) {
+                    static_for<0, N0, 1>{}([&](auto n0) {
+                        static_for<0, N1, 1>{}([&](auto n1) {
+
+                            constexpr index_t a_offset =
+                                ADesc{}.CalculateOffset(a_origin_idx + make_multi_index(k, m0, m1));
+                            constexpr index_t b_offset =
+                                BDesc{}.CalculateOffset(b_origin_idx + make_multi_index(k, n0, n1));
+                            constexpr index_t c_offset = CDesc{}.CalculateOffset(
+                                c_origin_idx + make_multi_index(m0, m1, n0, n1));
+
+                            amd_assembly_inner_product(a_buf[Number<a_offset>{}],
+                                                       b_buf[Number<b_offset>{}],
+                                                       c_buf(Number<c_offset>{}));
+                        });
+                    });
+                });
+            });
+        });
+    }
+};
+
 } // namespace ck
 #endif

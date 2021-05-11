@@ -46,6 +46,7 @@ void launch_kernel(F kernel,
 
 template <typename... Args, typename F>
 float launch_and_time_kernel(F kernel,
+                             int nrepeat,
                              dim3 grid_dim,
                              dim3 block_dim,
                              std::size_t lds_byte,
@@ -54,15 +55,32 @@ float launch_and_time_kernel(F kernel,
 {
     KernelTimer timer;
 
+    printf("%s: block_dim {%d, %d, %d}, grid_dim {%d, %d, %d} \n",
+           __func__,
+           grid_dim.x,
+           grid_dim.y,
+           grid_dim.z,
+           block_dim.x,
+           block_dim.y,
+           block_dim.z);
+
+    printf("Warm up\n");
+
+    // warm up
+    hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, stream_id, args...);
+
+    printf("Start running %d times...\n", nrepeat);
+
     timer.Start();
 
-    hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, stream_id, args...);
+    for(int i = 0; i < nrepeat; ++i)
+    {
+        hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, stream_id, args...);
+    }
 
     timer.End();
 
-    hipGetLastError();
-
-    return timer.GetElapsedTime();
+    return timer.GetElapsedTime() / nrepeat;
 }
 
 #elif CK_DEVICE_BACKEND_NVIDIA
