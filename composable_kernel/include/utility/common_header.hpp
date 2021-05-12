@@ -8,7 +8,6 @@
 #include "container_element_picker.hpp"
 #include "data_type.hpp"
 #include "float_type.hpp"
-#include "buffer.hpp"
 #include "functional.hpp"
 #include "functional2.hpp"
 #include "functional3.hpp"
@@ -25,6 +24,8 @@
 #include "type.hpp"
 #include "utility.hpp"
 #include "magic_division.hpp"
+#include "static_buffer.hpp"
+#include "dynamic_buffer.hpp"
 
 #if CK_USE_AMD_INLINE_ASM
 #include "amd_inline_asm.hpp"

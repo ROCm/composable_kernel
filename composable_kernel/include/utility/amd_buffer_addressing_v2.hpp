@@ -323,7 +323,7 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
         }
         else if constexpr(N == 2)
         {
-#if !CK_WORKAROUND_SWDEV_XXXXXX
+#if !CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE
             return __llvm_amdgcn_raw_buffer_load_i8x2(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
 #else
@@ -335,7 +335,7 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
         }
         else if constexpr(N == 4)
         {
-#if !CK_WORKAROUND_SWDEV_XXXXXX
+#if !CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE
             return __llvm_amdgcn_raw_buffer_load_i8x4(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
 #else
@@ -347,7 +347,7 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
         }
         else if constexpr(N == 8)
         {
-#if !CK_WORKAROUND_SWDEV_XXXXXX
+#if !CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE
             vector_type<int8_t, 8> tmp;
 
             tmp.AsType<int8x4_t>()(Number<0>{}) = __llvm_amdgcn_raw_buffer_load_i8x4(
@@ -369,7 +369,7 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
         }
         else if constexpr(N == 16)
         {
-#if !CK_WORKAROUND_SWDEV_XXXXXX
+#if !CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE
             vector_type<int8_t, 16> tmp;
 
             tmp.AsType<int8x4_t>()(Number<0>{}) = __llvm_amdgcn_raw_buffer_load_i8x4(
@@ -483,7 +483,7 @@ __device__ void amd_buffer_store_impl_v2(const typename vector_type<T, N>::type 
         }
         else if constexpr(N == 2)
         {
-#if !CK_WORKAROUND_SWDEV_XXXXXX
+#if !CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE
             __llvm_amdgcn_raw_buffer_store_i8x2(src_thread_data,
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
@@ -499,7 +499,7 @@ __device__ void amd_buffer_store_impl_v2(const typename vector_type<T, N>::type 
         }
         else if constexpr(N == 4)
         {
-#if !CK_WORKAROUND_SWDEV_XXXXXX
+#if !CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE
             __llvm_amdgcn_raw_buffer_store_i8x4(src_thread_data,
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
