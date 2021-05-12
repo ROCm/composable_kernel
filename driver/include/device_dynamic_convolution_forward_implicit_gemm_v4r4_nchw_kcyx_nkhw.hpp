@@ -1,7 +1,8 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "host_tensor.hpp"
-#include "driver_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+#include "transform_forward_convolution_into_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+#include "driver_dynamic_gemm_v1.hpp"
 
 template <class TInWei,
           ck::index_t InWeiVectorSize,
