@@ -115,8 +115,10 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        auto a_thread_buf = make_static_buffer<FloatA>(a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<FloatB>(b_thread_desc_.GetElementSpaceSize());
+        auto a_thread_buf =
+            make_static_buffer<AddressSpace::Vgpr, FloatA>(a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf =
+            make_static_buffer<AddressSpace::Vgpr, FloatB>(b_thread_desc_.GetElementSpaceSize());
 
         constexpr auto threadwise_gemm =
             ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1<FloatA,
@@ -176,8 +178,6 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v1
                                                 Sequence<0, 1, 2>,
                                                 2,
                                                 AThreadCopyScalarPerVector_M1,
-                                                AddressSpace::Generic,
-                                                AddressSpace::Vgpr,
                                                 1>;
 
     using BThreadCopy =
@@ -189,8 +189,6 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v1
                                                 Sequence<0, 1, 2>,
                                                 2,
                                                 BThreadCopyScalarPerVector_N1,
-                                                AddressSpace::Generic,
-                                                AddressSpace::Vgpr,
                                                 1>;
 
     CIndex c_thread_origin_data_idx_;
@@ -211,6 +209,8 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v1
 //   3. C:
 //     1. CThreadDesc is known at compile-time
 //     2. CThreadBuffer is StaticBuffer
+// Also assume:
+//   M0 = N0 = 2. It will do 2x2 pipelined read and fma (ABBA optimization)
 template <index_t BlockSize,
           typename FloatA,
           typename FloatB,
@@ -312,8 +312,10 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v2_pipeline_2x2
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        auto a_thread_buf = make_static_buffer<FloatA>(a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<FloatB>(b_thread_desc_.GetElementSpaceSize());
+        auto a_thread_buf =
+            make_static_buffer<AddressSpace::Vgpr, FloatA>(a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf =
+            make_static_buffer<AddressSpace::Vgpr, FloatB>(b_thread_desc_.GetElementSpaceSize());
 
         constexpr auto threadwise_gemm =
             ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1<FloatA,
@@ -481,8 +483,6 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v2_pipeline_2x2
                                                 Sequence<0, 1, 2>,
                                                 2,
                                                 AThreadCopyScalarPerVector_M1,
-                                                AddressSpace::Generic,
-                                                AddressSpace::Vgpr,
                                                 1>;
 
     using BThreadCopy =
@@ -494,8 +494,6 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v2_pipeline_2x2
                                                 Sequence<0, 1, 2>,
                                                 2,
                                                 BThreadCopyScalarPerVector_N1,
-                                                AddressSpace::Generic,
-                                                AddressSpace::Vgpr,
                                                 1>;
 
     CIndex c_thread_origin_data_idx_;

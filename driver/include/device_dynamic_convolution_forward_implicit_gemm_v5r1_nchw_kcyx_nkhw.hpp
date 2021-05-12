@@ -63,12 +63,12 @@ void device_dynamic_convolution_forward_implicit_gemm_v5r1_nchw_kcyx_nkhw(
 
 #if 0
     // run-time variables
-    const auto in_n_c_hi_wi_desc =
-        make_dynamic_naive_tensor_descriptor_packed_v2(to_multi_index(InDesc::GetLengths()));
-    const auto wei_k_c_y_x_desc =
-        make_dynamic_naive_tensor_descriptor_packed_v2(to_multi_index(WeiDesc::GetLengths()));
-    const auto out_n_k_ho_wo_desc =
-        make_dynamic_naive_tensor_descriptor_packed_v2(to_multi_index(OutDesc::GetLengths()));
+    const auto in_n_c0_hi_wi_desc =
+        make_dynamic_naive_tensor_descriptor_packed_v2(make_multi_index(N, C0, Hi, Wi));
+    const auto wei_k_c0_y_x_desc =
+        make_dynamic_naive_tensor_descriptor_packed_v2(make_multi_index(K, C0, Y, X));
+    const auto out_n_k0_ho_wo_k1_desc =
+        make_dynamic_naive_tensor_descriptor_packed_v2(make_multi_index(N, K0, Ho, Wo, K1));
 
     const auto conv_strides   = to_multi_index(ConvStrides{});
     const auto conv_dilations = to_multi_index(ConvDilations{});

@@ -49,8 +49,6 @@ struct BlockwiseGemm_km_kn_m0m1n0n1_v3
                                                 Sequence<0, 1>,
                                                 1,
                                                 ThreadGemmADataPerRead_K,
-                                                AddressSpace::Generic,
-                                                AddressSpace::Vgpr,
                                                 1>;
 
     __device__ BlockwiseGemm_km_kn_m0m1n0n1_v3()
@@ -140,7 +138,7 @@ struct BlockwiseGemm_km_kn_m0m1n0n1_v3
         static_assert(WPerThread % WoPerThreadSubC == 0, "");
 
         // thread A buffer for GEMM
-        StaticBuffer<FloatA, a_thread_mtx_.GetElementSpaceSize()> a_thread_buf;
+        StaticBuffer<AddressSpace::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize()> a_thread_buf;
 
         constexpr auto threadwise_gemm = ThreadwiseGemm_km_kn_mn_v3<FloatA,
                                                                     FloatB,
