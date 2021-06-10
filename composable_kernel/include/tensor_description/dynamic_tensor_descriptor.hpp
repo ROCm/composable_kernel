@@ -308,6 +308,19 @@ transform_dynamic_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
                                     NewLowerDimensionOldVisibleIdss,
                                     NewUpperDimensionNewVisibleIdss)
 {
+    // sanity check
+    {
+        constexpr auto all_old_top_ids = unpack([](auto... xs) { return merge_sequences(xs...); },
+                                                NewLowerDimensionOldVisibleIdss{});
+
+        constexpr auto all_new_top_ids = unpack([](auto... xs) { return merge_sequences(xs...); },
+                                                NewUpperDimensionNewVisibleIdss{});
+
+        static_assert(is_valid_sequence_map<decltype(all_old_top_ids)>::value &&
+                          is_valid_sequence_map<decltype(all_old_top_ids)>::value,
+                      "wrong!");
+    }
+
     // lower dimension's hidden idss
     // convert lower dimension visible idss (tuple of sequences) to hidden idss (tuple of
     // sequences)

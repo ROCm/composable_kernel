@@ -44,7 +44,7 @@ struct GeneratorTensor_Checkboard
     template <class... Ts>
     double operator()(Ts... Xs) const
     {
-        std::array<ck::index_t, sizeof...(Ts)> dims = {{Xs...}};
+        std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
         return std::accumulate(dims.begin(),
                                dims.end(),
                                true,

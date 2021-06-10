@@ -29,10 +29,10 @@ template <index_t BlockSize,
           index_t M1PerThread,
           index_t N1PerThread,
           index_t KPerThread,
-          index_t MLevel0ThreadCluster,
-          index_t NLevel0ThreadCluster,
-          index_t MLevel1ThreadCluster,
-          index_t NLevel1ThreadCluster,
+          index_t M1N1ThreadClusterM10,
+          index_t M1N1ThreadClusterN10,
+          index_t M1N1ThreadClusterM11,
+          index_t M1N1ThreadClusterN11,
           index_t AThreadCopyScalarPerVector_M1,
           index_t BThreadCopyScalarPerVector_N1,
           typename std::enable_if<ABlockDesc::IsKnownAtCompileTime() &&
@@ -62,8 +62,8 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v1
                           CThreadDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
-        static_assert(BlockSize == MLevel0ThreadCluster * MLevel1ThreadCluster *
-                                       NLevel0ThreadCluster * NLevel1ThreadCluster,
+        static_assert(BlockSize == M1N1ThreadClusterM11 * M1N1ThreadClusterM10 *
+                                       M1N1ThreadClusterN11 * M1N1ThreadClusterN10,
                       "wrong! blocksize and cluster size not consistent");
 
         static_assert(ABlockDesc{}.GetLength(I0) == BBlockDesc{}.GetLength(I0),
@@ -78,6 +78,8 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v1
         constexpr index_t N1 = BBlockDesc{}.GetLength(I2);
 
         // 4-d data space into 4-d thread space
+        // upper: {1, M1N1ThreadClusterM10 * M1N1ThreadClusterM11, 1, M1N1ThreadClusterN10 *
+        // M1N1ThreadClusterN11} lower: {M0, M1, N0, N1}
         constexpr auto adaptor0 = make_single_stage_tensor_adaptor(
             make_tuple(make_vectorize_transform(M0, 1),
                        make_vectorize_transform(M1PerThread, M1 / M1PerThread),
@@ -87,21 +89,27 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v1
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
         // thread position 4-d thread space
+        // upper: {M1N1ThreadClusterM10, M1N1ThreadClusterM11, M1N1ThreadClusterN10,
+        // M1N1ThreadClusterN11} lower: {1, M1N1ThreadClusterM10 * M1N1ThreadClusterM11, 1,
+        // M1N1ThreadClusterN10 * M1N1ThreadClusterN11}
         constexpr auto adaptor1 = make_single_stage_tensor_adaptor(
             make_tuple(
                 make_freeze_transform(make_multi_index(0)),
-                make_unmerge_transform(make_tuple(MLevel1ThreadCluster, MLevel0ThreadCluster)),
+                make_unmerge_transform(make_tuple(M1N1ThreadClusterM10, M1N1ThreadClusterM11)),
                 make_freeze_transform(make_multi_index(0)),
-                make_unmerge_transform(make_tuple(NLevel1ThreadCluster, NLevel0ThreadCluster))),
+                make_unmerge_transform(make_tuple(M1N1ThreadClusterN10, M1N1ThreadClusterN11))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<>{}, Sequence<0, 1>{}, Sequence<>{}, Sequence<2, 3>{}));
 
         // 4-d thread space to 1-d thread space
+        // upper: {BlockSize}
+        // lower: {M1N1ThreadClusterM10, M1N1ThreadClusterM11, M1N1ThreadClusterN10,
+        // M1N1ThreadClusterN11}
         constexpr auto adaptor2 = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(MLevel1ThreadCluster,
-                                                       NLevel1ThreadCluster,
-                                                       MLevel0ThreadCluster,
-                                                       NLevel0ThreadCluster))),
+            make_tuple(make_merge_transform(make_tuple(M1N1ThreadClusterM10,
+                                                       M1N1ThreadClusterN10,
+                                                       M1N1ThreadClusterM11,
+                                                       M1N1ThreadClusterN11))),
             make_tuple(Sequence<0, 2, 1, 3>{}),
             make_tuple(Sequence<0>{}));
 
@@ -221,10 +229,10 @@ template <index_t BlockSize,
           index_t M1PerThread,
           index_t N1PerThread,
           index_t KPerThread,
-          index_t MLevel0ThreadCluster,
-          index_t NLevel0ThreadCluster,
-          index_t MLevel1ThreadCluster,
-          index_t NLevel1ThreadCluster,
+          index_t M1N1ThreadClusterM10,
+          index_t M1N1ThreadClusterN10,
+          index_t M1N1ThreadClusterM11,
+          index_t M1N1ThreadClusterN11,
           index_t AThreadCopyScalarPerVector_M1,
           index_t BThreadCopyScalarPerVector_N1,
           typename std::enable_if<ABlockDesc::IsKnownAtCompileTime() &&
@@ -254,8 +262,8 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v2_pipeline_2x2
                           CThreadDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
-        static_assert(BlockSize == MLevel0ThreadCluster * MLevel1ThreadCluster *
-                                       NLevel0ThreadCluster * NLevel1ThreadCluster,
+        static_assert(BlockSize == M1N1ThreadClusterM11 * M1N1ThreadClusterM10 *
+                                       M1N1ThreadClusterN11 * M1N1ThreadClusterN10,
                       "wrong! blocksize and cluster size not consistent");
 
         static_assert(ABlockDesc{}.GetLength(I0) == BBlockDesc{}.GetLength(I0),
@@ -287,18 +295,18 @@ struct BlockwiseGemm_km0m1_kn0n1_m0m1n0n1_v2_pipeline_2x2
         constexpr auto adaptor1 = make_single_stage_tensor_adaptor(
             make_tuple(
                 make_freeze_transform(make_multi_index(0)),
-                make_unmerge_transform(make_tuple(MLevel1ThreadCluster, MLevel0ThreadCluster)),
+                make_unmerge_transform(make_tuple(M1N1ThreadClusterM10, M1N1ThreadClusterM11)),
                 make_freeze_transform(make_multi_index(0)),
-                make_unmerge_transform(make_tuple(NLevel1ThreadCluster, NLevel0ThreadCluster))),
+                make_unmerge_transform(make_tuple(M1N1ThreadClusterN10, M1N1ThreadClusterN11))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<>{}, Sequence<0, 1>{}, Sequence<>{}, Sequence<2, 3>{}));
 
         // 4-d thread space to 1-d thread space
         constexpr auto adaptor2 = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(MLevel1ThreadCluster,
-                                                       NLevel1ThreadCluster,
-                                                       MLevel0ThreadCluster,
-                                                       NLevel0ThreadCluster))),
+            make_tuple(make_merge_transform(make_tuple(M1N1ThreadClusterM10,
+                                                       M1N1ThreadClusterN10,
+                                                       M1N1ThreadClusterM11,
+                                                       M1N1ThreadClusterN11))),
             make_tuple(Sequence<0, 2, 1, 3>{}),
             make_tuple(Sequence<0>{}));
 

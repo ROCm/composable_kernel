@@ -271,18 +271,19 @@ struct Tensor
     std::vector<T> mData;
 };
 
-void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout)
+template <typename X>
+HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens) : mLens(lens)
 {
-    os << "dim " << desc.GetNumOfDimension() << ", ";
-
-    os << "lengths {";
-    LogRange(os, desc.GetLengths(), ", ");
-    os << "}, ";
-
-    os << "strides {";
-    LogRange(os, desc.GetStrides(), ", ");
-    os << "}" << std::endl;
+    this->CalculateStrides();
 }
+
+template <typename X, typename Y>
+HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides)
+    : mLens(lens), mStrides(strides)
+{
+}
+
+void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
 template <class T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)

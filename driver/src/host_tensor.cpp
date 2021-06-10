@@ -3,18 +3,6 @@
 
 #include "host_tensor.hpp"
 
-template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens) : mLens(lens)
-{
-    this->CalculateStrides();
-}
-
-template <typename X, typename Y>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides)
-    : mLens(lens), mStrides(strides)
-{
-}
-
 void HostTensorDescriptor::CalculateStrides()
 {
     mStrides.clear();
@@ -45,3 +33,16 @@ std::size_t HostTensorDescriptor::GetElementSpace() const
 const std::vector<std::size_t>& HostTensorDescriptor::GetLengths() const { return mLens; }
 
 const std::vector<std::size_t>& HostTensorDescriptor::GetStrides() const { return mStrides; }
+
+void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os)
+{
+    os << "dim " << desc.GetNumOfDimension() << ", ";
+
+    os << "lengths {";
+    LogRange(os, desc.GetLengths(), ", ");
+    os << "}, ";
+
+    os << "strides {";
+    LogRange(os, desc.GetStrides(), ", ");
+    os << "}" << std::endl;
+}
