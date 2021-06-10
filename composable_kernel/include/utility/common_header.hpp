@@ -6,6 +6,7 @@
 #include "container_helper.hpp"
 #include "statically_indexed_array.hpp"
 #include "container_element_picker.hpp"
+#include "multi_index.hpp"
 #include "data_type.hpp"
 #include "float_type.hpp"
 #include "functional.hpp"

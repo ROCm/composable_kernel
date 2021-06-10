@@ -115,26 +115,30 @@ template <typename... Lengths, typename Align>
 __host__ __device__ constexpr auto
 make_dynamic_naive_tensor_descriptor_aligned_v2(const Tuple<Lengths...>& lengths, Align align)
 {
+    constexpr auto I1 = Number<1>{};
+
     constexpr index_t N = sizeof...(Lengths);
+
+    const auto stride_n_minus_2 = math::integer_least_multiple(lengths[Number<N - 1>{}], align);
 
     auto strides = generate_tuple(
         [&](auto i) {
             if constexpr(i.value == N - 1)
             {
-                return Number<1>{};
+                return I1;
             }
             else if constexpr(i.value == N - 2)
             {
-                return math::lcm(lengths[Number<N - 1>{}], align);
+                return Number<stride_n_minus_2>{};
             }
             else
             {
                 return container_reduce(lengths,
                                         math::multiplies_v2{},
-                                        math::lcm(lengths[Number<N - 1>{}], align),
-                                        i,
+                                        Number<stride_n_minus_2>{},
+                                        i + I1,
                                         Number<N - 2>{},
-                                        Number<1>{});
+                                        I1);
             }
         },
         Number<N>{});
