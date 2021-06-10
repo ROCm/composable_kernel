@@ -31,8 +31,8 @@ template <index_t BlockSize,
           index_t DstScalarPerVector,
           index_t SrcScalarStrideInVector,
           index_t DstScalarStrideInVector,
-          index_t ThreadTransferSrcResetCoordinateAfterRun,
-          index_t ThreadTransferDstResetCoordinateAfterRun>
+          bool ThreadTransferSrcResetCoordinateAfterRun,
+          bool ThreadTransferDstResetCoordinateAfterRun>
 struct BlockwiseDynamicTensorSliceTransfer_v4
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();

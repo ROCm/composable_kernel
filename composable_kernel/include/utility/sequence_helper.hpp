@@ -26,5 +26,11 @@ __host__ __device__ constexpr auto generate_sequence_v2(F&& f, Number<N>)
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 
+template <index_t... Is>
+__host__ __device__ constexpr auto to_sequence(Tuple<Number<Is>...>)
+{
+    return Sequence<Is...>{};
+}
+
 } // namespace ck
 #endif
