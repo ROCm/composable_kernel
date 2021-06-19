@@ -14,9 +14,9 @@
 #define CK_DEVICE_BACKEND_AMD 1
 
 // GPU ID
-#if 1
+#if 0
 #define CK_AMD_GPU_GFX906 1
-#elif 0
+#elif 1
 #define CK_AMD_GPU_GFX908 1
 #elif 1
 #define CK_AMD_GPU_GFX1030 1

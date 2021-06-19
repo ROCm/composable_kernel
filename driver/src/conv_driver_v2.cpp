@@ -19,8 +19,8 @@
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_FWD_V4R4_NCHW 1
-#define USE_CONV_FWD_V4R4_NHWC 1
-#define USE_CONV_FWD_V4R5_NCHW 1
+#define USE_CONV_FWD_V4R4_NHWC 0
+#define USE_CONV_FWD_V4R5_NCHW 0
 #define USE_CONV_FWD_V5R1_NCHW 0
 
 enum ConvForwardAlgo
