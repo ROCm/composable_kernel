@@ -167,6 +167,7 @@ __host__ float driver_dynamic_gemm_v1r2(const FloatAB* p_a_grid,
                   << c_m0_m10_m11_n0_n10_n11_grid_desc.GetLength(I5) << "}" << std::endl;
     }
 
+#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
     float ave_time = 0;
 
     if(has_main_k_block_loop && has_double_tail_k_block_loop)
@@ -279,6 +280,136 @@ __host__ float driver_dynamic_gemm_v1r2(const FloatAB* p_a_grid,
     }
 
     return ave_time;
+#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
+    DeviceMem a_k_m0_m1_grid_desc_dev_buf(sizeof(AKM0M1GridDesc));
+    DeviceMem b_k_n0_n1_grid_desc_dev_buf(sizeof(BKN0N1GridDesc));
+    DeviceMem c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf(sizeof(CM0M10M11N0N10N11GridDesc));
+    DeviceMem c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf(
+        sizeof(CBlockIdToM0N0BlockClusterAdaptor));
+
+    a_k_m0_m1_grid_desc_dev_buf.ToDevice(&a_k_m0_m1_grid_desc);
+    b_k_n0_n1_grid_desc_dev_buf.ToDevice(&b_k_n0_n1_grid_desc);
+    c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.ToDevice(&c_m0_m10_m11_n0_n10_n11_grid_desc);
+    c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.ToDevice(
+        &c_blockid_to_m0_n0_block_cluster_adaptor);
+
+    float ave_time = 0;
+
+    if(has_main_k_block_loop && has_double_tail_k_block_loop)
+    {
+        const auto kernel =
+            kernel_dynamic_gemm_v1r2<GridwiseGemm,
+                                     FloatAB,
+                                     FloatC,
+                                     remove_reference_t<AKM0M1GridDesc>,
+                                     remove_reference_t<BKN0N1GridDesc>,
+                                     remove_reference_t<CM0M10M11N0N10N11GridDesc>,
+                                     remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                     true,
+                                     true>;
+
+        ave_time = launch_and_time_kernel(
+            kernel,
+            nrepeat,
+            dim3(grid_size),
+            dim3(BlockSize),
+            0,
+            0,
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            (void __CONSTANT__*)a_k_m0_m1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)b_k_n0_n1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer());
+    }
+    else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
+    {
+        const auto kernel =
+            kernel_dynamic_gemm_v1r2<GridwiseGemm,
+                                     FloatAB,
+                                     FloatC,
+                                     remove_reference_t<AKM0M1GridDesc>,
+                                     remove_reference_t<BKN0N1GridDesc>,
+                                     remove_reference_t<CM0M10M11N0N10N11GridDesc>,
+                                     remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                     true,
+                                     false>;
+
+        ave_time = launch_and_time_kernel(
+            kernel,
+            nrepeat,
+            dim3(grid_size),
+            dim3(BlockSize),
+            0,
+            0,
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            (void __CONSTANT__*)a_k_m0_m1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)b_k_n0_n1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer());
+    }
+    else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
+    {
+        const auto kernel =
+            kernel_dynamic_gemm_v1r2<GridwiseGemm,
+                                     FloatAB,
+                                     FloatC,
+                                     remove_reference_t<AKM0M1GridDesc>,
+                                     remove_reference_t<BKN0N1GridDesc>,
+                                     remove_reference_t<CM0M10M11N0N10N11GridDesc>,
+                                     remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                     false,
+                                     true>;
+
+        ave_time = launch_and_time_kernel(
+            kernel,
+            nrepeat,
+            dim3(grid_size),
+            dim3(BlockSize),
+            0,
+            0,
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            (void __CONSTANT__*)a_k_m0_m1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)b_k_n0_n1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer());
+    }
+    else
+    {
+        const auto kernel =
+            kernel_dynamic_gemm_v1r2<GridwiseGemm,
+                                     FloatAB,
+                                     FloatC,
+                                     remove_reference_t<AKM0M1GridDesc>,
+                                     remove_reference_t<BKN0N1GridDesc>,
+                                     remove_reference_t<CM0M10M11N0N10N11GridDesc>,
+                                     remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                     false,
+                                     false>;
+
+        ave_time = launch_and_time_kernel(
+            kernel,
+            nrepeat,
+            dim3(grid_size),
+            dim3(BlockSize),
+            0,
+            0,
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            (void __CONSTANT__*)a_k_m0_m1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)b_k_n0_n1_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer(),
+            (void __CONSTANT__*)c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer());
+    }
+
+    return ave_time;
+#endif
 }
 
 } // namespace ck
