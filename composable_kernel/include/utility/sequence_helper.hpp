@@ -1,7 +1,7 @@
 #ifndef CK_SEQUENCE_HELPER_HPP
 #define CK_SEQUENCE_HELPER_HPP
 
-#include "sequence_helper.hpp"
+#include "tuple.hpp"
 
 namespace ck {
 
