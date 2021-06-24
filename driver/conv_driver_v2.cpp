@@ -18,9 +18,9 @@
 #include "device_dynamic_convolution_forward_implicit_gemm_v5r1_nchw_kcyx_nkhw.hpp"
 
 #define USE_DYNAMIC_MODE 1
-#define USE_CONV_FWD_V4R4_NCHW 1
+#define USE_CONV_FWD_V4R4_NCHW 0
 #define USE_CONV_FWD_V4R4_NHWC 0
-#define USE_CONV_FWD_V4R5_NCHW 0
+#define USE_CONV_FWD_V4R5_NCHW 1
 #define USE_CONV_FWD_V5R1_NCHW 0
 
 enum ConvForwardAlgo
@@ -278,8 +278,6 @@ int main(int argc, char* argv[])
                           in_left_pads_dev,
                           in_right_pads_dev);
     };
-
-    const auto nhwc_desc = f_make_for_device_nhwc();
 
 #if USE_CONV_FWD_V4R4_NCHW
     if(algo == ConvForwardAlgo::V4R4NCHW)
