@@ -101,9 +101,9 @@ struct ThreadwiseDynamicTensorSliceTransfer_v1r3
 
         static_assert(SrcBuffer::IsStaticBuffer(), "wrong! SrcBuffer need to be StaticBuffer");
 
-        static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
-                              remove_cv_t<remove_reference_t<SrcData>>>::value,
-                      "wrong! SrcBuffer data type is wrong");
+        // static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
+        // remove_cv_t<remove_reference_t<SrcData>>>::value,
+        //"wrong! SrcBuffer data type is wrong");
 
         // SrcDesc and src_slice_origin_idx are known at compile-time
         constexpr auto src_desc             = remove_cv_t<remove_reference_t<SrcDesc>>{};
@@ -1407,7 +1407,6 @@ struct ThreadwiseDynamicTensorSliceTransfer_v4
             constexpr auto data_to_origin_disp_idx =
                 ordered_access_idx.ReorderGivenOld2New(dim_access_order) * src_scalar_per_access;
 #endif
-
             // src coordinate
             constexpr auto src_ref_to_data_disp_idx =
                 src_ref_to_origin_disp_idx + data_to_origin_disp_idx;

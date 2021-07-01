@@ -268,6 +268,7 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
         }
         else if constexpr(N == 8)
         {
+#if 0
             vector_type<half_t, 8> tmp;
 
             tmp.AsType<half4_t>()(Number<0>{}) = __llvm_amdgcn_raw_buffer_load_fp16x4(
@@ -280,6 +281,12 @@ amd_buffer_load_impl_v2(int32x4_t src_wave_buffer_resource,
                                                      0);
 
             return tmp.AsType<half8_t>()(Number<0>{});
+#else
+            float4_t tmp = __llvm_amdgcn_raw_buffer_load_fp32x4(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+
+            return as_type<half8_t>(tmp);
+#endif
         }
     }
     else if constexpr(is_same<T, int32_t>::value)

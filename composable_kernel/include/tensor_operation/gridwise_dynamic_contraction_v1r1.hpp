@@ -101,6 +101,7 @@ struct GridwiseDynamicContraction_km0m1_kn0n1_m0m1n0n1_v1r1
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
+    // GM0 and GN0 need to known at compile-time
     static constexpr auto GM0 = CGM0GM1GN0GN1GridDesc{}.GetLength(I0);
     static constexpr auto GN0 = CGM0GM1GN0GN1GridDesc{}.GetLength(I2);
 
@@ -140,7 +141,7 @@ struct GridwiseDynamicContraction_km0m1_kn0n1_m0m1n0n1_v1r1
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(GM0)>>::value &&
                           is_known_at_compile_time<remove_cv_t<decltype(GN0)>>::value,
-                      "wrong!");
+                      "wrong! GM0 and GN0 need to be known at compile-time");
 
         const auto GM1 = a_gk_gm0_gm1_grid_desc.GetLength(I2);
         const auto GN1 = b_gk_gn0_gn1_grid_desc.GetLength(I2);

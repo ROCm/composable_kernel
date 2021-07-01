@@ -1,13 +1,14 @@
 #ifndef HOST_TENSOR_GENERATOR_HPP
 #define HOST_TENSOR_GENERATOR_HPP
 
+#include <cmath>
 #include "config.hpp"
 
 struct GeneratorTensor_1
 {
     int value = 1;
 
-    template <class... Is>
+    template <typename... Is>
     double operator()(Is... is)
     {
         return value;
@@ -19,7 +20,7 @@ struct GeneratorTensor_2
     int min_value = 0;
     int max_value = 1;
 
-    template <class... Is>
+    template <typename... Is>
     double operator()(Is...)
     {
         return (std::rand() % (max_value - min_value)) + min_value;
@@ -28,7 +29,7 @@ struct GeneratorTensor_2
 
 struct GeneratorTensor_3
 {
-    template <class... Is>
+    template <typename... Is>
     double operator()(Is... is)
     {
         std::array<ck::index_t, sizeof...(Is)> dims = {{static_cast<ck::index_t>(is)...}};
@@ -41,7 +42,7 @@ struct GeneratorTensor_3
 
 struct GeneratorTensor_Checkboard
 {
-    template <class... Ts>
+    template <typename... Ts>
     double operator()(Ts... Xs) const
     {
         std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};

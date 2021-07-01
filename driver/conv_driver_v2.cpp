@@ -16,19 +16,31 @@
 #include "device_dynamic_convolution_forward_implicit_gemm_v4r4_nhwc_kyxc_nhwk.hpp"
 #include "device_dynamic_convolution_forward_implicit_gemm_v4r5_nchw_kcyx_nkhw.hpp"
 #include "device_dynamic_convolution_forward_implicit_gemm_v5r1_nchw_kcyx_nkhw.hpp"
+#include "device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
+#include "device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nhwc_kyxc_nhwk.hpp"
+#include "device_dynamic_convolution_forward_implicit_gemm_v4r4r3_xdlops_nhwc_kyxc_nhwk.hpp"
+#include "device_dynamic_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_FWD_V4R4_NCHW 0
 #define USE_CONV_FWD_V4R4_NHWC 0
-#define USE_CONV_FWD_V4R5_NCHW 1
+#define USE_CONV_FWD_V4R5_NCHW 0
 #define USE_CONV_FWD_V5R1_NCHW 0
+#define USE_CONV_FWD_V4R4_XDL_NCHW 0
+#define USE_CONV_FWD_V4R4R2_XDL_NHWC 0
+#define USE_CONV_FWD_V4R4R3_XDL_NHWC 1
+#define USE_CONV_FWD_V4R4R4_XDL_NHWC 1
 
 enum ConvForwardAlgo
 {
-    V4R4NCHW,
-    V4R4NHWC,
-    V4R5NCHW,
-    V5R1NCHW
+    V4R4NCHW,      // 0
+    V4R4NHWC,      // 1
+    V4R5NCHW,      // 2
+    V5R1NCHW,      // 3
+    V4R4XDLNCHW,   // 4
+    V4R4R2XDLNHWC, // 5
+    V4R4R3XDLNHWC, // 6
+    V4R4R4XDLNHWC  // 7
 };
 
 int main(int argc, char* argv[])
@@ -97,21 +109,21 @@ int main(int argc, char* argv[])
     const int nrepeat             = atoi(argv[6]);
 
     constexpr index_t N  = 128;
-    constexpr index_t C  = 128;
-    constexpr index_t Hi = 17;
-    constexpr index_t Wi = 17;
-    constexpr index_t K  = 128;
-    constexpr index_t Y  = 1;
-    constexpr index_t X  = 7;
+    constexpr index_t C  = 192;
+    constexpr index_t Hi = 71;
+    constexpr index_t Wi = 71;
+    constexpr index_t K  = 256;
+    constexpr index_t Y  = 3;
+    constexpr index_t X  = 3;
 
-    const index_t conv_stride_h   = 1;
-    const index_t conv_stride_w   = 1;
+    const index_t conv_stride_h   = 2;
+    const index_t conv_stride_w   = 2;
     const index_t conv_dilation_h = 1;
     const index_t conv_dilation_w = 1;
-    const index_t in_left_pad_h   = 0;
-    const index_t in_left_pad_w   = 3;
-    const index_t in_right_pad_h  = 0;
-    const index_t in_right_pad_w  = 3;
+    const index_t in_left_pad_h   = 1;
+    const index_t in_left_pad_w   = 1;
+    const index_t in_right_pad_h  = 1;
+    const index_t in_right_pad_w  = 1;
 
     const index_t YEff = (Y - 1) * conv_dilation_h + 1;
     const index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -120,11 +132,16 @@ int main(int argc, char* argv[])
     const index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 #endif
 
-#if 1
+#if 0
     constexpr index_t in_vector_size = 1;
     using in_data_t                  = float;
     using acc_data_t                 = float;
     using out_data_t                 = float;
+#elif 1
+    constexpr index_t in_vector_size = 1;
+    using in_data_t                  = half_t;
+    using acc_data_t                 = float;
+    using out_data_t                 = half_t;
 #elif 1
     constexpr index_t in_vector_size = 16;
     using in_data_t                  = int8_t;
@@ -384,6 +401,114 @@ int main(int argc, char* argv[])
     }
 #endif
 
+#if USE_CONV_FWD_V4R4_XDL_NCHW
+    if(algo == ConvForwardAlgo::V4R4XDLNCHW)
+    {
+        if(layout != ConvTensorLayout::NCHW)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nchw();
+
+        device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw<in_data_t,
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
+            tmp[I0],
+            tmp[I1],
+            tmp[I2],
+            tmp[I3],
+            tmp[I4],
+            tmp[I5],
+            tmp[I6],
+            in,
+            wei,
+            out_device,
+            nrepeat);
+    }
+#endif
+
+#if USE_CONV_FWD_V4R4R2_XDL_NHWC
+    if(algo == ConvForwardAlgo::V4R4R2XDLNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
+            tmp[I0],
+            tmp[I1],
+            tmp[I2],
+            tmp[I3],
+            tmp[I4],
+            tmp[I5],
+            tmp[I6],
+            in,
+            wei,
+            out_device,
+            nrepeat);
+    }
+#endif
+
+#if USE_CONV_FWD_V4R4R3_XDL_NHWC
+    if(algo == ConvForwardAlgo::V4R4R3XDLNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_dynamic_convolution_forward_implicit_gemm_v4r4r3_xdlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
+            tmp[I0],
+            tmp[I1],
+            tmp[I2],
+            tmp[I3],
+            tmp[I4],
+            tmp[I5],
+            tmp[I6],
+            in,
+            wei,
+            out_device,
+            nrepeat);
+    }
+#endif
+
+#if USE_CONV_FWD_V4R4R4_XDL_NHWC
+    if(algo == ConvForwardAlgo::V4R4R4XDLNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_dynamic_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
+            tmp[I0],
+            tmp[I1],
+            tmp[I2],
+            tmp[I3],
+            tmp[I4],
+            tmp[I5],
+            tmp[I6],
+            in,
+            wei,
+            out_device,
+            nrepeat);
+    }
+#endif
+
     if(do_verification)
     {
         host_direct_convolution(in,
@@ -397,6 +522,7 @@ int main(int argc, char* argv[])
 
         check_error(out_host, out_device);
 
+#if 0
         if(do_log)
         {
             LogRange(std::cout << "in : ", in.mData, ",") << std::endl;
@@ -404,5 +530,6 @@ int main(int argc, char* argv[])
             LogRange(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
             LogRange(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
         }
+#endif
     }
 }

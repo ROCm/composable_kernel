@@ -81,24 +81,27 @@ message("Compiling options for drivers: ${CMAKE_CXX_FLAGS}")
 
 if(DEVICE_BACKEND STREQUAL "AMD")
     set(CONV_SOURCE driver/conv_driver.cpp)
-    set(CONV_V2_SOURCE driver/conv_driver_v2.cpp)
-    set(CONV_V2_OLC_SOURCE driver/conv_driver_v2_olc.cpp)
     set(CONV_BWD_DATA_SOURCE driver/conv_bwd_data_driver.cpp)
+    set(CONV_V2_SOURCE driver/conv_driver_v2.cpp)
+    set(CONV_BWD_DATA_V2_SOURCE driver/conv_bwd_data_driver_v2.cpp)
+    set(CONV_V2_OLC_SOURCE driver/conv_driver_v2_olc.cpp)
 elseif(DEVICE_BACKEND STREQUAL "NVIDIA")
     set(CONV_SOURCE driver/conv_driver.cu)
     set(CONV_BWD_DATA_SOURCE driver/conv_bwd_data_driver.cu)
 endif()
 
-##add_executable(conv_driver ${CONV_SOURCE})
+add_executable(conv_driver ${CONV_SOURCE})
+add_executable(conv_bwd_data_driver ${CONV_BWD_DATA_SOURCE})
 add_executable(conv_driver_v2 ${CONV_V2_SOURCE})
+add_executable(conv_bwd_data_driver_v2 ${CONV_BWD_DATA_V2_SOURCE})
 add_executable(conv_driver_v2_olc ${CONV_V2_OLC_SOURCE})
-##add_executable(conv_bwd_data_driver ${CONV_BWD_DATA_SOURCE})
 
 target_include_directories(conv_driver_v2_olc PRIVATE driver/olCompiling/include/)
 
-##target_link_libraries(conv_driver PRIVATE modConv)
+target_link_libraries(conv_driver PRIVATE modConv)
+target_link_libraries(conv_bwd_data_driver PRIVATE modConv)
 target_link_libraries(conv_driver_v2 PRIVATE modConv)
+target_link_libraries(conv_bwd_data_driver_v2 PRIVATE modConv)
 target_link_libraries(conv_driver_v2_olc PRIVATE modConv)
-##target_link_libraries(conv_bwd_data_driver PRIVATE modConv)
 
 
