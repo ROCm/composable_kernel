@@ -236,18 +236,18 @@ extern "C" __global__ void
     constexpr auto I2 = Number<2>{};
 
     constexpr auto in_n_c_hi_wi_desc =
-        make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(64, 4, 35, 35));
+        make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(256, 256, 28, 28));
     constexpr auto wei_k_c_y_x_desc =
-        make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(8, 4, 3, 3));
+        make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(256, 256, 3, 3));
     constexpr auto out_n_k_ho_wo_desc =
-        make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(64, 8, 18, 18));
+        make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(256, 256, 28, 28));
 
     constexpr auto descs =
         transform_forward_convolution_into_contraction_v4r5_nchw_kcyx_nkhw_pad<N0>(
             wei_k_c_y_x_desc,
             in_n_c_hi_wi_desc,
             out_n_k_ho_wo_desc,
-            make_tuple(2, 2),
+            make_tuple(1, 1),
             make_tuple(1, 1),
             make_tuple(1, 1),
             make_tuple(1, 1));
