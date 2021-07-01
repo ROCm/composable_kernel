@@ -118,8 +118,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v5r1_nhwc_kyxc_nhwk
         constexpr index_t GemmN = N * HTildaSlice * WTildaSlice;
 
         // GemmK is different for each GEMM
-        index_t YDotSlice = (iYTilda + 1) * YDot <= Y ? YDot : Y % YDot;
-        index_t XDotSlice = (iXTilda + 1) * XDot <= X ? XDot : X % XDot;
+        index_t YDotSlice = math::integer_divide_ceil(Y - iYTilda, YTilda);
+        index_t XDotSlice = math::integer_divide_ceil(X - iXTilda, XTilda);
 
         index_t GemmK0 = YDotSlice;
         index_t GemmK1 = XDotSlice;
@@ -180,8 +180,8 @@ struct GridwiseConvolutionBackwardDataImplicitGemm_v5r1_nhwc_kyxc_nhwk
         constexpr index_t YDot = math::integer_divide_ceil(Y, YTilda);
         constexpr index_t XDot = math::integer_divide_ceil(X, XTilda);
 
-        constexpr index_t YDotSlice = (iYTilda + 1) * YDot <= Y ? YDot : Y % YDot;
-        constexpr index_t XDotSlice = (iXTilda + 1) * XDot <= X ? XDot : X % XDot;
+        constexpr index_t YDotSlice = math::integer_divide_ceil(Y - iYTilda, YTilda);
+        constexpr index_t XDotSlice = math::integer_divide_ceil(X - iXTilda, XTilda);
 
         constexpr index_t HTilda =
             Ho + math::integer_divide_ceil(ConvDilationH * (Y - 1), ConvStrideH);

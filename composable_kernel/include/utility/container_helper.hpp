@@ -174,8 +174,15 @@ __host__ __device__ constexpr auto container_reduce(const Container& x,
 {
     static_assert((IEnd - IBegin) % IStep == 0, "wrong!");
 
-    return container_reduce_impl(
-        x, reduce, init, Number<IBegin>{}, Number<IEnd>{}, Number<IStep>{});
+    if constexpr(IEnd > IBegin)
+    {
+        return container_reduce_impl(
+            x, reduce, init, Number<IBegin>{}, Number<IEnd>{}, Number<IStep>{});
+    }
+    else
+    {
+        return init;
+    }
 }
 #endif
 

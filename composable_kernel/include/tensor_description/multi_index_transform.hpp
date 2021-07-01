@@ -121,7 +121,7 @@ struct Slice
                           SliceEnds::GetSize() == nDim,
                       "wrong! # of dimensions not consistent");
 
-#if 0 
+#if 0
         // TODO: would not compile, error on constexpr
         static_for<0, nDim, 1>{}([&](auto idim) {
             static_assert(SliceBegins::At(idim) <= SliceEnds::At(idim) &&

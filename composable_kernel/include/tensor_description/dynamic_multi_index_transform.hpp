@@ -1417,6 +1417,7 @@ struct DynamicUnMerge
         printf("DynamicUnMerge, ");
         printf("up_lengths_");
         print_multi_index(up_lengths_);
+        printf("up_lengths_scan_");
         print_multi_index(up_lengths_scan_);
         printf("}");
     }
@@ -1439,12 +1440,12 @@ struct DynamicFreeze
 
     template <typename LowIdx, typename UpIdx>
     __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
-                                                           const UpIdx& idx_up) const
+                                                           const UpIdx& /* idx_up */) const
     {
         static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 0,
                       "wrong! inconsistent # of dimension");
 
-        idx_low = low_idx_;
+        idx_low(Number<0>{}) = low_idx_;
     }
 
     template <typename LowIdxDiff,
@@ -1453,9 +1454,9 @@ struct DynamicFreeze
               typename UpIdx,
               index_t Hack>
     __host__ __device__ static void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
-                                                     const UpIdxDiff& idx_diff_up,
-                                                     LowIdx& idx_low,
-                                                     const UpIdx& idx_up_new,
+                                                     const UpIdxDiff& /* idx_diff_up */,
+                                                     LowIdx& /* idx_low */,
+                                                     const UpIdx& /* idx_up_new */,
                                                      Number<Hack>)
     {
         idx_diff_low(Number<0>{}) = 0;
@@ -1484,6 +1485,73 @@ struct DynamicFreeze
     {
         printf("DynamicFreeze");
         printf("low_idx_ %d", index_t{low_idx_});
+    }
+};
+
+// Insert a dangling upper dimension without lower dimension
+template <typename UpperLength>
+struct DynamicInsert
+{
+    using UpLengths = decltype(make_tuple(UpperLength{}));
+
+    UpLengths up_lengths_;
+
+    __host__ __device__ constexpr DynamicInsert() = default;
+
+    __host__ __device__ constexpr DynamicInsert(const UpperLength& up_length)
+        : up_lengths_{make_tuple(up_length)}
+    {
+    }
+
+    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return 0; }
+
+    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
+
+    __host__ __device__ constexpr auto GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx&, const UpIdx&) const
+    {
+        static_assert(LowIdx::Size() == 0 && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    __host__ __device__ static void
+    UpdateLowerIndex(LowIdxDiff&, const UpIdxDiff&, LowIdx&, const UpIdx&, Number<Hack>)
+    {
+        static_assert(LowIdxDiff::Size() == 0 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 0 &&
+                          UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+    }
+
+    __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    __host__ __device__ static constexpr bool
+    IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<UpperLength>::value;
+    }
+
+    __host__ __device__ void Print() const
+    {
+        printf("DynamicInsert");
+        print_multi_index(up_lengths_);
     }
 };
 
@@ -1568,6 +1636,100 @@ struct DynamicVectorize
         printf("DynamicVectorize, ");
         printf("up_lengths_");
         print_multi_index(up_lengths_);
+        printf("}");
+    }
+};
+
+template <typename LowLength, typename SliceBegin, typename SliceEnd>
+struct DynamicSlice
+{
+    using LowerIndex = MultiIndex<1>;
+    using UpperIndex = MultiIndex<1>;
+
+    using UpLengths = decltype(make_tuple(SliceEnd{} - SliceBegin{}));
+
+    UpLengths up_lengths_;
+    SliceBegin slice_begin_;
+    SliceEnd slice_end_;
+
+    __host__ __device__ constexpr DynamicSlice() = default;
+
+    __host__ __device__ constexpr DynamicSlice(const LowLength& low_length,
+                                               const SliceBegin& slice_begin,
+                                               const SliceEnd& slice_end)
+        : up_lengths_{make_tuple(slice_end - slice_begin)},
+          slice_begin_{slice_begin},
+          slice_end_{slice_end}
+    {
+    }
+
+    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return 1; }
+
+    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
+
+    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                           const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(Number<0>{}) = idx_up[Number<0>{}] + slice_begin_;
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    __host__ __device__ static void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                                                     const UpIdxDiff& idx_diff_up,
+                                                     LowIdx& idx_low,
+                                                     const UpIdx& idx_up_new,
+                                                     Number<Hack>)
+    {
+        static_assert(LowIdxDiff::Size() == 1 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 1 &&
+                          UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        constexpr auto I0 = Number<0>{};
+
+        idx_diff_low(I0) = idx_diff_up[I0];
+
+        idx_low += idx_diff_low;
+    }
+
+    __host__ __device__ static constexpr bool IsLinearTransform() { return true; }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    __host__ __device__ constexpr bool
+    IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& idx_up) const
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<UpLengths>::value &&
+               is_known_at_compile_time<SliceBegin>::value &&
+               is_known_at_compile_time<SliceEnd>::value;
+    }
+
+    __host__ __device__ void Print() const
+    {
+        printf("{");
+        printf("DynamicSlice, ");
+        printf("up_lengths_");
+        print_multi_index(up_lengths_);
+        printf("slice_begin_ %d", index_t{slice_begin_});
+        printf("slice_end %d", index_t{slice_end_});
         printf("}");
     }
 };

@@ -137,7 +137,7 @@ make_dynamic_naive_tensor_descriptor_aligned_v2(const Tuple<Lengths...>& lengths
                                         math::multiplies_v2{},
                                         Number<stride_n_minus_2>{},
                                         i + I1,
-                                        Number<N - 2>{},
+                                        Number<N - 1>{},
                                         I1);
             }
         },

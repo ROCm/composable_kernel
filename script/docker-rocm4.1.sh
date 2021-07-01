@@ -8,7 +8,7 @@ docker run                                                                   \
 --group-add sudo                                                             \
 -w /root/workspace                                                           \
 -v $WORKSPACE:/root/workspace                                                \
-asroy/tensorflow:rocm3.7-tf2.3-dev-omp                                       \
+rocm/tensorflow:rocm4.1-tf1.15-dev                               \
 /bin/bash
 
 #--network host                                                               \
