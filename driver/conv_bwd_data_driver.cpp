@@ -19,7 +19,22 @@ int main(int argc, char* argv[])
 {
     using namespace launcher;
 
-#if 0
+#if 1
+    // 1x1 filter, 14x14 image
+    constexpr index_t N  = 1;
+    constexpr index_t C  = 256;
+    constexpr index_t HI = 1;
+    constexpr index_t WI = 128;
+    constexpr index_t K  = 16;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    using LeftPads  = Sequence<0, 0>;
+    using RightPads = Sequence<0, 0>;
+#elif 0
     constexpr index_t N  = 64;
     constexpr index_t C  = 256;
     constexpr index_t HI = 56;
@@ -93,7 +108,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<0, 0>;
     using RightPads = Sequence<0, 0>;
-#elif 0
+#elif 1
     // 1x1 filter, 14x14 image
     constexpr index_t N  = 128;
     constexpr index_t C  = 512;
@@ -153,7 +168,7 @@ int main(int argc, char* argv[])
 
     using LeftPads  = Sequence<2, 2>;
     using RightPads = Sequence<2, 2>;
-#elif 1
+#elif 0
     // 1x7 filter, 0x3 pad, 17x17 input
     constexpr index_t N  = 128;
     constexpr index_t C  = 128;
@@ -245,7 +260,7 @@ int main(int argc, char* argv[])
     device_convolution_backward_data_implicit_gemm_v1r1_nchw_kcyx_nkhw
 #elif 0
     device_convolution_backward_data_implicit_gemm_v1r2_nchw_kcyx_nkhw
-#elif 1
+#elif 0
     device_convolution_backward_data_implicit_gemm_v4r1_nchw_kcyx_nkhw
 #elif 1
     device_convolution_backward_data_implicit_gemm_v5r1_nhwc_kyxc_nhwk

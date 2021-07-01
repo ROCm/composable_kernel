@@ -85,6 +85,14 @@ __host__ __device__ constexpr auto make_freeze_transform(const LowerIndex& low_i
     return DynamicFreeze<LowerIndex>{low_idx};
 }
 
+template <typename LowLength, typename SliceBegin, typename SliceEnd>
+__host__ __device__ constexpr auto make_slice_transform(const LowLength& low_length,
+                                                        const SliceBegin& slice_begin,
+                                                        const SliceEnd& slice_end)
+{
+    return DynamicSlice<LowLength, SliceBegin, SliceEnd>{low_length, slice_begin, slice_end};
+}
+
 template <typename VectorSize, typename UpLength>
 __host__ __device__ constexpr auto make_vectorize_transform(const VectorSize& vector_size,
                                                             const UpLength& up_length)

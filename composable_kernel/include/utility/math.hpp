@@ -9,25 +9,25 @@
 namespace ck {
 namespace math {
 
-template <class T, T s>
+template <typename T, T s>
 struct scales
 {
     __host__ __device__ constexpr T operator()(T a) const { return s * a; }
 };
 
-template <class T>
+template <typename T>
 struct plus
 {
     __host__ __device__ constexpr T operator()(T a, T b) const { return a + b; }
 };
 
-template <class T>
+template <typename T>
 struct minus
 {
     __host__ __device__ constexpr T operator()(T a, T b) const { return a - b; }
 };
 
-template <class T>
+template <typename T>
 struct multiplies
 {
     __host__ __device__ constexpr T operator()(T a, T b) const { return a * b; }
@@ -42,81 +42,109 @@ struct multiplies_v2
     }
 };
 
-template <class T>
+template <typename T>
 struct maximize
 {
     __host__ __device__ constexpr T operator()(T a, T b) const { return a >= b ? a : b; }
 };
 
-template <class T>
+template <typename T>
 struct minimize
 {
     __host__ __device__ constexpr T operator()(T a, T b) const { return a <= b ? a : b; }
 };
 
-template <class T>
+template <typename T>
 struct integer_divide_ceiler
 {
     __host__ __device__ constexpr T operator()(T a, T b) const
     {
         static_assert(is_same<T, index_t>{} || is_same<T, int>{}, "wrong type");
 
-        return (a + b - 1) / b;
+        return (a + b - Number<1>{}) / b;
     }
 };
 
-template <class X, class Y>
+template <typename X, typename Y>
 __host__ __device__ constexpr auto integer_divide_floor(X x, Y y)
 {
     return x / y;
 }
 
-template <class X, class Y>
+template <typename X, typename Y>
 __host__ __device__ constexpr auto integer_divide_ceil(X x, Y y)
 {
     return (x + y - Number<1>{}) / y;
 }
 
-template <class X, class Y>
+template <typename X, typename Y>
 __host__ __device__ constexpr auto integer_least_multiple(X x, Y y)
 {
     return y * integer_divide_ceil(x, y);
 }
 
-template <class T>
+template <typename T>
 __host__ __device__ constexpr T max(T x)
 {
     return x;
 }
 
-template <class T, class... Ts>
-__host__ __device__ constexpr T max(T x, Ts... xs)
+template <typename T>
+__host__ __device__ constexpr T max(T x, T y)
 {
-    static_assert(sizeof...(xs) > 0, "not enough argument");
-
-    auto y = max(xs...);
-
-    static_assert(is_same<decltype(y), T>{}, "not the same type");
-
     return x > y ? x : y;
 }
 
-template <class T>
+template <index_t X>
+__host__ __device__ constexpr index_t max(Number<X>, index_t y)
+{
+    return X > y ? X : y;
+}
+
+template <index_t Y>
+__host__ __device__ constexpr index_t max(index_t x, Number<Y>)
+{
+    return x > Y ? x : Y;
+}
+
+template <typename X, typename... Ys>
+__host__ __device__ constexpr auto max(X x, Ys... ys)
+{
+    static_assert(sizeof...(Ys) > 0, "not enough argument");
+
+    return max(x, max(ys...));
+}
+
+template <typename T>
 __host__ __device__ constexpr T min(T x)
 {
     return x;
 }
 
-template <class T, class... Ts>
-__host__ __device__ constexpr T min(T x, Ts... xs)
+template <typename T>
+__host__ __device__ constexpr T min(T x, T y)
 {
-    static_assert(sizeof...(xs) > 0, "not enough argument");
-
-    auto y = min(xs...);
-
-    static_assert(is_same<decltype(y), T>{}, "not the same type");
-
     return x < y ? x : y;
+}
+
+template <index_t X>
+__host__ __device__ constexpr index_t min(Number<X>, index_t y)
+{
+    return X < y ? X : y;
+}
+
+template <index_t Y>
+__host__ __device__ constexpr index_t min(index_t x, Number<Y>)
+{
+    return x < Y ? x : Y;
+}
+
+template <typename X, typename... Ys>
+__host__ __device__ constexpr auto min(X x, Ys... ys)
+{
+    static_assert(sizeof...(Ys) > 0, "not enough argument");
+
+    return min(x, min(ys...));
 }
 
 // greatest common divisor, aka highest common factor
@@ -171,13 +199,13 @@ __host__ __device__ constexpr auto lcm(X x, Ys... ys)
     return lcm(x, lcm(ys...));
 }
 
-template <class T>
+template <typename T>
 struct equal
 {
     __host__ __device__ constexpr bool operator()(T x, T y) const { return x == y; }
 };
 
-template <class T>
+template <typename T>
 struct less
 {
     __host__ __device__ constexpr bool operator()(T x, T y) const { return x < y; }

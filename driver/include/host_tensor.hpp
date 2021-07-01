@@ -9,7 +9,7 @@
 #include <cassert>
 #include <iostream>
 
-template <class Range>
+template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
 {
     bool first = true;
@@ -24,12 +24,27 @@ std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
     return os;
 }
 
+template <typename T, typename Range>
+std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
+{
+    bool first = true;
+    for(auto&& v : range)
+    {
+        if(first)
+            first = false;
+        else
+            os << delim;
+        os << T{v};
+    }
+    return os;
+}
+
 typedef enum {
     Half  = 0,
     Float = 1,
 } DataType_t;
 
-template <class T>
+template <typename T>
 struct DataType;
 
 template <>
@@ -37,13 +52,13 @@ struct DataType<float> : std::integral_constant<DataType_t, DataType_t::Float>
 {
 };
 
-template <class F, class T, std::size_t... Is>
+template <typename F, typename T, std::size_t... Is>
 auto call_f_unpack_args_impl(F f, T args, std::index_sequence<Is...>)
 {
     return f(std::get<Is>(args)...);
 }
 
-template <class F, class T>
+template <typename F, typename T>
 auto call_f_unpack_args(F f, T args)
 {
     constexpr std::size_t N = std::tuple_size<T>{};
@@ -51,13 +66,13 @@ auto call_f_unpack_args(F f, T args)
     return call_f_unpack_args_impl(f, args, std::make_index_sequence<N>{});
 }
 
-template <class F, class T, std::size_t... Is>
+template <typename F, typename T, std::size_t... Is>
 auto construct_f_unpack_args_impl(T args, std::index_sequence<Is...>)
 {
     return F(std::get<Is>(args)...);
 }
 
-template <class F, class T>
+template <typename F, typename T>
 auto construct_f_unpack_args(F, T args)
 {
     constexpr std::size_t N = std::tuple_size<T>{};
@@ -77,13 +92,13 @@ struct HostTensorDescriptor
 
     void CalculateStrides();
 
-    template <class Range>
+    template <typename Range>
     HostTensorDescriptor(const Range& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
 
-    template <class Range1, class Range2>
+    template <typename Range1, typename Range2>
     HostTensorDescriptor(const Range1& lens, const Range2& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
@@ -96,7 +111,7 @@ struct HostTensorDescriptor
     const std::vector<std::size_t>& GetLengths() const;
     const std::vector<std::size_t>& GetStrides() const;
 
-    template <class... Is>
+    template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
     {
         assert(sizeof...(Is) == this->GetNumOfDimension());
@@ -111,7 +126,7 @@ struct HostTensorDescriptor
 
 struct joinable_thread : std::thread
 {
-    template <class... Xs>
+    template <typename... Xs>
     joinable_thread(Xs&&... xs) : std::thread(std::forward<Xs>(xs)...)
     {
     }
@@ -126,7 +141,7 @@ struct joinable_thread : std::thread
     }
 };
 
-template <class F, class... Xs>
+template <typename F, typename... Xs>
 struct ParallelTensorFunctor
 {
     F mF;
@@ -180,26 +195,26 @@ struct ParallelTensorFunctor
     }
 };
 
-template <class F, class... Xs>
+template <typename F, typename... Xs>
 auto make_ParallelTensorFunctor(F f, Xs... xs)
 {
     return ParallelTensorFunctor<F, Xs...>(f, xs...);
 }
 
-template <class T>
+template <typename T>
 struct Tensor
 {
-    template <class X>
+    template <typename X>
     Tensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.GetElementSpace())
     {
     }
 
-    template <class X>
+    template <typename X>
     Tensor(std::vector<X> lens) : mDesc(lens), mData(mDesc.GetElementSpace())
     {
     }
 
-    template <class X, class Y>
+    template <typename X, typename Y>
     Tensor(std::vector<X> lens, std::vector<Y> strides)
         : mDesc(lens, strides), mData(mDesc.GetElementSpace())
     {
@@ -207,7 +222,7 @@ struct Tensor
 
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
-    template <class G>
+    template <typename G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
         switch(mDesc.GetNumOfDimension())
@@ -247,13 +262,13 @@ struct Tensor
         }
     }
 
-    template <class... Is>
+    template <typename... Is>
     T& operator()(Is... is)
     {
         return mData[mDesc.GetOffsetFromMultiIndex(is...)];
     }
 
-    template <class... Is>
+    template <typename... Is>
     const T& operator()(Is... is) const
     {
         return mData[mDesc.GetOffsetFromMultiIndex(is...)];
@@ -285,7 +300,7 @@ HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> s
 
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
-template <class T>
+template <typename T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float error     = 0;

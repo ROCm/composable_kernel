@@ -26,18 +26,32 @@ int main(int argc, char* argv[])
     }
 
     const bool do_verification = atoi(argv[1]);
-    const int init_method      = atoi(argv[2]);
-    const bool do_log          = atoi(argv[3]);
+    const bool do_log          = atoi(argv[2]);
+    const int init_method      = atoi(argv[3]);
     const int nrepeat          = atoi(argv[4]);
 
 #if 0
-    constexpr index_t N  = 8;
-    constexpr index_t C  = 8;
-    constexpr index_t Hi = 4;
-    constexpr index_t Wi = 8;
+    constexpr index_t N  = 256;
+    constexpr index_t C  = 256;
+    constexpr index_t HI = 16;
+    constexpr index_t WI = 16;
     constexpr index_t K  = 256;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
+
+    using ConvStrides   = Sequence<1, 1>;
+    using ConvDilations = Sequence<1, 1>;
+
+    using InLeftPads  = Sequence<0, 0>;
+    using InRightPads = Sequence<0, 0>;
+#elif 0
+    constexpr index_t N  = 1;
+    constexpr index_t C  = 16;
+    constexpr index_t HI = 1080;
+    constexpr index_t WI = 1920;
+    constexpr index_t K  = 16;
+    constexpr index_t Y  = 1;
+    constexpr index_t X  = 1;
 
     using ConvStrides   = Sequence<1, 1>;
     using ConvDilations = Sequence<1, 1>;
@@ -162,9 +176,9 @@ int main(int argc, char* argv[])
     // 3x3, 71x71
     constexpr index_t N  = 128;
     constexpr index_t C  = 192;
-    constexpr index_t Hi = 71;
-    constexpr index_t Wi = 71;
-    constexpr index_t K  = 128;
+    constexpr index_t HI = 71;
+    constexpr index_t WI = 71;
+    constexpr index_t K  = 256;
     constexpr index_t Y  = 3;
     constexpr index_t X  = 3;
 
@@ -430,7 +444,7 @@ int main(int argc, char* argv[])
     using InRightPads = Sequence<0, 0>;
 #elif 0
     // 1x1, 14x14, stride 2
-    constexpr index_t N  = 128;
+    constexpr index_t N  = 256;
     constexpr index_t C  = 1024;
     constexpr index_t Hi = 14;
     constexpr index_t Wi = 14;
@@ -445,7 +459,7 @@ int main(int argc, char* argv[])
     using InRightPads = Sequence<0, 0>;
 #elif 0
     // 1x1, 14x14
-    constexpr index_t N  = 128;
+    constexpr index_t N  = 256;
     constexpr index_t C  = 1024;
     constexpr index_t Hi = 14;
     constexpr index_t Wi = 14;
@@ -636,6 +650,11 @@ int main(int argc, char* argv[])
     using in_data_t                  = typename vector_type<float, in_vector_size>::type;
     using acc_data_t                 = float;
     using out_data_t                 = float;
+#elif 1
+    using in_data_t                  = half_t;
+    constexpr index_t in_vector_size = 1;
+    using acc_data_t                 = float;
+    using out_data_t                 = half_t;
 #elif 0
     constexpr index_t in_vector_size = 1;
     using in_data_t                  = typename vector_type<float, in_vector_size>::type;

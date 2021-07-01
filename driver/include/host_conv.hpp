@@ -1,13 +1,13 @@
 #pragma once
 #include "host_tensor.hpp"
 
-template <class TIn,
-          class TWei,
-          class TOut,
-          class ConvStrides,
-          class ConvDilations,
-          class InLeftPads,
-          class InRightPads>
+template <typename TIn,
+          typename TWei,
+          typename TOut,
+          typename ConvStrides,
+          typename ConvDilations,
+          typename InLeftPads,
+          typename InRightPads>
 void host_direct_convolution(const Tensor<TIn>& in,
                              const Tensor<TWei>& wei,
                              Tensor<TOut>& out,
@@ -88,7 +88,7 @@ void host_direct_convolution(const Tensor<TIn>& in,
     }
 }
 
-template <class TIn, class TWei, class TOut, class InLeftPads, class InRightPads>
+template <typename TIn, typename TWei, typename TOut, typename InLeftPads, typename InRightPads>
 void host_winograd_3x3_convolution(const Tensor<TIn>& in_nchw,
                                    const Tensor<TWei>& wei_kcyx,
                                    Tensor<TOut>& out_nkhw,
