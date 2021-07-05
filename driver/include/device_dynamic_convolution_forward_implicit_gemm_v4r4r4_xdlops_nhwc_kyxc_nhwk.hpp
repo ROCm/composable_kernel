@@ -275,11 +275,11 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nh
                               Sequence<0, 0, 0, 0, 0>{},   // 6-: M2
                               Sequence<0, 0, 0, 0, 0>{})); // 7-: N1
 
-    constexpr auto wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_iterator_hacks =
-        Sequence<0, 0, 0, 0, 0>{};
-
     constexpr auto in_gemmk0_gemmm_gemmk1_grid_move_slice_window_iterator_hacks =
         Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0>{};
+
+    constexpr auto wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_iterator_hacks =
+        Sequence<0, 0, 0, 0, 0>{};
 
     for(index_t i = 0; i < 5; ++i)
     {

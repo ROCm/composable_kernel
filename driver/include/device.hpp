@@ -55,7 +55,7 @@ float launch_and_time_kernel(F kernel,
 {
     KernelTimer timer;
 
-    printf("%s: block_dim {%d, %d, %d}, grid_dim {%d, %d, %d} \n",
+    printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
            __func__,
            grid_dim.x,
            grid_dim.y,
