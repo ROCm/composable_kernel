@@ -12,7 +12,7 @@ namespace ck {
 // C: out
 // GemmM = N * Ho * Wo
 // GemmN = K
-// GemmK = C * Y * X
+// GemmK = Y * X * C
 template <typename... In,
           typename... Wei,
           typename... Out,

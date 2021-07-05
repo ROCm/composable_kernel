@@ -94,7 +94,7 @@ __host__ __device__ constexpr auto container_reorder_given_old2new(Sequence<Is..
 
     constexpr auto new2old = typename sequence_map_inverse<Sequence<IRs...>>::type{};
 
-    return container_reorder_give_new2old(old_seq, new2old);
+    return container_reorder_given_new2old(old_seq, new2old);
 }
 
 #if !CK_WORKAROUND_SWDEV_275126
@@ -221,6 +221,13 @@ container_reverse_exclusive_scan(const Array<TData, NSize>& x, Reduce f, TData i
     y(Number<0>{}) = r;
 
     return y;
+}
+
+template <index_t... Is, typename Reduce, index_t Init>
+__host__ __device__ constexpr auto
+container_reverse_exclusive_scan(const Sequence<Is...>& seq, Reduce f, Number<Init>)
+{
+    return reverse_exclusive_scan_sequence(seq, f, Number<Init>{});
 }
 
 #if !CK_WORKAROUND_SWDEV_275126
@@ -364,6 +371,19 @@ set_container_subset(Tuple<Ys...>& y, Sequence<Is...> picks, const Tuple<Xs...>&
     static_assert(sizeof...(Ys) >= sizeof...(Is) && sizeof...(Is) == sizeof...(Xs), "wrong! size");
 
     static_for<0, sizeof...(Is), 1>{}([&](auto i) { y(picks[i]) = x[i]; });
+}
+
+template <typename Container>
+__host__ __device__ constexpr auto to_tuple_of_number(const Container&)
+{
+    static_assert(is_known_at_compile_time<Container>::value, "wrong!");
+
+    return generate_tuple(
+        [&](auto i) {
+            constexpr index_t tmp = Container::At(i);
+            return Number<tmp>{};
+        },
+        Container::Size());
 }
 
 template <index_t... Is>
