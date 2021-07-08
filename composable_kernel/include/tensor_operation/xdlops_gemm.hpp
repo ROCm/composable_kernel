@@ -2,7 +2,6 @@
 #define CK_XDLOPS_GEMM_HPP
 
 #include "common_header.hpp"
-#include "ConstantMatrixDescriptor.hpp"
 #include "math.hpp"
 #include "amd_xdlops.hpp"
 

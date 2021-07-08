@@ -23,6 +23,48 @@ amd_inner_product_dlop<float, float, float>(const float& a, const float& b, floa
 #endif
 }
 
+template <>
+__device__ void
+amd_inner_product_dlop<float2_t, float2_t, float>(const float2_t& a, const float2_t& b, float& c)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    amd_inner_product_dlop(vector_type<float, 2>{a}.AsType<float>()[I0],
+                           vector_type<float, 2>{b}.AsType<float>()[I0],
+                           c);
+
+    amd_inner_product_dlop(vector_type<float, 2>{a}.AsType<float>()[I1],
+                           vector_type<float, 2>{b}.AsType<float>()[I1],
+                           c);
+}
+
+template <>
+__device__ void
+amd_inner_product_dlop<float4_t, float4_t, float>(const float4_t& a, const float4_t& b, float& c)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<3>{};
+
+    amd_inner_product_dlop(vector_type<float, 4>{a}.AsType<float>()[I0],
+                           vector_type<float, 4>{b}.AsType<float>()[I0],
+                           c);
+
+    amd_inner_product_dlop(vector_type<float, 4>{a}.AsType<float>()[I1],
+                           vector_type<float, 4>{b}.AsType<float>()[I1],
+                           c);
+
+    amd_inner_product_dlop(vector_type<float, 4>{a}.AsType<float>()[I2],
+                           vector_type<float, 4>{b}.AsType<float>()[I2],
+                           c);
+
+    amd_inner_product_dlop(vector_type<float, 4>{a}.AsType<float>()[I3],
+                           vector_type<float, 4>{b}.AsType<float>()[I3],
+                           c);
+}
+
 #if CK_USE_AMD_DLOP
 template <>
 __device__ void

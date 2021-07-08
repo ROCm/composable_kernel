@@ -215,7 +215,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
             Sequence<4, 3, 2, 0, 1>, // BBlockTransferSrcAccessOrder
             GemmBBlockTransferSrcVectorTensorLengths_GK0_GN0_GN10_GN11_GK1,
             GemmBBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1,
-            Sequence<0, 1, 2, 3, 4>, // BBlockTransferSrcVectorTensorContiguousDimOrder
+            Sequence<0, 1, 2, 3, 4>,    // BBlockTransferSrcVectorTensorContiguousDimOrder
             Sequence<3, 4, 5, 0, 1, 2>, // CThreadTransferSrcDstAccessOrder
             5,                          // CThreadTransferSrcDstVectorDim
             GemmCThreadTransferDstScalarPerVector_BN1,
