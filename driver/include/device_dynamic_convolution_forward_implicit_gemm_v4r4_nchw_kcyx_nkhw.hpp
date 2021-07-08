@@ -58,7 +58,6 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw(
 
 #if 1
     // cdata = 64, BlockSize = 256, 128x128x8
-    // b thread copy 4x1
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlockM1 = 128;

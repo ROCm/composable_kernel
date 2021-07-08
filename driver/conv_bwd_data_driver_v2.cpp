@@ -16,7 +16,7 @@
 #include "device_dynamic_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
-#define USE_CONV_BWD_V4R1_XDL_NHWC 1
+#define USE_CONV_BWD_V4R1_XDL_NHWC 0
 #define USE_CONV_BWD_V4R1R2_XDL_NHWC 1
 
 enum ConvBackwardDataAlgo
@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
     const index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 #endif
 
-#if 1
+#if 0
     constexpr index_t in_vector_size = 1;
     using in_data_t                  = float;
     using acc_data_t                 = float;
