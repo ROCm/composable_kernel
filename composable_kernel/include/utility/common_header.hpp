@@ -13,7 +13,6 @@
 #include "functional2.hpp"
 #include "functional3.hpp"
 #include "functional4.hpp"
-#include "in_memory_operation.hpp"
 #include "integral_constant.hpp"
 #include "math.hpp"
 #include "number.hpp"
@@ -25,6 +24,7 @@
 #include "type.hpp"
 #include "utility.hpp"
 #include "magic_division.hpp"
+#include "amd_buffer_addressing_v2.hpp"
 #include "static_buffer.hpp"
 #include "dynamic_buffer.hpp"
 
