@@ -89,6 +89,16 @@ struct BlockwiseDynamicTensorSliceTransfer_v4
         }
     }
 
+    template <typename SrcBuffer>
+    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
+    {
+        if(BlockSize == thread_cluster_desc_.GetElementSize() or
+           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
+        {
+            threadwise_transfer_.RunRead(src_desc, src_buf);
+        }
+    }
+
     template <typename DstBuffer>
     __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
     {
