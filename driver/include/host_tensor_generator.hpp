@@ -9,7 +9,7 @@ struct GeneratorTensor_1
     int value = 1;
 
     template <typename... Is>
-    double operator()(Is... is)
+    float operator()(Is... is)
     {
         return value;
     }
@@ -21,29 +21,31 @@ struct GeneratorTensor_2
     int max_value = 1;
 
     template <typename... Is>
-    double operator()(Is...)
+    float operator()(Is...)
     {
         return (std::rand() % (max_value - min_value)) + min_value;
     }
 };
 
+template <typename T>
 struct GeneratorTensor_3
 {
+    T min_value = 0;
+    T max_value = 1;
+
     template <typename... Is>
-    double operator()(Is... is)
+    float operator()(Is...)
     {
-        std::array<ck::index_t, sizeof...(Is)> dims = {{static_cast<ck::index_t>(is)...}};
+        float tmp = float(std::rand()) / float(RAND_MAX);
 
-        auto f_acc = [](auto a, auto b) { return 10 * a + b; };
-
-        return std::accumulate(dims.begin(), dims.end(), ck::index_t(0), f_acc);
+        return min_value + tmp * (max_value - min_value);
     }
 };
 
 struct GeneratorTensor_Checkboard
 {
     template <typename... Ts>
-    double operator()(Ts... Xs) const
+    float operator()(Ts... Xs) const
     {
         std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
         return std::accumulate(dims.begin(),
