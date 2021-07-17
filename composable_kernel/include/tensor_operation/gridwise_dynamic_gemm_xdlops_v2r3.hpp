@@ -12,6 +12,7 @@
 
 namespace ck {
 
+#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
@@ -45,6 +46,50 @@ __global__ void
                       c_m0_m1_m2_n_grid_desc,
                       c_block_cluster_adaptor);
 }
+#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AK0MK1GridDesc,
+          typename BK0NK1GridDesc,
+          typename CM0M1M2NGridDesc,
+          typename CBlockClusterAdaptor>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_dynamic_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
+                                        const FloatAB* __restrict__ p_b_grid,
+                                        FloatC* __restrict__ p_c_grid,
+                                        const void __CONSTANT__* p_a_k0_m_k1_grid_desc,
+                                        const void __CONSTANT__* p_b_k0_n_k1_grid_desc,
+                                        const void __CONSTANT__* p_c_m0_m1_m2_n_grid_desc,
+                                        const void __CONSTANT__* p_c_block_cluster_adaptor)
+{
+    constexpr index_t shared_block_size =
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+
+    const auto a_k0_m_k1_grid_desc =
+        *reinterpret_cast<const AK0MK1GridDesc*>((const void*)p_a_k0_m_k1_grid_desc);
+    const auto b_k0_n_k1_grid_desc =
+        *reinterpret_cast<const BK0NK1GridDesc*>((const void*)p_b_k0_n_k1_grid_desc);
+    const auto c_m0_m1_m2_n_grid_desc =
+        *reinterpret_cast<const CM0M1M2NGridDesc*>((const void*)p_c_m0_m1_m2_n_grid_desc);
+    const auto c_block_cluster_adaptor =
+        *reinterpret_cast<const CBlockClusterAdaptor*>((const void*)p_c_block_cluster_adaptor);
+
+    __shared__ FloatAB p_shared_block[shared_block_size];
+
+    GridwiseGemm::Run(p_a_grid,
+                      p_b_grid,
+                      p_c_grid,
+                      p_shared_block,
+                      a_k0_m_k1_grid_desc,
+                      b_k0_n_k1_grid_desc,
+                      c_m0_m1_m2_n_grid_desc,
+                      c_block_cluster_adaptor);
+}
+#endif
 
 template <index_t BlockSize,
           typename FloatAB,
@@ -59,6 +104,7 @@ template <index_t BlockSize,
           index_t KPerBlock,
           index_t MPerWave,
           index_t NPerWave,
+          index_t K1Value,
           index_t MRepeat,
           index_t NRepeat,
           typename ABlockTransferThreadSliceLengths_K0_M_K1,
@@ -94,7 +140,7 @@ struct GridwiseDynamicGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     static constexpr auto I3 = Number<3>{};
 
     // K1 should be Number<...>
-    static constexpr auto K1 = AK0MK1GridDesc{}.GetLength(I2);
+    static constexpr auto K1 = Number<K1Value>{};
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -160,7 +206,7 @@ struct GridwiseDynamicGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const auto M = c_m_n_grid_desc.GetLength(I0);
         const auto N = c_m_n_grid_desc.GetLength(I1);
 
-        constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerWave, NPerWave, K1.value>{};
+        constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerWave, NPerWave, K1>{};
 
         constexpr auto CLayout = xdlops_gemm.GetCLayout();
 
@@ -267,7 +313,7 @@ struct GridwiseDynamicGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         auto a_blockwise_copy =
             BlockwiseDynamicTensorSliceTransfer_v4<BlockSize,
                                                    InMemoryDataOperation::Set,
-                                                   Sequence<KPerBlock, MPerBlock, K1.value>,
+                                                   Sequence<KPerBlock, MPerBlock, K1>,
                                                    ABlockTransferThreadSliceLengths_K0_M_K1,
                                                    ABlockTransferThreadClusterLengths_K0_M_K1,
                                                    ABlockTransferThreadClusterArrangeOrder,
@@ -294,7 +340,7 @@ struct GridwiseDynamicGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         auto b_blockwise_copy =
             BlockwiseDynamicTensorSliceTransfer_v4<BlockSize,
                                                    InMemoryDataOperation::Set,
-                                                   Sequence<KPerBlock, NPerBlock, K1.value>,
+                                                   Sequence<KPerBlock, NPerBlock, K1>,
                                                    BBlockTransferThreadSliceLengths_K0_N_K1,
                                                    BBlockTransferThreadClusterLengths_K0_N_K1,
                                                    BBlockTransferThreadClusterArrangeOrder,
@@ -354,7 +400,7 @@ struct GridwiseDynamicGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                  decltype(b_k0_n0_n1_k1_block_desc),
                                                  MPerWave,
                                                  NPerWave,
-                                                 K1.value>{};
+                                                 K1>{};
 
         constexpr auto CLayout = blockwise_gemm.GetCLayout();
 

@@ -13,7 +13,7 @@ template <index_t BlockSize,
           class BBlockDesc,
           index_t MPerWave,
           index_t NPerWave,
-          index_t KPack>
+          index_t K1>
 struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1
 {
 
@@ -32,7 +32,7 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1
     static constexpr index_t N0 = BBlockDesc{}.GetLength(I1);
     static constexpr index_t N1 = BBlockDesc{}.GetLength(I2);
 
-    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerWave, NPerWave, KPack>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerWave, NPerWave, K1>{};
 
     static constexpr index_t MWaves = M1 / MPerWave;
     static constexpr index_t NWaves = N1 / NPerWave;
@@ -119,18 +119,18 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1
                       "wrong! K dimension not consistent");
 
         static_assert(ABlockDesc{}.GetLength(I3) == BBlockDesc{}.GetLength(I3),
-                      "wrong! KPack dimension not consistent");
+                      "wrong! K1 dimension not consistent");
 
         static_assert(BlockSize == MWaves * NWaves * WaveSize,
                       "BlockSize != MWaves * NWaves * WaveSize\n");
 
-        static_assert(KPack == BBlockDesc{}.GetLength(I3), "KPack is wrong!");
+        static_assert(K1 == BBlockDesc{}.GetLength(I3), "K1 is wrong!");
 
         constexpr index_t KPerBlock = ABlockDesc{}.GetLength(I0);
 
         static_assert(KPerBlock % xdlops_gemm.KPerXdlops == 0, "KPerBlock is wrong!");
 
-        static_assert(KPack % xdlops_gemm.mfma_type.k_base == 0, "KPack is wrong!");
+        static_assert(K1 % xdlops_gemm.mfma_type.k_base == 0, "K1 is wrong!");
     }
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
@@ -194,11 +194,11 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1
     private:
     // A[K, M]
     static constexpr auto a_thread_desc_ = make_dynamic_naive_tensor_descriptor_packed_v2(
-        make_tuple(I1, Number<MRepeat>{}, I1, Number<KPack>{}));
+        make_tuple(I1, Number<MRepeat>{}, I1, Number<K1>{}));
 
     // B[K, N]
     static constexpr auto b_thread_desc_ = make_dynamic_naive_tensor_descriptor_packed_v2(
-        make_tuple(I1, Number<NRepeat>{}, I1, Number<KPack>{}));
+        make_tuple(I1, Number<NRepeat>{}, I1, Number<K1>{}));
 
     static constexpr auto c_thread_desc_ = make_dynamic_naive_tensor_descriptor_packed_v2(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
@@ -207,20 +207,20 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1
                                                                 FloatAB,
                                                                 ABlockDesc,
                                                                 decltype(a_thread_desc_),
-                                                                Sequence<1, MRepeat, 1, KPack>,
+                                                                Sequence<1, MRepeat, 1, K1>,
                                                                 Sequence<0, 1, 2, 3>,
                                                                 3,
-                                                                KPack,
+                                                                K1,
                                                                 1>;
 
     using BThreadCopy = ThreadwiseDynamicTensorSliceTransfer_v4<FloatAB,
                                                                 FloatAB,
                                                                 BBlockDesc,
                                                                 decltype(b_thread_desc_),
-                                                                Sequence<1, NRepeat, 1, KPack>,
+                                                                Sequence<1, NRepeat, 1, K1>,
                                                                 Sequence<0, 1, 2, 3>,
                                                                 3,
-                                                                KPack,
+                                                                K1,
                                                                 1>;
 
     AThreadCopy a_thread_copy_;
@@ -233,7 +233,7 @@ template <index_t BlockSize,
           class BBlockDesc,
           index_t MPerWave,
           index_t NPerWave,
-          index_t KPack>
+          index_t K1>
 struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1_2x2pipeline
 {
 
@@ -244,7 +244,7 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1_2x2pipeline
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    static constexpr auto xdlops_gemm = XdlopsGemm<float, MPerWave, NPerWave, KPack>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<float, MPerWave, NPerWave, K1>{};
 
     static constexpr index_t WaveSize = 64;
 
@@ -339,18 +339,18 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1_2x2pipeline
                       "wrong! K dimension not consistent");
 
         static_assert(ABlockDesc{}.GetLength(I3) == BBlockDesc{}.GetLength(I3),
-                      "wrong! KPack dimension not consistent");
+                      "wrong! K1 dimension not consistent");
 
         static_assert(BlockSize == MWaves * NWaves * WaveSize,
                       "BlockSize != MWaves * NWaves * WaveSize\n");
 
-        static_assert(KPack == BBlockDesc{}.GetLength(I3), "KPack is wrong!");
+        static_assert(K1 == BBlockDesc{}.GetLength(I3), "K1 is wrong!");
 
         constexpr index_t KPerBlock = ABlockDesc{}.GetLength(I0);
 
         static_assert(KPerBlock % xdlops_gemm.KPerXdlops == 0, "KPerBlock is wrong!");
 
-        static_assert(KPack % xdlops_gemm.mfma_type.k_base == 0, "KPack is wrong!");
+        static_assert(K1 % xdlops_gemm.mfma_type.k_base == 0, "K1 is wrong!");
     }
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
@@ -491,11 +491,11 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1_2x2pipeline
     private:
     // A[K, M]
     static constexpr auto a_thread_desc_ = make_dynamic_naive_tensor_descriptor_packed_v2(
-        make_tuple(I1, Number<MRepeat>{}, I1, Number<KPack>{}));
+        make_tuple(I1, Number<MRepeat>{}, I1, Number<K1>{}));
 
     // B[K, N]
     static constexpr auto b_thread_desc_ = make_dynamic_naive_tensor_descriptor_packed_v2(
-        make_tuple(I1, Number<NRepeat>{}, I1, Number<KPack>{}));
+        make_tuple(I1, Number<NRepeat>{}, I1, Number<K1>{}));
 
     static constexpr auto c_thread_desc_ = make_dynamic_naive_tensor_descriptor_packed_v2(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
@@ -504,20 +504,20 @@ struct BlockwiseGemmXdlops_km_kn_m0m1m2n_v1_2x2pipeline
                                                                 FloatAB,
                                                                 ABlockDesc,
                                                                 decltype(a_thread_desc_),
-                                                                Sequence<1, 1, 1, KPack>,
+                                                                Sequence<1, 1, 1, K1>,
                                                                 Sequence<0, 1, 2, 3>,
                                                                 3,
-                                                                1, // KPack,
+                                                                1, // K1,
                                                                 1>;
 
     using BThreadCopy = ThreadwiseDynamicTensorSliceTransfer_v4<FloatAB,
                                                                 FloatAB,
                                                                 BBlockDesc,
                                                                 decltype(b_thread_desc_),
-                                                                Sequence<1, 1, 1, KPack>,
+                                                                Sequence<1, 1, 1, K1>,
                                                                 Sequence<0, 1, 2, 3>,
                                                                 3,
-                                                                1, // KPack,
+                                                                1, // K1,
                                                                 1>;
 
     AThreadCopy a_thread_copy_;
