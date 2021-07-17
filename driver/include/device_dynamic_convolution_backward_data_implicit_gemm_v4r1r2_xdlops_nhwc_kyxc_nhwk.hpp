@@ -245,6 +245,7 @@ void device_dynamic_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_k
             GemmKPerBlock,
             GemmMPerWave,
             GemmNPerWave,
+            GemmK1,
             MRepeat,
             NRepeat,
             GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1,

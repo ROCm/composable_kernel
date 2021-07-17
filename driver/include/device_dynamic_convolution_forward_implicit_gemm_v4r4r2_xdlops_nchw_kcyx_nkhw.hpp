@@ -2,7 +2,7 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "transform_forward_convolution_into_gemm_v4r4r2_nchw_kcyx_nkhw.hpp"
-#include "driver_dynamic_gemm_xdlops_v2r2.hpp"
+#include "driver_dynamic_gemm_xdlops_v2r3.hpp"
 
 template <typename TInWei,
           typename TAcc,
@@ -56,63 +56,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     const auto out_n_k_ho_wo_desc =
         make_dynamic_naive_tensor_descriptor_packed_v2(out_n_k_ho_wo_lengths);
 
-#if 0
-    // [M, N, K0, K1] = [256, 128, 4, 4] for fp32
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t GemmMPerBlock = 256;
-    constexpr index_t GemmNPerBlock = 128;
-    constexpr index_t GemmKPerBlock = 4;
-
-    constexpr index_t GemmMPerWave = 64;
-    constexpr index_t GemmNPerWave = 64;
-    constexpr index_t GemmK1       = 4;
-
-    constexpr index_t MRepeat = 2;
-    constexpr index_t NRepeat = 1;
-
-    using GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1   = Sequence<1, 4, 4>;
-    using GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmABlockTransferSrcScalarPerVector_GemmK1 = 4;
-    constexpr index_t GemmABlockTransferDstScalarPerVector_GemmK1 = 4;
-
-    using GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1   = Sequence<1, 2, 4>;
-    using GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmBBlockTransferSrcScalarPerVector_GemmN  = 1;
-    constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 4;
-
-    constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 0
-    // [M, N, K0, K1] = [128, 128, 4, 4] for fp32
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t GemmMPerBlock = 128;
-    constexpr index_t GemmNPerBlock = 128;
-    constexpr index_t GemmKPerBlock = 4;
-
-    constexpr index_t GemmMPerWave = 64;
-    constexpr index_t GemmNPerWave = 64;
-    constexpr index_t GemmK1       = 4;
-
-    constexpr index_t MRepeat = 1;
-    constexpr index_t NRepeat = 1;
-
-    using GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1   = Sequence<1, 2, 4>;
-    using GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmABlockTransferSrcScalarPerVector_GemmK1 = 4;
-    constexpr index_t GemmABlockTransferDstScalarPerVector_GemmK1 = 4;
-
-    using GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1   = Sequence<1, 2, 4>;
-    using GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmBBlockTransferSrcScalarPerVector_GemmN  = 1;
-    constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 4;
-
-    constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 1
+#if 1
     // [M, N, K0, K1] = [256, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
 
@@ -120,12 +64,12 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 64;
-    constexpr index_t GemmNPerWave = 64;
+    constexpr index_t GemmMPerWave = 32;
+    constexpr index_t GemmNPerWave = 32;
     constexpr index_t GemmK1       = 8;
 
-    constexpr index_t MRepeat = 2;
-    constexpr index_t NRepeat = 1;
+    constexpr index_t MRepeat = 4;
+    constexpr index_t NRepeat = 2;
 
     using GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1   = Sequence<1, 4, 8>;
     using GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1 = Sequence<4, 64, 1>;
@@ -138,34 +82,6 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
 
     constexpr index_t GemmBBlockTransferSrcScalarPerVector_GemmN  = 1;
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
-
-    constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 1
-    // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t GemmMPerBlock = 128;
-    constexpr index_t GemmNPerBlock = 128;
-    constexpr index_t GemmKPerBlock = 4;
-
-    constexpr index_t GemmMPerWave = 64;
-    constexpr index_t GemmNPerWave = 64;
-    constexpr index_t GemmK1       = 8;
-
-    constexpr index_t MRepeat = 1;
-    constexpr index_t NRepeat = 1;
-
-    using GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1   = Sequence<1, 2, 8>;
-    using GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmABlockTransferSrcScalarPerVector_GemmK1 = 8;
-    constexpr index_t GemmABlockTransferDstScalarPerVector_GemmK1 = 8;
-
-    using GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1   = Sequence<1, 4, 4>;
-    using GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1 = Sequence<4, 32, 2>;
-
-    constexpr index_t GemmBBlockTransferSrcScalarPerVector_GemmN  = 1;
-    constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 4;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 #endif
@@ -200,10 +116,18 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
 
     constexpr auto out_m0_m1_m2_n_grid_iterator_hacks =
         make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},
+                              Sequence<0, 0, 1, 0, 0>{},
+                              Sequence<0, 0, 0, 0, 0>{},
+                              Sequence<0, 0, 1, 0, 0>{},
+                              Sequence<0, 0, 0, 0, 0>{},
                               Sequence<0, 0, 0, 0, 0>{},
                               Sequence<0, 0, 0, 0, 0>{},
                               Sequence<0, 0, 1, 0, 0>{}),
                    make_tuple(Sequence<0, 0, 0, 0, 0>{},
+                              Sequence<0, 0, 2, 0, 0>{},
+                              Sequence<0, 0, 0, 0, 0>{},
+                              Sequence<0, 0, 2, 0, 0>{},
+                              Sequence<0, 0, 0, 0, 0>{},
                               Sequence<0, 0, 0, 0, 0>{},
                               Sequence<0, 0, 0, 0, 0>{},
                               Sequence<0, 0, 2, 0, 0>{}));
@@ -216,7 +140,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
 
     for(index_t i = 0; i < 5; ++i)
     {
-        float ave_time = driver_dynamic_gemm_xdlops_v2r2<
+        float ave_time = driver_dynamic_gemm_xdlops_v2r3<
             BlockSize,
             TInWei,
             TAcc,
@@ -230,6 +154,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
             GemmKPerBlock,
             GemmMPerWave,
             GemmNPerWave,
+            GemmK1,
             MRepeat,
             NRepeat,
             GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1,
@@ -248,26 +173,26 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
             GemmBBlockTransferSrcScalarPerVector_GemmN,
             GemmBBlockTransferDstScalarPerVector_GemmK1,
             false, // don't move back src coordinate after threadwise copy
-            Sequence<3, 0, 1, 2>,
-            3,
+            Sequence<3, 0, 1, 2, 7, 5, 4, 6>,
+            7,
             GemmCThreadTransferDstScalarPerVector,
             decltype(wei_gemmk0_gemmm_gemmk1_grid_iterator_hacks),
             decltype(in_gemmk0_gemmn_gemmk1_grid_iterator_hacks),
             decltype(out_m0_m1_m2_n_grid_iterator_hacks),
             decltype(wei_gemmk0_gemmm_gemmk1_grid_move_slice_window_iterator_hacks),
-            decltype(in_gemmk0_gemmn_gemmk1_grid_move_slice_window_iterator_hacks)>(
-            static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
-            static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
-            static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
-            wei_gemmk0_gemmm_gemmk1_grid_desc,
-            in_gemmk0_gemmn_gemmk1_grid_desc,
-            out_gemmm_gemmn_grid_desc,
-            wei_gemmk0_gemmm_gemmk1_grid_iterator_hacks,
-            in_gemmk0_gemmn_gemmk1_grid_iterator_hacks,
-            out_m0_m1_m2_n_grid_iterator_hacks,
-            wei_gemmk0_gemmm_gemmk1_grid_move_slice_window_iterator_hacks,
-            in_gemmk0_gemmn_gemmk1_grid_move_slice_window_iterator_hacks,
-            nrepeat);
+            decltype(in_gemmk0_gemmn_gemmk1_grid_move_slice_window_iterator_hacks),
+            false>(static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
+                   static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
+                   static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
+                   wei_gemmk0_gemmm_gemmk1_grid_desc,
+                   in_gemmk0_gemmn_gemmk1_grid_desc,
+                   out_gemmm_gemmn_grid_desc,
+                   wei_gemmk0_gemmm_gemmk1_grid_iterator_hacks,
+                   in_gemmk0_gemmn_gemmk1_grid_iterator_hacks,
+                   out_m0_m1_m2_n_grid_iterator_hacks,
+                   wei_gemmk0_gemmm_gemmk1_grid_move_slice_window_iterator_hacks,
+                   in_gemmk0_gemmn_gemmk1_grid_move_slice_window_iterator_hacks,
+                   nrepeat);
 
         float perf = (float)calculate_convolution_flops(
                          in_n_c_hi_wi_desc, wei_k_c_y_x_desc, out_n_k_ho_wo_desc) /

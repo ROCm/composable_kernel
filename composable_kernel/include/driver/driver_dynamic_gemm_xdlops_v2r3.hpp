@@ -21,6 +21,7 @@ template <index_t BlockSize,
           index_t KPerBlock,
           index_t MPerWave,
           index_t NPerWave,
+          index_t K1,
           index_t MRepeat,
           index_t NRepeat,
           typename ABlockTransferThreadSliceLengths_K0_M_K1,
@@ -83,6 +84,7 @@ __host__ float driver_dynamic_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                        KPerBlock,
                                                        MPerWave,
                                                        NPerWave,
+                                                       K1,
                                                        MRepeat,
                                                        NRepeat,
                                                        ABlockTransferThreadSliceLengths_K0_M_K1,
@@ -148,6 +150,7 @@ __host__ float driver_dynamic_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                         remove_reference_t<CM0M1M2NGridDesc>,
                                                         remove_reference_t<CBlockClusterAdaptor>>;
 
+#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
     float ave_time = launch_and_time_kernel(kernel,
                                             nrepeat,
                                             dim3(grid_size),
@@ -162,6 +165,32 @@ __host__ float driver_dynamic_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                             c_m0_m1_m2_n_grid_desc,
                                             c_block_cluster_adaptor);
 
+#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
+    DeviceMem a_k0_m_k1_grid_desc_dev_buf(sizeof(AK0MK1GridDesc));
+    DeviceMem b_k0_n_k1_grid_desc_dev_buf(sizeof(BK0NK1GridDesc));
+    DeviceMem c_m0_m1_m2_n_grid_desc_dev_buf(sizeof(CM0M1M2NGridDesc));
+    DeviceMem c_block_cluster_adaptor_dev_buf(sizeof(CBlockClusterAdaptor));
+
+    a_k0_m_k1_grid_desc_dev_buf.ToDevice(&a_k0_m_k1_grid_desc);
+    b_k0_n_k1_grid_desc_dev_buf.ToDevice(&b_k0_n_k1_grid_desc);
+    c_m0_m1_m2_n_grid_desc_dev_buf.ToDevice(&c_m0_m1_m2_n_grid_desc);
+    c_block_cluster_adaptor_dev_buf.ToDevice(&c_block_cluster_adaptor);
+
+    float ave_time = launch_and_time_kernel(
+        kernel,
+        nrepeat,
+        dim3(grid_size),
+        dim3(BlockSize),
+        0,
+        0,
+        p_a_grid,
+        p_b_grid,
+        p_c_grid,
+        (void __CONSTANT__*)a_k0_m_k1_grid_desc_dev_buf.GetDeviceBuffer(),
+        (void __CONSTANT__*)b_k0_n_k1_grid_desc_dev_buf.GetDeviceBuffer(),
+        (void __CONSTANT__*)c_m0_m1_m2_n_grid_desc_dev_buf.GetDeviceBuffer(),
+        (void __CONSTANT__*)c_block_cluster_adaptor_dev_buf.GetDeviceBuffer());
+#endif
     return ave_time;
 }
 
