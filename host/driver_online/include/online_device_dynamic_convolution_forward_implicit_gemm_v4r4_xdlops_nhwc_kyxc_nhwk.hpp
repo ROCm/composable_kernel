@@ -1,13 +1,11 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
+#include "handle.hpp"
+#include "online_driver_common.hpp"
 #include "dynamic_tensor_descriptor.hpp"
 #include "dynamic_tensor_descriptor_helper.hpp"
 #include "transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk.hpp"
-
-#include "olc_driver_common.hpp"
-#include "conv_tunables.hpp"
-
-#include "handle.hpp"
+#include "conv_tunable_fwd_v4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
 namespace detail_dyn_conv_fwd_v4r4_xdlops_nhwc_kyxc_nhwk {
 
@@ -209,7 +207,7 @@ template <typename TInWei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-void device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_kyxc_nhwk_olc(
+void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_kyxc_nhwk(
     olCompile::Handle* handle,
     const InLengths& in_n_hi_wi_c_lengths,
     const WeiLengths& wei_k_y_x_c_lengths,

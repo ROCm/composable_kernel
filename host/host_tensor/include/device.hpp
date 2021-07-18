@@ -2,7 +2,8 @@
 #define DEVICE_HPP
 
 #include <memory>
-#include "config.hpp"
+#include "hip/hip_runtime.h"
+#include "hip/hip_fp16.h"
 
 struct DeviceMem
 {
@@ -30,7 +31,6 @@ struct KernelTimer
     std::unique_ptr<KernelTimerImpl> impl;
 };
 
-#if CK_DEVICE_BACKEND_AMD
 using device_stream_t = hipStream_t;
 
 template <typename... Args, typename F>
@@ -82,45 +82,5 @@ float launch_and_time_kernel(F kernel,
 
     return timer.GetElapsedTime() / nrepeat;
 }
-
-#elif CK_DEVICE_BACKEND_NVIDIA
-using device_stream_t = cudaStream_t;
-
-template <typename... Args, typename F>
-void launch_kernel(F kernel,
-                   dim3 grid_dim,
-                   dim3 block_dim,
-                   std::size_t lds_byte,
-                   cudaStream_t stream_id,
-                   Args... args)
-{
-    const void* f  = reinterpret_cast<const void*>(kernel);
-    void* p_args[] = {&args...};
-
-    cudaError_t error = cudaLaunchKernel(f, grid_dim, block_dim, p_args, lds_byte, stream_id);
-}
-
-template <typename... Args, typename F>
-float launch_and_time_kernel(F kernel,
-                             dim3 grid_dim,
-                             dim3 block_dim,
-                             std::size_t lds_byte,
-                             cudaStream_t stream_id,
-                             Args... args)
-{
-    KernelTimer timer;
-
-    const void* f  = reinterpret_cast<const void*>(kernel);
-    void* p_args[] = {&args...};
-
-    timer.Start();
-
-    cudaError_t error = cudaLaunchKernel(f, grid_dim, block_dim, p_args, lds_byte, stream_id);
-
-    timer.End();
-
-    return timer.GetElapsedTime();
-}
-#endif
 
 #endif
