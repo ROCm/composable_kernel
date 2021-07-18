@@ -435,21 +435,22 @@ struct GridwiseDynamicGemm_km_kn_mn_v1r3
         //     c_mtx[MPerBlockM1, NPerBlockN1] is distributed among threads, and saved in
         //       register
         const auto blockwise_gemm =
-            BlockwiseGemm_k0mk1_k0nk1_m0m1n0n1_v2r3_pipeline_2x2<BlockSize,
-                                                                 FloatAB,
-                                                                 FloatAB,
-                                                                 FloatAcc,
-                                                                 decltype(a_k0_m_k1_block_desc),
-                                                                 decltype(b_k0_n_k1_block_desc),
-                                                                 M1PerThreadM111,
-                                                                 N1PerThreadN111,
-                                                                 KPerThread,
-                                                                 M11N11ThreadClusterM1100,
-                                                                 M11N11ThreadClusterN1100,
-                                                                 M11N11ThreadClusterM1101,
-                                                                 M11N11ThreadClusterN1101,
-                                                                 M1PerThreadM111,
-                                                                 N1PerThreadN111>{};
+            BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2<
+                BlockSize,
+                FloatAB,
+                FloatAB,
+                FloatAcc,
+                decltype(a_k0_m_k1_block_desc),
+                decltype(b_k0_n_k1_block_desc),
+                M1PerThreadM111,
+                N1PerThreadN111,
+                KPerThread,
+                M11N11ThreadClusterM1100,
+                M11N11ThreadClusterN1100,
+                M11N11ThreadClusterM1101,
+                M11N11ThreadClusterN1101,
+                M1PerThreadM111,
+                N1PerThreadN111>{};
 
         constexpr auto c_m10_m11_n10_n11_thread_tensor_lengths =
             decltype(blockwise_gemm)::GetCM0M1N0N1ThreadTensorLengths();

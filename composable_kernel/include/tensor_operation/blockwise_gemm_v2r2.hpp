@@ -4,7 +4,7 @@
 #include "common_header.hpp"
 #include "tensor_adaptor.hpp"
 #include "threadwise_dynamic_tensor_slice_transfer.hpp"
-#include "threadwise_gemm_v2.hpp"
+#include "threadwise_contraction.hpp"
 
 namespace ck {
 

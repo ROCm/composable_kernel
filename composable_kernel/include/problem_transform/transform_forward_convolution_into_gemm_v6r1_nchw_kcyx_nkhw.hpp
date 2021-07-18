@@ -1,5 +1,5 @@
-#ifndef CK_TRANSFORM_FORWARD_CONVOLUTION_INTO_CONTRACTION_V4R5R2_NCHW_KCYX_NKHW_HPP
-#define CK_TRANSFORM_FORWARD_CONVOLUTION_INTO_CONTRACTION_V4R5R2_NCHW_KCYX_NKHW_HPP
+#ifndef CK_TRANSFORM_FORWARD_CONVOLUTION_INTO_CONTRACTION_V6R1_NCHW_KCYX_NKHW_HPP
+#define CK_TRANSFORM_FORWARD_CONVOLUTION_INTO_CONTRACTION_V6R1_NCHW_KCYX_NKHW_HPP
 
 #include "common_header.hpp"
 #include "dynamic_tensor_descriptor.hpp"
@@ -17,10 +17,10 @@ template <typename... Wei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads,
-          index_t N0Value,
-          index_t C0Value>
+          typename N0Type,
+          typename C0Type>
 __host__ __device__ constexpr auto
-transform_forward_convolution_into_contraction_v4r5r2_nchw_kcyx_nkhw_pad(
+transform_forward_convolution_into_contraction_v6r1_nchw_kcyx_nkhw_pad(
     const DynamicTensorDescriptor<Wei...>& wei_k_c_y_x_grid_desc,
     const DynamicTensorDescriptor<In...>& in_n_c_hi_wi_grid_desc,
     const DynamicTensorDescriptor<Out...>& out_n_k_ho_wo_grid_desc,
@@ -28,8 +28,8 @@ transform_forward_convolution_into_contraction_v4r5r2_nchw_kcyx_nkhw_pad(
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
     const InRightPads& in_right_pads,
-    Number<N0Value>,
-    Number<C0Value>)
+    const N0Type& N0,
+    const C0Type& C0)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -60,9 +60,6 @@ transform_forward_convolution_into_contraction_v4r5r2_nchw_kcyx_nkhw_pad(
 
     const auto InRightPadH = in_right_pads[I0];
     const auto InRightPadW = in_right_pads[I1];
-
-    constexpr auto N0 = Number<N0Value>{};
-    constexpr auto C0 = Number<C0Value>{};
 
     const auto N1 = N / N0;
     const auto C1 = C / C0;
@@ -109,7 +106,7 @@ transform_forward_convolution_into_contraction_v4r5r2_nchw_kcyx_nkhw_pad(
 
     const auto out_n0_n1_1_k_howo_grid_desc = transform_dynamic_tensor_descriptor(
         out_n_k_howo_grid_desc,
-        make_tuple(make_unmerge_transform(make_tuple(Number<N0>{}, N1)),
+        make_tuple(make_unmerge_transform(make_tuple(N0, N1)),
                    make_unmerge_transform(make_tuple(I1, K)),
                    make_pass_through_transform(Ho * Wo)),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
@@ -119,7 +116,7 @@ transform_forward_convolution_into_contraction_v4r5r2_nchw_kcyx_nkhw_pad(
         out_n0_n1_1_k_howo_grid_desc,
         make_tuple(make_pass_through_transform(I1),
                    make_pass_through_transform(K),
-                   make_pass_through_transform(Number<N0>{}),
+                   make_pass_through_transform(N0),
                    make_merge_transform_v2_magic_division(make_tuple(N1, Ho * Wo))),
         make_tuple(Sequence<2>{}, Sequence<3>{}, Sequence<0>{}, Sequence<1, 4>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));

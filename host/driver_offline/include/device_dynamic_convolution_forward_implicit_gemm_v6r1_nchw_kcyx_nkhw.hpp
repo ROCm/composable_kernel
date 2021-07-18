@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "host_tensor.hpp"
-#include "transform_forward_convolution_into_gemm_v4r5r2_nchw_kcyx_nkhw.hpp"
+#include "transform_forward_convolution_into_gemm_v6r1_nchw_kcyx_nkhw.hpp"
 #include "driver_dynamic_contraction_v1r2.hpp"
 
 template <typename TInWei,
@@ -14,7 +14,7 @@ template <typename TInWei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
+void device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw(
     const InLengths& in_n_c_hi_wi_lengths,
     const WeiLengths& wei_k_c_y_x_lengths,
     const OutLengths& out_n_k_ho_wo_lengths,
@@ -43,11 +43,11 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
     wei_k_c_y_x_device_buf.ToDevice(wei_k_c_y_x.mData.data());
     out_n_k_ho_wo_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
 
-    const auto in_n_c_hi_wi_desc =
+    const auto in_desc_n_c_hi_wi =
         make_dynamic_naive_tensor_descriptor_packed_v2(in_n_c_hi_wi_lengths);
-    const auto wei_k_c_y_x_desc =
+    const auto wei_desc_k_c_y_x =
         make_dynamic_naive_tensor_descriptor_packed_v2(wei_k_c_y_x_lengths);
-    const auto out_n_k_ho_wo_desc =
+    const auto out_desc_n_k_ho_wo =
         make_dynamic_naive_tensor_descriptor_packed_v2(out_n_k_ho_wo_lengths);
 
 #if 1
@@ -58,32 +58,32 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
     constexpr index_t GN0 = 4;
     constexpr index_t GK1 = 1;
 
-    constexpr index_t GemmGM1PerBlockGM11 = 128;
-    constexpr index_t GemmGN1PerBlockGN11 = 32;
-    constexpr index_t GemmKPerBlock       = 8;
+    constexpr index_t GM1PerBlockGM11 = 128;
+    constexpr index_t GN1PerBlockGN11 = 32;
+    constexpr index_t GK0PerBlock     = 8;
 
-    constexpr index_t GemmM1PerThreadM111 = 4;
-    constexpr index_t GemmN1PerThreadN111 = 4;
-    constexpr index_t GemmKPerThread      = 1;
+    constexpr index_t BM1PerThreadBM11 = 4;
+    constexpr index_t BN1PerThreadBN11 = 4;
+    constexpr index_t BK0PerThread     = 1;
 
-    constexpr index_t GemmM11N11ThreadClusterM1101 = 2;
-    constexpr index_t GemmM11N11ThreadClusterN1101 = 2;
-    constexpr index_t GemmM11N11ThreadClusterM1100 = 8;
-    constexpr index_t GemmM11N11ThreadClusterN1100 = 8;
+    constexpr index_t BM10BN10ThreadClusterBM100 = 8;
+    constexpr index_t BM10BN10ThreadClusterBN100 = 8;
+    constexpr index_t BM10BN10ThreadClusterBM101 = 2;
+    constexpr index_t BM10BN10ThreadClusterBN101 = 2;
 
-    using GemmABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1   = Sequence<4, 1, 1, 1, 1>;
-    using GemmABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<2, 1, 1, 128, 1>;
+    using ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1   = Sequence<4, 1, 1, 1, 1>;
+    using ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<2, 1, 1, 128, 1>;
 
-    using GemmABlockTransferSrcVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<4, 1, 1, 1, 1>;
-    using GemmABlockTransferDstVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<1, 1, 1, 1, 1>;
+    using ABlockTransferSrcVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<4, 1, 1, 1, 1>;
+    using ABlockTransferDstVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<1, 1, 1, 1, 1>;
 
-    using GemmBBlockTransferThreadSliceLengths_GK0_GN0_GN10_GN11_GK1   = Sequence<1, 4, 1, 1, 1>;
-    using GemmBBlockTransferThreadClusterLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<8, 1, 1, 32, 1>;
+    using BBlockTransferThreadSliceLengths_GK0_GN0_GN10_GN11_GK1   = Sequence<1, 4, 1, 1, 1>;
+    using BBlockTransferThreadClusterLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<8, 1, 1, 32, 1>;
 
-    using GemmBBlockTransferSrcVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 1>;
-    using GemmBBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 1>;
+    using BBlockTransferSrcVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 1>;
+    using BBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 1>;
 
-    constexpr index_t GemmCThreadTransferDstScalarPerVector_BN1 = 1;
+    constexpr index_t CThreadTransferDstScalarPerVector_BN1 = 1;
 #elif 1
     // [8, 1, 128, 2] * [8, 4, 32, 2] = [1, 128, 4, 32] for fp16
     // cdata = 64, BlockSize = 256
@@ -92,48 +92,48 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
     constexpr index_t GN0 = 4;
     constexpr index_t GK1 = 2;
 
-    constexpr index_t GemmGM1PerBlockGM11 = 128;
-    constexpr index_t GemmGN1PerBlockGN11 = 32;
-    constexpr index_t GemmKPerBlock       = 8;
+    constexpr index_t GM1PerBlockGM11 = 128;
+    constexpr index_t GN1PerBlockGN11 = 32;
+    constexpr index_t GK0PerBlock     = 8;
 
-    constexpr index_t GemmM1PerThreadM111 = 4;
-    constexpr index_t GemmN1PerThreadN111 = 4;
-    constexpr index_t GemmKPerThread      = 1;
+    constexpr index_t BM1PerThreadBM11 = 4;
+    constexpr index_t BN1PerThreadBN11 = 4;
+    constexpr index_t BK0PerThread     = 1;
 
-    constexpr index_t GemmM11N11ThreadClusterM1101 = 2;
-    constexpr index_t GemmM11N11ThreadClusterN1101 = 2;
-    constexpr index_t GemmM11N11ThreadClusterM1100 = 8;
-    constexpr index_t GemmM11N11ThreadClusterN1100 = 8;
+    constexpr index_t BM10BN10ThreadClusterBM100 = 8;
+    constexpr index_t BM10BN10ThreadClusterBN100 = 8;
+    constexpr index_t BM10BN10ThreadClusterBM101 = 2;
+    constexpr index_t BM10BN10ThreadClusterBN101 = 2;
 
-    using GemmABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1   = Sequence<4, 1, 1, 1, 2>;
-    using GemmABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<2, 1, 1, 128, 1>;
+    using ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1   = Sequence<4, 1, 1, 1, 2>;
+    using ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<2, 1, 1, 128, 1>;
 
-    using GemmABlockTransferSrcVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<4, 1, 1, 1, 1>;
-    using GemmABlockTransferDstVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<1, 1, 1, 1, 2>;
+    using ABlockTransferSrcVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<4, 1, 1, 1, 1>;
+    using ABlockTransferDstVectorTensorLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<1, 1, 1, 1, 2>;
 
-    using GemmBBlockTransferThreadSliceLengths_GK0_GN0_GN10_GN11_GK1   = Sequence<1, 4, 1, 1, 2>;
-    using GemmBBlockTransferThreadClusterLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<8, 1, 1, 32, 1>;
+    using BBlockTransferThreadSliceLengths_GK0_GN0_GN10_GN11_GK1   = Sequence<1, 4, 1, 1, 2>;
+    using BBlockTransferThreadClusterLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<8, 1, 1, 32, 1>;
 
-    using GemmBBlockTransferSrcVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 1>;
-    using GemmBBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 2>;
+    using BBlockTransferSrcVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 1>;
+    using BBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1 = Sequence<1, 1, 1, 1, 2>;
 
-    constexpr index_t GemmCThreadTransferDstScalarPerVector_BN1 = 1;
+    constexpr index_t CThreadTransferDstScalarPerVector_BN1 = 1;
 #endif
 
     const auto descs =
-        transform_forward_convolution_into_contraction_v4r5r2_nchw_kcyx_nkhw_pad(wei_k_c_y_x_desc,
-                                                                                 in_n_c_hi_wi_desc,
-                                                                                 out_n_k_ho_wo_desc,
-                                                                                 conv_strides,
-                                                                                 conv_dilations,
-                                                                                 in_left_pads,
-                                                                                 in_right_pads,
-                                                                                 Number<GN0>{},
-                                                                                 Number<GK1>{});
+        transform_forward_convolution_into_contraction_v6r1_nchw_kcyx_nkhw_pad(wei_desc_k_c_y_x,
+                                                                               in_desc_n_c_hi_wi,
+                                                                               out_desc_n_k_ho_wo,
+                                                                               conv_strides,
+                                                                               conv_dilations,
+                                                                               in_left_pads,
+                                                                               in_right_pads,
+                                                                               Number<GN0>{},
+                                                                               Number<GK1>{});
 
-    const auto wei_gk0_gm0_gm1_gk1_grid_desc = descs[I0];
-    const auto in_gk0_gn0_gn1_gk1_grid_desc  = descs[I1];
-    const auto out_gm0_gm1_gn0_gn1_grid_desc = descs[I2];
+    const auto wei_grid_desc_gk0_gm0_gm1_gk1 = descs[I0];
+    const auto in_grid_desc_gk0_gn0_gn1_gk1  = descs[I1];
+    const auto out_grid_desc_gm0_gm1_gn0_gn1 = descs[I2];
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
     constexpr auto wei_grid_iterator_hacks =
@@ -189,36 +189,36 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
             TAcc,
             TOut,
             InMemoryDataOperation::Set,
-            decltype(wei_gk0_gm0_gm1_gk1_grid_desc),
-            decltype(in_gk0_gn0_gn1_gk1_grid_desc),
-            decltype(out_gm0_gm1_gn0_gn1_grid_desc),
-            GemmGM1PerBlockGM11,
-            GemmGN1PerBlockGN11,
-            GemmKPerBlock,
-            GemmM1PerThreadM111,
-            GemmN1PerThreadN111,
-            GemmKPerThread,
-            GemmM11N11ThreadClusterM1100,
-            GemmM11N11ThreadClusterN1100,
-            GemmM11N11ThreadClusterM1101,
-            GemmM11N11ThreadClusterN1101,
-            GemmABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1,
-            GemmABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1,
+            decltype(wei_grid_desc_gk0_gm0_gm1_gk1),
+            decltype(in_grid_desc_gk0_gn0_gn1_gk1),
+            decltype(out_grid_desc_gm0_gm1_gn0_gn1),
+            GM1PerBlockGM11,
+            GN1PerBlockGN11,
+            GK0PerBlock,
+            BM1PerThreadBM11,
+            BN1PerThreadBN11,
+            BK0PerThread,
+            BM10BN10ThreadClusterBM100,
+            BM10BN10ThreadClusterBN100,
+            BM10BN10ThreadClusterBM101,
+            BM10BN10ThreadClusterBN101,
+            ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1,
+            ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1,
             Sequence<1, 2, 3, 0, 4>, // ABlockTransferThreadClusterArrangeOrder
             Sequence<3, 2, 1, 0, 4>, // ABlockTransferSrcAccessOrder
-            GemmABlockTransferSrcVectorTensorLengths_GK0_GM0_GM10_GM11_GK1,
-            GemmABlockTransferDstVectorTensorLengths_GK0_GM0_GM10_GM11_GK1,
+            ABlockTransferSrcVectorTensorLengths_GK0_GM0_GM10_GM11_GK1,
+            ABlockTransferDstVectorTensorLengths_GK0_GM0_GM10_GM11_GK1,
             Sequence<0, 1, 2, 3, 4>, // ABlockTransferSrcVectorTensorContiguousDimOrder
-            GemmBBlockTransferThreadSliceLengths_GK0_GN0_GN10_GN11_GK1,
-            GemmBBlockTransferThreadClusterLengths_GK0_GN0_GN10_GN11_GK1,
+            BBlockTransferThreadSliceLengths_GK0_GN0_GN10_GN11_GK1,
+            BBlockTransferThreadClusterLengths_GK0_GN0_GN10_GN11_GK1,
             Sequence<0, 4, 1, 2, 3>, // BBlockTransferThreadClusterArrangeOrder
             Sequence<4, 3, 2, 0, 1>, // BBlockTransferSrcAccessOrder
-            GemmBBlockTransferSrcVectorTensorLengths_GK0_GN0_GN10_GN11_GK1,
-            GemmBBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1,
+            BBlockTransferSrcVectorTensorLengths_GK0_GN0_GN10_GN11_GK1,
+            BBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1,
             Sequence<0, 1, 2, 3, 4>,    // BBlockTransferSrcVectorTensorContiguousDimOrder
             Sequence<3, 4, 5, 0, 1, 2>, // CThreadTransferSrcDstAccessOrder
             5,                          // CThreadTransferSrcDstVectorDim
-            GemmCThreadTransferDstScalarPerVector_BN1,
+            CThreadTransferDstScalarPerVector_BN1,
             decltype(wei_grid_iterator_hacks),
             decltype(in_grid_iterator_hacks),
             decltype(out_grid_iterator_hacks),
@@ -227,9 +227,9 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
             static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
             static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
             static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
-            wei_gk0_gm0_gm1_gk1_grid_desc,
-            in_gk0_gn0_gn1_gk1_grid_desc,
-            out_gm0_gm1_gn0_gn1_grid_desc,
+            wei_grid_desc_gk0_gm0_gm1_gk1,
+            in_grid_desc_gk0_gn0_gn1_gk1,
+            out_grid_desc_gm0_gm1_gn0_gn1,
             wei_grid_iterator_hacks,
             in_grid_iterator_hacks,
             out_grid_iterator_hacks,
@@ -238,7 +238,7 @@ void device_dynamic_convolution_forward_implicit_gemm_v4r5r2_nchw_kcyx_nkhw(
             nrepeat);
 
         float perf = (float)calculate_convolution_flops(
-                         in_n_c_hi_wi_desc, wei_k_c_y_x_desc, out_n_k_ho_wo_desc) /
+                         in_desc_n_c_hi_wi, wei_desc_k_c_y_x, out_desc_n_k_ho_wo) /
                      (std::size_t(1000) * 1000 * 1000) / ave_time;
 
         std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
