@@ -12,26 +12,22 @@
 #include "conv_common.hpp"
 #include "host_conv.hpp"
 #include "device_tensor.hpp"
-
-#include "olc_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
-#include "olc_device_dynamic_convolution_forward_implicit_gemm_v4r5_nchw_kcyx_nkhw.hpp"
-
-#include "olc_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nchw_kcyx_nkhw.hpp"
-#include "olc_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_kyxc_nhwk.hpp"
-
-#define USE_CONV_FWD_V4R4_NCHW 1
-#define USE_CONV_FWD_V4R5_NCHW 1
-#define USE_CONV_FWD_V4R4_XDLOPS_NCHW 1
-#define USE_CONV_FWD_V4R4_XDLOPS_NHWC 1
-
-#include "conv_tunables.hpp"
 #include "handle.hpp"
 #include "hipCheck.hpp"
+#include "online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
+#include "online_device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw.hpp"
+#include "online_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nchw_kcyx_nkhw.hpp"
+#include "online_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_kyxc_nhwk.hpp"
+
+#define USE_CONV_FWD_V4R4_NCHW 1
+#define USE_CONV_FWD_V6R1_NCHW 1
+#define USE_CONV_FWD_V4R4_XDLOPS_NCHW 1
+#define USE_CONV_FWD_V4R4_XDLOPS_NHWC 1
 
 enum ConvForwardAlgo
 {
     V4R4NCHW,    // 0
-    V4R5NCHW,    // 1
+    V6R1NCHW,    // 1
     V4R4XDLNCHW, // 2
     V4R4XDLNHWC  // 3
 };
@@ -94,15 +90,17 @@ int main(int argc, char* argv[])
     const index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 
 #if 1
-    constexpr index_t in_vector_size = 1;
-    using in_data_t                  = float;
-    using acc_data_t                 = float;
-    using out_data_t                 = float;
+    using in_data_t  = float;
+    using acc_data_t = float;
+    using out_data_t = float;
 #elif 1
-    constexpr index_t in_vector_size = 16;
-    using in_data_t                  = int8_t;
-    using acc_data_t                 = int32_t;
-    using out_data_t                 = int8_t;
+    using in_data_t  = half_t;
+    using acc_data_t = float;
+    using out_data_t = half_t;
+#elif 1
+    using in_data_t  = int8_t;
+    using acc_data_t = int32_t;
+    using out_data_t = int8_t;
 #endif
 
     std::vector<std::size_t> in_lengths_host(4), wei_lengths_host(4), out_lengths_host(4);
@@ -230,9 +228,9 @@ int main(int argc, char* argv[])
         tunable_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw* tunable =
             &default_tunable_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw;
 
-        device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw_olc<in_data_t,
-                                                                                 acc_data_t,
-                                                                                 out_data_t>(
+        online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw<in_data_t,
+                                                                                    acc_data_t,
+                                                                                    out_data_t>(
             handle,
             tmp[I0],
             tmp[I1],
@@ -249,8 +247,8 @@ int main(int argc, char* argv[])
     }
 #endif
 
-#if USE_CONV_FWD_V4R5_NCHW
-    if(algo == ConvForwardAlgo::V4R5NCHW)
+#if USE_CONV_FWD_V6R1_NCHW
+    if(algo == ConvForwardAlgo::V6R1NCHW)
     {
         if(layout != ConvTensorLayout::NCHW)
         {
@@ -259,12 +257,11 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nchw();
 
-        tunable_dyn_conv_fwd_v4r5_nchw_kcyx_nkhw* tunable =
-            &default_tunable_dyn_conv_fwd_v4r5_nchw_kcyx_nkhw;
+        const auto tunable = tunable_dyn_conv_fwd_v6r1_nchw_kcyx_nkhw{};
 
-        device_dynamic_convolution_forward_implicit_gemm_v4r5_nchw_kcyx_nkhw_olc<in_data_t,
-                                                                                 acc_data_t,
-                                                                                 out_data_t>(
+        online_device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw<in_data_t,
+                                                                                    acc_data_t,
+                                                                                    out_data_t>(
             handle,
             tmp[I0],
             tmp[I1],
@@ -294,22 +291,22 @@ int main(int argc, char* argv[])
         tunable_dyn_conv_fwd_v4r4_xdlops_nchw_kcyx_nkhw* tunable =
             &default_tunable_dyn_conv_fwd_v4r4_xdlops_nchw_kcyx_nkhw;
 
-        device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nchw_kcyx_nkhw_olc<in_data_t,
-                                                                                        acc_data_t,
-                                                                                        out_data_t>(
-            handle,
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            conv_strides,
-            conv_dilations,
-            in_left_pads,
-            in_right_pads,
-            in,
-            wei,
-            out_device,
-            tunable,
-            nrepeat);
+        online_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nchw_kcyx_nkhw<
+            in_data_t,
+            acc_data_t,
+            out_data_t>(handle,
+                        tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        conv_strides,
+                        conv_dilations,
+                        in_left_pads,
+                        in_right_pads,
+                        in,
+                        wei,
+                        out_device,
+                        tunable,
+                        nrepeat);
     }
 #endif
 
@@ -326,22 +323,22 @@ int main(int argc, char* argv[])
         tunable_dyn_conv_fwd_v4r4_xdlops_nhwc_kyxc_nhwk* tunable =
             &default_tunable_dyn_conv_fwd_v4r4_xdlops_nhwc_kyxc_nhwk;
 
-        device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_kyxc_nhwk_olc<in_data_t,
-                                                                                        acc_data_t,
-                                                                                        out_data_t>(
-            handle,
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            conv_strides,
-            conv_dilations,
-            in_left_pads,
-            in_right_pads,
-            in,
-            wei,
-            out_device,
-            tunable,
-            nrepeat);
+        online_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_kyxc_nhwk<
+            in_data_t,
+            acc_data_t,
+            out_data_t>(handle,
+                        tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        conv_strides,
+                        conv_dilations,
+                        in_left_pads,
+                        in_right_pads,
+                        in,
+                        wei,
+                        out_device,
+                        tunable,
+                        nrepeat);
     }
 #endif
 
