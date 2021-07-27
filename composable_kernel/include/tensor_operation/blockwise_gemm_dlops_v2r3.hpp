@@ -1,10 +1,10 @@
-#ifndef CK_BLOCKWISE_GEMM_V2R3_HPP
-#define CK_BLOCKWISE_GEMM_V2R3_HPP
+#ifndef CK_BLOCKWISE_GEMM_DLOPS_V2R3_HPP
+#define CK_BLOCKWISE_GEMM_DLOPS_V2R3_HPP
 
 #include "common_header.hpp"
 #include "tensor_adaptor.hpp"
 #include "threadwise_dynamic_tensor_slice_transfer_v2.hpp"
-#include "threadwise_contraction.hpp"
+#include "threadwise_contraction_dlops.hpp"
 
 namespace ck {
 
@@ -21,6 +21,7 @@ namespace ck {
 //     1. CThreadDesc_BM0_BM11_BN0_BN11 is known at compile-time
 //     2. CThreadBuffer is StaticBuffer
 // Also assume:
+//   BM10BN10ThreadClusterBM10Xs::Size() = BM10BN10ThreadClusterBN10Xs::Size() == 2
 //   BM0 = BN0 = 2. It will do 2x2 pipelined read and fma (ABBA optimization)
 template <index_t BlockSize,
           typename FloatA,
@@ -31,16 +32,16 @@ template <index_t BlockSize,
           index_t BM1PerThreadBM11,
           index_t BN1PerThreadBN11,
           index_t BK0PerThread,
-          index_t BM10BN10ThreadClusterBM100,
-          index_t BM10BN10ThreadClusterBN100,
-          index_t BM10BN10ThreadClusterBM101,
-          index_t BM10BN10ThreadClusterBN101,
+          typename BM10BN10ThreadClusterBM10Xs, // Sequence<BM10BN10ThreadClusterBM100,
+                                                //          BM10BN10ThreadClusterBM101, ...>
+          typename BM10BN10ThreadClusterBN10Xs, // Sequence<BM10BN10ThreadClusterBN100,
+                                                //          BM10BN10ThreadClusterBN101, ...>
           index_t AThreadCopyScalarPerVector_BM11,
           index_t BThreadCopyScalarPerVector_BN11,
           typename std::enable_if<ABlockDesc_BK0_BM_BK1::IsKnownAtCompileTime() &&
                                       BBlockDesc_BK0_BN_BK1::IsKnownAtCompileTime(),
                                   bool>::type = false>
-struct BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2
+struct BlockwiseGemmDlops_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2
 {
     using AIndex = MultiIndex<3>;
     using BIndex = MultiIndex<3>;
@@ -56,19 +57,17 @@ struct BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_
     static constexpr index_t BM  = ABlockDesc_BK0_BM_BK1{}.GetLength(I1);
     static constexpr index_t BN  = BBlockDesc_BK0_BN_BK1{}.GetLength(I1);
 
-    static constexpr index_t BM100 = BM10BN10ThreadClusterBM100;
-    static constexpr index_t BN100 = BM10BN10ThreadClusterBN100;
+    static constexpr index_t BM100 = BM10BN10ThreadClusterBM10Xs{}[I0];
+    static constexpr index_t BN100 = BM10BN10ThreadClusterBN10Xs{}[I0];
 
-    static constexpr index_t BM101 = BM10BN10ThreadClusterBM101;
-    static constexpr index_t BN101 = BM10BN10ThreadClusterBN101;
+    static constexpr index_t BM101 = BM10BN10ThreadClusterBM10Xs{}[I1];
+    static constexpr index_t BN101 = BM10BN10ThreadClusterBN10Xs{}[I1];
 
     static constexpr index_t BM11 = BM1PerThreadBM11;
     static constexpr index_t BN11 = BN1PerThreadBN11;
 
-    static constexpr index_t BM1 =
-        BM10BN10ThreadClusterBM100 * BM10BN10ThreadClusterBM101 * BM1PerThreadBM11;
-    static constexpr index_t BN1 =
-        BM10BN10ThreadClusterBN100 * BM10BN10ThreadClusterBN101 * BN1PerThreadBN11;
+    static constexpr index_t BM1 = BM100 * BM101 * BM11;
+    static constexpr index_t BN1 = BN100 * BN101 * BN11;
 
     static constexpr index_t BM0 = BM / BM1;
     static constexpr index_t BN0 = BN / BN1;
@@ -149,7 +148,7 @@ struct BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_
         MakeBBlockDescriptor_BK0_BN0_BN1_BK1(BBlockDesc_BK0_BN_BK1{});
 
     public:
-    __device__ BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2()
+    __device__ BlockwiseGemmDlops_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2()
         : c_thread_origin_data_idx_{CalculateCThreadOriginOnBlock_BM0_BM1_BN0_BN1(
               get_thread_local_1d_id())},
           a_thread_copy_{
@@ -169,6 +168,11 @@ struct BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_
         static_assert(ABlockDesc_BK0_BM_BK1{}.GetLength(I0) ==
                           BBlockDesc_BK0_BN_BK1{}.GetLength(I0),
                       "wrong! K dimension not consistent");
+
+        // TODO remove this restriction
+        static_assert(BM10BN10ThreadClusterBM10Xs::Size() == 2 &&
+                          BM10BN10ThreadClusterBN10Xs::Size() == 2,
+                      "wrong!");
 
         // TODO: remove this restriction
         static_assert(BM0 == 2 && BN0 == 2, "wrong");
@@ -195,14 +199,14 @@ struct BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_
 
         constexpr auto adaptor = chain_tensor_adaptors(adaptor0, adaptor1);
 
-        return adaptor.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id(), 0, 0, 0, 0));
+        return adaptor.CalculateBottomIndex(make_multi_index(thread_id, 0, 0, 0, 0));
     }
 
     template <typename CThreadDesc_BM0_BM11_BN0_BN11,
               typename ABlockBuffer,
               typename BBlockBuffer,
               typename CThreadBuffer>
-    __device__ void Run(const CThreadDesc_BM0_BM11_BN0_BN11& c_m0_m1_n0_n1_thread_desc,
+    __device__ void Run(const CThreadDesc_BM0_BM11_BN0_BN11&,
                         const ABlockBuffer& a_block_buf,
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
@@ -216,13 +220,13 @@ struct BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_
                           CThreadDesc_BM0_BM11_BN0_BN11{}.GetLength(I2) == BN0,
                       "wrong");
 
-        auto a_thread_buf = make_static_buffer<AddressSpace::Vgpr, FloatA>(
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatA>(
             a_thread_desc_bk0_bm0_bm1_bk1_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpace::Vgpr, FloatB>(
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatB>(
             b_thread_desc_bk0_bn0_bn1_bk1_.GetElementSpaceSize());
 
         constexpr auto threadwise_contraction =
-            ThreadwiseContraction_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1<
+            ThreadwiseContractionDlops_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1<
                 FloatA,
                 FloatB,
                 FloatC,
