@@ -1,5 +1,5 @@
-#ifndef CK_THREADWISE_CONTRACTION_HPP
-#define CK_THREADWISE_CONTRACTION_HPP
+#ifndef CK_THREADWISE_CONTRACTION_DLOPS_HPP
+#define CK_THREADWISE_CONTRACTION_DLOPS_HPP
 
 #include "common_header.hpp"
 #include "math.hpp"
@@ -25,9 +25,9 @@ template <typename FloatA,
                                       BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
                                       CThreadDesc_TM0_TM1_TN0_TN1::IsKnownAtCompileTime(),
                                   bool>::type = false>
-struct ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1
+struct ThreadwiseGemmDlops_km0m1_kn0n1_m0m1n0n1
 {
-    __device__ constexpr ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1()
+    __device__ constexpr ThreadwiseGemmDlops_km0m1_kn0n1_m0m1n0n1()
     {
         static_assert(AThreadDesc_TK0_TM0_TM1_TK1::IsKnownAtCompileTime() &&
                           BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
@@ -71,8 +71,6 @@ struct ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
 
         constexpr auto TK  = TKLengths{}[I0];
         constexpr auto TM0 = TMLengths{}[I0];
@@ -131,9 +129,9 @@ template <typename FloatA,
                                       BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
                                       CThreadDesc_TM0_TM1_TN0_TN1::IsKnownAtCompileTime(),
                                   bool>::type = false>
-struct ThreadwiseContraction_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1
+struct ThreadwiseContractionDlops_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1
 {
-    __device__ constexpr ThreadwiseContraction_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1()
+    __device__ constexpr ThreadwiseContractionDlops_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1()
     {
         static_assert(AThreadDesc_TK0_TM0_TM1_TK1::IsKnownAtCompileTime() &&
                           BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
@@ -177,8 +175,6 @@ struct ThreadwiseContraction_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_T
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
 
         constexpr index_t TK0 = TKLengths{}[I0];
         constexpr index_t TK1 = TKLengths{}[I1];

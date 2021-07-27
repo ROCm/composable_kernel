@@ -1,33 +1,31 @@
-#ifndef CK_DRIVER_DYNAMIC_CONVOLUTION_FORWARD_IMPLICIT_GEMM_V5R1_NCHW_KCYX_NKHW_OUTPAD_HPP
-#define CK_DRIVER_DYNAMIC_CONVOLUTION_FORWARD_IMPLICIT_GEMM_V5R1_NCHW_KCYX_NKHW_OUTPAD_HPP
+#ifndef DRIVER_DYNAMIC_CONVOLUTION_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NCHW_KCYX_NKHW_OUTPAD_HPP
+#define DRIVER_DYNAMIC_CONVOLUTION_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NCHW_KCYX_NKHW_OUTPAD_HPP
 
 #include "common_header.hpp"
 #include "dynamic_tensor_descriptor.hpp"
 #include "dynamic_tensor_descriptor_helper.hpp"
-#include "gridwise_dynamic_gemm_v2.hpp"
+#include "gridwise_dynamic_gemm_dlops_v2.hpp"
 #include "gridwise_operation_wrapper.hpp"
 
-namespace ck {
-
-template <index_t BlockSize,
+template <ck::index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          index_t KPerBlock,
-          index_t HoPerBlock,
-          index_t WoPerBlock,
-          index_t EPerBlock,
-          index_t KPerThread,
-          index_t HoPerThread,
-          index_t WoPerThread,
-          index_t EPerThread,
+          ck::index_t KPerBlock,
+          ck::index_t HoPerBlock,
+          ck::index_t WoPerBlock,
+          ck::index_t EPerBlock,
+          ck::index_t KPerThread,
+          ck::index_t HoPerThread,
+          ck::index_t WoPerThread,
+          ck::index_t EPerThread,
           typename ABlockTransferThreadSliceLengths_E_K,
           typename ABlockTransferThreadClusterLengths_E_K,
-          index_t ABlockTransferSrcScalarPerVector_E,
-          index_t ABlockTransferDstScalarPerVector_K,
-          index_t BThreadTransferSrcScalarPerVector_W,
-          index_t CThreadTransferDstScalarPerVector_W>
-struct DriverDynamicConvolutionForwardImplicitGemm_v5r1_nchw_kcyx_nkhw_outpad
+          ck::index_t ABlockTransferSrcScalarPerVector_E,
+          ck::index_t ABlockTransferDstScalarPerVector_K,
+          ck::index_t BThreadTransferSrcScalarPerVector_W,
+          ck::index_t CThreadTransferDstScalarPerVector_W>
+struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outpad
 {
     template <typename... Wei,
               typename... In,
@@ -36,9 +34,9 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v5r1_nchw_kcyx_nkhw_outpad
               typename ConvDilations,
               typename InLeftPads,
               typename InRightPads>
-    __host__ void Run(const DynamicTensorDescriptor<Wei...>& wei_k_c_y_x_global_desc,
-                      const DynamicTensorDescriptor<In...>& in_n_c_hi_wi_global_desc,
-                      const DynamicTensorDescriptor<Out...>& out_n_k0_ho_wo_k1_global_desc,
+    __host__ void Run(const ck::DynamicTensorDescriptor<Wei...>& wei_k_c_y_x_global_desc,
+                      const ck::DynamicTensorDescriptor<In...>& in_n_c_hi_wi_global_desc,
+                      const ck::DynamicTensorDescriptor<Out...>& out_n_k0_ho_wo_k1_global_desc,
                       const ConvStrides& conv_strides,
                       const ConvDilations& conv_dilations,
                       const InLeftPads& in_left_pads,
@@ -47,6 +45,8 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v5r1_nchw_kcyx_nkhw_outpad
                       const FloatAB* __restrict__ p_in_global,
                       FloatC* __restrict__ p_out_global) const
     {
+        using namespace ck;
+
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
@@ -181,12 +181,12 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v5r1_nchw_kcyx_nkhw_outpad
                                   Sequence<0, 0, 0, 0, 0>{}));
 
         // GEMM
-        using gridwise_gemm = GridwiseDynamicGemm_km_kn_mn_v3<
+        using gridwise_gemm = GridwiseDynamicGemmDlops_km_kn_mn_v3<
             BlockSize,
             FloatAB,
             FloatAcc,
             FloatC,
-            InMemoryDataOperation::Set,
+            InMemoryDataOperationEnum_t::Set,
             decltype(wei_e_k_global_desc),
             decltype(in_e_n_ho_wo_global_desc),
             decltype(out_k_n_hop_wop_global_desc),
@@ -364,5 +364,4 @@ struct DriverDynamicConvolutionForwardImplicitGemm_v5r1_nchw_kcyx_nkhw_outpad
         }
     }
 };
-} // namespace ck
 #endif

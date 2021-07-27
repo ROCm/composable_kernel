@@ -1,10 +1,10 @@
-#ifndef CK_BLOCKWISE_GEMM_V2R2_HPP
-#define CK_BLOCKWISE_GEMM_V2R2_HPP
+#ifndef CK_BLOCKWISE_GEMM_DLOPS_V2R2_HPP
+#define CK_BLOCKWISE_GEMM_DLOPS_V2R2_HPP
 
 #include "common_header.hpp"
 #include "tensor_adaptor.hpp"
 #include "threadwise_dynamic_tensor_slice_transfer.hpp"
-#include "threadwise_contraction.hpp"
+#include "threadwise_contraction_dlops.hpp"
 
 namespace ck {
 
@@ -40,7 +40,7 @@ template <index_t BlockSize,
           typename std::enable_if<AKMBlockDesc::IsKnownAtCompileTime() &&
                                       BKNBlockDesc::IsKnownAtCompileTime(),
                                   bool>::type = false>
-struct BlockwiseGemm_km_kn_m0m1n0n1_v2r2_pipeline_2x2
+struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v2r2_pipeline_2x2
 {
     using AIndex = MultiIndex<3>;
     using BIndex = MultiIndex<3>;
@@ -140,7 +140,7 @@ struct BlockwiseGemm_km_kn_m0m1n0n1_v2r2_pipeline_2x2
     static constexpr auto b_k_n0_n1_block_desc_ = MakeBKN0N1BlockDescriptor(BKNBlockDesc{});
 
     public:
-    __device__ BlockwiseGemm_km_kn_m0m1n0n1_v2r2_pipeline_2x2()
+    __device__ BlockwiseGemmDlops_km_kn_m0m1n0n1_v2r2_pipeline_2x2()
         : c_thread_origin_data_idx_{CalculateCM0M1N0N1ThreadOriginOnBlock(
               get_thread_local_1d_id())},
           a_thread_copy_{
@@ -183,7 +183,7 @@ struct BlockwiseGemm_km_kn_m0m1n0n1_v2r2_pipeline_2x2
 
         constexpr auto adaptor = chain_tensor_adaptors(adaptor0, adaptor1);
 
-        return adaptor.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id(), 0, 0, 0, 0));
+        return adaptor.CalculateBottomIndex(make_multi_index(thread_id, 0, 0, 0, 0));
     }
 
     __host__ __device__ static constexpr index_t GetABlockAlignment() { return M1PerThreadM11; }
@@ -207,21 +207,21 @@ struct BlockwiseGemm_km_kn_m0m1n0n1_v2r2_pipeline_2x2
                           CM0M1N0N1ThreadDesc{}.GetLength(I2) == N0,
                       "wrong");
 
-        auto a_thread_buf = make_static_buffer<AddressSpace::Vgpr, FloatA>(
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatA>(
             a_k_m0_m1_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpace::Vgpr, FloatB>(
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatB>(
             b_k_n0_n1_thread_desc_.GetElementSpaceSize());
 
         constexpr auto threadwise_gemm =
-            ThreadwiseGemm_km0m1_kn0n1_m0m1n0n1<FloatA,
-                                                FloatB,
-                                                FloatC,
-                                                decltype(a_k_m0_m1_thread_desc_),
-                                                decltype(b_k_n0_n1_thread_desc_),
-                                                CM0M1N0N1ThreadDesc,
-                                                Sequence<KPerThread>,
-                                                Sequence<1, M1PerThreadM11>,
-                                                Sequence<1, N1PerThreadN11>>{};
+            ThreadwiseGemmDlops_km0m1_kn0n1_m0m1n0n1<FloatA,
+                                                     FloatB,
+                                                     FloatC,
+                                                     decltype(a_k_m0_m1_thread_desc_),
+                                                     decltype(b_k_n0_n1_thread_desc_),
+                                                     CM0M1N0N1ThreadDesc,
+                                                     Sequence<KPerThread>,
+                                                     Sequence<1, M1PerThreadM11>,
+                                                     Sequence<1, N1PerThreadN11>>{};
 
         // read A_sub_0
         a_thread_copy_.Run(a_k_m0_m1_block_desc_,
