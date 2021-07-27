@@ -1,15 +1,18 @@
 #include "common_header.hpp"
-#include "type_helper.hpp"
 #include "dynamic_tensor_descriptor.hpp"
 #include "dynamic_tensor_descriptor_helper.hpp"
-#include "gridwise_dynamic_gemm_v1r2.hpp"
+#include "gridwise_dynamic_gemm_dlops_v1r2.hpp"
 #include "transform_forward_convolution_into_gemm_v4r4_nchw_kcyx_nkhw.hpp"
 
 using namespace ck;
 
-using FloatAB  = typename get_type_from_type_id<static_cast<char>(CK_PARAM_IN_WEI_DATATYPE)>::type;
-using FloatC   = typename get_type_from_type_id<static_cast<char>(CK_PARAM_OUT_DATATYPE)>::type;
-using FloatAcc = typename get_type_from_type_id<static_cast<char>(CK_PARAM_CONV_COMPTYPE)>::type;
+constexpr DataTypeEnum_t ABDataTypeEnum  = static_cast<DataTypeEnum_t>(CK_PARAM_ABDataTypeEnum);
+constexpr DataTypeEnum_t AccDataTypeEnum = static_cast<DataTypeEnum_t>(CK_PARAM_AccDataTypeEnum);
+constexpr DataTypeEnum_t CDataTypeEnum   = static_cast<DataTypeEnum_t>(CK_PARAM_CDataTypeEnum);
+
+using FloatAB  = typename get_datatype_from_enum<ABDataTypeEnum>::type;
+using FloatAcc = typename get_datatype_from_enum<AccDataTypeEnum>::type;
+using FloatC   = typename get_datatype_from_enum<CDataTypeEnum>::type;
 
 constexpr index_t BlockSize = CK_PARAM_BlockSize;
 
@@ -61,7 +64,8 @@ constexpr index_t CThreadTransferDstScalarPerVector = CK_PARAM_CThreadTransferDs
 constexpr bool HasMainKBlockLoop       = static_cast<bool>(CK_PARAM_HAS_MAIN_KBLOCK_LOOP);
 constexpr bool HasDoubleTailKBlockLoop = static_cast<bool>(CK_PARAM_HAS_DOUBLE_TAIL_KBLOCK_LOOP);
 
-extern "C" __global__ void dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw_prepare(
+extern "C" __global__ void
+dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw_prepare(
     int n,
     int c,
     int hi,
@@ -147,48 +151,48 @@ extern "C" __global__ void dynamic_convolution_forward_implicit_gemm_v4r4_nchw_k
     using BGridMoveSliceWindowIteratorHacks = Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0>;
 
     using GridwiseGemm =
-        GridwiseDynamicGemm_km_kn_mn_v1r2<BlockSize,
-                                          FloatAB,
-                                          FloatAcc,
-                                          FloatC,
-                                          InMemoryDataOperation::Set, /* ToDo tunable */
-                                          AKMGridDesc,
-                                          BKNGridDesc,
-                                          CMNGridDesc,
-                                          MPerBlock,
-                                          NPerBlock,
-                                          KPerBlock,
-                                          M1PerThread,
-                                          N1PerThread,
-                                          KPerThread,
-                                          M1N1ThreadClusterM10,
-                                          M1N1ThreadClusterN10,
-                                          M1N1ThreadClusterM11,
-                                          M1N1ThreadClusterN11,
-                                          ABlockTransferThreadSliceLengths_K_M0_M1,
-                                          ABlockTransferThreadClusterLengths_K_M0_M1,
-                                          ABlockTransferThreadClusterArrangeOrder,
-                                          ABlockTransferSrcAccessOrder,
-                                          ABlockTransferSrcVectorDim,
-                                          ABlockTransferSrcScalarPerVector,
-                                          ABlockTransferDstScalarPerVector_M1,
-                                          AThreadTransferSrcResetCoordinateAfterRun,
-                                          BBlockTransferThreadSliceLengths_K_N0_N1,
-                                          BBlockTransferThreadClusterLengths_K_N0_N1,
-                                          BBlockTransferThreadClusterArrangeOrder,
-                                          BBlockTransferSrcAccessOrder,
-                                          BBlockTransferSrcVectorDim,
-                                          BBlockTransferSrcScalarPerVector,
-                                          BBlockTransferDstScalarPerVector_N1,
-                                          BThreadTransferSrcResetCoordinateAfterRun,
-                                          CThreadTransferSrcDstAccessOrder,
-                                          CThreadTransferSrcDstVectorDim,
-                                          CThreadTransferDstScalarPerVector,
-                                          AGridIteratorHacks,
-                                          BGridIteratorHacks,
-                                          CGridIteratorHacks,
-                                          AGridMoveSliceWindowIteratorHacks,
-                                          BGridMoveSliceWindowIteratorHacks>;
+        GridwiseDynamicGemmDlops_km_kn_mn_v1r2<BlockSize,
+                                               FloatAB,
+                                               FloatAcc,
+                                               FloatC,
+                                               InMemoryDataOperationEnum_t::Set, /* ToDo tunable */
+                                               AKMGridDesc,
+                                               BKNGridDesc,
+                                               CMNGridDesc,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               M1PerThread,
+                                               N1PerThread,
+                                               KPerThread,
+                                               M1N1ThreadClusterM10,
+                                               M1N1ThreadClusterN10,
+                                               M1N1ThreadClusterM11,
+                                               M1N1ThreadClusterN11,
+                                               ABlockTransferThreadSliceLengths_K_M0_M1,
+                                               ABlockTransferThreadClusterLengths_K_M0_M1,
+                                               ABlockTransferThreadClusterArrangeOrder,
+                                               ABlockTransferSrcAccessOrder,
+                                               ABlockTransferSrcVectorDim,
+                                               ABlockTransferSrcScalarPerVector,
+                                               ABlockTransferDstScalarPerVector_M1,
+                                               AThreadTransferSrcResetCoordinateAfterRun,
+                                               BBlockTransferThreadSliceLengths_K_N0_N1,
+                                               BBlockTransferThreadClusterLengths_K_N0_N1,
+                                               BBlockTransferThreadClusterArrangeOrder,
+                                               BBlockTransferSrcAccessOrder,
+                                               BBlockTransferSrcVectorDim,
+                                               BBlockTransferSrcScalarPerVector,
+                                               BBlockTransferDstScalarPerVector_N1,
+                                               BThreadTransferSrcResetCoordinateAfterRun,
+                                               CThreadTransferSrcDstAccessOrder,
+                                               CThreadTransferSrcDstVectorDim,
+                                               CThreadTransferDstScalarPerVector,
+                                               AGridIteratorHacks,
+                                               BGridIteratorHacks,
+                                               CGridIteratorHacks,
+                                               AGridMoveSliceWindowIteratorHacks,
+                                               BGridMoveSliceWindowIteratorHacks>;
 
     auto a_k_m0_m1_grid_desc = GridwiseGemm::MakeAKM0M1GridDescriptor(a_k_m_grid_desc);
     auto b_k_n0_n1_grid_desc = GridwiseGemm::MakeBKN0N1GridDescriptor(b_k_n_grid_desc);
@@ -212,14 +216,14 @@ extern "C" __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw(
+        dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            const void __CONSTANT__* p_a_k_m0_m1_grid_desc,
-            const void __CONSTANT__* p_b_k_n0_n1_grid_desc,
-            const void __CONSTANT__* p_c_m0_m10_m11_n0_n10_n11_grid_desc,
-            const void __CONSTANT__* p_c_blockid_to_m0_n0_block_cluster_adaptor)
+            const void CONSTANT* p_a_k_m0_m1_grid_desc,
+            const void CONSTANT* p_b_k_n0_n1_grid_desc,
+            const void CONSTANT* p_c_m0_m10_m11_n0_n10_n11_grid_desc,
+            const void CONSTANT* p_c_blockid_to_m0_n0_block_cluster_adaptor)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -283,48 +287,48 @@ extern "C" __global__ void
     using BGridMoveSliceWindowIteratorHacks = Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0>;
 
     using GridwiseGemm =
-        GridwiseDynamicGemm_km_kn_mn_v1r2<BlockSize,
-                                          FloatAB,
-                                          FloatAcc,
-                                          FloatC,
-                                          InMemoryDataOperation::Set, /* ToDo tunable */
-                                          AKMGridDesc,
-                                          BKNGridDesc,
-                                          CMNGridDesc,
-                                          MPerBlock,
-                                          NPerBlock,
-                                          KPerBlock,
-                                          M1PerThread,
-                                          N1PerThread,
-                                          KPerThread,
-                                          M1N1ThreadClusterM10,
-                                          M1N1ThreadClusterN10,
-                                          M1N1ThreadClusterM11,
-                                          M1N1ThreadClusterN11,
-                                          ABlockTransferThreadSliceLengths_K_M0_M1,
-                                          ABlockTransferThreadClusterLengths_K_M0_M1,
-                                          ABlockTransferThreadClusterArrangeOrder,
-                                          ABlockTransferSrcAccessOrder,
-                                          ABlockTransferSrcVectorDim,
-                                          ABlockTransferSrcScalarPerVector,
-                                          ABlockTransferDstScalarPerVector_M1,
-                                          AThreadTransferSrcResetCoordinateAfterRun,
-                                          BBlockTransferThreadSliceLengths_K_N0_N1,
-                                          BBlockTransferThreadClusterLengths_K_N0_N1,
-                                          BBlockTransferThreadClusterArrangeOrder,
-                                          BBlockTransferSrcAccessOrder,
-                                          BBlockTransferSrcVectorDim,
-                                          BBlockTransferSrcScalarPerVector,
-                                          BBlockTransferDstScalarPerVector_N1,
-                                          BThreadTransferSrcResetCoordinateAfterRun,
-                                          CThreadTransferSrcDstAccessOrder,
-                                          CThreadTransferSrcDstVectorDim,
-                                          CThreadTransferDstScalarPerVector,
-                                          AGridIteratorHacks,
-                                          BGridIteratorHacks,
-                                          CGridIteratorHacks,
-                                          AGridMoveSliceWindowIteratorHacks,
-                                          BGridMoveSliceWindowIteratorHacks>;
+        GridwiseDynamicGemmDlops_km_kn_mn_v1r2<BlockSize,
+                                               FloatAB,
+                                               FloatAcc,
+                                               FloatC,
+                                               InMemoryDataOperationEnum_t::Set, /* ToDo tunable */
+                                               AKMGridDesc,
+                                               BKNGridDesc,
+                                               CMNGridDesc,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               M1PerThread,
+                                               N1PerThread,
+                                               KPerThread,
+                                               M1N1ThreadClusterM10,
+                                               M1N1ThreadClusterN10,
+                                               M1N1ThreadClusterM11,
+                                               M1N1ThreadClusterN11,
+                                               ABlockTransferThreadSliceLengths_K_M0_M1,
+                                               ABlockTransferThreadClusterLengths_K_M0_M1,
+                                               ABlockTransferThreadClusterArrangeOrder,
+                                               ABlockTransferSrcAccessOrder,
+                                               ABlockTransferSrcVectorDim,
+                                               ABlockTransferSrcScalarPerVector,
+                                               ABlockTransferDstScalarPerVector_M1,
+                                               AThreadTransferSrcResetCoordinateAfterRun,
+                                               BBlockTransferThreadSliceLengths_K_N0_N1,
+                                               BBlockTransferThreadClusterLengths_K_N0_N1,
+                                               BBlockTransferThreadClusterArrangeOrder,
+                                               BBlockTransferSrcAccessOrder,
+                                               BBlockTransferSrcVectorDim,
+                                               BBlockTransferSrcScalarPerVector,
+                                               BBlockTransferDstScalarPerVector_N1,
+                                               BThreadTransferSrcResetCoordinateAfterRun,
+                                               CThreadTransferSrcDstAccessOrder,
+                                               CThreadTransferSrcDstVectorDim,
+                                               CThreadTransferDstScalarPerVector,
+                                               AGridIteratorHacks,
+                                               BGridIteratorHacks,
+                                               CGridIteratorHacks,
+                                               AGridMoveSliceWindowIteratorHacks,
+                                               BGridMoveSliceWindowIteratorHacks>;
 
     constexpr auto a_k_m0_m1_grid_desc_tmp =
         GridwiseGemm::MakeAKM0M1GridDescriptor(a_k_m_grid_desc);

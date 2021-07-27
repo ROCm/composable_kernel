@@ -14,8 +14,8 @@
 #include "device_tensor.hpp"
 #include "handle.hpp"
 #include "hipCheck.hpp"
-#include "online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw.hpp"
-#include "online_device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw.hpp"
+#include "online_device_dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
+#include "online_device_dynamic_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw.hpp"
 #include "online_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nchw_kcyx_nkhw.hpp"
 #include "online_device_dynamic_convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
@@ -35,6 +35,7 @@ enum ConvForwardAlgo
 int main(int argc, char* argv[])
 {
     using namespace ck;
+    using namespace ck_driver;
     using size_t = std::size_t;
 
     hipStream_t stream;
@@ -93,7 +94,7 @@ int main(int argc, char* argv[])
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;
-#elif 1
+#elif 0
     using in_data_t  = half_t;
     using acc_data_t = float;
     using out_data_t = half_t;
@@ -225,25 +226,25 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nchw();
 
-        tunable_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw* tunable =
-            &default_tunable_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw;
+        tunable_dyn_conv_fwd_v4r4_dlops_nchw_kcyx_nkhw* tunable =
+            &default_tunable_dyn_conv_fwd_v4r4_dlops_nchw_kcyx_nkhw;
 
-        online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw<in_data_t,
-                                                                                    acc_data_t,
-                                                                                    out_data_t>(
-            handle,
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            conv_strides,
-            conv_dilations,
-            in_left_pads,
-            in_right_pads,
-            in,
-            wei,
-            out_device,
-            tunable,
-            nrepeat);
+        online_device_dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw<
+            in_data_t,
+            acc_data_t,
+            out_data_t>(handle,
+                        tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        conv_strides,
+                        conv_dilations,
+                        in_left_pads,
+                        in_right_pads,
+                        in,
+                        wei,
+                        out_device,
+                        tunable,
+                        nrepeat);
     }
 #endif
 
@@ -257,24 +258,105 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nchw();
 
-        const auto tunable = tunable_dyn_conv_fwd_v6r1_nchw_kcyx_nkhw{};
+#if 1
+        const CompileParameterConvIgemmFwdV6r1DlopsNchwKcyxNkhw compile_param = {
+            get_datatype_enum_from_type<in_data_t>::value,
+            get_datatype_enum_from_type<acc_data_t>::value,
+            get_datatype_enum_from_type<out_data_t>::value,
+            256,
+            4,
+            1,
+            128,
+            32,
+            8,
+            4,
+            4,
+            1,
+            {8, 2},
+            {8, 2},
+            {4, 1, 1, 1, 1},
+            {2, 1, 1, 128, 1},
+            {4, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 4, 1, 1, 1},
+            {8, 1, 1, 32, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            4,
+            true,
+            true};
+#elif 0
+        const CompileParameterConvIgemmFwdV6r1DlopsNchwKcyxNkhw compile_param = {
+            get_datatype_enum_from_type<in_data_t>::value,
+            get_datatype_enum_from_type<acc_data_t>::value,
+            get_datatype_enum_from_type<out_data_t>::value,
+            256,
+            4,
+            2,
+            128,
+            32,
+            8,
+            4,
+            4,
+            1,
+            {8, 2},
+            {8, 2},
+            {4, 1, 1, 1, 2},
+            {2, 1, 1, 128, 1},
+            {4, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 4, 1, 1, 2},
+            {8, 1, 1, 32, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            4,
+            true,
+            true};
+#elif 1
+        const CompileParameterConvIgemmFwdV6r1DlopsNchwKcyxNkhw compile_param = {
+            get_datatype_enum_from_type<in_data_t>::value,
+            get_datatype_enum_from_type<acc_data_t>::value,
+            get_datatype_enum_from_type<out_data_t>::value,
+            256,
+            4,
+            4,
+            128,
+            32,
+            8,
+            4,
+            4,
+            1,
+            {8, 2},
+            {8, 2},
+            {4, 1, 1, 1, 4},
+            {2, 1, 1, 128, 1},
+            {4, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 4, 1, 1, 4},
+            {8, 1, 1, 32, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            4,
+            true,
+            true};
+#endif
 
-        online_device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw<in_data_t,
-                                                                                    acc_data_t,
-                                                                                    out_data_t>(
-            handle,
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            conv_strides,
-            conv_dilations,
-            in_left_pads,
-            in_right_pads,
-            in,
-            wei,
-            out_device,
-            tunable,
-            nrepeat);
+        online_device_dynamic_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw<
+            in_data_t,
+            acc_data_t,
+            out_data_t>(handle,
+                        tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        conv_strides,
+                        conv_dilations,
+                        in_left_pads,
+                        in_right_pads,
+                        in,
+                        wei,
+                        out_device,
+                        compile_param,
+                        nrepeat);
     }
 #endif
 
@@ -355,13 +437,15 @@ int main(int argc, char* argv[])
 
         check_error(out_host, out_device);
 
+#if 0
         if(do_log)
         {
-            LogRange(std::cout << "in : ", in.mData, ",") << std::endl;
-            LogRange(std::cout << "wei: ", wei.mData, ",") << std::endl;
-            LogRange(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
-            LogRange(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
         }
+#endif
     }
 
     delete handle;

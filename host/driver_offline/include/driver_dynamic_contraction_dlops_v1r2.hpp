@@ -1,31 +1,27 @@
-#ifndef CK_DRIVER_DYNAMIC_CONTRACTION_V1R2_HPP
-#define CK_DRIVER_DYNAMIC_CONTRACTION_V1R2_HPP
+#ifndef DRIVER_DYNAMIC_CONTRACTION_DLOPS_V1R2_HPP
+#define DRIVER_DYNAMIC_CONTRACTION_DLOPS_V1R2_HPP
 
 #include "common_header.hpp"
 #include "dynamic_tensor_descriptor.hpp"
 #include "dynamic_tensor_descriptor_helper.hpp"
-#include "gridwise_dynamic_contraction_v1r2.hpp"
+#include "gridwise_dynamic_contraction_dlops_v1r2.hpp"
 
-namespace ck {
-
-template <index_t BlockSize,
+template <ck::index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperation CGlobalMemoryDataOperation,
+          ck::InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           typename AGridDesc_GK0_GM0_GM1_GK1,
           typename BGridDesc_GK0_GN0_GN1_GK1,
           typename CGridDesc_GM0_GM1_GN0_GN1,
-          index_t GM1PerBlockGM11,
-          index_t GN1PerBlockGN11,
-          index_t GK0PerBlock,
-          index_t BM1PerThreadBM11,
-          index_t BN1PerThreadBN11,
-          index_t BK0PerThread,
-          index_t BM10BN10ThreadClusterBM100,
-          index_t BM10BN10ThreadClusterBN100,
-          index_t BM10BN10ThreadClusterBM101,
-          index_t BM10BN10ThreadClusterBN101,
+          ck::index_t GM1PerBlockGM11,
+          ck::index_t GN1PerBlockGN11,
+          ck::index_t GK0PerBlock,
+          ck::index_t BM1PerThreadBM11,
+          ck::index_t BN1PerThreadBN11,
+          ck::index_t BK0PerThread,
+          typename BM10BN10ThreadClusterBM10Xs,
+          typename BM10BN10ThreadClusterBN10Xs,
           typename ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1,
           typename ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1,
           typename ABlockTransferThreadClusterArrangeOrder,
@@ -41,28 +37,30 @@ template <index_t BlockSize,
           typename BBlockTransferDstVectorTensorLengths_GK0_GN0_GN10_GN11_GK1,
           typename BBlockTransferSrcVectorTensorContiguousDimOrder,
           typename CThreadTransferSrcDstAccessOrder,
-          index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector,
+          ck::index_t CThreadTransferSrcDstVectorDim,
+          ck::index_t CThreadTransferDstScalarPerVector,
           typename AGridIteratorHacks,
           typename BGridIteratorHacks,
           typename CGridIteratorHacks,
           typename AGridMoveSliceWindowIteratorHacks,
           typename BGridMoveSliceWindowIteratorHacks>
 __host__ float
-driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
-                                const FloatAB* p_b_grid,
-                                FloatC* p_c_grid,
-                                const AGridDesc_GK0_GM0_GM1_GK1& a_grid_desc_gk0_gm0_gm1_gk1,
-                                const BGridDesc_GK0_GN0_GN1_GK1& b_grid_desc_gk0_gn0_gn1_gk1,
-                                const CGridDesc_GM0_GM1_GN0_GN1& c_grid_desc_gm0_gm1_gn0_gn1,
-                                AGridIteratorHacks,
-                                BGridIteratorHacks,
-                                CGridIteratorHacks,
-                                AGridMoveSliceWindowIteratorHacks,
-                                BGridMoveSliceWindowIteratorHacks,
-                                index_t nrepeat)
+driver_dynamic_contraction_dlops_v1r2(const FloatAB* p_a_grid,
+                                      const FloatAB* p_b_grid,
+                                      FloatC* p_c_grid,
+                                      const AGridDesc_GK0_GM0_GM1_GK1& a_grid_desc_gk0_gm0_gm1_gk1,
+                                      const BGridDesc_GK0_GN0_GN1_GK1& b_grid_desc_gk0_gn0_gn1_gk1,
+                                      const CGridDesc_GM0_GM1_GN0_GN1& c_grid_desc_gm0_gm1_gn0_gn1,
+                                      AGridIteratorHacks,
+                                      BGridIteratorHacks,
+                                      CGridIteratorHacks,
+                                      AGridMoveSliceWindowIteratorHacks,
+                                      BGridMoveSliceWindowIteratorHacks,
+                                      ck::index_t nrepeat)
 
 {
+    using namespace ck;
+
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
@@ -72,7 +70,7 @@ driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
 
     // GEMM
     using GridwiseContraction =
-        GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_GN0_GN1<
+        GridwiseDynamicContractionDlops_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_GN0_GN1<
             BlockSize,
             FloatAB,
             FloatAcc,
@@ -87,10 +85,8 @@ driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
             BM1PerThreadBM11,
             BN1PerThreadBN11,
             BK0PerThread,
-            BM10BN10ThreadClusterBM100,
-            BM10BN10ThreadClusterBN100,
-            BM10BN10ThreadClusterBM101,
-            BM10BN10ThreadClusterBN101,
+            BM10BN10ThreadClusterBM10Xs,
+            BM10BN10ThreadClusterBN10Xs,
             ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1,
             ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1,
             ABlockTransferThreadClusterArrangeOrder,
@@ -182,7 +178,7 @@ driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
 
     if(has_main_k_block_loop && has_double_tail_k_block_loop)
     {
-        const auto kernel = kernel_dynamic_contraction_v1r2<
+        const auto kernel = kernel_dynamic_contraction_dlops_v1r2<
             GridwiseContraction,
             FloatAB,
             FloatC,
@@ -209,7 +205,7 @@ driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
     }
     else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
     {
-        const auto kernel = kernel_dynamic_contraction_v1r2<
+        const auto kernel = kernel_dynamic_contraction_dlops_v1r2<
             GridwiseContraction,
             FloatAB,
             FloatC,
@@ -236,7 +232,7 @@ driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
     }
     else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
     {
-        const auto kernel = kernel_dynamic_contraction_v1r2<
+        const auto kernel = kernel_dynamic_contraction_dlops_v1r2<
             GridwiseContraction,
             FloatAB,
             FloatC,
@@ -263,7 +259,7 @@ driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
     }
     else
     {
-        const auto kernel = kernel_dynamic_contraction_v1r2<
+        const auto kernel = kernel_dynamic_contraction_dlops_v1r2<
             GridwiseContraction,
             FloatAB,
             FloatC,
@@ -291,6 +287,4 @@ driver_dynamic_contraction_v1r2(const FloatAB* p_a_grid,
 
     return ave_time;
 }
-
-} // namespace ck
 #endif

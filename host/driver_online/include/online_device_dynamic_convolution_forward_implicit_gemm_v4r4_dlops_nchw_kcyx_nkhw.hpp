@@ -1,3 +1,4 @@
+#pragma once
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "handle.hpp"
@@ -5,24 +6,26 @@
 #include "dynamic_tensor_descriptor.hpp"
 #include "dynamic_tensor_descriptor_helper.hpp"
 #include "transform_forward_convolution_into_gemm_v4r4_nchw_kcyx_nkhw.hpp"
-#include "conv_tunable_fwd_v4r4_nchw_kcyx_nkhw.hpp"
+#include "conv_tunable_fwd_v4r4_dlops_nchw_kcyx_nkhw.hpp"
 
 namespace detail_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw {
 
 template <typename TInWei, typename TAcc, typename TOut>
 static std::string get_network_config_string_from_types()
 {
+    using namespace ck;
+
     std::string out;
 
-    out += static_cast<char>(Driver::get_typeid_from_type<TInWei>()) +
-           static_cast<char>(Driver::get_typeid_from_type<TAcc>()) +
-           static_cast<char>(Driver::get_typeid_from_type<TOut>());
+    out += std::to_string(get_datatype_enum_from_type<TInWei>::value) + "_" +
+           std::to_string(get_datatype_enum_from_type<TAcc>::value) + "_" +
+           std::to_string(get_datatype_enum_from_type<TOut>::value);
 
     return (out);
 };
 
 static std::string
-get_network_config_string_from_tunable(const tunable_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw* pt)
+get_network_config_string_from_tunable(const tunable_dyn_conv_fwd_v4r4_dlops_nchw_kcyx_nkhw* pt)
 {
     std::string out("TUN_");
 
@@ -95,17 +98,20 @@ get_network_config_string_from_tunable(const tunable_dyn_conv_fwd_v4r4_nchw_kcyx
 template <typename TInWei, typename TAcc, typename TOut>
 static std::string get_definition_string_from_types()
 {
+    using namespace ck;
+
     std::string out;
 
-    out += " -DCK_PARAM_IN_WEI_DATATYPE=" + std::to_string(Driver::get_typeid_from_type<TInWei>()) +
-           " -DCK_PARAM_CONV_COMPTYPE=" + std::to_string(Driver::get_typeid_from_type<TAcc>()) +
-           " -DCK_PARAM_OUT_DATATYPE=" + std::to_string(Driver::get_typeid_from_type<TOut>());
+    out +=
+        " -DCK_PARAM_ABDataTypeEnum=" + std::to_string(get_datatype_enum_from_type<TInWei>::value) +
+        " -DCK_PARAM_AccDataTypeEnum=" + std::to_string(get_datatype_enum_from_type<TAcc>::value) +
+        " -DCK_PARAM_CDataTypeEnum=" + std::to_string(get_datatype_enum_from_type<TOut>::value);
 
     return (out);
 };
 
 static std::string
-get_definition_string_from_tunable(const tunable_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw* pt)
+get_definition_string_from_tunable(const tunable_dyn_conv_fwd_v4r4_dlops_nchw_kcyx_nkhw* pt)
 {
     std::string out;
 
@@ -209,7 +215,7 @@ template <typename TInWei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw(
+void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw(
     olCompile::Handle* handle,
     const InLengths& in_n_c_hi_wi_lengths,
     const WeiLengths& wei_k_c_y_x_lengths,
@@ -221,10 +227,11 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw
     const Tensor<TInWei>& in_n_c_hi_wi,
     const Tensor<TInWei>& wei_k_c_y_x,
     Tensor<TOut>& out_n_k_ho_wo,
-    const tunable_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw* tunable,
+    const tunable_dyn_conv_fwd_v4r4_dlops_nchw_kcyx_nkhw* tunable,
     ck::index_t nrepeat)
 {
     using namespace ck;
+    using namespace ck_driver;
     using namespace detail_dyn_conv_fwd_v4r4_nchw_kcyx_nkhw;
     using size_t = std::size_t;
 
@@ -288,8 +295,9 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw
     const std::vector<size_t> vgd1 = {static_cast<size_t>(tunable->BlockSize), 1, 1};
     const std::vector<size_t> vgd2 = {static_cast<size_t>(grid_size * tunable->BlockSize), 1, 1};
 
-    std::string program_name = "dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw.cpp";
-    std::string algo_name    = "implicit_gemm_conv_fwd_v4r4_nchw";
+    std::string program_name =
+        "dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.cpp";
+    std::string algo_name = "implicit_gemm_conv_fwd_v4r4_dlops_nchw";
 
     std::string param = " -std=c++17 ";
     std::string network_config;
@@ -311,7 +319,7 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw
         KernelTimer timer1, timer2;
         std::string kernel_name;
 
-        kernel_name = "dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw_prepare";
+        kernel_name = "dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw_prepare";
         auto network_config_1 = network_config + "_1";
 
         timer1.Start();
@@ -337,7 +345,7 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw
             c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf);
         timer1.End();
 
-        kernel_name           = "dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw";
+        kernel_name = "dynamic_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw";
         auto network_config_2 = network_config + "_2";
 
         timer2.Start();
@@ -356,8 +364,14 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v4r4_nchw_kcyx_nkhw
     }
 
     {
-        auto ave_time1 = Driver::get_effective_average(kernel1_times);
-        auto ave_time2 = Driver::get_effective_average(kernel2_times);
+        auto ave_time1 =
+            std::accumulate(
+                std::next(kernel1_times.begin()), kernel1_times.end(), 0., std::plus<float>{}) /
+            (nrepeat - 1);
+        auto ave_time2 =
+            std::accumulate(
+                std::next(kernel2_times.begin()), kernel2_times.end(), 0., std::plus<float>{}) /
+            (nrepeat - 1);
 
         const auto N = in_n_c_hi_wi_lengths[I0];
         const auto C = in_n_c_hi_wi_lengths[I1];

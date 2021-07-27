@@ -1,8 +1,9 @@
+#pragma once
 #include <unistd.h>
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "transform_forward_convolution_into_gemm_v6r1_nchw_kcyx_nkhw.hpp"
-#include "driver_dynamic_contraction_v1r2.hpp"
+#include "driver_dynamic_contraction_dlops_v1r2.hpp"
 
 template <typename TInWei,
           typename TAcc,
@@ -14,7 +15,7 @@ template <typename TInWei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-void device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw(
+void device_dynamic_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw(
     const InLengths& in_n_c_hi_wi_lengths,
     const WeiLengths& wei_k_c_y_x_lengths,
     const OutLengths& out_n_k_ho_wo_lengths,
@@ -66,10 +67,8 @@ void device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw(
     constexpr index_t BN1PerThreadBN11 = 4;
     constexpr index_t BK0PerThread     = 1;
 
-    constexpr index_t BM10BN10ThreadClusterBM100 = 8;
-    constexpr index_t BM10BN10ThreadClusterBN100 = 8;
-    constexpr index_t BM10BN10ThreadClusterBM101 = 2;
-    constexpr index_t BM10BN10ThreadClusterBN101 = 2;
+    using BM10BN10ThreadClusterBM10Xs = Sequence<8, 2>;
+    using BM10BN10ThreadClusterBN10Xs = Sequence<8, 2>;
 
     using ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1   = Sequence<4, 1, 1, 1, 1>;
     using ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<2, 1, 1, 128, 1>;
@@ -100,10 +99,8 @@ void device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw(
     constexpr index_t BN1PerThreadBN11 = 4;
     constexpr index_t BK0PerThread     = 1;
 
-    constexpr index_t BM10BN10ThreadClusterBM100 = 8;
-    constexpr index_t BM10BN10ThreadClusterBN100 = 8;
-    constexpr index_t BM10BN10ThreadClusterBM101 = 2;
-    constexpr index_t BM10BN10ThreadClusterBN101 = 2;
+    using BM10BN10ThreadClusterBM10Xs = Sequence<8, 2>;
+    using BM10BN10ThreadClusterBN10Xs = Sequence<8, 2>;
 
     using ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1   = Sequence<4, 1, 1, 1, 2>;
     using ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1 = Sequence<2, 1, 1, 128, 1>;
@@ -183,12 +180,12 @@ void device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw(
 
     for(index_t i = 0; i < 5; ++i)
     {
-        float ave_time = driver_dynamic_contraction_v1r2<
+        float ave_time = driver_dynamic_contraction_dlops_v1r2<
             BlockSize,
             TInWei,
             TAcc,
             TOut,
-            InMemoryDataOperation::Set,
+            InMemoryDataOperationEnum_t::Set,
             decltype(wei_grid_desc_gk0_gm0_gm1_gk1),
             decltype(in_grid_desc_gk0_gn0_gn1_gk1),
             decltype(out_grid_desc_gm0_gm1_gn0_gn1),
@@ -198,10 +195,8 @@ void device_dynamic_convolution_forward_implicit_gemm_v6r1_nchw_kcyx_nkhw(
             BM1PerThreadBM11,
             BN1PerThreadBN11,
             BK0PerThread,
-            BM10BN10ThreadClusterBM100,
-            BM10BN10ThreadClusterBN100,
-            BM10BN10ThreadClusterBM101,
-            BM10BN10ThreadClusterBN101,
+            BM10BN10ThreadClusterBM10Xs,
+            BM10BN10ThreadClusterBN10Xs,
             ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1,
             ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1,
             Sequence<1, 2, 3, 0, 4>, // ABlockTransferThreadClusterArrangeOrder

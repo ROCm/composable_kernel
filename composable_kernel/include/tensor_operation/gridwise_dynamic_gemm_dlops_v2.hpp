@@ -7,7 +7,7 @@
 #include "dynamic_tensor_descriptor_helper.hpp"
 #include "blockwise_dynamic_tensor_slice_transfer.hpp"
 #include "threadwise_dynamic_tensor_slice_transfer.hpp"
-#include "blockwise_gemm_v3.hpp"
+#include "blockwise_gemm_dlops_v3.hpp"
 
 namespace ck {
 
@@ -15,7 +15,7 @@ template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperation CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           typename AGlobalDesc,
           typename BGlobalDesc,
           typename CGlobalDesc,
@@ -47,7 +47,7 @@ template <index_t BlockSize,
           typename CGlobalIteratorHacks,
           typename AGlobalMoveSliceWindowIteratorHacks,
           typename BGlobalMoveSliceWindowIteratorHacks>
-struct GridwiseDynamicGemm_km_kn_mn_v3
+struct GridwiseDynamicGemmDlops_km_kn_mn_v3
 {
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -84,11 +84,11 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
 
-        const auto a_global_buf = make_dynamic_buffer<AddressSpace::Global>(
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_global, a_e_k_global_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpace::Global>(
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_b_global, b_e_n_ho_wo_global_desc.GetElementSpaceSize());
-        auto c_global_buf = make_dynamic_buffer<AddressSpace::Global>(
+        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_global, c_k_n_ho_wo_global_desc.GetElementSpaceSize());
 
         constexpr auto E = EPerBlock * 3 * 3;
@@ -100,7 +100,7 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
         const auto Ho = b_e_n_ho_wo_global_desc.GetLength(I2);
         const auto Wo = b_e_n_ho_wo_global_desc.GetLength(I3);
 
-        // divide block work by [M, N]
+// divide block work by [M, N]
 #if 0
         const auto k_block_work_num   = K / Number<KPerBlock>{};
         const auto ho_block_work_num  = Ho / Number<HoPerBlock>{};
@@ -152,19 +152,20 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
             make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(
                 Number<KPerThread>{}, Number<1>{}, Number<HoPerThread>{}, Number<WoPerThread>{}));
 
-        auto blockwise_gemm = BlockwiseGemm_km_kn_m0m1n0n1_v3<BlockSize,
-                                                              FloatAB,
-                                                              FloatAB,
-                                                              FloatAcc,
-                                                              decltype(a_e_k_block_desc),
-                                                              decltype(b_e_n_ho_wo_block_desc),
-                                                              decltype(c_k_n_ho_wo_thread_desc),
-                                                              KPerThread,
-                                                              HoPerThread,
-                                                              WoPerThread,
-                                                              EPerThread,
-                                                              ABlockTransferSrcScalarPerVector,
-                                                              ABlockTransferDstScalarPerVector_K>{};
+        auto blockwise_gemm =
+            BlockwiseGemmDlops_km_kn_m0m1n0n1_v3<BlockSize,
+                                                 FloatAB,
+                                                 FloatAB,
+                                                 FloatAcc,
+                                                 decltype(a_e_k_block_desc),
+                                                 decltype(b_e_n_ho_wo_block_desc),
+                                                 decltype(c_k_n_ho_wo_thread_desc),
+                                                 KPerThread,
+                                                 HoPerThread,
+                                                 WoPerThread,
+                                                 EPerThread,
+                                                 ABlockTransferSrcScalarPerVector,
+                                                 ABlockTransferDstScalarPerVector_K>{};
 
         auto c_thread_mtx_index = blockwise_gemm.GetBeginOfThreadMatrixC(get_thread_local_1d_id());
 
@@ -184,7 +185,7 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseDynamicTensorSliceTransfer_v4<BlockSize,
-                                                   InMemoryDataOperation::Set,
+                                                   InMemoryDataOperationEnum_t::Set,
                                                    Sequence<E, KPerBlock>,
                                                    ABlockTransferThreadSliceLengths_E_K,
                                                    ABlockTransferThreadClusterLengths_E_K,
@@ -225,11 +226,13 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
             true>(b_e_n_ho_wo_global_desc,
                   make_multi_index(0, 0, ho_thread_data_on_global, wo_thread_data_on_global));
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpace::Lds>(p_shared_block,
-                                                                  a_e_k_desc.GetElementSpaceSize());
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+            p_shared_block, a_e_k_desc.GetElementSpaceSize());
 
         // register allocation for output
-        StaticBuffer<AddressSpace::Vgpr, FloatAcc, c_k_n_ho_wo_thread_desc.GetElementSpaceSize()>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     FloatAcc,
+                     c_k_n_ho_wo_thread_desc.GetElementSpaceSize()>
             c_thread_buf;
 
         // initialize output thread tensor
@@ -252,7 +255,9 @@ struct GridwiseDynamicGemm_km_kn_mn_v3
             BGlobalMoveSliceWindowIteratorHacks{};
 
         // double regsiter buffer for b
-        StaticBuffer<AddressSpace::Vgpr, FloatAB, b_e_n_ho_wo_thread_desc.GetElementSpaceSize()>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     FloatAB,
+                     b_e_n_ho_wo_thread_desc.GetElementSpaceSize()>
             b_thread_even_buf, b_thread_odd_buf;
 
         // LDS double buffer: preload data

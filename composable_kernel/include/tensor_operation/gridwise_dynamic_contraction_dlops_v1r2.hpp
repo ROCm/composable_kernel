@@ -1,11 +1,11 @@
-#ifndef CK_GRIDWISE_DYNAMIC_CONTRACTION_V1R2_HPP
-#define CK_GRIDWISE_DYNAMIC_CONTRACTION_V1R2_HPP
+#ifndef CK_GRIDWISE_DYNAMIC_CONTRACTION_DLOPS_V1R2_HPP
+#define CK_GRIDWISE_DYNAMIC_CONTRACTION_DLOPS_V1R2_HPP
 
 #include "common_header.hpp"
 #include "dynamic_multi_index_transform_helper.hpp"
 #include "dynamic_tensor_descriptor.hpp"
 #include "dynamic_tensor_descriptor_helper.hpp"
-#include "blockwise_gemm_v2r3.hpp"
+#include "blockwise_gemm_dlops_v2r3.hpp"
 #include "blockwise_dynamic_tensor_slice_transfer_v2.hpp"
 #include "threadwise_dynamic_tensor_slice_transfer.hpp"
 #include "threadwise_dynamic_tensor_slice_set.hpp"
@@ -25,7 +25,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_dynamic_contraction_v1r2(
+        kernel_dynamic_contraction_dlops_v1r2(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
@@ -55,7 +55,7 @@ template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperation CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           typename AGridDesc_GK0_GM0_GM1_GK1,
           typename BGridDesc_GK0_GN0_GN1_GK1,
           typename CGridDesc_GM0_GM1_GN0_GN1,
@@ -65,10 +65,8 @@ template <index_t BlockSize,
           index_t BM1PerThreadBM11,
           index_t BN1PerThreadBN11,
           index_t BK0PerThread,
-          index_t BM10BN10ThreadClusterBM100,
-          index_t BM10BN10ThreadClusterBN100,
-          index_t BM10BN10ThreadClusterBM101,
-          index_t BM10BN10ThreadClusterBN101,
+          typename BM10BN10ThreadClusterBM10Xs,
+          typename BM10BN10ThreadClusterBN10Xs,
           typename ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1,
           typename ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1,
           typename ABlockTransferThreadClusterArrangeOrder,
@@ -91,7 +89,7 @@ template <index_t BlockSize,
           typename CGridIteratorHacks,
           typename AGridMoveSliceWindowIteratorHacks,
           typename BGridMoveSliceWindowIteratorHacks>
-struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_GN0_GN1
+struct GridwiseDynamicContractionDlops_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_GN0_GN1
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -252,9 +250,11 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
         constexpr auto BN = GN0 * GN11;
 
         constexpr auto BM1 =
-            Number<BM10BN10ThreadClusterBM100 * BM10BN10ThreadClusterBM101 * BM1PerThreadBM11>{};
+            Number<container_reduce(BM10BN10ThreadClusterBM10Xs{}, math::multiplies_v2{}, I1) *
+                   BM1PerThreadBM11>{};
         constexpr auto BN1 =
-            Number<BM10BN10ThreadClusterBN100 * BM10BN10ThreadClusterBN101 * BN1PerThreadBN11>{};
+            Number<container_reduce(BM10BN10ThreadClusterBN10Xs{}, math::multiplies_v2{}, I1) *
+                   BN1PerThreadBN11>{};
 
         constexpr auto BM0 = BM / BM1;
         constexpr auto BN0 = BN / BN1;
@@ -331,11 +331,11 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
         integral_constant<bool, HasMainKBlockLoop>,
         integral_constant<bool, HasDoubleTailKBlockLoop>)
     {
-        const auto a_global_buf = make_dynamic_buffer<AddressSpace::Global>(
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_grid, a_grid_desc_gk0_gm0_gm10_gm11_gk1.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpace::Global>(
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_b_grid, b_grid_desc_gk0_gn0_gn10_gn11_gk1.GetElementSpaceSize());
-        auto c_grid_buf = make_dynamic_buffer<AddressSpace::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_grid, c_grid_desc_gm10_bm0_bm1_gn10_bn0_bn1.GetElementSpaceSize());
 
         const auto GK0 = a_grid_desc_gk0_gm0_gm10_gm11_gk1.GetLength(I0);
@@ -387,7 +387,7 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
         // A matrix blockwise copy
         auto a_blockwise_copy = BlockwiseDynamicTensorSliceTransfer_v4r1<
             BlockSize,
-            InMemoryDataOperation::Set,
+            InMemoryDataOperationEnum_t::Set,
             Sequence<GK0PerBlock, GM0, 1, GM1PerBlockGM11, GK1.value>,
             ABlockTransferThreadSliceLengths_GK0_GM0_GM10_GM11_GK1,
             ABlockTransferThreadClusterLengths_GK0_GM0_GM10_GM11_GK1,
@@ -411,7 +411,7 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
         // B matrix blockwise copy
         auto b_blockwise_copy = BlockwiseDynamicTensorSliceTransfer_v4r1<
             BlockSize,
-            InMemoryDataOperation::Set,
+            InMemoryDataOperationEnum_t::Set,
             Sequence<GK0PerBlock, GN0, 1, GN1PerBlockGN11, GK1.value>,
             BBlockTransferThreadSliceLengths_GK0_GN0_GN10_GN11_GK1,
             BBlockTransferThreadClusterLengths_GK0_GN0_GN10_GN11_GK1,
@@ -439,7 +439,7 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
         //     c_mtx[GM1PerBlockGM11, GN1PerBlockGN11] is distributed among threads, and saved in
         //       register
         const auto blockwise_gemm =
-            BlockwiseGemm_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2<
+            BlockwiseGemmDlops_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2<
                 BlockSize,
                 FloatAB,
                 FloatAB,
@@ -449,10 +449,8 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
                 BM1PerThreadBM11,
                 BN1PerThreadBN11,
                 BK0PerThread,
-                BM10BN10ThreadClusterBM100,
-                BM10BN10ThreadClusterBN100,
-                BM10BN10ThreadClusterBM101,
-                BM10BN10ThreadClusterBN101,
+                BM10BN10ThreadClusterBM10Xs,
+                BM10BN10ThreadClusterBN10Xs,
                 BM1PerThreadBM11,
                 BN1PerThreadBN11>{};
 
@@ -474,7 +472,7 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
         FloatAB* p_b_block_double = p_shared_block + 2 * a_block_aligned_space_size;
 
         // register allocation for output
-        auto c_thread_buf = make_static_buffer<AddressSpace::Vgpr, FloatAcc>(
+        auto c_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatAcc>(
             c_thread_desc_bm0_bm1_bn0_bn1.GetElementSpaceSize());
 
         ThreadwiseDynamicTensorSliceSet_v1<FloatAcc,
@@ -488,15 +486,15 @@ struct GridwiseDynamicContraction_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_
         constexpr auto a_block_slice_copy_step = make_multi_index(GK0PerBlock, 0, 0, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(GK0PerBlock, 0, 0, 0, 0);
 
-        auto a_block_even_buf = make_dynamic_buffer<AddressSpace::Lds>(
+        auto a_block_even_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             p_a_block_double, a_block_desc_gk0_gm0_gm10_gm11_gk1.GetElementSpaceSize());
-        auto b_block_even_buf = make_dynamic_buffer<AddressSpace::Lds>(
+        auto b_block_even_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             p_b_block_double, b_block_desc_gk0_gn0_gn10_gn11_gk1.GetElementSpaceSize());
 
-        auto a_block_odd_buf = make_dynamic_buffer<AddressSpace::Lds>(
+        auto a_block_odd_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             p_a_block_double + a_block_aligned_space_size,
             a_block_desc_gk0_gm0_gm10_gm11_gk1.GetElementSpaceSize());
-        auto b_block_odd_buf = make_dynamic_buffer<AddressSpace::Lds>(
+        auto b_block_odd_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             p_b_block_double + b_block_aligned_space_size,
             b_block_desc_gk0_gn0_gn10_gn11_gk1.GetElementSpaceSize());
 
