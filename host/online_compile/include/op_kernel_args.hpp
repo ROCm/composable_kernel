@@ -6,6 +6,9 @@
 #include <half.hpp>
 
 #include <boost/container/small_vector.hpp>
+
+namespace online_compile {
+
 struct OpKernelArg
 {
 
@@ -31,5 +34,7 @@ struct OpKernelArg
     boost::container::small_vector<char, 8> buffer;
     bool is_ptr = false;
 };
+
+} // namespace online_compile
 
 #endif

@@ -100,7 +100,7 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcy
         "dynamic_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw.cpp";
     std::string algo_name = "implicit_gemm_conv_fwd_v6r1_dlops_nchw";
 
-    std::string compile_param_string = " -std=c++17 " + compile_param.GetCompileParameterString();
+    std::string compile_param_string = get_ck_hip_online_compile_common_flag() + compile_param.GetCompileParameterString();
     std::string network_config       = compile_param_string;
 
     std::vector<float> kernel1_times;
