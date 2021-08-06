@@ -106,7 +106,7 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcy
     std::vector<float> kernel1_times;
     std::vector<float> kernel2_times;
 
-    for(index_t i = 0; i < nrepeat; ++i)
+    for(index_t i = 0; i < nrepeat + 1; ++i)
     {
         KernelTimer timer1, timer2;
         std::string kernel_name;
@@ -164,11 +164,11 @@ void online_device_dynamic_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcy
         auto ave_time1 =
             std::accumulate(
                 std::next(kernel1_times.begin()), kernel1_times.end(), 0., std::plus<float>{}) /
-            (nrepeat - 1);
+            nrepeat;
         auto ave_time2 =
             std::accumulate(
                 std::next(kernel2_times.begin()), kernel2_times.end(), 0., std::plus<float>{}) /
-            (nrepeat - 1);
+            nrepeat;
 
         float perf = (float)(conv_problem_desc.CalculateFlop()) /
                      (std::size_t(1000) * 1000 * 1000) / (ave_time1 + ave_time2);
