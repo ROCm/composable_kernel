@@ -2,8 +2,8 @@
 #define CK_TENSOR_ADAPTOR_HPP
 
 #include "common_header.hpp"
-#include "dynamic_tensor_descriptor.hpp"
-#include "dynamic_tensor_descriptor_helper.hpp"
+#include "tensor_descriptor.hpp"
+#include "tensor_descriptor_helper.hpp"
 
 namespace ck {
 
@@ -454,9 +454,7 @@ __host__ __device__ constexpr auto make_single_stage_tensor_adaptor(const Transf
                          remove_cv_t<decltype(top_dim_hidden_ids)>>{transforms};
 }
 
-template <typename X,
-          typename... Xs,
-          typename std::enable_if<sizeof...(Xs) >= 2, bool>::type = false>
+template <typename X, typename... Xs, typename enable_if<sizeof...(Xs) >= 2, bool>::type = false>
 __host__ __device__ constexpr auto chain_tensor_adaptors(const X& x, const Xs&... xs)
 {
     return chain_tensor_adaptors(x, chain_tensor_adaptors(xs...));
