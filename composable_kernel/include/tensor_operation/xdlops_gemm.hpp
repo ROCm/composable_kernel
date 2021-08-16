@@ -709,19 +709,59 @@ struct XdlopsGemm
         static_assert(mfma_type.k % mfma_type.k_base == 0, "k % kbase != 0!");
     }
 
+    template <typename CM0N0M1N1M2N2GridDesc>
+    __host__ __device__ static constexpr auto
+    MakeCM0N0M1N1M2M3M4N2GridDescriptor(const CM0N0M1N1M2N2GridDesc& c_m0_n0_m1_n1_m2_n2_grid_desc)
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
+        constexpr auto I5 = Number<5>{};
+
+        constexpr auto M0 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I0);
+        constexpr auto N0 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I1);
+        constexpr auto M1 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I2);
+        constexpr auto N1 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I3);
+        constexpr auto M2 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I4);
+        constexpr auto N2 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I5);
+
+        static_assert(N2 == mfma_type.num_threads_blk, "");
+        static_assert(
+            M2 == (mfma_type.num_groups_blk * mfma_type.num_output_blks * mfma_type.group_size),
+            "");
+
+        return transform_dynamic_tensor_descriptor(
+            c_m0_n0_m1_n1_m2_n2_grid_desc,
+            make_tuple(make_pass_through_transform(M0),
+                       make_pass_through_transform(N0),
+                       make_pass_through_transform(M1),
+                       make_pass_through_transform(N1),
+                       make_unmerge_transform(make_tuple(mfma_type.num_groups_blk,
+                                                         mfma_type.num_input_blks,
+                                                         mfma_type.group_size)),
+                       make_pass_through_transform(mfma_type.num_threads_blk)),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5>{}),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4, 5, 6>{},
+                       Sequence<7>{}));
+    }
+
     __device__ static constexpr index_t GetRegSizePerXdlops()
     {
         return MPerXdlops * NPerXdlops / mfma_type.wave_size;
     }
 
-    template <class ADesc,
-              class BDesc,
-              class CDesc,
-              index_t m0,
-              index_t n0,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t c_offset, class FloatA, class FloatB, class FloatC>
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
         static_assert(is_same<base_type, float>::value || is_same<base_type, half_t>::value ||
@@ -730,24 +770,35 @@ struct XdlopsGemm
 
         static_assert(KPack % mfma_type.k_base == 0, "KPack cannot be divided by k_base");
 
-        constexpr index_t c_offset = CDesc{}.CalculateOffset(make_tuple(m0, n0)) * GetNumXdlops();
-
-        static_for<0, KPack, mfma_type.k_base>{}([&](auto k) {
-            constexpr index_t a_offset = ADesc{}.CalculateOffset(make_tuple(0, m0, 0, k));
-            constexpr index_t b_offset = BDesc{}.CalculateOffset(make_tuple(0, n0, 0, k));
-
+        static_for<0, KPack / mfma_type.k_base, 1>{}([&](auto k) {
             mfma_type.template run<MPerXdlops, NPerXdlops, c_offset>(
-                p_a_wave[Number<a_offset / mfma_type.k_base>{}],
-                p_b_wave[Number<b_offset / mfma_type.k_base>{}],
-                p_c_thread);
+                p_a_wave[k], p_b_wave[k], p_c_thread);
         });
+    }
+
+    static constexpr auto GetBlkIdx()
+    {
+        const auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(
+                make_tuple(1, mfma_type.num_input_blks, mfma_type.num_threads_blk))),
+            make_tuple(Sequence<0, 1, 2>{}),
+            make_tuple(Sequence<0>{}));
+
+        const auto blk_idx = threadidx_to_blk_idx_adaptor.CalculateBottomIndex(
+            make_multi_index(get_thread_local_1d_id()));
+
+        const auto blk_id = blk_idx[Number<1>{}];
+        const auto blk_td = blk_idx[Number<2>{}];
+
+        return make_tuple(blk_id, blk_td);
     }
 
     __device__ static CIndex GetBeginOfThreadBlk(index_t xdlops_i, index_t blk_i)
     {
-        const index_t laneId = get_thread_local_1d_id() % mfma_type.wave_size;
-        const index_t blk_id = laneId / mfma_type.num_threads_blk;
-        const index_t blk_td = laneId % mfma_type.num_threads_blk;
+        const auto blk_idx = GetBlkIdx();
+
+        const auto blk_id = blk_idx[Number<0>{}];
+        const auto blk_td = blk_idx[Number<1>{}];
 
         index_t n_offset = blk_i * mfma_type.n + blk_td;
         index_t m_offset = xdlops_i * mfma_type.m + blk_id * mfma_type.group_size;
@@ -755,24 +806,12 @@ struct XdlopsGemm
         return CIndex{m_offset, n_offset};
     }
 
-    static constexpr index_t MRepeats   = GetXdlopsInfo().MRepeats;
-    static constexpr index_t NRepeats   = GetXdlopsInfo().NRepeats;
     static constexpr index_t MPerXdlops = GetXdlopsInfo().MPerXdlops;
     static constexpr index_t NPerXdlops = GetXdlopsInfo().NPerXdlops;
-
-    static constexpr bool IsKReduction  = GetXdlopsInfo().IsKReduction();
-    static constexpr bool IsABroadcast  = GetXdlopsInfo().IsABroadcast();
     static constexpr index_t KPerXdlops = GetXdlopsInfo().GetKPerXdlops();
 
-    static constexpr auto GetBlkId(const index_t lane_id)
-    {
-        return lane_id / mfma_type.num_threads_blk;
-    }
-
-    static constexpr auto GetBlkTd(const index_t lane_id)
-    {
-        return lane_id % mfma_type.num_threads_blk;
-    }
+    static constexpr bool IsKReduction = GetXdlopsInfo().IsKReduction();
+    static constexpr bool IsABroadcast = GetXdlopsInfo().IsABroadcast();
 
     static constexpr auto mfma_type = GetXdlopsInfo().mfma_type;
 
@@ -794,7 +833,7 @@ struct XdlopsGemm
         }
     };
 
-    __host__ __device__ static constexpr auto GetCLayout() { return CLayout{}; }
+    __host__ __device__ static constexpr auto GetCXdlopsLayout() { return CLayout{}; }
 };
 
 } // namespace ck
