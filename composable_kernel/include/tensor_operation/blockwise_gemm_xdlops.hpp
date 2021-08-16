@@ -257,12 +257,12 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, K1, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<FloatAB>()(Number<i>{}) = a_thread_buf
+                        a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
                             [Number<a_thread_desc_.CalculateOffset(make_tuple(0, m0, 0, 0, i))>{}];
                     });
 
                     static_for<0, K1, 1>{}([&](auto i) {
-                        b_thread_vec.template AsType<FloatAB>()(Number<i>{}) = b_thread_buf
+                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
                             [Number<b_thread_desc_.CalculateOffset(make_tuple(0, n0, 0, 0, i))>{}];
                     });
 
