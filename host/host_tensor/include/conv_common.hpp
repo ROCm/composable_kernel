@@ -12,6 +12,13 @@ enum ConvTensorLayout
     NHWCc
 };
 
+enum ConvDirection
+{
+    Forward,
+    BackwardData,
+    BackwardWeights
+};
+
 template <typename... InDesc,
           typename... WeiDesc,
           typename ConvStrides,
