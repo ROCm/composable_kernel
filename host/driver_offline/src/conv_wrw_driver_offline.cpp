@@ -164,14 +164,14 @@ int main(int argc, char* argv[])
     }
 
     Tensor<in_data_t> in(in_lengths_host);
-    Tensor<in_data_t> wei(wei_lengths_host);
-    Tensor<out_data_t> out_host(out_lengths_host);
-    Tensor<out_data_t> out_device(out_lengths_host);
+    Tensor<in_data_t> wei_device(wei_lengths_host);
+    Tensor<out_data_t> wei_host(wei_lengths_host);
+    Tensor<out_data_t> out(out_lengths_host);
 
     std::cout << "layout: " << layout << std::endl;
     ostream_HostTensorDescriptor(in.mDesc, std::cout << "in: ");
-    ostream_HostTensorDescriptor(wei.mDesc, std::cout << "wei: ");
-    ostream_HostTensorDescriptor(out_host.mDesc, std::cout << "out: ");
+    ostream_HostTensorDescriptor(wei_host.mDesc, std::cout << "wei: ");
+    ostream_HostTensorDescriptor(out.mDesc, std::cout << "out: ");
     print_array("InLeftPads", make_tuple(in_left_pad_h, in_left_pad_w));
     print_array("InRightPads", make_tuple(in_right_pad_h, in_right_pad_w));
     print_array("ConvStrides", make_tuple(conv_stride_h, conv_stride_w));
@@ -186,31 +186,31 @@ int main(int argc, char* argv[])
         break;
     case 1:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 2:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 3:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 4:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 5:
         in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
         break;
     default:
         in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
 
-        auto gen_wei = [](auto... is) {
+        auto gen_out = [](auto... is) {
             return GeneratorTensor_2{1, 5}(is...) * GeneratorTensor_Checkboard{}(is...);
         };
-        wei.GenerateTensorValue(gen_wei, num_thread);
+        out.GenerateTensorValue(gen_out, num_thread);
     }
 
     auto f_make_for_device_nchw = [&]() {
@@ -267,8 +267,8 @@ int main(int argc, char* argv[])
             tmp[I5],
             tmp[I6],
             in,
-            wei,
-            out_device,
+            wei_device,
+            out,
             nrepeat);
     }
 #endif
@@ -276,22 +276,22 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
         host_direct_convolution(in,
-                                wei,
-                                out_host,
+                                wei_host,
+                                out,
                                 make_tuple(conv_stride_h, conv_stride_w),
                                 make_tuple(conv_dilation_h, conv_dilation_w),
                                 make_tuple(in_left_pad_h, in_left_pad_w),
                                 make_tuple(in_right_pad_h, in_right_pad_w),
                                 layout);
 
-        check_error(out_host, out_device);
+        check_error(wei_host, wei_device);
 
         if(do_log)
         {
             LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "wei_device: ", wei_device.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "wei_host  : ", wei_host.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out: ", out.mData, ",") << std::endl;
         }
     }
 }
