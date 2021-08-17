@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+//#include <half.hpp>
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -11,6 +11,7 @@
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
 #include "host_conv.hpp"
+#include "host_conv_wrw.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk.hpp"
