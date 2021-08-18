@@ -23,8 +23,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    using CIndex = MultiIndex<2>;
-
     static constexpr index_t WaveSize = 64;
 
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
@@ -73,7 +71,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
-    __device__ static CIndex
+    __device__ static auto
         CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
@@ -94,7 +92,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         const index_t c_thread_n =
             nrepeat_nwave_nperxdl_to_n.CalculateOffset(make_tuple(n0, waveId_n, blk_idx[I1]));
 
-        return CIndex{c_thread_m, c_thread_n};
+        return make_tuple(c_thread_m, c_thread_n);
     }
 
     __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1()
