@@ -10,7 +10,7 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
-#include "host_conv.hpp"
+#include "host_conv_wrw.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 
@@ -275,9 +275,9 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution(in,
+        host_direct_convolution_backward_weights(in,
+                                out, 
                                 wei_host,
-                                out,
                                 make_tuple(conv_stride_h, conv_stride_w),
                                 make_tuple(conv_dilation_h, conv_dilation_w),
                                 make_tuple(in_left_pad_h, in_left_pad_w),
@@ -288,10 +288,10 @@ int main(int argc, char* argv[])
 
         if(do_log)
         {
-            LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
+         //   LogRangeAsType<float>(std::cout << "out: ", out.mData, ",") << std::endl;
+         //   LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "wei_device: ", wei_device.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "wei_host  : ", wei_host.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out: ", out.mData, ",") << std::endl;
+         //   LogRangeAsType<float>(std::cout << "wei_host  : ", wei_host.mData, ",") << std::endl;
         }
     }
 }
