@@ -473,7 +473,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             const index_t n_thread_data_on_grid =
                 n_block_data_idx_on_grid + c_thread_mtx_on_block[I1];
 
-            constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_iterator_hacks = CGridStepHacks{};
+            constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks = CGridStepHacks{};
 
             auto c_thread_copy =
                 ThreadwiseTensorSliceTransfer_v1r3<FloatC,
@@ -504,7 +504,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                   c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
                                   c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                                   c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_iterator_hacks);
+                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
 
                 return c_thread_idx_;
             };
@@ -520,7 +520,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                   c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
                                   c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                                   c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_iterator_hacks);
+                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             auto nrepeat_plus_copy = [&](auto c_thread_idx_) {
@@ -534,7 +534,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                   c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
                                   c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                                   c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_iterator_hacks);
+                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             auto mrepeat_minus_copy = [&](auto c_thread_idx_) {
@@ -548,7 +548,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                   c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
                                   c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                                   c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_iterator_hacks);
+                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             auto nrepeat_minus_copy = [&](auto c_thread_idx_) {
@@ -562,7 +562,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                   c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
                                   c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                                   c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_iterator_hacks);
+                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             static_assert((MRepeat == 4 && NRepeat == 4) or (MRepeat == 4 && NRepeat == 2) or

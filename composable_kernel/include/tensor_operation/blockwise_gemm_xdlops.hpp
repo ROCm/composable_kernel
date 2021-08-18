@@ -81,16 +81,20 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk(xdlops_i, blk_i);
 
-        constexpr auto mrepeat_mwave_mperxdl_to_m = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerXDL>{}));
+        constexpr auto mrepeat_mwave_mperxdl_to_m_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerXDL))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1, 2>{}));
 
-        constexpr auto nrepeat_nwave_nperxdl_to_n = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerXDL>{}));
+        constexpr auto nrepeat_nwave_nperxdl_to_n_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_unmerge_transform(make_tuple(NRepeat, NWaves, NPerXDL))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1, 2>{}));
 
-        const index_t c_thread_m =
-            mrepeat_mwave_mperxdl_to_m.CalculateOffset(make_tuple(m0, waveId_m, blk_idx[I0]));
-        const index_t c_thread_n =
-            nrepeat_nwave_nperxdl_to_n.CalculateOffset(make_tuple(n0, waveId_n, blk_idx[I1]));
+        const index_t c_thread_m = mrepeat_mwave_mperxdl_to_m_adaptor.CalculateBottomIndex(
+            make_tuple(m0, waveId_m, blk_idx[I0]))[I0];
+        const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
+            make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
     }
