@@ -690,24 +690,17 @@ struct XdlopsGemm
                       "Only support GemmMPerXdlops == 4, 8, 16, 32 or 64 for xdlops");
     }
 
-    template <typename CM0N0M1N1M2N2GridDesc>
+    template <typename CM0N0M1N1M2N2Desc>
     __host__ __device__ static constexpr auto
-    MakeCM0N0M1N1M2M3M4N2GridDescriptor(const CM0N0M1N1M2N2GridDesc& c_m0_n0_m1_n1_m2_n2_grid_desc)
+    MakeCM0N0M1N1M2M3M4N2Descriptor(const CM0N0M1N1M2N2Desc& c_m0_n0_m1_n1_m2_n2_desc)
     {
-        constexpr auto M0 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I0);
-        constexpr auto N0 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I1);
-        constexpr auto M1 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I2);
-        constexpr auto N1 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I3);
-        constexpr auto M2 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I4);
-        constexpr auto N2 = c_m0_n0_m1_n1_m2_n2_grid_desc.GetLength(I5);
+        const auto M0 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I0);
+        const auto N0 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I1);
+        const auto M1 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I2);
+        const auto N1 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I3);
 
-        static_assert(N2 == mfma_type.num_threads_per_blk, "");
-        static_assert(
-            M2 == (mfma_type.num_groups_per_blk * mfma_type.num_output_blks * mfma_type.group_size),
-            "");
-
-        return transform_dynamic_tensor_descriptor(
-            c_m0_n0_m1_n1_m2_n2_grid_desc,
+        return transform_tensor_descriptor(
+            c_m0_n0_m1_n1_m2_n2_desc,
             make_tuple(make_pass_through_transform(M0),
                        make_pass_through_transform(N0),
                        make_pass_through_transform(M1),

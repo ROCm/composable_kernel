@@ -40,14 +40,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    __device__ static constexpr auto GetCM0N0M1N1M2M3M4N2ThreadDesc()
-    {
-        constexpr auto M0 = Number<CXdlopsLayout.M1()>{};
-        constexpr auto M2 = Number<CXdlopsLayout.M0()>{};
-
-        return make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, I1, M0, I1, M2, I1));
-    }
-
     __device__ static auto GetWaveIdx()
     {
         const index_t thread_id = get_thread_local_1d_id();
@@ -131,39 +123,39 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         static_assert(NumBlks == 1 && NumXdlops == 1, "K Reduction Mfma only");
     }
 
+    __host__ __device__ static constexpr auto GetCM0N0M1N1M2M3M4N2ThreadDescriptor()
+    {
+        constexpr auto M0 = Number<CXdlopsLayout.M1()>{};
+        constexpr auto M2 = Number<CXdlopsLayout.M0()>{};
+
+        return make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, I1, M0, I1, M2, I1));
+    }
+
     __host__ __device__ static constexpr auto GetCM0N0M1N1M2M3M4N2BlockDescriptor()
     {
-        constexpr auto M2 = Number<CXdlopsLayout.M1()>{};
-        constexpr auto M3 = Number<CXdlopsLayout.N1()>{};
-        constexpr auto M4 = Number<CXdlopsLayout.M0()>{};
-        constexpr auto N2 = Number<CXdlopsLayout.N0()>{};
+        constexpr auto c_m0_n0_m1_n1_m2_n2_block_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<NRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
 
-        return make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
-                                                              Number<NRepeat>{},
-                                                              Number<MWaves>{},
-                                                              Number<NWaves>{},
-                                                              Number<M2>{},
-                                                              Number<M3>{},
-                                                              Number<M4>{},
-                                                              Number<N2>{}));
+        return xdlops_gemm.MakeCM0N0M1N1M2M3M4N2Descriptor(c_m0_n0_m1_n1_m2_n2_block_desc);
     }
 
     template <typename CMNGridDesc>
     __host__ __device__ static constexpr auto
     MakeCM0N0M1N1M2M3M4N2GridDescriptor(const CMNGridDesc& c_m_n_grid_desc)
     {
-        ///\To-do: pass CGrid desc transform deep inside xdlops gemm
-        constexpr auto M2 = Number<CXdlopsLayout.M1()>{};
-        constexpr auto M3 = Number<CXdlopsLayout.N1()>{};
-        constexpr auto M4 = Number<CXdlopsLayout.M0()>{};
-        constexpr auto N2 = Number<CXdlopsLayout.N0()>{};
-
-        return transform_tensor_descriptor(
+        const auto c_m0_n0_m1_n1_m2_n2_grid_desc = transform_tensor_descriptor(
             c_m_n_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, M2, M3, M4)),
-                       make_unmerge_transform(make_tuple(NRepeat, NWaves, N2))),
+            make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerXDL)),
+                       make_unmerge_transform(make_tuple(NRepeat, NWaves, NPerXDL))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 2, 4, 5, 6>{}, Sequence<1, 3, 7>{}));
+            make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}));
+
+        return xdlops_gemm.MakeCM0N0M1N1M2M3M4N2Descriptor(c_m0_n0_m1_n1_m2_n2_grid_desc);
     }
 
     __host__ __device__ static constexpr auto MakeAK0M0M1M2K1BlockDescriptor()

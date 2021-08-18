@@ -376,7 +376,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
 
         constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
-            blockwise_gemm.GetCM0N0M1N1M2M3M4N2ThreadDesc();
+            blockwise_gemm.GetCM0N0M1N1M2M3M4N2ThreadDescriptor();
         constexpr auto CBlkSize = c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc.GetElementSpaceSize();
 
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
