@@ -29,7 +29,7 @@ void host_direct_convolution_backward_weights(
             for(int ho = 0; ho < out.mDesc.GetLengths()[2]; ++ho)
             {
                 int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                for(int wo = 0; wo < wei.mDesc.GetLengths()[3]; ++wo)
+                for(int wo = 0; wo < out.mDesc.GetLengths()[3]; ++wo)
                 {
                     int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
@@ -51,7 +51,7 @@ void host_direct_convolution_backward_weights(
             for(int ho = 0; ho < out.mDesc.GetLengths()[1]; ++ho)
             {
                 int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                for(int wo = 0; wo < wei.mDesc.GetLengths()[2]; ++wo)
+                for(int wo = 0; wo < out.mDesc.GetLengths()[2]; ++wo)
                 {
                     int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[1] && wi >= 0 &&
