@@ -35,8 +35,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, K1>{};
 
-    static constexpr auto CXdlopsLayout = xdlops_gemm.GetCXdlopsLayout();
-
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
@@ -116,15 +114,13 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
-
-        constexpr index_t NumBlks   = CXdlopsLayout.GetNumBlks();
-        constexpr index_t NumXdlops = CXdlopsLayout.GetNumXdlops();
-
-        static_assert(NumBlks == 1 && NumXdlops == 1, "K Reduction Mfma only");
     }
 
     __host__ __device__ static constexpr auto GetCM0N0M1N1M2M3M4N2ThreadDescriptor()
     {
+        ///\to-do: hide xdl clayout into xdlops-gemm
+        constexpr auto CXdlopsLayout = xdlops_gemm.GetCXdlopsLayout();
+
         constexpr auto M0 = Number<CXdlopsLayout.M1()>{};
         constexpr auto M2 = Number<CXdlopsLayout.M0()>{};
 
