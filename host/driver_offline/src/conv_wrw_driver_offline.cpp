@@ -288,10 +288,10 @@ int main(int argc, char* argv[])
 
         if(do_log)
         {
-         //   LogRangeAsType<float>(std::cout << "out: ", out.mData, ",") << std::endl;
-         //   LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out: ", out.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "wei_device: ", wei_device.mData, ",") << std::endl;
-         //   LogRangeAsType<float>(std::cout << "wei_host  : ", wei_host.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "wei_host  : ", wei_host.mData, ",") << std::endl;
         }
     }
 }
