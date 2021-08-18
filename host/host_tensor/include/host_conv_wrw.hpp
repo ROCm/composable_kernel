@@ -1,16 +1,16 @@
 #pragma once
 #include "host_tensor.hpp"
 
-template <typename TIn,
-          typename TOut,
+template <typename TOut,
+          typename TIn,
           typename TWei,
           typename ConvStrides,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
 void host_direct_convolution_backward_weights(
-    const Tensor<TIn>& in,
     const Tensor<TOut>& out,
+    const Tensor<TIn>& in,
     Tensor<TWei>& wei,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
