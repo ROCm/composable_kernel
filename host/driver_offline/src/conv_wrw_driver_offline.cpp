@@ -275,8 +275,8 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution_backward_weights(in,
-                                out, 
+        host_direct_convolution_backward_weights(out, 
+                                in,
                                 wei_host,
                                 make_tuple(conv_stride_h, conv_stride_w),
                                 make_tuple(conv_dilation_h, conv_dilation_w),
