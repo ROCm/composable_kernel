@@ -201,8 +201,8 @@ int main(int argc, char* argv[])
         out.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 5:
-        in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 0.01}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 0.01}, num_thread);
         break;
     default:
         in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
