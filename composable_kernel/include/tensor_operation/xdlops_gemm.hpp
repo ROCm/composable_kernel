@@ -506,49 +506,49 @@ struct MfmaSelector
         return MfmaInstr::mfma_f32_16x16x4xf32;
     }
 
-#if 0
     template <>
     static constexpr auto GetMfma<half_t, 64, 64>()
     {
-        return xdlops_info<MfmaInstr::mfma_f32_32x32x4f16, 64, 64>{};
+        return MfmaInstr::mfma_f32_32x32x4f16;
     }
 
     template <>
     static constexpr auto GetMfma<half_t, 32, 64>()
     {
-        return xdlops_info<MfmaInstr::mfma_f32_32x32x4f16, 32, 64>{};
+        return MfmaInstr::mfma_f32_32x32x4f16;
     }
 
     template <>
     static constexpr auto GetMfma<half_t, 32, 32>()
     {
-        return xdlops_info<MfmaInstr::mfma_f32_32x32x8f16, 32, 32>{};
+        return MfmaInstr::mfma_f32_32x32x8f16;
     }
 
     template <>
     static constexpr auto GetMfma<half_t, 16, 16>()
     {
-        return xdlops_info<MfmaInstr::mfma_f32_16x16x16f16, 16, 16>{};
+        return MfmaInstr::mfma_f32_16x16x16f16;
     }
 
     template <>
     static constexpr auto GetMfma<half_t, 16, 64>()
     {
-        return xdlops_info<MfmaInstr::mfma_f32_16x16x4f16, 16, 64>{};
+        return MfmaInstr::mfma_f32_16x16x4f16;
     }
 
     template <>
     static constexpr auto GetMfma<half_t, 8, 64>()
     {
-        return xdlops_info<MfmaInstr::mfma_f32_4x4x4f16, 8, 64>{};
+        return MfmaInstr::mfma_f32_4x4x4f16;
     }
 
     template <>
     static constexpr auto GetMfma<half_t, 4, 64>()
     {
-        return xdlops_info<MfmaInstr::mfma_f32_4x4x4f16, 4, 64>{};
+        return MfmaInstr::mfma_f32_4x4x4f16;
     }
 
+#if 0
     template <>
     static constexpr auto GetMfma<ushort, 128, 64>()
     {
