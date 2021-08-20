@@ -14,13 +14,12 @@
 #include "device_tensor.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 
-
 #define USE_MODE 1
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
 
 enum ConvBackwardWeightAlgo
 {
-    V4R4R2XDLNCHW, 
+    V4R4R2XDLNCHW,
 };
 
 int main(int argc, char* argv[])
@@ -44,12 +43,12 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    const ConvTensorLayout layout = static_cast<ConvTensorLayout>(std::stoi(argv[1]));
-    const ConvBackwardWeightAlgo algo    = static_cast<ConvBackwardWeightAlgo>(std::stoi(argv[2]));
-    const bool do_verification    = std::stoi(argv[3]);
-    const int init_method         = std::stoi(argv[4]);
-    const bool do_log             = std::stoi(argv[5]);
-    const int nrepeat             = std::stoi(argv[6]);
+    const ConvTensorLayout layout     = static_cast<ConvTensorLayout>(std::stoi(argv[1]));
+    const ConvBackwardWeightAlgo algo = static_cast<ConvBackwardWeightAlgo>(std::stoi(argv[2]));
+    const bool do_verification        = std::stoi(argv[3]);
+    const int init_method             = std::stoi(argv[4]);
+    const bool do_log                 = std::stoi(argv[5]);
+    const int nrepeat                 = std::stoi(argv[6]);
 
     const index_t N  = std::stoi(argv[7]);
     const index_t K  = std::stoi(argv[8]);
@@ -81,12 +80,12 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    const ConvTensorLayout layout = static_cast<ConvTensorLayout>(std::stoi(argv[1]));
-    const ConvBackwardWeightAlgo algo    = static_cast<ConvBackwardWeightAlgo>(std::stoi(argv[2]));
-    const bool do_verification    = std::stoi(argv[3]);
-    const int init_method         = std::stoi(argv[4]);
-    const bool do_log             = std::stoi(argv[5]);
-    const int nrepeat             = std::stoi(argv[6]);
+    const ConvTensorLayout layout     = static_cast<ConvTensorLayout>(std::stoi(argv[1]));
+    const ConvBackwardWeightAlgo algo = static_cast<ConvBackwardWeightAlgo>(std::stoi(argv[2]));
+    const bool do_verification        = std::stoi(argv[3]);
+    const int init_method             = std::stoi(argv[4]);
+    const bool do_log                 = std::stoi(argv[5]);
+    const int nrepeat                 = std::stoi(argv[6]);
 
     constexpr index_t N  = 128;
     constexpr index_t C  = 192;
@@ -245,7 +244,6 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
-
 #if USE_CONV_WRW_V4R4R2_XDL_NCHW
     if(algo == ConvBackwardWeightAlgo::V4R4R2XDLNCHW)
     {
@@ -257,8 +255,8 @@ int main(int argc, char* argv[])
         const auto tmp = f_make_for_device_nchw();
 
         device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw<in_data_t,
-                                                                              acc_data_t,
-                                                                              out_data_t>(
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
             tmp[I0],
             tmp[I1],
             tmp[I2],
@@ -275,14 +273,14 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution_backward_weights(out, 
-                                in,
-                                wei_host,
-                                make_tuple(conv_stride_h, conv_stride_w),
-                                make_tuple(conv_dilation_h, conv_dilation_w),
-                                make_tuple(in_left_pad_h, in_left_pad_w),
-                                make_tuple(in_right_pad_h, in_right_pad_w),
-                                layout);
+        host_direct_convolution_backward_weights(out,
+                                                 in,
+                                                 wei_host,
+                                                 make_tuple(conv_stride_h, conv_stride_w),
+                                                 make_tuple(conv_dilation_h, conv_dilation_w),
+                                                 make_tuple(in_left_pad_h, in_left_pad_w),
+                                                 make_tuple(in_right_pad_h, in_right_pad_w),
+                                                 layout);
 
         check_error(wei_host, wei_device);
 

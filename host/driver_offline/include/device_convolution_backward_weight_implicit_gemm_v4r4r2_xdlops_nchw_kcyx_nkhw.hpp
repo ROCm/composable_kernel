@@ -77,15 +77,15 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 #endif
 
-    const auto descs =
-        transform_backward_weight_convolution_into_gemm_v4r4r2_nchw_kcyx_nkhw_pad(wei_k_c_y_x_desc,
-                                                                          in_n_c_hi_wi_desc,
-                                                                          out_n_k_ho_wo_desc,
-                                                                          conv_strides,
-                                                                          conv_dilations,
-                                                                          in_left_pads,
-                                                                          in_right_pads,
-                                                                          Number<GemmK1>{});
+    const auto descs = transform_backward_weight_convolution_into_gemm_v4r4r2_nchw_kcyx_nkhw_pad(
+        wei_k_c_y_x_desc,
+        in_n_c_hi_wi_desc,
+        out_n_k_ho_wo_desc,
+        conv_strides,
+        conv_dilations,
+        in_left_pads,
+        in_right_pads,
+        Number<GemmK1>{});
 
     const auto out_gemmk0_gemmm_gemmk1_grid_desc = descs[I0];
     const auto in_gemmk0_gemmn_gemmk1_grid_desc  = descs[I1];
@@ -93,13 +93,9 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
     constexpr auto out_gemmk0_gemmm_gemmk1_grid_step_hacks = make_tuple(
-        make_tuple(Sequence<0, 0, 1, 0, 0>{}, 
-                   Sequence<0, 0, 0, 0, 0>{}, 
-                   Sequence<0, 0, 1, 0, 0>{}),
+        make_tuple(Sequence<0, 0, 1, 0, 0>{}, Sequence<0, 0, 0, 0, 0>{}, Sequence<0, 0, 1, 0, 0>{}),
         make_tuple(
-                   Sequence<0, 0, 2, 0, 0>{}, 
-                   Sequence<0, 0, 0, 0, 0>{}, 
-                   Sequence<0, 0, 2, 0, 0>{}));
+            Sequence<0, 0, 2, 0, 0>{}, Sequence<0, 0, 0, 0, 0>{}, Sequence<0, 0, 2, 0, 0>{}));
 
     constexpr auto in_gemmk0_gemmn_gemmk1_grid_step_hacks =
         make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0>{},
