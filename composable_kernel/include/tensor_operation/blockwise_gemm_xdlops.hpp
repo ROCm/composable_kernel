@@ -4,6 +4,7 @@
 #include "common_header.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "xdlops_gemm.hpp"
+#include "tensor_adaptor.hpp"
 
 namespace ck {
 
