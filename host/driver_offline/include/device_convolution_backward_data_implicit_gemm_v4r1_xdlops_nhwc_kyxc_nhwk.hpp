@@ -56,9 +56,9 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 4;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 4;
 
     constexpr index_t MRepeat = 2;
     constexpr index_t NRepeat = 2;
@@ -84,9 +84,9 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 8;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 8;
 
     constexpr index_t MRepeat = 2;
     constexpr index_t NRepeat = 2;
@@ -112,9 +112,9 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 8;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 8;
 
     constexpr index_t MRepeat = 4;
     constexpr index_t NRepeat = 2;
@@ -140,9 +140,9 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 256;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 8;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 8;
 
     constexpr index_t MRepeat = 2;
     constexpr index_t NRepeat = 4;
@@ -168,9 +168,9 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 4;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 4;
 
     constexpr index_t MRepeat = 4;
     constexpr index_t NRepeat = 2;
@@ -263,8 +263,8 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
             GemmMPerBlock,
             GemmNPerBlock,
             GemmKPerBlock,
-            GemmMPerWave,
-            GemmNPerWave,
+            GemmMPerXDL,
+            GemmNPerXDL,
             GemmK1,
             MRepeat,
             NRepeat,
