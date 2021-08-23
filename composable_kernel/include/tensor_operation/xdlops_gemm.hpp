@@ -749,8 +749,9 @@ struct XdlopsGemm
 
     __device__ static auto GetBlkIdx()
     {
-        const auto laneId                       = GetLaneId();
-        const auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
+        const auto laneId = GetLaneId();
+
+        constexpr auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_merge_transform(
                 make_tuple(1, mfma_instr.num_input_blks, mfma_instr.num_threads_per_blk))),
             make_tuple(Sequence<0, 1, 2>{}),
