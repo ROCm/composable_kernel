@@ -103,8 +103,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
-          index_t MPerWave,
-          index_t NPerWave,
+          index_t MPerXDL,
+          index_t NPerXDL,
           index_t K1Value,
           index_t MRepeat,
           index_t NRepeat,
@@ -183,14 +183,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const auto N  = b_k0_n_k1_grid_desc.GetLength(I1);
         const auto K0 = a_k0_m_k1_grid_desc.GetLength(I0);
 
-        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
+        static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
+                          (NPerBlock % (NRepeat * NPerXDL)) == 0,
+                      "Invalid tuning param!");
 
+        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return (M == c_m_n_grid_desc.GetLength(I0) && N == c_m_n_grid_desc.GetLength(I1) &&
                 K0 == b_k0_n_k1_grid_desc.GetLength(I0) &&
                 K1 == a_k0_m_k1_grid_desc.GetLength(I2) &&
                 K1 == b_k0_n_k1_grid_desc.GetLength(I2)) &&
-               (M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % KPerBlock == 0) &&
-               (MPerBlock % MPerWave == 0 && NPerBlock % NPerWave == 0);
+               (M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % KPerBlock == 0);
     }
 
     __host__ __device__ static constexpr index_t
@@ -220,8 +222,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 FloatAB,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
-                                                                MPerWave,
-                                                                NPerWave,
+                                                                MPerXDL,
+                                                                NPerXDL,
                                                                 MRepeat,
                                                                 NRepeat,
                                                                 K1>;
@@ -366,8 +368,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 FloatAB,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
-                                                                MPerWave,
-                                                                NPerWave,
+                                                                MPerXDL,
+                                                                NPerXDL,
                                                                 MRepeat,
                                                                 NRepeat,
                                                                 K1>{};
