@@ -801,7 +801,7 @@ __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::t
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
+#if CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
     uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x7fffffff;
 
     amd_buffer_store_impl<scalar_t, vector_size>(
@@ -836,7 +836,7 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
+#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
     uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x7fffffff;
 
     amd_buffer_atomic_add_impl<scalar_t, vector_size>(
