@@ -87,13 +87,13 @@ int main(int argc, char* argv[])
     const bool do_log                 = std::stoi(argv[5]);
     const int nrepeat                 = std::stoi(argv[6]);
 
-    constexpr index_t N  = 128;
-    constexpr index_t C  = 192;
-    constexpr index_t Hi = 71;
-    constexpr index_t Wi = 71;
-    constexpr index_t K  = 256;
-    constexpr index_t Y  = 3;
-    constexpr index_t X  = 3;
+    constexpr index_t N  = Number<128>;
+    constexpr index_t C  = Number<128>;
+    constexpr index_t Hi = Number<14>;
+    constexpr index_t Wi = Number<14>;
+    constexpr index_t K  = Number<256>;
+    constexpr index_t Y  = Number<3>;
+    constexpr index_t X  = Number<3>;
 
     const index_t conv_stride_h   = 2;
     const index_t conv_stride_w   = 2;
@@ -200,8 +200,8 @@ int main(int argc, char* argv[])
         out.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 5:
-        in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 0.01}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 0.01}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_3<float>{-0.01, 0.01}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_3<float>{-0.01, 0.01}, num_thread);
         break;
     default:
         in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
