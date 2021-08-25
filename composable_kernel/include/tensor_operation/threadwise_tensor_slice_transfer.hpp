@@ -215,7 +215,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     is_dst_valid,
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
             }
-            else
+            else if constexpr(DstInMemOp == InMemoryDataOperationEnum_t::AtomicAdd)
             {
                 dst_buf.template AtomicAdd<dst_vector_t>(
                     dst_coord_.GetOffset(),
