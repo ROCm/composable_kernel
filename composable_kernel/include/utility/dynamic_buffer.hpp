@@ -223,6 +223,38 @@ struct DynamicBuffer
         }
     }
 
+    template <typename X,
+              typename enable_if<
+                  is_same<typename scalar_type<remove_cv_t<remove_reference_t<X>>>::type,
+                          typename scalar_type<remove_cv_t<remove_reference_t<T>>>::type>::value,
+                  bool>::type = false>
+    __host__ __device__ void AtomicAdd(index_t i, bool is_valid_element, const X& x)
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector =
+            scalar_type<remove_cv_t<remove_reference_t<T>>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector =
+            scalar_type<remove_cv_t<remove_reference_t<X>>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X need to be multiple T");
+
+        static_assert(GetAddressSpace() == AddressSpaceEnum_t::Global, "only support global mem");
+
+#if CK_USE_AMD_BUFFER_ADDRESSING
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+        amd_buffer_atomic_add<remove_cv_t<remove_reference_t<T>>, t_per_x>(
+            x, p_data_, i, is_valid_element, element_space_size_);
+#else
+        if(is_valid_element)
+        {
+            atomicAdd(&p_data_[i], x);
+        }
+#endif
+    }
+
     __host__ __device__ static constexpr bool IsStaticBuffer() { return false; }
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return true; }
