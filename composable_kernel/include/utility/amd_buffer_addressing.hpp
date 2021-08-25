@@ -763,7 +763,7 @@ __device__ void amd_buffer_atomic_add_impl(const typename vector_type<T, N>::typ
 }
 
 // buffer_load requires:
-//   1) p_src_wave must be in global memory space
+//   1) p_src_wave must point to global memory space
 //   2) p_src_wave must be a wavewise pointer.
 // It is user's responsibility to make sure that is true.
 template <typename T, index_t N>
@@ -797,7 +797,7 @@ amd_buffer_load_invalid_element_return_return_zero(const T* p_src_wave,
 }
 
 // buffer_load requires:
-//   1) p_src_wave must be in global memory space
+//   1) p_src_wave must point to global memory space
 //   2) p_src_wave must be a wavewise pointer.
 // It is user's responsibility to make sure that is true.
 template <typename T, index_t N>
@@ -825,7 +825,7 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
 }
 
 // buffer_store requires:
-//   1) p_dst_wave must be global memory
+//   1) p_dst_wave must point to global memory
 //   2) p_dst_wave must be a wavewise pointer.
 // It is user's responsibility to make sure that is true.
 template <typename T, index_t N>
@@ -859,7 +859,7 @@ __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::t
 }
 
 // buffer_atomic_add requires:
-//   1) p_dst_wave must be global memory
+//   1) p_dst_wave must point to global memory
 //   2) p_dst_wave must be a wavewise pointer.
 // It is user's responsibility to make sure that is true.
 template <typename T, index_t N>
