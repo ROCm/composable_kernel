@@ -95,18 +95,13 @@ struct ThreadwiseTensorSliceTransfer_v1r3
         static_assert(SrcDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc need to known at compile-time");
 
-        static_assert(
-            is_known_at_compile_time<remove_cv_t<remove_reference_t<SrcSliceOriginIdx>>>::value,
-            "wrong! SrcSliceOrigin need to known at compile-time");
+        static_assert(is_known_at_compile_time<remove_cvref_t<SrcSliceOriginIdx>>::value,
+                      "wrong! SrcSliceOrigin need to known at compile-time");
 
         static_assert(SrcBuffer::IsStaticBuffer(), "wrong! SrcBuffer need to be StaticBuffer");
 
-        // static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
-        // remove_cv_t<remove_reference_t<SrcData>>>::value,
-        //"wrong! SrcBuffer data type is wrong");
-
         // SrcDesc and src_slice_origin_idx are known at compile-time
-        constexpr auto src_desc             = remove_cv_t<remove_reference_t<SrcDesc>>{};
+        constexpr auto src_desc             = remove_cvref_t<SrcDesc>{};
         constexpr auto src_slice_origin_idx = to_multi_index(SrcSliceOriginIdx{});
 
         constexpr auto I0 = Number<0>{};
@@ -421,16 +416,15 @@ struct ThreadwiseTensorSliceTransfer_v2
         static_assert(DstDesc::IsKnownAtCompileTime(),
                       "wrong! DstDesc need to known at compile-time");
 
-        static_assert(
-            is_known_at_compile_time<remove_cv_t<remove_reference_t<DstSliceOriginIdx>>>::value,
-            "wrong! DstSliceOrigin need to known at compile-time");
+        static_assert(is_known_at_compile_time<remove_cvref_t<DstSliceOriginIdx>>::value,
+                      "wrong! DstSliceOrigin need to known at compile-time");
 
-        static_assert(is_same<remove_cv_t<remove_reference_t<typename DstBuffer::type>>,
-                              remove_cv_t<remove_reference_t<DstData>>>::value &&
-                      "wrong! inconsistent type");
+        static_assert(
+            is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value &&
+            "wrong! inconsistent type");
 
         // DstDesc and dst_slice_origin_idx are known at compile-time
-        constexpr auto dst_desc             = remove_cv_t<remove_reference_t<DstDesc>>{};
+        constexpr auto dst_desc             = remove_cvref_t<DstDesc>{};
         constexpr auto dst_slice_origin_idx = DstSliceOriginIdx{};
 
         constexpr auto I0 = Number<0>{};
@@ -742,9 +736,9 @@ struct ThreadwiseTensorSliceTransfer_v3
                           SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
                       "wrong!");
 
-        static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
-                              remove_cv_t<remove_reference_t<SrcData>>>::value,
-                      "wrong! SrcBuffer and SrcData data type are inconsistent");
+        static_assert(
+            is_same<remove_cvref_t<typename SrcBuffer::type>, remove_cvref_t<SrcData>>::value,
+            "wrong! SrcBuffer and SrcData data type are inconsistent");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -899,9 +893,9 @@ struct ThreadwiseTensorSliceTransfer_v3
                           DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
                       "wrong!");
 
-        static_assert(is_same<remove_cv_t<remove_reference_t<typename DstBuffer::type>>,
-                              remove_cv_t<remove_reference_t<DstData>>>::value,
-                      "wrong! SrcBuffer or DstBuffer data type is wrong");
+        static_assert(
+            is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value,
+            "wrong! SrcBuffer or DstBuffer data type is wrong");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -1315,24 +1309,21 @@ struct ThreadwiseTensorSliceTransfer_v4
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
-        static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
-                              remove_cv_t<remove_reference_t<SrcData>>>::value &&
-                          is_same<remove_cv_t<remove_reference_t<typename DstBuffer::type>>,
-                                  remove_cv_t<remove_reference_t<DstData>>>::value,
-                      "wrong! SrcBuffer or DstBuffer data type is wrong");
+        static_assert(
+            is_same<remove_cvref_t<typename SrcBuffer::type>, remove_cvref_t<SrcData>>::value &&
+                is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value,
+            "wrong! SrcBuffer or DstBuffer data type is wrong");
 
         static_assert(DstBuffer::IsStaticBuffer(), "wrong! DstBuffer need to be StaticBuffer");
 
-        static_assert(
-            is_known_at_compile_time<
-                remove_cv_t<remove_reference_t<SrcRefToOriginDisplacement>>>::value &&
-                is_known_at_compile_time<remove_cv_t<remove_reference_t<DstOriginIdx>>>::value,
-            "wrong! SrcOriginToRefDistance and DstOriginToRefDistance need to be known "
-            "at compile-time");
+        static_assert(is_known_at_compile_time<remove_cvref_t<SrcRefToOriginDisplacement>>::value &&
+                          is_known_at_compile_time<remove_cvref_t<DstOriginIdx>>::value,
+                      "wrong! SrcOriginToRefDistance and DstOriginToRefDistance need to be known "
+                      "at compile-time");
 
         // SrcDesc and DstDesc are known at compile-time
-        constexpr auto src_desc = remove_cv_t<remove_reference_t<SrcDesc>>{};
-        constexpr auto dst_desc = remove_cv_t<remove_reference_t<DstDesc>>{};
+        constexpr auto src_desc = remove_cvref_t<SrcDesc>{};
+        constexpr auto dst_desc = remove_cvref_t<DstDesc>{};
 
         // SrcOriginToRefDisttance and DstOriginToRefDistance are known at compile-time
         constexpr auto src_ref_to_origin_disp_idx = to_multi_index(SrcRefToOriginDisplacement{});
