@@ -10,11 +10,11 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
-#include "host_conv_wrw.hpp"
+#include "host_conv_bwd_weight.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 
-#define USE_MODE 1
+#define USE_DYNAMIC_MODE 1
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
 
 enum ConvBackwardWeightAlgo
@@ -34,11 +34,11 @@ int main(int argc, char* argv[])
     constexpr auto I5 = Number<5>{};
     constexpr auto I6 = Number<6>{};
 
-#if USE_MODE
+#if USE_DYNAMIC_MODE
     // dynamic mode
     if(argc != 22)
     {
-        printf("arg1 to 5: layout, algo, do_verification, init_method, do_log, nrepeat\n");
+        printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
         printf("rest: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx\n");
         exit(1);
     }
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
     // static mode
     if(argc < 7)
     {
-        printf("arg1 to 5: layout, algo, do_verification, init_method, do_log, nrepeat\n");
+        printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
         exit(1);
     }
 
@@ -87,28 +87,28 @@ int main(int argc, char* argv[])
     const bool do_log                 = std::stoi(argv[5]);
     const int nrepeat                 = std::stoi(argv[6]);
 
-    constexpr index_t N  = Number<128>;
-    constexpr index_t C  = Number<128>;
-    constexpr index_t Hi = Number<14>;
-    constexpr index_t Wi = Number<14>;
-    constexpr index_t K  = Number<256>;
-    constexpr index_t Y  = Number<3>;
-    constexpr index_t X  = Number<3>;
+    constexpr auto N  = Number<128>{};
+    constexpr auto C  = Number<128>{};
+    constexpr auto Hi = Number<14>{};
+    constexpr auto Wi = Number<14>{};
+    constexpr auto K  = Number<256>{};
+    constexpr auto Y  = Number<3>{};
+    constexpr auto X  = Number<3>{};
 
-    const index_t conv_stride_h   = 2;
-    const index_t conv_stride_w   = 2;
-    const index_t conv_dilation_h = 1;
-    const index_t conv_dilation_w = 1;
-    const index_t in_left_pad_h   = 1;
-    const index_t in_left_pad_w   = 1;
-    const index_t in_right_pad_h  = 1;
-    const index_t in_right_pad_w  = 1;
+    constexpr auto conv_stride_h   = I2;
+    constexpr auto conv_stride_w   = I2;
+    constexpr auto conv_dilation_h = I1;
+    constexpr auto conv_dilation_w = I1;
+    constexpr auto in_left_pad_h   = I1;
+    constexpr auto in_left_pad_w   = I1;
+    constexpr auto in_right_pad_h  = I1;
+    constexpr auto in_right_pad_w  = I1;
 
-    const index_t YEff = (Y - 1) * conv_dilation_h + 1;
-    const index_t XEff = (X - 1) * conv_dilation_w + 1;
+    constexpr auto YEff = (Y - I1) * conv_dilation_h + I1;
+    constexpr auto XEff = (X - I1) * conv_dilation_w + I1;
 
-    const index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
-    const index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
+    constexpr auto Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + I1;
+    constexpr auto Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
 #endif
 
 #if 1
@@ -116,9 +116,9 @@ int main(int argc, char* argv[])
     using acc_data_t = float;
     using out_data_t = float;
 #elif 1
-    using in_data_t  = half_t;
-    using acc_data_t = float;
-    using out_data_t = half_t;
+    using in_data_t   = half_t;
+    using acc_data_t  = float;
+    using out_data_t  = half_t;
 #elif 1
     using in_data_t  = int8_t;
     using acc_data_t = int32_t;
@@ -200,8 +200,8 @@ int main(int argc, char* argv[])
         out.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 5:
-        in.GenerateTensorValue(GeneratorTensor_3<float>{-0.01, 0.01}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_3<float>{-0.01, 0.01}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_3<float>{-0.1, 0.1}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_3<float>{-0.1, 0.1}, num_thread);
         break;
     default:
         in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
@@ -213,7 +213,6 @@ int main(int argc, char* argv[])
     }
 
     auto f_make_for_device_nchw = [&]() {
-#if USE_MODE
         const auto in_lengths_dev     = make_tuple(N, C, Hi, Wi);
         const auto wei_lengths_dev    = make_tuple(K, C, Y, X);
         const auto out_lengths_dev    = make_tuple(N, K, Ho, Wo);
@@ -221,19 +220,6 @@ int main(int argc, char* argv[])
         const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
         const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
         const auto in_right_pads_dev  = make_tuple(in_right_pad_h, in_right_pad_w);
-#else
-        const auto in_lengths_dev =
-            make_tuple(Number<N>{}, Number<C>{}, Number<Hi>{}, Number<Wi>{});
-        const auto wei_lengths_dev = make_tuple(Number<K>{}, Number<C>{}, Number<Y>{}, Number<X>{});
-        const auto out_lengths_dev =
-            make_tuple(Number<N>{}, Number<K>{}, Number<Ho>{}, Number<Wo>{});
-        const auto conv_strides_dev = make_tuple(Number<conv_stride_h>{}, Number<conv_stride_w>{});
-        const auto conv_dilations_dev =
-            make_tuple(Number<conv_dilation_h>{}, Number<conv_dilation_w>{});
-        const auto in_left_pads_dev = make_tuple(Number<in_left_pad_h>{}, Number<in_left_pad_w>{});
-        const auto in_right_pads_dev =
-            make_tuple(Number<in_right_pad_h>{}, Number<in_right_pad_w>{});
-#endif
 
         return make_tuple(in_lengths_dev,
                           wei_lengths_dev,
