@@ -64,9 +64,9 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
 
     using GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1   = Sequence<1, 2, 8>;
     using GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmABlockTransferSrcScalarPerVector_GemmK1 = 8;
-    constexpr index_t GemmABlockTransferDstScalarPerVector_GemmK1 = 8;
+    // using vector load 4, so config's wo*ho  must be a multiple of 4
+    constexpr index_t GemmABlockTransferSrcScalarPerVector_GemmK1 = 4;
+    constexpr index_t GemmABlockTransferDstScalarPerVector_GemmK1 = 4;
 
     using GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1   = Sequence<1, 2, 8>;
     using GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1 = Sequence<4, 64, 1>;
