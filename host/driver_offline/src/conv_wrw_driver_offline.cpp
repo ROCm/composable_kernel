@@ -95,8 +95,8 @@ int main(int argc, char* argv[])
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
 
-    constexpr auto conv_stride_h   = I2;
-    constexpr auto conv_stride_w   = I2;
+    constexpr auto conv_stride_h   = I1;
+    constexpr auto conv_stride_w   = I1;
     constexpr auto conv_dilation_h = I1;
     constexpr auto conv_dilation_w = I1;
     constexpr auto in_left_pad_h   = I1;
