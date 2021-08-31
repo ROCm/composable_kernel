@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+//#include <half.hpp>
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -20,12 +20,12 @@
 #include "device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
 #define USE_MODE 1
-#define USE_CONV_FWD_V4R4_NCHW 1
-#define USE_CONV_FWD_V4R4R2_NHWC 1
+#define USE_CONV_FWD_V4R4_NCHW 0
+#define USE_CONV_FWD_V4R4R2_NHWC 0
 #define USE_CONV_FWD_V6R1_NCHW 0
 #define USE_CONV_FWD_V5R1_NCHW 0
 #define USE_CONV_FWD_V4R4R2_XDL_NCHW 1
-#define USE_CONV_FWD_V4R4R4_XDL_NHWC 1
+#define USE_CONV_FWD_V4R4R4_XDL_NHWC 0
 
 enum ConvForwardAlgo
 {
@@ -259,6 +259,7 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
+#if 0
     auto f_make_for_device_nhwc = [&]() {
 #if USE_MODE
         const auto in_lengths_dev     = make_tuple(N, Hi, Wi, C);
@@ -290,6 +291,7 @@ int main(int argc, char* argv[])
                           in_left_pads_dev,
                           in_right_pads_dev);
     };
+#endif
 
 #if USE_CONV_FWD_V4R4_NCHW
     if(algo == ConvForwardAlgo::V4R4NCHW)

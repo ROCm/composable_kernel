@@ -9,7 +9,11 @@ using half_t = _Float16;
 
 // vector_type
 template <typename T, index_t N>
-struct vector_type;
+struct vector_type
+{
+    __host__ __device__ index_t VectorSize() const { return N; }
+    __host__ __device__ index_t BaseType() const { return T{0}; }
+};
 
 // Caution: DO NOT REMOVE
 // intentionally have only declaration but no definition to cause compilation failure when trying to
@@ -331,6 +335,9 @@ struct vector_type<T, 8>
 template <typename T>
 struct vector_type<T, 16>
 {
+    __host__ __device__ static constexpr index_t GetVectorSize() { return 16; }
+    __host__ __device__ static constexpr auto GetBaseType() { return T{0}; }
+
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
     typedef T d4_t __attribute__((ext_vector_type(4)));

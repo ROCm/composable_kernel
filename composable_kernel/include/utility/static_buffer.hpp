@@ -55,6 +55,68 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 };
 
+template <AddressSpaceEnum_t BufferAddressSpace,
+          typename T,
+          index_t N,
+          bool InvalidElementUseNumericalZeroValue>
+struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
+{
+    using type = T;
+    using base = StaticallyIndexedArray<T, N>;
+
+    using VecBaseType = decltype(T::GetBaseType());
+
+    static constexpr index_t vector_size = T::GetVectorSize();
+
+    T invalid_element_value_ = VecBaseType{0};
+
+    __host__ __device__ constexpr StaticBufferV2() : base{} {}
+
+    __host__ __device__ constexpr StaticBufferV2(T invalid_element_value)
+        : base{}, invalid_element_value_{invalid_element_value}
+    {
+    }
+
+    __host__ __device__ static constexpr AddressSpaceEnum_t GetAddressSpace()
+    {
+        return BufferAddressSpace;
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr auto Get(Number<I> i, bool is_valid_element = true) const
+    {
+        constexpr auto vec_id  = Number<i / vector_size>{};
+        constexpr auto vec_off = Number<i % vector_size>{};
+
+        if constexpr(InvalidElementUseNumericalZeroValue)
+        {
+            return is_valid_element ? this->At(vec_id).template AsType<VecBaseType>()[vec_off]
+                                    : VecBaseType{0};
+        }
+        else
+        {
+            return is_valid_element ? this->At(vec_id).template AsType<VecBaseType>()[vec_off]
+                                    : invalid_element_value_;
+        }
+    }
+
+    template <index_t I>
+    __host__ __device__ void Set(Number<I> i, bool is_valid_element, const T& x)
+    {
+        constexpr auto vec_id  = Number<i / vector_size>{};
+        constexpr auto vec_off = Number<i % vector_size>{};
+
+        if(is_valid_element)
+        {
+            this->At(vec_id).template AsType<VecBaseType>()(vec_off) = x;
+        }
+    }
+
+    __host__ __device__ static constexpr bool IsStaticBufferV2() { return true; }
+
+    __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
+};
+
 template <AddressSpaceEnum_t BufferAddressSpace, typename T, index_t N>
 __host__ __device__ constexpr auto make_static_buffer(Number<N>)
 {

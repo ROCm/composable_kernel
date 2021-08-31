@@ -142,6 +142,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
+    static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
@@ -375,14 +376,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         constexpr auto c_mr_nr_blk_desc =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
 
-        constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
+        constexpr auto c_m2_m3_m4_n2_thread_desc =
             blockwise_gemm.GetCM0N0M1N1M2M3M4N2ThreadDescriptor();
-        constexpr auto CBlkSize = c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc.GetElementSpaceSize();
+        constexpr auto CBlkSize = c_m2_m3_m4_n2_thread_desc.GetElementSpaceSize();
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     vector_type<FloatAcc, CBlkSize>,
-                     c_mr_nr_blk_desc.GetElementSpaceSize(),
-                     true>
+        StaticBufferV2<AddressSpaceEnum_t::Vgpr,
+                       vector_type<FloatAcc, CBlkSize>,
+                       c_mr_nr_blk_desc.GetElementSpaceSize(),
+                       true>
             c_thread_buf;
 
         // LDS allocation for A and B: be careful of alignment
@@ -453,6 +454,85 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
 
+        {
+            constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
+                blockwise_gemm.GetCM0N0M1N1M2M3M4N2BlockDescriptor();
+
+            constexpr auto M0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I0);
+            constexpr auto N0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I1);
+            constexpr auto M1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I2);
+            constexpr auto N1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I3);
+            constexpr auto M2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I4);
+            constexpr auto M3 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I5);
+            constexpr auto M4 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I6);
+            constexpr auto N2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I7);
+
+            constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(
+                    Number<M0>{}, Number<N0>{}, I1, I1, Number<M2>{}, I1, Number<M4>{}, I1));
+
+#if 0
+            StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatC, c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc.GetElementSpaceSize(), true>
+                c_blk_buf_;
+
+
+            static_for<0, MRepeat * NRepeat, 1>{}([&](auto blk_i) {
+                    static_for<0, CBlkSize, 1>{}([&](auto blk_off) {
+                        c_blk_buf_(Number<blk_i * CBlkSize + blk_off>{}) =
+                            c_thread_buf[Number<blk_i>{}]
+                                .template AsType<FloatAcc>()[Number<blk_off>{}];
+                });
+            });
+#endif
+
+            // calculate origin of thread output tensor on global memory
+            //     blockwise GEMM c matrix starting index
+            const auto c_thread_mtx_on_block =
+                blockwise_gemm.CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
+
+            const index_t m_thread_data_on_grid =
+                m_block_data_idx_on_grid + c_thread_mtx_on_block[I0];
+
+            const index_t n_thread_data_on_grid =
+                n_block_data_idx_on_grid + c_thread_mtx_on_block[I1];
+
+            constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks = CGridStepHacks{};
+
+            auto c_thread_copy =
+                ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
+                                                   FloatC,
+                                                   decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
+                                                   decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc),
+                                                   Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
+                                                   CThreadTransferSrcDstAccessOrder,
+                                                   CThreadTransferSrcDstVectorDim,
+                                                   CThreadTransferDstScalarPerVector,
+                                                   CGlobalMemoryDataOperation,
+                                                   1,
+                                                   true>{
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                    make_multi_index(m_thread_data_on_grid / (M1 * M2 * M3 * M4),
+                                     n_thread_data_on_grid / (N1 * N2),
+                                     m_thread_data_on_grid / (M2 * M3 * M4) % M1,
+                                     n_thread_data_on_grid / N2 % N1,
+                                     m_thread_data_on_grid / (M3 * M4) % M2,
+                                     m_thread_data_on_grid / (M4) % M3,
+                                     m_thread_data_on_grid % M4,
+                                     n_thread_data_on_grid % N2)};
+
+            //(void)c_grid_buf;
+            //(void)c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks;
+#if 1
+            c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                              make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                              c_thread_buf,
+                              c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                              c_grid_buf,
+                              c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
+#endif
+        }
+
+#if 0
         // output: register to global memory
         {
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
@@ -694,6 +774,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 init_copy(make_tuple(I0, I0));
             }
         }
+#endif
     }
 }; // namespace ck
 

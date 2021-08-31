@@ -99,7 +99,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             is_known_at_compile_time<remove_cv_t<remove_reference_t<SrcSliceOriginIdx>>>::value,
             "wrong! SrcSliceOrigin need to known at compile-time");
 
-        static_assert(SrcBuffer::IsStaticBuffer(), "wrong! SrcBuffer need to be StaticBuffer");
+        static_assert(SrcBuffer::IsStaticBufferV2(), "wrong! SrcBuffer need to be StaticBuffer");
 
         // static_assert(is_same<remove_cv_t<remove_reference_t<typename SrcBuffer::type>>,
         // remove_cv_t<remove_reference_t<SrcData>>>::value,
@@ -201,7 +201,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     src_slice_origin_idx + dst_data_idx + i * dst_scalar_step_in_vector);
 
                 dst_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>{}(src_buf[Number<src_offset>{}]);
+                    type_convert<DstData>{}(src_buf.template Get(Number<src_offset>{}));
             });
 
             const bool is_dst_valid =
