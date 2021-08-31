@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DRIVER_GEMM_XDLOPS_V2R4
+#define DRIVER_GEMM_XDLOPS_V2R4
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -139,7 +140,7 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
 
     const index_t grid_size = GridwiseGemm::CalculateGridSize(c_m_n_grid_desc);
 
-    const auto kernel = kernel_gemm_xdlops_v2r3<GridwiseGemm,
+    const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
                                                 FloatAB,
                                                 FloatC,
                                                 remove_reference_t<AK0MK1GridDesc>,
@@ -189,3 +190,4 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
 #endif
     return ave_time;
 }
+#endif
