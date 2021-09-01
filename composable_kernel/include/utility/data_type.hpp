@@ -342,9 +342,6 @@ struct vector_type<T, 8>
 template <typename T>
 struct vector_type<T, 16>
 {
-    __host__ __device__ static constexpr index_t GetVectorSize() { return 16; }
-    __host__ __device__ static constexpr auto GetBaseType() { return T{0}; }
-
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
     typedef T d4_t __attribute__((ext_vector_type(4)));

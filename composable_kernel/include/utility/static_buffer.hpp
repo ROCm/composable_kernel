@@ -64,9 +64,14 @@ struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
     using type = T;
     using base = StaticallyIndexedArray<T, N>;
 
-    using VecBaseType = decltype(T::GetBaseType());
+    using VecBaseType = typename T::d1_t;
 
-    static constexpr index_t vector_size = T::GetVectorSize();
+    __host__ __device__ static constexpr index_t GetVectorSize()
+    {
+        return sizeof(typename T::type) / sizeof(VecBaseType);
+    }
+
+    static constexpr index_t vector_size = GetVectorSize();
 
     VecBaseType invalid_element_value_ = VecBaseType{0};
 
