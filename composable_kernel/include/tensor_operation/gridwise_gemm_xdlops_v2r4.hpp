@@ -242,6 +242,23 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
             make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
         return a_b_k0_m_k1_grid_desc;
     }
+
+    __host__ __device__ static constexpr auto
+    MakeBBK0NK1GridDescriptor(const BK0NK1GridDesc& b_k0_n_k1_grid_desc, const index_t kbatch)
+    {
+        const auto K0 = b_k0_n_k1_grid_desc.GetLength(I0);
+        const auto N  = b_k0_n_k1_grid_desc.GetLength(I1);
+
+        const auto b_b_k0_n_k1_grid_desc = transform_tensor_descriptor(
+            b_k0_n_k1_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(kbatch, K0 / kbatch)),
+                       make_pass_through_transform(N),
+                       make_pass_through_transform(K1Value)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
+        return b_b_k0_n_k1_grid_desc;
+    }
+
     __host__ __device__ static constexpr auto
     MakeCM0N0M1N1M2M3M4N2GridDescriptor(const CMNGridDesc& c_m_n_grid_desc)
     {
