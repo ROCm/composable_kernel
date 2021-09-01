@@ -98,7 +98,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
         static_assert(is_known_at_compile_time<remove_cvref_t<SrcSliceOriginIdx>>::value,
                       "wrong! SrcSliceOrigin need to known at compile-time");
 
-        static_assert(SrcBuffer::IsStaticBufferV2(), "wrong! SrcBuffer need to be StaticBuffer");
+        static_assert(SrcBuffer::IsStaticBuffer(), "wrong! SrcBuffer need to be StaticBuffer");
 
         // SrcDesc and src_slice_origin_idx are known at compile-time
         constexpr auto src_desc             = remove_cvref_t<SrcDesc>{};

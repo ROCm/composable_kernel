@@ -74,8 +74,10 @@ struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
 
     __host__ __device__ constexpr StaticBufferV2() : base{} {}
 
-    __host__ __device__ constexpr StaticBufferV2(T invalid_element_value)
-        : base{}, invalid_vec_value_{invalid_element_value}
+    __host__ __device__ constexpr StaticBufferV2(VecBaseType invalid_element_value)
+        : base{},
+          invalid_vec_value_{invalid_element_value},
+          invalid_element_value_{invalid_element_value}
     {
     }
 
@@ -147,7 +149,7 @@ struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
         return GetElement(i, true);
     }
 
-    __host__ __device__ static constexpr bool IsStaticBufferV2() { return true; }
+    __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 };
