@@ -526,6 +526,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             constexpr auto M3 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I5);
             constexpr auto M4 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I6);
 
+            constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
+                blockwise_gemm.GetCM0N0M1N1M2M3M4N2ThreadDescriptor();
+
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
             const auto c_thread_mtx_on_block =
@@ -563,12 +566,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
             auto init_copy = [&](auto c_thread_idx_) {
                 constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
+                c_thread_copy.Run(
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                    c_thread_buf.GetVector(Number<blk_off>{}).template AsType<FloatAcc>(),
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                    c_grid_buf,
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
 
                 return c_thread_idx_;
             };
@@ -579,12 +583,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                  mrepeat_step_plus);
 
                 constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
+                c_thread_copy.Run(
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                    c_thread_buf.GetVector(Number<blk_off>{}).template AsType<FloatAcc>(),
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                    c_grid_buf,
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             auto nrepeat_plus_copy = [&](auto c_thread_idx_) {
@@ -593,12 +598,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                  nrepeat_step_plus);
 
                 constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
+                c_thread_copy.Run(
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                    c_thread_buf.GetVector(Number<blk_off>{}).template AsType<FloatAcc>(),
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                    c_grid_buf,
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             auto mrepeat_minus_copy = [&](auto c_thread_idx_) {
@@ -607,12 +613,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                  mrepeat_step_plus);
 
                 constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
+                c_thread_copy.Run(
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                    c_thread_buf.GetVector(Number<blk_off>{}).template AsType<FloatAcc>(),
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                    c_grid_buf,
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             auto nrepeat_minus_copy = [&](auto c_thread_idx_) {
@@ -621,12 +628,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                  nrepeat_step_minus);
 
                 constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
+                c_thread_copy.Run(
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                    make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                    c_thread_buf.GetVector(Number<blk_off>{}).template AsType<FloatAcc>(),
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                    c_grid_buf,
+                    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
             };
 
             static_assert((MRepeat == 4 && NRepeat == 4) or (MRepeat == 4 && NRepeat == 2) or
