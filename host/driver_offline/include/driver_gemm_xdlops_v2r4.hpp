@@ -122,7 +122,10 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
         std::cout << "c_m_n_grid_desc{ " << c_m_n_grid_desc.GetLength(I0) << ", "
                   << c_m_n_grid_desc.GetLength(I1) << "}" << std::endl;
     }
-
+    auto kbatch = GridwiseGemm::CalculateKBatch(c_m_n_grid_desc, b_k0_n_k1_grid_desc);
+    {
+        std::cout << "k batch number is: " << kbatch << std::endl;
+    }
     if(!GridwiseGemm::CheckValidity(a_k0_m_k1_grid_desc, b_k0_n_k1_grid_desc, c_m_n_grid_desc))
     {
         throw std::runtime_error(
@@ -138,7 +141,7 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
 
     using CBlockClusterAdaptor = decltype(c_block_cluster_adaptor);
 
-    const index_t grid_size = GridwiseGemm::CalculateGridSize(c_m_n_grid_desc);
+    const index_t grid_size = GridwiseGemm::CalculateGridSize(c_m_n_grid_desc) * kbatch;
 
     const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
                                                 FloatAB,
