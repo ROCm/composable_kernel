@@ -68,12 +68,14 @@ struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
 
     static constexpr index_t vector_size = T::GetVectorSize();
 
-    T invalid_element_value_ = VecBaseType{0};
+    VecBaseType invalid_element_value_ = VecBaseType{0};
+
+    T invalid_vec_value_ = T{0};
 
     __host__ __device__ constexpr StaticBufferV2() : base{} {}
 
     __host__ __device__ constexpr StaticBufferV2(T invalid_element_value)
-        : base{}, invalid_element_value_{invalid_element_value}
+        : base{}, invalid_vec_value_{invalid_element_value}
     {
     }
 
@@ -83,7 +85,28 @@ struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
     }
 
     template <index_t I>
-    __host__ __device__ constexpr auto Get(Number<I> i, bool is_valid_element = true) const
+    __host__ __device__ constexpr auto& GetVector(Number<I> vec_id)
+    {
+        return this->At(vec_id);
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr const auto& GetVector(Number<I> vec_id) const
+    {
+        return this->At(vec_id);
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr auto& GetElement(Number<I> i, bool)
+    {
+        constexpr auto vec_id  = Number<i / vector_size>{};
+        constexpr auto vec_off = Number<i % vector_size>{};
+
+        return this->At(vec_id).template AsType<VecBaseType>()(vec_off);
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr auto GetElement(Number<I> i, bool is_valid_element) const
     {
         constexpr auto vec_id  = Number<i / vector_size>{};
         constexpr auto vec_off = Number<i % vector_size>{};
@@ -110,6 +133,18 @@ struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
         {
             this->At(vec_id).template AsType<VecBaseType>()(vec_off) = x;
         }
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr auto operator[](Number<I> i) const
+    {
+        return GetElement(i, true);
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr auto& operator()(Number<I> i)
+    {
+        return GetElement(i, true);
     }
 
     __host__ __device__ static constexpr bool IsStaticBufferV2() { return true; }

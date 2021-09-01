@@ -56,8 +56,8 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
     constexpr index_t GemmK1       = 4;
 
     constexpr index_t MRepeat = 4;
@@ -84,9 +84,9 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 4;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 4;
 
     constexpr index_t MRepeat = 2;
     constexpr index_t NRepeat = 2;
@@ -112,9 +112,9 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 256;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 8;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 8;
 
     constexpr index_t MRepeat = 4;
     constexpr index_t NRepeat = 4;
@@ -140,9 +140,9 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 8;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 8;
 
     constexpr index_t MRepeat = 4;
     constexpr index_t NRepeat = 2;
@@ -168,9 +168,9 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 256;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 8;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 8;
 
     constexpr index_t MRepeat = 2;
     constexpr index_t NRepeat = 4;
@@ -196,9 +196,9 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmNPerBlock = 128;
     constexpr index_t GemmKPerBlock = 4;
 
-    constexpr index_t GemmMPerWave = 32;
-    constexpr index_t GemmNPerWave = 32;
-    constexpr index_t GemmK1       = 8;
+    constexpr index_t GemmMPerXDL = 32;
+    constexpr index_t GemmNPerXDL = 32;
+    constexpr index_t GemmK1      = 8;
 
     constexpr index_t MRepeat = 2;
     constexpr index_t NRepeat = 2;
@@ -249,23 +249,23 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
                               Sequence<0, 0, 0, 0, 0>{},   // 1-: GemmN
                               Sequence<0, 0, 0, 0, 0>{})); // 2-: GemmK1
 
-    constexpr auto out_m0_m1_m2_n_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: MRepeat
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: NRepeat
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: MWaves
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: NWaves
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N1
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: MRepeat
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: NRepeat
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: MWaves
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: NWaves
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N1
+    constexpr auto out_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
+                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
 
     constexpr auto in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks =
         Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0>{};
@@ -287,8 +287,8 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
             GemmMPerBlock,
             GemmNPerBlock,
             GemmKPerBlock,
-            GemmMPerWave,
-            GemmNPerWave,
+            GemmMPerXDL,
+            GemmNPerXDL,
             GemmK1,
             MRepeat,
             NRepeat,
@@ -313,7 +313,7 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
             GemmCThreadTransferDstScalarPerVector,
             decltype(in_gemmk0_gemmm_gemmk1_grid_step_hacks),
             decltype(wei_gemmk0_gemmn_gemmk1_grid_step_hacks),
-            decltype(out_m0_m1_m2_n_grid_step_hacks),
+            decltype(out_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
             decltype(in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
             false // CAccessOrderMRepeatNRepeat
@@ -325,7 +325,7 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
               out_gemmm_gemmn_grid_desc,
               in_gemmk0_gemmm_gemmk1_grid_step_hacks,
               wei_gemmk0_gemmn_gemmk1_grid_step_hacks,
-              out_m0_m1_m2_n_grid_step_hacks,
+              out_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
               in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
               wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
               nrepeat);

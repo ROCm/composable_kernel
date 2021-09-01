@@ -103,8 +103,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
-          index_t MPerWave,
-          index_t NPerWave,
+          index_t MPerXDL,
+          index_t NPerXDL,
           index_t K1Value,
           index_t MRepeat,
           index_t NRepeat,
@@ -184,14 +184,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const auto N  = b_k0_n_k1_grid_desc.GetLength(I1);
         const auto K0 = a_k0_m_k1_grid_desc.GetLength(I0);
 
-        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
+        static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
+                          (NPerBlock % (NRepeat * NPerXDL)) == 0,
+                      "Invalid tuning param!");
 
+        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return (M == c_m_n_grid_desc.GetLength(I0) && N == c_m_n_grid_desc.GetLength(I1) &&
                 K0 == b_k0_n_k1_grid_desc.GetLength(I0) &&
                 K1 == a_k0_m_k1_grid_desc.GetLength(I2) &&
                 K1 == b_k0_n_k1_grid_desc.GetLength(I2)) &&
-               (M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % KPerBlock == 0) &&
-               (MPerBlock % MPerWave == 0 && NPerBlock % NPerWave == 0);
+               (M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % KPerBlock == 0);
     }
 
     __host__ __device__ static constexpr index_t
@@ -221,8 +223,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 FloatAB,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
-                                                                MPerWave,
-                                                                NPerWave,
+                                                                MPerXDL,
+                                                                NPerXDL,
                                                                 MRepeat,
                                                                 NRepeat,
                                                                 K1>;
@@ -367,8 +369,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 FloatAB,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
-                                                                MPerWave,
-                                                                NPerWave,
+                                                                MPerXDL,
+                                                                NPerXDL,
                                                                 MRepeat,
                                                                 NRepeat,
                                                                 K1>{};
@@ -454,6 +456,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
 
+        // output: register to global memory
+#if 1
         {
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
                 blockwise_gemm.GetCM0N0M1N1M2M3M4N2BlockDescriptor();
@@ -470,20 +474,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(
                     Number<M0>{}, Number<N0>{}, I1, I1, Number<M2>{}, I1, Number<M4>{}, I1));
-
-#if 0
-            StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatC, c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc.GetElementSpaceSize(), true>
-                c_blk_buf_;
-
-
-            static_for<0, MRepeat * NRepeat, 1>{}([&](auto blk_i) {
-                    static_for<0, CBlkSize, 1>{}([&](auto blk_off) {
-                        c_blk_buf_(Number<blk_i * CBlkSize + blk_off>{}) =
-                            c_thread_buf[Number<blk_i>{}]
-                                .template AsType<FloatAcc>()[Number<blk_off>{}];
-                });
-            });
-#endif
 
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
@@ -520,20 +510,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                      m_thread_data_on_grid % M4,
                                      n_thread_data_on_grid % N2)};
 
-            //(void)c_grid_buf;
-            //(void)c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks;
-#if 1
             c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
                               c_thread_buf,
                               c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                               c_grid_buf,
                               c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
-#endif
         }
-
-#if 0
-        // output: register to global memory
+#else
         {
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
                 blockwise_gemm.GetCM0N0M1N1M2M3M4N2BlockDescriptor();

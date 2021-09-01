@@ -44,15 +44,10 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x1xf32>
     static constexpr index_t k_per_blk           = 1;
     static constexpr bool is_k_reduction         = false;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x1f32<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x1f32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -71,15 +66,10 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x2xf32>
     static constexpr index_t k_per_blk           = 1;
     static constexpr bool is_k_reduction         = true;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x2f32<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x2f32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -98,15 +88,10 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x4xf32>
     static constexpr index_t k_per_blk           = 1;
     static constexpr bool is_k_reduction         = true;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_16x16x4f32<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x4f32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -125,15 +110,10 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x1xf32>
     static constexpr index_t k_per_blk           = 1;
     static constexpr bool is_k_reduction         = false;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_16x16x1f32<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x1f32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -153,15 +133,10 @@ struct mfma_type<MfmaInstr::mfma_f32_4x4x1xf32>
     static constexpr index_t k_per_blk           = 1;
     static constexpr bool is_k_reduction         = false;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_4x4x1f32<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_4x4x1f32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -180,15 +155,10 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x4f16>
     static constexpr index_t k_per_blk           = 4;
     static constexpr bool is_k_reduction         = false;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x4f16<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x4f16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -207,15 +177,10 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x8f16>
     static constexpr index_t k_per_blk           = 4;
     static constexpr bool is_k_reduction         = true;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_32x32x8f16<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_32x32x8f16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -234,15 +199,10 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x16f16>
     static constexpr index_t k_per_blk           = 4;
     static constexpr bool is_k_reduction         = true;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_16x16x16f16<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x16f16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -261,15 +221,10 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x4f16>
     static constexpr index_t k_per_blk           = 4;
     static constexpr bool is_k_reduction         = false;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_16x16x4f16<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_16x16x4f16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -288,15 +243,10 @@ struct mfma_type<MfmaInstr::mfma_f32_4x4x4f16>
     static constexpr index_t k_per_blk           = 4;
     static constexpr bool is_k_reduction         = false;
 
-    template <index_t MPerXdlops,
-              index_t NPerXdlops,
-              index_t COffset,
-              class FloatA,
-              class FloatB,
-              class FloatC>
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
-        intrin_mfma_f32_4x4x4f16<MPerXdlops, NPerXdlops, COffset>::Run(a, b, reg_c);
+        intrin_mfma_f32_4x4x4f16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 
@@ -732,7 +682,7 @@ struct XdlopsGemm
         return MPerXdlops * NPerXdlops / mfma_instr.wave_size;
     }
 
-    template <index_t c_offset, class FloatA, class FloatB, class FloatC>
+    template <class FloatA, class FloatB, class FloatC>
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
         static_assert(is_same<base_type, float>::value || is_same<base_type, half_t>::value ||
@@ -740,8 +690,7 @@ struct XdlopsGemm
                       "base base_type must be float, half, ushort!");
 
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
-            mfma_instr.template run<MPerXdlops, NPerXdlops, c_offset>(
-                p_a_wave[k], p_b_wave[k], p_c_thread);
+            mfma_instr.template run<MPerXdlops, NPerXdlops>(p_a_wave[k], p_b_wave[k], p_c_thread);
         });
     }
 
@@ -749,8 +698,9 @@ struct XdlopsGemm
 
     __device__ static auto GetBlkIdx()
     {
-        const auto laneId                       = GetLaneId();
-        const auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
+        const auto laneId = GetLaneId();
+
+        constexpr auto threadidx_to_blk_idx_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_merge_transform(
                 make_tuple(1, mfma_instr.num_input_blks, mfma_instr.num_threads_per_blk))),
             make_tuple(Sequence<0, 1, 2>{}),

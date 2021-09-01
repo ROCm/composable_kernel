@@ -13,8 +13,8 @@
 #export OLC_DEBUG_SAVE_TEMP_DIR=1
 
  make -j conv_fwd_driver_offline
- make -j conv_bwd_driver_offline
- make -j conv_fwd_driver_online
+ #make -j conv_bwd_driver_offline
+ #make -j conv_fwd_driver_online
 
 #rm -rf /root/_hip_binary_kernels_/
 #rm -rf /tmp/olCompile*

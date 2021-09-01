@@ -4,6 +4,7 @@
 #include "common_header.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "xdlops_gemm.hpp"
+#include "tensor_adaptor.hpp"
 
 namespace ck {
 
@@ -40,7 +41,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     {
         const index_t thread_id = get_thread_local_1d_id();
 
-        const auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
+        constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_merge_transform(make_tuple(MWaves, NWaves, WaveSize))),
             make_tuple(Sequence<0, 1, 2>{}),
             make_tuple(Sequence<0>{}));
@@ -232,10 +233,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    xdlops_gemm.template Run<c_offset>(
-                        a_thread_vec.template AsType<mfma_input_type>(),
-                        b_thread_vec.template AsType<mfma_input_type>(),
-                        c_thread_buf);
+                    xdlops_gemm.template Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                             b_thread_vec.template AsType<mfma_input_type>(),
+                                             c_thread_buf.GetVector(Number<c_offset>{}));
                 });
             });
         });
