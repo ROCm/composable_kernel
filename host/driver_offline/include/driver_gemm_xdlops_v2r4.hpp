@@ -122,7 +122,10 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
         std::cout << "c_m_n_grid_desc{ " << c_m_n_grid_desc.GetLength(I0) << ", "
                   << c_m_n_grid_desc.GetLength(I1) << "}" << std::endl;
     }
-    auto kbatch = GridwiseGemm::CalculateKBatch(c_m_n_grid_desc, b_k0_n_k1_grid_desc);
+    const auto kbatch = GridwiseGemm::CalculateKBatch(c_m_n_grid_desc, b_k0_n_k1_grid_desc);
+    const auto a_b_k0_m_k1_grid_desc =
+        GridwiseGemm::MakeABK0MK1GridDescriptor(a_k0_m_k1_grid_desc, kbatch);
+
     {
         std::cout << "k batch number is: " << kbatch << std::endl;
     }
@@ -135,13 +138,14 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
     const auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc =
         GridwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(c_m_n_grid_desc);
 
+    using ABK0MK1GridDesc           = decltype(a_b_k0_m_k1_grid_desc);
     using CM0N0M1N1M2M3M4N2GridDesc = decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc);
 
     const auto c_block_cluster_adaptor = GridwiseGemm::MakeCBlockClusterAdaptor(c_m_n_grid_desc);
 
     using CBlockClusterAdaptor = decltype(c_block_cluster_adaptor);
 
-    const index_t grid_size_mn = GridwiseGemm::CalculateGridSize(c_m_n_grid_desc);
+    const index_t grid_size_mn = GridwiseGemm::CalculateMNGridSize(c_m_n_grid_desc);
     const index_t grid_size    = grid_size_mn * kbatch;
     {
         std::cout << "mxn gridSize : " << grid_size_mn << "   finally grid_size : " << grid_size
