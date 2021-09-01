@@ -198,14 +198,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
     __host__ __device__ static constexpr index_t
     CalculateKBatch(const CMNGridDesc& c_m_n_grid_desc, const BK0NK1GridDesc& b_k0_n_k1_grid_desc)
     {
-        const auto M = c_m_n_grid_desc.GetLength(I0);
-        const auto N = c_m_n_grid_desc.GetLength(I1);
-
-        const index_t grid_size = (M / MPerBlock) * (N / NPerBlock);
-
-        const auto K0           = b_k0_n_k1_grid_desc.GetLength(I0);
         constexpr auto MAX_GRID = 2048;
-        auto batch              = K0 / KPerBlock;
+        const index_t grid_size = CalculateGridSize(c_m_n_grid_desc);
+        const auto K0           = b_k0_n_k1_grid_desc.GetLength(I0);
+
+        auto batch = K0 / KPerBlock;
         assert(K0 % KPerBlock == 0);
         index_t div = 1;
         while(batch * grid_size > MAX_GRID && batch > div)
