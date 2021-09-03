@@ -75,6 +75,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
+
+    constexpr index_t KBatch = 96;
 #elif 1
     // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
@@ -167,7 +169,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
             TInWei,
             TAcc,
             TOut,
-            InMemoryDataOperationEnum_t::Set,
+            InMemoryDataOperationEnum_t::AtomicAdd,
             decltype(out_gemmk0_gemmm_gemmk1_grid_desc),
             decltype(in_gemmk0_gemmn_gemmk1_grid_desc),
             decltype(wei_gemmm_gemmn_grid_desc),
@@ -203,18 +205,19 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
             decltype(wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
             decltype(out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
-            false>(static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
-                   static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
-                   static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
-                   out_gemmk0_gemmm_gemmk1_grid_desc,
-                   in_gemmk0_gemmn_gemmk1_grid_desc,
-                   wei_gemmm_gemmn_grid_desc,
-                   out_gemmk0_gemmm_gemmk1_grid_step_hacks,
-                   in_gemmk0_gemmn_gemmk1_grid_step_hacks,
-                   wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
-                   out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
-                   in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
-                   nrepeat);
+            false,
+            KBatch>(static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
+                    static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
+                    static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
+                    out_gemmk0_gemmm_gemmk1_grid_desc,
+                    in_gemmk0_gemmn_gemmk1_grid_desc,
+                    wei_gemmm_gemmn_grid_desc,
+                    out_gemmk0_gemmm_gemmk1_grid_step_hacks,
+                    in_gemmk0_gemmn_gemmk1_grid_step_hacks,
+                    wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+                    out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+                    in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+                    nrepeat);
 
         float perf = static_cast<float>(calculate_convolution_flops(
                          in_n_c_hi_wi_desc, wei_k_c_y_x_desc, out_n_k_ho_wo_desc)) /

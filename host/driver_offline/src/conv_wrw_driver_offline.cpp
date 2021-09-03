@@ -267,6 +267,8 @@ int main(int argc, char* argv[])
         {
             throw std::runtime_error("wrong! layout");
         }
+        // set zero to wei_device
+        wei_device.GenerateTensorValue(GeneratorTensor_0{}, num_thread);
 
         const auto tmp = f_make_for_device_nchw();
 
