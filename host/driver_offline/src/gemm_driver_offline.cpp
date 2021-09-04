@@ -16,8 +16,8 @@
 #include "device_gemm_xdlops_mk_nk_mn.hpp"
 #include "device_gemm_xdlops_km_kn_mn.hpp"
 
-#define USE_GEMM_XDL_MK_KN_MN 0
-#define USE_GEMM_XDL_MK_NK_MN 0
+#define USE_GEMM_XDL_MK_KN_MN 1
+#define USE_GEMM_XDL_MK_NK_MN 1
 #define USE_GEMM_XDL_KM_KN_MN 1
 
 enum GemmAlgo
