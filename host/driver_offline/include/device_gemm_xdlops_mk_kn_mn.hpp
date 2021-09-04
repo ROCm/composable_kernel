@@ -10,11 +10,11 @@ template <typename ABType,
           typename ADesc,
           typename BDesc,
           typename CDesc>
-void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
-                                 const BDesc& b_n_k_grid_desc,
+void device_gemm_xdlops_mk_kn_mn(const ADesc& a_m_k_grid_desc,
+                                 const BDesc& b_k_n_grid_desc,
                                  const CDesc& c_m_n_grid_desc,
                                  const Tensor<ABType>& a_m_k,
-                                 const Tensor<ABType>& b_n_k,
+                                 const Tensor<ABType>& b_k_n,
                                  Tensor<CType>& c_m_n,
                                  ck::index_t nrepeat)
 {
@@ -26,42 +26,14 @@ void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
     constexpr auto I1 = Number<1>{};
 
     DeviceMem a_m_k_device_buf(sizeof(ABType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_n_k_device_buf(sizeof(ABType) * b_n_k.mDesc.GetElementSpace());
+    DeviceMem b_k_n_device_buf(sizeof(ABType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_m_n_device_buf(sizeof(CType) * c_m_n.mDesc.GetElementSpace());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_n_k_device_buf.ToDevice(b_n_k.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     c_m_n_device_buf.ToDevice(c_m_n.mData.data());
 
-#if 0
-    // [M, N, K0, K1] = [128, 256, 4, 4] for fp32
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t MPerBlock = 128;
-    constexpr index_t NPerBlock = 256;
-    constexpr index_t KPerBlock = 4;
-
-    constexpr index_t MPerXDL = 32;
-    constexpr index_t NPerXDL = 32;
-    constexpr index_t K1      = 4;
-
-    constexpr index_t MRepeat = 2;
-    constexpr index_t NRepeat = 4;
-
-    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 2, 4>;
-    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 64, 1>;
-
-    constexpr index_t ABlockTransferSrcScalarPerVector_K1 = 4;
-    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 4;
-
-    using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 4, 4>;
-    using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
-
-    constexpr index_t BBlockTransferSrcScalarPerVector_K1 = 4;
-    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 4;
-
-    constexpr index_t CThreadTransferDstScalarPerVector = 1;
-#elif 1
+#if 1
     // [M, N, K0, K1] = [256, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
 
@@ -85,7 +57,7 @@ void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
     using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 2, 8>;
     using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
 
-    constexpr index_t BBlockTransferSrcScalarPerVector_K1 = 8;
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 2;
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
@@ -113,35 +85,7 @@ void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
     using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 4, 8>;
     using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
 
-    constexpr index_t BBlockTransferSrcScalarPerVector_K1 = 8;
-    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
-
-    constexpr index_t CThreadTransferDstScalarPerVector = 1;
-#elif 1
-    // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t MPerBlock = 128;
-    constexpr index_t NPerBlock = 128;
-    constexpr index_t KPerBlock = 4;
-
-    constexpr index_t MPerXDL = 32;
-    constexpr index_t NPerXDL = 32;
-    constexpr index_t K1      = 8;
-
-    constexpr index_t MRepeat = 2;
-    constexpr index_t NRepeat = 2;
-
-    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 2, 8>;
-    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 64, 1>;
-
-    constexpr index_t ABlockTransferSrcScalarPerVector_K1 = 8;
-    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 8;
-
-    using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 2, 8>;
-    using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
-
-    constexpr index_t BBlockTransferSrcScalarPerVector_K1 = 8;
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 4;
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
@@ -149,7 +93,7 @@ void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
 
     const auto K = a_m_k_grid_desc.GetLength(I1);
     const auto M = a_m_k_grid_desc.GetLength(I0);
-    const auto N = b_n_k_grid_desc.GetLength(I0);
+    const auto N = b_k_n_grid_desc.GetLength(I1);
 
     constexpr auto K1Number = Number<K1>{};
     const auto K0           = K / K1Number;
@@ -162,11 +106,11 @@ void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
                                     make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
 
     const auto b_k0_n_k1_grid_desc =
-        transform_tensor_descriptor(b_n_k_grid_desc,
-                                    make_tuple(make_pass_through_transform(N),
-                                               make_unmerge_transform(make_tuple(K0, K1Number))),
+        transform_tensor_descriptor(b_k_n_grid_desc,
+                                    make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                                               make_pass_through_transform(N)),
                                     make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                    make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
+                                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
     constexpr auto a_k0_m_k1_grid_step_hacks =
@@ -236,10 +180,10 @@ void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
                                     false, // don't move back src coordinate after threadwise copy
                                     BBlockTransferThreadSliceLengths_K0_N_K1,
                                     BBlockTransferThreadClusterLengths_K0_N_K1,
-                                    Sequence<1, 0, 2>,
-                                    Sequence<1, 0, 2>,
-                                    2,
-                                    BBlockTransferSrcScalarPerVector_K1,
+                                    Sequence<0, 2, 1>,
+                                    Sequence<0, 2, 1>,
+                                    1,
+                                    BBlockTransferSrcScalarPerVector_N,
                                     BBlockTransferDstScalarPerVector_K1,
                                     false, // don't move back src coordinate after threadwise copy
                                     Sequence<0, 2, 4, 5, 6, 1, 3, 7>,
@@ -252,7 +196,7 @@ void device_gemm_xdlops_mk_nk_mn(const ADesc& a_m_k_grid_desc,
                                     decltype(b_k0_n_k1_grid_move_slice_window_step_hacks),
                                     false // CAccessOrderMRepeatNRepeat
                                     >(static_cast<ABType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<ABType*>(b_n_k_device_buf.GetDeviceBuffer()),
+                                      static_cast<ABType*>(b_k_n_device_buf.GetDeviceBuffer()),
                                       static_cast<CType*>(c_m_n_device_buf.GetDeviceBuffer()),
                                       a_k0_m_k1_grid_desc,
                                       b_k0_n_k1_grid_desc,
