@@ -34,7 +34,7 @@ void device_gemm_xdlops_km_nk_mn(const ADesc& a_k_m_grid_desc,
     c_m_n_device_buf.ToDevice(c_m_n.mData.data());
 
 #if 0
-    // [M, N, K0, K1] = [256, 128, 4, 8] for fp32
+    // [M, N, K0, K1] = [256, 128, 4, 4] for fp32
     constexpr index_t BlockSize = 256;
 
     constexpr index_t MPerBlock = 256;
