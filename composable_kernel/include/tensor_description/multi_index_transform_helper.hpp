@@ -53,13 +53,9 @@ template <typename LowLengths>
 __host__ __device__ constexpr auto make_merge_transform(const LowLengths& low_lengths)
 {
 #if CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
-#if 1
-    return Merge_v2_magic_division<LowLengths>{low_lengths};
+    return make_merge_transform_v2_magic_division(low_lengths);
 #else
-    return Merge_v2r2_magic_division<LowLengths>{low_lengths};
-#endif
-#else
-    return Merge_v1_carry_check<LowLengths>{low_lengths};
+    return make_merge_transform_v1_carry_check(low_lengths);
 #endif
 }
 
@@ -74,7 +70,11 @@ template <typename LowLengths>
 __host__ __device__ constexpr auto
 make_merge_transform_v2_magic_division(const LowLengths& low_lengths)
 {
+#if 1
     return Merge_v2_magic_division<LowLengths>{low_lengths};
+#else
+    return Merge_v2r2_magic_division<LowLengths>{low_lengths};
+#endif
 }
 
 template <typename LowLengths>
