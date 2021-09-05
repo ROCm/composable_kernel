@@ -62,6 +62,24 @@ void host_gemm(const Tensor<AType>& a,
         make_ParallelTensorFunctor(f_km_kn_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
             std::thread::hardware_concurrency());
     }
+    else if(layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        auto f_km_nk_mn = [&](auto m, auto n) {
+            const int K = a.mDesc.GetLengths()[0];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(n, k));
+            }
+
+            c(m, n) = v;
+        };
+
+        make_ParallelTensorFunctor(f_km_nk_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
     else
     {
         throw std::runtime_error("wrong! not supported layout");

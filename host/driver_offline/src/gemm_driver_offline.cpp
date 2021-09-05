@@ -15,10 +15,12 @@
 #include "device_gemm_xdlops_mk_kn_mn.hpp"
 #include "device_gemm_xdlops_mk_nk_mn.hpp"
 #include "device_gemm_xdlops_km_kn_mn.hpp"
+#include "device_gemm_xdlops_km_nk_mn.hpp"
 
 #define USE_GEMM_XDL_MK_KN_MN 1
 #define USE_GEMM_XDL_MK_NK_MN 1
 #define USE_GEMM_XDL_KM_KN_MN 1
+#define USE_GEMM_XDL_KM_NK_MN 1
 
 enum GemmAlgo
 {
@@ -123,6 +125,23 @@ int main(int argc, char* argv[])
         c_strides_host[0] = static_cast<std::size_t>(N);
         c_strides_host[1] = static_cast<std::size_t>(1);
     }
+    else if(layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        a_lengths_host[0] = static_cast<std::size_t>(K);
+        a_lengths_host[1] = static_cast<std::size_t>(M);
+        a_strides_host[0] = static_cast<std::size_t>(M);
+        a_strides_host[1] = static_cast<std::size_t>(1);
+
+        b_lengths_host[0] = static_cast<std::size_t>(N);
+        b_lengths_host[1] = static_cast<std::size_t>(K);
+        b_strides_host[0] = static_cast<std::size_t>(K);
+        b_strides_host[1] = static_cast<std::size_t>(1);
+
+        c_lengths_host[0] = static_cast<std::size_t>(M);
+        c_lengths_host[1] = static_cast<std::size_t>(N);
+        c_strides_host[0] = static_cast<std::size_t>(N);
+        c_strides_host[1] = static_cast<std::size_t>(1);
+    }
     else
     {
         std::runtime_error("wrong! not implemented");
@@ -190,6 +209,14 @@ int main(int argc, char* argv[])
         return make_tuple(a_desc, b_desc, c_desc);
     };
 
+    auto f_make_for_device_km_nk_mn = [&]() {
+        const auto a_desc = make_naive_tensor_descriptor(make_tuple(K, M), make_tuple(M, I1));
+        const auto b_desc = make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(K, I1));
+        const auto c_desc = make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(N, I1));
+
+        return make_tuple(a_desc, b_desc, c_desc);
+    };
+
 #if USE_GEMM_XDL_MK_KN_MN
     if(algo == GemmAlgo::Xdl_MK_KN_MN)
     {
@@ -231,6 +258,21 @@ int main(int argc, char* argv[])
         const auto descs = f_make_for_device_km_kn_mn();
 
         device_gemm_xdlops_km_kn_mn<ab_data_t, acc_data_t, c_data_t>(
+            descs[I0], descs[I1], descs[I2], a, b, c_device, nrepeat);
+    }
+#endif
+
+#if USE_GEMM_XDL_KM_NK_MN
+    if(algo == GemmAlgo::Xdl_KM_NK_MN)
+    {
+        if(layout != GemmMatrixLayout::KM_NK_MN)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto descs = f_make_for_device_km_nk_mn();
+
+        device_gemm_xdlops_km_nk_mn<ab_data_t, acc_data_t, c_data_t>(
             descs[I0], descs[I1], descs[I2], a, b, c_device, nrepeat);
     }
 #endif
