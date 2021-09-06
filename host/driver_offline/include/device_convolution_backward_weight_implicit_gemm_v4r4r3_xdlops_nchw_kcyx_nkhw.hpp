@@ -62,21 +62,21 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
     constexpr index_t MRepeat = 2;
     constexpr index_t NRepeat = 2;
 
-    using GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1   = Sequence<1, 2, 8>;
-    using GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1 = Sequence<4, 64, 1>;
+    using GemmABlockTransferThreadSliceLengths_GemmB_GemmK0_GemmM_GemmK1   = Sequence<1, 1, 2, 8>;
+    using GemmABlockTransferThreadClusterLengths_GemmB_GemmK0_GemmM_GemmK1 = Sequence<1, 4, 64, 1>;
     // using vector load 4, so config's wo*ho  must be a multiple of 4
     constexpr index_t GemmABlockTransferSrcScalarPerVector_GemmK1 = 4;
     constexpr index_t GemmABlockTransferDstScalarPerVector_GemmK1 = 4;
 
-    using GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1   = Sequence<1, 2, 8>;
-    using GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1 = Sequence<4, 64, 1>;
+    using GemmBBlockTransferThreadSliceLengths_GemmB_GemmK0_GemmN_GemmK1   = Sequence<1, 1, 2, 8>;
+    using GemmBBlockTransferThreadClusterLengths_GemmB_GemmK0_GemmN_GemmK1 = Sequence<1, 4, 64, 1>;
 
     constexpr index_t GemmBBlockTransferSrcScalarPerVector_GemmN  = 1;
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 
-    constexpr index_t KBatch = 96;
+    constexpr index_t KBatch = 2;
 #elif 1
     // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
@@ -123,20 +123,24 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
     constexpr auto out_gemmk0_gemmm_gemmk1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 1, 0, 0>{},   // 0+: GemmK0
-                              Sequence<0, 0, 0, 0, 0>{},   // 1+: GemmM
-                              Sequence<0, 0, 1, 0, 0>{}),  // 2+: GemmK1
-                   make_tuple(Sequence<0, 0, 2, 0, 0>{},   // 0-: GemmK0
-                              Sequence<0, 0, 0, 0, 0>{},   // 1-: GemmM
-                              Sequence<0, 0, 2, 0, 0>{})); // 2-: GemmK1
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: GemmB
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: GemmK0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: GemmM
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{}),  // 3+: GemmK1
+                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: GemB
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: GemmK0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: GemmM
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{})); // 3-: GemmK1
 
     constexpr auto in_gemmk0_gemmn_gemmk1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0>{},   // 0+: GemmK0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0>{},   // 1+: GemmN
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0>{}),  // 2+: GemmK1
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0>{},   // 0-: GemmK0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0>{},   // 1-: GemmN
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0>{})); // 2-: GemmK1
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: GemmB
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: GemmK0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: GemmN
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 3+: GemmK1
+                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: GemmB
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: GemmK0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: GemmN
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 3-: GemmK1
 
     constexpr auto wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
         make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
@@ -157,10 +161,10 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
                               Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
 
     constexpr auto out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks =
-        Sequence<0, 0, 1, 0, 0>{};
+        Sequence<0, 0, 0, 0, 0, 0, 0, 0>{};
 
     constexpr auto in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks =
-        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0>{};
+        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
 
     for(index_t i = 0; i < 5; ++i)
     {
@@ -181,19 +185,19 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
             GemmK1,
             MRepeat,
             NRepeat,
-            GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1,
-            GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1,
-            Sequence<1, 0, 2>,
-            Sequence<1, 0, 2>,
-            2,
+            GemmABlockTransferThreadSliceLengths_GemmB_GemmK0_GemmM_GemmK1,
+            GemmABlockTransferThreadClusterLengths_GemmB_GemmK0_GemmM_GemmK1,
+            Sequence<0, 2, 1, 3>,
+            Sequence<0, 2, 1, 3>,
+            3,
             GemmABlockTransferSrcScalarPerVector_GemmK1,
             GemmABlockTransferDstScalarPerVector_GemmK1,
             false, // don't move back src coordinate after threadwise copy
-            GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1,
-            GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1,
-            Sequence<1, 0, 2>,
-            Sequence<1, 0, 2>,
-            2,
+            GemmBBlockTransferThreadSliceLengths_GemmB_GemmK0_GemmN_GemmK1,
+            GemmBBlockTransferThreadClusterLengths_GemmB_GemmK0_GemmN_GemmK1,
+            Sequence<0, 2, 1, 3>,
+            Sequence<0, 2, 1, 3>,
+            3,
             GemmBBlockTransferSrcScalarPerVector_GemmN,
             GemmBBlockTransferDstScalarPerVector_GemmK1,
             false, // don't move back src coordinate after threadwise copy

@@ -366,18 +366,20 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         const auto M                = a_b_k0_m_k1_grid_desc.GetLength(I2);
         const auto N                = b_b_k0_n_k1_grid_desc.GetLength(I2);
         const auto b_grid_size      = CalculateGridSize(M, N);
-        const auto nBatch           = get_block_1d_id() / b_grid_size;
-        const auto blockid_in_batch = get_block_1d_id() % b_grid_size;
+        const auto k_batch_id       = get_block_1d_id() / b_grid_size;
+        const auto block_id_in_batch = get_block_1d_id() % b_grid_size;
         if(get_block_1d_id() == 2000)
-            printf("grid size: %d, Batch: %d block_id: %d k0: %d\n",
+            printf("grid size: %d, k0: %d, blockid: %d, threadid %d, Batch: %d block_id: %d \n",
                    b_grid_size,
-                   nBatch,
-                   blockid_in_batch,
-                   K0);
+                   K0,
+                   get_block_1d_id(),
+                   get_thread_local_1d_id(),
+                   k_batch_id,
+                   block_id_in_batch);
 
         // divide block work by [M, N]
         const auto block_work_idx =
-            c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(blockid_in_batch));
+            c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(block_id_in_batch));
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -391,65 +393,69 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
 
         // A matrix in LDS memory, dst of blockwise copy
         //   be careful of LDS alignment
+        constexpr auto a_b_k0_m_k1_block_desc = make_naive_tensor_descriptor_aligned(
+            make_tuple(1, Number<KPerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+
         constexpr auto a_k0_m_k1_block_desc = make_naive_tensor_descriptor_aligned(
             make_tuple(Number<KPerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
-
         // B matrix in LDS memory, dst of blockwise copy
         //   be careful of LDS alignment
+        constexpr auto b_b_k0_n_k1_block_desc = make_naive_tensor_descriptor_aligned(
+            make_tuple(1, Number<KPerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+
         constexpr auto b_k0_n_k1_block_desc = make_naive_tensor_descriptor_aligned(
             make_tuple(Number<KPerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
                                             InMemoryDataOperationEnum_t::Set,
-                                            Sequence<KPerBlock, MPerBlock, K1>,
+                                            Sequence<1, KPerBlock, MPerBlock, K1>,
                                             ABlockTransferThreadSliceLengths_K0_M_K1,
                                             ABlockTransferThreadClusterLengths_K0_M_K1,
                                             ABlockTransferThreadClusterArrangeOrder,
                                             FloatAB,
                                             FloatAB,
-                                            decltype(a_k0_m_k1_grid_desc),
-                                            decltype(a_k0_m_k1_block_desc),
+                                            decltype(a_b_k0_m_k1_grid_desc),
+                                            decltype(a_b_k0_m_k1_block_desc),
                                             ABlockTransferSrcAccessOrder,
-                                            Sequence<1, 0, 2>,
+                                            Sequence<0, 2, 1, 3>,
                                             ABlockTransferSrcVectorDim,
-                                            2,
+                                            3,
                                             ABlockTransferSrcScalarPerVector,
                                             ABlockTransferDstScalarPerVector_K1,
                                             1,
                                             1,
                                             AThreadTransferSrcResetCoordinateAfterRun,
-                                            true>(a_k0_m_k1_grid_desc,
-                                                  make_multi_index(0, m_block_data_idx_on_grid, 0),
-                                                  a_k0_m_k1_block_desc,
-                                                  make_multi_index(0, 0, 0));
+                                            true>(a_b_k0_m_k1_grid_desc,
+                                                  make_multi_index(k_batch_id, 0, m_block_data_idx_on_grid, 0),
+                                                  a_b_k0_m_k1_block_desc,
+                                                  make_multi_index(0, 0, 0, 0));
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
                                             InMemoryDataOperationEnum_t::Set,
-                                            Sequence<KPerBlock, NPerBlock, K1>,
+                                            Sequence<1, KPerBlock, NPerBlock, K1>,
                                             BBlockTransferThreadSliceLengths_K0_N_K1,
                                             BBlockTransferThreadClusterLengths_K0_N_K1,
                                             BBlockTransferThreadClusterArrangeOrder,
                                             FloatAB,
                                             FloatAB,
-                                            decltype(b_k0_n_k1_grid_desc),
-                                            decltype(b_k0_n_k1_block_desc),
+                                            decltype(b_b_k0_n_k1_grid_desc),
+                                            decltype(b_b_k0_n_k1_block_desc),
                                             BBlockTransferSrcAccessOrder,
-                                            Sequence<1, 0, 2>,
+                                            Sequence<0, 2, 1, 3>,
                                             BBlockTransferSrcVectorDim,
-                                            2,
+                                            3,
                                             BBlockTransferSrcScalarPerVector,
                                             BBlockTransferDstScalarPerVector_K1,
                                             1,
                                             1,
                                             BThreadTransferSrcResetCoordinateAfterRun,
-                                            true>(b_k0_n_k1_grid_desc,
-                                                  make_multi_index(0, n_block_data_idx_on_grid, 0),
-                                                  b_k0_n_k1_block_desc,
-                                                  make_multi_index(0, 0, 0));
+                                            true>(b_b_k0_n_k1_grid_desc,
+                                                  make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
+                                                  b_b_k0_n_k1_block_desc,
+                                                  make_multi_index(0, 0, 0, 0));
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
@@ -490,8 +496,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         FloatAB* p_a_block = p_shared_block;
         FloatAB* p_b_block = p_shared_block + a_block_space_size;
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(0, KPerBlock, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(0, KPerBlock, 0, 0);
 
         // hack to control index calculation when iterating over A and B matrix for threadwise copy
         constexpr auto a_k0_m_k1_grid_step_hacks = AGridStepHacks{};
@@ -509,11 +515,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
 
         // preload data into LDS
         {
-            a_blockwise_copy.RunRead(a_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
-            b_blockwise_copy.RunRead(b_k0_n_k1_grid_desc, b_grid_buf, b_k0_n_k1_grid_step_hacks);
+            a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
+            b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf, b_k0_n_k1_grid_step_hacks);
 
-            a_blockwise_copy.RunWrite(a_k0_m_k1_block_desc, a_block_buf);
-            b_blockwise_copy.RunWrite(b_k0_n_k1_block_desc, b_block_buf);
+            a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
+            b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
         }
 
         // main body
@@ -521,25 +527,25 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
 
         do
         {
-            a_blockwise_copy.MoveSrcSliceWindow(a_k0_m_k1_grid_desc,
+            a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc,
                                                 a_block_slice_copy_step,
                                                 a_k0_m_k1_grid_move_slice_window_step_hack);
-            b_blockwise_copy.MoveSrcSliceWindow(b_k0_n_k1_grid_desc,
+            b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc,
                                                 b_block_slice_copy_step,
                                                 b_k0_n_k1_grid_move_slice_window_step_hack);
 
-            a_blockwise_copy.RunRead(a_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
+            a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
 
             block_sync_lds();
 
-            b_blockwise_copy.RunRead(b_k0_n_k1_grid_desc, b_grid_buf, b_k0_n_k1_grid_step_hacks);
+            b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf, b_k0_n_k1_grid_step_hacks);
 
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
             block_sync_lds();
 
-            a_blockwise_copy.RunWrite(a_k0_m_k1_block_desc, a_block_buf);
-            b_blockwise_copy.RunWrite(b_k0_n_k1_block_desc, b_block_buf);
+            a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
+            b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
             k_block_data_begin += KPerBlock;
         } while(k_block_data_begin < (K0 - KPerBlock));

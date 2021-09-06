@@ -233,6 +233,8 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
+    // set zero to wei_device
+    wei_device.GenerateTensorValue(GeneratorTensor_0{}, num_thread);
 #if USE_CONV_WRW_V4R4R2_XDL_NCHW
     if(algo == ConvBackwardWeightAlgo::V4R4R2XDLNCHW)
     {
@@ -267,8 +269,6 @@ int main(int argc, char* argv[])
         {
             throw std::runtime_error("wrong! layout");
         }
-        // set zero to wei_device
-        wei_device.GenerateTensorValue(GeneratorTensor_0{}, num_thread);
 
         const auto tmp = f_make_for_device_nchw();
 
