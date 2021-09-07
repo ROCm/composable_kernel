@@ -128,9 +128,7 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
     // const auto kbatch = GridwiseGemm::CalculateKBatch(c_m_n_grid_desc, b_k0_n_k1_grid_desc);
     const auto a_b_k0_m_k1_grid_desc = GridwiseGemm::MakeABK0MK1GridDescriptor(a_k0_m_k1_grid_desc);
     const auto b_b_k0_n_k1_grid_desc = GridwiseGemm::MakeBBK0NK1GridDescriptor(b_k0_n_k1_grid_desc);
-    {
-        // std::cout << "k batch number is: " << kbatch << std::endl;
-    }
+
     if(!GridwiseGemm::CheckValidity(a_k0_m_k1_grid_desc, b_k0_n_k1_grid_desc, c_m_n_grid_desc))
     {
         throw std::runtime_error(
@@ -150,7 +148,7 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
 
     const index_t grid_size = GridwiseGemm::CalculateGridSize(c_m_n_grid_desc);
     {
-        std::cout << "gridSize : " << grid_size << grid_size << std::endl;
+        std::cout << "gridSize : " << grid_size << std::endl;
     }
     const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
                                                 FloatAB,

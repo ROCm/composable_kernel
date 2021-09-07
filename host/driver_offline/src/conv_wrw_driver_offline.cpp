@@ -13,16 +13,16 @@
 #include "host_conv_bwd_weight.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
-#define USE_CONV_WRW_V4R4R3_XDL_NCHW 1
+#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 1
 
 enum ConvBackwardWeightAlgo
 {
     V4R4R2XDLNCHW,
-    V4R4R3XDLNCHW,
+    V4R4R2XDLATOMICNCHW,
 };
 
 int main(int argc, char* argv[])
@@ -262,8 +262,8 @@ int main(int argc, char* argv[])
     }
 #endif
 
-#if USE_CONV_WRW_V4R4R3_XDL_NCHW
-    if(algo == ConvBackwardWeightAlgo::V4R4R3XDLNCHW)
+#if USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW
+    if(algo == ConvBackwardWeightAlgo::V4R4R2XDLATOMICNCHW)
     {
         if(layout != ConvTensorLayout::NCHW)
         {
@@ -272,20 +272,20 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nchw();
 
-        device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nkhw<in_data_t,
-                                                                                      acc_data_t,
-                                                                                      out_data_t>(
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            tmp[I3],
-            tmp[I4],
-            tmp[I5],
-            tmp[I6],
-            in,
-            wei_device,
-            out,
-            nrepeat);
+        device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw<
+            in_data_t,
+            acc_data_t,
+            out_data_t>(tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        tmp[I3],
+                        tmp[I4],
+                        tmp[I5],
+                        tmp[I6],
+                        in,
+                        wei_device,
+                        out,
+                        nrepeat);
     }
 #endif
 
