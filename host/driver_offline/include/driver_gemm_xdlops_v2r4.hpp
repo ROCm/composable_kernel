@@ -156,8 +156,6 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
     const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
                                                 FloatAB,
                                                 FloatC,
-                                                remove_reference_t<AK0MK1GridDesc>,
-                                                remove_reference_t<BK0NK1GridDesc>,
                                                 remove_reference_t<ABK0MK1GridDesc>,
                                                 remove_reference_t<BBK0NK1GridDesc>,
                                                 remove_reference_t<CM0N0M1N1M2M3M4N2GridDesc>,
@@ -172,23 +170,17 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
                                             p_a_grid,
                                             p_b_grid,
                                             p_c_grid,
-                                            a_k0_m_k1_grid_desc,
-                                            b_k0_n_k1_grid_desc,
                                             a_b_k0_m_k1_grid_desc,
                                             b_b_k0_n_k1_grid_desc,
                                             c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                                             c_block_cluster_adaptor);
 
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
-    DeviceMem a_k0_m_k1_grid_desc_dev_buf(sizeof(AK0MK1GridDesc));
-    DeviceMem b_k0_n_k1_grid_desc_dev_buf(sizeof(BK0NK1GridDesc));
     DeviceMem a_b_k0_m_k1_grid_desc_dev_buf(sizeof(ABK0MK1GridDesc));
     DeviceMem b_b_k0_n_k1_grid_desc_dev_buf(sizeof(BBK0NK1GridDesc));
     DeviceMem c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf(sizeof(CM0N0M1N1M2M3M4N2GridDesc));
     DeviceMem c_block_cluster_adaptor_dev_buf(sizeof(CBlockClusterAdaptor));
 
-    a_k0_m_k1_grid_desc_dev_buf.ToDevice(&a_k0_m_k1_grid_desc);
-    b_k0_n_k1_grid_desc_dev_buf.ToDevice(&b_k0_n_k1_grid_desc);
     a_b_k0_m_k1_grid_desc_dev_buf.ToDevice(&a_b_k0_m_k1_grid_desc);
     b_b_k0_n_k1_grid_desc_dev_buf.ToDevice(&b_b_k0_n_k1_grid_desc);
     c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.ToDevice(&c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc);
@@ -203,8 +195,6 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
         p_a_grid,
         p_b_grid,
         p_c_grid,
-        cast_pointer_to_constant_address_space(a_k0_m_k1_grid_desc_dev_buf.GetDeviceBuffer()),
-        cast_pointer_to_constant_address_space(b_k0_n_k1_grid_desc_dev_buf.GetDeviceBuffer()),
         cast_pointer_to_constant_address_space(a_b_k0_m_k1_grid_desc_dev_buf.GetDeviceBuffer()),
         cast_pointer_to_constant_address_space(b_b_k0_n_k1_grid_desc_dev_buf.GetDeviceBuffer()),
         cast_pointer_to_constant_address_space(

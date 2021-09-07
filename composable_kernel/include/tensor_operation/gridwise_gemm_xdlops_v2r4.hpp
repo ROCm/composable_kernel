@@ -16,8 +16,6 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename AK0MK1GridDesc,
-          typename BK0NK1GridDesc,
           typename ABK0MK1GridDesc,
           typename BBK0NK1GridDesc,
           typename CM0N0M1N1M2M3M4N2GridDesc,
@@ -29,10 +27,8 @@ __global__ void
         kernel_gemm_xdlops_v2r4(const FloatAB* __restrict__ p_a_grid,
                                 const FloatAB* __restrict__ p_b_grid,
                                 FloatC* __restrict__ p_c_grid,
-                                const AK0MK1GridDesc a_k0_m_k1_grid_desc,
-                                const BK0NK1GridDesc b_k0_n_k1_grid_desc,
-                                const void CONSTANT* a_b_k0_m_k1_grid_desc,
-                                const void CONSTANT* b_b_k0_n_k1_grid_desc,
+                                const void ABK0MK1GridDesc a_b_k0_m_k1_grid_desc,
+                                const void BBK0NK1GridDesc b_b_k0_n_k1_grid_desc,
                                 const CM0N0M1N1M2M3M4N2GridDesc c_m0_m1_m2_n_grid_desc,
                                 const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
@@ -45,8 +41,6 @@ __global__ void
                       p_b_grid,
                       p_c_grid,
                       p_shared_block,
-                      a_k0_m_k1_grid_desc,
-                      b_k0_n_k1_grid_desc,
                       a_b_k0_m_k1_grid_desc,
                       b_b_k0_n_k1_grid_desc,
                       c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
@@ -56,8 +50,6 @@ __global__ void
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename AK0MK1GridDesc,
-          typename BK0NK1GridDesc,
           typename ABK0MK1GridDesc,
           typename BBK0NK1GridDesc,
           typename CM0N0M1N1M2M3M4N2GridDesc,
@@ -69,8 +61,6 @@ __global__ void
         kernel_gemm_xdlops_v2r4(const FloatAB* __restrict__ p_a_grid,
                                 const FloatAB* __restrict__ p_b_grid,
                                 FloatC* __restrict__ p_c_grid,
-                                const void CONSTANT* p_a_k0_m_k1_grid_desc,
-                                const void CONSTANT* p_b_k0_n_k1_grid_desc,
                                 const void CONSTANT* p_a_b_k0_m_k1_grid_desc,
                                 const void CONSTANT* p_b_b_k0_n_k1_grid_desc,
                                 const void CONSTANT* p_c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
@@ -79,10 +69,6 @@ __global__ void
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 
-    const auto a_k0_m_k1_grid_desc = *reinterpret_cast<const AK0MK1GridDesc*>(
-        cast_pointer_to_generic_address_space(p_a_k0_m_k1_grid_desc));
-    const auto b_k0_n_k1_grid_desc = *reinterpret_cast<const BK0NK1GridDesc*>(
-        cast_pointer_to_generic_address_space(p_b_k0_n_k1_grid_desc));
     const auto a_b_k0_m_k1_grid_desc = *reinterpret_cast<const ABK0MK1GridDesc*>(
         cast_pointer_to_generic_address_space(p_a_b_k0_m_k1_grid_desc));
     const auto b_b_k0_n_k1_grid_desc = *reinterpret_cast<const BBK0NK1GridDesc*>(
@@ -99,8 +85,6 @@ __global__ void
                       p_b_grid,
                       p_c_grid,
                       p_shared_block,
-                      a_k0_m_k1_grid_desc,
-                      b_k0_n_k1_grid_desc,
                       a_b_k0_m_k1_grid_desc,
                       b_b_k0_n_k1_grid_desc,
                       c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
@@ -348,8 +332,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
                                FloatAB* __restrict__ p_shared_block,
-                               const AK0MK1GridDesc& a_k0_m_k1_grid_desc,
-                               const BK0NK1GridDesc& b_k0_n_k1_grid_desc,
                                const ABK0MK1GridDesc& a_b_k0_m_k1_grid_desc,
                                const BBK0NK1GridDesc& b_b_k0_n_k1_grid_desc,
                                const CM0N0M1N1M2M3M4N2GridDesc& c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
@@ -362,13 +344,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_grid, c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc.GetElementSpaceSize());
 
-        const auto K0               = a_b_k0_m_k1_grid_desc.GetLength(I1);
-        const auto M                = a_b_k0_m_k1_grid_desc.GetLength(I2);
-        const auto N                = b_b_k0_n_k1_grid_desc.GetLength(I2);
-        const auto b_grid_size      = CalculateGridSize(M, N);
-        const auto k_batch_id       = get_block_1d_id() / b_grid_size;
+        const auto K0                = a_b_k0_m_k1_grid_desc.GetLength(I1);
+        const auto M                 = a_b_k0_m_k1_grid_desc.GetLength(I2);
+        const auto N                 = b_b_k0_n_k1_grid_desc.GetLength(I2);
+        const auto b_grid_size       = CalculateGridSize(M, N);
+        const auto k_batch_id        = get_block_1d_id() / b_grid_size;
         const auto block_id_in_batch = get_block_1d_id() % b_grid_size;
-        if(get_block_1d_id() == 2000)
+        if(get_block_1d_id() == 200000)
             printf("grid size: %d, k0: %d, blockid: %d, threadid %d, Batch: %d block_id: %d \n",
                    b_grid_size,
                    K0,
@@ -426,10 +408,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
                                             1,
                                             1,
                                             AThreadTransferSrcResetCoordinateAfterRun,
-                                            true>(a_b_k0_m_k1_grid_desc,
-                                                  make_multi_index(k_batch_id, 0, m_block_data_idx_on_grid, 0),
-                                                  a_b_k0_m_k1_block_desc,
-                                                  make_multi_index(0, 0, 0, 0));
+                                            true>(
+                a_b_k0_m_k1_grid_desc,
+                make_multi_index(k_batch_id, 0, m_block_data_idx_on_grid, 0),
+                a_b_k0_m_k1_block_desc,
+                make_multi_index(0, 0, 0, 0));
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
@@ -452,10 +435,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
                                             1,
                                             1,
                                             BThreadTransferSrcResetCoordinateAfterRun,
-                                            true>(b_b_k0_n_k1_grid_desc,
-                                                  make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
-                                                  b_b_k0_n_k1_block_desc,
-                                                  make_multi_index(0, 0, 0, 0));
+                                            true>(
+                b_b_k0_n_k1_grid_desc,
+                make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
+                b_b_k0_n_k1_block_desc,
+                make_multi_index(0, 0, 0, 0));
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
