@@ -123,14 +123,14 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r3_xdlops_nchw_kcyx_nk
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
     constexpr auto out_gemmk0_gemmm_gemmk1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: GemmB
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: GemmK0
+        make_tuple(make_tuple(Sequence<0, 0, 1, 0, 0, 0, 0, 0>{},   // 0+: GemmB
+                              Sequence<0, 0, 1, 0, 0, 0, 0, 0>{},   // 1+: GemmK0
                               Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: GemmM
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{}),  // 3+: GemmK1
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: GemB
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: GemmK0
+                              Sequence<0, 0, 1, 0, 0, 0, 0, 0>{}),  // 3+: GemmK1
+                   make_tuple(Sequence<0, 0, 2, 0, 0, 0, 0, 0>{},   // 0-: GemB
+                              Sequence<0, 0, 2, 0, 0, 0, 0, 0>{},   // 1-: GemmK0
                               Sequence<0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: GemmM
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0>{})); // 3-: GemmK1
+                              Sequence<0, 0, 2, 0, 0, 0, 0, 0>{})); // 3-: GemmK1
 
     constexpr auto in_gemmk0_gemmn_gemmk1_grid_step_hacks = make_tuple(
         make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: GemmB
