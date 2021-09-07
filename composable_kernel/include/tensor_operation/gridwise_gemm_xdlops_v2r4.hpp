@@ -197,27 +197,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
     }
 
     __host__ __device__ static constexpr index_t
-    CalculateKBatch(const CMNGridDesc& c_m_n_grid_desc, const BK0NK1GridDesc& b_k0_n_k1_grid_desc)
-    {
-        constexpr auto MAX_GRID    = 2048;
-        const index_t grid_size_mn = CalculateMNGridSize(c_m_n_grid_desc);
-        const auto K0              = b_k0_n_k1_grid_desc.GetLength(I0);
-
-        auto batch = K0 / KPerBlock;
-        assert(K0 % KPerBlock == 0);
-        index_t div = 1;
-        while(batch * grid_size_mn > MAX_GRID && batch > div)
-        {
-            div++;
-            if(batch % div == 0)
-                batch = batch / div;
-        }
-        batch = std::max(1, batch);
-
-        return batch;
-    }
-
-    __host__ __device__ static constexpr index_t
     CalculateGridSize(const CMNGridDesc& c_m_n_grid_desc)
     {
         const auto M = c_m_n_grid_desc.GetLength(I0);
@@ -226,14 +205,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         const index_t grid_size = (M / MPerBlock) * (N / NPerBlock) * KBatch;
 
         return grid_size;
-    }
-
-    __host__ __device__ static constexpr index_t CalculateBatchGridSize(const index_t M,
-                                                                        const index_t N)
-    {
-        const index_t grid_size_mn = (M / MPerBlock) * (N / NPerBlock);
-
-        return grid_size_mn;
     }
 
     __host__ __device__ static constexpr auto
