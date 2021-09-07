@@ -147,11 +147,9 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
 
     using CBlockClusterAdaptor = decltype(c_block_cluster_adaptor);
 
-    const index_t grid_size_mn = GridwiseGemm::CalculateGridSize(c_m_n_grid_desc);
-    const index_t grid_size    = grid_size_mn * KBatch;
+    const index_t grid_size = GridwiseGemm::CalculateGridSize(c_m_n_grid_desc);
     {
-        std::cout << "mxn gridSize : " << grid_size_mn << "   finally grid_size : " << grid_size
-                  << std::endl;
+        std::cout << "gridSize : " << grid_size << grid_size << std::endl;
     }
     const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
                                                 FloatAB,

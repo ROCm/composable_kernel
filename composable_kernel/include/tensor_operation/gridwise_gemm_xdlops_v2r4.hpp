@@ -223,12 +223,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         const auto M = c_m_n_grid_desc.GetLength(I0);
         const auto N = c_m_n_grid_desc.GetLength(I1);
 
-        const index_t grid_size_mn = (M / MPerBlock) * (N / NPerBlock);
+        const index_t grid_size = (M / MPerBlock) * (N / NPerBlock) * KBatch;
 
-        return grid_size_mn;
+        return grid_size;
     }
 
-    __host__ __device__ static constexpr index_t CalculateGridSize(const index_t M, const index_t N)
+    __host__ __device__ static constexpr index_t CalculateBatchGridSize(const index_t M,
+                                                                        const index_t N)
     {
         const index_t grid_size_mn = (M / MPerBlock) * (N / NPerBlock);
 
@@ -347,7 +348,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         const auto K0                = a_b_k0_m_k1_grid_desc.GetLength(I1);
         const auto M                 = a_b_k0_m_k1_grid_desc.GetLength(I2);
         const auto N                 = b_b_k0_n_k1_grid_desc.GetLength(I2);
-        const auto b_grid_size       = CalculateGridSize(M, N);
+        const auto b_grid_size       = CalculateBatchGridSize(M, N);
         const auto k_batch_id        = get_block_1d_id() / b_grid_size;
         const auto block_id_in_batch = get_block_1d_id() % b_grid_size;
         if(get_block_1d_id() == 200000)
