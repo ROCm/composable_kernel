@@ -2,6 +2,7 @@
 #define DEVICE_HPP
 
 #include <memory>
+#include <functional>
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 
@@ -77,4 +78,50 @@ float launch_and_time_kernel(
     return timer.GetElapsedTime() / nrepeat;
 }
 
+template <typename... Args, typename F>
+float launch_time_and_out_call_kernel(F kernel,
+                                      int nrepeat,
+                                      dim3 grid_dim,
+                                      dim3 block_dim,
+                                      std::size_t lds_byte,
+                                      const std::function<void()>* func,
+                                      Args... args)
+{
+    KernelTimer timer;
+
+    printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
+           __func__,
+           grid_dim.x,
+           grid_dim.y,
+           grid_dim.z,
+           block_dim.x,
+           block_dim.y,
+           block_dim.z);
+
+    printf("Warm up\n");
+
+    hipStream_t stream_id = nullptr;
+
+    // warm up
+    hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, stream_id, args...);
+
+    printf("Start running %d times...\n", nrepeat);
+
+    timer.Start();
+
+    for(int i = 0; i < nrepeat; ++i)
+    {
+        hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, stream_id, args...);
+    }
+
+    timer.End();
+    // call out function
+    if(func)
+    {
+        (*func)();
+        hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, stream_id, args...);
+    }
+
+    return timer.GetElapsedTime() / nrepeat;
+}
 #endif

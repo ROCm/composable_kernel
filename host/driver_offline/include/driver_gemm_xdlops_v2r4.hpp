@@ -59,7 +59,8 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
                                        CGridStepHacks,
                                        AGridMoveSliceWindowStepHacks,
                                        BGridMoveSliceWindowStepHacks,
-                                       ck::index_t nrepeat)
+                                       ck::index_t nrepeat,
+                                       const std::function<void()>* func)
 
 {
     using namespace ck;
@@ -184,12 +185,13 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
     c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.ToDevice(&c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc);
     c_block_cluster_adaptor_dev_buf.ToDevice(&c_block_cluster_adaptor);
 
-    float ave_time = launch_and_time_kernel(
+    float ave_time = launch_time_and_out_call_kernel(
         kernel,
         nrepeat,
         dim3(grid_size),
         dim3(BlockSize),
         0,
+        func,
         p_a_grid,
         p_b_grid,
         p_c_grid,
