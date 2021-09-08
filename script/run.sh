@@ -15,12 +15,12 @@
 #rm -rf /root/_hip_binary_kernels_/
 #rm -rf /tmp/olCompile*
 
-#make -j conv_fwd_driver_offline
+make -j conv_fwd_driver_offline
 #make -j conv_bwd_driver_offline
 #make -j conv_wrw_driver_offline
 #make -j conv_fwd_driver_online
 
- make -j gemm_driver_offline
+#make -j gemm_driver_offline
 
 LAYOUT=$1
 ALGO=$2
@@ -51,8 +51,10 @@ REPEAT=$6
 
 #./host/driver_online/conv_fwd_driver_online    $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  128  192 3 3  71   71     2 2       1 1      1 1       1 1
 
+./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1  16  16 3 3  8   8     1 1       1 1      1 1       1 1
+
 ################################################ layout  algo  verify  init  log  repeat  M___ N___ K___
 #./host/driver_offline/gemm_driver_offline      $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT   960 1024 1024
 #./host/driver_offline/gemm_driver_offline      $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1920 2048 2048
- ./host/driver_offline/gemm_driver_offline      $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  3840 4096 4096
+# ./host/driver_offline/gemm_driver_offline      $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  3840 4096 4096
 #./host/driver_offline/gemm_driver_offline      $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  7680 8192 8192

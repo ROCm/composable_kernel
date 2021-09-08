@@ -7,8 +7,7 @@
 namespace ck {
 
 template <index_t BlockSize,
-          typename FloatA,
-          typename FloatB,
+          typename FloatAB,
           typename FloatC,
           typename BlockMatrixA,
           typename BlockMatrixB,
@@ -40,8 +39,8 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     static constexpr auto c_thread_mtx_ = make_naive_tensor_descriptor_packed(make_tuple(
         Number<KPerThreadSubC>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
 
-    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatA,
-                                                         FloatA,
+    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
+                                                         FloatAB,
                                                          BlockMatrixA,
                                                          decltype(a_thread_mtx_),
                                                          Sequence<EPerThreadLoop, KPerThreadSubC>,
@@ -111,8 +110,8 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                         CThreadBuffer& c_thread_buf) const
     {
         static_assert(
-            is_same<remove_cvref_t<typename ABlockBuffer::type>, remove_cvref_t<FloatA>>::value &&
-            is_same<remove_cvref_t<typename BThreadBuffer::type>, remove_cvref_t<FloatB>>::value &&
+            is_same<remove_cvref_t<typename ABlockBuffer::type>, remove_cvref_t<FloatAB>>::value &&
+            is_same<remove_cvref_t<typename BThreadBuffer::type>, remove_cvref_t<FloatAB>>::value &&
             is_same<remove_cvref_t<typename CThreadBuffer::type>, remove_cvref_t<FloatC>>::value &&
             "wrong! inconsistent type");
 
@@ -123,19 +122,18 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         constexpr auto EPerBlock = a_block_mtx.GetLength(I0);
 
         // HACK: fix this @Jing Zhang
-        constexpr auto HoPerThreadSubC = 2;
-        constexpr auto WoPerThreadSubC = 2;
+        constexpr auto HoPerThreadSubC = HPerThread;
+        constexpr auto WoPerThreadSubC = WPerThread;
 
         static_assert(KPerThread % KPerThreadSubC == 0, "");
         static_assert(HPerThread % HoPerThreadSubC == 0, "");
         static_assert(WPerThread % WoPerThreadSubC == 0, "");
 
         // thread A buffer for GEMM
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize(), true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatAB, a_thread_mtx_.GetElementSpaceSize(), true>
             a_thread_buf;
 
-        constexpr auto threadwise_gemm = ThreadwiseGemmDlops_km_kn_mn_v3<FloatA,
-                                                                         FloatB,
+        constexpr auto threadwise_gemm = ThreadwiseGemmDlops_km_kn_mn_v3<FloatAB,
                                                                          FloatC,
                                                                          decltype(a_thread_mtx_),
                                                                          decltype(b_thread_mtx_),

@@ -11,8 +11,7 @@ namespace ck {
 // Assume:
 //   1. ADesc, BDesc, CDesc are known at compile-time
 //   2. AOriginIdx, BOriginIdx, COriginIdx are known at compile-time
-template <typename FloatA,
-          typename FloatB,
+template <typename FloatAB,
           typename FloatC,
           typename ADesc,
           typename BDesc,
@@ -37,6 +36,7 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                                CBuffer& c_buf,
                                COriginIdx)
     {
+
         static_assert(ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
                           CDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
@@ -47,8 +47,8 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                       "wrong! AOriginIdx, BOriginIdx, COringinIdx should be known at compile-time");
 
         static_assert(
-            is_same<remove_cvref_t<typename ABuffer::type>, remove_cvref_t<FloatA>>::value &&
-            is_same<remove_cvref_t<typename BBuffer::type>, remove_cvref_t<FloatB>>::value &&
+            is_same<remove_cvref_t<typename ABuffer::type>, remove_cvref_t<FloatAB>>::value &&
+            is_same<remove_cvref_t<typename BBuffer::type>, remove_cvref_t<FloatAB>>::value &&
             is_same<remove_cvref_t<typename CBuffer::type>, remove_cvref_t<FloatC>>::value &&
             "wrong! inconsistent type");
 
@@ -67,6 +67,7 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                 constexpr index_t a_offset =
                     ADesc{}.CalculateOffset(a_origin_idx + make_tuple(e, k));
 
+#if 0
                 if constexpr(H == 2 && W == 2)
                 {
                     constexpr index_t b_offset_0 =
@@ -128,6 +129,7 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                                                    c_buf(Number<c_offset_3>{}));
                 }
                 else
+#endif
                 {
                     static_for<0, H, 1>{}([&](auto h) {
                         static_for<0, W, 1>{}([&](auto w) {
@@ -137,13 +139,14 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                             constexpr index_t c_offset =
                                 CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, h, w));
 
-#if 0
-                            c_buf(Number<c_offset>{}) += inner_product_with_conversion<FloatC>{}(
-                                a_buf[Number<a_offset>{}], b_buf[Number<b_offset>{}]);
+#if 1
+                            // c_buf(Number<c_offset>{}) += inner_product_with_conversion<FloatC>{}(
+                            // a_buf[Number<a_offset>{}], b_buf[Number<b_offset>{}]);
+                            c_buf(Number<c_offset>{}) = a_buf[Number<a_offset>{}];
 #else
-                            amd_assembly_inner_product(a_buf[Number<a_offset>{}],
-                                                       b_buf[Number<b_offset>{}],
-                                                       c_buf(Number<c_offset>{}));
+                            inner_product(a_buf[Number<a_offset>{}],
+                                          b_buf[Number<b_offset>{}],
+                                          c_buf(Number<c_offset>{}));
 #endif
                         });
                     });

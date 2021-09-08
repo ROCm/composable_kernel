@@ -11,6 +11,96 @@
 
 namespace ck {
 
+#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AEKGridDesc,
+          typename BENHoWoGridDesc,
+          typename CKNHoWoGridDesc,
+          typename CBlockIdToKNHoWoBlockClusterAdaptor,
+          bool HasMainKBlockLoop,
+          bool HasDoubleTailKBlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_gemm_dlops_v2(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            const AEKGridDesc a_e_k_grid_desc,
+            const BENHoWoGridDesc b_e_n_ho_wo_grid_desc,
+            const CKNHoWoGridDesc c_k_n_ho_wo_grid_desc,
+            const CBlockIdToKNHoWoBlockClusterAdaptor c_blockid_to_k_n_ho_wo_block_cluster_adaptor)
+{
+    constexpr index_t shared_block_size =
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+
+    __shared__ FloatAB p_shared_block[shared_block_size];
+
+    GridwiseGemm::Run(p_a_grid,
+                      p_b_grid,
+                      p_c_grid,
+                      p_shared_block,
+                      a_e_k_grid_desc,
+                      b_e_n_ho_wo_grid_desc,
+                      c_k_n_ho_wo_grid_desc,
+                      integral_constant<bool, HasMainKBlockLoop>{},
+                      integral_constant<bool, HasDoubleTailKBlockLoop>{});
+}
+#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
+// pass tensor descriptor by CONSTANT void pointer
+// CONSTANT is needed to inform compiler void pointers in the kernel signature are pointing to
+// non-modifiable parameter address space, so compiler can enable corresponding optimization
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AEKGridDesc,
+          typename BENHoWoGridDesc,
+          typename CKNHoWoGridDesc,
+          typename CBlockIdToKNHoWoBlockClusterAdaptor,
+          bool HasMainKBlockLoop,
+          bool HasDoubleTailKBlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_gemm_dlops_v2(const FloatAB* __restrict__ p_a_grid,
+                             const FloatAB* __restrict__ p_b_grid,
+                             FloatC* __restrict__ p_c_grid,
+                             const void CONSTANT* p_a_e_k_grid_desc,
+                             const void CONSTANT* p_b_e_n_ho_wo_grid_desc,
+                             const void CONSTANT* p_c_k_n_ho_wo_grid_desc,
+                             const void CONSTANT* p_c_blockid_to_k_n_ho_wo_block_cluster_adaptor)
+{
+    // first cast void CONSTANT void* to void*
+    // second cast void* to Desc*
+    // the copy constructor of tensor descriptor doesn't take address_space(4)
+    const auto a_e_k_grid_desc = *reinterpret_cast<const AEKGridDesc*>(
+        cast_pointer_to_generic_address_space(p_a_e_k_grid_desc));
+    const auto b_e_n_ho_wo_grid_desc = *reinterpret_cast<const BENHoWoGridDesc*>(
+        cast_pointer_to_generic_address_space(p_b_e_n_ho_wo_grid_desc));
+    const auto c_k_n_ho_wo_grid_desc = *reinterpret_cast<const CKNHoWoGridDesc*>(
+        cast_pointer_to_generic_address_space(p_c_k_n_ho_wo_grid_desc));
+
+    constexpr index_t shared_block_size =
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+
+    __shared__ FloatAB p_shared_block[shared_block_size];
+
+    GridwiseGemm::Run(p_a_grid,
+                      p_b_grid,
+                      p_c_grid,
+                      p_shared_block,
+                      a_e_k_grid_desc,
+                      b_e_n_ho_wo_grid_desc,
+                      c_k_n_ho_wo_grid_desc,
+                      integral_constant<bool, HasMainKBlockLoop>{},
+                      integral_constant<bool, HasDoubleTailKBlockLoop>{});
+}
+#endif
+
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
@@ -69,15 +159,15 @@ struct GridwiseGemmDlops_km_kn_mn_v3
     }
 
     template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
-    __device__ void Run(const AGlobalDesc& a_e_k_global_desc,
-                        const FloatAB* __restrict__ p_a_global,
-                        const BGlobalDesc& b_e_n_ho_wo_global_desc,
-                        const FloatAB* __restrict__ p_b_global,
-                        const CGlobalDesc& c_k_n_ho_wo_global_desc,
-                        FloatC* __restrict__ p_c_global,
-                        FloatAB* __restrict__ p_shared_block,
-                        integral_constant<bool, HasMainKBlockLoop>,
-                        integral_constant<bool, HasDoubleTailKBlockLoop>) const
+    __device__ static void Run(const FloatAB* __restrict__ p_a_global,
+                               const FloatAB* __restrict__ p_b_global,
+                               FloatC* __restrict__ p_c_global,
+                               FloatAB* __restrict__ p_shared_block,
+                               const AGlobalDesc& a_e_k_global_desc,
+                               const BGlobalDesc& b_e_n_ho_wo_global_desc,
+                               const CGlobalDesc& c_k_n_ho_wo_global_desc,
+                               integral_constant<bool, HasMainKBlockLoop>,
+                               integral_constant<bool, HasDoubleTailKBlockLoop>)
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -94,9 +184,9 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         constexpr auto E = EPerBlock * 3 * 3;
 
         // const auto E = a_e_k_global_desc.GetLength(I0);
-        const auto K = a_e_k_global_desc.GetLength(I1);
+        // const auto K = a_e_k_global_desc.GetLength(I1);
 
-        const auto N  = b_e_n_ho_wo_global_desc.GetLength(I1);
+        // const auto N  = b_e_n_ho_wo_global_desc.GetLength(I1);
         const auto Ho = b_e_n_ho_wo_global_desc.GetLength(I2);
         const auto Wo = b_e_n_ho_wo_global_desc.GetLength(I3);
 
@@ -150,7 +240,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
         auto blockwise_gemm =
             BlockwiseGemmDlops_km_kn_m0m1n0n1_v3<BlockSize,
-                                                 FloatAB,
                                                  FloatAB,
                                                  FloatAcc,
                                                  decltype(a_e_k_block_desc),
@@ -245,9 +334,9 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
         // hack to control index calculation when move slice window for A and B matrix for
         // threadwise copy
-        constexpr auto a_e_k_global_move_slice_window_step_hack = AGlobalMoveSliceWindowStepHacks{};
-        constexpr auto b_e_n_ho_wo_global_move_slice_window_step_hack =
-            BGlobalMoveSliceWindowStepHacks{};
+        // constexpr auto a_e_k_global_move_slice_window_step_hack =
+        // AGlobalMoveSliceWindowStepHacks{}; constexpr auto
+        // b_e_n_ho_wo_global_move_slice_window_step_hack = BGlobalMoveSliceWindowStepHacks{};
 
         // double regsiter buffer for b
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
@@ -373,84 +462,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                      c_global_buf,
                      c_k_n_ho_wo_global_tensor_step_hacks);
         }
-    }
-
-    // pass tensor descriptor by reference
-    template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
-    __device__ void Run(const AGlobalDesc& a_e_k_global_desc,
-                        const FloatAB* __restrict__ p_a_global,
-                        const BGlobalDesc& b_e_n_ho_wo_global_desc,
-                        const FloatAB* __restrict__ p_b_global,
-                        const CGlobalDesc& c_k_n_ho_wo_global_desc,
-                        FloatC* __restrict__ p_c_global,
-                        integral_constant<bool, HasMainKBlockLoop>,
-                        integral_constant<bool, HasDoubleTailKBlockLoop>) const
-    {
-        constexpr index_t shared_block_size = GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
-
-        __shared__ FloatAB p_shared_block[shared_block_size];
-
-        Run(a_e_k_global_desc,
-            p_a_global,
-            b_e_n_ho_wo_global_desc,
-            p_b_global,
-            c_k_n_ho_wo_global_desc,
-            p_c_global,
-            p_shared_block,
-            integral_constant<bool, HasMainKBlockLoop>{},
-            integral_constant<bool, HasDoubleTailKBlockLoop>{});
-    }
-
-    // pass tensor descriptors by their pointers
-    template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
-    __device__ void Run(const AGlobalDesc* p_a_e_k_global_desc,
-                        const FloatAB* __restrict__ p_a_global,
-                        const BGlobalDesc* p_b_e_n_ho_wo_global_desc,
-                        const FloatAB* __restrict__ p_b_global,
-                        const CGlobalDesc* p_c_k_n_ho_wo_global_desc,
-                        FloatC* __restrict__ p_c_global,
-                        integral_constant<bool, HasMainKBlockLoop>,
-                        integral_constant<bool, HasDoubleTailKBlockLoop>) const
-    {
-        const auto a_e_k_global_desc       = *p_a_e_k_global_desc;
-        const auto b_e_n_ho_wo_global_desc = *p_b_e_n_ho_wo_global_desc;
-        const auto c_k_n_ho_wo_global_desc = *p_c_k_n_ho_wo_global_desc;
-
-        Run(a_e_k_global_desc,
-            p_a_global,
-            b_e_n_ho_wo_global_desc,
-            p_b_global,
-            c_k_n_ho_wo_global_desc,
-            p_c_global,
-            integral_constant<bool, HasMainKBlockLoop>{},
-            integral_constant<bool, HasDoubleTailKBlockLoop>{});
-    }
-
-    // pass tensor descriptors by void*
-    template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
-    __device__ void Run(const void* p_a_e_k_global_desc,
-                        const FloatAB* __restrict__ p_a_global,
-                        const void* p_b_e_n_ho_wo_global_desc,
-                        const FloatAB* __restrict__ p_b_global,
-                        const void* p_c_k_n_ho_wo_global_desc,
-                        FloatC* __restrict__ p_c_global,
-                        integral_constant<bool, HasMainKBlockLoop>,
-                        integral_constant<bool, HasDoubleTailKBlockLoop>) const
-    {
-        const auto a_e_k_global_desc = *reinterpret_cast<const AGlobalDesc*>(p_a_e_k_global_desc);
-        const auto b_e_n_ho_wo_global_desc =
-            *reinterpret_cast<const BGlobalDesc*>(p_b_e_n_ho_wo_global_desc);
-        const auto c_k_n_ho_wo_global_desc =
-            *reinterpret_cast<const CGlobalDesc*>(p_c_k_n_ho_wo_global_desc);
-
-        Run(a_e_k_global_desc,
-            p_a_global,
-            b_e_n_ho_wo_global_desc,
-            p_b_global,
-            c_k_n_ho_wo_global_desc,
-            p_c_global,
-            integral_constant<bool, HasMainKBlockLoop>{},
-            integral_constant<bool, HasDoubleTailKBlockLoop>{});
     }
 };
 
