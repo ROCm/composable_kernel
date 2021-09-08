@@ -13,15 +13,18 @@
 #include "host_conv_bwd_weight.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
+#define USE_CONV_WRW_V4R4R4_XDL_NHWC 1
 #define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 1
 
 enum ConvBackwardWeightAlgo
 {
     V4R4R2XDLNCHW,
+    V4R4R4XDLNHWC,
     V4R4R2XDLATOMICNCHW,
 };
 
@@ -233,6 +236,25 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
+    auto f_make_for_device_nhwc = [&]() {
+        const auto in_lengths_dev     = make_tuple(N, Hi, Wi, C);
+        const auto wei_lengths_dev    = make_tuple(K, Y, X, C);
+        const auto out_lengths_dev    = make_tuple(N, Ho, Wo, K);
+        const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
+        const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
+        const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
+        const auto in_right_pads_dev  = make_tuple(in_right_pad_h, in_right_pad_w);
+
+        return make_tuple(in_lengths_dev,
+                          wei_lengths_dev,
+                          out_lengths_dev,
+                          conv_strides_dev,
+                          conv_dilations_dev,
+                          in_left_pads_dev,
+                          in_right_pads_dev);
+    };
+    
+    
     // set zero to wei_device
     wei_device.GenerateTensorValue(GeneratorTensor_0{}, num_thread);
 #if USE_CONV_WRW_V4R4R2_XDL_NCHW
@@ -246,6 +268,34 @@ int main(int argc, char* argv[])
         const auto tmp = f_make_for_device_nchw();
 
         device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw<in_data_t,
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
+            tmp[I0],
+            tmp[I1],
+            tmp[I2],
+            tmp[I3],
+            tmp[I4],
+            tmp[I5],
+            tmp[I6],
+            in,
+            wei_device,
+            out,
+            nrepeat);
+    }
+#endif
+
+
+#if USE_CONV_WRW_V4R4R4_XDL_NHWC
+    if(algo == ConvBackwardWeightAlgo::V4R4R4XDLNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk<in_data_t,
                                                                                       acc_data_t,
                                                                                       out_data_t>(
             tmp[I0],
