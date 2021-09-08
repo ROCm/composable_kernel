@@ -15,17 +15,20 @@
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
 #define USE_CONV_WRW_V4R4R4_XDL_NHWC 1
-#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 1
+#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 0
+#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 1
 
 enum ConvBackwardWeightAlgo
 {
     V4R4R2XDLNCHW,
     V4R4R4XDLNHWC,
     V4R4R2XDLATOMICNCHW,
+    V4R4R4XDLATOMICNHWC,
 };
 
 int main(int argc, char* argv[])
@@ -334,6 +337,33 @@ int main(int argc, char* argv[])
                         wei_device,
                         out,
                         nrepeat);
+    }
+#endif
+
+#if USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC
+    if(algo == ConvBackwardWeightAlgo::V4R4R4XDLATOMICNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk<in_data_t,
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
+            tmp[I0],
+            tmp[I1],
+            tmp[I2],
+            tmp[I3],
+            tmp[I4],
+            tmp[I5],
+            tmp[I6],
+            in,
+            wei_device,
+            out,
+            nrepeat);
     }
 #endif
 
