@@ -253,8 +253,7 @@ int main(int argc, char* argv[])
                           in_left_pads_dev,
                           in_right_pads_dev);
     };
-    
-    
+
     // set zero to wei_device
     wei_device.GenerateTensorValue(GeneratorTensor_0{}, num_thread);
 #if USE_CONV_WRW_V4R4R2_XDL_NCHW
@@ -283,7 +282,6 @@ int main(int argc, char* argv[])
             nrepeat);
     }
 #endif
-
 
 #if USE_CONV_WRW_V4R4R4_XDL_NHWC
     if(algo == ConvBackwardWeightAlgo::V4R4R4XDLNHWC)
