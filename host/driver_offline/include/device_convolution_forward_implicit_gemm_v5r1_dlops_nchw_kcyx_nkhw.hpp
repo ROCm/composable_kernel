@@ -104,22 +104,24 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     constexpr index_t KPerBlock  = 16;
     constexpr index_t HoPerBlock = 8;
     constexpr index_t WoPerBlock = 8;
-    constexpr index_t EPerBlock  = 16;
+
+    constexpr index_t E1        = 16;
+    constexpr index_t EPerBlock = 16;
 
     constexpr index_t KPerThread  = KPerBlock;
     constexpr index_t HoPerThread = 1;
     constexpr index_t WoPerThread = 1;
     constexpr index_t EPerThread  = EPerBlock;
 
-    using ABlockTransferThreadSliceLengths_E_K   = Sequence<4, 1>;
-    using ABlockTransferThreadClusterLengths_E_K = Sequence<4, 16>;
+    using ABlockTransferThreadSliceLengths_E_K   = Sequence<1, 4, 1>;
+    using ABlockTransferThreadClusterLengths_E_K = Sequence<1, 4, 16>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E = 4;
     constexpr index_t ABlockTransferDstScalarPerVector_K = 1;
 
-    constexpr index_t BThreadTransferSrcScalarPerVector_E = 4;
+    constexpr index_t BThreadTransferSrcScalarPerVector_E = 1;
 
-    constexpr index_t CThreadTransferDstScalarPerVector_K = 4;
+    constexpr index_t CThreadTransferDstScalarPerVector_K = 1;
 #endif
 
     constexpr auto conv_driver =
@@ -128,6 +130,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
             TInWei,
             TAcc,
             TOut,
+            E1,
             KPerBlock,
             HoPerBlock,
             WoPerBlock,

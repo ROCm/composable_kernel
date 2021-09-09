@@ -109,6 +109,7 @@ template <index_t BlockSize,
           typename AGlobalDesc_E0_E1_K,
           typename BGlobalDesc_E0_E1_N_Ho_Wo,
           typename CGlobalDesc_K_N_Ho_Wo,
+          index_t E1,
           index_t KPerBlock,
           index_t HoPerBlock,
           index_t WoPerBlock,
@@ -139,7 +140,11 @@ template <index_t BlockSize,
           typename BGlobalMoveSliceWindowStepHacks>
 struct GridwiseGemmDlops_km_kn_mn_v3
 {
-    static constexpr auto E = EPerBlock;
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -148,12 +153,12 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
         // A matrix in LDS memory, dst of blockwise copy
         //   be careful of LDS alignment
-        constexpr auto a_e1_k_block_desc = make_naive_tensor_descriptor_aligned(
-            make_tuple(Number<E>{}, Number<KPerBlock>{}), max_lds_align);
+        constexpr auto a_e0_e1_k_block_desc = make_naive_tensor_descriptor_aligned(
+            make_tuple(I1, Number<E1>{}, Number<KPerBlock>{}), max_lds_align);
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size =
-            math::integer_least_multiple(a_e1_k_block_desc.GetElementSpaceSize(), max_lds_align);
+            math::integer_least_multiple(a_e0_e1_k_block_desc.GetElementSpaceSize(), max_lds_align);
 
         return a_block_space_size * sizeof(FloatAB);
     }
@@ -169,11 +174,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                integral_constant<bool, HasMainKBlockLoop>,
                                integral_constant<bool, HasDoubleTailKBlockLoop>)
     {
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
-
         const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_global, a_e0_e1_k_global_desc.GetElementSpaceSize());
         const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
@@ -220,15 +220,15 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
         // A matrix in LDS memory, dst of blockwise copy
         //   be careful of LDS alignment
-        constexpr auto a_e1_k_block_desc = make_naive_tensor_descriptor_aligned(
-            make_tuple(Number<E>{}, Number<KPerBlock>{}), max_lds_align);
+        constexpr auto a_e0_e1_k_block_desc = make_naive_tensor_descriptor_aligned(
+            make_tuple(Number<I1>{}, Number<E1>{}, Number<KPerBlock>{}), max_lds_align);
 
-        constexpr auto a_e2_k_block_desc = make_naive_tensor_descriptor_aligned(
+        constexpr auto a_e1_k_block_desc = make_naive_tensor_descriptor_aligned(
             make_tuple(Number<EPerBlock>{}, Number<KPerBlock>{}), max_lds_align);
 
         // B matrix in LDS memory, dst of blockwise copy
         //   be careful of LDS alignment
-        constexpr auto b_e2_n_ho_wo_block_desc = make_naive_tensor_descriptor_packed(make_tuple(
+        constexpr auto b_e1_n_ho_wo_block_desc = make_naive_tensor_descriptor_packed(make_tuple(
             Number<EPerBlock>{}, Number<1>{}, Number<HoPerBlock>{}, Number<WoPerBlock>{}));
 
         // c_thread_mtx definition: this is a mess
@@ -240,8 +240,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             BlockwiseGemmDlops_km_kn_m0m1n0n1_v3<BlockSize,
                                                  FloatAB,
                                                  FloatAcc,
-                                                 decltype(a_e2_k_block_desc),
-                                                 decltype(b_e2_n_ho_wo_block_desc),
+                                                 decltype(a_e1_k_block_desc),
+                                                 decltype(b_e1_n_ho_wo_block_desc),
                                                  decltype(c_k_n_ho_wo_thread_desc),
                                                  EPerThread,
                                                  ABlockTransferSrcScalarPerVector,
@@ -266,47 +266,47 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
                                             InMemoryDataOperationEnum_t::Set,
-                                            Sequence<E, KPerBlock>,
+                                            Sequence<I1, E1, KPerBlock>,
                                             ABlockTransferThreadSliceLengths_E_K,
                                             ABlockTransferThreadClusterLengths_E_K,
                                             ABlockTransferThreadClusterArrangeOrder,
                                             FloatAB,
                                             FloatAB,
                                             decltype(a_e0_e1_k_global_desc),
-                                            decltype(a_e1_k_block_desc),
+                                            decltype(a_e0_e1_k_block_desc),
                                             ABlockTransferSrcAccessOrder,
-                                            Sequence<0, 1>,
+                                            Sequence<0, 1, 2>,
                                             ABlockTransferSrcVectorDim,
-                                            1,
+                                            2,
                                             ABlockTransferSrcScalarPerVector,
                                             ABlockTransferDstScalarPerVector_K,
                                             1,
                                             1,
                                             AThreadTransferSrcResetCoordinateAfterRun,
                                             true>(a_e0_e1_k_global_desc,
-                                                  make_multi_index(0, k_block_data_on_global),
-                                                  a_e1_k_block_desc,
-                                                  make_multi_index(0, 0));
+                                                  make_multi_index(0, 0, k_block_data_on_global),
+                                                  a_e0_e1_k_block_desc,
+                                                  make_multi_index(0, 0, 0));
 
-        constexpr auto b_e2_n_ho_wo_thread_desc = make_naive_tensor_descriptor_packed(make_tuple(
-            Number<EPerBlock>{}, Number<1>{}, Number<HoPerThread>{}, Number<WoPerThread>{}));
+        constexpr auto b_e0_e1_n_ho_wo_thread_desc = make_naive_tensor_descriptor_packed(make_tuple(
+            I1, Number<EPerBlock>{}, Number<1>{}, Number<HoPerThread>{}, Number<WoPerThread>{}));
 
         auto b_threadwise_transfer =
             ThreadwiseTensorSliceTransfer_v2<FloatAB,
                                              FloatAB,
                                              decltype(b_e0_e1_n_ho_wo_global_desc),
-                                             decltype(b_e2_n_ho_wo_thread_desc),
-                                             Sequence<EPerBlock, 1, HoPerThread, WoPerThread>,
+                                             decltype(b_e0_e1_n_ho_wo_thread_desc),
+                                             Sequence<I1, EPerBlock, 1, HoPerThread, WoPerThread>,
                                              BBlockTransferSrcAccessOrder,
                                              BBlockTransferSrcVectorDim,
                                              BBlockTransferSrcScalarPerVector,
                                              1,
                                              true>(
                 b_e0_e1_n_ho_wo_global_desc,
-                make_multi_index(0, 0, ho_thread_data_on_global, wo_thread_data_on_global));
+                make_multi_index(0, 0, 0, ho_thread_data_on_global, wo_thread_data_on_global));
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
-            p_shared_block, a_e1_k_block_desc.GetElementSpaceSize());
+            p_shared_block, a_e0_e1_k_block_desc.GetElementSpaceSize());
 
         // register allocation for output
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
@@ -321,7 +321,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                     Sequence<KPerThread, 1, HoPerThread, WoPerThread>>{}
             .Run(c_k_n_ho_wo_thread_desc, make_tuple(I0, I0, I0, I0), c_thread_buf, FloatAcc{0});
 
-        constexpr auto b_thread_slice_copy_step = make_multi_index(EPerBlock, 0, 0, 0);
+        constexpr auto b_thread_slice_copy_step = make_multi_index(0, EPerBlock, 0, 0, 0);
 
         // hack to control index calculation when iterating over A and B matrix for threadwise copy
         constexpr auto a_e0_e1_k_global_step_hacks       = AGlobalStepHacks{};
@@ -330,7 +330,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         // double regsiter buffer for b
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
                      FloatAB,
-                     b_e2_n_ho_wo_thread_desc.GetElementSpaceSize(),
+                     b_e0_e1_n_ho_wo_thread_desc.GetElementSpaceSize(),
                      true>
             b_thread_even_buf, b_thread_odd_buf;
 
@@ -341,12 +341,12 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
             b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
                                       b_global_buf,
-                                      b_e2_n_ho_wo_thread_desc,
-                                      make_tuple(I0, I0, I0, I0),
+                                      b_e0_e1_n_ho_wo_thread_desc,
+                                      make_tuple(I0, I0, I0, I0, I0),
                                       b_thread_even_buf,
                                       b_e0_e1_n_ho_wo_global_step_hacks);
 
-            a_blockwise_copy.RunWrite(a_e1_k_block_desc, a_block_buf);
+            a_blockwise_copy.RunWrite(a_e0_e1_k_block_desc, a_block_buf);
         }
 
         __syncthreads();
@@ -365,8 +365,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
                 b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
                                           b_global_buf,
-                                          b_e2_n_ho_wo_thread_desc,
-                                          make_tuple(I0, I0, I0, I0),
+                                          b_e0_e1_n_ho_wo_thread_desc,
+                                          make_tuple(I0, I0, I0, I0, I0),
                                           b_thread_odd_buf,
                                           b_e0_e1_n_ho_wo_global_step_hacks);
 
@@ -381,8 +381,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
                 b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
                                           b_global_buf,
-                                          b_e2_n_ho_wo_thread_desc,
-                                          make_tuple(I0, I0, I0, I0),
+                                          b_e0_e1_n_ho_wo_thread_desc,
+                                          make_tuple(I0, I0, I0, I0, I0),
                                           b_thread_even_buf,
                                           b_e0_e1_n_ho_wo_global_step_hacks);
 
@@ -393,7 +393,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
                 e_block_data_begin += 2 * EPerBlock;
 
-            } while(e_block_data_begin < E - 2 * EPerBlock);
+            } while(e_block_data_begin < E1 - 2 * EPerBlock);
         }
 
         // LDS double buffer: tail
@@ -404,8 +404,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
             b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
                                       b_global_buf,
-                                      b_e2_n_ho_wo_thread_desc,
-                                      make_tuple(I0, I0, I0, I0),
+                                      b_e0_e1_n_ho_wo_thread_desc,
+                                      make_tuple(I0, I0, I0, I0, I0),
                                       b_thread_odd_buf,
                                       b_e0_e1_n_ho_wo_global_step_hacks);
 
