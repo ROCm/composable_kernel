@@ -134,6 +134,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
             a_thread_buf;
 
         constexpr auto threadwise_gemm = ThreadwiseGemmDlops_km_kn_mn_v3<FloatAB,
+                                                                         FloatAB,
                                                                          FloatC,
                                                                          decltype(a_thread_mtx_),
                                                                          decltype(b_thread_mtx_),

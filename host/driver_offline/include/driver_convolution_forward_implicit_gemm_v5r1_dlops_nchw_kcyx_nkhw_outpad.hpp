@@ -22,8 +22,8 @@ template <ck::index_t BlockSize,
           typename ABlockTransferThreadClusterLengths_E_K,
           ck::index_t ABlockTransferSrcScalarPerVector_E,
           ck::index_t ABlockTransferDstScalarPerVector_K,
-          ck::index_t BThreadTransferSrcScalarPerVector_W,
-          ck::index_t CThreadTransferDstScalarPerVector_W>
+          ck::index_t BThreadTransferSrcScalarPerVector_E,
+          ck::index_t CThreadTransferDstScalarPerVector_K>
 struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outpad
 {
     template <typename... Wei,
@@ -160,26 +160,26 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outp
         constexpr auto a_e_k_global_move_slice_window_step_hack = Sequence<0, 0, 0>{};
 
         constexpr auto b_e_n_ho_wo_global_step_hacks =
-            make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0>{},
+            make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),
-                       make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0>{},
+                       make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
 
         constexpr auto b_e_n_ho_wo_global_move_slice_window_step_hack =
-            Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0>{};
+            Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
 
         // hack to control index calculation when iterating over c_m0_m1_n0_n1_global tensor
         // hack for NKHW format
         constexpr auto c_k_n_ho_wo_global_tensor_step_hacks =
-            make_tuple(make_tuple(Sequence<0, 1, 0, 0, 0>{},
+            make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0>{}),
-                       make_tuple(Sequence<0, 2, 0, 0, 0>{},
+                       make_tuple(Sequence<0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0>{}));
@@ -211,13 +211,13 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outp
             ABlockTransferDstScalarPerVector_K,
             false, // don't move back src coordinate after threadwise copy
             Sequence<0, 2, 3, 1>,
-            3,
-            BThreadTransferSrcScalarPerVector_W,
+            0,
+            BThreadTransferSrcScalarPerVector_E,
             false, // don't move back src coordinate after threadwise copy, which will be fused with
                    // MoveSrcSliceWindow() to save addr computation
             Sequence<0, 2, 3, 1>,
             0,
-            CThreadTransferDstScalarPerVector_W,
+            CThreadTransferDstScalarPerVector_K,
             decltype(a_e_k_global_step_hacks),
             decltype(b_e_n_ho_wo_global_step_hacks),
             decltype(c_k_n_ho_wo_global_tensor_step_hacks),

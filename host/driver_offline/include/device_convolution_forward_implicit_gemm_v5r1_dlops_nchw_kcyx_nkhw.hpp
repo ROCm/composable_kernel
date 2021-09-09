@@ -1,7 +1,6 @@
 #include <unistd.h>
 #include "device.hpp"
 #include "host_tensor.hpp"
-#include "driver_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw.hpp"
 #include "driver_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw_outpad.hpp"
 
 template <typename TInWei,
@@ -50,11 +49,19 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     const auto Y = wei_k_c_y_x_lengths[I2];
     const auto X = wei_k_c_y_x_lengths[I3];
 
+#if 0
     const auto C0 = C / Number<InWeiVectorSize>{};
     const auto C1 = Number<InWeiVectorSize>{};
 
     const auto K0 = K / Number<InWeiVectorSize>{};
     const auto K1 = Number<InWeiVectorSize>{};
+#else
+    const auto C0 = 1;
+    const auto C1 = C;
+
+    const auto K0 = 1;
+    const auto K1 = K;
+#endif
 
     Tensor<TInWei> in_n_c0_hi_wi_c1(
         HostTensorDescriptor(std::initializer_list<index_t>{N, C0, Hi, Wi, C1}));
@@ -64,13 +71,11 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
         HostTensorDescriptor(std::initializer_list<index_t>{N, K0, Ho, Wo, K1}));
 
     auto f_nchw2nc0hwc1 = [&](auto n, auto hi, auto wi, auto c) {
-        in_n_c0_hi_wi_c1(n, c / InWeiVectorSize, hi, wi, c % InWeiVectorSize) =
-            in_n_c_hi_wi(n, c, hi, wi);
+        in_n_c0_hi_wi_c1(n, c / C1, hi, wi, c % C1) = in_n_c_hi_wi(n, c, hi, wi);
     };
 
     auto f_kcyx2kc0yxc1 = [&](auto k, auto y, auto x, auto c) {
-        wei_k_c0_y_x_c1(k, c / InWeiVectorSize, y, x, c % InWeiVectorSize) =
-            wei_k_c_y_x(k, c, y, x);
+        wei_k_c0_y_x_c1(k, c / C1, y, x, c % C1) = wei_k_c_y_x(k, c, y, x);
     };
 
     make_ParallelTensorFunctor(f_nchw2nc0hwc1, N, Hi, Wi, C)();
@@ -99,50 +104,44 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     constexpr index_t KPerBlock  = 16;
     constexpr index_t HoPerBlock = 8;
     constexpr index_t WoPerBlock = 8;
-    constexpr index_t EPerBlock  = 1;
+    constexpr index_t EPerBlock  = 16;
 
     constexpr index_t KPerThread  = KPerBlock;
     constexpr index_t HoPerThread = 1;
     constexpr index_t WoPerThread = 1;
     constexpr index_t EPerThread  = EPerBlock;
 
-    using ABlockTransferThreadSliceLengths_E_K   = Sequence<9, 1>;
-    using ABlockTransferThreadClusterLengths_E_K = Sequence<EPerBlock, KPerBlock>;
+    using ABlockTransferThreadSliceLengths_E_K   = Sequence<4, 1>;
+    using ABlockTransferThreadClusterLengths_E_K = Sequence<4, 16>;
 
-    constexpr index_t ABlockTransferSrcScalarPerVector_E = 1;
+    constexpr index_t ABlockTransferSrcScalarPerVector_E = 4;
     constexpr index_t ABlockTransferDstScalarPerVector_K = 1;
 
-    constexpr index_t BThreadTransferSrcScalarPerVector_W = 1;
+    constexpr index_t BThreadTransferSrcScalarPerVector_E = 4;
 
-    constexpr index_t CThreadTransferDstScalarPerVector_W = 1;
-
-    static_assert(KPerThread % CThreadTransferDstScalarPerVector_W == 0, "");
+    constexpr index_t CThreadTransferDstScalarPerVector_K = 4;
 #endif
 
     constexpr auto conv_driver =
-#if 0
-        DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_pad
-#else
-        DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outpad
-#endif
-        <BlockSize,
-         TInWei,
-         TAcc,
-         TOut,
-         KPerBlock,
-         HoPerBlock,
-         WoPerBlock,
-         EPerBlock,
-         KPerThread,
-         HoPerThread,
-         WoPerThread,
-         EPerThread,
-         ABlockTransferThreadSliceLengths_E_K,
-         ABlockTransferThreadClusterLengths_E_K,
-         ABlockTransferSrcScalarPerVector_E,
-         ABlockTransferDstScalarPerVector_K,
-         BThreadTransferSrcScalarPerVector_W,
-         CThreadTransferDstScalarPerVector_W>{};
+        DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outpad<
+            BlockSize,
+            TInWei,
+            TAcc,
+            TOut,
+            KPerBlock,
+            HoPerBlock,
+            WoPerBlock,
+            EPerBlock,
+            KPerThread,
+            HoPerThread,
+            WoPerThread,
+            EPerThread,
+            ABlockTransferThreadSliceLengths_E_K,
+            ABlockTransferThreadClusterLengths_E_K,
+            ABlockTransferSrcScalarPerVector_E,
+            ABlockTransferDstScalarPerVector_K,
+            BThreadTransferSrcScalarPerVector_E,
+            CThreadTransferDstScalarPerVector_K>{};
 
     conv_driver.Run(wei_k_c0_y_x_c1_desc,
                     in_n_c0_hi_wi_c1_desc,
@@ -158,8 +157,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     out_n_k0_ho_wo_k1_device_buf.FromDevice(out_n_k0_ho_wo_k1.mData.data());
 
     auto f_nk0hwk1_to_nkhw = [&](auto n, auto k, auto ho, auto wo) {
-        out_n_k_ho_wo(n, k, ho, wo) =
-            out_n_k0_ho_wo_k1(n, k / InWeiVectorSize, ho, wo, k % InWeiVectorSize);
+        out_n_k_ho_wo(n, k, ho, wo) = out_n_k0_ho_wo_k1(n, k / K1, ho, wo, k % K1);
     };
 
     make_ParallelTensorFunctor(f_nk0hwk1_to_nkhw, N, K, Ho, Wo)();

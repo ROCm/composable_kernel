@@ -139,10 +139,10 @@ template <index_t BlockSize,
           typename BGlobalMoveSliceWindowStepHacks>
 struct GridwiseGemmDlops_km_kn_mn_v3
 {
+    static constexpr auto E = EPerBlock;
+
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
-        constexpr auto E = EPerBlock * 3 * 3;
-
         constexpr auto max_lds_align =
             math::lcm(Number<ABlockTransferDstScalarPerVector_K>{}, Number<KPerBlock>{});
 
@@ -180,8 +180,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             p_b_global, b_e_n_ho_wo_global_desc.GetElementSpaceSize());
         auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_global, c_k_n_ho_wo_global_desc.GetElementSpaceSize());
-
-        constexpr auto E = EPerBlock * 3 * 3;
 
         // const auto E = a_e_k_global_desc.GetLength(I0);
         // const auto K = a_e_k_global_desc.GetLength(I1);

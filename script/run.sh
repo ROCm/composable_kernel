@@ -51,7 +51,8 @@ REPEAT=$6
 
 #./host/driver_online/conv_fwd_driver_online    $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  128  192 3 3  71   71     2 2       1 1      1 1       1 1
 
-./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1  16  16 3 3  8   8     1 1       1 1      1 1       1 1
+#./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1  16  16 3 3  8   8     1 1       1 1      1 1       1 1
+./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1  16  16 1 1  8   8     1 1       1 1      0 0       0 0
 
 ################################################ layout  algo  verify  init  log  repeat  M___ N___ K___
 #./host/driver_offline/gemm_driver_offline      $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT   960 1024 1024
