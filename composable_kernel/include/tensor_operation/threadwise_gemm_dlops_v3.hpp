@@ -26,14 +26,6 @@ template <typename FloatA,
 struct ThreadwiseGemmDlops_km_kn_mn_v3
 {
 
-    __device__ ThreadwiseGemmDlops_km_kn_mn_v3()
-    {
-        static_assert(AThreadDesc_E_K::IsKnownAtCompileTime() &&
-                          BThreadDesc_E_N_Ho_Wo::IsKnownAtCompileTime() &&
-                          CThreadDesc_K_N_Ho_Wo::IsKnownAtCompileTime(),
-                      "wrong! Desc should be known at compile-time");
-    }
-
     template <typename ABuffer,
               typename AOriginIdx,
               typename BBuffer,
