@@ -61,7 +61,7 @@ void device_gemm_xdlops_km_kn_mn(const ADesc& a_k_m_grid_desc,
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 4;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
-#elif 1
+#elif 0
     // [M, N, K0, K1] = [256, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
 
@@ -86,6 +86,34 @@ void device_gemm_xdlops_km_kn_mn(const ADesc& a_k_m_grid_desc,
     using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
 
     constexpr index_t BBlockTransferSrcScalarPerVector_N  = 2;
+    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
+
+    constexpr index_t CThreadTransferDstScalarPerVector = 1;
+#elif 1
+    // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
+    constexpr index_t BlockSize = 128;
+
+    constexpr index_t MPerBlock = 128;
+    constexpr index_t NPerBlock = 128;
+    constexpr index_t KPerBlock = 4;
+
+    constexpr index_t MPerXDL = 32;
+    constexpr index_t NPerXDL = 32;
+    constexpr index_t K1      = 8;
+
+    constexpr index_t MRepeat = 4;
+    constexpr index_t NRepeat = 2;
+
+    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 4, 8>;
+    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 32, 1>;
+
+    constexpr index_t ABlockTransferSrcScalarPerVector_M  = 4;
+    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 8;
+
+    using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 4, 8>;
+    using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 32, 1>;
+
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 4;
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
