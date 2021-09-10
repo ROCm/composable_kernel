@@ -256,6 +256,10 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outp
 
         const bool has_double_tail_k_block_loop = (E1 / EPerBlock) % 2 == 0;
 
+        std::cerr << "has_main_k_block_loop = " << has_main_k_block_loop
+                  << " has_double_tail_k_block_loop = " << has_double_tail_k_block_loop
+                  << std::endl;
+
         const auto c_blockid_to_k_n_ho_wo_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(make_tuple(make_merge_transform(make_tuple(I0, I0))),
                                              make_tuple(Sequence<0, 1>{}),

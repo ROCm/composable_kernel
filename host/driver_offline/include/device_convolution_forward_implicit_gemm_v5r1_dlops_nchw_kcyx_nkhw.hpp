@@ -106,17 +106,17 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     constexpr index_t WoPerBlock = 8;
 
     constexpr index_t E1        = 16;
-    constexpr index_t EPerBlock = 16;
+    constexpr index_t EPerBlock = 8;
 
     constexpr index_t KPerThread  = KPerBlock;
     constexpr index_t HoPerThread = 1;
     constexpr index_t WoPerThread = 1;
     constexpr index_t EPerThread  = EPerBlock;
 
-    using ABlockTransferThreadSliceLengths_E_K   = Sequence<1, 4, 1>;
-    using ABlockTransferThreadClusterLengths_E_K = Sequence<1, 4, 16>;
+    using ABlockTransferThreadSliceLengths_E0_E1_K   = Sequence<1, 4, 1>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K = Sequence<1, 4, 16>;
 
-    constexpr index_t ABlockTransferSrcScalarPerVector_E = 4;
+    constexpr index_t ABlockTransferSrcScalarPerVector_E = 1;
     constexpr index_t ABlockTransferDstScalarPerVector_K = 1;
 
     constexpr index_t BThreadTransferSrcScalarPerVector_E = 1;
@@ -139,8 +139,8 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
             HoPerThread,
             WoPerThread,
             EPerThread,
-            ABlockTransferThreadSliceLengths_E_K,
-            ABlockTransferThreadClusterLengths_E_K,
+            ABlockTransferThreadSliceLengths_E0_E1_K,
+            ABlockTransferThreadClusterLengths_E0_E1_K,
             ABlockTransferSrcScalarPerVector_E,
             ABlockTransferDstScalarPerVector_K,
             BThreadTransferSrcScalarPerVector_E,

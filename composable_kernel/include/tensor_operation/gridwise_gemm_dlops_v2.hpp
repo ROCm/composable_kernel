@@ -181,6 +181,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_global, c_k_n_ho_wo_global_desc.GetElementSpaceSize());
 
+        static_assert(E1 % EPerBlock == 0, "");
+
         // const auto E = a_e0_e1_k_global_desc.GetLength(I0);
         // const auto K = a_e0_e1_k_global_desc.GetLength(I1);
 
