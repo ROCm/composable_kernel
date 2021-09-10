@@ -118,8 +118,8 @@ template <index_t BlockSize,
           index_t HoPerThread,
           index_t WoPerThread,
           index_t EPerThread,
-          typename ABlockTransferThreadSliceLengths_E_K,
-          typename ABlockTransferThreadClusterLengths_E_K,
+          typename ABlockTransferThreadSliceLengths_E0_E1_K,
+          typename ABlockTransferThreadClusterLengths_E0_E1_K,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
           index_t ABlockTransferSrcVectorDim,
@@ -187,11 +187,11 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         // const auto K = a_e0_e1_k_global_desc.GetLength(I1);
 
         // const auto N  = b_e0_e1_n_ho_wo_global_desc.GetLength(I1);
-        const auto Ho = b_e0_e1_n_ho_wo_global_desc.GetLength(I2);
-        const auto Wo = b_e0_e1_n_ho_wo_global_desc.GetLength(I3);
+        const auto Ho = b_e0_e1_n_ho_wo_global_desc.GetLength(I3);
+        const auto Wo = b_e0_e1_n_ho_wo_global_desc.GetLength(I4);
 
 // divide block work by [M, N]
-#if 0
+#if 1
         const auto ho_block_work_num  = Ho / Number<HoPerBlock>{};
         const auto wo_block_work_num  = Wo / Number<WoPerBlock>{};
         const auto hwo_block_work_num = ho_block_work_num * wo_block_work_num;
@@ -269,17 +269,17 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             BlockwiseTensorSliceTransfer_v4<BlockSize,
                                             InMemoryDataOperationEnum_t::Set,
                                             Sequence<I1, E1, KPerBlock>,
-                                            ABlockTransferThreadSliceLengths_E_K,
-                                            ABlockTransferThreadClusterLengths_E_K,
+                                            ABlockTransferThreadSliceLengths_E0_E1_K,
+                                            ABlockTransferThreadClusterLengths_E0_E1_K,
                                             ABlockTransferThreadClusterArrangeOrder,
                                             FloatAB,
                                             FloatAB,
                                             decltype(a_e0_e1_k_global_desc),
                                             decltype(a_e0_e1_k_block_desc),
                                             ABlockTransferSrcAccessOrder,
-                                            Sequence<0, 1, 2>,
+                                            Sequence<0, 1, 2>, // ABlockTransferDstAccessOrder
                                             ABlockTransferSrcVectorDim,
-                                            2,
+                                            2, // ABlockTransferDstVectorDim
                                             ABlockTransferSrcScalarPerVector,
                                             ABlockTransferDstScalarPerVector_K,
                                             1,
