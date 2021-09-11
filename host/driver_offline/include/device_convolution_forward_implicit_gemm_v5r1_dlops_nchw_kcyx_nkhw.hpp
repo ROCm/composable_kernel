@@ -25,7 +25,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     const Tensor<TInWei>& in_n_c_hi_wi,
     const Tensor<TInWei>& wei_k_c_y_x,
     Tensor<TOut>& out_n_k_ho_wo,
-    ck::index_t /* nrepeat */)
+    ck::index_t nrepeat)
 {
     using namespace ck;
 
@@ -102,15 +102,15 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     constexpr index_t BlockSize = 64;
 
     constexpr index_t KPerBlock  = 16;
-    constexpr index_t HoPerBlock = 8;
+    constexpr index_t HoPerBlock = 32;
     constexpr index_t WoPerBlock = 8;
 
     constexpr index_t E1        = 16;
     constexpr index_t EPerBlock = 8;
 
     constexpr index_t KPerThread  = KPerBlock;
-    constexpr index_t HoPerThread = 1;
-    constexpr index_t WoPerThread = 1;
+    constexpr index_t HoPerThread = 2;
+    constexpr index_t WoPerThread = 2;
     constexpr index_t EPerThread  = EPerBlock;
 
     using ABlockTransferThreadSliceLengths_E0_E1_K   = Sequence<1, 4, 1>;
@@ -146,16 +146,18 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
             BThreadTransferSrcScalarPerVector_E,
             CThreadTransferDstScalarPerVector_K>{};
 
-    conv_driver.Run(wei_k_c0_y_x_c1_desc,
-                    in_n_c0_hi_wi_c1_desc,
-                    out_n_k0_ho_wo_k1_desc,
-                    conv_strides,
-                    conv_dilations,
-                    in_left_pads,
-                    in_right_pads,
-                    static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                    static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                    static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()));
+    const auto ave_time =
+        conv_driver.Run(wei_k_c0_y_x_c1_desc,
+                        in_n_c0_hi_wi_c1_desc,
+                        out_n_k0_ho_wo_k1_desc,
+                        conv_strides,
+                        conv_dilations,
+                        in_left_pads,
+                        in_right_pads,
+                        static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+                        static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                        static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
+                        nrepeat);
 
     out_n_k0_ho_wo_k1_device_buf.FromDevice(out_n_k0_ho_wo_k1.mData.data());
 
@@ -164,4 +166,11 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     };
 
     make_ParallelTensorFunctor(f_nk0hwk1_to_nkhw, N, K, Ho, Wo)();
+
+    {
+        float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * C * Y * X) /
+                     (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+        std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
+    }
 }
