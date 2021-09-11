@@ -11,7 +11,7 @@ cmake                                                                           
 -D HALF_INCLUDE_DIR="/root/workspace/external/half/include"                                                                                    \
 -D BUILD_DEV=OFF                                                                                                                               \
 -D CMAKE_BUILD_TYPE=Release                                                                                                                    \
--D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX906 -O3 --amdgpu-target=gfx906 -mllvm --amdgpu-spill-vgpr-to-agpr=0 -gline-tables-only -save-temps=$PWD"   \
+-D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX1030 -O3 --amdgpu-target=gfx1030 -mllvm --amdgpu-spill-vgpr-to-agpr=0 -gline-tables-only -save-temps=$PWD"   \
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                                                                      \
 -D CMAKE_PREFIX_PATH=/opt/rocm                                                                                                                 \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                                                              \

@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
     constexpr auto Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
 #endif
 
-#if 1
+#if 0
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;

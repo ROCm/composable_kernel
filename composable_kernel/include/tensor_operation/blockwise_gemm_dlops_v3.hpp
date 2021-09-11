@@ -29,21 +29,20 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         index_t w;
     };
 
+    static constexpr index_t KPerThreadLoop = 4;
+
     static constexpr auto KPerThread = ThreadMatrixC{}.GetLength(I0);
     static constexpr auto HPerThread = ThreadMatrixC{}.GetLength(I2);
     static constexpr auto WPerThread = ThreadMatrixC{}.GetLength(I3);
 
-    // HACK: fix this @Jing Zhang
-    static constexpr index_t KPerThreadSubC = 4;
-
     static constexpr auto a_thread_mtx_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<EPerThreadLoop>{}, Number<KPerThreadSubC>{}));
+        make_tuple(Number<EPerThreadLoop>{}, Number<KPerThreadLoop>{}));
 
     static constexpr auto b_thread_mtx_ = make_naive_tensor_descriptor_packed(make_tuple(
         Number<EPerThreadLoop>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
 
     static constexpr auto c_thread_mtx_ = make_naive_tensor_descriptor_packed(make_tuple(
-        Number<KPerThreadSubC>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
+        Number<KPerThreadLoop>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
 
     __device__ BlockwiseGemmDlops_km_kn_m0m1n0n1_v3()
         : c_thread_begin_mtx_idx_{GetBeginOfThreadMatrixC(get_thread_local_1d_id())},
@@ -110,13 +109,8 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 
         constexpr auto EPerBlock = a_block_mtx.GetLength(I0);
 
-        // HACK: fix this @Jing Zhang
-        constexpr auto HoPerThreadSubC = HPerThread;
-        constexpr auto WoPerThreadSubC = WPerThread;
-
-        static_assert(KPerThread % KPerThreadSubC == 0, "");
-        static_assert(HPerThread % HoPerThreadSubC == 0, "");
-        static_assert(WPerThread % WoPerThreadSubC == 0, "");
+        static_assert(EPerBlock % EPerThreadLoop == 0, "");
+        static_assert(KPerThread % KPerThreadLoop == 0, "");
 
         // thread A buffer for GEMM
         StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatAB, a_thread_mtx_.GetElementSpaceSize(), true>
@@ -127,12 +121,10 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                                                                          FloatC,
                                                                          decltype(a_thread_mtx_),
                                                                          decltype(b_thread_mtx_),
-                                                                         decltype(c_thread_mtx_),
-                                                                         HoPerThreadSubC,
-                                                                         WoPerThreadSubC>{};
+                                                                         decltype(c_thread_mtx_)>{};
 
         static_for<0, EPerBlock, EPerThreadLoop>{}([&](auto e_begin) {
-            static_for<0, KPerThread, KPerThreadSubC>{}([&](auto k_begin) {
+            static_for<0, KPerThread, KPerThreadLoop>{}([&](auto k_begin) {
                 a_thread_copy_.Run(a_block_mtx,
                                    make_tuple(e_begin, k_begin),
                                    a_block_buf,
@@ -140,16 +132,12 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                                    make_tuple(I0, I0),
                                    a_thread_buf);
 
-                static_for<0, HPerThread, HoPerThreadSubC>{}([&](auto h_begin) {
-                    static_for<0, WPerThread, WoPerThreadSubC>{}([&](auto w_begin) {
-                        threadwise_gemm.Run(a_thread_buf,
-                                            make_tuple(I0, I0),
-                                            b_thread_buf,
-                                            make_tuple(e_begin, I0, h_begin, w_begin),
-                                            c_thread_buf,
-                                            make_tuple(k_begin, I0, h_begin, w_begin));
-                    });
-                });
+                threadwise_gemm.Run(a_thread_buf,
+                                    make_tuple(I0, I0),
+                                    b_thread_buf,
+                                    make_tuple(e_begin, I0, I0, I0),
+                                    c_thread_buf,
+                                    make_tuple(k_begin, I0, I0, I0));
             });
         });
     }
@@ -167,7 +155,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                                                          FloatAB,
                                                          BlockMatrixA,
                                                          decltype(a_thread_mtx_),
-                                                         Sequence<EPerThreadLoop, KPerThreadSubC>,
+                                                         Sequence<EPerThreadLoop, KPerThreadLoop>,
                                                          Sequence<0, 1>,
                                                          1,
                                                          ThreadGemmADataPerRead_K,
