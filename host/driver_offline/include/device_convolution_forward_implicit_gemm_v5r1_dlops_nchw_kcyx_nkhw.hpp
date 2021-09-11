@@ -116,12 +116,12 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     using ABlockTransferThreadSliceLengths_E0_E1_K   = Sequence<1, 4, 1>;
     using ABlockTransferThreadClusterLengths_E0_E1_K = Sequence<1, 4, 16>;
 
-    constexpr index_t ABlockTransferSrcScalarPerVector_E = 1;
+    constexpr index_t ABlockTransferSrcScalarPerVector_E = 4;
     constexpr index_t ABlockTransferDstScalarPerVector_K = 1;
 
-    constexpr index_t BThreadTransferSrcScalarPerVector_E = 1;
+    constexpr index_t BThreadTransferSrcScalarPerVector_E = 4;
 
-    constexpr index_t CThreadTransferDstScalarPerVector_K = 1;
+    constexpr index_t CThreadTransferDstScalarPerVector_K = 4;
 #endif
 
     constexpr auto conv_driver =

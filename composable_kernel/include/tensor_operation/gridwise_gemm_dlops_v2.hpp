@@ -290,6 +290,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                                   a_e0_e1_k_block_desc,
                                                   make_multi_index(0, 0, 0));
 
+        constexpr auto a_block_slice_copy_step = make_multi_index(I1, 0, 0);
+
         constexpr auto b_e0_e1_n_ho_wo_thread_desc = make_naive_tensor_descriptor_packed(make_tuple(
             I1, Number<EPerBlock>{}, Number<1>{}, Number<HoPerThread>{}, Number<WoPerThread>{}));
 
@@ -336,32 +338,77 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                      true>
             b_thread_even_buf, b_thread_odd_buf;
 
-        // LDS double buffer: preload data
+        const auto E0 = b_e0_e1_n_ho_wo_global_desc.GetLength(I0);
+
+        index_t e0_block_data_begin = 0;
+
+        do
         {
-            a_blockwise_copy.RunRead(
-                a_e0_e1_k_global_desc, a_global_buf, a_e0_e1_k_global_step_hacks);
-
-            b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
-                                      b_global_buf,
-                                      b_e0_e1_n_ho_wo_thread_desc,
-                                      make_tuple(I0, I0, I0, I0, I0),
-                                      b_thread_even_buf,
-                                      b_e0_e1_n_ho_wo_global_step_hacks);
-
-            a_blockwise_copy.RunWrite(a_e0_e1_k_block_desc, a_block_buf);
-        }
-
-        __syncthreads();
-
-        if constexpr(HasMainKBlockLoop)
-        {
-            index_t e_block_data_begin = 0;
-
-            // LDS double buffer: main body
-            // use Do-While loop instead of For loop to simplify control flow
-            do
+            // LDS double buffer: preload data
             {
-                // even iteration
+                a_blockwise_copy.RunRead(
+                    a_e0_e1_k_global_desc, a_global_buf, a_e0_e1_k_global_step_hacks);
+
+                b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
+                                          b_global_buf,
+                                          b_e0_e1_n_ho_wo_thread_desc,
+                                          make_tuple(I0, I0, I0, I0, I0),
+                                          b_thread_even_buf,
+                                          b_e0_e1_n_ho_wo_global_step_hacks);
+
+                a_blockwise_copy.RunWrite(a_e0_e1_k_block_desc, a_block_buf);
+            }
+
+            __syncthreads();
+
+            if constexpr(HasMainKBlockLoop)
+            {
+                index_t e1_block_data_begin = 0;
+
+                // LDS double buffer: main body
+                // use Do-While loop instead of For loop to simplify control flow
+                do
+                {
+                    // even iteration
+                    b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_global_desc,
+                                                             b_thread_slice_copy_step);
+
+                    b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
+                                              b_global_buf,
+                                              b_e0_e1_n_ho_wo_thread_desc,
+                                              make_tuple(I0, I0, I0, I0, I0),
+                                              b_thread_odd_buf,
+                                              b_e0_e1_n_ho_wo_global_step_hacks);
+
+                    // LDS double buffer: GEMM on current data
+                    // TODO: @Zhang Jing: blockwise gemm should be able to move slice window
+                    blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+
+                    blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0));
+
+                    b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_global_desc,
+                                                             b_thread_slice_copy_step);
+
+                    b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
+                                              b_global_buf,
+                                              b_e0_e1_n_ho_wo_thread_desc,
+                                              make_tuple(I0, I0, I0, I0, I0),
+                                              b_thread_even_buf,
+                                              b_e0_e1_n_ho_wo_global_step_hacks);
+
+                    // LDS double buffer: GEMM on current data
+                    blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
+
+                    blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0));
+
+                    e1_block_data_begin += 2 * EPerBlock;
+
+                } while(e1_block_data_begin < E1 - 2 * EPerBlock);
+            }
+
+            // LDS double buffer: tail
+            if constexpr(HasDoubleTailKBlockLoop) // if has 2 iteration left
+            {
                 b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_global_desc,
                                                          b_thread_slice_copy_step);
 
@@ -372,58 +419,31 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                           b_thread_odd_buf,
                                           b_e0_e1_n_ho_wo_global_step_hacks);
 
-                // LDS double buffer: GEMM on current data
-                // TODO: @Zhang Jing: blockwise gemm should be able to move slice window
+                // LDS double buffer: GEMM on 2nd-last data
                 blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
 
                 blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0));
 
-                b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_global_desc,
-                                                         b_thread_slice_copy_step);
-
-                b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
-                                          b_global_buf,
-                                          b_e0_e1_n_ho_wo_thread_desc,
-                                          make_tuple(I0, I0, I0, I0, I0),
-                                          b_thread_even_buf,
-                                          b_e0_e1_n_ho_wo_global_step_hacks);
-
-                // LDS double buffer: GEMM on current data
+                // LDS double buffer: GEMM on last data
                 blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
+            }
+            else // if has 1 iteration left
+            {
+                // LDS double buffer: GEMM on last data
+                blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+            }
 
-                blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0));
+            a_blockwise_copy.MoveSrcSliceWindow(
+                a_e0_e1_k_global_desc, a_block_slice_copy_step, AGlobalMoveSliceWindowStepHacks{});
 
-                e_block_data_begin += 2 * EPerBlock;
+            blockwise_gemm.MoveABlockSliceWindow(make_tuple(-(E1 - EPerBlock), 0));
 
-            } while(e_block_data_begin < E1 - 2 * EPerBlock);
-        }
-
-        // LDS double buffer: tail
-        if constexpr(HasDoubleTailKBlockLoop) // if has 2 iteration left
-        {
             b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_global_desc,
                                                      b_thread_slice_copy_step);
 
-            b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_global_desc,
-                                      b_global_buf,
-                                      b_e0_e1_n_ho_wo_thread_desc,
-                                      make_tuple(I0, I0, I0, I0, I0),
-                                      b_thread_odd_buf,
-                                      b_e0_e1_n_ho_wo_global_step_hacks);
+            e0_block_data_begin += 1;
 
-            // LDS double buffer: GEMM on 2nd-last data
-            blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
-
-            blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0));
-
-            // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
-        }
-        else // if has 1 iteration left
-        {
-            // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
-        }
+        } while(e0_block_data_begin < E0);
 
         // output: register to global memory
         {
