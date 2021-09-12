@@ -9,16 +9,17 @@ namespace ck {
 // C[M, N] += transpose(A[K, M]) * B[K, N]
 //   Element of matrix can be vectorized data
 // Assume:
-//   1. AThreadDesc_E_K, BThreadDesc_E_N_Ho_Wo, CThreadDesc_K_N_Ho_Wo are known at compile-time
+//   1. AThreadDesc_E1_K_E2, BThreadDesc_E1_N_Ho_Wo_E2, CThreadDesc_K_N_Ho_Wo are known at
+//   compile-time
 //   2. AOriginIdx, BOriginIdx, COriginIdx are known at compile-time
 template <typename FloatA,
           typename FloatB,
           typename FloatC,
-          typename AThreadDesc_E_K,
-          typename BThreadDesc_E_N_Ho_Wo,
+          typename AThreadDesc_E1_K_E2,
+          typename BThreadDesc_E1_N_Ho_Wo_E2,
           typename CThreadDesc_K_N_Ho_Wo,
-          typename enable_if<AThreadDesc_E_K::IsKnownAtCompileTime() &&
-                                 BThreadDesc_E_N_Ho_Wo::IsKnownAtCompileTime() &&
+          typename enable_if<AThreadDesc_E1_K_E2::IsKnownAtCompileTime() &&
+                                 BThreadDesc_E1_N_Ho_Wo_E2::IsKnownAtCompileTime() &&
                                  CThreadDesc_K_N_Ho_Wo::IsKnownAtCompileTime(),
                              bool>::type = false>
 struct ThreadwiseGemmDlops_km_kn_mn_v3
@@ -38,8 +39,8 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                                COriginIdx)
     {
 
-        static_assert(AThreadDesc_E_K::IsKnownAtCompileTime() &&
-                          BThreadDesc_E_N_Ho_Wo::IsKnownAtCompileTime() &&
+        static_assert(AThreadDesc_E1_K_E2::IsKnownAtCompileTime() &&
+                          BThreadDesc_E1_N_Ho_Wo_E2::IsKnownAtCompileTime() &&
                           CThreadDesc_K_N_Ho_Wo::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
@@ -54,18 +55,19 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
             is_same<remove_cvref_t<typename CBuffer::type>, remove_cvref_t<FloatC>>::value &&
             "wrong! inconsistent type");
 
-        constexpr index_t Vec = 2;
-
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
 
-        constexpr auto E = AThreadDesc_E_K{}.GetLength(I0);
-        constexpr auto K = AThreadDesc_E_K{}.GetLength(I1);
+        constexpr auto E1 = AThreadDesc_E1_K_E2{}.GetLength(I0);
+        constexpr auto K  = AThreadDesc_E1_K_E2{}.GetLength(I1);
+        constexpr auto E2 = AThreadDesc_E1_K_E2{}.GetLength(I2);
 
-        constexpr auto H = BThreadDesc_E_N_Ho_Wo{}.GetLength(I2);
-        constexpr auto W = BThreadDesc_E_N_Ho_Wo{}.GetLength(I3);
+        static_assert(E1 == 4 && E2 == 4, "");
+
+        constexpr auto H = BThreadDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
+        constexpr auto W = BThreadDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
 
         constexpr auto a_origin_idx = to_multi_index(AOriginIdx{});
         constexpr auto b_origin_idx = to_multi_index(BOriginIdx{});
@@ -74,22 +76,23 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
         static_for<0, K, 1>{}([&](auto k) {
             static_for<0, H, 1>{}([&](auto h) {
                 static_for<0, W, 1>{}([&](auto w) {
-                    static_for<0, E, Vec>{}([&](auto e) {
-                        vector_type<FloatA, Vec> a_vec;
-                        vector_type<FloatB, Vec> b_vec;
+                    static_for<0, E1, 1>{}([&](auto e) {
+                        vector_type<FloatA, E2> a_vec;
+                        vector_type<FloatB, E2> b_vec;
 
-                        static_for<0, Vec, 1>{}([&](auto v) {
-                            constexpr index_t a_offset = AThreadDesc_E_K{}.CalculateOffset(
-                                a_origin_idx + make_tuple(e + v, k));
-                            constexpr index_t b_offset = BThreadDesc_E_N_Ho_Wo{}.CalculateOffset(
-                                b_origin_idx + make_tuple(e + v, 0, h, w));
+                        static_for<0, E2, 1>{}([&](auto v) {
+                            constexpr index_t a_offset = AThreadDesc_E1_K_E2{}.CalculateOffset(
+                                a_origin_idx + make_tuple(e, k, v));
+                            constexpr index_t b_offset =
+                                BThreadDesc_E1_N_Ho_Wo_E2{}.CalculateOffset(
+                                    b_origin_idx + make_tuple(e, 0, h, w, v));
 
                             a_vec.template AsType<FloatA>()(v) = a_buf[Number<a_offset>{}];
                             b_vec.template AsType<FloatB>()(v) = b_buf[Number<b_offset>{}];
                         });
 
-                        using a_vector_t = typename vector_type<FloatA, Vec>::type;
-                        using b_vector_t = typename vector_type<FloatB, Vec>::type;
+                        using a_vector_t = typename vector_type<FloatA, E2>::type;
+                        using b_vector_t = typename vector_type<FloatB, E2>::type;
 
                         constexpr index_t c_offset = CThreadDesc_K_N_Ho_Wo{}.CalculateOffset(
                             c_origin_idx + make_tuple(k, 0, h, w));
