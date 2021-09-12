@@ -64,8 +64,6 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
         constexpr auto K  = AThreadDesc_E1_K_E2{}.GetLength(I1);
         constexpr auto E2 = AThreadDesc_E1_K_E2{}.GetLength(I2);
 
-        static_assert(E1 == 4 && E2 == 4, "");
-
         constexpr auto H = BThreadDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
         constexpr auto W = BThreadDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
 

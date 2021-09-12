@@ -315,7 +315,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             BBlockTransferSrcAccessOrder,
             BBlockTransferSrcVectorDim,
             BBlockTransferSrcScalarPerVector,
-            1,
+            BThreadTransferSrcResetCoordinateAfterRun,
             true>(b_e0_e1_n_ho_wo_e2_global_desc,
                   make_multi_index(0, 0, 0, ho_thread_data_on_global, wo_thread_data_on_global, 0));
 
