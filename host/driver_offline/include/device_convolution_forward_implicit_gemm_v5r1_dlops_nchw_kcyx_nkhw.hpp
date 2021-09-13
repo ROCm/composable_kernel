@@ -49,7 +49,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     const auto Y = wei_k_c_y_x_lengths[I2];
     const auto X = wei_k_c_y_x_lengths[I3];
 
-#if 1
+#if 0
     const auto C0 = C / Number<InWeiVectorSize>{};
     const auto C1 = Number<InWeiVectorSize>{};
 
