@@ -93,23 +93,29 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outp
         std::cerr << "InRightPadH = " << InRightPadH << " InRightPadW = " << InRightPadW
                   << std::endl;
 
-        const auto E  = C0 * Y * X * C1;
-        const auto E0 = E / (E1 * E2);
+        const auto E = C0 * Y * X;
+
+        // static_assert(E % E1 == 0, "");
+        static_assert(E2 == C1, "");
+
+        const auto E0 = E / E1;
 
         // weight tensor
-        const auto a_e_k_grid_desc = transform_tensor_descriptor(
-            make_naive_tensor_descriptor_packed(make_tuple(K, C0 * Y * X * C1)),
+        const auto a_e0_k_e2_grid_desc = transform_tensor_descriptor(
+            make_naive_tensor_descriptor_packed(make_tuple(K, C0 * Y * X, E2)),
             make_tuple(make_pass_through_transform(K),
-                       make_pass_through_transform(C0 * Y * X * C1)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<1>{}, Sequence<0>{}));
+                       make_pass_through_transform(C0 * Y * X),
+                       make_pass_through_transform(E2)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<1>{}, Sequence<0>{}, Sequence<2>{}));
 
         const auto a_e0_e1_k_e2_grid_desc =
-            transform_tensor_descriptor(a_e_k_grid_desc,
-                                        make_tuple(make_unmerge_transform(make_tuple(E0, E1, E2)),
-                                                   make_pass_through_transform(K)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+            transform_tensor_descriptor(a_e0_k_e2_grid_desc,
+                                        make_tuple(make_unmerge_transform(make_tuple(E0, E1)),
+                                                   make_pass_through_transform(K),
+                                                   make_pass_through_transform(E2)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
 
         // input tensor
         const auto in_n_c0_hip_wip_c1_global_desc = transform_tensor_descriptor(
@@ -118,7 +124,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outp
                        make_pass_through_transform(C0),
                        make_pad_transform(Hi, InLeftPadH, InRightPadH),
                        make_pad_transform(Wi, InLeftPadW, InRightPadW),
-                       make_pass_through_transform(C1)),
+                       make_pass_through_transform(E2)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
@@ -129,28 +135,32 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outp
                 make_pass_through_transform(C0),
                 make_embed_transform(make_tuple(Y, Hop), make_tuple(ConvDilationH, ConvStrideH)),
                 make_embed_transform(make_tuple(X, Wop), make_tuple(ConvDilationW, ConvStrideW)),
-                make_pass_through_transform(C1)),
+                make_pass_through_transform(E2)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
             make_tuple(
                 Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}, Sequence<6>{}));
 
-        const auto b_e_n_ho_wo_grid_desc = transform_tensor_descriptor(
+        const auto b_e0_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
             in_n_c0_y_ho_x_wo_c1_global_desc,
-            make_tuple(make_merge_transform(make_tuple(C0, Y, X, C1)),
+            make_tuple(make_merge_transform(make_tuple(C0, Y, X)),
                        make_pass_through_transform(N),
                        make_pass_through_transform(Hop),
-                       make_pass_through_transform(Wop)),
-            make_tuple(Sequence<1, 2, 4, 6>{}, Sequence<0>{}, Sequence<3>{}, Sequence<5>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+                       make_pass_through_transform(Wop),
+                       make_pass_through_transform(E2)),
+            make_tuple(
+                Sequence<1, 2, 4>{}, Sequence<0>{}, Sequence<3>{}, Sequence<5>{}, Sequence<6>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
         const auto b_e0_e1_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
-            b_e_n_ho_wo_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(E0, E1, E2)),
+            b_e0_n_ho_wo_e2_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(E0, E1)),
                        make_pass_through_transform(N),
                        make_pass_through_transform(Hop),
-                       make_pass_through_transform(Wop)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0, 1, 5>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+                       make_pass_through_transform(Wop),
+                       make_pass_through_transform(E2)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+            make_tuple(
+                Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}, Sequence<5>{}));
 
         // output tensor
         const auto c_k_n_hop_wop_grid_desc = transform_tensor_descriptor(
@@ -165,40 +175,41 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outp
         std::cerr << "Hop = " << Hop << " Wop = " << Wop << std::endl;
 
         if(!((K % KPerBlock) == 0 && (Hop % HoPerBlock) == 0 && (Wop % WoPerBlock) == 0 &&
-             (E % EPerBlock) == 0))
+             (E1 % EPerBlock) == 0))
         {
             throw std::runtime_error("wrong! GEMM size no divisible");
         }
 
         // hack to control index calculation when iterating over a_k_m_global tensor
         constexpr auto a_e0_e1_k_e2_global_step_hacks =
-            make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},
-                                  Sequence<0, 0, 0, 0, 0>{},
-                                  Sequence<0, 0, 0, 0, 0>{},
-                                  Sequence<0, 0, 0, 0, 0>{}),
-                       make_tuple(Sequence<0, 0, 0, 0, 0>{},
-                                  Sequence<0, 0, 0, 0, 0>{},
-                                  Sequence<0, 0, 0, 0, 0>{},
-                                  Sequence<0, 0, 0, 0, 0>{}));
+            make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0>{},
+                                  Sequence<0, 0, 0, 0, 0, 0, 0>{},
+                                  Sequence<0, 0, 0, 0, 0, 0, 0>{},
+                                  Sequence<0, 0, 0, 0, 0, 0, 0>{}),
+                       make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0>{},
+                                  Sequence<0, 0, 0, 0, 0, 0, 0>{},
+                                  Sequence<0, 0, 0, 0, 0, 0, 0>{},
+                                  Sequence<0, 0, 0, 0, 0, 0, 0>{}));
 
-        constexpr auto a_e0_e1_k_e2_global_move_slice_window_step_hack = Sequence<0, 0, 0, 0, 0>{};
+        constexpr auto a_e0_e1_k_e2_global_move_slice_window_step_hack =
+            Sequence<0, 0, 0, 0, 0, 0, 0>{};
 
         constexpr auto b_e0_e1_n_ho_wo_e2_global_step_hacks = make_tuple(
-            make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0>{}),
-            make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0>{}));
+            make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),
+            make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
 
         constexpr auto b_e0_e1_n_ho_wo_e2_global_move_slice_window_step_hack =
-            Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0>{};
+            Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
 
         // hack to control index calculation when iterating over c_m0_m1_n0_n1_global tensor
         // hack for NKHW format

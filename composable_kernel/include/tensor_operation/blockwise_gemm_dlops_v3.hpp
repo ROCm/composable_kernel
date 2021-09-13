@@ -26,6 +26,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     struct MatrixIndex
     {
         index_t k;
+        index_t n;
         index_t h;
         index_t w;
     };
@@ -104,7 +105,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         index_t h_thread_id = hw_thread_id / num_w_threads;
         index_t w_thread_id = hw_thread_id % num_w_threads;
 
-        return MatrixIndex{k_thread_id, h_thread_id, w_thread_id};
+        return MatrixIndex{k_thread_id, 1, h_thread_id, w_thread_id};
     }
 
     template <typename ABlockBuffer, typename BThreadBuffer, typename CThreadBuffer>
