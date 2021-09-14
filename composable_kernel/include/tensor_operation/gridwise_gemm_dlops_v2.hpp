@@ -265,6 +265,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const index_t ho_block_data_on_global = ho_block_work_id * HoPerBlock;
         const index_t wo_block_data_on_global = wo_block_work_id * WoPerBlock;
 
+        const index_t n_thread_data_on_global = 0;
         const index_t ho_thread_data_on_global =
             ho_block_data_on_global + ho_thread_id * HoPerThread;
         const index_t wo_thread_data_on_global =
@@ -317,7 +318,12 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             BBlockTransferSrcScalarPerVector,
             BThreadTransferSrcResetCoordinateAfterRun,
             true>(b_e0_e1_n_ho_wo_e2_global_desc,
-                  make_multi_index(0, 0, 0, ho_thread_data_on_global, wo_thread_data_on_global, 0));
+                  make_multi_index(0,
+                                   0,
+                                   n_thread_data_on_global,
+                                   ho_thread_data_on_global,
+                                   wo_thread_data_on_global,
+                                   0));
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             p_shared_block, a_e0_e1_k_e2_block_desc.GetElementSpaceSize());
@@ -473,10 +479,11 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                                CThreadTransferDstScalarPerVector,
                                                CGlobalMemoryDataOperation,
                                                1,
-                                               true>(
-                c_k_n_ho_wo_global_desc,
-                make_multi_index(
-                    k_thread_data_on_global, 0, ho_thread_data_on_global, wo_thread_data_on_global))
+                                               true>(c_k_n_ho_wo_global_desc,
+                                                     make_multi_index(k_thread_data_on_global,
+                                                                      n_thread_data_on_global,
+                                                                      ho_thread_data_on_global,
+                                                                      wo_thread_data_on_global))
                 .Run(c_k_n_ho_wo_thread_desc,
                      make_tuple(I0, I0, I0, I0),
                      c_thread_buf,
