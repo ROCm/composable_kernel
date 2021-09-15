@@ -20,12 +20,12 @@
 #include "device_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
-#define USE_DYNAMIC_MODE 1
+#define USE_DYNAMIC_MODE 0
 #define USE_CONV_FWD_V4R4_NCHW 0
 #define USE_CONV_FWD_V4R4R2_NHWC 0
 #define USE_CONV_FWD_V6R1_NCHW 0
-#define USE_CONV_FWD_V5R1_NHWC 1
-#define USE_CONV_FWD_V5R1_NCHWC 0
+#define USE_CONV_FWD_V5R1_NHWC 0
+#define USE_CONV_FWD_V5R1_NCHWC 1
 #define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
 #define USE_CONV_FWD_V4R4R4_XDL_NHWC 0
 
@@ -105,16 +105,16 @@ int main(int argc, char* argv[])
     const bool do_log             = std::stoi(argv[5]);
     const int nrepeat             = std::stoi(argv[6]);
 
-    constexpr auto N  = Number<128>{};
-    constexpr auto C  = Number<192>{};
-    constexpr auto Hi = Number<71>{};
-    constexpr auto Wi = Number<71>{};
-    constexpr auto K  = Number<256>{};
+    constexpr auto N  = Number<1>{};
+    constexpr auto C  = Number<16>{};
+    constexpr auto Hi = Number<1080>{};
+    constexpr auto Wi = Number<1920>{};
+    constexpr auto K  = Number<16>{};
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
 
-    constexpr auto conv_stride_h   = I2;
-    constexpr auto conv_stride_w   = I2;
+    constexpr auto conv_stride_h   = I1;
+    constexpr auto conv_stride_w   = I1;
     constexpr auto conv_dilation_h = I1;
     constexpr auto conv_dilation_w = I1;
     constexpr auto in_left_pad_h   = I1;
