@@ -93,17 +93,17 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nhwc_kyxc_nhwk(
     constexpr index_t HoPerBlock = 8;
     constexpr index_t WoPerBlock = 32;
 
-    constexpr index_t E1        = 2 * 9;
-    constexpr index_t E2        = 8;
-    constexpr index_t EPerBlock = 2;
+    constexpr index_t E1        = 4 * 9;
+    constexpr index_t E2        = 4;
+    constexpr index_t EPerBlock = 4;
 
     constexpr index_t KPerThread  = KPerBlock;
     constexpr index_t HoPerThread = 2;
     constexpr index_t WoPerThread = 2;
-    constexpr index_t EPerThread  = 1;
+    constexpr index_t EPerThread  = EPerBlock;
 
     using ABlockTransferThreadSliceLengths_E0_E1_K_E2   = Sequence<1, 9, 1, E2>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K_E2 = Sequence<1, 2, 16, 1>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K_E2 = Sequence<1, EPerBlock, 16, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E2 = E2;
     constexpr index_t ABlockTransferDstScalarPerVector_E2 = E2;

@@ -19,8 +19,8 @@ template <typename GridwiseGemm,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
           typename CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo,
-          bool HasMainKBlockLoop,
-          bool HasDoubleTailKBlockLoop>
+          bool HasMainE1BlockLoop,
+          bool HasDoubleTailE1BlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -46,8 +46,8 @@ __global__ void
                       a_e0_e1_k_e2_grid_desc,
                       b_e0_e1_n_ho_wo_e2_grid_desc,
                       c_k_n_ho_wo_grid_desc,
-                      integral_constant<bool, HasMainKBlockLoop>{},
-                      integral_constant<bool, HasDoubleTailKBlockLoop>{});
+                      integral_constant<bool, HasMainE1BlockLoop>{},
+                      integral_constant<bool, HasDoubleTailE1BlockLoop>{});
 }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 // pass tensor descriptor by CONSTANT void pointer
@@ -60,8 +60,8 @@ template <typename GridwiseGemm,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
           typename CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo,
-          bool HasMainKBlockLoop,
-          bool HasDoubleTailKBlockLoop>
+          bool HasMainE1BlockLoop,
+          bool HasDoubleTailE1BlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -96,8 +96,8 @@ __global__ void
                       a_e0_e1_k_e2_grid_desc,
                       b_e0_e1_n_ho_wo_e2_grid_desc,
                       c_k_n_ho_wo_grid_desc,
-                      integral_constant<bool, HasMainKBlockLoop>{},
-                      integral_constant<bool, HasDoubleTailKBlockLoop>{});
+                      integral_constant<bool, HasMainE1BlockLoop>{},
+                      integral_constant<bool, HasDoubleTailE1BlockLoop>{});
 }
 #endif
 
@@ -109,8 +109,8 @@ template <index_t BlockSize,
           typename AGlobalDesc_E0_E1_K_E2,
           typename BGlobalDesc_E0_E1_N_Ho_Wo_E2,
           typename CGlobalDesc_K_N_Ho_Wo,
-          index_t E1,
-          index_t E2,
+          index_t E1_,
+          index_t E2_,
           index_t KPerBlock,
           index_t HoPerBlock,
           index_t WoPerBlock,
@@ -148,6 +148,9 @@ struct GridwiseGemmDlops_km_kn_mn_v3
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
+    static constexpr auto E1 = Number<E1_>{};
+    static constexpr auto E2 = Number<E2_>{};
+
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         constexpr auto max_lds_align = Number<ABlockTransferDstScalarPerVector_E2>{};
@@ -164,7 +167,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         return a_block_space_size * sizeof(FloatAB);
     }
 
-    template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
+    template <bool HasMainE1BlockLoop, bool HasDoubleTailE1BlockLoop>
     __device__ static void Run(const FloatAB* __restrict__ p_a_global,
                                const FloatAB* __restrict__ p_b_global,
                                FloatC* __restrict__ p_c_global,
@@ -172,8 +175,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                const AGlobalDesc_E0_E1_K_E2& a_e0_e1_k_e2_global_desc,
                                const BGlobalDesc_E0_E1_N_Ho_Wo_E2& b_e0_e1_n_ho_wo_e2_global_desc,
                                const CGlobalDesc_K_N_Ho_Wo& c_k_n_ho_wo_global_desc,
-                               integral_constant<bool, HasMainKBlockLoop>,
-                               integral_constant<bool, HasDoubleTailKBlockLoop>)
+                               integral_constant<bool, HasMainE1BlockLoop>,
+                               integral_constant<bool, HasDoubleTailE1BlockLoop>)
     {
         const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_global, a_e0_e1_k_e2_global_desc.GetElementSpaceSize());
@@ -192,7 +195,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const auto Wo = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I4);
 
 // divide block work by [M, N]
-#if 1
+#if 0
         const auto ho_block_work_num  = Ho / Number<HoPerBlock>{};
         const auto wo_block_work_num  = Wo / Number<WoPerBlock>{};
         const auto hwo_block_work_num = ho_block_work_num * wo_block_work_num;
@@ -356,36 +359,181 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
         const auto E0 = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I0);
 
-        index_t e0_block_data_begin = 0;
+        constexpr auto HasMainE0BlockLoop = false;
 
-        // do
-        //{
-        // LDS double buffer: preload data
+        if constexpr(HasMainE0BlockLoop)
         {
-            a_blockwise_copy.RunRead(
-                a_e0_e1_k_e2_global_desc, a_global_buf, a_e0_e1_k_e2_global_step_hacks);
+            index_t e0_block_data_begin = 0;
 
-            b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
-                                      b_global_buf,
-                                      b_e0_e1_n_ho_wo_e2_thread_desc,
-                                      make_tuple(I0, I0, I0, I0, I0, I0),
-                                      b_thread_even_buf,
-                                      b_e0_e1_n_ho_wo_e2_global_step_hacks);
-
-            a_blockwise_copy.RunWrite(a_e0_e1_k_e2_block_desc, a_block_buf);
-        }
-
-        __syncthreads();
-
-        if constexpr(HasMainKBlockLoop)
-        {
-            index_t e1_block_data_begin = 0;
-
-            // LDS double buffer: main body
-            // use Do-While loop instead of For loop to simplify control flow
             do
             {
-                // even iteration
+                // LDS double buffer: preload data
+                {
+                    a_blockwise_copy.RunRead(
+                        a_e0_e1_k_e2_global_desc, a_global_buf, a_e0_e1_k_e2_global_step_hacks);
+
+                    b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
+                                              b_global_buf,
+                                              b_e0_e1_n_ho_wo_e2_thread_desc,
+                                              make_tuple(I0, I0, I0, I0, I0, I0),
+                                              b_thread_even_buf,
+                                              b_e0_e1_n_ho_wo_e2_global_step_hacks);
+
+                    a_blockwise_copy.RunWrite(a_e0_e1_k_e2_block_desc, a_block_buf);
+                }
+
+                __syncthreads();
+
+                if constexpr(HasMainE1BlockLoop)
+                {
+                    index_t e1_block_data_begin = 0;
+
+                    // LDS double buffer: main body
+                    // use Do-While loop instead of For loop to simplify control flow
+                    do
+                    {
+                        // even iteration
+                        b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                                 b_thread_slice_copy_step);
+
+                        b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                  b_global_buf,
+                                                  b_e0_e1_n_ho_wo_e2_thread_desc,
+                                                  make_tuple(I0, I0, I0, I0, I0, I0),
+                                                  b_thread_odd_buf,
+                                                  b_e0_e1_n_ho_wo_e2_global_step_hacks);
+
+                        // LDS double buffer: GEMM on current data
+                        blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+
+                        blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
+
+                        b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                                 b_thread_slice_copy_step);
+
+                        b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                  b_global_buf,
+                                                  b_e0_e1_n_ho_wo_e2_thread_desc,
+                                                  make_tuple(I0, I0, I0, I0, I0, I0),
+                                                  b_thread_even_buf,
+                                                  b_e0_e1_n_ho_wo_e2_global_step_hacks);
+
+                        // LDS double buffer: GEMM on current data
+                        blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
+
+                        blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
+
+                        e1_block_data_begin += 2 * EPerBlock;
+
+                    } while(e1_block_data_begin < E1 - 2 * EPerBlock);
+                }
+
+                // LDS double buffer: tail
+                if constexpr(HasDoubleTailE1BlockLoop) // if has 2 iteration left
+                {
+                    b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                             b_thread_slice_copy_step);
+
+                    b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
+                                              b_global_buf,
+                                              b_e0_e1_n_ho_wo_e2_thread_desc,
+                                              make_tuple(I0, I0, I0, I0, I0, I0),
+                                              b_thread_odd_buf,
+                                              b_e0_e1_n_ho_wo_e2_global_step_hacks);
+
+                    // LDS double buffer: GEMM on 2nd-last data
+                    blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+
+                    blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
+
+                    // LDS double buffer: GEMM on last data
+                    blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
+                }
+                else // if has 1 iteration left
+                {
+                    // LDS double buffer: GEMM on last data
+                    blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+                }
+
+                a_blockwise_copy.MoveSrcSliceWindow(a_e0_e1_k_e2_global_desc,
+                                                    a_block_slice_copy_step,
+                                                    AGlobalMoveSliceWindowStepHacks{});
+
+                blockwise_gemm.MoveABlockSliceWindow(make_tuple(-(E1 - EPerBlock), 0, 0));
+
+                b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                         b_thread_slice_copy_step);
+
+                e0_block_data_begin += 1;
+
+            } while(e0_block_data_begin < E0);
+        }
+        else
+        {
+            // LDS double buffer: preload data
+            {
+                a_blockwise_copy.RunRead(
+                    a_e0_e1_k_e2_global_desc, a_global_buf, a_e0_e1_k_e2_global_step_hacks);
+
+                b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
+                                          b_global_buf,
+                                          b_e0_e1_n_ho_wo_e2_thread_desc,
+                                          make_tuple(I0, I0, I0, I0, I0, I0),
+                                          b_thread_even_buf,
+                                          b_e0_e1_n_ho_wo_e2_global_step_hacks);
+
+                a_blockwise_copy.RunWrite(a_e0_e1_k_e2_block_desc, a_block_buf);
+            }
+
+            __syncthreads();
+
+            if constexpr(HasMainE1BlockLoop)
+            {
+                index_t e1_block_data_begin = 0;
+
+                // LDS double buffer: main body
+                // use Do-While loop instead of For loop to simplify control flow
+                do
+                {
+                    // even iteration
+                    b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                             b_thread_slice_copy_step);
+
+                    b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
+                                              b_global_buf,
+                                              b_e0_e1_n_ho_wo_e2_thread_desc,
+                                              make_tuple(I0, I0, I0, I0, I0, I0),
+                                              b_thread_odd_buf,
+                                              b_e0_e1_n_ho_wo_e2_global_step_hacks);
+
+                    // LDS double buffer: GEMM on current data
+                    blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+
+                    blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
+
+                    b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
+                                                             b_thread_slice_copy_step);
+
+                    b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
+                                              b_global_buf,
+                                              b_e0_e1_n_ho_wo_e2_thread_desc,
+                                              make_tuple(I0, I0, I0, I0, I0, I0),
+                                              b_thread_even_buf,
+                                              b_e0_e1_n_ho_wo_e2_global_step_hacks);
+
+                    // LDS double buffer: GEMM on current data
+                    blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
+
+                    blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
+
+                    e1_block_data_begin += 2 * EPerBlock;
+
+                } while(e1_block_data_begin < E1 - 2 * EPerBlock);
+            }
+
+            // LDS double buffer: tail
+            if constexpr(HasDoubleTailE1BlockLoop) // if has 2 iteration left
+            {
                 b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
                                                          b_thread_slice_copy_step);
 
@@ -396,70 +544,20 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                           b_thread_odd_buf,
                                           b_e0_e1_n_ho_wo_e2_global_step_hacks);
 
-                // LDS double buffer: GEMM on current data
+                // LDS double buffer: GEMM on 2nd-last data
                 blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
 
                 blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
 
-                b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                         b_thread_slice_copy_step);
-
-                b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
-                                          b_global_buf,
-                                          b_e0_e1_n_ho_wo_e2_thread_desc,
-                                          make_tuple(I0, I0, I0, I0, I0, I0),
-                                          b_thread_even_buf,
-                                          b_e0_e1_n_ho_wo_e2_global_step_hacks);
-
-                // LDS double buffer: GEMM on current data
+                // LDS double buffer: GEMM on last data
                 blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
-
-                blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
-
-                e1_block_data_begin += 2 * EPerBlock;
-
-            } while(e1_block_data_begin < E1 - 2 * EPerBlock);
+            }
+            else // if has 1 iteration left
+            {
+                // LDS double buffer: GEMM on last data
+                blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+            }
         }
-
-        // LDS double buffer: tail
-        if constexpr(HasDoubleTailKBlockLoop) // if has 2 iteration left
-        {
-            b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                     b_thread_slice_copy_step);
-
-            b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
-                                      b_global_buf,
-                                      b_e0_e1_n_ho_wo_e2_thread_desc,
-                                      make_tuple(I0, I0, I0, I0, I0, I0),
-                                      b_thread_odd_buf,
-                                      b_e0_e1_n_ho_wo_e2_global_step_hacks);
-
-            // LDS double buffer: GEMM on 2nd-last data
-            blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
-
-            blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
-
-            // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
-        }
-        else // if has 1 iteration left
-        {
-            // LDS double buffer: GEMM on last data
-            blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
-        }
-
-        // a_blockwise_copy.MoveSrcSliceWindow(a_e0_e1_k_e2_global_desc,
-        // a_block_slice_copy_step,
-        // AGlobalMoveSliceWindowStepHacks{});
-
-        // blockwise_gemm.MoveABlockSliceWindow(make_tuple(-(E1 - EPerBlock), 0, 0));
-
-        // b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-        // b_thread_slice_copy_step);
-
-        // e0_block_data_begin += 1;
-
-        //} while(e0_block_data_begin < E0);
 
         // output: register to global memory
         {

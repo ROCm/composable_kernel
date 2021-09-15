@@ -95,7 +95,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
 
         const auto C0 = C / E2;
         const auto E  = Y * X * C0;
-
         const auto E0 = E / E1;
 
         // weight tensor
@@ -198,13 +197,13 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
                        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),
             make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},
-                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
+                       Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
 
         constexpr auto b_e0_e1_n_ho_wo_e2_global_move_slice_window_step_hack =
             Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
@@ -243,18 +242,18 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
             EPerThread,
             ABlockTransferThreadSliceLengths_E0_E1_K_E2,
             ABlockTransferThreadClusterLengths_E0_E1_K_E2,
-            Sequence<2, 0, 1, 3>,
-            Sequence<2, 0, 1, 3>,
+            Sequence<0, 1, 2, 3>,
+            Sequence<0, 1, 2, 3>,
             3,
             ABlockTransferSrcScalarPerVector_E2,
             ABlockTransferDstScalarPerVector_E2,
             false, // don't move back src coordinate after threadwise copy
-            Sequence<0, 2, 3, 4, 1, 5>,
+            Sequence<2, 0, 1, 3, 4, 5>,
             5,
             BThreadTransferSrcScalarPerVector_E2,
             false, // don't move back src coordinate after threadwise copy, which will be fused with
                    // MoveSrcSliceWindow() to save addr computation
-            Sequence<2, 3, 1, 0>,
+            Sequence<1, 2, 3, 0>,
             0,
             CThreadTransferDstScalarPerVector_K,
             decltype(a_e0_e1_k_e2_global_step_hacks),
@@ -269,17 +268,17 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
 
         const auto grid_size = (K / KPerBlock) * (Hop / HoPerBlock) * (Wop / WoPerBlock) * N;
 
-        const bool has_main_k_block_loop = (E1 + E1PerBlock) / (2 * E1PerBlock) > 1;
+        constexpr bool has_main_k_block_loop = (E1 + E1PerBlock) / (2 * E1PerBlock) > 1;
 
-        const bool has_double_tail_k_block_loop = (E1 / E1PerBlock) % 2 == 0;
+        constexpr bool has_double_tail_k_block_loop = (E1 / E1PerBlock) % 2 == 0;
 
         std::cerr << "has_main_k_block_loop = " << has_main_k_block_loop
                   << " has_double_tail_k_block_loop = " << has_double_tail_k_block_loop
                   << std::endl;
 
         const auto c_blockid_to_k_n_ho_wo_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(make_tuple(make_merge_transform(make_tuple(I0, I0))),
-                                             make_tuple(Sequence<0, 1>{}),
+            make_single_stage_tensor_adaptor(make_tuple(make_pass_through_transform(I0)),
+                                             make_tuple(Sequence<0>{}),
                                              make_tuple(Sequence<0>{}));
 
         using CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo =
@@ -288,7 +287,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
 #if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
         float ave_time = 0;
 
-        if(has_main_k_block_loop && has_double_tail_k_block_loop)
+        if constexpr(has_main_k_block_loop && has_double_tail_k_block_loop)
         {
             const auto kernel =
                 kernel_gemm_dlops_v2<GridwiseGemm,
@@ -314,7 +313,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
                                               c_k_n_hop_wop_grid_desc,
                                               c_blockid_to_k_n_ho_wo_block_cluster_adaptor);
         }
-        else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
+        else if constexpr(has_main_k_block_loop && !has_double_tail_k_block_loop)
         {
             const auto kernel =
                 kernel_gemm_dlops_v2<GridwiseGemm,
@@ -340,7 +339,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
                                               c_k_n_hop_wop_grid_desc,
                                               c_blockid_to_k_n_ho_wo_block_cluster_adaptor);
         }
-        else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
+        else if constexpr(!has_main_k_block_loop && has_double_tail_k_block_loop)
         {
             const auto kernel =
                 kernel_gemm_dlops_v2<GridwiseGemm,
@@ -409,7 +408,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
 
         float ave_time = 0;
 
-        if(has_main_k_block_loop && has_double_tail_k_block_loop)
+        if constexpr(has_main_k_block_loop && has_double_tail_k_block_loop)
         {
             const auto kernel =
                 kernel_gemm_dlops_v2<GridwiseGemm,
@@ -440,7 +439,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
                 cast_pointer_to_constant_address_space(
                     c_blockid_to_k_n_ho_wo_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
-        else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
+        else if constexpr(has_main_k_block_loop && !has_double_tail_k_block_loop)
         {
             const auto kernel =
                 kernel_gemm_dlops_v2<GridwiseGemm,
@@ -471,7 +470,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
                 cast_pointer_to_constant_address_space(
                     c_blockid_to_k_n_ho_wo_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
-        else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
+        else if constexpr(!has_main_k_block_loop && has_double_tail_k_block_loop)
         {
             const auto kernel =
                 kernel_gemm_dlops_v2<GridwiseGemm,
