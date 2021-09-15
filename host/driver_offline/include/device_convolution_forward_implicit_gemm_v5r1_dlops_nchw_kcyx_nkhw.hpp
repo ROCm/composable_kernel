@@ -149,18 +149,30 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
             BThreadTransferSrcScalarPerVector_E2,
             CThreadTransferDstScalarPerVector_K>{};
 
-    const auto ave_time =
-        conv_driver.Run(wei_k_c0_y_x_c1_desc,
-                        in_n_c0_hi_wi_c1_desc,
-                        out_n_k0_ho_wo_k1_desc,
-                        conv_strides,
-                        conv_dilations,
-                        in_left_pads,
-                        in_right_pads,
-                        static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                        static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                        static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
-                        nrepeat);
+    for(int i = 0; i < 5; i++)
+    {
+
+        const auto ave_time =
+            conv_driver.Run(wei_k_c0_y_x_c1_desc,
+                            in_n_c0_hi_wi_c1_desc,
+                            out_n_k0_ho_wo_k1_desc,
+                            conv_strides,
+                            conv_dilations,
+                            in_left_pads,
+                            in_right_pads,
+                            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
+                            nrepeat);
+
+        {
+            float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * C * Y * X) /
+                         (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
+                      << std::endl;
+        }
+    }
 
     out_n_k0_ho_wo_k1_device_buf.FromDevice(out_n_k0_ho_wo_k1.mData.data());
 
@@ -169,11 +181,4 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     };
 
     make_ParallelTensorFunctor(f_nk0hwk1_to_nkhw, N, K, Ho, Wo)();
-
-    {
-        float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * C * Y * X) /
-                     (std::size_t(1000) * 1000 * 1000) / ave_time;
-
-        std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
-    }
 }
