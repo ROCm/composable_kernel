@@ -666,6 +666,25 @@ struct ThreadwiseTensorSliceTransfer_v2
         move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
     }
 
+    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    template <typename SrcMoveSliceWindowStepHack>
+    __device__ void
+    MoveSrcSliceWindow(const SrcDesc& src_desc,
+                       const Index& src_slice_origin_step_idx,
+                       const SrcMoveSliceWindowStepHack& src_move_slice_window_step_hack)
+    {
+        // if src coord was not reset by RunRead(), then need to adjust the step here
+        const auto adjusted_step_idx =
+            SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
+                                       : src_slice_origin_step_idx + GetSrcCoordinateResetStep();
+
+        // is it OK to construct a new step every time?
+        const auto adjusted_step = make_tensor_coordinate_step(
+            src_desc, adjusted_step_idx, src_move_slice_window_step_hack);
+
+        move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
+    }
+
     private:
     SrcCoord src_coord_;
 }; // namespace ck

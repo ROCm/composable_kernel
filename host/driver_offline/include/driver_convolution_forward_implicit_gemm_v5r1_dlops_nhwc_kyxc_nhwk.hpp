@@ -53,7 +53,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
-        constexpr auto I4 = Number<4>{};
 
         const auto N  = in_n_hi_wi_c_global_desc.GetLength(I0);
         const auto Hi = in_n_hi_wi_c_global_desc.GetLength(I1);
@@ -268,13 +267,14 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nhwc_kyxc_nhwk_outp
 
         const auto grid_size = (K / KPerBlock) * (Hop / HoPerBlock) * (Wop / WoPerBlock) * N;
 
-        constexpr bool has_main_k_block_loop = (E1 + E1PerBlock) / (2 * E1PerBlock) > 1;
-
+        constexpr bool has_main_k_block_loop        = (E1 + E1PerBlock) / (2 * E1PerBlock) > 1;
         constexpr bool has_double_tail_k_block_loop = (E1 / E1PerBlock) % 2 == 0;
+
+        const bool has_e0_block_loop = E0 > 1;
 
         std::cerr << "has_main_k_block_loop = " << has_main_k_block_loop
                   << " has_double_tail_k_block_loop = " << has_double_tail_k_block_loop
-                  << std::endl;
+                  << " has_e0_block_loop = " << has_e0_block_loop << std::endl;
 
         const auto c_blockid_to_k_n_ho_wo_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(make_tuple(make_pass_through_transform(I0)),

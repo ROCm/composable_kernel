@@ -394,7 +394,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                     {
                         // even iteration
                         b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                                 b_thread_slice_copy_step);
+                                                                 b_thread_slice_copy_step,
+                                                                 BGlobalMoveSliceWindowStepHacks{});
 
                         b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
                                                   b_global_buf,
@@ -409,7 +410,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                         blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
 
                         b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                                 b_thread_slice_copy_step);
+                                                                 b_thread_slice_copy_step,
+                                                                 BGlobalMoveSliceWindowStepHacks{});
 
                         b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
                                                   b_global_buf,
@@ -432,7 +434,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                 if constexpr(HasDoubleTailE1BlockLoop) // if has 2 iteration left
                 {
                     b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                             b_thread_slice_copy_step);
+                                                             b_thread_slice_copy_step,
+                                                             BGlobalMoveSliceWindowStepHacks{});
 
                     b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
                                               b_global_buf,
@@ -462,7 +465,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                 blockwise_gemm.MoveABlockSliceWindow(make_tuple(-(E1 - EPerBlock), 0, 0));
 
                 b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                         b_thread_slice_copy_step);
+                                                         b_thread_slice_copy_step,
+                                                         BGlobalMoveSliceWindowStepHacks{});
 
                 e0_block_data_begin += 1;
 
@@ -497,7 +501,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                 {
                     // even iteration
                     b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                             b_thread_slice_copy_step);
+                                                             b_thread_slice_copy_step,
+                                                             BGlobalMoveSliceWindowStepHacks{});
 
                     b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
                                               b_global_buf,
@@ -512,7 +517,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                     blockwise_gemm.MoveABlockSliceWindow(make_tuple(EPerBlock, 0, 0));
 
                     b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                             b_thread_slice_copy_step);
+                                                             b_thread_slice_copy_step,
+                                                             BGlobalMoveSliceWindowStepHacks{});
 
                     b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
                                               b_global_buf,
@@ -535,7 +541,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             if constexpr(HasDoubleTailE1BlockLoop) // if has 2 iteration left
             {
                 b_threadwise_transfer.MoveSrcSliceWindow(b_e0_e1_n_ho_wo_e2_global_desc,
-                                                         b_thread_slice_copy_step);
+                                                         b_thread_slice_copy_step,
+                                                         BGlobalMoveSliceWindowStepHacks{});
 
                 b_threadwise_transfer.Run(b_e0_e1_n_ho_wo_e2_global_desc,
                                           b_global_buf,
