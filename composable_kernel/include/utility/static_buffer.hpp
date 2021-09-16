@@ -131,18 +131,6 @@ struct StaticBufferV2 : public StaticallyIndexedArray<T, N>
     }
 
     template <index_t I>
-    __host__ __device__ void Set(Number<I> i, bool is_valid_element, const T& x)
-    {
-        constexpr auto vec_id  = Number<i / vector_size>{};
-        constexpr auto vec_off = Number<i % vector_size>{};
-
-        if(is_valid_element)
-        {
-            this->At(vec_id).template AsType<VecBaseType>()(vec_off) = x;
-        }
-    }
-
-    template <index_t I>
     __host__ __device__ constexpr auto operator[](Number<I> i) const
     {
         return GetElement(i, true);
