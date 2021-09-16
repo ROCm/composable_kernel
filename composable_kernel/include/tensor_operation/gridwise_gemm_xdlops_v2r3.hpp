@@ -221,6 +221,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         using BlockwiseGemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
+                                                                FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
                                                                 MPerXDL,
@@ -364,9 +365,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         //       register
         // sanity check
 
-        const auto blockwise_gemm =
+        auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
+                                                                FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
                                                                 MPerXDL,
@@ -375,18 +377,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 NRepeat,
                                                                 K1>{};
 
-        constexpr auto c_mr_nr_blk_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
-
-        constexpr auto c_m2_m3_m4_n2_thread_desc =
-            blockwise_gemm.GetCM0N0M1N1M2M3M4N2ThreadDescriptor();
-        constexpr auto CBlkSize = c_m2_m3_m4_n2_thread_desc.GetElementSpaceSize();
-
-        StaticBufferV2<AddressSpaceEnum_t::Vgpr,
-                       vector_type<FloatAcc, CBlkSize>,
-                       c_mr_nr_blk_desc.GetElementSpaceSize(),
-                       true>
-            c_thread_buf;
+        auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size =

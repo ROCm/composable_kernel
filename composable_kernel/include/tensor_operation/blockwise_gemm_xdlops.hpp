@@ -10,6 +10,7 @@ namespace ck {
 
 template <index_t BlockSize,
           typename FloatAB,
+          typename FloatAcc,
           typename AK0MK1BlockDesc,
           typename BK0NK1BlockDesc,
           index_t MPerXDL,
@@ -36,6 +37,11 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+
+    StaticBufferV2<AddressSpaceEnum_t::Vgpr, vector_type<FloatAcc, 16>, MRepeat * NRepeat, true>
+        c_thread_buf_;
+
+    __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
 
     __device__ static auto GetWaveIdx()
     {
@@ -230,8 +236,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                             [Number<b_thread_desc_.CalculateOffset(make_tuple(0, n0, 0, 0, i))>{}];
                     });
 
-                    constexpr index_t c_offset =
-                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+                    constexpr index_t c_offset = c_thread_desc_.CalculateOffset(make_tuple(m0, n0));
 
                     xdlops_gemm.template Run(a_thread_vec.template AsType<mfma_input_type>(),
                                              b_thread_vec.template AsType<mfma_input_type>(),
@@ -250,8 +255,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
         make_tuple(I1, Number<NRepeat>{}, I1, I1, Number<K1>{}));
 
-    static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, Number<xdlops_gemm.GetNumXdlops()>{}));
+    static constexpr auto c_thread_desc_ =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
