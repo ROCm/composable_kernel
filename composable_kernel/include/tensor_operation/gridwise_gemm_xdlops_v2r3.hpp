@@ -477,6 +477,25 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks = CGridStepHacks{};
 
+            const auto m_thread_data_on_grid_to_m0_m1_m2_m3_m4_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
+                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                    make_tuple(Sequence<0>{}));
+
+            const auto m_thread_data_on_grid_idx =
+                m_thread_data_on_grid_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
+                    make_multi_index(m_thread_data_on_grid));
+
+            const auto n_thread_data_on_grid_to_n0_n1_n2_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
+                make_tuple(Sequence<0, 1, 2>{}),
+                make_tuple(Sequence<0>{}));
+
+            const auto n_thread_data_on_grid_idx =
+                n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
+                    make_multi_index(n_thread_data_on_grid));
+
             auto c_thread_copy =
                 ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
                                                    FloatC,
@@ -489,15 +508,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                    CGlobalMemoryDataOperation,
                                                    1,
                                                    true>{
+
                     c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                    make_multi_index(m_thread_data_on_grid / (M1 * M2 * M3 * M4),
-                                     n_thread_data_on_grid / (N1 * N2),
-                                     m_thread_data_on_grid / (M2 * M3 * M4) % M1,
-                                     n_thread_data_on_grid / N2 % N1,
-                                     m_thread_data_on_grid / (M3 * M4) % M2,
-                                     m_thread_data_on_grid / (M4) % M3,
-                                     m_thread_data_on_grid % M4,
-                                     n_thread_data_on_grid % N2)};
+                    make_multi_index(m_thread_data_on_grid_idx[I0],
+                                     n_thread_data_on_grid_idx[I0],
+                                     m_thread_data_on_grid_idx[I1],
+                                     n_thread_data_on_grid_idx[I1],
+                                     m_thread_data_on_grid_idx[I2],
+                                     m_thread_data_on_grid_idx[I3],
+                                     m_thread_data_on_grid_idx[I4],
+                                     n_thread_data_on_grid_idx[I2])};
 
             c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
