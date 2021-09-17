@@ -357,12 +357,12 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                      true>
             b_thread_even_buf, b_thread_odd_buf;
 
-        const auto E0 = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I0);
-
         constexpr auto HasMainE0BlockLoop = false;
 
         if constexpr(HasMainE0BlockLoop)
         {
+            const auto E0 = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I0);
+
             index_t e0_block_data_begin = 0;
 
             do
