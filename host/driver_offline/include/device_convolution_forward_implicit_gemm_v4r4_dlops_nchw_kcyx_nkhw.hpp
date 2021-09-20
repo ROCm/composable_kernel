@@ -13,11 +13,12 @@ template <typename TInWei,
           typename ConvStrides,
           typename ConvDilations,
           typename InLeftPads,
-          typename InRightPads>
+          typename InRightPads,
+          index_t Depth2SpaceBlockSize>
 void device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw(
     const InLengths& in_n_c_hi_wi_lengths,
     const WeiLengths& wei_k_c_y_x_lengths,
-    const OutLengths& out_n_k_ho_wo_lengths,
+    const OutLengths& out_n_k_ho_wo_lengths, /* tensor shape after depth2space: [N, K, Ho*r, Wo*r] */
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
@@ -34,6 +35,7 @@ void device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw(
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
+    constexpr auto I3 = Number<2>{};
 
     DeviceMem in_n_c_hi_wi_device_buf(sizeof(TInWei) * in_n_c_hi_wi.mDesc.GetElementSpace());
     DeviceMem wei_k_c_y_x_device_buf(sizeof(TInWei) * wei_k_c_y_x.mDesc.GetElementSpace());
@@ -45,7 +47,92 @@ void device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw(
 
     const auto in_n_c_hi_wi_desc  = make_naive_tensor_descriptor_packed(in_n_c_hi_wi_lengths);
     const auto wei_k_c_y_x_desc   = make_naive_tensor_descriptor_packed(wei_k_c_y_x_lengths);
-    const auto out_n_k_ho_wo_desc = make_naive_tensor_descriptor_packed(out_n_k_ho_wo_lengths);
+    // const auto out_n_k_ho_wo_desc = make_naive_tensor_descriptor_packed(out_n_k_ho_wo_lengths);
+
+    // tensor shape of convolution output
+    const auto N = in_n_c_hi_wi_lengths[I0];
+    const auto Hi = in_n_c_hi_wi_lengths[I2];
+    const auto Wi = in_n_c_hi_wi_lengths[I3];
+    const auto K = wei_k_c_y_x_lengths[I0];
+    const auto C = wei_k_c_y_x_lengths[I1];
+    const auto Y = wei_k_c_y_x_lengths[I2];
+    const auto X = wei_k_c_y_x_lengths[I3];
+    const index_t YEff = (Y - 1) * conv_dilation[I0] + 1;
+    const index_t XEff = (X - 1) * conv_dilation[I1] + 1;
+    const auto Ho = (Hi + in_left_pads[I0] + in_right_pads[I0] - YEff) / conv_strides[I0] + 1;
+    const auto Wo = (Wi + in_left_pads[I1] + in_right_pads[I1] - XEff) / conv_strides[I1] + 1;
+
+    // tensor shape after depth2shape {N, depth2space_C,, depth2space_HoBs, depth2space_WoBs}
+    const auto depth2space_C = out_n_k_ho_wo_lengths[I1];
+    const auto depth2space_HoBs = out_n_k_ho_wo_lengths[I2];
+    const auto depth2space_WoBs = out_n_k_ho_wo_lengths[I3];
+
+    // dimension check
+    static_assert(N == out_n_k_ho_wo_desc.GetLength(I0), "N is NOT the same between input and output");
+    static_assert(K == depth2space_C * Depth2SpaceBlockSize* Depth2SpaceBlockSize) == 0, "K is not a multiple of Depth2SpaceBlockSize*Depth2SpaceBlockSize");
+    static_assert(Ho * Depth2SpaceBlockSize == depth2space_HoBs, "conv_Ho is NOT a mulitple of Depth2SpaceBlockSize");
+    static_assert(Wo * Depth2SpaceBlockSize == depth2space_WoBs, "conv_Wo is NOT a mulitple of Depth2SpaceBlockSize");
+
+    const auto depth2space_n_c_hobs_wobs_desc = make_naive_tensor_descriptor_packed(out_n_k_ho_wo_lengths);
+
+    // construct a tensor for conv output from depth2space tensor.
+#define __approach 2
+#if __approach == 0
+    const auto depth2space_n_c_ho_b0_wo_b1_desc = transform_tensor_descriptor(
+        depth2space_n_c_hobs_wobs_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_pass_through_transform(depth2space_C),
+                   make_unmerge_transform(make_tuple(Ho, Depth2SpaceBlockSize)),
+                   make_unmerge_transform(make_tuple(Wo, Depth2SpaceBlockSize))),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
+
+    const auto conv_out_n_k_ho_wo_desc = transform_tensor_descriptor(
+        depth2space_out_n_c_ho_b0_wo_b1_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_merge_transform(make_tuple(depth2space_C, Depth2SpaceBlockSize, Depth2SpaceBlockSize)), 
+                   make_pass_through_transform(Ho),
+                   make_pass_through_transform(Wo)),
+        make_tuple(Sequence<0>{}, Sequence<1, 3, 5>{}, Sequence<2>{}, Sequence<4>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#elif __approach == 1
+    const auto depth2space_n_c_b0_ho_b1_wo_desc = transform_tensor_descriptor(
+        depth2space_n_c_hobs_wobs_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_pass_through_transform(depth2space_C),
+                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Ho)),
+                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Wo))),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
+
+    const auto conv_out_n_k_ho_wo_desc = transform_tensor_descriptor(
+        depth2space_n_c_b0_ho_b1_wo_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_merge_transform(make_tuple(depth2space_C, Depth2SpaceBlockSize, Depth2SpaceBlockSize)), 
+                   make_pass_through_transform(Ho),
+                   make_pass_through_transform(Wo)),
+        make_tuple(Sequence<0>{}, Sequence<1, 2, 4>{}, Sequence<3>{}, Sequence<5>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#elif __approach == 2
+    const auto depth2space_n_c_b0_b1_ho_wo_desc = transform_tensor_descriptor(
+        depth2space_n_c_hobs_wobs_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_pass_through_transform(depth2space_C),
+                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Ho)),
+                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Wo))),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3, 5>{}));
+
+    const auto conv_out_n_k_ho_wo_desc = transform_tensor_descriptor(
+        depth2space_n_c_b0_b1_ho_wo_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_merge_transform(make_tuple(depth2space_C, Depth2SpaceBlockSize, Depth2SpaceBlockSize)), 
+                   make_pass_through_transform(Ho),
+                   make_pass_through_transform(Wo)),
+        make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}, Sequence<5>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#endif
+#undef __approach
 
 #if 1
     // cdata = 64, BlockSize = 256, 128x128x8
@@ -82,7 +169,7 @@ void device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw(
     const auto descs =
         transform_forward_convolution_into_gemm_v4r4_nchw_kcyx_nkhw_pad(wei_k_c_y_x_desc,
                                                                         in_n_c_hi_wi_desc,
-                                                                        out_n_k_ho_wo_desc,
+                                                                        conv_out_n_k_ho_wo_desc,
                                                                         conv_strides,
                                                                         conv_dilations,
                                                                         in_left_pads,
@@ -176,18 +263,18 @@ void device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw(
             decltype(out_gemmm0_gemmm10_gemmm11_gemmn0_gemmn10_gemmn11_grid_step_hacks),
             decltype(wei_gemmk_gemmm0_gemmm1_grid_move_slice_window_step_hacks),
             decltype(in_gemmk_gemmn0_gemmn1_grid_move_slice_window_step_hacks)>(
-            static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
-            static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
-            static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
-            wei_gemmk_gemmm_grid_desc,
-            in_gemmk_gemmn_grid_desc,
-            out_gemmm_gemmn_grid_desc,
-            wei_gemmk_gemmm0_gemmn1_grid_step_hacks,
-            in_gemmk_gemmn0_gemmn1_grid_step_hacks,
-            out_gemmm0_gemmm10_gemmm11_gemmn0_gemmn10_gemmn11_grid_step_hacks,
-            wei_gemmk_gemmm0_gemmm1_grid_move_slice_window_step_hacks,
-            in_gemmk_gemmn0_gemmn1_grid_move_slice_window_step_hacks,
-            nrepeat);
+                static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
+                static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
+                static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
+                wei_gemmk_gemmm_grid_desc,
+                in_gemmk_gemmn_grid_desc,
+                out_gemmm_gemmn_grid_desc,
+                wei_gemmk_gemmm0_gemmn1_grid_step_hacks,
+                in_gemmk_gemmn0_gemmn1_grid_step_hacks,
+                out_gemmm0_gemmm10_gemmm11_gemmn0_gemmn10_gemmn11_grid_step_hacks,
+                wei_gemmk_gemmm0_gemmm1_grid_move_slice_window_step_hacks,
+                in_gemmk_gemmn0_gemmn1_grid_move_slice_window_step_hacks,
+                nrepeat);
 
         float perf = static_cast<float>(calculate_convolution_flops(
                          in_n_c_hi_wi_desc, wei_k_c_y_x_desc, out_n_k_ho_wo_desc)) /
