@@ -17,8 +17,8 @@ template <ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
           ck::index_t KPerBlock,
-          ck::index_t MPerWave,
-          ck::index_t NPerWave,
+          ck::index_t MPerXDL,
+          ck::index_t NPerXDL,
           ck::index_t K1,
           ck::index_t MRepeat,
           ck::index_t NRepeat,
@@ -79,8 +79,8 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                 MPerBlock,
                                                 NPerBlock,
                                                 KPerBlock,
-                                                MPerWave,
-                                                NPerWave,
+                                                MPerXDL,
+                                                NPerXDL,
                                                 K1,
                                                 MRepeat,
                                                 NRepeat,
@@ -129,9 +129,10 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
             "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
     }
 
-    const auto c_m0_m1_m2_n_grid_desc = GridwiseGemm::MakeCM0M1M2NGridDescriptor(c_m_n_grid_desc);
+    const auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc =
+        GridwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(c_m_n_grid_desc);
 
-    using CM0M1M2NGridDesc = decltype(c_m0_m1_m2_n_grid_desc);
+    using CM0N0M1N1M2M3M4N2GridDesc = decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc);
 
     const auto c_block_cluster_adaptor = GridwiseGemm::MakeCBlockClusterAdaptor(c_m_n_grid_desc);
 
@@ -144,7 +145,7 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                 FloatC,
                                                 remove_reference_t<AK0MK1GridDesc>,
                                                 remove_reference_t<BK0NK1GridDesc>,
-                                                remove_reference_t<CM0M1M2NGridDesc>,
+                                                remove_reference_t<CM0N0M1N1M2M3M4N2GridDesc>,
                                                 remove_reference_t<CBlockClusterAdaptor>>;
 
 #if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
@@ -158,18 +159,18 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                             p_c_grid,
                                             a_k0_m_k1_grid_desc,
                                             b_k0_n_k1_grid_desc,
-                                            c_m0_m1_m2_n_grid_desc,
+                                            c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
                                             c_block_cluster_adaptor);
 
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
     DeviceMem a_k0_m_k1_grid_desc_dev_buf(sizeof(AK0MK1GridDesc));
     DeviceMem b_k0_n_k1_grid_desc_dev_buf(sizeof(BK0NK1GridDesc));
-    DeviceMem c_m0_m1_m2_n_grid_desc_dev_buf(sizeof(CM0M1M2NGridDesc));
+    DeviceMem c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf(sizeof(CM0N0M1N1M2M3M4N2GridDesc));
     DeviceMem c_block_cluster_adaptor_dev_buf(sizeof(CBlockClusterAdaptor));
 
     a_k0_m_k1_grid_desc_dev_buf.ToDevice(&a_k0_m_k1_grid_desc);
     b_k0_n_k1_grid_desc_dev_buf.ToDevice(&b_k0_n_k1_grid_desc);
-    c_m0_m1_m2_n_grid_desc_dev_buf.ToDevice(&c_m0_m1_m2_n_grid_desc);
+    c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.ToDevice(&c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc);
     c_block_cluster_adaptor_dev_buf.ToDevice(&c_block_cluster_adaptor);
 
     float ave_time = launch_and_time_kernel(
@@ -183,7 +184,8 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
         p_c_grid,
         cast_pointer_to_constant_address_space(a_k0_m_k1_grid_desc_dev_buf.GetDeviceBuffer()),
         cast_pointer_to_constant_address_space(b_k0_n_k1_grid_desc_dev_buf.GetDeviceBuffer()),
-        cast_pointer_to_constant_address_space(c_m0_m1_m2_n_grid_desc_dev_buf.GetDeviceBuffer()),
+        cast_pointer_to_constant_address_space(
+            c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.GetDeviceBuffer()),
         cast_pointer_to_constant_address_space(c_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
 #endif
     return ave_time;
