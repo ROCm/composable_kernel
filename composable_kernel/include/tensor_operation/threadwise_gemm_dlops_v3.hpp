@@ -19,9 +19,9 @@ template <typename FloatA,
           typename CDesc,
           index_t H,
           index_t W,
-          typename std::enable_if<ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
-                                      CDesc::IsKnownAtCompileTime(),
-                                  bool>::type = false>
+          typename enable_if<ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
+                                 CDesc::IsKnownAtCompileTime(),
+                             bool>::type = false>
 struct ThreadwiseGemmDlops_km_kn_mn_v3
 {
     template <typename ABuffer,
@@ -41,24 +41,19 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                           CDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
-        static_assert(
-            is_known_at_compile_time<remove_cv_t<remove_reference_t<AOriginIdx>>>::value &&
-                is_known_at_compile_time<remove_cv_t<remove_reference_t<BOriginIdx>>>::value &&
-                is_known_at_compile_time<remove_cv_t<remove_reference_t<COriginIdx>>>::value,
-            "wrong! AOriginIdx, BOriginIdx, COringinIdx should be known at compile-time");
+        static_assert(is_known_at_compile_time<remove_cvref_t<AOriginIdx>>::value &&
+                          is_known_at_compile_time<remove_cvref_t<BOriginIdx>>::value &&
+                          is_known_at_compile_time<remove_cvref_t<COriginIdx>>::value,
+                      "wrong! AOriginIdx, BOriginIdx, COringinIdx should be known at compile-time");
 
-        static_assert(is_same<remove_cv_t<remove_reference_t<typename ABuffer::type>>,
-                              remove_cv_t<remove_reference_t<FloatA>>>::value &&
-                      is_same<remove_cv_t<remove_reference_t<typename BBuffer::type>>,
-                              remove_cv_t<remove_reference_t<FloatB>>>::value &&
-                      is_same<remove_cv_t<remove_reference_t<typename CBuffer::type>>,
-                              remove_cv_t<remove_reference_t<FloatC>>>::value &&
-                      "wrong! inconsistent type");
+        static_assert(
+            is_same<remove_cvref_t<typename ABuffer::type>, remove_cvref_t<FloatA>>::value &&
+            is_same<remove_cvref_t<typename BBuffer::type>, remove_cvref_t<FloatB>>::value &&
+            is_same<remove_cvref_t<typename CBuffer::type>, remove_cvref_t<FloatC>>::value &&
+            "wrong! inconsistent type");
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
 
         constexpr auto E = ADesc{}.GetLength(I0);
         constexpr auto K = ADesc{}.GetLength(I1);
@@ -136,7 +131,6 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                 {
                     static_for<0, H, 1>{}([&](auto h) {
                         static_for<0, W, 1>{}([&](auto w) {
-
                             constexpr index_t b_offset =
                                 BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, h, w));
 

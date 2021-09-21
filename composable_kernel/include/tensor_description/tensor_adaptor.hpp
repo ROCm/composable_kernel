@@ -2,8 +2,8 @@
 #define CK_TENSOR_ADAPTOR_HPP
 
 #include "common_header.hpp"
-#include "dynamic_tensor_descriptor.hpp"
-#include "dynamic_tensor_descriptor_helper.hpp"
+#include "tensor_descriptor.hpp"
+#include "tensor_descriptor_helper.hpp"
 
 namespace ck {
 
@@ -64,7 +64,7 @@ struct TensorAdaptor
             Number<ndim_top_>{});
 
         // TODO: make container_reduce support tuple of Number and index_t
-        return container_reduce(lengths, math::multiplies_v2{}, Number<1>{});
+        return container_reduce(lengths, math::multiplies{}, Number<1>{});
     }
 
     template <index_t IDim>
@@ -106,13 +106,13 @@ struct TensorAdaptor
 
     __host__ __device__ static constexpr index_t GetNumOfHiddenDimension()
     {
-        constexpr auto all_low_dim_ids =
-            unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
-                   LowerDimensionHiddenIdss{});
+        constexpr auto all_low_dim_ids = unpack(
+            [](auto&&... xs) constexpr { return merge_sequences(xs...); },
+            LowerDimensionHiddenIdss{});
 
-        constexpr auto all_up_dim_ids =
-            unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
-                   UpperDimensionHiddenIdss{});
+        constexpr auto all_up_dim_ids = unpack(
+            [](auto&&... xs) constexpr { return merge_sequences(xs...); },
+            UpperDimensionHiddenIdss{});
 
         constexpr auto all_dim_ids = merge_sequences(all_low_dim_ids, all_up_dim_ids);
 
@@ -189,8 +189,7 @@ struct TensorAdaptor
         bool is_known = true;
 
         static_for<0, Transforms::Size(), 1>{}([&](auto i) {
-            is_known &=
-                remove_cv_t<remove_reference_t<decltype(Transforms{}[i])>>::IsKnownAtCompileTime();
+            is_known &= remove_cvref_t<decltype(Transforms{}[i])>::IsKnownAtCompileTime();
         });
 
         return is_known && is_known_at_compile_time<ElementSize>::value;
@@ -418,13 +417,11 @@ __host__ __device__ constexpr auto make_single_stage_tensor_adaptor(const Transf
                   "wrong!");
 
     // sanity check on LowerDimensionOldTopIdss and UpperDimensionNewTopIdss
-    constexpr auto all_low_dim_old_top_ids =
-        unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
-               LowerDimensionOldTopIdss{});
+    constexpr auto all_low_dim_old_top_ids = unpack(
+        [](auto&&... xs) constexpr { return merge_sequences(xs...); }, LowerDimensionOldTopIdss{});
 
-    constexpr auto all_up_dim_new_top_ids =
-        unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
-               UpperDimensionNewTopIdss{});
+    constexpr auto all_up_dim_new_top_ids = unpack(
+        [](auto&&... xs) constexpr { return merge_sequences(xs...); }, UpperDimensionNewTopIdss{});
 
     static_assert(is_valid_sequence_map<decltype(all_low_dim_old_top_ids)>::value &&
                       is_valid_sequence_map<decltype(all_up_dim_new_top_ids)>::value,
@@ -456,9 +453,7 @@ __host__ __device__ constexpr auto make_single_stage_tensor_adaptor(const Transf
                          remove_cv_t<decltype(top_dim_hidden_ids)>>{transforms};
 }
 
-template <typename X,
-          typename... Xs,
-          typename std::enable_if<sizeof...(Xs) >= 2, bool>::type = false>
+template <typename X, typename... Xs, typename enable_if<sizeof...(Xs) >= 2, bool>::type = false>
 __host__ __device__ constexpr auto chain_tensor_adaptors(const X& x, const Xs&... xs)
 {
     return chain_tensor_adaptors(x, chain_tensor_adaptors(xs...));

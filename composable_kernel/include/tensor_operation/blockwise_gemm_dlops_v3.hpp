@@ -31,25 +31,24 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     // HACK: fix this @Jing Zhang
     static constexpr index_t KPerThreadSubC = 4;
 
-    static constexpr auto a_thread_mtx_ = make_dynamic_naive_tensor_descriptor_packed_v2(
+    static constexpr auto a_thread_mtx_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<EPerThreadLoop>{}, Number<KPerThreadSubC>{}));
 
-    static constexpr auto b_thread_mtx_ = make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(
+    static constexpr auto b_thread_mtx_ = make_naive_tensor_descriptor_packed(make_tuple(
         Number<EPerThreadLoop>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
 
-    static constexpr auto c_thread_mtx_ = make_dynamic_naive_tensor_descriptor_packed_v2(make_tuple(
+    static constexpr auto c_thread_mtx_ = make_naive_tensor_descriptor_packed(make_tuple(
         Number<KPerThreadSubC>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
 
-    using AThreadCopy =
-        ThreadwiseDynamicTensorSliceTransfer_v4<FloatA,
-                                                FloatA,
-                                                BlockMatrixA,
-                                                decltype(a_thread_mtx_),
-                                                Sequence<EPerThreadLoop, KPerThreadSubC>,
-                                                Sequence<0, 1>,
-                                                1,
-                                                ThreadGemmADataPerRead_K,
-                                                1>;
+    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatA,
+                                                         FloatA,
+                                                         BlockMatrixA,
+                                                         decltype(a_thread_mtx_),
+                                                         Sequence<EPerThreadLoop, KPerThreadSubC>,
+                                                         Sequence<0, 1>,
+                                                         1,
+                                                         ThreadGemmADataPerRead_K,
+                                                         1>;
 
     __device__ BlockwiseGemmDlops_km_kn_m0m1n0n1_v3()
         : c_thread_begin_mtx_idx_{GetBeginOfThreadMatrixC(get_thread_local_1d_id())},
@@ -69,7 +68,6 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                       "wrong! K dimension not consistent\n");
 
         constexpr index_t K = BlockMatrixA{}.GetLength(I1); // A is transposed
-        constexpr index_t N = BlockMatrixB{}.GetLength(I1);
         constexpr index_t H = BlockMatrixB{}.GetLength(I2);
         constexpr index_t W = BlockMatrixB{}.GetLength(I3);
 
@@ -112,18 +110,13 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                         const BThreadBuffer& b_thread_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        static_assert(is_same<remove_cv_t<remove_reference_t<typename ABlockBuffer::type>>,
-                              remove_cv_t<remove_reference_t<FloatA>>>::value &&
-                      is_same<remove_cv_t<remove_reference_t<typename BThreadBuffer::type>>,
-                              remove_cv_t<remove_reference_t<FloatB>>>::value &&
-                      is_same<remove_cv_t<remove_reference_t<typename CThreadBuffer::type>>,
-                              remove_cv_t<remove_reference_t<FloatC>>>::value &&
-                      "wrong! inconsistent type");
+        static_assert(
+            is_same<remove_cvref_t<typename ABlockBuffer::type>, remove_cvref_t<FloatA>>::value &&
+            is_same<remove_cvref_t<typename BThreadBuffer::type>, remove_cvref_t<FloatB>>::value &&
+            is_same<remove_cvref_t<typename CThreadBuffer::type>, remove_cvref_t<FloatC>>::value &&
+            "wrong! inconsistent type");
 
         constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
 
         constexpr auto a_block_mtx = BlockMatrixA{};
 
@@ -138,7 +131,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         static_assert(WPerThread % WoPerThreadSubC == 0, "");
 
         // thread A buffer for GEMM
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize()>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize(), true>
             a_thread_buf;
 
         constexpr auto threadwise_gemm = ThreadwiseGemmDlops_km_kn_mn_v3<FloatA,
@@ -152,7 +145,6 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 
         static_for<0, EPerBlock, EPerThreadLoop>{}([&](auto e_begin) {
             static_for<0, KPerThread, KPerThreadSubC>{}([&](auto k_begin) {
-
                 a_thread_copy_.Run(a_block_mtx,
                                    make_tuple(e_begin, k_begin),
                                    a_block_buf,
