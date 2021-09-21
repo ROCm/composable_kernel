@@ -197,14 +197,14 @@ struct TensorDescriptor
         printf("{");
         printf("TensorDescriptor, ");
         static_for<0, ntransform_, 1>{}([&](auto i) {
-            printf("transforms: ");
+            printf("\ntransforms: \n");
             transforms_[i].Print();
-            printf("LowerDimensionIds:");
+            printf("\nLowerDimensionIds:\n");
             LowerDimensionIdss{}.At(i).Print();
-            printf("UpperDimensionIds:");
+            printf("\nUpperDimensionIds:\n");
             UpperDimensionIdss{}.At(i).Print();
         });
-        printf("}");
+        printf("}\n");
 
         VisibleDimensionIds::Print();
     }

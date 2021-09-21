@@ -1,5 +1,9 @@
+#include "common_header.hpp"
+#include "tensor_descriptor_helper.hpp"
 #include <atomic>
 #include <iostream>
+#include <vector>
+#include <numeric>
 
 int main(int argc, char** argv) {
     using namespace ck;
@@ -18,25 +22,34 @@ int main(int argc, char** argv) {
     const index_t HoBs = 2;
     const index_t WoBs = 2;
     const index_t C = 3;
-    constexpr index_t BlokSize = 2;
+    constexpr index_t BlockSize = 2;
 #endif
     
-    std::vector<std::size_t> depth2space_lengths = {N, HoBs, WoBz, C};
-    Tensor<data_t> depth2space(depth2space_lengths);
-    depth2space(0, 0, 0, 0) = 0.0f;
-    depth2space(0, 0, 0, 1) = 1.0f;
-    depth2space(0, 0, 0, 2) = 2.0f;
-    depth2space(0, 0, 1, 0) = 3.0f;
-    depth2space(0, 0, 1, 1) = 4.0f;
-    depth2space(0, 0, 1, 2) = 5.0f;
-    depth2space(0, 1, 0, 0) = 6.0f;
-    depth2space(0, 1, 0, 1) = 7.0f;
-    depth2space(0, 1, 0, 2) = 8.0f;
-    depth2space(0, 1, 1, 0) = 9.0f;
-    depth2space(0, 1, 1, 1) = 10.0f;
-    depth2space(0, 1, 1, 2) = 11.0f;
+    // std::vector<std::size_t> depth2space_lengths = {N, HoBs, WoBs, C};
+    // Tensor<data_t> depth2space(depth2space_lengths);
+    // depth2space(0, 0, 0, 0) = 0.0f;
+    // depth2space(0, 0, 0, 1) = 1.0f;
+    // depth2space(0, 0, 0, 2) = 2.0f;
+    // depth2space(0, 0, 1, 0) = 3.0f;
+    // depth2space(0, 0, 1, 1) = 4.0f;
+    // depth2space(0, 0, 1, 2) = 5.0f;
+    // depth2space(0, 1, 0, 0) = 6.0f;
+    // depth2space(0, 1, 0, 1) = 7.0f;
+    // depth2space(0, 1, 0, 2) = 8.0f;
+    // depth2space(0, 1, 1, 0) = 9.0f;
+    // depth2space(0, 1, 1, 1) = 10.0f;
+    // depth2space(0, 1, 1, 2) = 11.0f;
+    std::vector<data_t> data(N*HoBs*WoBs*C);
+    std::iota(data.begin(), data.end(), 0.0f);
+    const auto depth2space_lengths = make_tuple(N, HoBs, WoBs, C);
+    const auto depth2space_desc = make_naive_tensor_descriptor_packed(depth2space_lengths);
+    const auto conv_desc = transform_depth2space_to_convolution_nhwk<BlockSize>(depth2space_desc);
 
-    depth2space_desc = make_naive_tensor_descriptor_packed(depth2space_lengths);
-    const auto conv_desc = transform_depth2space_to_convolution<BlockSize>(depth2space_lengths);
+    for (int i=0; i<12; ++i)
+    {
+        auto offset = conv_desc.CalculateOffset(make_multi_index(0, 1, 1, i));
+        std::cout << "offset = " << offset  << ", val = " << *(data.begin() + offset) << std::endl;
+    }
+    // conv_desc.Print();
 
 }
