@@ -38,6 +38,10 @@ struct DynamicBuffer
         return BufferAddressSpace;
     }
 
+    __host__ __device__ constexpr const T& operator[](index_t i) const { return p_data_[i]; }
+
+    __host__ __device__ constexpr T& operator()(index_t i) { return p_data_[i]; }
+
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
