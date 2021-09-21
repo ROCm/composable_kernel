@@ -146,7 +146,7 @@ make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align ali
 }
 
 template <index_t BlockSize, typename... Depth2Space>
-__host__ __device__ constexpr auto transform_depth2space_to_convolution_nkhw(
+__host__ __device__ constexpr auto transform_depth2space_to_convolution_nchw(
     const TensorDescriptor<Depth2Space...>& depth2space_n_c_hobs_wobs_desc)
 {
     constexpr auto I0 = Number<0>{};
@@ -161,11 +161,11 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nkhw(
     assert(HoBs % / BlockSize == 0);
     assert(WoBs % / BlockSize == 0);
     const auto Ho = HoBs / BlockSize;
-    const auto Wo = HoBs / BlockSize;
+    const auto Wo = WoBs / BlockSize;
 
-#define __approach 2
+#define _depth2space_transform_ 2
 
-#if __approach == 0
+#if _depth2space_transform_ == 0
     const auto depth2space_n_c_ho_b0_wo_b1_desc = transform_tensor_descriptor(
         depth2space_n_c_hobs_wobs_desc,
         make_tuple(make_pass_through_transform(N),
@@ -183,7 +183,7 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nkhw(
                    make_pass_through_transform(Wo)),
         make_tuple(Sequence<0>{}, Sequence<1, 3, 5>{}, Sequence<2>{}, Sequence<4>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#elif __approach == 1
+#elif _depth2space_transform_ == 1
     const auto depth2space_n_c_b0_ho_b1_wo_desc = transform_tensor_descriptor(
         depth2space_n_c_hobs_wobs_desc,
         make_tuple(make_pass_through_transform(N),
@@ -201,7 +201,7 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nkhw(
                    make_pass_through_transform(Wo)),
         make_tuple(Sequence<0>{}, Sequence<1, 2, 4>{}, Sequence<3>{}, Sequence<5>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#elif __approach == 2
+#elif _depth2space_transform_ == 2
     const auto depth2space_n_c_b0_b1_ho_wo_desc = transform_tensor_descriptor(
         depth2space_n_c_hobs_wobs_desc,
         make_tuple(make_pass_through_transform(N),
@@ -221,11 +221,11 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nkhw(
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 #endif
     return conv_out_n_k_ho_wo_desc;
-#undef __approach
+#undef _depth2space_transform_
 }
 
 template < index_t BlockSize, typename... Depth2Space>
-__host__ __device__ constexpr auto transform_depth2space_to_convolution_nhwk(
+__host__ __device__ constexpr auto transform_depth2space_to_convolution_nhwc(
     const TensorDescriptor<Depth2Space...>& depth2space_n_hobs_wobs_c_desc)
 {
     constexpr auto I0 = Number<0>{};
@@ -240,11 +240,11 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nhwk(
     assert(HoBs % / BlockSize == 0);
     assert(WoBs % / BlockSize == 0);
     const auto Ho = HoBs / BlockSize;
-    const auto Wo = HoBs / BlockSize;
+    const auto Wo = WoBs / BlockSize;
 
-#define __approach 2
+#define _depth2space_transform_ 5 // 3, 5 give the correct result
 
-#if __approach == 0
+#if _depth2space_transform_ == 0
     const auto depth2space_n_ho_b0_wo_b1_c_desc = transform_tensor_descriptor(
         depth2space_n_hobs_wobs_c_desc,
         make_tuple(make_pass_through_transform(N),
@@ -255,14 +255,14 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nhwk(
         make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
     const auto conv_out_n_ho_wo_k_desc = transform_tensor_descriptor(
-        depth2space_out_n_ho_b0_wo_b1_c_desc,
+        depth2space_n_ho_b0_wo_b1_c_desc,
         make_tuple(make_pass_through_transform(N),
                    make_pass_through_transform(Ho),
                    make_pass_through_transform(Wo),
                    make_merge_transform(make_tuple(C, BlockSize, BlockSize))),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<5, 2, 4>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#elif __approach == 1
+#elif _depth2space_transform_ == 1
     const auto depth2space_n_b0_ho_b1_wo_c_desc = transform_tensor_descriptor(
         depth2space_n_hobs_wobs_c_desc,
         make_tuple(make_pass_through_transform(N),
@@ -280,7 +280,7 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nhwk(
                    make_merge_transform(make_tuple(C, BlockSize, BlockSize))),
         make_tuple(Sequence<0>{}, Sequence<2>{}, Sequence<4>{}, Sequence<5, 1, 3>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#elif __approach == 2
+#elif _depth2space_transform_ == 2
     const auto depth2space_n_ho_wo_b0_b1_c_desc = transform_tensor_descriptor(
         depth2space_n_hobs_wobs_c_desc,
         make_tuple(make_pass_through_transform(N),
@@ -298,9 +298,63 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nhwk(
                    make_merge_transform(make_tuple(C, BlockSize, BlockSize))),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<5, 3, 4>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#elif _depth2space_transform_ == 3
+    const auto depth2space_n_ho_b0_wo_b1_c_desc = transform_tensor_descriptor(
+        depth2space_n_hobs_wobs_c_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_unmerge_transform(make_tuple(Ho, BlockSize)),
+                   make_unmerge_transform(make_tuple(Wo, BlockSize)),
+                   make_pass_through_transform(C)),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+        make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+
+    const auto conv_out_n_ho_wo_k_desc = transform_tensor_descriptor(
+        depth2space_n_ho_b0_wo_b1_c_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_pass_through_transform(Ho),
+                   make_pass_through_transform(Wo),
+                   make_merge_transform(make_tuple(BlockSize, BlockSize, C))),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<2, 4, 5>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#elif _depth2space_transform_ == 4
+    const auto depth2space_n_b0_ho_b1_wo_c_desc = transform_tensor_descriptor(
+        depth2space_n_hobs_wobs_c_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_unmerge_transform(make_tuple(BlockSize, Ho)),
+                   make_unmerge_transform(make_tuple(BlockSize, Wo)),
+                   make_pass_through_transform(C)),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+        make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+
+    const auto conv_out_n_ho_wo_k_desc = transform_tensor_descriptor(
+        depth2space_n_b0_ho_b1_wo_c_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_pass_through_transform(Ho),
+                   make_pass_through_transform(Wo),
+                   make_merge_transform(make_tuple(BlockSize, BlockSize, C))),
+        make_tuple(Sequence<0>{}, Sequence<2>{}, Sequence<4>{}, Sequence<1, 3, 5>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#elif _depth2space_transform_ == 5
+    const auto depth2space_n_ho_wo_b0_b1_c_desc = transform_tensor_descriptor(
+        depth2space_n_hobs_wobs_c_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_unmerge_transform(make_tuple(Ho, BlockSize)),
+                   make_unmerge_transform(make_tuple(Wo, BlockSize)),
+                   make_pass_through_transform(C)),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+        make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}, Sequence<5>{}));
+
+    const auto conv_out_n_ho_wo_k_desc = transform_tensor_descriptor(
+        depth2space_n_ho_wo_b0_b1_c_desc,
+        make_tuple(make_pass_through_transform(N),
+                   make_pass_through_transform(Ho),
+                   make_pass_through_transform(Wo),
+                   make_merge_transform(make_tuple(BlockSize, BlockSize, C))),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4, 5>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 #endif
     return conv_out_n_ho_wo_k_desc;
-#undef __approach
+#undef _depth2space_transform_
 }
 
 } // namespace ck
