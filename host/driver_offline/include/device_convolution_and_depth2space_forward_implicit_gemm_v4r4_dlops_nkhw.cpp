@@ -74,65 +74,7 @@ void device_convolution_and_depth2space_forward_implicit_gemm_v4r4_dlops_nchw_kc
     static_assert(Wo * Depth2SpaceBlockSize == depth2space_WoBs, "conv_Wo is NOT a mulitple of Depth2SpaceBlockSize");
 
     const auto depth2space_n_c_hobs_wobs_desc = make_naive_tensor_descriptor_packed(out_n_k_ho_wo_lengths);
-
-    // construct a tensor for conv output from depth2space tensor.
-#define _depth2space_transform_ 2
-#if _depth2space_transform_ == 0
-    const auto depth2space_n_c_ho_b0_wo_b1_desc = transform_tensor_descriptor(
-        depth2space_n_c_hobs_wobs_desc,
-        make_tuple(make_pass_through_transform(N),
-                   make_pass_through_transform(depth2space_C),
-                   make_unmerge_transform(make_tuple(Ho, Depth2SpaceBlockSize)),
-                   make_unmerge_transform(make_tuple(Wo, Depth2SpaceBlockSize))),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
-
-    const auto conv_out_n_k_ho_wo_desc = transform_tensor_descriptor(
-        depth2space_out_n_c_ho_b0_wo_b1_desc,
-        make_tuple(make_pass_through_transform(N),
-                   make_merge_transform(make_tuple(depth2space_C, Depth2SpaceBlockSize, Depth2SpaceBlockSize)), 
-                   make_pass_through_transform(Ho),
-                   make_pass_through_transform(Wo)),
-        make_tuple(Sequence<0>{}, Sequence<1, 3, 5>{}, Sequence<2>{}, Sequence<4>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#elif _depth2space_transform_ == 1
-    const auto depth2space_n_c_b0_ho_b1_wo_desc = transform_tensor_descriptor(
-        depth2space_n_c_hobs_wobs_desc,
-        make_tuple(make_pass_through_transform(N),
-                   make_pass_through_transform(depth2space_C),
-                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Ho)),
-                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Wo))),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
-
-    const auto conv_out_n_k_ho_wo_desc = transform_tensor_descriptor(
-        depth2space_n_c_b0_ho_b1_wo_desc,
-        make_tuple(make_pass_through_transform(N),
-                   make_merge_transform(make_tuple(depth2space_C, Depth2SpaceBlockSize, Depth2SpaceBlockSize)), 
-                   make_pass_through_transform(Ho),
-                   make_pass_through_transform(Wo)),
-        make_tuple(Sequence<0>{}, Sequence<1, 2, 4>{}, Sequence<3>{}, Sequence<5>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#elif _depth2space_transform_ == 2
-    const auto depth2space_n_c_b0_b1_ho_wo_desc = transform_tensor_descriptor(
-        depth2space_n_c_hobs_wobs_desc,
-        make_tuple(make_pass_through_transform(N),
-                   make_pass_through_transform(depth2space_C),
-                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Ho)),
-                   make_unmerge_transform(make_tuple(Depth2SpaceBlockSize, Wo))),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3, 5>{}));
-
-    const auto conv_out_n_k_ho_wo_desc = transform_tensor_descriptor(
-        depth2space_n_c_b0_b1_ho_wo_desc,
-        make_tuple(make_pass_through_transform(N),
-                   make_merge_transform(make_tuple(depth2space_C, Depth2SpaceBlockSize, Depth2SpaceBlockSize)), 
-                   make_pass_through_transform(Ho),
-                   make_pass_through_transform(Wo)),
-        make_tuple(Sequence<0>{}, Sequence<1, 2, 3>{}, Sequence<4>{}, Sequence<5>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#endif
-#undef _depth2space_transform_
+    const auto conv_out_n_k_ho_wo_desc = transform_depth2space_to_convolution_nchw(depth2space_n_c_hobs_wobs_desc);
 
 #if 1
     // cdata = 64, BlockSize = 256, 128x128x8

@@ -353,6 +353,11 @@ __host__ __device__ constexpr auto transform_depth2space_to_convolution_nhwc(
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4, 5>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 #endif
+
+    assert(conv_out_n_ho_wo_k_desc.GetLength(I0) == N);
+    assert(conv_out_n_ho_wo_k_desc.GetLength(I1)*BlockSize == HoBs);
+    assert(conv_out_n_ho_wo_k_desc.GetLength(I2)*BlockSize == WoBs);
+    assert(conv_out_n_ho_wo_k_desc.GetLength(I3) == C*BlockSize*BlockSize);
     return conv_out_n_ho_wo_k_desc;
 #undef _depth2space_transform_
 }
