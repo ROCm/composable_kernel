@@ -439,10 +439,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
                                                 b_block_slice_copy_step,
                                                 b_k0_n_k1_grid_move_slice_window_step_hack);
 
-            a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
-
             block_sync_lds();
 
+            a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
             b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf, b_k0_n_k1_grid_step_hacks);
 
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
