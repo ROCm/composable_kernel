@@ -1,6 +1,51 @@
 #pragma once
 #include "host_tensor.hpp"
 
+template <typename Tin, typename Tout, int BlockSize>
+void host_depth2space(const Tensor<Tin>& in, Tensor<Tout>& out, const ConvTensorLayout layout)
+{
+    switch (layout)
+    {
+    case ConvTensorLayout::NHWC :
+    {
+
+        assert(in.mDesc.GetLengths()[0] == out.mDesc.GetLengths()[0]);
+        assert(in.mDesc.GetLengths()[1]*BlockSize == out.mDesc.GetLengths()[1]);
+        assert(in.mDesc.GetLengths()[2]*BlockSize == out.mDesc.GetLengths()[2]);
+        assert(in.mDesc.GetLengths()[3] == out.mDesc.GetLengths()[3] * BlockSize*BlockSize);
+
+        const auto N = out.mDesc.GetLengths()[0];
+        const auto H = out.mDesc.GetLengths()[1];
+        const auto W = out.mDesc.GetLengths()[2];
+        const auto C = out.mDesc.GetLengths()[3];
+
+        for(int n = 0; n < N; ++n)
+        {
+            for(int h = 0; h < H; ++h)
+            {
+                const auto ho = h / BlockSize;
+                const auto b0 = h % BlockSize;
+
+                for(int w = 0; w < W; ++w)
+                {
+                    const auto wo = w / BlockSize;
+                    const auto b1 = w % BlockSize;
+
+                    for(int c = 0; c < C; ++c)
+                    {
+                        const auto k = b0 * BlockSize * C + b1 * C + c;
+                        out(n, h, w, c) = in(n, ho, wo, k);
+                    }
+                }
+            }
+        }
+        break;
+    }
+    default :
+        throw std::runtime_error("wrong! not supported layout");
+    }
+}
+
 template <typename TIn,
           typename TWei,
           typename TOut,

@@ -15,6 +15,9 @@ namespace ck {
  * TODO: Use universal reference parameter in functor operators?
  */
 
+template < index_t BlockSize>
+struct TransformDepth2SpaceToConvolution_nhwc;
+
 struct NoTransform
 {
     template <typename... DescArgs>
@@ -25,7 +28,19 @@ struct NoTransform
     }
 };
 
-template < index_t BlockSize>
+template <>
+struct TransformDepth2SpaceToConvolution_nhwc<1>
+{
+    template <typename... DescArgs>
+    __host__ __device__ constexpr auto operator () (
+    const TensorDescriptor<DescArgs...>& conv_out)
+    {
+        return conv_out;
+    }
+
+};
+
+template <index_t BlockSize>
 struct TransformDepth2SpaceToConvolution_nhwc
 {
     template <typename... DescArgs>
@@ -41,8 +56,8 @@ struct TransformDepth2SpaceToConvolution_nhwc
         const auto HoBs = depth2space_n_hobs_wobs_c_desc.GetLength(I1);
         const auto WoBs = depth2space_n_hobs_wobs_c_desc.GetLength(I2);
         const auto C = depth2space_n_hobs_wobs_c_desc.GetLength(I3);
-        assert(HoBs % / BlockSize == 0);
-        assert(WoBs % / BlockSize == 0);
+        assert(HoBs % BlockSize == 0);
+        assert(WoBs % BlockSize == 0);
         const auto Ho = HoBs / BlockSize;
         const auto Wo = WoBs / BlockSize;
 

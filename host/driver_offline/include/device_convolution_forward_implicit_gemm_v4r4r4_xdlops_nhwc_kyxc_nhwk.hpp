@@ -2,6 +2,7 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk.hpp"
+#include "transform_into_conv_output.hpp"
 #include "driver_gemm_xdlops_v2r3.hpp"
 
 template <typename TInWei,
@@ -13,11 +14,12 @@ template <typename TInWei,
           typename ConvStrides,
           typename ConvDilations,
           typename InLeftPads,
-          typename InRightPads>
+          typename InRightPads,
+          typename TransformToConvOutput=ck::NoTransform>
 void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     const InLengths& in_n_hi_wi_c_lengths,
     const WeiLengths& wei_k_y_x_c_lengths,
-    const OutLengths& out_n_ho_wo_k_lengths,
+    const OutLengths& out_lengths,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
@@ -46,7 +48,23 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
 
     const auto in_n_hi_wi_c_desc  = make_naive_tensor_descriptor_packed(in_n_hi_wi_c_lengths);
     const auto wei_k_y_x_c_desc   = make_naive_tensor_descriptor_packed(wei_k_y_x_c_lengths);
-    const auto out_n_ho_wo_k_desc = make_naive_tensor_descriptor_packed(out_n_ho_wo_k_lengths);
+    const auto out_n_ho_wo_k_desc = TransformToConvOutput{}(make_naive_tensor_descriptor_packed(out_lengths));
+
+    // check tensor shape of convolution output
+    const auto N = in_n_hi_wi_c_lengths[I0];
+    const auto Hi = in_n_hi_wi_c_lengths[I1];
+    const auto Wi = in_n_hi_wi_c_lengths[I2];
+    const auto K = wei_k_y_x_c_lengths[I0];
+    const auto Y = wei_k_y_x_c_lengths[I1];
+    const auto X = wei_k_y_x_c_lengths[I2];
+    const index_t YEff = (Y - 1) * conv_dilations[I0] + 1;
+    const index_t XEff = (X - 1) * conv_dilations[I1] + 1;
+    const auto Ho = (Hi + in_left_pads[I0] + in_right_pads[I0] - YEff) / conv_strides[I0] + 1;
+    const auto Wo = (Wi + in_left_pads[I1] + in_right_pads[I1] - XEff) / conv_strides[I1] + 1;
+    assert(N == out_n_ho_wo_k_desc.GetLength(I0));
+    assert(Ho == out_n_ho_wo_k_desc.GetLength(I1));
+    assert(Wo == out_n_ho_wo_k_desc.GetLength(I2));
+    assert(K == out_n_ho_wo_k_desc.GetLength(I3));
 
 #if 0
     // [M, N, K0, K1] = [256, 128, 4, 4] for fp32
@@ -331,15 +349,15 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
               nrepeat);
 
         {
-            const auto N = out_n_ho_wo_k_lengths[I0];
-            const auto K = out_n_ho_wo_k_lengths[I3];
+            // const auto N = out_n_ho_wo_k_lengths[I0];
+            // const auto K = out_n_ho_wo_k_lengths[I3];
             const auto C = wei_k_y_x_c_lengths[I3];
 
-            const auto Ho = out_n_ho_wo_k_lengths[I1];
-            const auto Wo = out_n_ho_wo_k_lengths[I2];
-
-            const auto Y = wei_k_y_x_c_lengths[I1];
-            const auto X = wei_k_y_x_c_lengths[I2];
+            // const auto Ho = out_n_ho_wo_k_lengths[I1];
+            // const auto Wo = out_n_ho_wo_k_lengths[I2];
+            //
+            // const auto Y = wei_k_y_x_c_lengths[I1];
+            // const auto X = wei_k_y_x_c_lengths[I2];
 
             float perf = static_cast<float>((std::size_t(2) * N * K * Ho * Wo * C * Y * X)) /
                          (std::size_t(1000) * 1000 * 1000) / ave_time;
