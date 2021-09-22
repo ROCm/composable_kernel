@@ -103,11 +103,8 @@ transform_backward_weight_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
                                     make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
     // B: output tensor
-    const auto out_gemmk_gemmn_grid_desc = transform_tensor_descriptor(
-        make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K)),
-        make_tuple(make_pass_through_transform(N * Ho * Wo), make_pass_through_transform(K)),
-        make_tuple(Sequence<0>{}, Sequence<1>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}));
+    const auto out_gemmk_gemmn_grid_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
 
     const auto out_gemmk0_gemmn_gemmk1_grid_desc =
         transform_tensor_descriptor(out_gemmk_gemmn_grid_desc,
