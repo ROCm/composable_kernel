@@ -97,8 +97,8 @@ template <index_t BlockSize,
           typename FloatAcc,
           typename FloatC,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
-          typename AK0MK1GridDesc,
-          typename BK0NK1GridDesc,
+          typename ABK0MK1GridDesc,
+          typename BBK0NK1GridDesc,
           typename CMNGridDesc,
           index_t MPerBlock,
           index_t NPerBlock,
@@ -171,33 +171,29 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
     }
 
     __host__ __device__ static constexpr bool
-    CheckValidity(const AK0MK1GridDesc& a_k0_m_k1_grid_desc,
-                  const BK0NK1GridDesc& b_k0_n_k1_grid_desc,
-                  const CMNGridDesc& c_m_n_grid_desc,
-                  index_t KBatch)
+    CheckValidity(const ABK0MK1GridDesc& a_b_k0_m_k1_grid_desc,
+                  const BBK0NK1GridDesc& b_b_k0_n_k1_grid_desc,
+                  const CMNGridDesc& c_m_n_grid_desc)
     {
         // TODO: turn on this
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        const auto M  = a_k0_m_k1_grid_desc.GetLength(I1);
-        const auto N  = b_k0_n_k1_grid_desc.GetLength(I1);
-        const auto K0 = a_k0_m_k1_grid_desc.GetLength(I0);
+        const auto M      = a_b_k0_m_k1_grid_desc.GetLength(I2);
+        const auto N      = b_b_k0_n_k1_grid_desc.GetLength(I2);
+        const auto K0     = a_b_k0_m_k1_grid_desc.GetLength(I1);
+        const auto KBatch = a_b_k0_m_k1_grid_desc.GetLength(I0);
 
         static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
                           (NPerBlock % (NRepeat * NPerXDL)) == 0,
                       "Invalid tuning param!");
 
-        if(K0 % (KBatch * KPerBlock) != 0)
-        {
-            return false;
-        }
-
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return (M == c_m_n_grid_desc.GetLength(I0) && N == c_m_n_grid_desc.GetLength(I1) &&
-                K0 == b_k0_n_k1_grid_desc.GetLength(I0) &&
-                K1 == a_k0_m_k1_grid_desc.GetLength(I2) &&
-                K1 == b_k0_n_k1_grid_desc.GetLength(I2)) &&
+                K0 == b_b_k0_n_k1_grid_desc.GetLength(I1) &&
+                K1 == a_b_k0_m_k1_grid_desc.GetLength(I3) &&
+                K1 == b_b_k0_n_k1_grid_desc.GetLength(I3) &&
+                KBatch == b_b_k0_n_k1_grid_desc.GetLength(I0)) &&
                (M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % KPerBlock == 0);
     }
 
@@ -210,42 +206,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         const index_t grid_size = (M / MPerBlock) * (N / NPerBlock) * KBatch;
 
         return grid_size;
-    }
-
-    __host__ __device__ static constexpr auto
-    MakeABK0MK1GridDescriptor(const AK0MK1GridDesc& a_k0_m_k1_grid_desc, index_t KBatch)
-    {
-        const auto K0 = a_k0_m_k1_grid_desc.GetLength(I0);
-        const auto M  = a_k0_m_k1_grid_desc.GetLength(I1);
-
-        assert(K0 % KBatch == 0);
-
-        const auto a_b_k0_m_k1_grid_desc = transform_tensor_descriptor(
-            a_k0_m_k1_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(KBatch, K0 / KBatch)),
-                       make_pass_through_transform(M),
-                       make_pass_through_transform(K1Value)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
-        return a_b_k0_m_k1_grid_desc;
-    }
-
-    __host__ __device__ static constexpr auto
-    MakeBBK0NK1GridDescriptor(const BK0NK1GridDesc& b_k0_n_k1_grid_desc, index_t KBatch)
-    {
-        const auto K0 = b_k0_n_k1_grid_desc.GetLength(I0);
-        const auto N  = b_k0_n_k1_grid_desc.GetLength(I1);
-
-        assert(K0 % KBatch == 0);
-
-        const auto b_b_k0_n_k1_grid_desc = transform_tensor_descriptor(
-            b_k0_n_k1_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(KBatch, K0 / KBatch)),
-                       make_pass_through_transform(N),
-                       make_pass_through_transform(K1Value)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
-        return b_b_k0_n_k1_grid_desc;
     }
 
     __host__ __device__ static constexpr auto
@@ -300,8 +260,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         return c_blockid_to_m0_n0_block_cluster_adaptor;
     }
 
-    using ABK0MK1GridDesc           = decltype(MakeABK0MK1GridDescriptor(AK0MK1GridDesc{}, 1));
-    using BBK0NK1GridDesc           = decltype(MakeBBK0NK1GridDescriptor(BK0NK1GridDesc{}, 1));
     using CM0N0M1N1M2M3M4N2GridDesc = decltype(MakeCM0N0M1N1M2M3M4N2GridDescriptor(CMNGridDesc{}));
     using CBlockClusterAdaptor      = decltype(MakeCBlockClusterAdaptor(CMNGridDesc{}, 1));
 
