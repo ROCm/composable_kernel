@@ -1,5 +1,6 @@
 #include "common_header.hpp"
 #include "tensor_descriptor_helper.hpp"
+#include "transform_into_conv_output.hpp"
 
 #include <iostream>
 #include <vector>
@@ -84,7 +85,7 @@ int main(int argc, char** argv) {
         // std::iota(data.begin(), data.end(), 0.0f);
         const auto depth2space_lengths = make_tuple(N, HoBs, WoBs, C);
         const auto depth2space_desc = make_naive_tensor_descriptor_packed(depth2space_lengths);
-        const auto conv_desc = transform_depth2space_to_convolution_nhwc<BlockSize>(depth2space_desc);
+        const auto conv_desc = TransformDepth2SpaceToConvolution_nhwc<BlockSize>{}(depth2space_desc);
 
         // set values in conv
         set_values(conv_desc, data);
@@ -106,7 +107,7 @@ int main(int argc, char** argv) {
         std::vector<data_t> data(N*HoBs*WoBs*C);
         const auto depth2space_lengths = make_tuple(N, HoBs, WoBs, C);
         const auto depth2space_desc = make_naive_tensor_descriptor_packed(depth2space_lengths);
-        const auto conv_desc = transform_depth2space_to_convolution_nhwc<BlockSize>(depth2space_desc);
+        const auto conv_desc = TransformDepth2SpaceToConvolution_nhwc<BlockSize>{}(depth2space_desc);
 
         // set values in conv
         set_values(conv_desc, data);
@@ -127,7 +128,7 @@ int main(int argc, char** argv) {
         // std::iota(data.begin(), data.end(), 0.0f);
         const auto depth2space_lengths = make_tuple(N, HoBs, WoBs, C);
         const auto depth2space_desc = make_naive_tensor_descriptor_packed(depth2space_lengths);
-        const auto conv_desc = transform_depth2space_to_convolution_nhwc<BlockSize>(depth2space_desc);
+        const auto conv_desc = TransformDepth2SpaceToConvolution_nhwc<BlockSize>{}(depth2space_desc);
 
         // set values in conv
         set_values(conv_desc, data);

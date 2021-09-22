@@ -58,7 +58,6 @@ void device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk(
     const auto K = wei_k_y_x_c_lengths[I0];
     const auto Y = wei_k_y_x_c_lengths[I1];
     const auto X = wei_k_y_x_c_lengths[I2];
-    const auto C = wei_k_y_x_c_lengths[I3];
     const index_t YEff = (Y - 1) * conv_dilations[I0] + 1;
     const index_t XEff = (X - 1) * conv_dilations[I1] + 1;
     const auto Ho = (Hi + in_left_pads[I0] + in_right_pads[I0] - YEff) / conv_strides[I0] + 1;
@@ -272,7 +271,7 @@ void device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk(
         {
             // const auto N = in_n_hi_wi_c_lengths[I0];
             // const auto K = wei_k_y_x_c_lengths[I0];
-            // const auto C = wei_k_y_x_c_lengths[I3];
+            const auto C = wei_k_y_x_c_lengths[I3];
 
             // const auto Ho = out_n_ho_wo_k_lengths[I1];
             // const auto Wo = out_n_ho_wo_k_lengths[I2];
