@@ -109,16 +109,17 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 #endif
 
-    const auto descs = transform_backward_weight_convolution_into_gemm_v4r4r4_atomic_nhwc_kyxc_nhwk_pad(
-        in_n_hi_wi_c_desc,
-        wei_k_y_x_c_desc,
-        out_n_ho_wo_k_desc,
-        conv_strides,
-        conv_dilations,
-        in_left_pads,
-        in_right_pads,
-        Number<GemmK1>{},
-        GemmKBatch);
+    const auto descs =
+        transform_backward_weight_convolution_into_gemm_v4r4r4_atomic_nhwc_kyxc_nhwk_pad(
+            in_n_hi_wi_c_desc,
+            wei_k_y_x_c_desc,
+            out_n_ho_wo_k_desc,
+            conv_strides,
+            conv_dilations,
+            in_left_pads,
+            in_right_pads,
+            Number<GemmK1>{},
+            GemmKBatch);
 
     const auto in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc  = descs[I0];
     const auto out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = descs[I1];
