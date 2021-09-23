@@ -61,27 +61,6 @@ struct TransformDepth2SpaceToConvolution_nhwc
         const auto Ho = HoBs / BlockSize;
         const auto Wo = WoBs / BlockSize;
 
-#define _depth2space_transform_ 5 // 3, 5 give the correct result
-
-#if _depth2space_transform_ == 3
-        const auto depth2space_n_ho_b0_wo_b1_c_desc = transform_tensor_descriptor(
-            depth2space_n_hobs_wobs_c_desc,
-            make_tuple(make_pass_through_transform(N),
-                       make_unmerge_transform(make_tuple(Ho, BlockSize)),
-                       make_unmerge_transform(make_tuple(Wo, BlockSize)),
-                       make_pass_through_transform(C)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
-
-        const auto conv_out_n_ho_wo_k_desc = transform_tensor_descriptor(
-            depth2space_n_ho_b0_wo_b1_c_desc,
-            make_tuple(make_pass_through_transform(N),
-                       make_pass_through_transform(Ho),
-                       make_pass_through_transform(Wo),
-                       make_merge_transform(make_tuple(BlockSize, BlockSize, C))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<3>{}, Sequence<2, 4, 5>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#elif _depth2space_transform_ == 5
         const auto depth2space_n_ho_wo_b0_b1_c_desc = transform_tensor_descriptor(
             depth2space_n_hobs_wobs_c_desc,
             make_tuple(make_pass_through_transform(N),
@@ -99,7 +78,6 @@ struct TransformDepth2SpaceToConvolution_nhwc
                        make_merge_transform(make_tuple(BlockSize, BlockSize, C))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4, 5>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#endif
 
         assert(conv_out_n_ho_wo_k_desc.GetLength(I0) == N);
         assert(conv_out_n_ho_wo_k_desc.GetLength(I1)*BlockSize == HoBs);
@@ -107,7 +85,6 @@ struct TransformDepth2SpaceToConvolution_nhwc
         assert(conv_out_n_ho_wo_k_desc.GetLength(I3) == C*BlockSize*BlockSize);
 
         return conv_out_n_ho_wo_k_desc;
-#undef _depth2space_transform_
     }
 };
 

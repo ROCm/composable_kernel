@@ -26,7 +26,7 @@
 #define USE_CONV_FWD_V6R1_NCHW 0
 #define USE_CONV_FWD_V5R1_NCHW 0
 #define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
-#define USE_CONV_FWD_V4R4R4_XDL_NHWC 0
+#define USE_CONV_FWD_V4R4R4_XDL_NHWC 1
 
 enum ConvForwardAlgo
 {
@@ -37,8 +37,6 @@ enum ConvForwardAlgo
     V4R4R2XDLNCHW, // 4
     V4R4R4XDLNHWC  // 5
 };
-
-#define _do_depth2space_
 
 int main(int argc, char* argv[])
 {
@@ -51,6 +49,8 @@ int main(int argc, char* argv[])
     constexpr auto I4 = Number<4>{};
     constexpr auto I5 = Number<5>{};
     constexpr auto I6 = Number<6>{};
+
+    constexpr int BlockSize = 1;
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
@@ -170,20 +170,16 @@ int main(int argc, char* argv[])
         wei_lengths_host[1] = static_cast<std::size_t>(Y);
         wei_lengths_host[2] = static_cast<std::size_t>(X);
         wei_lengths_host[3] = static_cast<std::size_t>(C);
+        assert(K % (BlockSize*BlockSize) == 0);
         out_lengths_host[0] = static_cast<std::size_t>(N);
-        out_lengths_host[1] = static_cast<std::size_t>(Ho);
-        out_lengths_host[2] = static_cast<std::size_t>(Wo);
-        out_lengths_host[3] = static_cast<std::size_t>(K);
+        out_lengths_host[1] = static_cast<std::size_t>(Ho*BlockSize);
+        out_lengths_host[2] = static_cast<std::size_t>(Wo*BlockSize);
+        out_lengths_host[3] = static_cast<std::size_t>(K/(BlockSize*BlockSize));
     }
     else
     {
         std::runtime_error("wrong! not implemented");
     }
-
-#ifdef _do_depth2space_
-    constexpr int BlockSize = 4;
-    out_lengths_host = {static_cast<std::size_t>(N), static_cast<std::size_t>(Ho*BlockSize), static_cast<std::size_t>(Wo*BlockSize), static_cast<std::size_t>(K/(BlockSize*BlockSize))};
-#endif
 
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
@@ -256,11 +252,7 @@ int main(int argc, char* argv[])
     auto f_make_for_device_nhwc = [&]() {
         const auto in_lengths_dev     = make_tuple(N, Hi, Wi, C);
         const auto wei_lengths_dev    = make_tuple(K, Y, X, C);
-#ifndef _do_depth2space_
-        const auto out_lengths_dev    = make_tuple(N, Ho, Wo, K);
-#else
         const auto out_lengths_dev    = make_tuple(N, Ho*BlockSize, Wo*BlockSize, K/(BlockSize*BlockSize));
-#endif
         const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
         const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
         const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
@@ -311,21 +303,6 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nhwc();
 
-#ifndef _do_depth2space_
-        device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk<in_data_t,
-                                                                             acc_data_t,
-                                                                             out_data_t>(tmp[I0],
-                                                                                         tmp[I1],
-                                                                                         tmp[I2],
-                                                                                         tmp[I3],
-                                                                                         tmp[I4],
-                                                                                         tmp[I5],
-                                                                                         tmp[I6],
-                                                                                         in,
-                                                                                         wei,
-                                                                                         out_device,
-                                                                                         nrepeat);
-#else
         device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk<in_data_t,
                                                                              acc_data_t,
                                                                              out_data_t,
@@ -348,7 +325,6 @@ int main(int argc, char* argv[])
              wei,
              out_device,
              nrepeat);
-#endif
     }
 #endif
 
@@ -442,51 +418,64 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nhwc();
 
-        device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk<in_data_t,
-                                                                              acc_data_t,
-                                                                              out_data_t>(
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            tmp[I3],
-            tmp[I4],
-            tmp[I5],
-            tmp[I6],
-            in,
-            wei,
-            out_device,
-            nrepeat);
+        device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                             acc_data_t,
+                                                                             out_data_t,
+                                                                             decltype(tmp[I0]),
+                                                                             decltype(tmp[I1]),
+                                                                             decltype(tmp[I2]),
+                                                                             decltype(tmp[I3]),
+                                                                             decltype(tmp[I4]),
+                                                                             decltype(tmp[I5]),
+                                                                             decltype(tmp[I6]),
+                                                                             TransformDepth2SpaceToConvolution_nhwc<BlockSize>>
+            (tmp[I0],
+             tmp[I1],
+             tmp[I2],
+             tmp[I3],
+             tmp[I4],
+             tmp[I5],
+             tmp[I6],
+             in,
+             wei,
+             out_device,
+             nrepeat);
     }
 #endif
 
     if(do_verification)
     {
-#ifndef _do_depth2space_
-        host_direct_convolution(in,
-                                wei,
-                                out_host,
-                                make_tuple(conv_stride_h, conv_stride_w),
-                                make_tuple(conv_dilation_h, conv_dilation_w),
-                                make_tuple(in_left_pad_h, in_left_pad_w),
-                                make_tuple(in_right_pad_h, in_right_pad_w),
-                                layout);
-#else
-        std::vector<std::size_t> conv_out_lengths = {static_cast<std::size_t>(N), 
-            static_cast<std::size_t>(Ho), 
-            static_cast<std::size_t>(Wo), 
-            static_cast<std::size_t>(K)};
-        Tensor<out_data_t> conv_out_host (conv_out_lengths);
-        host_direct_convolution(in,
-                                wei,
-                                conv_out_host,
-                                make_tuple(conv_stride_h, conv_stride_w),
-                                make_tuple(conv_dilation_h, conv_dilation_w),
-                                make_tuple(in_left_pad_h, in_left_pad_w),
-                                make_tuple(in_right_pad_h, in_right_pad_w),
-                                layout);
-    
-    host_depth2space<out_data_t, out_data_t, BlockSize>(conv_out_host, out_host, layout);
-#endif
+        if constexpr (BlockSize == 1)
+        {
+            host_direct_convolution(in,
+                                    wei,
+                                    out_host,
+                                    make_tuple(conv_stride_h, conv_stride_w),
+                                    make_tuple(conv_dilation_h, conv_dilation_w),
+                                    make_tuple(in_left_pad_h, in_left_pad_w),
+                                    make_tuple(in_right_pad_h, in_right_pad_w),
+                                    layout);
+        }
+        else
+        {
+
+            std::vector<std::size_t> conv_out_lengths = {static_cast<std::size_t>(N), 
+                static_cast<std::size_t>(Ho), 
+                static_cast<std::size_t>(Wo), 
+                static_cast<std::size_t>(K)};
+            Tensor<out_data_t> conv_out_host (conv_out_lengths);
+            host_direct_convolution(in,
+                                    wei,
+                                    conv_out_host,
+                                    make_tuple(conv_stride_h, conv_stride_w),
+                                    make_tuple(conv_dilation_h, conv_dilation_w),
+                                    make_tuple(in_left_pad_h, in_left_pad_w),
+                                    make_tuple(in_right_pad_h, in_right_pad_w),
+                                    layout);
+
+            host_depth2space<out_data_t, out_data_t, BlockSize>(conv_out_host, out_host, layout);
+        }
+
         check_error(out_host, out_device);
 
         if(do_log)
