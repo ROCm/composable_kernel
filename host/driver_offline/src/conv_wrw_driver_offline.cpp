@@ -22,7 +22,7 @@
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 0
 #define USE_CONV_WRW_V4R4R4_XDL_NHWC 0
 #define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 0
-#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 1
+#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 0
 #define USE_CONV_WRW_V4R4R5_XDL_ATOMIC_NHWC 1
 
 enum ConvBackwardWeightAlgo
@@ -125,18 +125,21 @@ int main(int argc, char* argv[])
     constexpr auto Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
 #endif
 
-#if 1
+#if 0
     using in_data_t  = float;
+    using wei_data_t = float;
     using acc_data_t = float;
     using out_data_t = float;
 #elif 1
     using in_data_t   = half_t;
-    using acc_data_t  = float;
     using out_data_t  = half_t;
+    using acc_data_t  = float;
+    using wei_data_t  = float;
 #elif 1
     using in_data_t  = int8_t;
-    using acc_data_t = int32_t;
     using out_data_t = int8_t;
+    using acc_data_t = int32_t;
+    using wei_data_t = int8_t;
 #endif
 
     std::vector<std::size_t> in_lengths_host(4), wei_lengths_host(4), out_lengths_host(4);
@@ -177,8 +180,8 @@ int main(int argc, char* argv[])
     }
 
     Tensor<in_data_t> in(in_lengths_host);
-    Tensor<in_data_t> wei_device(wei_lengths_host);
-    Tensor<out_data_t> wei_host(wei_lengths_host);
+    Tensor<wei_data_t> wei_device(wei_lengths_host);
+    Tensor<wei_data_t> wei_host(wei_lengths_host);
     Tensor<out_data_t> out(out_lengths_host);
 
     std::cout << "layout: " << layout << std::endl;
@@ -385,6 +388,7 @@ int main(int argc, char* argv[])
 
         device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk<
             in_data_t,
+            wei_data_t,
             acc_data_t,
             out_data_t>(tmp[I0],
                         tmp[I1],
