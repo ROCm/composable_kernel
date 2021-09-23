@@ -20,7 +20,7 @@
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
-#define USE_CONV_WRW_V4R4R4_XDL_NHWC 0
+#define USE_CONV_WRW_V4R4R4_XDL_NHWC 1
 #define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 0
 #define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 1
 #define USE_CONV_WRW_V4R4R5_XDL_ATOMIC_NHWC 1
@@ -306,6 +306,7 @@ int main(int argc, char* argv[])
         const auto tmp = f_make_for_device_nhwc();
 
         device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                                      wei_data_t,
                                                                                       acc_data_t,
                                                                                       out_data_t>(
             tmp[I0],

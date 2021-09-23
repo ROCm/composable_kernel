@@ -4,7 +4,8 @@
 #include "transform_backward_weight_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk.hpp"
 #include "driver_gemm_xdlops_v2r3.hpp"
 
-template <typename TInWei,
+template <typename TIn,
+          typename TWei,
           typename TAcc,
           typename TOut,
           typename InLengths,
@@ -22,8 +23,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nh
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
     const InRightPads& in_right_pads,
-    const Tensor<TInWei>& in_n_hi_wi_c,
-    Tensor<TInWei>& wei_k_y_x_c,
+    const Tensor<TIn>& in_n_hi_wi_c,
+    Tensor<TWei>& wei_k_y_x_c,
     const Tensor<TOut>& out_n_ho_wo_k,
     ck::index_t nrepeat)
 {
@@ -36,8 +37,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nh
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    DeviceMem in_n_hi_wi_c_device_buf(sizeof(TInWei) * in_n_hi_wi_c.mDesc.GetElementSpace());
-    DeviceMem wei_k_y_x_c_device_buf(sizeof(TInWei) * wei_k_y_x_c.mDesc.GetElementSpace());
+    DeviceMem in_n_hi_wi_c_device_buf(sizeof(TIn) * in_n_hi_wi_c.mDesc.GetElementSpace());
+    DeviceMem wei_k_y_x_c_device_buf(sizeof(TWei) * wei_k_y_x_c.mDesc.GetElementSpace());
     DeviceMem out_n_ho_wo_k_device_buf(sizeof(TOut) * out_n_ho_wo_k.mDesc.GetElementSpace());
 
     in_n_hi_wi_c_device_buf.ToDevice(in_n_hi_wi_c.mData.data());
@@ -194,9 +195,9 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nh
     {
         float ave_time = driver_gemm_xdlops_v2r3<
             BlockSize,
-            TInWei,
+            TIn,
             TAcc,
-            TOut,
+            TWei,
             InMemoryDataOperationEnum_t::Set,
             decltype(in_gemmk0_gemmm_gemmk1_grid_desc),
             decltype(out_gemmk0_gemmn_gemmk1_grid_desc),
@@ -234,9 +235,9 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nh
             decltype(in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(out_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
             false // CAccessOrderMRepeatNRepeat
-            >(static_cast<TInWei*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
+            >(static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
               static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
-              static_cast<TInWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
+              static_cast<TWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
               in_gemmk0_gemmm_gemmk1_grid_desc,
               out_gemmk0_gemmn_gemmk1_grid_desc,
               wei_gemmm_gemmn_grid_desc,
