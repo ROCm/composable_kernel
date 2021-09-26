@@ -30,8 +30,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
     static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
 
-    static constexpr index_t K0        = BK0NK1BlockDesc{}.GetLength(I0);
-    static constexpr index_t KPerBlock = K0;
+    static constexpr index_t K0 = BK0NK1BlockDesc{}.GetLength(I0);
 
     static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, K1>{};
 
@@ -168,7 +167,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     {
         return transform_tensor_descriptor(
             AK0MK1BlockDesc{},
-            make_tuple(make_pass_through_transform(Number<KPerBlock>{}),
+            make_tuple(make_pass_through_transform(Number<K0>{}),
                        make_unmerge_transform(
                            make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerXDL>{})),
                        make_pass_through_transform(Number<K1>{})),
@@ -180,7 +179,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     {
         return transform_tensor_descriptor(
             BK0NK1BlockDesc{},
-            make_tuple(make_pass_through_transform(Number<KPerBlock>{}),
+            make_tuple(make_pass_through_transform(Number<K0>{}),
                        make_unmerge_transform(
                            make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerXDL>{})),
                        make_pass_through_transform(Number<K1>{})),
@@ -201,40 +200,37 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatAB>(
             b_thread_desc_.GetElementSpaceSize());
 
-        vector_type<FloatAB, K1> a_thread_vec;
-
-        vector_type<FloatAB, K1> b_thread_vec;
-
-        static_for<0, KPerBlock, xdlops_gemm.KPerXdlops / xdlops_gemm.KPerThread>{}([&](auto k0) {
+        static_for<0, MRepeat, 1>{}([&](auto m0) {
             // read A
             a_thread_copy_.Run(a_k0_m0_m1_m2_k1_block_desc,
-                               make_tuple(k0, I0, I0, I0, I0),
+                               make_tuple(I0, m0, I0, I0, I0),
                                a_block_buf,
                                a_thread_desc_,
                                make_tuple(I0, I0, I0, I0, I0),
                                a_thread_buf);
 
-            // read B
-            b_thread_copy_.Run(b_k0_n0_n1_n2_k1_block_desc,
-                               make_tuple(k0, I0, I0, I0, I0),
-                               b_block_buf,
-                               b_thread_desc_,
-                               make_tuple(I0, I0, I0, I0, I0),
-                               b_thread_buf);
+            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                // read B
+                b_thread_copy_.Run(b_k0_n0_n1_n2_k1_block_desc,
+                                   make_tuple(I0, n0, I0, I0, I0),
+                                   b_block_buf,
+                                   b_thread_desc_,
+                                   make_tuple(I0, I0, I0, I0, I0),
+                                   b_thread_buf);
 
-            using mfma_input_type = typename vector_type<FloatAB, xdlops_gemm.KPerThread>::type;
+                static_for<0, K0, xdlops_gemm.K0PerXdlops>{}([&](auto k0) {
+                    vector_type<FloatAB, K1> a_thread_vec;
+                    vector_type<FloatAB, K1> b_thread_vec;
 
-            static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, K1, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
-                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, m0, 0, 0, i))>{}];
+                            [Number<a_thread_desc_.CalculateOffset(make_tuple(k0, 0, 0, 0, i))>{}];
+                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
+                            [Number<b_thread_desc_.CalculateOffset(make_tuple(k0, 0, 0, 0, i))>{}];
                     });
 
-                    static_for<0, K1, 1>{}([&](auto i) {
-                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, n0, 0, 0, i))>{}];
-                    });
+                    using mfma_input_type =
+                        typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
 
                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(make_tuple(m0, n0));
 
@@ -248,12 +244,12 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     private:
     // A[K, M]
-    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(I1, Number<MRepeat>{}, I1, I1, Number<K1>{}));
+    static constexpr auto a_thread_desc_ =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<K0>{}, I1, I1, I1, Number<K1>{}));
 
     // B[K, N]
-    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(I1, Number<NRepeat>{}, I1, I1, Number<K1>{}));
+    static constexpr auto b_thread_desc_ =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<K0>{}, I1, I1, I1, Number<K1>{}));
 
     static constexpr auto c_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
@@ -262,21 +258,21 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          FloatAB,
                                                          decltype(a_k0_m0_m1_m2_k1_block_desc),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, MRepeat, 1, 1, K1>,
+                                                         Sequence<K0, 1, 1, 1, K1>,
                                                          Sequence<0, 1, 2, 3, 4>,
                                                          4,
                                                          K1,
-                                                         1>;
+                                                         K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
                                                          decltype(b_k0_n0_n1_n2_k1_block_desc),
                                                          decltype(b_thread_desc_),
-                                                         Sequence<1, NRepeat, 1, 1, K1>,
+                                                         Sequence<K0, 1, 1, 1, K1>,
                                                          Sequence<0, 1, 2, 3, 4>,
                                                          4,
                                                          K1,
-                                                         1>;
+                                                         K1>;
 
     AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
     BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
