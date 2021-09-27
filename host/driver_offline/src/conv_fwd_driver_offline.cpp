@@ -22,7 +22,7 @@
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_FWD_V4R4_NCHW 0
-#define USE_CONV_FWD_V4R4R2_NHWC 1
+#define USE_CONV_FWD_V4R4R2_NHWC 0
 #define USE_CONV_FWD_V6R1_NCHW 0
 #define USE_CONV_FWD_V5R1_NCHW 0
 #define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
@@ -30,7 +30,7 @@
 
 enum ConvForwardAlgo
 {
-    V4R4NCHW,      // 0
+    V4R4NCHW=0,      // 0
     V4R4R2NHWC,    // 1
     V6R1NCHW,      // 2
     V5R1NCHW,      // 3
@@ -418,17 +418,17 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nhwc();
 
-        device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk<in_data_t,
-                                                                             acc_data_t,
-                                                                             out_data_t,
-                                                                             decltype(tmp[I0]),
-                                                                             decltype(tmp[I1]),
-                                                                             decltype(tmp[I2]),
-                                                                             decltype(tmp[I3]),
-                                                                             decltype(tmp[I4]),
-                                                                             decltype(tmp[I5]),
-                                                                             decltype(tmp[I6]),
-                                                                             TransformDepth2SpaceToConvolution_nhwc<BlockSize>>
+        device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                              acc_data_t,
+                                                                              out_data_t,
+                                                                              decltype(tmp[I0]),
+                                                                              decltype(tmp[I1]),
+                                                                              decltype(tmp[I2]),
+                                                                              decltype(tmp[I3]),
+                                                                              decltype(tmp[I4]),
+                                                                              decltype(tmp[I5]),
+                                                                              decltype(tmp[I6]),
+                                                                              TransformDepth2SpaceToConvolution_nhwc<BlockSize>>
             (tmp[I0],
              tmp[I1],
              tmp[I2],

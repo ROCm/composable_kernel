@@ -5,7 +5,7 @@
 
 enum ConvTensorLayout
 {
-    NCHW,
+    NCHW=0,
     NHWC,
     CHWN,
     NCHWc,
