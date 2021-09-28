@@ -50,8 +50,8 @@ int main(int argc, char* argv[])
     if(argc != 12)
     {
         printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
-        printf("rest: M, N, K, debug_driver_gemm_xdlops_v2r3::M01, "
-               "debug_driver_gemm_xdlops_v2r3::N01\n");
+        printf("rest: M, N, K\n");
+        printf("debug_driver_gemm_xdlops_v2r3::M01, debug_driver_gemm_xdlops_v2r3::N01\n");
         exit(1);
     }
 

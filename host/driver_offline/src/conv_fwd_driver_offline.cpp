@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
+#include "debug.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -55,6 +56,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
         printf("rest: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx\n");
+        printf("debug_driver_gemm_xdlops_v2r3::M01, debug_driver_gemm_xdlops_v2r3::N01\n");
         exit(1);
     }
 

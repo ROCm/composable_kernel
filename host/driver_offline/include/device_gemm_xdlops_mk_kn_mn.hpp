@@ -107,6 +107,34 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
 #elif 0
+    // [M, N, K0, K1] = [128, 64, 4, 4], C = 32,  for fp32
+    constexpr index_t BlockSize = 256;
+
+    constexpr index_t MPerBlock = 128;
+    constexpr index_t NPerBlock = 64;
+    constexpr index_t KPerBlock = 4;
+
+    constexpr index_t MPerXDL = 32;
+    constexpr index_t NPerXDL = 32;
+    constexpr index_t K1      = 4;
+
+    constexpr index_t MRepeat = 2;
+    constexpr index_t NRepeat = 1;
+
+    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 2, 4>;
+    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 64, 1>;
+
+    constexpr index_t ABlockTransferSrcScalarPerVector_K1 = 4;
+    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 4;
+
+    using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 1, 4>;
+    using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
+
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 1;
+    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 4;
+
+    constexpr index_t CThreadTransferDstScalarPerVector = 1;
+#elif 0
     // [M, N, K0, K1] = [64, 128, 4, 4], C = 32,  for fp32
     constexpr index_t BlockSize = 256;
 
@@ -134,7 +162,7 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 4;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
-#elif 1
+#elif 0
     // [M, N, K0, K1] = [256, 128, 4, 8], C = 128, for fp16
     constexpr index_t BlockSize = 256;
 
@@ -243,6 +271,34 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
     using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
 
     constexpr index_t BBlockTransferSrcScalarPerVector_N  = 2;
+    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
+
+    constexpr index_t CThreadTransferDstScalarPerVector = 1;
+#elif 1
+    // [M, N, K0, K1] = [128, 64, 4, 8], C = 32, for fp16
+    constexpr index_t BlockSize = 256;
+
+    constexpr index_t MPerBlock = 128;
+    constexpr index_t NPerBlock = 64;
+    constexpr index_t KPerBlock = 4;
+
+    constexpr index_t MPerXDL = 32;
+    constexpr index_t NPerXDL = 32;
+    constexpr index_t K1      = 8;
+
+    constexpr index_t MRepeat = 2;
+    constexpr index_t NRepeat = 1;
+
+    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 2, 8>;
+    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 64, 1>;
+
+    constexpr index_t ABlockTransferSrcScalarPerVector_K1 = 8;
+    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 8;
+
+    using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 1, 8>;
+    using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
+
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 1;
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
