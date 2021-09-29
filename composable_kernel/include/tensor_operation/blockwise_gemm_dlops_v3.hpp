@@ -13,8 +13,7 @@ template <index_t BlockSize,
           typename ABlockDesc_E1_K_E2,
           typename BBlockDesc_E1_N_Ho_Wo_E2,
           typename CThreadDesc_K_N_Ho_Wo,
-          index_t EPerThreadLoop,
-          index_t ThreadGemmADataPerRead_E2>
+          index_t EPerThreadLoop>
 struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -42,7 +41,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     static constexpr auto HPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I2);
     static constexpr auto WPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I3);
 
-    static constexpr index_t KPerThreadLoop = KPerThread;
+    static constexpr index_t KPerThreadLoop = 2;
 
     static constexpr auto a_thread_mtx_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<EPerThreadLoop>{}, Number<KPerThreadLoop>{}, Number<E2>{}));
@@ -162,14 +161,14 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 
     using AThreadCopy =
         ThreadwiseTensorSliceTransfer_v4<FloatA,
-                                         FloatB,
+                                         FloatA,
                                          ABlockDesc_E1_K_E2,
                                          decltype(a_thread_mtx_),
                                          Sequence<EPerThreadLoop, KPerThreadLoop, E2>,
                                          Sequence<0, 1, 2>,
                                          2,
-                                         ThreadGemmADataPerRead_E2,
-                                         ThreadGemmADataPerRead_E2>;
+                                         E2,
+                                         E2>;
 
     AThreadCopy a_thread_copy_;
 };

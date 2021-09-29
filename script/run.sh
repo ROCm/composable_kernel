@@ -29,6 +29,8 @@ INIT=$4
 LOG=$5
 REPEAT=$6
 
+./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT
+
 ################################################ layout  algo  verify  init  log  repeat  N__ K___ C___ Y X Hi_ Wi__ Strides Dilations LeftPads RightPads
 #./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  128  192 3 3  71   71     2 2       1 1      1 1       1 1
 #./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  256  192 3 3  71   71     2 2       1 1      1 1       1 1
@@ -51,7 +53,7 @@ REPEAT=$6
 
 #./host/driver_online/conv_fwd_driver_online    $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  128  192 3 3  71   71     2 2       1 1      1 1       1 1
 
-./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1  16  16 3 3  1080   1920     1 1       1 1      1 1       1 1
+#./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1  16  16 3 3  1080   1920     1 1       1 1      1 1       1 1
 #./host/driver_offline/conv_fwd_driver_offline  $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  1  16  16 1 1  16   16     1 1       1 1      0 0       0 0
 
 ################################################ layout  algo  verify  init  log  repeat  M___ N___ K___

@@ -19,6 +19,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
           typename CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo,
+          bool HasMainE0BlockLoop,
           bool HasMainE1BlockLoop,
           bool HasDoubleTailE1BlockLoop>
 __global__ void
@@ -46,6 +47,7 @@ __global__ void
                       a_e0_e1_k_e2_grid_desc,
                       b_e0_e1_n_ho_wo_e2_grid_desc,
                       c_k_n_ho_wo_grid_desc,
+                      integral_constant<bool, HasMainE0BlockLoop>{},
                       integral_constant<bool, HasMainE1BlockLoop>{},
                       integral_constant<bool, HasDoubleTailE1BlockLoop>{});
 }
@@ -60,6 +62,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
           typename CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo,
+          bool HasMainE0BlockLoop,
           bool HasMainE1BlockLoop,
           bool HasDoubleTailE1BlockLoop>
 __global__ void
@@ -96,6 +99,7 @@ __global__ void
                       a_e0_e1_k_e2_grid_desc,
                       b_e0_e1_n_ho_wo_e2_grid_desc,
                       c_k_n_ho_wo_grid_desc,
+                      integral_constant<bool, HasMainE0BlockLoop>{},
                       integral_constant<bool, HasMainE1BlockLoop>{},
                       integral_constant<bool, HasDoubleTailE1BlockLoop>{});
 }
@@ -138,7 +142,8 @@ template <index_t BlockSize,
           typename BGlobalStepHacks,
           typename CGlobalStepHacks,
           typename AGlobalMoveSliceWindowStepHacks,
-          typename BGlobalMoveSliceWindowStepHacks>
+          typename BGlobalMoveSliceWindowStepHacks,
+          index_t activ_type = 0>
 struct GridwiseGemmDlops_km_kn_mn_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -167,7 +172,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         return a_block_space_size * sizeof(FloatAB);
     }
 
-    template <bool HasMainE1BlockLoop, bool HasDoubleTailE1BlockLoop>
+    template <bool HasMainE0BlockLoop, bool HasMainE1BlockLoop, bool HasDoubleTailE1BlockLoop>
     __device__ static void Run(const FloatAB* __restrict__ p_a_global,
                                const FloatAB* __restrict__ p_b_global,
                                FloatC* __restrict__ p_c_global,
@@ -175,6 +180,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                const AGlobalDesc_E0_E1_K_E2& a_e0_e1_k_e2_global_desc,
                                const BGlobalDesc_E0_E1_N_Ho_Wo_E2& b_e0_e1_n_ho_wo_e2_global_desc,
                                const CGlobalDesc_K_N_Ho_Wo& c_k_n_ho_wo_global_desc,
+                               integral_constant<bool, HasMainE0BlockLoop>,
                                integral_constant<bool, HasMainE1BlockLoop>,
                                integral_constant<bool, HasDoubleTailE1BlockLoop>)
     {
@@ -253,8 +259,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                                  decltype(a_e1_k_e2_block_desc),
                                                  decltype(b_e1_n_ho_wo_e2_block_desc),
                                                  decltype(c_k_n_ho_wo_thread_desc),
-                                                 EPerThread,
-                                                 ABlockTransferDstScalarPerVector_E2>{};
+                                                 EPerThread>{};
 
         auto c_thread_mtx_index =
             blockwise_gemm.GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id());
@@ -356,8 +361,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                      b_e0_e1_n_ho_wo_e2_thread_desc.GetElementSpaceSize(),
                      true>
             b_thread_even_buf, b_thread_odd_buf;
-
-        constexpr auto HasMainE0BlockLoop = false;
 
         if constexpr(HasMainE0BlockLoop)
         {
@@ -564,6 +567,27 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                 // LDS double buffer: GEMM on last data
                 blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
             }
+        }
+
+        // activ
+        {
+            static_for<0, c_k_n_ho_wo_thread_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
+                if constexpr(activ_type == 1)
+                {
+                    c_thread_buf(i) = c_thread_buf[i] >= 0 ? c_thread_buf[i] : 0.0;
+                }
+                else if constexpr(activ_type == 2)
+                {
+                    FloatAcc x = 1.0 + exp(-c_thread_buf[i]);
+
+                    asm volatile("\n \
+                        v_rcp_f32 %0, %1 \n"
+                                 : "=v"(x)
+                                 : "0"(x));
+
+                    c_thread_buf(i) = x;
+                }
+            });
         }
 
         // output: register to global memory

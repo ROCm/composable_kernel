@@ -34,7 +34,7 @@ enum ConvForwardAlgo
     V4R4NCHW,      // 0
     V4R4R2NHWC,    // 1
     V6R1NCHW,      // 2
-    V5R1NCHWc,     // 3
+    V5R1NCHWC,     // 3
     V5R1NHWC,      // 4
     V4R4R2XDLNCHW, // 5
     V4R4R4XDLNHWC  // 6
@@ -105,13 +105,57 @@ int main(int argc, char* argv[])
     const bool do_log             = std::stoi(argv[5]);
     const int nrepeat             = std::stoi(argv[6]);
 
+    constexpr index_t activ_type = 0;
+
+#if 1
+    constexpr auto N             = Number<1>{};
+    constexpr auto C             = Number<16>{};
+    constexpr auto Hi            = Number<1080>{};
+    constexpr auto Wi            = Number<1920>{};
+    constexpr auto K             = Number<64>{};
+    constexpr auto Y             = Number<3>{};
+    constexpr auto X             = Number<3>{};
+#elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<1080>{};
-    constexpr auto Wi = Number<1920>{};
-    constexpr auto K  = Number<16>{};
+    constexpr auto Hi = Number<540>{};
+    constexpr auto Wi = Number<960>{};
+    constexpr auto K  = Number<64>{};
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
+#elif 0
+    constexpr auto N  = Number<1>{};
+    constexpr auto C  = Number<16>{};
+    constexpr auto Hi = Number<270>{};
+    constexpr auto Wi = Number<480>{};
+    constexpr auto K  = Number<64>{};
+    constexpr auto Y  = Number<3>{};
+    constexpr auto X  = Number<3>{};
+#elif 0
+    constexpr auto N  = Number<1>{};
+    constexpr auto C  = Number<16>{};
+    constexpr auto Hi = Number<135>{};
+    constexpr auto Wi = Number<240>{};
+    constexpr auto K  = Number<64>{};
+    constexpr auto Y  = Number<3>{};
+    constexpr auto X  = Number<3>{};
+#elif 0
+    constexpr auto N  = Number<1>{};
+    constexpr auto C  = Number<16>{};
+    constexpr auto Hi = Number<1440>{};
+    constexpr auto Wi = Number<2560>{};
+    constexpr auto K  = Number<64>{};
+    constexpr auto Y  = Number<3>{};
+    constexpr auto X  = Number<3>{};
+#elif 0
+    constexpr auto N  = Number<1>{};
+    constexpr auto C  = Number<16>{};
+    constexpr auto Hi = Number<2160>{};
+    constexpr auto Wi = Number<3840>{};
+    constexpr auto K  = Number<64>{};
+    constexpr auto Y  = Number<3>{};
+    constexpr auto X  = Number<3>{};
+#endif
 
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;
@@ -345,7 +389,7 @@ int main(int argc, char* argv[])
 #endif
 
 #if USE_CONV_FWD_V5R1_NCHWC
-    if(algo == ConvForwardAlgo::V5R1NCHWc)
+    if(algo == ConvForwardAlgo::V5R1NCHWC)
     {
         if(layout != ConvTensorLayout::NCHW)
         {
@@ -356,7 +400,9 @@ int main(int argc, char* argv[])
 
         device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw<in_data_t,
                                                                            acc_data_t,
-                                                                           out_data_t>(tmp[I0],
+                                                                           out_data_t,
+                                                                           8,
+                                                                           activ_type>(tmp[I0],
                                                                                        tmp[I1],
                                                                                        tmp[I2],
                                                                                        tmp[I3],
@@ -459,7 +505,8 @@ int main(int argc, char* argv[])
                                 make_tuple(conv_dilation_h, conv_dilation_w),
                                 make_tuple(in_left_pad_h, in_left_pad_w),
                                 make_tuple(in_right_pad_h, in_right_pad_w),
-                                layout);
+                                layout,
+                                activ_type);
 
         check_error(out_host, out_device);
 

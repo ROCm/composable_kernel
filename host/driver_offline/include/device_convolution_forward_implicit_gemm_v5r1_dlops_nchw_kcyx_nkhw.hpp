@@ -6,6 +6,8 @@
 template <typename TInWei,
           typename TAcc,
           typename TOut,
+          ck::index_t InWeiVectorSize,
+          ck::index_t activ_type,
           typename InLengths,
           typename WeiLengths,
           typename OutLengths,
@@ -48,21 +50,11 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     const auto Y = wei_k_c_y_x_lengths[I2];
     const auto X = wei_k_c_y_x_lengths[I3];
 
-    constexpr auto InWeiVectorSize = 8;
-
-#if 1
     const auto C0 = C / Number<InWeiVectorSize>{};
     const auto C1 = Number<InWeiVectorSize>{};
 
     const auto K0 = K / Number<InWeiVectorSize>{};
     const auto K1 = Number<InWeiVectorSize>{};
-#else
-    const auto C0 = 1;
-    const auto C1 = C;
-
-    const auto K0 = 1;
-    const auto K1 = K;
-#endif
 
     Tensor<TInWei> in_n_c0_hi_wi_c1(
         HostTensorDescriptor(std::initializer_list<index_t>{N, C0, Hi, Wi, C1}));
@@ -92,31 +84,55 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
 
     const auto in_n_c0_hi_wi_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1));
+        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, I1));
     const auto wei_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1));
+        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, I1));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 
-#if 1
-    // cdata = 64, BlockSize = 64, 16x8x32x4
+#if 0
+    constexpr index_t BlockSize = 256;
+
+    constexpr index_t KPerBlock  = 32;
+    constexpr index_t HoPerBlock = 8;
+    constexpr index_t WoPerBlock = 64;
+
+    constexpr index_t E1        = C0 * 9;
+    constexpr index_t E2        = 1;
+    constexpr index_t EPerBlock = C0;
+
+    constexpr index_t KPerThread  = 16;
+    constexpr index_t HoPerThread = 2;
+    constexpr index_t WoPerThread = 2;
+    constexpr index_t EPerThread  = 1;
+
+    using ABlockTransferThreadSliceLengths_E0_E1_K_E2   = Sequence<1, 9, 1, E2>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K_E2 = Sequence<1, EPerBlock, KPerBlock, 1>;
+
+    constexpr index_t ABlockTransferSrcScalarPerVector_E2 = E2;
+    constexpr index_t ABlockTransferDstScalarPerVector_E2 = E2;
+
+    constexpr index_t BThreadTransferSrcScalarPerVector_E2 = E2;
+
+    constexpr index_t CThreadTransferDstScalarPerVector_K = K1;
+#elif 1
     constexpr index_t BlockSize = 64;
 
     constexpr index_t KPerBlock  = 16;
     constexpr index_t HoPerBlock = 8;
     constexpr index_t WoPerBlock = 32;
 
-    constexpr index_t E1        = 2 * 9;
-    constexpr index_t E2        = C1;
-    constexpr index_t EPerBlock = 2;
+    constexpr index_t E1        = C0 * 9;
+    constexpr index_t E2        = 1;
+    constexpr index_t EPerBlock = C0;
 
-    constexpr index_t KPerThread  = KPerBlock;
+    constexpr index_t KPerThread  = 16;
     constexpr index_t HoPerThread = 2;
     constexpr index_t WoPerThread = 2;
     constexpr index_t EPerThread  = 1;
 
     using ABlockTransferThreadSliceLengths_E0_E1_K_E2   = Sequence<1, 9, 1, E2>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K_E2 = Sequence<1, EPerBlock, 16, 1>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K_E2 = Sequence<1, EPerBlock, KPerBlock, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E2 = E2;
     constexpr index_t ABlockTransferDstScalarPerVector_E2 = E2;
@@ -129,7 +145,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     constexpr auto conv_driver =
         DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nchw_kcyx_nkhw_outpad<
             BlockSize,
-            TInWei,
+            typename vector_type<TInWei, InWeiVectorSize>::type,
             TAcc,
             TOut,
             E1,
@@ -147,7 +163,8 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
             ABlockTransferSrcScalarPerVector_E2,
             ABlockTransferDstScalarPerVector_E2,
             BThreadTransferSrcScalarPerVector_E2,
-            CThreadTransferDstScalarPerVector_K>{};
+            CThreadTransferDstScalarPerVector_K,
+            activ_type>{};
 
     for(int i = 0; i < 5; i++)
     {
@@ -160,8 +177,10 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
                             conv_dilations,
                             in_left_pads,
                             in_right_pads,
-                            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
+                                wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
+                                in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
 
