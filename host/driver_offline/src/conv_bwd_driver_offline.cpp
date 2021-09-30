@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
+#include "debug.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -14,6 +15,7 @@
 #include "device_tensor.hpp"
 #include "device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk.hpp"
 #include "device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk.hpp"
+#include "device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk_1x1.hpp"
 
 #define USE_MODE 1
 #define USE_CONV_BWD_V4R1_XDL_NHWC 0
@@ -21,8 +23,8 @@
 
 enum ConvBackwardDataAlgo
 {
-    V4R1XDLNHWC,
-    V4R1R2XDLNHWC,
+    V4R1XDLNHWC,   // 0
+    V4R1R2XDLNHWC, // 1
 };
 
 int main(int argc, char* argv[])
@@ -280,20 +282,41 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nhwc();
 
-        device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk<in_data_t,
-                                                                                    acc_data_t,
-                                                                                    out_data_t>(
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            tmp[I3],
-            tmp[I4],
-            tmp[I5],
-            tmp[I6],
-            in_device,
-            wei,
-            out,
-            nrepeat);
+        if(Y == 1 && X == 1 && conv_stride_h == 1 && conv_stride_w == 1 && in_left_pad_h == 0 &&
+           in_left_pad_w == 0 && in_right_pad_h == 0 && in_right_pad_w == 0)
+        {
+            device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk_1x1<
+                in_data_t,
+                acc_data_t,
+                out_data_t>(tmp[I0],
+                            tmp[I1],
+                            tmp[I2],
+                            tmp[I3],
+                            tmp[I4],
+                            tmp[I5],
+                            tmp[I6],
+                            in_device,
+                            wei,
+                            out,
+                            nrepeat);
+        }
+        else
+        {
+            device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                                        acc_data_t,
+                                                                                        out_data_t>(
+                tmp[I0],
+                tmp[I1],
+                tmp[I2],
+                tmp[I3],
+                tmp[I4],
+                tmp[I5],
+                tmp[I6],
+                in_device,
+                wei,
+                out,
+                nrepeat);
+        }
     }
 #endif
 

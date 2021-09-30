@@ -14,7 +14,7 @@ template <typename TInWei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk(
+void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk_1x1(
     const InLengths& in_n_hi_wi_c_lengths,
     const WeiLengths& wei_k_y_x_c_lengths,
     const OutLengths& out_n_ho_wo_k_lengths,
@@ -313,7 +313,7 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
             for(index_t i_xtilda = 0; i_xtilda < XTilda; ++i_xtilda)
             {
                 const auto descs =
-                    transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk(
+                    transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk_1x1(
                         out_n_ho_wo_k_desc,
                         wei_k_y_x_c_desc,
                         in_n_hi_wi_c_desc,

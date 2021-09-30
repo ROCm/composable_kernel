@@ -48,8 +48,8 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
     const auto wei_k_y_x_c_desc   = make_naive_tensor_descriptor_packed(wei_k_y_x_c_lengths);
     const auto out_n_ho_wo_k_desc = make_naive_tensor_descriptor_packed(out_n_ho_wo_k_lengths);
 
-#if 1
-    // [M, N, K0, K1] = [128, 128, 4, 4] for fp32
+#if 0
+    // [M, N, K0, K1] = [128, 128, 4, 4], C = 64, for fp32
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlock = 128;
@@ -76,7 +76,7 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 4;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 4;
-#elif 1
+#elif 0
     // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
 
@@ -105,7 +105,7 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 4;
 #elif 1
-    // [M, N, K0, K1] = [256, 128, 4, 8] for fp16
+    // [M, N, K0, K1] = [256, 128, 4, 8], C = 128, for fp16
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlock = 256;
@@ -133,7 +133,7 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 4;
 #elif 1
-    // [M, N, K0, K1] = [128, 256, 4, 8] for fp16
+    // [M, N, K0, K1] = [128, 256, 4, 8], C = 128, for fp16
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlock = 128;
@@ -158,34 +158,6 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
 
     constexpr index_t GemmBBlockTransferSrcScalarPerVector_GemmK1 = 8;
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
-
-    constexpr index_t GemmCThreadTransferDstScalarPerVector = 4;
-#elif 0
-    // [M, N, K0, K1] = [256, 128, 4, 4]
-    constexpr index_t BlockSize = 256;
-
-    constexpr index_t GemmMPerBlock = 256;
-    constexpr index_t GemmNPerBlock = 128;
-    constexpr index_t GemmKPerBlock = 4;
-
-    constexpr index_t GemmMPerXDL = 32;
-    constexpr index_t GemmNPerXDL = 32;
-    constexpr index_t GemmK1      = 4;
-
-    constexpr index_t MRepeat = 4;
-    constexpr index_t NRepeat = 2;
-
-    using GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1   = Sequence<1, 4, 4>;
-    using GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmABlockTransferSrcScalarPerVector_GemmM  = 4;
-    constexpr index_t GemmABlockTransferDstScalarPerVector_GemmK1 = 4;
-
-    using GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1   = Sequence<1, 2, 4>;
-    using GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1 = Sequence<4, 64, 1>;
-
-    constexpr index_t GemmBBlockTransferSrcScalarPerVector_GemmK1 = 4;
-    constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 4;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 4;
 #endif
@@ -294,13 +266,17 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
             decltype(in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
             decltype(wei_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(out_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
-            false // CAccessOrderMRepeatNRepeat
+            false,  // CAccessOrderMRepeatNRepeat
+            false,  // ABlockLdsExtraM
+            false   // BBlockLdsExtraN
             >(static_cast<TInWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
               static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
               static_cast<TInWei*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
               wei_gemmk0_gemmm_gemmk1_grid_desc,
               out_gemmk0_gemmn_gemmk1_grid_desc,
               in_gemmm_gemmn_grid_desc,
+              debug_driver_gemm_xdlops_v2r3::M01,
+              debug_driver_gemm_xdlops_v2r3::N01,
               wei_gemmk0_gemmm_gemmk1_grid_step_hacks,
               out_gemmk0_gemmn_gemmk1_grid_step_hacks,
               in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
