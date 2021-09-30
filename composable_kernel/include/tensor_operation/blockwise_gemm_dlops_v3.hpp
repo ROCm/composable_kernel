@@ -13,7 +13,8 @@ template <index_t BlockSize,
           typename ABlockDesc_E1_K_E2,
           typename BBlockDesc_E1_N_Ho_Wo_E2,
           typename CThreadDesc_K_N_Ho_Wo,
-          index_t EPerThreadLoop>
+          index_t EPerThreadLoop,
+          index_t KPerThreadLoop>
 struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -22,26 +23,20 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
 
-    struct MatrixIndex
-    {
-        index_t k;
-        index_t n;
-        index_t h;
-        index_t w;
-    };
+    using AIndex = MultiIndex<3>;
+    using BIndex = MultiIndex<3>;
+    using CIndex = MultiIndex<4>;
 
-    static constexpr auto E1 = ABlockDesc_E1_K_E2{}.GetLength(I0);
-    static constexpr auto K  = ABlockDesc_E1_K_E2{}.GetLength(I1);
-    static constexpr auto E2 = ABlockDesc_E1_K_E2{}.GetLength(I2);
+    static constexpr auto E1        = ABlockDesc_E1_K_E2{}.GetLength(I0);
+    static constexpr auto KPerBlock = ABlockDesc_E1_K_E2{}.GetLength(I1);
+    static constexpr auto E2        = ABlockDesc_E1_K_E2{}.GetLength(I2);
 
-    static constexpr auto H = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
-    static constexpr auto W = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
+    static constexpr auto HPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
+    static constexpr auto WPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
 
     static constexpr auto KPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I0);
     static constexpr auto HPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I2);
     static constexpr auto WPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I3);
-
-    static constexpr index_t KPerThreadLoop = 2;
 
     static constexpr auto a_thread_mtx_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<EPerThreadLoop>{}, Number<KPerThreadLoop>{}, Number<E2>{}));
@@ -57,8 +52,8 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         Number<KPerThreadLoop>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
 
     __device__ BlockwiseGemmDlops_km_kn_m0m1n0n1_v3()
-        : c_thread_begin_mtx_idx_{GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id())},
-          a_thread_copy_{make_tuple(0, c_thread_begin_mtx_idx_.k * KPerThread, 0)}
+        : c_thread_origin_data_idx_{GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id())},
+          a_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I0] * KPerThread, 0)}
     {
         static_assert(ABlockDesc_E1_K_E2::IsKnownAtCompileTime() &&
                           BBlockDesc_E1_N_Ho_Wo_E2::IsKnownAtCompileTime() &&
@@ -73,12 +68,13 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         static_assert(E1 % EPerThreadLoop == 0, "");
         static_assert(KPerThread % KPerThreadLoop == 0, "");
 
-        static_assert(K % KPerThread == 0 && H % HPerThread == 0 && W % WPerThread == 0,
+        static_assert(KPerBlock % KPerThread == 0 && HPerBlock % HPerThread == 0 &&
+                          WPerBlock % WPerThread == 0,
                       "wrong! Cannot evenly divide work among\n");
 
-        constexpr auto KThreadCluster = K / KPerThread;
-        constexpr auto HThreadCluster = H / HPerThread;
-        constexpr auto WThreadCluster = W / WPerThread;
+        constexpr auto KThreadCluster = KPerBlock / KPerThread;
+        constexpr auto HThreadCluster = HPerBlock / HPerThread;
+        constexpr auto WThreadCluster = WPerBlock / WPerThread;
 
         static_assert(BlockSize == KThreadCluster * HThreadCluster * WThreadCluster,
                       "wrong! wrong blocksize\n");
@@ -86,25 +82,27 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 
     __device__ static constexpr auto GetCThreadDesc_K_N_Ho_WoLengths()
     {
-        return Sequence<KPerThread, 1, HPerThread, WPerThread>{};
+        return Sequence<KPerThread, I1, HPerThread, WPerThread>{};
     }
 
-    __device__ static MatrixIndex GetBeginOfCThreadDesc_K_N_Ho_Wo(index_t thread_id)
+    __device__ static CIndex GetBeginOfCThreadDesc_K_N_Ho_Wo(index_t thread_id)
     {
-        constexpr index_t HPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
-        constexpr index_t WPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
+        constexpr auto K0 = KPerBlock / KPerThread;
+        constexpr auto N0 = I1;
+        constexpr auto H0 = HPerBlock / HPerThread;
+        constexpr auto W0 = WPerBlock / WPerThread;
 
-        constexpr auto num_w_threads  = WPerBlock / WPerThread;
-        constexpr auto num_h_threads  = HPerBlock / HPerThread;
-        constexpr auto num_hw_threads = num_w_threads * num_h_threads;
+        constexpr auto c_threadid_to_k_n_h_w_thread_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(K0, N0, H0, W0))),
+                make_tuple(Sequence<0, 1, 2, 3>{}),
+                make_tuple(Sequence<0>{}));
 
-        index_t k_thread_id  = thread_id / num_hw_threads;
-        index_t hw_thread_id = thread_id % num_hw_threads;
+        const auto c_k_n_h_w_thread_cluster_idx =
+            c_threadid_to_k_n_h_w_thread_cluster_adaptor.CalculateBottomIndex(
+                make_multi_index(thread_id));
 
-        index_t h_thread_id = hw_thread_id / num_w_threads;
-        index_t w_thread_id = hw_thread_id % num_w_threads;
-
-        return MatrixIndex{k_thread_id, 1, h_thread_id, w_thread_id};
+        return c_k_n_h_w_thread_cluster_idx;
     }
 
     template <typename ABlockBuffer, typename BThreadBuffer, typename CThreadBuffer>
@@ -157,8 +155,6 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     }
 
     private:
-    MatrixIndex c_thread_begin_mtx_idx_;
-
     using AThreadCopy =
         ThreadwiseTensorSliceTransfer_v4<FloatA,
                                          FloatA,
@@ -169,6 +165,8 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
                                          2,
                                          E2,
                                          E2>;
+
+    CIndex c_thread_origin_data_idx_;
 
     AThreadCopy a_thread_copy_;
 };

@@ -19,9 +19,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
           typename CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo,
-          bool HasMainE0BlockLoop,
-          bool HasMainE1BlockLoop,
-          bool HasDoubleTailE1BlockLoop>
+          bool HasMainE0BlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -47,9 +45,8 @@ __global__ void
                       a_e0_e1_k_e2_grid_desc,
                       b_e0_e1_n_ho_wo_e2_grid_desc,
                       c_k_n_ho_wo_grid_desc,
-                      integral_constant<bool, HasMainE0BlockLoop>{},
-                      integral_constant<bool, HasMainE1BlockLoop>{},
-                      integral_constant<bool, HasDoubleTailE1BlockLoop>{});
+                      c_blockid_to_k_n_ho_wo_block_cluster_adaptor,
+                      integral_constant<bool, HasMainE0BlockLoop>{});
 }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 // pass tensor descriptor by CONSTANT void pointer
@@ -62,9 +59,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
           typename CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo,
-          bool HasMainE0BlockLoop,
-          bool HasMainE1BlockLoop,
-          bool HasDoubleTailE1BlockLoop>
+          bool HasMainE0BlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -86,6 +81,9 @@ __global__ void
         cast_pointer_to_generic_address_space(p_b_e0_e1_n_ho_wo_e2_grid_desc));
     const auto c_k_n_ho_wo_grid_desc = *reinterpret_cast<const CGridDesc_K_N_Ho_Wo*>(
         cast_pointer_to_generic_address_space(p_c_k_n_ho_wo_grid_desc));
+    const auto c_blockid_to_k_n_ho_wo_block_cluster_adaptor =
+        *reinterpret_cast<const CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo*>(
+            cast_pointer_to_generic_address_space(p_c_blockid_to_k_n_ho_wo_block_cluster_adaptor));
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -99,9 +97,8 @@ __global__ void
                       a_e0_e1_k_e2_grid_desc,
                       b_e0_e1_n_ho_wo_e2_grid_desc,
                       c_k_n_ho_wo_grid_desc,
-                      integral_constant<bool, HasMainE0BlockLoop>{},
-                      integral_constant<bool, HasMainE1BlockLoop>{},
-                      integral_constant<bool, HasDoubleTailE1BlockLoop>{});
+                      c_blockid_to_k_n_ho_wo_block_cluster_adaptor,
+                      integral_constant<bool, HasMainE0BlockLoop>{});
 }
 #endif
 
@@ -110,9 +107,9 @@ template <index_t BlockSize,
           typename FloatAcc,
           typename FloatC,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
-          typename AGlobalDesc_E0_E1_K_E2,
-          typename BGlobalDesc_E0_E1_N_Ho_Wo_E2,
-          typename CGlobalDesc_K_N_Ho_Wo,
+          typename AGridDesc_E0_E1_K_E2,
+          typename BGridDesc_E0_E1_N_Ho_Wo_E2,
+          typename CGridDesc_K_N_Ho_Wo,
           index_t E1_,
           index_t E2_,
           index_t KPerBlock,
@@ -153,8 +150,10 @@ struct GridwiseGemmDlops_km_kn_mn_v3
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
-    static constexpr auto E1 = Number<E1_>{};
-    static constexpr auto E2 = Number<E2_>{};
+    static constexpr auto E1        = Number<E1_>{};
+    static constexpr auto E2        = Number<E2_>{};
+    static constexpr auto NPerBlock = I1;
+    static constexpr auto K2        = 2;
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -172,17 +171,143 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         return a_block_space_size * sizeof(FloatAB);
     }
 
-    template <bool HasMainE0BlockLoop, bool HasMainE1BlockLoop, bool HasDoubleTailE1BlockLoop>
-    __device__ static void Run(const FloatAB* __restrict__ p_a_global,
-                               const FloatAB* __restrict__ p_b_global,
-                               FloatC* __restrict__ p_c_global,
-                               FloatAB* __restrict__ p_shared_block,
-                               const AGlobalDesc_E0_E1_K_E2& a_e0_e1_k_e2_global_desc,
-                               const BGlobalDesc_E0_E1_N_Ho_Wo_E2& b_e0_e1_n_ho_wo_e2_global_desc,
-                               const CGlobalDesc_K_N_Ho_Wo& c_k_n_ho_wo_global_desc,
-                               integral_constant<bool, HasMainE0BlockLoop>,
-                               integral_constant<bool, HasMainE1BlockLoop>,
-                               integral_constant<bool, HasDoubleTailE1BlockLoop>)
+    __host__ __device__ static constexpr index_t
+    CalculateGridSize(const CGridDesc_K_N_Ho_Wo& c_k_n_ho_wo_grid_desc)
+    {
+        const auto K  = c_k_n_ho_wo_grid_desc.GetLength(I0);
+        const auto N  = c_k_n_ho_wo_grid_desc.GetLength(I1);
+        const auto Ho = c_k_n_ho_wo_grid_desc.GetLength(I2);
+        const auto Wo = c_k_n_ho_wo_grid_desc.GetLength(I3);
+
+        const auto K0   = K / KPerBlock;
+        const auto N0   = N / NPerBlock;
+        const auto Ho_0 = Ho / HoPerBlock;
+        const auto Wo_0 = Wo / WoPerBlock;
+
+        const index_t grid_size = K0 * N0 * Ho_0 * Wo_0;
+
+        return grid_size;
+    }
+
+    __host__ __device__ static constexpr bool CalculateHasMainE0BlockLoop(const index_t E0)
+    {
+        const bool has_main_e0_block_loop = E0 > 1;
+
+        return has_main_e0_block_loop;
+    }
+
+    __host__ __device__ static constexpr bool CalculateHasMainE1BlockLoop()
+    {
+        const bool has_main_e1_block_loop = (E1 + E1PerBlock) / (2 * E1PerBlock) > 1;
+
+        return has_main_e1_block_loop;
+    }
+
+    __host__ __device__ static constexpr bool CalculateHasDoubleTailE1BlockLoop()
+    {
+        const bool has_double_tail_e1_block_loop = (E1 / E1PerBlock) % 2 == 0;
+
+        return has_double_tail_e1_block_loop;
+    }
+
+    __host__ __device__ static constexpr auto
+    MakeAE0E1K0K1E2GridDescriptor(const AGridDesc_E0_E1_K_E2& a_e0_e1_k_e2_grid_desc)
+    {
+        const auto E0 = a_e0_e1_k_e2_grid_desc.GetLength(I0);
+        // const auto E1 = a_e0_e1_k_e2_grid_desc.GetLength(I1);
+        const auto K = a_e0_e1_k_e2_grid_desc.GetLength(I2);
+        // const auto E2 = a_e0_e1_k_e2_grid_desc.GetLength(I3);
+
+        const auto K1 = Number<KPerBlock>{};
+        const auto K0 = K / K1;
+
+        const auto a_e0_e1_k0_k1_e2_grid_desc = transform_tensor_descriptor(
+            a_e0_e1_k_e2_grid_desc,
+            make_tuple(make_pass_through_transform(E0),
+                       make_pass_through_transform(E1),
+                       make_unmerge_transform(make_tuple(K0, K1)),
+                       make_pass_through_transform(E2)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}));
+
+        return a_e0_e1_k0_k1_e2_grid_desc;
+    }
+
+    __host__ __device__ static constexpr auto MakeBE0E1NH0H1W0W1E2GridDescriptor(
+        const BGridDesc_E0_E1_N_Ho_Wo_E2& b_e0_e1_n_ho_wo_e2_grid_desc)
+    {
+        const auto E0 = b_e0_e1_n_ho_wo_e2_grid_desc.GetLength(I0);
+        // const auto E1 = b_e0_e1_n_ho_wo_e2_grid_desc.GetLength(I1);
+        const auto N  = b_e0_e1_n_ho_wo_e2_grid_desc.GetLength(I2);
+        const auto Ho = b_e0_e1_n_ho_wo_e2_grid_desc.GetLength(I3);
+        const auto Wo = b_e0_e1_n_ho_wo_e2_grid_desc.GetLength(I4);
+        // const auto E2 = b_e0_e1_n_ho_wo_e2_grid_desc.GetLength(I5);
+
+        const auto H1 = Number<HoPerBlock>{};
+        const auto H0 = Ho / H1;
+
+        const auto W1 = Number<WoPerBlock>{};
+        const auto W0 = Wo / W1;
+
+        const auto b_e0_e1_n_h0_h1_w0_w1_e2_grid_desc =
+            transform_tensor_descriptor(b_e0_e1_n_ho_wo_e2_grid_desc,
+                                        make_tuple(make_pass_through_transform(E0),
+                                                   make_pass_through_transform(E1),
+                                                   make_pass_through_transform(N),
+                                                   make_unmerge_transform(make_tuple(H0, H1)),
+                                                   make_unmerge_transform(make_tuple(W0, W1)),
+                                                   make_pass_through_transform(E2)),
+                                        make_tuple(Sequence<0>{},
+                                                   Sequence<1>{},
+                                                   Sequence<2>{},
+                                                   Sequence<3>{},
+                                                   Sequence<4>{},
+                                                   Sequence<5>{}),
+                                        make_tuple(Sequence<0>{},
+                                                   Sequence<1>{},
+                                                   Sequence<2>{},
+                                                   Sequence<3, 4>{},
+                                                   Sequence<5, 6>{},
+                                                   Sequence<7>{}));
+
+        return b_e0_e1_n_h0_h1_w0_w1_e2_grid_desc;
+    }
+
+    __host__ __device__ static constexpr auto
+    MakeCBlockIdToKNHoWoBlockClusterAdaptor(const CGridDesc_K_N_Ho_Wo& c_k_n_ho_wo_grid_desc)
+    {
+        const auto K  = c_k_n_ho_wo_grid_desc.GetLength(I0);
+        const auto N  = c_k_n_ho_wo_grid_desc.GetLength(I1);
+        const auto Ho = c_k_n_ho_wo_grid_desc.GetLength(I2);
+        const auto Wo = c_k_n_ho_wo_grid_desc.GetLength(I3);
+
+        const auto K0   = K / KPerBlock;
+        const auto N0   = N / NPerBlock;
+        const auto Ho_0 = Ho / HoPerBlock;
+        const auto Wo_0 = Wo / WoPerBlock;
+
+        const auto c_blockid_to_k_n_ho_wo_block_cluster_adaptor = make_single_stage_tensor_adaptor(
+            make_tuple(make_merge_transform(make_tuple(K0, N0, Ho_0, Wo_0))),
+            make_tuple(Sequence<0, 1, 2, 3>{}),
+            make_tuple(Sequence<0>{}));
+
+        return c_blockid_to_k_n_ho_wo_block_cluster_adaptor;
+    }
+
+    using CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo =
+        decltype(MakeCBlockIdToKNHoWoBlockClusterAdaptor(CGridDesc_K_N_Ho_Wo{}));
+
+    template <bool HasMainE0BlockLoop>
+    __device__ static void
+    Run(const FloatAB* __restrict__ p_a_global,
+        const FloatAB* __restrict__ p_b_global,
+        FloatC* __restrict__ p_c_global,
+        FloatAB* __restrict__ p_shared_block,
+        const AGridDesc_E0_E1_K_E2& a_e0_e1_k_e2_global_desc,
+        const BGridDesc_E0_E1_N_Ho_Wo_E2& b_e0_e1_n_ho_wo_e2_global_desc,
+        const CGridDesc_K_N_Ho_Wo& c_k_n_ho_wo_global_desc,
+        const CBlockIdToBlockClusterAdaptor_K_N_Ho_Wo& c_blockid_to_k_n_ho_wo_block_cluster_adaptor,
+        integral_constant<bool, HasMainE0BlockLoop>)
     {
         const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_global, a_e0_e1_k_e2_global_desc.GetElementSpaceSize());
@@ -191,40 +316,24 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_global, c_k_n_ho_wo_global_desc.GetElementSpaceSize());
 
-        static_assert(E1 % E1PerBlock == 0, "");
+        constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
+        constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
 
-        // const auto E = a_e0_e1_k_e2_global_desc.GetLength(I0);
-        // const auto K = a_e0_e1_k_e2_global_desc.GetLength(I1);
+        // const auto Ho = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I3);
+        // const auto Wo = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I4);
 
-        // const auto N  = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I1);
-        const auto Ho = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I3);
-        const auto Wo = b_e0_e1_n_ho_wo_e2_global_desc.GetLength(I4);
-
-// divide block work by [M, N]
-#if 0
-        const auto ho_block_work_num  = Ho / Number<HoPerBlock>{};
-        const auto wo_block_work_num  = Wo / Number<WoPerBlock>{};
-        const auto hwo_block_work_num = ho_block_work_num * wo_block_work_num;
-
-        const index_t k_block_work_id   = get_block_1d_id() / hwo_block_work_num;
-        const index_t hwo_block_work_id = get_block_1d_id() - k_block_work_id * hwo_block_work_num;
-
-        const index_t ho_block_work_id = hwo_block_work_id / wo_block_work_num;
-        const index_t wo_block_work_id = hwo_block_work_id - ho_block_work_id * wo_block_work_num;
-#else
-        // Hack: this force result into SGPR
-        const index_t ho_block_work_num  = __builtin_amdgcn_readfirstlane(Ho / HoPerBlock);
-        const index_t wo_block_work_num  = __builtin_amdgcn_readfirstlane(Wo / WoPerBlock);
-        const index_t hwo_block_work_num = ho_block_work_num * wo_block_work_num;
+        const auto c_k_n_ho_wo_block_cluster_idx =
+            c_blockid_to_k_n_ho_wo_block_cluster_adaptor.CalculateBottomIndex(
+                make_multi_index(get_block_1d_id()));
 
         const index_t k_block_work_id =
-            __builtin_amdgcn_readfirstlane(get_block_1d_id() / hwo_block_work_num);
-        const index_t hwo_block_work_id = get_block_1d_id() - k_block_work_id * hwo_block_work_num;
-
+            __builtin_amdgcn_readfirstlane(c_k_n_ho_wo_block_cluster_idx[I0]);
+        const index_t n_block_work_id =
+            __builtin_amdgcn_readfirstlane(c_k_n_ho_wo_block_cluster_idx[I1]);
         const index_t ho_block_work_id =
-            __builtin_amdgcn_readfirstlane(hwo_block_work_id / wo_block_work_num);
-        const index_t wo_block_work_id = hwo_block_work_id - ho_block_work_id * wo_block_work_num;
-#endif
+            __builtin_amdgcn_readfirstlane(c_k_n_ho_wo_block_cluster_idx[I2]);
+        const index_t wo_block_work_id =
+            __builtin_amdgcn_readfirstlane(c_k_n_ho_wo_block_cluster_idx[I3]);
 
         // lds max alignment
         constexpr auto max_lds_align = Number<ABlockTransferDstScalarPerVector_E2>{};
@@ -259,16 +368,18 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                                  decltype(a_e1_k_e2_block_desc),
                                                  decltype(b_e1_n_ho_wo_e2_block_desc),
                                                  decltype(c_k_n_ho_wo_thread_desc),
-                                                 EPerThread>{};
+                                                 EPerThread,
+                                                 K2>{};
 
         auto c_thread_mtx_index =
             blockwise_gemm.GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id());
 
-        const auto k_thread_id  = c_thread_mtx_index.k;
-        const auto ho_thread_id = c_thread_mtx_index.h;
-        const auto wo_thread_id = c_thread_mtx_index.w;
+        const auto k_thread_id  = c_thread_mtx_index[I0];
+        const auto ho_thread_id = c_thread_mtx_index[I2];
+        const auto wo_thread_id = c_thread_mtx_index[I3];
 
         const index_t k_block_data_on_global  = k_block_work_id * KPerBlock;
+        const index_t n_block_data_on_global  = n_block_work_id * HoPerBlock;
         const index_t ho_block_data_on_global = ho_block_work_id * HoPerBlock;
         const index_t wo_block_data_on_global = wo_block_work_id * WoPerBlock;
 
@@ -320,7 +431,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             FloatAB,
             decltype(b_e0_e1_n_ho_wo_e2_global_desc),
             decltype(b_e0_e1_n_ho_wo_e2_thread_desc),
-            Sequence<I1, E1PerBlock, 1, HoPerThread, WoPerThread, E2>,
+            Sequence<I1, E1PerBlock, NPerBlock, HoPerThread, WoPerThread, E2>,
             BBlockTransferSrcAccessOrder,
             BBlockTransferSrcVectorDim,
             BBlockTransferSrcScalarPerVector,
@@ -346,7 +457,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         // initialize output thread tensor
         ThreadwiseTensorSliceSet_v1<FloatAcc,
                                     decltype(c_k_n_ho_wo_thread_desc),
-                                    Sequence<KPerThread, 1, HoPerThread, WoPerThread>>{}
+                                    Sequence<KPerThread, NPerBlock, HoPerThread, WoPerThread>>{}
             .Run(c_k_n_ho_wo_thread_desc, make_tuple(I0, I0, I0, I0), c_thread_buf, FloatAcc{0});
 
         constexpr auto b_thread_slice_copy_step = make_multi_index(0, E1PerBlock, 0, 0, 0, 0);
