@@ -15,7 +15,7 @@ template <typename TIn,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads,
-          typename GemmKBatchType>
+          typename GridSizeType>
 void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk(
     const InLengths& in_n_hi_wi_c_lengths,
     const WeiLengths& wei_k_y_x_c_lengths,
@@ -27,7 +27,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     const Tensor<TIn>& in_n_hi_wi_c,
     Tensor<TWei>& wei_k_y_x_c,
     const Tensor<TOut>& out_n_ho_wo_k,
-    GemmKBatchType GemmKBatch,
+    GridSizeType grid_size,
     ck::index_t nrepeat)
 {
     using namespace ck;
@@ -145,8 +145,11 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
         conv_dilations,
         in_left_pads,
         in_right_pads,
+        Number<GemmMPerBlock>{},
+        Number<GemmNPerBlock>{},
+        Number<GemmKPerBlock>{},
         Number<GemmK1>{},
-        GemmKBatch);
+        grid_size);
 
     const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = descs[I0];
     const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc  = descs[I1];
@@ -154,24 +157,24 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
     constexpr auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: GemmK0
-                              Sequence<0, 0, 0>{},   // 0+: GemmK0
-                              Sequence<0, 0, 0>{},   // 1+: GemmN
-                              Sequence<0, 0, 0>{}),  // 2+: GemmK1
-                   make_tuple(Sequence<0, 0, 0>{},   // 0+: GemmK0
-                              Sequence<0, 0, 0>{},   // 0-: GemmK0
-                              Sequence<0, 0, 0>{},   // 1-: GemmN
-                              Sequence<0, 0, 0>{})); // 2-: GemmK1
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0+: GemmK0
+                              Sequence<0, 0, 0, 0, 0>{},   // 0+: GemmK0
+                              Sequence<0, 0, 0, 0, 0>{},   // 1+: GemmN
+                              Sequence<0, 0, 0, 0, 0>{}),  // 2+: GemmK1
+                   make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0+: GemmK0
+                              Sequence<0, 0, 0, 0, 0>{},   // 0-: GemmK0
+                              Sequence<0, 0, 0, 0, 0>{},   // 1-: GemmN
+                              Sequence<0, 0, 0, 0, 0>{})); // 2-: GemmK1
 
-    constexpr auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0>{},   // 0+: GemmK0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0>{},   // 0+: GemmK0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0>{},   // 1+: GemmM
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0>{}),  // 2+: GemmK1
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0>{},   // 0-: GemmK0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0>{},   // 0-: GemmK0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0>{},   // 1-: GemmM
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0>{})); // 2-: GemmK1
+    constexpr auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks = make_tuple(
+        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0>{},   // 0+: GemmK0
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0>{},   // 0+: GemmK0
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0>{},   // 1+: GemmM
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0>{}),  // 2+: GemmK1
+        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0>{},   // 0-: GemmK0
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0>{},   // 0-: GemmK0
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0>{},   // 1-: GemmM
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0>{})); // 2-: GemmK1
 
     constexpr auto wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
         make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
@@ -192,10 +195,10 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
                               Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
 
     constexpr auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks =
-        Sequence<0, 0, 0>{};
+        Sequence<0, 0, 0, 0, 0>{};
 
     constexpr auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks =
-        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0>{};
+        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0>{};
 
     std::function<void()> clear_weight = [&wei_k_y_x_c_device_buf, &wei_k_y_x_c]() {
         wei_k_y_x_c_device_buf.ToDevice(wei_k_y_x_c.mData.data());

@@ -78,8 +78,6 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-
-    constexpr index_t KBatch = 64;
 #endif
 
     const auto descs =
