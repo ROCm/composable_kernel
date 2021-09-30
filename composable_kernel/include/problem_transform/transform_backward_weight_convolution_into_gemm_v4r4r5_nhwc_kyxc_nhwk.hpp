@@ -23,7 +23,7 @@ template <typename... In,
           index_t GemmK1Value,
           typename GemmKBatchType>
 __host__ __device__ constexpr auto
-transform_backward_weight_convolution_into_gemm_v4r4r5_nhwc_kyxc_nhwk_pad(
+transform_backward_weight_convolution_into_gemm_v4r4r5_nhwc_kyxc_nhwk(
     const TensorDescriptor<In...>& in_n_hi_wi_c_grid_desc,
     const TensorDescriptor<Wei...>& wei_k_y_x_c_grid_desc,
     const TensorDescriptor<Out...>& out_n_ho_wo_k_grid_desc,

@@ -12,10 +12,12 @@
 #include "conv_common.hpp"
 #include "host_conv_bwd_weight.hpp"
 #include "device_tensor.hpp"
-#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
-#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
+//#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
+//#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
+//#include
+//"device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
+//#include
+//"device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
@@ -27,11 +29,11 @@
 
 enum ConvBackwardWeightAlgo
 {
-    V4R4R2XDLNCHW,
-    V4R4R4XDLNHWC,
-    V4R4R2XDLATOMICNCHW,
-    V4R4R4XDLATOMICNHWC,
-    V4R4R5XDLATOMICNHWC,
+    V4R4R2XDLNCHW,       // 0
+    V4R4R4XDLNHWC,       // 1
+    V4R4R2XDLATOMICNCHW, // 2
+    V4R4R4XDLATOMICNHWC, // 3
+    V4R4R5XDLATOMICNHWC, // 4
 };
 
 int main(int argc, char* argv[])
