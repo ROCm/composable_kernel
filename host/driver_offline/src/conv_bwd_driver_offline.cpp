@@ -282,8 +282,8 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_nhwc();
 
-        if(Y == 1 && X == 1 && conv_stride_h == 1 && conv_stride_w == 1 && in_left_pad_h == 0 &&
-           in_left_pad_w == 0 && in_right_pad_h == 0 && in_right_pad_w == 0)
+        if(Y == 1 && X == 1 && in_left_pad_h == 0 && in_left_pad_w == 0 && in_right_pad_h == 0 &&
+           in_right_pad_w == 0)
         {
             device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk_1x1<
                 in_data_t,
@@ -302,6 +302,7 @@ int main(int argc, char* argv[])
         }
         else
         {
+#if 0
             device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk<in_data_t,
                                                                                         acc_data_t,
                                                                                         out_data_t>(
@@ -316,6 +317,7 @@ int main(int argc, char* argv[])
                 wei,
                 out,
                 nrepeat);
+#endif
         }
     }
 #endif

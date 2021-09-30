@@ -272,31 +272,21 @@ transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk(
 // A: out
 // B: wei
 // C: in
-// Number of GEMMs = YTilda * XTilda
-// GemmM = N * HTildaSlice * WTildaSlice
+// Number of GEMMs = 1
+// GemmM = N * Ho * Wo
 // GemmN = C
-// GemmK = K * YDotSlice * XDotSlice
+// GemmK = K
 template <typename... Wei,
           typename... In,
           typename... Out,
           typename ConvStrides,
-          typename ConvDilations,
-          typename InLeftPads,
-          typename InRightPads,
-          typename IYTilda,
-          typename IXTilda,
           index_t GemmK1Value>
 __host__ __device__ constexpr auto
 transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk_1x1(
     const TensorDescriptor<Out...>& out_n_ho_wo_k_grid_desc,
-    const TensorDescriptor<Wei...>& wei_k_y_x_c_grid_desc,
+    const TensorDescriptor<Wei...>& /* wei_k_y_x_c_grid_desc */,
     const TensorDescriptor<In...>& in_n_hi_wi_c_grid_desc,
     const ConvStrides& conv_strides,
-    const ConvDilations& conv_dilations,
-    const InLeftPads& in_left_pads,
-    const InRightPads& in_right_pads,
-    IYTilda i_ytilda,
-    IXTilda i_xtilda,
     Number<GemmK1Value>)
 {
     constexpr auto I0 = Number<0>{};
@@ -309,9 +299,6 @@ transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk_1x1(
     const auto N = in_n_hi_wi_c_grid_desc.GetLength(I0);
     const auto C = in_n_hi_wi_c_grid_desc.GetLength(I3);
     const auto K = out_n_ho_wo_k_grid_desc.GetLength(I3);
-
-    const auto Hi = in_n_hi_wi_c_grid_desc.GetLength(I1);
-    const auto Wi = in_n_hi_wi_c_grid_desc.GetLength(I2);
 
     const auto Ho = out_n_ho_wo_k_grid_desc.GetLength(I1);
     const auto Wo = out_n_ho_wo_k_grid_desc.GetLength(I2);
@@ -326,14 +313,14 @@ transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk_1x1(
     const auto out_gemmk0_gemmm_gemmk1_grid_desc =
         transform_tensor_descriptor(make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K)),
                                     make_tuple(make_pass_through_transform(N * Ho * Wo),
-                                               make_unmerge_transfomr(make_tuple(K0, K1))),
+                                               make_unmerge_transform(make_tuple(K0, K1))),
                                     make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                    make_tuple(Sequence<1>{}, Sequence<0>{}, Sequence<2>{}));
+                                    make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
 
     // B: weight tensor
     const auto wei_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
         make_naive_tensor_descriptor_packed(make_tuple(K, C)),
-        make_tuple(make_unmerge_transfomr(make_tuple(K0, K1)), make_pass_through_transform(C)),
+        make_tuple(make_unmerge_transform(make_tuple(K0, K1)), make_pass_through_transform(C)),
         make_tuple(Sequence<0>{}, Sequence<1>{}),
         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
@@ -353,7 +340,7 @@ transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk_1x1(
                    make_freeze_transform(I0),
                    make_merge_transform(make_tuple(N, Ho, Wo)),
                    make_pass_through_transform(C)),
-        make_tuple(Sequence<1>{}, Sequeunce<3>{}, Sequence<0, 2, 4>{}, Sequence<5>{}),
+        make_tuple(Sequence<1>{}, Sequence<3>{}, Sequence<0, 2, 4>{}, Sequence<5>{}),
         make_tuple(Sequence<>{}, Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
 
     return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,

@@ -331,73 +331,71 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
 
                 const auto GemmK0 = out_gemmk0_gemmm_gemmk1_grid_desc.GetLength(I0);
 
-                if(GemmK0 == 0)
+                if(GemmK0 != 0)
                 {
-                    continue;
-                }
-
-                ave_time += driver_gemm_xdlops_v2r3<
-                    BlockSize,
-                    TInWei,
-                    TAcc,
-                    TOut,
-                    InMemoryDataOperationEnum_t::Set,
-                    decltype(out_gemmk0_gemmm_gemmk1_grid_desc),
-                    decltype(wei_gemmk0_gemmn_gemmk1_grid_desc),
-                    decltype(in_gemmm_gemmn_grid_desc),
-                    GemmMPerBlock,
-                    GemmNPerBlock,
-                    GemmKPerBlock,
-                    GemmMPerWave,
-                    GemmNPerWave,
-                    GemmK1,
-                    MRepeat,
-                    NRepeat,
-                    GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1,
-                    GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1,
-                    Sequence<1, 0, 2>,
-                    Sequence<1, 0, 2>,
-                    2,
-                    GemmABlockTransferSrcScalarPerVector_GemmK1,
-                    GemmABlockTransferDstScalarPerVector_GemmK1,
-                    false, // don't move back src coordinate after threadwise copy
-                    GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1,
-                    GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1,
-                    Sequence<2, 0, 1>,
-                    Sequence<0, 2, 1>,
-                    1,
-                    GemmBBlockTransferSrcScalarPerVector_GemmN,
-                    GemmBBlockTransferDstScalarPerVector_GemmK1,
-                    false, // don't move back src coordinate after threadwise copy
+                    ave_time += driver_gemm_xdlops_v2r3<
+                        BlockSize,
+                        TInWei,
+                        TAcc,
+                        TOut,
+                        InMemoryDataOperationEnum_t::Set,
+                        decltype(out_gemmk0_gemmm_gemmk1_grid_desc),
+                        decltype(wei_gemmk0_gemmn_gemmk1_grid_desc),
+                        decltype(in_gemmm_gemmn_grid_desc),
+                        GemmMPerBlock,
+                        GemmNPerBlock,
+                        GemmKPerBlock,
+                        GemmMPerWave,
+                        GemmNPerWave,
+                        GemmK1,
+                        MRepeat,
+                        NRepeat,
+                        GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1,
+                        GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1,
+                        Sequence<1, 0, 2>,
+                        Sequence<1, 0, 2>,
+                        2,
+                        GemmABlockTransferSrcScalarPerVector_GemmK1,
+                        GemmABlockTransferDstScalarPerVector_GemmK1,
+                        false, // don't move back src coordinate after threadwise copy
+                        GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1,
+                        GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1,
+                        Sequence<2, 0, 1>,
+                        Sequence<0, 2, 1>,
+                        1,
+                        GemmBBlockTransferSrcScalarPerVector_GemmN,
+                        GemmBBlockTransferDstScalarPerVector_GemmK1,
+                        false, // don't move back src coordinate after threadwise copy
 #if 0
-                    Sequence<0, 2, 4, 5, 6, 1, 3, 7>,
+                        Sequence<0, 2, 4, 5, 6, 1, 3, 7>,
 #else
-                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                        Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
 #endif
-                    7,
-                    GemmCThreadTransferDstScalarPerVector,
-                    decltype(out_gemmk0_gemmm_gemmk1_grid_step_hacks),
-                    decltype(wei_gemmk0_gemmn_gemmk1_grid_step_hacks),
-                    decltype(in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
-                    decltype(out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
-                    decltype(wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
-                    true,  // CAccessOrderMRepeatNRepeat
-                    false, // ABlockLdsExtraM
-                    false  // BBlockLdsExtraN
-                    >(static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
-                      static_cast<TInWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
-                      static_cast<TInWei*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
-                      out_gemmk0_gemmm_gemmk1_grid_desc,
-                      wei_gemmk0_gemmn_gemmk1_grid_desc,
-                      in_gemmm_gemmn_grid_desc,
-                      debug_driver_gemm_xdlops_v2r3::M01,
-                      debug_driver_gemm_xdlops_v2r3::N01,
-                      out_gemmk0_gemmm_gemmk1_grid_step_hacks,
-                      wei_gemmk0_gemmn_gemmk1_grid_step_hacks,
-                      in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
-                      out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
-                      wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
-                      nrepeat);
+                        7,
+                        GemmCThreadTransferDstScalarPerVector,
+                        decltype(out_gemmk0_gemmm_gemmk1_grid_step_hacks),
+                        decltype(wei_gemmk0_gemmn_gemmk1_grid_step_hacks),
+                        decltype(in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
+                        decltype(out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
+                        decltype(wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
+                        true,  // CAccessOrderMRepeatNRepeat
+                        false, // ABlockLdsExtraM
+                        false  // BBlockLdsExtraN
+                        >(static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
+                          static_cast<TInWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
+                          static_cast<TInWei*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
+                          out_gemmk0_gemmm_gemmk1_grid_desc,
+                          wei_gemmk0_gemmn_gemmk1_grid_desc,
+                          in_gemmm_gemmn_grid_desc,
+                          debug_driver_gemm_xdlops_v2r3::M01,
+                          debug_driver_gemm_xdlops_v2r3::N01,
+                          out_gemmk0_gemmm_gemmk1_grid_step_hacks,
+                          wei_gemmk0_gemmn_gemmk1_grid_step_hacks,
+                          in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+                          out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+                          wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+                          nrepeat);
+                }
             }
         }
 
