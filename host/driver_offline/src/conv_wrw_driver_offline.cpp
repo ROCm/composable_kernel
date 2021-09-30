@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
     const index_t in_right_pad_h  = std::stoi(argv[20]);
     const index_t in_right_pad_w  = std::stoi(argv[21]);
 
-    const index_t k_batch = std::stoi(argv[22]);
+    const index_t grid_size = std::stoi(argv[22]);
 
     const index_t YEff = (Y - 1) * conv_dilation_h + 1;
     const index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -405,7 +405,7 @@ int main(int argc, char* argv[])
                         in,
                         wei_device,
                         out,
-                        k_batch,
+                        grid_size,
                         nrepeat);
     }
 #endif
