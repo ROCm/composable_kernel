@@ -10,7 +10,7 @@ template <index_t BlockSize,
           typename FloatA,
           typename FloatB,
           typename FloatC,
-          typename ABlockDesc_E1_K_E2,
+          typename ABlockDesc_E1_K1_E2,
           typename BBlockDesc_E1_N_Ho_Wo_E2,
           typename CThreadDesc_K_N_Ho_Wo,
           index_t EPerThreadLoop,
@@ -27,16 +27,16 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     using BIndex = MultiIndex<3>;
     using CIndex = MultiIndex<4>;
 
-    static constexpr auto E1        = ABlockDesc_E1_K_E2{}.GetLength(I0);
-    static constexpr auto KPerBlock = ABlockDesc_E1_K_E2{}.GetLength(I1);
-    static constexpr auto E2        = ABlockDesc_E1_K_E2{}.GetLength(I2);
+    static constexpr auto E1        = ABlockDesc_E1_K1_E2{}.GetLength(I0);
+    static constexpr auto KPerBlock = ABlockDesc_E1_K1_E2{}.GetLength(I1);
+    static constexpr auto E2        = ABlockDesc_E1_K1_E2{}.GetLength(I2);
 
-    static constexpr auto HPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
-    static constexpr auto WPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
+    static constexpr auto HoPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
+    static constexpr auto WoPerBlock = BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
 
-    static constexpr auto KPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I0);
-    static constexpr auto HPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I2);
-    static constexpr auto WPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I3);
+    static constexpr auto KPerThread  = CThreadDesc_K_N_Ho_Wo{}.GetLength(I0);
+    static constexpr auto HoPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I2);
+    static constexpr auto WoPerThread = CThreadDesc_K_N_Ho_Wo{}.GetLength(I3);
 
     static constexpr auto a_thread_mtx_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<EPerThreadLoop>{}, Number<KPerThreadLoop>{}, Number<E2>{}));
@@ -44,37 +44,37 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     static constexpr auto b_thread_mtx_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<EPerThreadLoop>{},
                                                        Number<1>{},
-                                                       Number<HPerThread>{},
-                                                       Number<WPerThread>{},
+                                                       Number<HoPerThread>{},
+                                                       Number<WoPerThread>{},
                                                        Number<E2>{}));
 
     static constexpr auto c_thread_mtx_ = make_naive_tensor_descriptor_packed(make_tuple(
-        Number<KPerThreadLoop>{}, Number<1>{}, Number<HPerThread>{}, Number<WPerThread>{}));
+        Number<KPerThreadLoop>{}, Number<1>{}, Number<HoPerThread>{}, Number<WoPerThread>{}));
 
     __device__ BlockwiseGemmDlops_km_kn_m0m1n0n1_v3()
         : c_thread_origin_data_idx_{GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id())},
           a_thread_copy_{make_tuple(0, c_thread_origin_data_idx_[I0] * KPerThread, 0)}
     {
-        static_assert(ABlockDesc_E1_K_E2::IsKnownAtCompileTime() &&
+        static_assert(ABlockDesc_E1_K1_E2::IsKnownAtCompileTime() &&
                           BBlockDesc_E1_N_Ho_Wo_E2::IsKnownAtCompileTime() &&
                           CThreadDesc_K_N_Ho_Wo::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
         static_assert(
-            ABlockDesc_E1_K_E2{}.GetLength(I0) == BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I0) &&
-                ABlockDesc_E1_K_E2{}.GetLength(I2) == BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I4),
+            ABlockDesc_E1_K1_E2{}.GetLength(I0) == BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I0) &&
+                ABlockDesc_E1_K1_E2{}.GetLength(I2) == BBlockDesc_E1_N_Ho_Wo_E2{}.GetLength(I4),
             "wrong! E dimension not consistent\n");
 
         static_assert(E1 % EPerThreadLoop == 0, "");
         static_assert(KPerThread % KPerThreadLoop == 0, "");
 
-        static_assert(KPerBlock % KPerThread == 0 && HPerBlock % HPerThread == 0 &&
-                          WPerBlock % WPerThread == 0,
+        static_assert(KPerBlock % KPerThread == 0 && HoPerBlock % HoPerThread == 0 &&
+                          WoPerBlock % WoPerThread == 0,
                       "wrong! Cannot evenly divide work among\n");
 
         constexpr auto KThreadCluster = KPerBlock / KPerThread;
-        constexpr auto HThreadCluster = HPerBlock / HPerThread;
-        constexpr auto WThreadCluster = WPerBlock / WPerThread;
+        constexpr auto HThreadCluster = HoPerBlock / HoPerThread;
+        constexpr auto WThreadCluster = WoPerBlock / WoPerThread;
 
         static_assert(BlockSize == KThreadCluster * HThreadCluster * WThreadCluster,
                       "wrong! wrong blocksize\n");
@@ -82,15 +82,15 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
 
     __device__ static constexpr auto GetCThreadDesc_K_N_Ho_WoLengths()
     {
-        return Sequence<KPerThread, I1, HPerThread, WPerThread>{};
+        return Sequence<KPerThread, I1, HoPerThread, WoPerThread>{};
     }
 
     __device__ static CIndex GetBeginOfCThreadDesc_K_N_Ho_Wo(index_t thread_id)
     {
         constexpr auto K0 = KPerBlock / KPerThread;
         constexpr auto N0 = I1;
-        constexpr auto H0 = HPerBlock / HPerThread;
-        constexpr auto W0 = WPerBlock / WPerThread;
+        constexpr auto H0 = HoPerBlock / HoPerThread;
+        constexpr auto W0 = WoPerBlock / WoPerThread;
 
         constexpr auto c_threadid_to_k_n_h_w_thread_cluster_adaptor =
             make_single_stage_tensor_adaptor(
@@ -116,7 +116,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
             is_same<remove_cvref_t<typename CThreadBuffer::type>, remove_cvref_t<FloatC>>::value &&
             "wrong! inconsistent type");
 
-        constexpr auto a_block_mtx = ABlockDesc_E1_K_E2{};
+        constexpr auto a_block_mtx = ABlockDesc_E1_K1_E2{};
 
         // thread A buffer for GEMM
         StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize(), true>
@@ -151,14 +151,14 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
     template <typename ABlockSliceMoveStepIdx>
     __device__ void MoveABlockSliceWindow(const ABlockSliceMoveStepIdx& a_block_slice_move_step_idx)
     {
-        a_thread_copy_.MoveSrcSliceWindow(ABlockDesc_E1_K_E2{}, a_block_slice_move_step_idx);
+        a_thread_copy_.MoveSrcSliceWindow(ABlockDesc_E1_K1_E2{}, a_block_slice_move_step_idx);
     }
 
     private:
     using AThreadCopy =
         ThreadwiseTensorSliceTransfer_v4<FloatA,
                                          FloatA,
-                                         ABlockDesc_E1_K_E2,
+                                         ABlockDesc_E1_K1_E2,
                                          decltype(a_thread_mtx_),
                                          Sequence<EPerThreadLoop, KPerThreadLoop, E2>,
                                          Sequence<0, 1, 2>,

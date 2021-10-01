@@ -20,7 +20,7 @@
 #include "device_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
-#define USE_DYNAMIC_MODE 1
+#define USE_DYNAMIC_MODE 0
 #define USE_CONV_FWD_V4R4_NCHW 0
 #define USE_CONV_FWD_V4R4R2_NHWC 0
 #define USE_CONV_FWD_V6R1_NCHW 0

@@ -99,15 +99,15 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
 
     constexpr index_t E1        = C0 * 9;
     constexpr index_t E2        = 1;
-    constexpr index_t EPerBlock = C0;
+    constexpr index_t E1PerBlock = C0;
 
     constexpr index_t KPerThread  = 16;
     constexpr index_t HoPerThread = 2;
     constexpr index_t WoPerThread = 2;
     constexpr index_t EPerThread  = 1;
 
-    using ABlockTransferThreadSliceLengths_E0_E1_K_E2   = Sequence<1, 9, 1, E2>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K_E2 = Sequence<1, EPerBlock, KPerBlock, 1>;
+    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2   = Sequence<1, 9, 1, E2>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 = Sequence<1, E1PerBlock, KPerBlock, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E2 = E2;
     constexpr index_t ABlockTransferDstScalarPerVector_E2 = E2;
@@ -122,17 +122,18 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
     constexpr index_t HoPerBlock = 8;
     constexpr index_t WoPerBlock = 32;
 
-    constexpr index_t E1        = 2 * 9;
-    constexpr index_t E2        = 1;
-    constexpr index_t EPerBlock = 2;
+    constexpr index_t E1         = 2 * 9;
+    constexpr index_t E2         = 1;
+    constexpr index_t E1PerBlock = 2;
 
     constexpr index_t KPerThread  = 16;
     constexpr index_t HoPerThread = 2;
     constexpr index_t WoPerThread = 2;
     constexpr index_t EPerThread  = 1;
 
-    using ABlockTransferThreadSliceLengths_E0_E1_K_E2   = Sequence<1, 9, 1, E2>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K_E2 = Sequence<1, EPerBlock, KPerBlock, 1>;
+    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 = Sequence<1, 9, 1, 1, E2>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
+        Sequence<1, E1PerBlock, 1, KPerBlock, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E2 = E2;
     constexpr index_t ABlockTransferDstScalarPerVector_E2 = E2;
@@ -153,13 +154,13 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw(
             KPerBlock,
             HoPerBlock,
             WoPerBlock,
-            EPerBlock,
+            E1PerBlock,
             KPerThread,
             HoPerThread,
             WoPerThread,
             EPerThread,
-            ABlockTransferThreadSliceLengths_E0_E1_K_E2,
-            ABlockTransferThreadClusterLengths_E0_E1_K_E2,
+            ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2,
+            ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2,
             ABlockTransferSrcScalarPerVector_E2,
             ABlockTransferDstScalarPerVector_E2,
             BThreadTransferSrcScalarPerVector_E2,
