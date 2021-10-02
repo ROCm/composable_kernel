@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
         }
         else
         {
-#if 0
+#if 1
             device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk<in_data_t,
                                                                                         acc_data_t,
                                                                                         out_data_t>(
