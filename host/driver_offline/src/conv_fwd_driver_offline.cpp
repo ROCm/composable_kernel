@@ -137,9 +137,9 @@ int main(int argc, char* argv[])
     using acc_data_t  = float;
     using out_data_t  = half_t;
 #elif 1
-    using in_data_t   = ushort;
-    using acc_data_t  = float;
-    using out_data_t  = ushort;
+    using in_data_t  = ushort;
+    using acc_data_t = float;
+    using out_data_t = ushort;
 #elif 1
     using in_data_t  = int8_t;
     using acc_data_t = int32_t;

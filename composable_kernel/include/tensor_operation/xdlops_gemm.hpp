@@ -17,15 +17,15 @@ enum struct MfmaInstr
     mfma_f32_32x32x4f16,
     mfma_f32_16x16x4f16,
     mfma_f32_4x4x4f16,
-    mfma_f32_32x32x8f16,  // k reduction
-    mfma_f32_16x16x16f16, // k reduction
+    mfma_f32_32x32x8f16,      // k reduction
+    mfma_f32_16x16x16f16,     // k reduction
     mfma_f32_32x32x8bf16_1k,  // k reduction
     mfma_f32_16x16x16bf16_1k, // k reduction
-   // mfma_f32_32x32x2bf16,
-   // mfma_f32_16x16x2bf16,
-   // mfma_f32_4x4x2bf16,
-   // mfma_f32_32x32x4bf16, // k reduction
-   // mfma_f32_16x16x8bf16, // k reduction
+                              // mfma_f32_32x32x2bf16,
+                              // mfma_f32_16x16x2bf16,
+                              // mfma_f32_4x4x2bf16,
+                              // mfma_f32_32x32x4bf16, // k reduction
+                              // mfma_f32_16x16x8bf16, // k reduction
 };
 
 template <MfmaInstr instr>
@@ -273,8 +273,6 @@ struct mfma_type<MfmaInstr::mfma_f32_32x32x8bf16_1k>
         intrin_mfma_f32_32x32x8bf16_1k<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
-
-
 
 template <>
 struct mfma_type<MfmaInstr::mfma_f32_16x16x16bf16_1k>
@@ -557,7 +555,6 @@ struct MfmaSelector
     {
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
     }
-
 
 #if 0
     template <>
