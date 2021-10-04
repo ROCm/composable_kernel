@@ -43,7 +43,7 @@ __global__ void
                       p_shared_block,
                       a_k0_m_k1_grid_desc,
                       b_k0_n_k1_grid_desc,
-                      c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                      c_m0_m1_m2_n_grid_desc,
                       c_block_cluster_adaptor);
 }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
