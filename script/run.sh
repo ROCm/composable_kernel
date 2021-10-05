@@ -50,9 +50,9 @@ REPEAT=$6
 
 # Resnet50
 ######### layout  algo  verify  init  log  repeat  N__ K___ C___ Y X Hi_ Wi__ Strides Dilations LeftPads RightPads
- $DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256 2048 1024 1 1  14   14    2  2      1  1     0  0      0  0 
+#$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256 2048 1024 1 1  14   14    2  2      1  1     0  0      0  0 
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256  256 1024 1 1  14   14    1  1      1  1     0  0      0  0 
-#$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256  512 1024 1 1  14   14    1  1      1  1     0  0      0  0 
+ $DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256  512 1024 1 1  14   14    1  1      1  1     0  0      0  0 
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256  128  128 3 3  28   28    1  1      1  1     1  1      1  1 
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256  512  128 1 1  28   28    1  1      1  1     0  0      0  0 
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256  128  128 3 3  58   58    2  2      1  1     0  0      0  0 
