@@ -20,7 +20,9 @@ enum struct MfmaInstr
     mfma_f32_32x32x8f16,
     mfma_f32_16x16x16f16,
     mfma_f32_32x32x8bf16_1k,
-    mfma_f32_16x16x16bf16_1k
+    mfma_f32_16x16x16bf16_1k,
+    mfma_f32_32x32x4bf16,
+    mfma_f32_16x16x8bf16
 };
 
 template <MfmaInstr instr>
@@ -291,6 +293,50 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x16bf16_1k>
     }
 };
 
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_32x32x4bf16>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_regs_per_blk    = 16;
+    static constexpr index_t num_threads_per_blk = 32;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 2;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 32;
+    static constexpr index_t n_per_blk           = 32;
+    static constexpr index_t k_per_blk           = 2;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_32x32x4bf16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_f32_16x16x8bf16>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 2;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_16x16x8bf16<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
 template <typename base_type, index_t MPerXdlops, index_t NPerXdlops>
 struct MfmaSelector
 {
@@ -384,13 +430,21 @@ struct MfmaSelector
     template <>
     static constexpr auto GetMfma<ushort, 32, 32>()
     {
+#if defined(CK_AMD_GPU_GFX90A)
         return MfmaInstr::mfma_f32_32x32x8bf16_1k;
+#else
+        return MfmaInstr::mfma_f32_32x32x4bf16;
+#endif
     }
 
     template <>
     static constexpr auto GetMfma<ushort, 16, 16>()
     {
+#if defined(CK_AMD_GPU_GFX90A)
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
+#else
+        return MfmaInstr::mfma_f32_16x16x8bf16;
+#endif
     }
 
     static constexpr auto selected_mfma = mfma_type<GetMfma<base_type, MPerXdlops, NPerXdlops>()>{};

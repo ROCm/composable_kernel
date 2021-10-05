@@ -42,6 +42,23 @@ struct GeneratorTensor_3
     }
 };
 
+template <typename T>
+struct GeneratorTensor_4
+{
+    T min_value = 0;
+    T max_value = 1;
+
+    template <typename... Is>
+    float operator()(Is...)
+    {
+        float tmp = float(std::rand()) / float(RAND_MAX);
+
+        float fp32_tmp = min_value + tmp * (max_value - min_value);
+
+        return float_to_bfloat16(fp32_tmp);
+    }
+};
+
 struct GeneratorTensor_Checkboard
 {
     template <typename... Ts>
