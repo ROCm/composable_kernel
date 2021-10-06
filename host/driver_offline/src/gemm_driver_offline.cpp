@@ -66,8 +66,8 @@ int main(int argc, char* argv[])
     const index_t N = std::stoi(argv[8]);
     const index_t K = std::stoi(argv[9]);
 
-    debug_driver_gemm_xdlops_v2r3::M01 = std::stoi(argv[10]);
-    debug_driver_gemm_xdlops_v2r3::N01 = std::stoi(argv[11]);
+    debug::debug_driver_gemm_xdlops_v2r3::M01 = std::stoi(argv[10]);
+    debug::debug_driver_gemm_xdlops_v2r3::N01 = std::stoi(argv[11]);
 
 #if 0
     using ab_data_t  = float;

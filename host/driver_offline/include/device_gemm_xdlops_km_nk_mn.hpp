@@ -162,7 +162,7 @@ void device_gemm_xdlops_km_nk_mn(const Tensor<ABType>& a_k_m,
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 4;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
-#elif 0
+#elif 1
     // [M, N, K0, K1] = [256, 128, 4, 8], C = 128, for fp16
     constexpr index_t BlockSize = 256;
 
@@ -443,8 +443,8 @@ void device_gemm_xdlops_km_nk_mn(const Tensor<ABType>& a_k_m,
                                       a_k0_m_k1_grid_desc,
                                       b_k0_n_k1_grid_desc,
                                       c_m_n_grid_desc,
-                                      debug_driver_gemm_xdlops_v2r3::M01,
-                                      debug_driver_gemm_xdlops_v2r3::N01,
+                                      debug::debug_driver_gemm_xdlops_v2r3::M01,
+                                      debug::debug_driver_gemm_xdlops_v2r3::N01,
                                       a_k0_m_k1_grid_step_hacks,
                                       b_k0_n_k1_grid_step_hacks,
                                       c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
