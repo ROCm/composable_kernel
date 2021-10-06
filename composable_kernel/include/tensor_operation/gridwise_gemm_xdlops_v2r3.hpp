@@ -142,6 +142,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
+    static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
@@ -220,6 +221,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         using BlockwiseGemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
+                                                                FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
                                                                 MPerXDL,
@@ -363,9 +365,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         //       register
         // sanity check
 
-        const auto blockwise_gemm =
+        auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
+                                                                FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
                                                                 MPerXDL,
@@ -374,18 +377,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 NRepeat,
                                                                 K1>{};
 
-        constexpr auto c_mr_nr_blk_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
-
-        constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
-            blockwise_gemm.GetCM0N0M1N1M2M3M4N2ThreadDescriptor();
-        constexpr auto CBlkSize = c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc.GetElementSpaceSize();
-
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     vector_type<FloatAcc, CBlkSize>,
-                     c_mr_nr_blk_desc.GetElementSpaceSize(),
-                     true>
-            c_thread_buf;
+        auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size =
@@ -460,9 +452,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
                 blockwise_gemm.GetCM0N0M1N1M2M3M4N2BlockDescriptor();
 
+            constexpr auto M0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I0);
+            constexpr auto N0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I1);
+            constexpr auto M1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I2);
+            constexpr auto N1 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I3);
             constexpr auto M2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I4);
             constexpr auto M3 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I5);
             constexpr auto M4 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I6);
+            constexpr auto N2 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I7);
+
+            constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(
+                    Number<M0>{}, Number<N0>{}, I1, I1, Number<M2>{}, I1, Number<M4>{}, I1));
 
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
@@ -477,224 +478,54 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks = CGridStepHacks{};
 
+            const auto m_thread_data_on_grid_to_m0_m1_m2_m3_m4_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
+                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                    make_tuple(Sequence<0>{}));
+
+            const auto m_thread_data_on_grid_idx =
+                m_thread_data_on_grid_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
+                    make_multi_index(m_thread_data_on_grid));
+
+            const auto n_thread_data_on_grid_to_n0_n1_n2_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
+                make_tuple(Sequence<0, 1, 2>{}),
+                make_tuple(Sequence<0>{}));
+
+            const auto n_thread_data_on_grid_idx =
+                n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
+                    make_multi_index(n_thread_data_on_grid));
+
             auto c_thread_copy =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatC,
+                ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
                                                    FloatC,
                                                    decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc),
                                                    decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc),
-                                                   Sequence<I1, I1, I1, I1, M2, I1, M4, I1>,
+                                                   Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
                                                    CThreadTransferSrcDstAccessOrder,
                                                    CThreadTransferSrcDstVectorDim,
                                                    CThreadTransferDstScalarPerVector,
                                                    CGlobalMemoryDataOperation,
                                                    1,
                                                    true>{
+
                     c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                    make_multi_index(0,
-                                     0,
-                                     0,
-                                     0,
-                                     m_thread_data_on_grid / (M3 * M4),
-                                     m_thread_data_on_grid % (M3 * M4) / M4,
-                                     m_thread_data_on_grid % M4,
-                                     n_thread_data_on_grid)};
+                    make_multi_index(m_thread_data_on_grid_idx[I0],
+                                     n_thread_data_on_grid_idx[I0],
+                                     m_thread_data_on_grid_idx[I1],
+                                     n_thread_data_on_grid_idx[I1],
+                                     m_thread_data_on_grid_idx[I2],
+                                     m_thread_data_on_grid_idx[I3],
+                                     m_thread_data_on_grid_idx[I4],
+                                     n_thread_data_on_grid_idx[I2])};
 
-            auto init_copy = [&](auto c_thread_idx_) {
-                constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
-
-                return c_thread_idx_;
-            };
-
-            auto mrepeat_plus_copy = [&](auto c_thread_idx_) {
-                constexpr auto mrepeat_step_plus = make_multi_index(1, 0, 0, 0, 0, 0, 0, 0);
-                c_thread_copy.MoveDstSliceWindow(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                                 mrepeat_step_plus);
-
-                constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
-            };
-
-            auto nrepeat_plus_copy = [&](auto c_thread_idx_) {
-                constexpr auto nrepeat_step_plus = make_multi_index(0, 1, 0, 0, 0, 0, 0, 0);
-                c_thread_copy.MoveDstSliceWindow(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                                 nrepeat_step_plus);
-
-                constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
-            };
-
-            auto mrepeat_minus_copy = [&](auto c_thread_idx_) {
-                constexpr auto mrepeat_step_plus = make_multi_index(-1, 0, 0, 0, 0, 0, 0, 0);
-                c_thread_copy.MoveDstSliceWindow(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                                 mrepeat_step_plus);
-
-                constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
-            };
-
-            auto nrepeat_minus_copy = [&](auto c_thread_idx_) {
-                constexpr auto nrepeat_step_minus = make_multi_index(0, -1, 0, 0, 0, 0, 0, 0);
-                c_thread_copy.MoveDstSliceWindow(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                                 nrepeat_step_minus);
-
-                constexpr auto blk_off = c_mr_nr_blk_desc.CalculateOffset(c_thread_idx_);
-                c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
-                                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  c_thread_buf[Number<blk_off>{}].template AsType<FloatAcc>(),
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                  c_grid_buf,
-                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
-            };
-
-            static_assert((MRepeat == 4 && NRepeat == 4) or (MRepeat == 4 && NRepeat == 2) or
-                              (MRepeat == 2 && NRepeat == 4) or (MRepeat == 2 && NRepeat == 2) or
-                              (MRepeat == 2 && NRepeat == 1) or (MRepeat == 1 && NRepeat == 2) or
-                              (MRepeat == 1 && NRepeat == 1),
-                          "wrong");
-
-            if constexpr(MRepeat == 4 && NRepeat == 4)
-            {
-                init_copy(make_tuple(I0, I0));
-
-                if constexpr(CAccessOrderMRepeatNRepeat)
-                {
-                    nrepeat_plus_copy(make_tuple(I0, I1));
-                    nrepeat_plus_copy(make_tuple(I0, I2));
-                    nrepeat_plus_copy(make_tuple(I0, I3));
-                    mrepeat_plus_copy(make_tuple(I1, I3));
-                    nrepeat_minus_copy(make_tuple(I1, I2));
-                    nrepeat_minus_copy(make_tuple(I1, I1));
-                    nrepeat_minus_copy(make_tuple(I1, I0));
-                    mrepeat_plus_copy(make_tuple(I2, I0));
-                    nrepeat_plus_copy(make_tuple(I2, I1));
-                    nrepeat_plus_copy(make_tuple(I2, I2));
-                    nrepeat_plus_copy(make_tuple(I2, I3));
-                    mrepeat_plus_copy(make_tuple(I3, I3));
-                    nrepeat_minus_copy(make_tuple(I3, I2));
-                    nrepeat_minus_copy(make_tuple(I3, I1));
-                    nrepeat_minus_copy(make_tuple(I3, I0));
-                }
-                else
-                {
-                    mrepeat_plus_copy(make_tuple(I1, I0));
-                    mrepeat_plus_copy(make_tuple(I2, I0));
-                    mrepeat_plus_copy(make_tuple(I3, I0));
-                    nrepeat_plus_copy(make_tuple(I3, I1));
-                    mrepeat_minus_copy(make_tuple(I2, I1));
-                    mrepeat_minus_copy(make_tuple(I1, I1));
-                    mrepeat_minus_copy(make_tuple(I0, I1));
-                    nrepeat_plus_copy(make_tuple(I0, I2));
-                    mrepeat_plus_copy(make_tuple(I1, I2));
-                    mrepeat_plus_copy(make_tuple(I2, I2));
-                    mrepeat_plus_copy(make_tuple(I3, I2));
-                    nrepeat_plus_copy(make_tuple(I3, I3));
-                    mrepeat_minus_copy(make_tuple(I2, I3));
-                    mrepeat_minus_copy(make_tuple(I1, I3));
-                    mrepeat_minus_copy(make_tuple(I0, I3));
-                }
-            }
-            else if constexpr(MRepeat == 4 && NRepeat == 2)
-            {
-                init_copy(make_tuple(I0, I0));
-
-                if constexpr(CAccessOrderMRepeatNRepeat)
-                {
-                    nrepeat_plus_copy(make_tuple(I0, I1));
-                    mrepeat_plus_copy(make_tuple(I1, I1));
-                    nrepeat_minus_copy(make_tuple(I1, I0));
-                    mrepeat_plus_copy(make_tuple(I2, I0));
-                    nrepeat_plus_copy(make_tuple(I2, I1));
-                    mrepeat_plus_copy(make_tuple(I3, I1));
-                    nrepeat_minus_copy(make_tuple(I3, I0));
-                }
-                else
-                {
-                    mrepeat_plus_copy(make_tuple(I1, I0));
-                    mrepeat_plus_copy(make_tuple(I2, I0));
-                    mrepeat_plus_copy(make_tuple(I3, I0));
-                    nrepeat_plus_copy(make_tuple(I3, I1));
-                    mrepeat_minus_copy(make_tuple(I2, I1));
-                    mrepeat_minus_copy(make_tuple(I1, I1));
-                    mrepeat_minus_copy(make_tuple(I0, I1));
-                }
-            }
-            else if constexpr(MRepeat == 2 && NRepeat == 4)
-            {
-                init_copy(make_tuple(I0, I0));
-
-                if constexpr(CAccessOrderMRepeatNRepeat)
-                {
-                    nrepeat_plus_copy(make_tuple(I0, I1));
-                    nrepeat_plus_copy(make_tuple(I0, I2));
-                    nrepeat_plus_copy(make_tuple(I0, I3));
-                    mrepeat_plus_copy(make_tuple(I1, I3));
-                    nrepeat_minus_copy(make_tuple(I1, I2));
-                    nrepeat_minus_copy(make_tuple(I1, I1));
-                    nrepeat_minus_copy(make_tuple(I1, I0));
-                }
-                else
-                {
-                    mrepeat_plus_copy(make_tuple(I1, I0));
-                    nrepeat_plus_copy(make_tuple(I1, I1));
-                    mrepeat_minus_copy(make_tuple(I0, I1));
-                    nrepeat_plus_copy(make_tuple(I0, I2));
-                    mrepeat_plus_copy(make_tuple(I1, I2));
-                    nrepeat_plus_copy(make_tuple(I1, I3));
-                    mrepeat_minus_copy(make_tuple(I0, I3));
-                }
-            }
-            else if constexpr(MRepeat == 2 && NRepeat == 2)
-            {
-                init_copy(make_tuple(I0, I0));
-
-                if constexpr(CAccessOrderMRepeatNRepeat)
-                {
-                    nrepeat_plus_copy(make_tuple(I0, I1));
-                    mrepeat_plus_copy(make_tuple(I1, I1));
-                    nrepeat_minus_copy(make_tuple(I1, I0));
-                }
-                else
-                {
-                    mrepeat_plus_copy(make_tuple(I1, I0));
-                    nrepeat_plus_copy(make_tuple(I1, I1));
-                    mrepeat_minus_copy(make_tuple(I0, I1));
-                }
-            }
-            else if constexpr(MRepeat == 2 && NRepeat == 1)
-            {
-                init_copy(make_tuple(I0, I0));
-                mrepeat_plus_copy(make_tuple(I1, I0));
-            }
-            else if constexpr(MRepeat == 1 && NRepeat == 2)
-            {
-                init_copy(make_tuple(I0, I0));
-                nrepeat_plus_copy(make_tuple(I0, I1));
-            }
-            else if constexpr(MRepeat == 1 && NRepeat == 1)
-            {
-                init_copy(make_tuple(I0, I0));
-            }
+            c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                              make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                              c_thread_buf,
+                              c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                              c_grid_buf,
+                              c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
         }
     }
 }; // namespace ck
