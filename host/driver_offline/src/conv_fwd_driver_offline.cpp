@@ -434,14 +434,15 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution(in,
-                                wei,
-                                out_host,
-                                make_tuple(conv_stride_h, conv_stride_w),
-                                make_tuple(conv_dilation_h, conv_dilation_w),
-                                make_tuple(in_left_pad_h, in_left_pad_w),
-                                make_tuple(in_right_pad_h, in_right_pad_w),
-                                layout);
+        host_direct_convolution_fwd<in_data_t, in_data_t, out_data_t>::run(
+            in,
+            wei,
+            out_host,
+            make_tuple(conv_stride_h, conv_stride_w),
+            make_tuple(conv_dilation_h, conv_dilation_w),
+            make_tuple(in_left_pad_h, in_left_pad_w),
+            make_tuple(in_right_pad_h, in_right_pad_w),
+            layout);
 
         check_error(out_host, out_device);
 
