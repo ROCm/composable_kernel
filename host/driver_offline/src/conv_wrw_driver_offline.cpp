@@ -12,19 +12,17 @@
 #include "conv_common.hpp"
 #include "host_conv_bwd_weight.hpp"
 #include "device_tensor.hpp"
-//#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
-//#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
-//#include
-//"device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
-//#include
-//"device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
-#define USE_CONV_WRW_V4R4R2_XDL_NCHW 0
-#define USE_CONV_WRW_V4R4R4_XDL_NHWC 0
-#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 0
-#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 0
+#define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
+#define USE_CONV_WRW_V4R4R4_XDL_NHWC 1
+#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 1
+#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 1
 #define USE_CONV_WRW_V4R4R5_XDL_ATOMIC_NHWC 1
 
 enum ConvBackwardWeightAlgo
