@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
+#include "debug.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -24,7 +25,7 @@
 #define USE_CONV_FWD_V4R4R2_NHWC 0
 #define USE_CONV_FWD_V6R1_NCHW 0
 #define USE_CONV_FWD_V5R1_NCHW 0
-#define USE_CONV_FWD_V4R4R2_XDL_NCHW 1
+#define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
 #define USE_CONV_FWD_V4R4R4_XDL_NHWC 1
 
 enum ConvForwardAlgo
