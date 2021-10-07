@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
+#include "debug.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -15,15 +16,13 @@
 #include "device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk.hpp"
 #include "device_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 0
 #define USE_CONV_FWD_V4R4_NCHW 0
-#define USE_CONV_FWD_V4R4R2_NHWC 0
-#define USE_CONV_FWD_V6R1_NCHW 0
-#define USE_CONV_FWD_V5R1_NCHWC 1
+#define USE_CONV_FWD_V4R4R2_NHWC 1
+#define USE_CONV_FWD_V6R1_NCHW 1
 #define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
 #define USE_CONV_FWD_V4R4R4_XDL_NHWC 0
 
@@ -32,9 +31,8 @@ enum ConvForwardAlgo
     V4R4NCHW,      // 0
     V4R4R2NHWC,    // 1
     V6R1NCHW,      // 2
-    V5R1NCHWC,     // 3
-    V4R4R2XDLNCHW, // 4
-    V4R4R4XDLNHWC  // 5
+    V4R4R2XDLNCHW, // 3
+    V4R4R4XDLNHWC  // 4
 };
 
 int main(int argc, char* argv[])
@@ -48,8 +46,6 @@ int main(int argc, char* argv[])
     constexpr auto I4 = Number<4>{};
     constexpr auto I5 = Number<5>{};
     constexpr auto I6 = Number<6>{};
-
-    constexpr index_t activ_type = 0;
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
@@ -104,55 +100,13 @@ int main(int argc, char* argv[])
     const bool do_log             = std::stoi(argv[5]);
     const int nrepeat             = std::stoi(argv[6]);
 
-#if 1
-    constexpr auto N              = Number<1>{};
-    constexpr auto C              = Number<16>{};
-    constexpr auto Hi             = Number<1080>{};
-    constexpr auto Wi             = Number<1920>{};
-    constexpr auto K              = Number<64>{};
-    constexpr auto Y              = Number<3>{};
-    constexpr auto X              = Number<3>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<540>{};
-    constexpr auto Wi = Number<960>{};
-    constexpr auto K  = Number<64>{};
+    constexpr auto N  = Number<128>{};
+    constexpr auto C  = Number<192>{};
+    constexpr auto Hi = Number<71>{};
+    constexpr auto Wi = Number<71>{};
+    constexpr auto K  = Number<256>{};
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<270>{};
-    constexpr auto Wi = Number<480>{};
-    constexpr auto K  = Number<64>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<135>{};
-    constexpr auto Wi = Number<240>{};
-    constexpr auto K  = Number<64>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<1440>{};
-    constexpr auto Wi = Number<2560>{};
-    constexpr auto K  = Number<64>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<2160>{};
-    constexpr auto Wi = Number<3840>{};
-    constexpr auto K  = Number<64>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-#endif
 
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;
@@ -170,7 +124,7 @@ int main(int argc, char* argv[])
     constexpr auto Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
 #endif
 
-#if 0
+#if 1
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;
@@ -385,34 +339,6 @@ int main(int argc, char* argv[])
     }
 #endif
 
-#if USE_CONV_FWD_V5R1_NCHWC
-    if(algo == ConvForwardAlgo::V5R1NCHWC)
-    {
-        if(layout != ConvTensorLayout::NCHW)
-        {
-            throw std::runtime_error("wrong! layout");
-        }
-
-        const auto tmp = f_make_for_device_nchw();
-
-        device_convolution_forward_implicit_gemm_v5r1_dlops_nchw_kcyx_nkhw<in_data_t,
-                                                                           acc_data_t,
-                                                                           out_data_t,
-                                                                           8,
-                                                                           activ_type>(tmp[I0],
-                                                                                       tmp[I1],
-                                                                                       tmp[I2],
-                                                                                       tmp[I3],
-                                                                                       tmp[I4],
-                                                                                       tmp[I5],
-                                                                                       tmp[I6],
-                                                                                       in,
-                                                                                       wei,
-                                                                                       out_device,
-                                                                                       nrepeat);
-    }
-#endif
-
 #if USE_CONV_FWD_V4R4R2_XDL_NCHW
     if(algo == ConvForwardAlgo::V4R4R2XDLNCHW)
     {
@@ -476,8 +402,7 @@ int main(int argc, char* argv[])
                                 make_tuple(conv_dilation_h, conv_dilation_w),
                                 make_tuple(in_left_pad_h, in_left_pad_w),
                                 make_tuple(in_right_pad_h, in_right_pad_w),
-                                layout,
-                                activ_type);
+                                layout);
 
         check_error(out_host, out_device);
 

@@ -485,6 +485,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                      true>
             c_thread_buf;
 
+#if 0
         // initialize output thread tensor
         ThreadwiseTensorSliceSet_v1<FloatAcc,
                                     decltype(c_k1_n_h2_w2_thread_gemm_desc),
@@ -493,6 +494,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                  make_tuple(I0, I0, I0, I0),
                  c_thread_buf,
                  FloatAcc{0});
+#endif
 
         constexpr auto b_thread_slice_copy_step =
             make_multi_index(0, E1PerBlock, 0, 0, 0, 0, 0, 0, 0, 0);
