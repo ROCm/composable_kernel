@@ -104,7 +104,7 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 4;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 0
+#elif 1
     // [M, N, K0, K1] = [256, 128, 4, 8], C = 128, for fp16
     constexpr index_t BlockSize = 256;
 
@@ -216,7 +216,7 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 1
+#elif 0
     // [M, N, K0, K1] = [128, 64, 4, 8], C = 32, for fp16
     constexpr index_t BlockSize = 256;
 
@@ -356,8 +356,8 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
               out_gemmk0_gemmm_gemmk1_grid_desc,
               wei_gemmk0_gemmn_gemmk1_grid_desc,
               in_gemmm_gemmn_grid_desc,
-              debug_driver_gemm_xdlops_v2r3::M01,
-              debug_driver_gemm_xdlops_v2r3::N01,
+              debug::debug_driver_gemm_xdlops_v2r3::M01,
+              debug::debug_driver_gemm_xdlops_v2r3::N01,
               out_gemmk0_gemmm_gemmk1_grid_step_hacks,
               wei_gemmk0_gemmn_gemmk1_grid_step_hacks,
               in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
