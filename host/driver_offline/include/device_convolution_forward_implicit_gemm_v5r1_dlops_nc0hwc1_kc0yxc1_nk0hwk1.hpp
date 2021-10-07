@@ -112,15 +112,15 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
 
     constexpr index_t BThreadTransferSrcScalarPerVector_E2 = E2;
 
-    constexpr index_t CThreadTransferDstScalarPerVector_K = K1;
+    constexpr index_t CThreadTransferDstScalarPerVector_K = 8;
 #endif
 
-    constexpr index_t InWeiVectorSize = C1;
+    constexpr index_t InWeiVectorSize = 8;
 
-    const auto in_n_c0_hi_wi_c1_desc = make_naive_tensor_descriptor_packed(
-        make_tuple(N, C0, Hi, Wi, Number<C1 / InWeiVectorSize>{}));
-    const auto wei_k_c0_y_x_c1_desc = make_naive_tensor_descriptor_packed(
-        make_tuple(K, C0, Y, X, Number<C1 / InWeiVectorSize>{}));
+    const auto in_n_c0_hi_wi_c1_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1 / InWeiVectorSize));
+    const auto wei_k_c0_y_x_c1_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1 / InWeiVectorSize));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 

@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+//#include <half.hpp>
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -15,7 +15,7 @@
 #include "device_tensor.hpp"
 #include "device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
 
-#define USE_DYNAMIC_MODE 0
+#define USE_DYNAMIC_MODE 1
 #define USE_CONV_FWD_V5R1_NCHWC 1
 
 enum ConvForwardAlgo
@@ -37,35 +37,38 @@ int main(int argc, char* argv[])
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
-    if(argc != 21)
+    if(argc != 23)
     {
         printf("arg1 to 5: algo, do_verification, init_method, do_log, nrepeat\n");
-        printf("rest: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx\n");
+        printf("rest: N, K0, K1, C0, C1, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+               "RightPx\n");
         exit(1);
     }
 
-    const ConvForwardAlgo algo = static_cast<ConvForwardAlgo>(std::stoi(argv[2]));
-    const bool do_verification = std::stoi(argv[3]);
-    const int init_method      = std::stoi(argv[4]);
-    const bool do_log          = std::stoi(argv[5]);
-    const int nrepeat          = std::stoi(argv[6]);
+    const ConvForwardAlgo algo = static_cast<ConvForwardAlgo>(std::stoi(argv[1]));
+    const bool do_verification = std::stoi(argv[2]);
+    const int init_method      = std::stoi(argv[3]);
+    const bool do_log          = std::stoi(argv[4]);
+    const int nrepeat          = std::stoi(argv[5]);
 
-    const index_t N  = std::stoi(argv[7]);
-    const index_t K  = std::stoi(argv[8]);
-    const index_t C  = std::stoi(argv[9]);
-    const index_t Y  = std::stoi(argv[10]);
-    const index_t X  = std::stoi(argv[11]);
-    const index_t Hi = std::stoi(argv[12]);
-    const index_t Wi = std::stoi(argv[13]);
+    const index_t N  = std::stoi(argv[6]);
+    const index_t K0 = std::stoi(argv[7]);
+    const index_t K1 = std::stoi(argv[8]);
+    const index_t C0 = std::stoi(argv[9]);
+    const index_t C1 = std::stoi(argv[10]);
+    const index_t Y  = std::stoi(argv[11]);
+    const index_t X  = std::stoi(argv[12]);
+    const index_t Hi = std::stoi(argv[13]);
+    const index_t Wi = std::stoi(argv[14]);
 
-    const index_t conv_stride_h   = std::stoi(argv[14]);
-    const index_t conv_stride_w   = std::stoi(argv[15]);
-    const index_t conv_dilation_h = std::stoi(argv[16]);
-    const index_t conv_dilation_w = std::stoi(argv[17]);
-    const index_t in_left_pad_h   = std::stoi(argv[18]);
-    const index_t in_left_pad_w   = std::stoi(argv[19]);
-    const index_t in_right_pad_h  = std::stoi(argv[20]);
-    const index_t in_right_pad_w  = std::stoi(argv[21]);
+    const index_t conv_stride_h   = std::stoi(argv[15]);
+    const index_t conv_stride_w   = std::stoi(argv[16]);
+    const index_t conv_dilation_h = std::stoi(argv[17]);
+    const index_t conv_dilation_w = std::stoi(argv[18]);
+    const index_t in_left_pad_h   = std::stoi(argv[19]);
+    const index_t in_left_pad_w   = std::stoi(argv[20]);
+    const index_t in_right_pad_h  = std::stoi(argv[21]);
+    const index_t in_right_pad_w  = std::stoi(argv[22]);
 
     const index_t YEff = (Y - 1) * conv_dilation_h + 1;
     const index_t XEff = (X - 1) * conv_dilation_w + 1;

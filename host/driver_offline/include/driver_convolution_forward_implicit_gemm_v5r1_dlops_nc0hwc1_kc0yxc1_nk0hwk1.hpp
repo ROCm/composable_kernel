@@ -61,7 +61,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto C0 = in_n_c0_hi_wi_c1_global_desc.GetLength(I1);
         const auto Hi = in_n_c0_hi_wi_c1_global_desc.GetLength(I2);
         const auto Wi = in_n_c0_hi_wi_c1_global_desc.GetLength(I3);
-        const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
+        // const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
 
         const auto K0 = out_n_k0_ho_wo_k1_global_desc.GetLength(I1);
         const auto Ho = out_n_k0_ho_wo_k1_global_desc.GetLength(I2);
@@ -78,11 +78,11 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto ConvDilationH = conv_dilations[I0];
         const auto ConvDilationW = conv_dilations[I1];
 
-        const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
-        const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
+        // const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
+        // const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
 
-        // const auto Hop = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
-        // const auto Wop = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
+        const auto Hop = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
+        const auto Wop = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
 
         const auto OutRightPadH = Hop - Ho;
         const auto OutRightPadW = Wop - Wo;
@@ -98,8 +98,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         constexpr auto E1 = Number<E1_>{};
         constexpr auto E2 = Number<E2_>{};
         constexpr auto K2 = Number<K2_>{};
-
-        static_assert(E2 == C1, "");
 
         const auto E0 = E / E1;
 
@@ -253,9 +251,9 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
         // clang-format on
 
-        static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
+        // static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
+        // static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
+        // static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
 
         // GEMM
         using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3<
