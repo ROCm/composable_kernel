@@ -90,58 +90,46 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-#if 0
+#if 1
     constexpr auto N           = Number<1>{};
-    constexpr auto C0          = Number<2>{};
     constexpr auto Hi          = Number<1080>{};
     constexpr auto Wi          = Number<1920>{};
-    constexpr auto C1          = Number<8>{};
-    constexpr auto K0          = Number<8>{};
     constexpr auto Y           = Number<3>{};
     constexpr auto X           = Number<3>{};
+    constexpr auto C0          = Number<2>{};
+    constexpr auto C1          = Number<8>{};
     constexpr auto K1          = Number<8>{};
-#elif 1
+    constexpr auto K0          = Number<8>{};
+#elif 0
     constexpr auto N  = Number<1>{};
-    constexpr auto C0 = Number<2>{};
     constexpr auto Hi = Number<540>{};
     constexpr auto Wi = Number<960>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
+    constexpr auto C0 = Number<2>{};
+    constexpr auto C1 = Number<8>{};
     constexpr auto K1 = Number<8>{};
+    constexpr auto K0 = Number<8>{};
 #elif 0
     constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
     constexpr auto Hi = Number<270>{};
     constexpr auto Wi = Number<480>{};
-    constexpr auto K  = Number<64>{};
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
-#elif 0
+    constexpr auto C0 = Number<2>{};
+    constexpr auto C1 = Number<8>{};
+    constexpr auto K1 = Number<8>{};
+    constexpr auto K0 = Number<8>{};
+#elif 1
     constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
     constexpr auto Hi = Number<135>{};
     constexpr auto Wi = Number<240>{};
-    constexpr auto K  = Number<64>{};
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<1440>{};
-    constexpr auto Wi = Number<2560>{};
-    constexpr auto K  = Number<64>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto C  = Number<16>{};
-    constexpr auto Hi = Number<2160>{};
-    constexpr auto Wi = Number<3840>{};
-    constexpr auto K  = Number<64>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
+    constexpr auto C0 = Number<2>{};
+    constexpr auto C1 = Number<8>{};
+    constexpr auto K1 = Number<8>{};
+    constexpr auto K0 = Number<8>{};
 #endif
 
     constexpr auto conv_stride_h   = I1;
