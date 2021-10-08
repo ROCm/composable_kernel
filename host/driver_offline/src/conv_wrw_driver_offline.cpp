@@ -347,7 +347,7 @@ int main(int argc, char* argv[])
                         in,
                         wei_device,
                         out,
-                        k_batch,
+                        grid_size,
                         nrepeat);
     }
 #endif
@@ -376,7 +376,7 @@ int main(int argc, char* argv[])
                         in,
                         wei_device,
                         out,
-                        k_batch,
+                        grid_size,
                         nrepeat);
     }
 #endif
