@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t activ_type = 0;
 
-#if 0
+#if 1
     constexpr auto N             = Number<1>{};
     constexpr auto Hi            = Number<1080>{};
     constexpr auto Wi            = Number<1920>{};
@@ -125,10 +125,20 @@ int main(int argc, char* argv[])
     constexpr auto C1 = Number<8>{};
     constexpr auto K1 = Number<8>{};
     constexpr auto K0 = Number<8>{};
-#elif 1
+#elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<135>{};
     constexpr auto Wi = Number<240>{};
+    constexpr auto Y  = Number<3>{};
+    constexpr auto X  = Number<3>{};
+    constexpr auto C0 = Number<2>{};
+    constexpr auto C1 = Number<8>{};
+    constexpr auto K1 = Number<8>{};
+    constexpr auto K0 = Number<8>{};
+#elif 0
+    constexpr auto N  = Number<1>{};
+    constexpr auto Hi = Number<32>{};
+    constexpr auto Wi = Number<32>{};
     constexpr auto Y  = Number<3>{};
     constexpr auto X  = Number<3>{};
     constexpr auto C0 = Number<2>{};
@@ -321,14 +331,12 @@ int main(int argc, char* argv[])
 
         if(do_log)
         {
-            // LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
-            // LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
-            // LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
-            // LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") <<
-            // std::endl;
-            // LogRangeAsType<float>(std::cout << "add_device: ", add_device.mData, ",") <<
-            // std::endl;
+            LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "add_host: ", add_host.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "add_device: ", add_device.mData, ",") << std::endl;
         }
     }
 }

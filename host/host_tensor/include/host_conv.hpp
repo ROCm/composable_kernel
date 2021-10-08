@@ -205,11 +205,15 @@ void host_direct_convolution_add_nchwc(const Tensor<TIn>& in,
 
         v = activ(v, activ_type);
 
-        out_host(n, k0, ho, wo, k1)         = v;
-        add_host(n, k0, ho, wo, k1)         = v + add(n, k0, ho, wo, k1);
-        add_host(n, k0, ho, wo + 1, k1)     = v + add(n, k0, ho, wo + 1, k1);
-        add_host(n, k0, ho + 1, wo, k1)     = v + add(n, k0, ho + 1, wo, k1);
-        add_host(n, k0, ho + 1, wo + 1, k1) = v + add(n, k0, ho + 1, wo + 1, k1);
+        const int hox2 = ho * 2;
+        const int wox2 = wo * 2;
+
+        out_host(n, k0, ho, wo, k1) = v;
+
+        add_host(n, k0, hox2, wox2, k1)         = v + add(n, k0, hox2, wox2, k1);
+        add_host(n, k0, hox2, wox2 + 1, k1)     = v + add(n, k0, hox2, wox2 + 1, k1);
+        add_host(n, k0, hox2 + 1, wox2, k1)     = v + add(n, k0, hox2 + 1, wox2, k1);
+        add_host(n, k0, hox2 + 1, wox2 + 1, k1) = v + add(n, k0, hox2 + 1, wox2 + 1, k1);
     };
 
     make_ParallelTensorFunctor(f_nchw,

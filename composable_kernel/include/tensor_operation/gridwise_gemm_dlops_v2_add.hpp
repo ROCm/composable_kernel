@@ -867,9 +867,9 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                     static_for<0, WoPerThreadx2, 1>{}([&](auto w_i) {
                         d_thread_buf(
                             Number<d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_thread_desc.CalculateOffset(
-                                make_tuple(0, k_i, 0, 0, 0, h_i, 0, 0, w_i))>{}) = 1;
-                        // c_thread_buf[Number<c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
-                        // make_tuple(k_i, 0, h_i / 2, w_i / 2))>{}];
+                                make_tuple(0, k_i, 0, 0, 0, h_i, 0, 0, w_i))>{}) +=
+                            c_thread_buf[Number<c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                                make_tuple(k_i, 0, h_i / 2, w_i / 2))>{}];
                     });
                 });
             });
