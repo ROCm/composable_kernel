@@ -61,6 +61,13 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
 
+    constexpr index_t InWeiVectorSize = 8;
+
+    if(C1 % InWeiVectorSize != 0)
+    {
+        throw std::runtime_error("wrong! C1 cannot be divided by InWeiVectorSize");
+    }
+
 #if 0
     constexpr index_t BlockSize = 256;
 
@@ -115,14 +122,16 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     constexpr index_t CThreadTransferDstScalarPerVector_K = 8;
 #endif
 
-    constexpr index_t InWeiVectorSize = 8;
-
     const auto in_n_c0_hi_wi_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1 / InWeiVectorSize));
+        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1));
     const auto wei_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1 / InWeiVectorSize));
+        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
+
+    static_assert(in_n_c0_hi_wi_c1_desc.IsKnownAtCompileTime(), "");
+    static_assert(wei_k_c0_y_x_c1_desc.IsKnownAtCompileTime(), "");
+    static_assert(out_n_k0_ho_wo_k1_desc.IsKnownAtCompileTime(), "");
 
     constexpr auto conv_driver =
         DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_outpad<

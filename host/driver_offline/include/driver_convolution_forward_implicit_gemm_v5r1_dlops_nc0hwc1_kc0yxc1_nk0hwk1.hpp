@@ -61,7 +61,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto C0 = in_n_c0_hi_wi_c1_global_desc.GetLength(I1);
         const auto Hi = in_n_c0_hi_wi_c1_global_desc.GetLength(I2);
         const auto Wi = in_n_c0_hi_wi_c1_global_desc.GetLength(I3);
-        // const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
+        //const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
 
         const auto K0 = out_n_k0_ho_wo_k1_global_desc.GetLength(I1);
         const auto Ho = out_n_k0_ho_wo_k1_global_desc.GetLength(I2);
@@ -78,11 +78,13 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto ConvDilationH = conv_dilations[I0];
         const auto ConvDilationW = conv_dilations[I1];
 
-        // const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
-        // const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
-
+#if 1
+        const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
+        const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
+#else
         const auto Hop = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
         const auto Wop = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
+#endif
 
         const auto OutRightPadH = Hop - Ho;
         const auto OutRightPadW = Wop - Wo;
@@ -119,8 +121,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                         make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
 
         // input tensor
-        const auto in_n_c0_hip_wip_c1_global_desc = transform_tensor_descriptor(
-            in_n_c0_hi_wi_c1_global_desc,
+        const auto in_n_c0_hip_wip_e2_global_desc = transform_tensor_descriptor(
+            make_naive_tensor_descriptor_packed(make_tuple(K, C0, Hi, Wi, E2)),
             make_tuple(make_pass_through_transform(N),
                        make_pass_through_transform(C0),
                        make_pad_transform(Hi, InLeftPadH, InRightPadH),
@@ -129,8 +131,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
-        const auto in_n_c0_y_ho_x_wo_c1_global_desc = transform_tensor_descriptor(
-            in_n_c0_hip_wip_c1_global_desc,
+        const auto in_n_c0_y_ho_x_wo_e2_global_desc = transform_tensor_descriptor(
+            in_n_c0_hip_wip_e2_global_desc,
             make_tuple(
                 make_pass_through_transform(N),
                 make_pass_through_transform(C0),
@@ -142,7 +144,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}, Sequence<6>{}));
 
         const auto b_e_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
-            in_n_c0_y_ho_x_wo_c1_global_desc,
+            in_n_c0_y_ho_x_wo_e2_global_desc,
             make_tuple(make_merge_transform(make_tuple(C0, Y, X)),
                        make_pass_through_transform(N),
                        make_pass_through_transform(Hop),
@@ -251,9 +253,9 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
         // clang-format on
 
-        // static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
-        // static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
-        // static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
 
         // GEMM
         using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3<
