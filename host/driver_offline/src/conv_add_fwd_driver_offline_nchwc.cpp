@@ -13,7 +13,7 @@
 #include "conv_common.hpp"
 #include "host_conv.hpp"
 #include "device_tensor.hpp"
-#include "device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
+#include "device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
 
 #define USE_DYNAMIC_MODE 0
 #define USE_CONV_FWD_V5R1_NCHWC 1
@@ -34,6 +34,7 @@ int main(int argc, char* argv[])
     constexpr auto I4 = Number<4>{};
     constexpr auto I5 = Number<5>{};
     constexpr auto I6 = Number<6>{};
+    constexpr auto I7 = Number<7>{};
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
@@ -104,7 +105,7 @@ int main(int argc, char* argv[])
     constexpr auto C1            = Number<8>{};
     constexpr auto K1            = Number<8>{};
     constexpr auto K0            = Number<8>{};
-#elif 1
+#elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<540>{};
     constexpr auto Wi = Number<960>{};
@@ -150,6 +151,10 @@ int main(int argc, char* argv[])
 
     constexpr auto Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + I1;
     constexpr auto Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
+
+    constexpr auto Hox2 = Number<Ho * 2>{};
+    constexpr auto Wox2 = Number<Wo * 2>{};
+
 #endif
 
 #if 0
@@ -157,16 +162,17 @@ int main(int argc, char* argv[])
     using acc_data_t = float;
     using out_data_t = float;
 #elif 1
-    using in_data_t   = half_t;
-    using acc_data_t  = float;
-    using out_data_t  = half_t;
+    using in_data_t     = half_t;
+    using acc_data_t    = float;
+    using out_data_t    = half_t;
 #elif 1
     using in_data_t  = int8_t;
     using acc_data_t = int32_t;
     using out_data_t = int8_t;
 #endif
 
-    std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5);
+    std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5),
+        add_lengths_host(5);
 
     in_lengths_host[0] = static_cast<std::size_t>(N);
     in_lengths_host[1] = static_cast<std::size_t>(C0);
@@ -186,13 +192,23 @@ int main(int argc, char* argv[])
     out_lengths_host[3] = static_cast<std::size_t>(Wo);
     out_lengths_host[4] = static_cast<std::size_t>(K1);
 
+    add_lengths_host[0] = static_cast<std::size_t>(N);
+    add_lengths_host[1] = static_cast<std::size_t>(K0);
+    add_lengths_host[2] = static_cast<std::size_t>(Hox2);
+    add_lengths_host[3] = static_cast<std::size_t>(Wox2);
+    add_lengths_host[4] = static_cast<std::size_t>(K1);
+
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
+    Tensor<in_data_t> add(add_lengths_host);
     Tensor<out_data_t> out_host(out_lengths_host);
     Tensor<out_data_t> out_device(out_lengths_host);
+    Tensor<in_data_t> add_device(add_lengths_host);
+    Tensor<in_data_t> add_host(add_lengths_host);
 
     ostream_HostTensorDescriptor(in.mDesc, std::cout << "in: ");
     ostream_HostTensorDescriptor(wei.mDesc, std::cout << "wei: ");
+    ostream_HostTensorDescriptor(add.mDesc, std::cout << "add: ");
     ostream_HostTensorDescriptor(out_host.mDesc, std::cout << "out: ");
 
     print_array("InLeftPads", make_tuple(in_left_pad_h, in_left_pad_w));
@@ -209,22 +225,27 @@ int main(int argc, char* argv[])
         break;
     case 1:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        add.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 2:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        add.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 3:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        add.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 4:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        add.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 5:
         in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
+        add.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
         break;
     default:
@@ -239,6 +260,7 @@ int main(int argc, char* argv[])
     auto f_make_for_device_nchwc = [&]() {
         const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
         const auto wei_lengths_dev    = make_tuple(K0 * K1, C0, Y, X, C1);
+        const auto add_lengths_dev    = make_tuple(N, K0, Hox2, Wox2, K1);
         const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
         const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
         const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
@@ -247,6 +269,7 @@ int main(int argc, char* argv[])
 
         return make_tuple(in_lengths_dev,
                           wei_lengths_dev,
+                          add_lengths_dev,
                           out_lengths_dev,
                           conv_strides_dev,
                           conv_dilations_dev,
@@ -259,19 +282,22 @@ int main(int argc, char* argv[])
     {
         const auto tmp = f_make_for_device_nchwc();
 
-        device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<in_data_t,
-                                                                                    acc_data_t,
-                                                                                    out_data_t,
-                                                                                    activ_type>(
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            tmp[I3],
-            tmp[I4],
-            tmp[I5],
-            tmp[I6],
+        device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<in_data_t,
+                                                                                        acc_data_t,
+                                                                                        out_data_t,
+                                                                                        activ_type>(
+            tmp[I0], // in_lengths_dev
+            tmp[I1], // wei_lengths_dev
+            tmp[I2], // add_lengths_dev
+            tmp[I3], // out_lengths_dev
+            tmp[I4], // conv_strides_dev
+            tmp[I5], // conv_dilations_dev
+            tmp[I6], // in_left_pads_dev
+            tmp[I7], // in_right_pads_dev
             in,
             wei,
+            add,
+            add_device,
             out_device,
             nrepeat);
     }
@@ -279,23 +305,30 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution_nchwc(in,
-                                      wei,
-                                      out_host,
-                                      make_tuple(conv_stride_h, conv_stride_w),
-                                      make_tuple(conv_dilation_h, conv_dilation_w),
-                                      make_tuple(in_left_pad_h, in_left_pad_w),
-                                      make_tuple(in_right_pad_h, in_right_pad_w),
-                                      activ_type);
+        host_direct_convolution_add_nchwc(in,
+                                          wei,
+                                          add,
+                                          add_host,
+                                          out_host,
+                                          make_tuple(conv_stride_h, conv_stride_w),
+                                          make_tuple(conv_dilation_h, conv_dilation_w),
+                                          make_tuple(in_left_pad_h, in_left_pad_w),
+                                          make_tuple(in_right_pad_h, in_right_pad_w),
+                                          activ_type);
 
         check_error(out_host, out_device);
+        check_error(add_host, add_device);
 
         if(do_log)
         {
-            LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") <<
+            // std::endl;
+            // LogRangeAsType<float>(std::cout << "add_device: ", add_device.mData, ",") <<
+            // std::endl;
+            LogRangeAsType<float>(std::cout << "add_host: ", add_host.mData, ",") << std::endl;
         }
     }
 }
