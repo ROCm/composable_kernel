@@ -17,8 +17,11 @@ template <typename... Wei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads,
+          index_t GemmMPerBlockValue,
+          index_t GemmNPerBlockValue,
+          index_t GemmKPerBlockValue,
           index_t GemmK1Value,
-          typename GemmKBatchType>
+          typename GridSizeType>
 __host__ __device__ constexpr auto
 transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad(
     const TensorDescriptor<Wei...>& wei_k_c_y_x_grid_desc,
@@ -28,15 +31,21 @@ transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
     const InRightPads& in_right_pads,
+    Number<GemmMPerBlockValue>,
+    Number<GemmNPerBlockValue>,
+    Number<GemmKPerBlockValue>,
     Number<GemmK1Value>,
-    GemmKBatchType GemmKBatch)
+    GridSizeType GrideSize)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr auto GemmK1 = Number<GemmK1Value>{};
+    constexpr auto GemmMPerBlock = Number<GemmMPerBlockValue>{};
+    constexpr auto GemmNPerBlock = Number<GemmNPerBlockValue>{};
+    constexpr auto GemmKPerBlock = Number<GemmKPerBlockValue>{};
+    constexpr auto GemmK1        = Number<GemmK1Value>{};
 
     const auto N = in_n_c_hi_wi_grid_desc.GetLength(I0);
     const auto C = in_n_c_hi_wi_grid_desc.GetLength(I1);
@@ -66,9 +75,13 @@ transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad
     const auto GemmM      = K;
     const auto GemmN      = C * Y * X;
     const auto GemmKTotal = N * Ho * Wo;
-    const auto GemmK      = GemmKTotal / GemmKBatch;
-    const auto GemmK0     = GemmK / GemmK1;
+    const auto GemmK      = GemmKTotal / GemmK1;
 
+    const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
+    const index_t GemmKBatch = std::max(GrideSize / GridMN, 1);
+    const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
+    const index_t GemmK0     = BatchLen * GemmKPerBlock;
+    const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
     // A: output tensor
     const auto out_gemmktotal_gemmm_grid_desc = transform_tensor_descriptor(
         make_naive_tensor_descriptor_packed(make_tuple(N, K, Ho * Wo)),
@@ -76,8 +89,15 @@ transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad
         make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
         make_tuple(Sequence<1>{}, Sequence<0>{}));
 
-    const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+    const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
         out_gemmktotal_gemmm_grid_desc,
+        make_tuple(make_pad_transform(GemmKTotal, 0, GemmKPad - GemmKTotal),
+                   make_pass_through_transform(GemmM)),
+        make_tuple(Sequence<0>{}, Sequence<1>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+    const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+        out_gemmkpad_gemmm_grid_desc,
         make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1)),
                    make_pass_through_transform(GemmM)),
         make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -109,8 +129,15 @@ transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad
                                     make_tuple(Sequence<1, 2, 4>{}, Sequence<0, 3, 5>{}),
                                     make_tuple(Sequence<1>{}, Sequence<0>{}));
 
-    const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+    const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
         in_gemmktotal_gemmn_grid_desc,
+        make_tuple(make_pad_transform(GemmKTotal, 0, GemmKPad - GemmKTotal),
+                   make_pass_through_transform(GemmN)),
+        make_tuple(Sequence<0>{}, Sequence<1>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+    const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+        in_gemmkpad_gemmn_grid_desc,
         make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1)),
                    make_pass_through_transform(GemmN)),
         make_tuple(Sequence<0>{}, Sequence<1>{}),

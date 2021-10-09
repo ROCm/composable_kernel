@@ -82,7 +82,7 @@ transform_backward_weight_convolution_into_gemm_v4r4r5_nhwc_kyxc_nhwk_pad(
     const auto GemmK = GemmKTotal / GemmK1;
 
     const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
-    const index_t GemmKBatch = std::max(GrideSize / GridMN , 1);
+    const index_t GemmKBatch = std::max(GrideSize / GridMN, 1);
     const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
     const index_t GemmK0     = BatchLen * GemmKPerBlock;
     const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;

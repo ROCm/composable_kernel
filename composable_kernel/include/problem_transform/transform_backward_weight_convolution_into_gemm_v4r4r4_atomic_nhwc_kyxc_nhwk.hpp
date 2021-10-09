@@ -48,7 +48,7 @@ transform_backward_weight_convolution_into_gemm_v4r4r4_atomic_nhwc_kyxc_nhwk_pad
     constexpr auto GemmMPerBlock = Number<GemmMPerBlockValue>{};
     constexpr auto GemmNPerBlock = Number<GemmNPerBlockValue>{};
     constexpr auto GemmKPerBlock = Number<GemmKPerBlockValue>{};
-    constexpr auto GemmK1 = Number<GemmK1Value>{};
+    constexpr auto GemmK1        = Number<GemmK1Value>{};
 
     const auto N = in_n_hi_wi_c_grid_desc.GetLength(I0);
     const auto C = in_n_hi_wi_c_grid_desc.GetLength(I3);
@@ -78,11 +78,11 @@ transform_backward_weight_convolution_into_gemm_v4r4r4_atomic_nhwc_kyxc_nhwk_pad
     const auto GemmM      = Y * X * C;
     const auto GemmN      = K;
     const auto GemmKTotal = N * Ho * Wo;
-    
+
     const auto GemmK = GemmKTotal / GemmK1;
 
     const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
-    const index_t GemmKBatch = std::max(GrideSize / GridMN , 1);
+    const index_t GemmKBatch = std::max(GrideSize / GridMN, 1);
     const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
     const index_t GemmK0     = BatchLen * GemmKPerBlock;
     const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
