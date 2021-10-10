@@ -17,7 +17,7 @@ template <typename GridwiseGemm,
           typename FloatC,
           typename AGridDesc_E0_E1_K0_K1_E2,
           typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-          typename CGridDesc_K_N_H0_H1_H2_W0_W1_W2,
+          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
           typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
           bool HasMainE0BlockLoop>
 __global__ void
@@ -30,7 +30,7 @@ __global__ void
             FloatC* __restrict__ p_c_grid,
             const AGridDesc_E0_E1_K0_K1_E2 a_e0_e1_k0_k1_e2_grid_desc,
             const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-            const CGridDesc_K_N_H0_H1_H2_W0_W1_W2 c_k_n_h0_h1_h2_w0_w1_w2_grid_desc,
+            const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
             const CBlockIdToBlockClusterAdaptor_K_N_H_W c_blockid_to_k_n_h_w_block_cluster_adaptor)
 {
     constexpr index_t shared_block_size =
@@ -44,7 +44,7 @@ __global__ void
                       p_shared_block,
                       a_e0_e1_k0_k1_e2_grid_desc,
                       b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                      c_k_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                       c_blockid_to_k_n_h_w_block_cluster_adaptor,
                       integral_constant<bool, HasMainE0BlockLoop>{});
 }
@@ -57,7 +57,7 @@ template <typename GridwiseGemm,
           typename FloatC,
           typename AGridDesc_E0_E1_K0_K1_E2,
           typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-          typename CGridDesc_K_N_H0_H1_H2_W0_W1_W2,
+          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
           typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
           bool HasMainE0BlockLoop>
 __global__ void
@@ -69,7 +69,7 @@ __global__ void
                              FloatC* __restrict__ p_c_grid,
                              const void CONSTANT* p_a_e0_e1_k0_k1_e2_grid_desc,
                              const void CONSTANT* p_b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                             const void CONSTANT* p_c_k_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                             const void CONSTANT* p_c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                              const void CONSTANT* p_c_blockid_to_k_n_h_w_block_cluster_adaptor)
 {
     // first cast void CONSTANT void* to void*
@@ -80,9 +80,9 @@ __global__ void
     const auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
         *reinterpret_cast<const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2*>(
             cast_pointer_to_generic_address_space(p_b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc));
-    const auto c_k_n_h0_h1_h2_w0_w1_w2_grid_desc =
-        *reinterpret_cast<const CGridDesc_K_N_H0_H1_H2_W0_W1_W2*>(
-            cast_pointer_to_generic_address_space(p_c_k_n_h0_h1_h2_w0_w1_w2_grid_desc));
+    const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
+        *reinterpret_cast<const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2*>(
+            cast_pointer_to_generic_address_space(p_c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc));
     const auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
         *reinterpret_cast<const CBlockIdToBlockClusterAdaptor_K_N_H_W*>(
             cast_pointer_to_generic_address_space(p_c_blockid_to_k_n_h_w_block_cluster_adaptor));
@@ -98,7 +98,7 @@ __global__ void
                       p_shared_block,
                       a_e0_e1_k0_k1_e2_grid_desc,
                       b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                      c_k_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                       c_blockid_to_k_n_h_w_block_cluster_adaptor,
                       integral_constant<bool, HasMainE0BlockLoop>{});
 }
