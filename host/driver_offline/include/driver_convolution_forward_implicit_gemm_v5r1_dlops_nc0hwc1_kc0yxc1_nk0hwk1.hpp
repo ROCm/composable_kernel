@@ -27,7 +27,7 @@ template <ck::index_t BlockSize,
           ck::index_t ABlockTransferDstScalarPerVector_E2,
           ck::index_t BThreadTransferSrcScalarPerVector_E2,
           ck::index_t CThreadTransferDstScalarPerVector_K,
-          ck::index_t activ_type>
+          ck::ActivTypeEnum_t activ_type>
 struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_outpad
 {
     template <typename... Wei,
@@ -61,7 +61,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto C0 = in_n_c0_hi_wi_c1_global_desc.GetLength(I1);
         const auto Hi = in_n_c0_hi_wi_c1_global_desc.GetLength(I2);
         const auto Wi = in_n_c0_hi_wi_c1_global_desc.GetLength(I3);
-        //const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
+        // const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
 
         const auto K0 = out_n_k0_ho_wo_k1_global_desc.GetLength(I1);
         const auto Ho = out_n_k0_ho_wo_k1_global_desc.GetLength(I2);

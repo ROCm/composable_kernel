@@ -143,7 +143,7 @@ template <index_t BlockSize,
           typename CGlobalStepHacks,
           typename AGlobalMoveSliceWindowStepHacks,
           typename BGlobalMoveSliceWindowStepHacks,
-          index_t activ_type = 0>
+          ActivTypeEnum_t activ_type = ActivTypeEnum_t::None>
 struct GridwiseGemmDlops_km_kn_mn_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -158,6 +158,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
     static constexpr auto K2 = Number<K2_>{};
 
     static constexpr auto NPerBlock = I1;
+
+    static constexpr FloatC alpha = 0.3;
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -729,7 +731,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
                 if constexpr(activ_type == 1)
                 {
-                    c_thread_buf(i) = c_thread_buf[i] >= 0 ? c_thread_buf[i] : 0.0;
+                    c_thread_buf(i) =
+                        c_thread_buf[i] >= 0 ? c_thread_buf[i] : alpha * c_thread_buf[i];
                 }
                 else if constexpr(activ_type == 2)
                 {

@@ -250,7 +250,7 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
-    constexpr index_t activ_type = 0;
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::None;
 
 #if USE_CONV_FWD_V5R1_NCHWC
     if(algo == ConvForwardAlgo::V5R1NCHWC)
