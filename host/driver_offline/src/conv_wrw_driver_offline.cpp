@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
+#include "debug.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
