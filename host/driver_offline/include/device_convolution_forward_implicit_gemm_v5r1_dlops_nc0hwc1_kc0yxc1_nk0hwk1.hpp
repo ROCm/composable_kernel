@@ -6,7 +6,7 @@
 template <typename TInWei,
           typename TAcc,
           typename TOut,
-          ck::index_t activ_type,
+          ck::ActivTypeEnum_t activ_type,
           typename InLengths,
           typename WeiLengths,
           typename OutLengths,
@@ -24,6 +24,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     const InRightPads& in_right_pads,
     const Tensor<TInWei>& in_n_c0_hi_wi_c1,
     const Tensor<TInWei>& wei_k_c0_y_x_c1,
+    const Tensor<TOut>& bias_k0_k1,
     Tensor<TOut>& out_n_k0_ho_wo_k1,
     ck::index_t nrepeat)
 {
@@ -57,9 +58,11 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
     DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
                                            out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
+    DeviceMem bias_k0_k1_device_buf(sizeof(TOut) * bias_k0_k1.mDesc.GetElementSpace());
 
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
+    bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
 
     constexpr index_t InWeiVectorSize = 8;
 
@@ -173,6 +176,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
                                 wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
                                 in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
 

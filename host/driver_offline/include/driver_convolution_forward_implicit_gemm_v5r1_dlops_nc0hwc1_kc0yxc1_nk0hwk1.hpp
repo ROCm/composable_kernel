@@ -27,7 +27,7 @@ template <ck::index_t BlockSize,
           ck::index_t ABlockTransferDstScalarPerVector_E2,
           ck::index_t BThreadTransferSrcScalarPerVector_E2,
           ck::index_t CThreadTransferDstScalarPerVector_K,
-          ck::index_t activ_type>
+          ck::ActivTypeEnum_t activ_type>
 struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_outpad
 {
     template <typename... Wei,
@@ -46,6 +46,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                        const InRightPads& in_right_pads,
                        const FloatAB* __restrict__ p_a_grid,
                        const FloatAB* __restrict__ p_b_grid,
+                       const FloatC* __restrict__ p_bias_grid,
                        FloatC* __restrict__ p_c_grid,
                        const int nrepeat) const
     {
@@ -61,7 +62,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto C0 = in_n_c0_hi_wi_c1_global_desc.GetLength(I1);
         const auto Hi = in_n_c0_hi_wi_c1_global_desc.GetLength(I2);
         const auto Wi = in_n_c0_hi_wi_c1_global_desc.GetLength(I3);
-        //const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
+        // const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
 
         const auto K0 = out_n_k0_ho_wo_k1_global_desc.GetLength(I1);
         const auto Ho = out_n_k0_ho_wo_k1_global_desc.GetLength(I2);
@@ -348,6 +349,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               0,
                                               p_a_grid,
                                               p_b_grid,
+                                              p_bias_grid,
                                               p_c_grid,
                                               a_e0_e1_k0_k1_e2_grid_desc,
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
@@ -373,6 +375,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               0,
                                               p_a_grid,
                                               p_b_grid,
+                                              p_bias_grid,
                                               p_c_grid,
                                               a_e0_e1_k0_k1_e2_grid_desc,
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
@@ -418,6 +421,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 0,
                 p_a_grid,
                 p_b_grid,
+                p_bias_grid,
                 p_c_grid,
                 cast_pointer_to_constant_address_space(
                     a_e0_e1_k0_k1_e2_grid_desc_dev_buf.GetDeviceBuffer()),
@@ -449,6 +453,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 0,
                 p_a_grid,
                 p_b_grid,
+                p_bias_grid,
                 p_c_grid,
                 cast_pointer_to_constant_address_space(
                     a_e0_e1_k0_k1_e2_grid_desc_dev_buf.GetDeviceBuffer()),

@@ -110,6 +110,7 @@ template <typename TIn,
           typename InRightPads>
 void host_direct_convolution_nchwc(const Tensor<TIn>& in,
                                    const Tensor<TWei>& wei,
+                                   const Tensor<TOut>& bias,
                                    Tensor<TOut>& out,
                                    const ConvStrides& conv_strides,
                                    const ConvDilations& conv_dilations,
@@ -123,7 +124,8 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in,
     constexpr auto I1 = Number<1>{};
 
     auto f_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
-        double v = 0;
+        double v    = 0;
+        const int k = k0 * out.mDesc.GetLengths()[4] + k1;
         for(int c0 = 0; c0 < wei.mDesc.GetLengths()[1]; ++c0)
         {
             for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
@@ -138,14 +140,13 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in,
                            wi < in.mDesc.GetLengths()[3])
                         {
                             v += static_cast<const double>(in(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(
-                                     wei(k0 * out.mDesc.GetLengths()[4] + k1, c0, y, x, c1));
+                                 static_cast<const double>(wei(k, c0, y, x, c1));
                         }
                     }
                 }
             }
         }
-        out(n, k0, ho, wo, k1) = activ(v, activ_type);
+        out(n, k0, ho, wo, k1) = activ(v, activ_type) + bias(k0, k1);
     };
 
     make_ParallelTensorFunctor(f_nchw,

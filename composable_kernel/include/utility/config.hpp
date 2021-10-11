@@ -127,6 +127,13 @@ enum InMemoryDataOperationEnum_t
     AtomicAdd
 };
 
+enum ActivTypeEnum_t
+{
+    None = 0,
+    LeakyRelu,
+    Sigmoid
+};
+
 // index type
 using index_t = int32_t;
 

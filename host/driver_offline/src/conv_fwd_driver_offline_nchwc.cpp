@@ -92,19 +92,17 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-    constexpr index_t activ_type = 0;
-
 #if 0
-    constexpr auto N             = Number<1>{};
-    constexpr auto Hi            = Number<1080>{};
-    constexpr auto Wi            = Number<1920>{};
-    constexpr auto Y             = Number<3>{};
-    constexpr auto X             = Number<3>{};
-    constexpr auto C0            = Number<2>{};
-    constexpr auto C1            = Number<8>{};
-    constexpr auto K1            = Number<8>{};
-    constexpr auto K0            = Number<8>{};
-#elif 1
+    constexpr auto N           = Number<1>{};
+    constexpr auto Hi          = Number<1080>{};
+    constexpr auto Wi          = Number<1920>{};
+    constexpr auto Y           = Number<3>{};
+    constexpr auto X           = Number<3>{};
+    constexpr auto C0          = Number<2>{};
+    constexpr auto C1          = Number<8>{};
+    constexpr auto K1          = Number<8>{};
+    constexpr auto K0          = Number<8>{};
+#elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<540>{};
     constexpr auto Wi = Number<960>{};
@@ -114,7 +112,7 @@ int main(int argc, char* argv[])
     constexpr auto C1 = Number<8>{};
     constexpr auto K1 = Number<8>{};
     constexpr auto K0 = Number<8>{};
-#elif 0
+#elif 1
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
     constexpr auto Wi = Number<480>{};
@@ -166,7 +164,8 @@ int main(int argc, char* argv[])
     using out_data_t = int8_t;
 #endif
 
-    std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5);
+    std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5),
+        bias_lengths_host(2);
 
     in_lengths_host[0] = static_cast<std::size_t>(N);
     in_lengths_host[1] = static_cast<std::size_t>(C0);
@@ -186,13 +185,18 @@ int main(int argc, char* argv[])
     out_lengths_host[3] = static_cast<std::size_t>(Wo);
     out_lengths_host[4] = static_cast<std::size_t>(K1);
 
+    bias_lengths_host[0] = static_cast<std::size_t>(K0);
+    bias_lengths_host[1] = static_cast<std::size_t>(K1);
+
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
+    Tensor<out_data_t> bias(bias_lengths_host);
     Tensor<out_data_t> out_host(out_lengths_host);
     Tensor<out_data_t> out_device(out_lengths_host);
 
     ostream_HostTensorDescriptor(in.mDesc, std::cout << "in: ");
     ostream_HostTensorDescriptor(wei.mDesc, std::cout << "wei: ");
+    ostream_HostTensorDescriptor(bias.mDesc, std::cout << "bias: ");
     ostream_HostTensorDescriptor(out_host.mDesc, std::cout << "out: ");
 
     print_array("InLeftPads", make_tuple(in_left_pad_h, in_left_pad_w));
@@ -210,22 +214,27 @@ int main(int argc, char* argv[])
     case 1:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        bias.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 2:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        bias.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 3:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        bias.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 4:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        bias.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 5:
         in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
+        bias.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
         break;
     default:
         in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
@@ -254,6 +263,8 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::None;
+
 #if USE_CONV_FWD_V5R1_NCHWC
     if(algo == ConvForwardAlgo::V5R1NCHWC)
     {
@@ -272,6 +283,7 @@ int main(int argc, char* argv[])
             tmp[I6],
             in,
             wei,
+            bias,
             out_device,
             nrepeat);
     }
@@ -281,6 +293,7 @@ int main(int argc, char* argv[])
     {
         host_direct_convolution_nchwc(in,
                                       wei,
+                                      bias,
                                       out_host,
                                       make_tuple(conv_stride_h, conv_stride_w),
                                       make_tuple(conv_dilation_h, conv_dilation_w),
@@ -294,6 +307,7 @@ int main(int argc, char* argv[])
         {
             LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "bias: ", bias.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
         }
