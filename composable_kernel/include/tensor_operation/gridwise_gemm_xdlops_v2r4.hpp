@@ -214,8 +214,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         const auto KBatch = a_b_k0_m_k1_grid_desc.GetLength(I0);
 
         if(!(M == c_m_n_grid_desc.GetLength(I0) && N == c_m_n_grid_desc.GetLength(I1) &&
-             K0 == b_b_k0_n_k1_grid_desc.GetLength(I1) && K1 == a_b_k0_m_k1_grid_desc.GetLength(I3) &&
-             K1 == b_b_k0_n_k1_grid_desc.GetLength(I3) && KBatch == b_b_k0_n_k1_grid_desc.GetLength(I0)))
+             K0 == b_b_k0_n_k1_grid_desc.GetLength(I1) &&
+             K1 == a_b_k0_m_k1_grid_desc.GetLength(I3) &&
+             K1 == b_b_k0_n_k1_grid_desc.GetLength(I3) &&
+             KBatch == b_b_k0_n_k1_grid_desc.GetLength(I0)))
             return false;
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % KPerBlock == 0))
@@ -297,8 +299,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
-    __host__ __device__ static constexpr auto
-    MakeCBlockClusterAdaptor(const CMNGridDesc& c_m_n_grid_desc, index_t M01, index_t N01, index_t KBatch)
+    __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
+        const CMNGridDesc& c_m_n_grid_desc, index_t M01, index_t N01, index_t KBatch)
     {
         const auto M = c_m_n_grid_desc.GetLength(I0);
         const auto N = c_m_n_grid_desc.GetLength(I1);
@@ -309,25 +311,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
         const auto M0 = M / M1;
         const auto N0 = N / N1;
 
-#if 1
-        const auto c_blockid_to_m0_n0_block_cluster_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(KBatch, M0, N0))),
-            make_tuple(Sequence<0, 1, 2>{}),
-            make_tuple(Sequence<0>{}));
-#elif 1
-        const auto c_blockid_to_m0_n0_block_cluster_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(KBatch, N0, M0))),
-            make_tuple(Sequence<0, 2, 1>{}),
-            make_tuple(Sequence<0>{}));
-#endif
-
-        return c_blockid_to_m0_n0_block_cluster_adaptor;
- /*       const auto M00 = M0 / M01;
+        const auto M00 = M0 / M01;
         const auto N00 = N0 / N01;
 
         const auto kbatch_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
-                make_tuple(KBatch,
+                make_tuple(make_pass_through_transform(KBatch),
                            make_unmerge_transform(make_tuple(M00, M01)),
                            make_unmerge_transform(make_tuple(N00, N01))),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
@@ -343,7 +332,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
             chain_tensor_adaptors(kbatch_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
                                   c_blockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor);
 
-        return c_blockid_to_kbatch_m0_n0_block_cluster_adaptor;*/
+        return c_blockid_to_kbatch_m0_n0_block_cluster_adaptor;
     }
 
     using CM0N0M1N1M2M3M4N2GridDesc = decltype(MakeCM0N0M1N1M2M3M4N2GridDescriptor(CMNGridDesc{}));
@@ -378,7 +367,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I2] * NPerBlock);
-        
+
         // lds max alignment
         constexpr auto max_lds_align = K1;
 
@@ -402,12 +391,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
             {
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<KPerBlock>{} * Number<MPerBlock + 1>{} * K1, Number<MPerBlock + 1>{} * K1, K1, I1));
+                    make_tuple(Number<KPerBlock>{} * Number<MPerBlock + 1>{} * K1,
+                               Number<MPerBlock + 1>{} * K1,
+                               K1,
+                               I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<MPerBlock>{}, K1),
+                    max_lds_align);
             }
         }();
         // B matrix in LDS memory, dst of blockwise copy
@@ -430,12 +423,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
             {
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<KPerBlock>{} * Number<NPerBlock + 1>{} * K1, Number<NPerBlock + 1>{} * K1, K1, I1));
+                    make_tuple(Number<KPerBlock>{} * Number<NPerBlock + 1>{} * K1,
+                               Number<NPerBlock + 1>{} * K1,
+                               K1,
+                               I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<NPerBlock>{}, K1),
+                    max_lds_align);
             }
         }();
         // A matrix blockwise copy

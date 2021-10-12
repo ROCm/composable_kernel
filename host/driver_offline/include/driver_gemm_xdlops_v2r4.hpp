@@ -132,7 +132,8 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
                   << c_m_n_grid_desc.GetLength(I1) << "}" << std::endl;
     }
 
-    if(!GridwiseGemm::CheckValidity(a_b_k0_m_k1_grid_desc, b_b_k0_n_k1_grid_desc, c_m_n_grid_desc, M01, N01))
+    if(!GridwiseGemm::CheckValidity(
+           a_b_k0_m_k1_grid_desc, b_b_k0_n_k1_grid_desc, c_m_n_grid_desc, M01, N01))
     {
         throw std::runtime_error(
             "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r4 has invalid setting");
