@@ -124,7 +124,8 @@ namespace ck {
 enum InMemoryDataOperationEnum_t
 {
     Set,
-    AtomicAdd
+    AtomicAdd,
+    Add
 };
 
 enum ActivTypeEnum_t

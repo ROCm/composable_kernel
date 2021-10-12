@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
 
     constexpr index_t activ_type = 0;
 
-#if 1
+#if 0
     constexpr auto N             = Number<1>{};
     constexpr auto Hi            = Number<1080>{};
     constexpr auto Wi            = Number<1920>{};
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
     constexpr auto C1 = Number<8>{};
     constexpr auto K1 = Number<8>{};
     constexpr auto K0 = Number<8>{};
-#elif 0
+#elif 1
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<32>{};
     constexpr auto Wi = Number<32>{};
@@ -235,27 +235,22 @@ int main(int argc, char* argv[])
         break;
     case 1:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        add.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 2:
         in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        add.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 3:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        add.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
         break;
     case 4:
         in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        add.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
         break;
     case 5:
         in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
-        add.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
         break;
     default:
@@ -266,6 +261,8 @@ int main(int argc, char* argv[])
         };
         wei.GenerateTensorValue(gen_wei, num_thread);
     }
+
+    add.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 
     auto f_make_for_device_nchwc = [&]() {
         const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
@@ -326,15 +323,15 @@ int main(int argc, char* argv[])
                                           make_tuple(in_right_pad_h, in_right_pad_w),
                                           activ_type);
 
-        check_error(out_host, out_device);
         check_error(add_host, add_device);
 
         if(do_log)
         {
-            LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") <<
+            // std::endl;
             LogRangeAsType<float>(std::cout << "add_host: ", add_host.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "add_device: ", add_device.mData, ",") << std::endl;
         }

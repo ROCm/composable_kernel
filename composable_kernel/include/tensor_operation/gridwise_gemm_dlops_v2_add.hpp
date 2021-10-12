@@ -18,7 +18,6 @@ template <typename GridwiseGemm,
           typename AGridDesc_E0_E1_K0_K1_E2,
           typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
           typename DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2,
-          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
           typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
           bool HasMainE0BlockLoop>
 __global__ void
@@ -29,11 +28,9 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_d_grid,
-            FloatC* __restrict__ p_c_grid,
             const AGridDesc_E0_E1_K0_K1_E2 a_e0_e1_k0_k1_e2_grid_desc,
             const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
             const DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2 d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-            const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
             const CBlockIdToBlockClusterAdaptor_K_N_H_W c_blockid_to_k_n_h_w_block_cluster_adaptor)
 {
     constexpr index_t shared_block_size =
@@ -44,12 +41,10 @@ __global__ void
     GridwiseGemm::Run(p_a_grid,
                       p_b_grid,
                       p_d_grid,
-                      p_c_grid,
                       p_shared_block,
                       a_e0_e1_k0_k1_e2_grid_desc,
                       b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                       d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                       c_blockid_to_k_n_h_w_block_cluster_adaptor,
                       integral_constant<bool, HasMainE0BlockLoop>{});
 }
@@ -63,7 +58,6 @@ template <typename GridwiseGemm,
           typename AGridDesc_E0_E1_K0_K1_E2,
           typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
           typename DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2,
-          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
           typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
           bool HasMainE0BlockLoop>
 __global__ void
@@ -73,7 +67,6 @@ __global__ void
         kernel_gemm_dlops_v2_add(const FloatAB* __restrict__ p_a_grid,
                                  const FloatAB* __restrict__ p_b_grid,
                                  FloatC* __restrict__ p_d_grid,
-                                 FloatC* __restrict__ p_c_grid,
                                  const void CONSTANT* p_a_e0_e1_k0_k1_e2_grid_desc,
                                  const void CONSTANT* p_b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                  const void CONSTANT* p_d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
@@ -91,9 +84,6 @@ __global__ void
     const auto d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc =
         *reinterpret_cast<const DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2*>(
             cast_pointer_to_generic_address_space(p_d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc));
-    const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
-        *reinterpret_cast<const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2*>(
-            cast_pointer_to_generic_address_space(p_c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc));
     const auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
         *reinterpret_cast<const CBlockIdToBlockClusterAdaptor_K_N_H_W*>(
             cast_pointer_to_generic_address_space(p_c_blockid_to_k_n_h_w_block_cluster_adaptor));
@@ -106,12 +96,10 @@ __global__ void
     GridwiseGemm::Run(p_a_grid,
                       p_b_grid,
                       p_d_grid,
-                      p_c_grid,
                       p_shared_block,
                       a_e0_e1_k0_k1_e2_grid_desc,
                       b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                       d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                       c_blockid_to_k_n_h_w_block_cluster_adaptor,
                       integral_constant<bool, HasMainE0BlockLoop>{});
 }
@@ -154,7 +142,6 @@ template <index_t BlockSize,
           index_t CThreadTransferDstScalarPerVector,
           typename AGlobalStepHacks,
           typename BGlobalStepHacks,
-          typename CGlobalStepHacks,
           typename DGlobalStepHacks,
           typename AGlobalMoveSliceWindowStepHacks,
           typename BGlobalMoveSliceWindowStepHacks,
@@ -292,37 +279,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         return b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc;
     }
 
-    __host__ __device__ static constexpr auto
-    MakeCK0K1NH0H1H2W0W1W2GridDescriptor(const CGridDesc_K_N_Ho_Wo& c_k_n_ho_wo_grid_desc)
-    {
-        const auto K  = c_k_n_ho_wo_grid_desc.GetLength(I0);
-        const auto N  = c_k_n_ho_wo_grid_desc.GetLength(I1);
-        const auto Ho = c_k_n_ho_wo_grid_desc.GetLength(I2);
-        const auto Wo = c_k_n_ho_wo_grid_desc.GetLength(I3);
-
-        const auto K1 = Number<KPerBlock>{};
-        const auto K0 = K / K1;
-
-        const auto H2 = Number<HoPerThread>{};
-        const auto H1 = Number<HoPerBlock / HoPerThread>{};
-        const auto H0 = Ho / (H1 * H2);
-
-        const auto W2 = Number<WoPerThread>{};
-        const auto W1 = Number<WoPerBlock / WoPerThread>{};
-        const auto W0 = Wo / (W1 * W2);
-
-        const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc = transform_tensor_descriptor(
-            c_k_n_ho_wo_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(K0, K1)),
-                       make_pass_through_transform(N),
-                       make_unmerge_transform(make_tuple(H0, H1, H2)),
-                       make_unmerge_transform(make_tuple(W0, W1, W2))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3, 4, 5>{}, Sequence<6, 7, 8>{}));
-
-        return c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
-    }
-
     __host__ __device__ static constexpr auto MakeDK0K1NH0H1H2x2W0W1W2x2GridDescriptor(
         const DGridDesc_K_N_Hox2_Wox2& d_k_n_hox2_wox2_grid_desc)
     {
@@ -334,26 +290,20 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         const auto K1 = Number<KPerBlock>{};
         const auto K0 = K / K1;
 
-        const auto HoPerBlockx2 = HoPerBlock * 2;
-        const auto WoPerBlockx2 = WoPerBlock * 2;
+        const auto H2 = Number<HoPerThread * 2>{};
+        const auto H1 = Number<HoPerBlock / HoPerThread>{};
+        const auto H0 = Number<Hox2 / (H1 * H2)>{};
 
-        const auto HoPerThreadx2 = HoPerThread * 2;
-        const auto WoPerThreadx2 = WoPerThread * 2;
-
-        const auto H2x2 = Number<HoPerThreadx2>{};
-        const auto H1   = Number<HoPerBlockx2 / HoPerThreadx2>{};
-        const auto H0   = Hox2 / (H1 * H2x2);
-
-        const auto W2x2 = Number<WoPerThreadx2>{};
-        const auto W1   = Number<WoPerBlockx2 / WoPerThreadx2>{};
-        const auto W0   = Wox2 / (W1 * W2x2);
+        const auto W2 = Number<WoPerThread * 2>{};
+        const auto W1 = Number<WoPerBlock / WoPerThread>{};
+        const auto W0 = Number<Wox2 / (W1 * W2)>{};
 
         const auto d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc = transform_tensor_descriptor(
             d_k_n_hox2_wox2_grid_desc,
             make_tuple(make_unmerge_transform(make_tuple(K0, K1)),
                        make_pass_through_transform(N),
-                       make_unmerge_transform(make_tuple(H0, H1, H2x2)),
-                       make_unmerge_transform(make_tuple(W0, W1, W2x2))),
+                       make_unmerge_transform(make_tuple(H0, H1, H2)),
+                       make_unmerge_transform(make_tuple(W0, W1, W2))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3, 4, 5>{}, Sequence<6, 7, 8>{}));
 
@@ -385,8 +335,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         decltype(MakeAE0E1K0K1E2GridDescriptor(AGridDesc_E0_E1_K_E2{}));
     using BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 =
         decltype(MakeBE0E1NH0H1H2W0W1W2E2GridDescriptor(BGridDesc_E0_E1_N_Ho_Wo_E2{}));
-    using CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 =
-        decltype(MakeCK0K1NH0H1H2W0W1W2GridDescriptor(CGridDesc_K_N_Ho_Wo{}));
     using DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2 =
         decltype(MakeDK0K1NH0H1H2x2W0W1W2x2GridDescriptor(DGridDesc_K_N_Hox2_Wox2{}));
     using CBlockIdToBlockClusterAdaptor_K_N_H_W =
@@ -397,12 +345,10 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
     Run(const FloatAB* __restrict__ p_a_global,
         const FloatAB* __restrict__ p_b_global,
         FloatC* __restrict__ p_d_global,
-        FloatC* __restrict__ p_c_global,
         FloatAB* __restrict__ p_shared_block,
         const AGridDesc_E0_E1_K0_K1_E2& a_e0_e1_k0_k1_e2_grid_desc,
         const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2& b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
         const DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2& d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-        const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
         const CBlockIdToBlockClusterAdaptor_K_N_H_W& c_blockid_to_k_n_h_w_block_cluster_adaptor,
         integral_constant<bool, HasMainE0BlockLoop>)
     {
@@ -410,9 +356,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
             p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
         const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_c_global, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
-        (void)c_global_buf;
         auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_d_global, d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc.GetElementSpaceSize());
 
@@ -806,10 +749,10 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 
         // Resize_Add
         {
-
             constexpr auto HoPerThreadx2 = HoPerThread * 2;
             constexpr auto WoPerThreadx2 = WoPerThread * 2;
 
+#if 1
             constexpr auto d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_thread_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(I1,
                                                                Number<KPerThread>{},
@@ -827,52 +770,69 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                          true>
                 d_thread_buf;
 
-            // hack to control index calculation when iterating over d_k_n_ho_wo_global tensor
-            constexpr auto d_k_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks =
-                DGlobalStepHacks{};
-
-            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
-
-#if 1
-            ThreadwiseTensorSliceTransfer_v2<
-                FloatC,
-                FloatC,
-                decltype(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc),
-                decltype(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_thread_desc),
-                Sequence<I1, KPerThread, I1, I1, I1, HoPerThreadx2, I1, I1, WoPerThreadx2>,
-                CThreadTransferSrcDstAccessOrder,
-                CThreadTransferSrcDstVectorDim,
-                CThreadTransferDstScalarPerVector,
-                1,
-                true>(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-                      make_multi_index(k_block_work_id,
-                                       k_thread_data_on_global,
-                                       n_block_work_id,
-                                       ho_block_work_id,
-                                       ho_thread_id,
-                                       0,
-                                       wo_block_work_id,
-                                       wo_thread_id,
-                                       0))
-                .Run(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-                     d_global_buf,
-                     d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_thread_desc,
-                     make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                     d_thread_buf,
-                     d_k_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks);
-#endif
-
             static_for<0, KPerThread, 1>{}([&](auto k_i) {
                 static_for<0, HoPerThreadx2, 1>{}([&](auto h_i) {
                     static_for<0, WoPerThreadx2, 1>{}([&](auto w_i) {
                         d_thread_buf(
                             Number<d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_thread_desc.CalculateOffset(
-                                make_tuple(0, k_i, 0, 0, 0, h_i, 0, 0, w_i))>{}) +=
+                                make_tuple(0, k_i, 0, 0, 0, h_i, 0, 0, w_i))>{}) =
                             c_thread_buf[Number<c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
                                 make_tuple(k_i, 0, h_i / 2, w_i / 2))>{}];
                     });
                 });
             });
+
+#else
+            constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                               Number<KPerThread>{},
+                                                               I1,
+                                                               I1,
+                                                               I1,
+                                                               Number<HoPerThread>{},
+                                                               I1,
+                                                               I1,
+                                                               Number<WoPerThread>{}));
+
+            constexpr auto d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_thread_desc =
+                transform_tensor_descriptor(
+                    c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_desc,
+                    make_tuple(make_pass_through_transform(I1),
+                               make_pass_through_transform(Number<KPerThread>{}),
+                               make_pass_through_transform(I1),
+                               make_pass_through_transform(I1),
+                               make_pass_through_transform(I1),
+                               make_embed_transform(make_tuple(I2, Number<HoPerThread>{}),
+                                                    make_tuple(I0, I1)),
+                               make_pass_through_transform(I1),
+                               make_pass_through_transform(I1),
+                               make_embed_transform(make_tuple(I2, Number<WoPerThread>{}),
+                                                    make_tuple(I0, I1))),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{},
+                               Sequence<5>{},
+                               Sequence<6>{},
+                               Sequence<7>{},
+                               Sequence<8>{}),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{},
+                               Sequence<5, 6>{},
+                               Sequence<7>{},
+                               Sequence<8>{},
+                               Sequence<9, 10>{}));
+#endif
+
+            // hack to control index calculation when iterating over d_k_n_ho_wo_global tensor
+            constexpr auto d_k_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks =
+                DGlobalStepHacks{};
+
+            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
 
             ThreadwiseTensorSliceTransfer_v1r3<
                 FloatC,
@@ -883,7 +843,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                 CThreadTransferSrcDstAccessOrder,
                 CThreadTransferSrcDstVectorDim,
                 CThreadTransferDstScalarPerVector,
-                CGlobalMemoryDataOperation,
+                InMemoryDataOperationEnum_t::Add, // CGlobalMemoryDataOperation,
                 1,
                 true>(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
                       make_multi_index(k_block_work_id,
@@ -902,56 +862,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                      d_global_buf,
                      d_k_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks);
         }
-
-#if 1
-        // output: register to global memory
-        {
-            // hack to control index calculation when iterating over c_k_n_h0_h1_h2_w0_w1_w2_global
-            // tensor
-            constexpr auto c_k_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks = CGlobalStepHacks{};
-
-            constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                               Number<KPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               I1,
-                                                               Number<HoPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               Number<WoPerThread>{}));
-
-            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
-
-            ThreadwiseTensorSliceTransfer_v1r3<
-                FloatAcc,
-                FloatC,
-                decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc),
-                decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc),
-                Sequence<I1, KPerThread, I1, I1, I1, HoPerThread, I1, I1, WoPerThread>,
-                CThreadTransferSrcDstAccessOrder,
-                CThreadTransferSrcDstVectorDim,
-                CThreadTransferDstScalarPerVector,
-                CGlobalMemoryDataOperation,
-                1,
-                true>(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                      make_multi_index(k_block_work_id,
-                                       k_thread_data_on_global,
-                                       n_block_work_id,
-                                       ho_block_work_id,
-                                       ho_thread_id,
-                                       0,
-                                       wo_block_work_id,
-                                       wo_thread_id,
-                                       0))
-                .Run(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc,
-                     make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                     c_thread_buf,
-                     c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                     c_global_buf,
-                     c_k_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks);
-        }
-#endif
     }
 };
 

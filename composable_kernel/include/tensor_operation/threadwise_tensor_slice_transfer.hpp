@@ -217,6 +217,22 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     is_dst_valid,
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
             }
+            else if constexpr(DstInMemOp == InMemoryDataOperationEnum_t::Add)
+            {
+
+                typename vector_type_maker<DstData, DstScalarPerVector>::type tmp;
+                tmp.template AsType<dst_vector_t>()(Number<0>{}) =
+                    dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid);
+
+                static_for<0, DstScalarPerVector, 1>{}([&](auto t) {
+                    dst_vector.template AsType<DstData>()(t) += tmp.template AsType<DstData>()[t];
+                });
+
+                dst_buf.template Set<dst_vector_t>(
+                    dst_coord_.GetOffset(),
+                    is_dst_valid,
+                    dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
+            }
 
             constexpr auto move_on_dim = [&]() constexpr
             {
