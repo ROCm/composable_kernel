@@ -173,10 +173,6 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_
     constexpr auto out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks =
         Sequence<0, 0, 0, 0, 0>{};
 
-    std::function<void()> clear_weight = [&wei_k_y_x_c_device_buf, &wei_k_y_x_c]() {
-        wei_k_y_x_c_device_buf.ToDevice(wei_k_y_x_c.mData.data());
-    };
-
     for(index_t i = 0; i < 5; ++i)
     {
         float ave_time = driver_gemm_xdlops_v2r4<
@@ -221,22 +217,21 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_
             decltype(in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
             false, // CAccessOrderMRepeatNRepeat
-            false,
-            false>(static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
-                   static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
-                   static_cast<TWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
-                   in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
-                   out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
-                   wei_gemmm_gemmn_grid_desc,
-                   debug_driver_gemm_xdlops_v2r3::M01,
-                   debug_driver_gemm_xdlops_v2r3::N01,
-                   in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_step_hacks,
-                   out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks,
-                   wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
-                   in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
-                   out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
-                   nrepeat,
-                   &clear_weight);
+            true,
+            true>(static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
+                  static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
+                  static_cast<TWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
+                  in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+                  out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
+                  wei_gemmm_gemmn_grid_desc,
+                  debug_driver_gemm_xdlops_v2r3::M01,
+                  debug_driver_gemm_xdlops_v2r3::N01,
+                  in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_step_hacks,
+                  out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks,
+                  wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+                  in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+                  out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+                  nrepeat);
 
         {
             const auto N = out_n_ho_wo_k_lengths[I0];
@@ -257,6 +252,64 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_
         }
     }
 
+    wei_k_y_x_c_device_buf.ToDevice(wei_k_y_x_c.mData.data());
+    driver_gemm_xdlops_v2r4<
+        BlockSize,
+        TIn,
+        TAcc,
+        TWei,
+        InMemoryDataOperationEnum_t::AtomicAdd,
+        decltype(in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc),
+        decltype(out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc),
+        decltype(wei_gemmm_gemmn_grid_desc),
+        GemmMPerBlock,
+        GemmNPerBlock,
+        GemmKPerBlock,
+        GemmMPerXDL,
+        GemmNPerXDL,
+        GemmK1,
+        MRepeat,
+        NRepeat,
+        GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1,
+        GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1,
+        Sequence<0, 1, 2, 3>,
+        Sequence<0, 1, 2, 3>,
+        2,
+        GemmABlockTransferSrcScalarPerVector_GemmM,
+        GemmABlockTransferDstScalarPerVector_GemmK1,
+        false, // don't move back src coordinate after threadwise copy
+        GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1,
+        GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1,
+        Sequence<0, 1, 2, 3>,
+        Sequence<0, 1, 2, 3>,
+        2,
+        GemmBBlockTransferSrcScalarPerVector_GemmN,
+        GemmBBlockTransferDstScalarPerVector_GemmK1,
+        false, // don't move back src coordinate after threadwise copy
+        Sequence<2, 3, 0, 1, 7, 5, 4, 6>,
+        6,
+        GemmCThreadTransferDstScalarPerVector,
+        decltype(in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_step_hacks),
+        decltype(out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks),
+        decltype(wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
+        decltype(in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
+        decltype(out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
+        false, // CAccessOrderMRepeatNRepeat
+        true,
+        true>(static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
+              static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
+              static_cast<TWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
+              in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
+              out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
+              wei_gemmm_gemmn_grid_desc,
+              debug_driver_gemm_xdlops_v2r3::M01,
+              debug_driver_gemm_xdlops_v2r3::N01,
+              in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_step_hacks,
+              out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks,
+              wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+              in_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+              out_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+              0);
     // copy result back to host
     wei_k_y_x_c_device_buf.FromDevice(wei_k_y_x_c.mData.data());
 }

@@ -237,21 +237,21 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nh
             decltype(in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(out_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
             false, // CAccessOrderMRepeatNRepeat
-            false,
-            false>(static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
-                   static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
-                   static_cast<TWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
-                   in_gemmk0_gemmm_gemmk1_grid_desc,
-                   out_gemmk0_gemmn_gemmk1_grid_desc,
-                   wei_gemmm_gemmn_grid_desc,
-                   debug_driver_gemm_xdlops_v2r3::M01,
-                   debug_driver_gemm_xdlops_v2r3::N01,
-                   in_gemmk0_gemmm_gemmk1_grid_step_hacks,
-                   out_gemmk0_gemmn_gemmk1_grid_step_hacks,
-                   wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
-                   in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
-                   out_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
-                   nrepeat);
+            true,
+            true>(static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
+                  static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
+                  static_cast<TWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
+                  in_gemmk0_gemmm_gemmk1_grid_desc,
+                  out_gemmk0_gemmn_gemmk1_grid_desc,
+                  wei_gemmm_gemmn_grid_desc,
+                  debug_driver_gemm_xdlops_v2r3::M01,
+                  debug_driver_gemm_xdlops_v2r3::N01,
+                  in_gemmk0_gemmm_gemmk1_grid_step_hacks,
+                  out_gemmk0_gemmn_gemmk1_grid_step_hacks,
+                  wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+                  in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+                  out_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+                  nrepeat);
 
         {
             const auto N = out_n_ho_wo_k_lengths[I0];

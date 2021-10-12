@@ -146,10 +146,6 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
 
     for(index_t i = 0; i < 5; ++i)
     {
-        std::function<void()> clear_weight = [&wei_k_c_y_x_device_buf, &wei_k_c_y_x]() {
-            wei_k_c_y_x_device_buf.ToDevice(wei_k_c_y_x.mData.data());
-        };
-
         float ave_time = driver_gemm_xdlops_v2r4<
             BlockSize,
             TIn,
@@ -191,19 +187,22 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
             decltype(wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
             decltype(out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
-            false>(static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
-                   static_cast<TIn*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
-                   static_cast<TWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
-                   out_gemmk0_gemmm_gemmk1_grid_desc,
-                   in_gemmk0_gemmn_gemmk1_grid_desc,
-                   wei_gemmm_gemmn_grid_desc,
-                   out_gemmk0_gemmm_gemmk1_grid_step_hacks,
-                   in_gemmk0_gemmn_gemmk1_grid_step_hacks,
-                   wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
-                   out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
-                   in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
-                   nrepeat,
-                   &clear_weight);
+            false,
+            true,
+            true>(static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
+                  static_cast<TIn*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
+                  static_cast<TWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
+                  out_gemmk0_gemmm_gemmk1_grid_desc,
+                  in_gemmk0_gemmn_gemmk1_grid_desc,
+                  wei_gemmm_gemmn_grid_desc,
+                  debug_driver_gemm_xdlops_v2r3::M01,
+                  debug_driver_gemm_xdlops_v2r3::N01,
+                  out_gemmk0_gemmm_gemmk1_grid_step_hacks,
+                  in_gemmk0_gemmn_gemmk1_grid_step_hacks,
+                  wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+                  out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+                  in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+                  nrepeat);
 
         float perf = static_cast<float>(calculate_convolution_flops(
                          in_n_c_hi_wi_desc, wei_k_c_y_x_desc, out_n_k_ho_wo_desc)) /
@@ -212,6 +211,63 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
         std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
     }
 
+    wei_k_c_y_x_device_buf.ToDevice(wei_k_c_y_x.mData.data());
+    driver_gemm_xdlops_v2r4<BlockSize,
+                            TIn,
+                            TAcc,
+                            TWei,
+                            InMemoryDataOperationEnum_t::AtomicAdd,
+                            decltype(out_gemmk0_gemmm_gemmk1_grid_desc),
+                            decltype(in_gemmk0_gemmn_gemmk1_grid_desc),
+                            decltype(wei_gemmm_gemmn_grid_desc),
+                            GemmMPerBlock,
+                            GemmNPerBlock,
+                            GemmKPerBlock,
+                            GemmMPerWave,
+                            GemmNPerWave,
+                            GemmK1,
+                            MRepeat,
+                            NRepeat,
+                            GemmABlockTransferThreadSliceLengths_GemmB_GemmK0_GemmM_GemmK1,
+                            GemmABlockTransferThreadClusterLengths_GemmB_GemmK0_GemmM_GemmK1,
+                            Sequence<0, 2, 1, 3>,
+                            Sequence<0, 2, 1, 3>,
+                            3,
+                            GemmABlockTransferSrcScalarPerVector_GemmK1,
+                            GemmABlockTransferDstScalarPerVector_GemmK1,
+                            false, // don't move back src coordinate after threadwise copy
+                            GemmBBlockTransferThreadSliceLengths_GemmB_GemmK0_GemmN_GemmK1,
+                            GemmBBlockTransferThreadClusterLengths_GemmB_GemmK0_GemmN_GemmK1,
+                            Sequence<0, 2, 1, 3>,
+                            Sequence<0, 2, 1, 3>,
+                            3,
+                            GemmBBlockTransferSrcScalarPerVector_GemmN,
+                            GemmBBlockTransferDstScalarPerVector_GemmK1,
+                            false, // don't move back src coordinate after threadwise copy
+                            Sequence<3, 0, 1, 2, 7, 5, 4, 6>,
+                            7,
+                            GemmCThreadTransferDstScalarPerVector,
+                            decltype(out_gemmk0_gemmm_gemmk1_grid_step_hacks),
+                            decltype(in_gemmk0_gemmn_gemmk1_grid_step_hacks),
+                            decltype(wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
+                            decltype(out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
+                            decltype(in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
+                            false,
+                            true,
+                            true>(static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
+                                  static_cast<TIn*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
+                                  static_cast<TWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
+                                  out_gemmk0_gemmm_gemmk1_grid_desc,
+                                  in_gemmk0_gemmn_gemmk1_grid_desc,
+                                  wei_gemmm_gemmn_grid_desc,
+                                  debug_driver_gemm_xdlops_v2r3::M01,
+                                  debug_driver_gemm_xdlops_v2r3::N01,
+                                  out_gemmk0_gemmm_gemmk1_grid_step_hacks,
+                                  in_gemmk0_gemmn_gemmk1_grid_step_hacks,
+                                  wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+                                  out_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+                                  in_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+                                  0);
     // copy result back to host
     wei_k_c_y_x_device_buf.FromDevice(wei_k_c_y_x.mData.data());
 }

@@ -340,10 +340,6 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     constexpr auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks =
         Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0>{};
 
-    std::function<void()> clear_weight = [&wei_k_y_x_c_device_buf, &wei_k_y_x_c]() {
-
-    };
-
     for(index_t i = 0; i < 5; ++i)
     {
         float ave_time = driver_gemm_xdlops_v2r4<
@@ -422,6 +418,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
                       << std::endl;
         }
     }
+
     wei_k_y_x_c_device_buf.ToDevice(wei_k_y_x_c.mData.data());
     driver_gemm_xdlops_v2r4<
         BlockSize,

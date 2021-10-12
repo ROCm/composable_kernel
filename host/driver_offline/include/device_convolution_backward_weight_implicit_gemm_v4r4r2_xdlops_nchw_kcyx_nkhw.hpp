@@ -48,7 +48,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     const auto wei_k_c_y_x_desc   = make_naive_tensor_descriptor_packed(wei_k_c_y_x_lengths);
     const auto out_n_k_ho_wo_desc = make_naive_tensor_descriptor_packed(out_n_k_ho_wo_lengths);
 
-#if 1
+#if 0
     // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
 
