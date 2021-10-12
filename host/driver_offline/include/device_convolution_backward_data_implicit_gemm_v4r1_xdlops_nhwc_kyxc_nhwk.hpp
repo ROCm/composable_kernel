@@ -3,6 +3,8 @@
 #include "host_tensor.hpp"
 #include "transform_backward_data_convolution_into_gemm_v4r1_nhwc_kyxc_nhwk.hpp"
 #include "driver_gemm_xdlops_v2r3.hpp"
+#include "debug.hpp"
+using namespace debug;
 
 template <typename TInWei,
           typename TAcc,

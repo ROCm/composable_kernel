@@ -387,20 +387,22 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
             decltype(wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
             decltype(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
             decltype(in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
-            false // CAccessOrderMRepeatNRepeat
-            >(static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
+            false, // CAccessOrderMRepeatNRepeat
+            true,
+            true>(static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
               static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),
               static_cast<TWei*>(wei_k_y_x_c_device_buf.GetDeviceBuffer()),
               out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc,
               in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc,
               wei_gemmm_gemmn_grid_desc,
+              1,
+              1,
               out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_step_hacks,
               in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks,
               wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
               out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
               in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
-              nrepeat,
-              &clear_weight);
+              nrepeat);
 
         {
             const auto N = out_n_ho_wo_k_lengths[I0];
