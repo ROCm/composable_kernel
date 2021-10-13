@@ -26,9 +26,9 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
     const InRightPads& in_right_pads,
     const Tensor<TInWei>& in_n_c0_hi_wi_c1,
     const Tensor<TInWei>& wei_k_c0_y_x_c1,
+    const Tensor<TOut>& bias_k0_k1,
     const Tensor<TOut>& add_n_k0_hox2_wox2_k1,
     Tensor<TOut>& add_n_k0_hox2_wox2_k1_out,
-    Tensor<TOut>& out_n_k0_ho_wo_k1,
     ck::index_t nrepeat)
 {
     using namespace ck;
@@ -62,13 +62,13 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
     DeviceMem in_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
                                           in_n_c0_hi_wi_c1.mDesc.GetElementSpace());
     DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
+    DeviceMem bias_k0_k1_device_buf(sizeof(TOut) * bias_k0_k1.mDesc.GetElementSpace());
     DeviceMem add_n_k0_hox2_wox2_k1_device_buf(sizeof(TOut) *
                                                add_n_k0_hox2_wox2_k1.mDesc.GetElementSpace());
-    DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
-                                           out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
 
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
+    bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
     add_n_k0_hox2_wox2_k1_device_buf.ToDevice(add_n_k0_hox2_wox2_k1.mData.data());
 
     constexpr index_t InWeiVectorSize = 8;
@@ -187,8 +187,8 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
                                 wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
                                 in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(add_n_k0_hox2_wox2_k1_device_buf.GetDeviceBuffer()),
-                            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
 
         {
@@ -214,10 +214,9 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
                         wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                     static_cast<typename vector_type<TInWei, InWeiVectorSize>::type*>(
                         in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                    static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
                     static_cast<TOut*>(add_n_k0_hox2_wox2_k1_device_buf.GetDeviceBuffer()),
-                    static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                     0);
 
     add_n_k0_hox2_wox2_k1_device_buf.FromDevice(add_n_k0_hox2_wox2_k1_out.mData.data());
-    out_n_k0_ho_wo_k1_device_buf.FromDevice(out_n_k0_ho_wo_k1.mData.data());
 }

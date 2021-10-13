@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
     constexpr auto C1            = Number<8>{};
     constexpr auto K1            = Number<8>{};
     constexpr auto K0            = Number<8>{};
-#elif 0
+#elif 1
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<540>{};
     constexpr auto Wi = Number<960>{};
@@ -182,7 +182,7 @@ int main(int argc, char* argv[])
 #endif
 
     std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5),
-        add_lengths_host(5);
+        add_lengths_host(5), bias_lengths_host(2);
 
     in_lengths_host[0] = static_cast<std::size_t>(N);
     in_lengths_host[1] = static_cast<std::size_t>(C0);
@@ -208,18 +208,21 @@ int main(int argc, char* argv[])
     add_lengths_host[3] = static_cast<std::size_t>(Wox2);
     add_lengths_host[4] = static_cast<std::size_t>(K1);
 
+    bias_lengths_host[0] = static_cast<std::size_t>(K0);
+    bias_lengths_host[1] = static_cast<std::size_t>(K1);
+
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
     Tensor<in_data_t> add(add_lengths_host);
-    Tensor<out_data_t> out_host(out_lengths_host);
     Tensor<out_data_t> out_device(out_lengths_host);
     Tensor<in_data_t> add_device(add_lengths_host);
     Tensor<in_data_t> add_host(add_lengths_host);
+    Tensor<out_data_t> bias(bias_lengths_host);
+    Tensor<out_data_t> out_host(out_lengths_host);
 
     ostream_HostTensorDescriptor(in.mDesc, std::cout << "in: ");
     ostream_HostTensorDescriptor(wei.mDesc, std::cout << "wei: ");
     ostream_HostTensorDescriptor(add.mDesc, std::cout << "add: ");
-    ostream_HostTensorDescriptor(out_host.mDesc, std::cout << "out: ");
 
     print_array("InLeftPads", make_tuple(in_left_pad_h, in_left_pad_w));
     print_array("InRightPads", make_tuple(in_right_pad_h, in_right_pad_w));
@@ -262,6 +265,7 @@ int main(int argc, char* argv[])
         wei.GenerateTensorValue(gen_wei, num_thread);
     }
 
+    bias.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
     add.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
 
     auto f_make_for_device_nchwc = [&]() {
@@ -303,9 +307,9 @@ int main(int argc, char* argv[])
             tmp[I7], // in_right_pads_dev
             in,
             wei,
+            bias,
             add,
             add_device,
-            out_device,
             nrepeat);
     }
 #endif
@@ -315,6 +319,7 @@ int main(int argc, char* argv[])
         host_direct_convolution_add_nchwc(in,
                                           wei,
                                           add,
+                                          bias,
                                           add_host,
                                           out_host,
                                           make_tuple(conv_stride_h, conv_stride_w),
@@ -329,7 +334,6 @@ int main(int argc, char* argv[])
         {
             // LogRangeAsType<float>(std::cout << "in : ", in.mData, ",") << std::endl;
             // LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
-            // LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
             // LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") <<
             // std::endl;
             LogRangeAsType<float>(std::cout << "add_host: ", add_host.mData, ",") << std::endl;

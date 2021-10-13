@@ -537,6 +537,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
         }
         else if constexpr(N == 8)
         {
+#if 0
             vector_type<half_t, 8> tmp{src_thread_data};
 
             llvm_amdgcn_raw_buffer_store_fp16x4(tmp.AsType<half4_t>()[Number<0>{}],
@@ -550,6 +551,13 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset + 4 * sizeof(half_t),
                                                 0);
+#else
+            llvm_amdgcn_raw_buffer_store_fp32x4(as_type<float4_t>(src_thread_data),
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                0);
+#endif
         }
     }
     else if constexpr(is_same<T, int32_t>::value)

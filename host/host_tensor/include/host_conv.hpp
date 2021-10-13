@@ -167,6 +167,7 @@ template <typename TIn,
 void host_direct_convolution_add_nchwc(const Tensor<TIn>& in,
                                        const Tensor<TWei>& wei,
                                        const Tensor<TOut>& add,
+                                       const Tensor<TOut>& bias,
                                        Tensor<TOut>& add_host,
                                        Tensor<TOut>& out_host,
                                        const ConvStrides& conv_strides,
@@ -204,7 +205,7 @@ void host_direct_convolution_add_nchwc(const Tensor<TIn>& in,
             }
         }
 
-        v = activ(v, activ_type);
+        v = activ(v, activ_type) + bias(k0, k1);
 
         const int hox2 = ho * 2;
         const int wox2 = wo * 2;
