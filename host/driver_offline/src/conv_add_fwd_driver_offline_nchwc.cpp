@@ -308,6 +308,7 @@ int main(int argc, char* argv[])
             in,
             wei,
             bias,
+            out_device,
             add,
             add_device,
             nrepeat);
