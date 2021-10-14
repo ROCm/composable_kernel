@@ -17,11 +17,9 @@ template <typename... Wei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads,
-          index_t GemmMPerBlockValue,
-          index_t GemmNPerBlockValue,
-          index_t GemmKPerBlockValue,
           index_t GemmK1Value,
-          typename GridSizeType>
+          typename GemmKBatchType,
+          typename GemmKPadType>
 __host__ __device__ constexpr auto
 transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad(
     const TensorDescriptor<Wei...>& wei_k_c_y_x_grid_desc,
@@ -31,21 +29,16 @@ transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
     const InRightPads& in_right_pads,
-    Number<GemmMPerBlockValue>,
-    Number<GemmNPerBlockValue>,
-    Number<GemmKPerBlockValue>,
     Number<GemmK1Value>,
-    GridSizeType GrideSize)
+    GemmKBatchType GemmKBatch,
+    GemmKPadType GemmKPad)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
-    constexpr auto GemmMPerBlock = Number<GemmMPerBlockValue>{};
-    constexpr auto GemmNPerBlock = Number<GemmNPerBlockValue>{};
-    constexpr auto GemmKPerBlock = Number<GemmKPerBlockValue>{};
-    constexpr auto GemmK1        = Number<GemmK1Value>{};
+    constexpr auto GemmK1 = Number<GemmK1Value>{};
 
     const auto N = in_n_c_hi_wi_grid_desc.GetLength(I0);
     const auto C = in_n_c_hi_wi_grid_desc.GetLength(I1);
@@ -75,13 +68,8 @@ transform_backward_weight_convolution_into_gemm_v4r4r2_atomic_nchw_kcyx_nkhw_pad
     const auto GemmM      = K;
     const auto GemmN      = C * Y * X;
     const auto GemmKTotal = N * Ho * Wo;
-    const auto GemmK      = GemmKTotal / GemmK1;
+    const index_t GemmK0  = GemmKPad / (GemmKBatch * GemmK1);
 
-    const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
-    const index_t GemmKBatch = std::max(GrideSize / GridMN, 1);
-    const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
-    const index_t GemmK0     = BatchLen * GemmKPerBlock;
-    const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
     // A: output tensor
     const auto out_gemmktotal_gemmm_grid_desc = transform_tensor_descriptor(
         make_naive_tensor_descriptor_packed(make_tuple(N, K, Ho * Wo)),

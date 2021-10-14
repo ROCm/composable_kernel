@@ -277,6 +277,32 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 #endif
 
+    const auto N = in_n_hi_wi_c_desc.GetLength(I0);
+    const auto C = in_n_hi_wi_c_desc.GetLength(I3);
+    const auto K = out_n_ho_wo_k_desc.GetLength(I3);
+
+    const auto Ho = out_n_ho_wo_k_desc.GetLength(I1);
+    const auto Wo = out_n_ho_wo_k_desc.GetLength(I2);
+
+    const auto Y = wei_k_y_x_c_desc.GetLength(I1);
+    const auto X = wei_k_y_x_c_desc.GetLength(I2);
+
+    const auto GemmM      = K;
+    const auto GemmN      = Y * X * C;
+    const auto GemmKTotal = N * Ho * Wo;
+
+    const auto GemmK = GemmKTotal / GemmK1;
+
+    const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
+    const index_t GemmKBatch = std::max(grid_size / GridMN, 1);
+    const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
+    const index_t GemmK0     = BatchLen * GemmKPerBlock;
+    const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
+
+    std::cout << "GemmKTotal: " << GemmKTotal << " GrideSizeMN: " << GridMN
+              << " GemmKBatch: " << GemmKBatch << " GemmK0: " << GemmK0 << " gemmKPad: " << GemmKPad
+              << std::endl;
+
     const auto descs = transform_backward_weight_convolution_into_gemm_v4r4r5_nhwc_kyxc_nhwk_pad(
         in_n_hi_wi_c_desc,
         wei_k_y_x_c_desc,
@@ -285,11 +311,9 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
         conv_dilations,
         in_left_pads,
         in_right_pads,
-        Number<GemmMPerBlock>{},
-        Number<GemmNPerBlock>{},
-        Number<GemmKPerBlock>{},
         Number<GemmK1>{},
-        grid_size);
+        GemmKBatch,
+        GemmKPad);
 
     const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = descs[I0];
     const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc  = descs[I1];
