@@ -119,8 +119,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_
     const auto Y = wei_k_y_x_c_desc.GetLength(I1);
     const auto X = wei_k_y_x_c_desc.GetLength(I2);
 
-    const auto GemmM      = K;
-    const auto GemmN      = Y * X * C;
+    const auto GemmM      = Y * X * C;
+    const auto GemmN      = K;
     const auto GemmKTotal = N * Ho * Wo;
 
     const auto GemmK = GemmKTotal / GemmK1;
