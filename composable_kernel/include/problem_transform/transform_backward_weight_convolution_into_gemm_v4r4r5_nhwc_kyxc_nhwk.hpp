@@ -97,7 +97,7 @@ transform_backward_weight_convolution_into_gemm_v4r4r5_nhwc_kyxc_nhwk_pad(
 
     const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
         out_gemmktotal_gemmm_grid_desc,
-        make_tuple(make_pad_transform(GemmKTotal, 0, GemmKPad - GemmKTotal),
+        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
                    make_pass_through_transform(GemmM)),
         make_tuple(Sequence<0>{}, Sequence<1>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -137,7 +137,7 @@ transform_backward_weight_convolution_into_gemm_v4r4r5_nhwc_kyxc_nhwk_pad(
 
     const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
         in_gemmktotal_gemmn_grid_desc,
-        make_tuple(make_pad_transform(GemmKTotal, 0, GemmKPad - GemmKTotal),
+        make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
                    make_pass_through_transform(GemmN)),
         make_tuple(Sequence<0>{}, Sequence<1>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}));
