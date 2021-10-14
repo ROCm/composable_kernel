@@ -875,7 +875,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
             });
         }
 
-        // bias
+        // Bias
         {
             constexpr auto bias_k0_k1_thread_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
@@ -976,7 +976,9 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         }
 #endif
 
+#if 0
         // Resize_Add
+        if constexpr(add_type == 0)
         {
             constexpr auto HoPerThreadx2 = HoPerThread * 2;
             constexpr auto WoPerThreadx2 = WoPerThread * 2;
@@ -1069,7 +1071,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                 CThreadTransferSrcDstAccessOrder,
                 CThreadTransferSrcDstVectorDim,
                 CThreadTransferDstScalarPerVector,
-                CGlobalMemoryDataOperation,
+                InMemoryDataOperationEnum_t::Add,
                 1,
                 true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                       make_multi_index(k_block_work_id,
@@ -1088,6 +1090,97 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                      d_global_buf,
                      d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks);
         }
+        // MaxPool
+        else if constexpr(add_type == 1)
+        {
+            static_assert(HoPerThread % 2 == 0 && WoPerThread % 2 == 0, "");
+
+            constexpr auto HoPerThread_2 = HoPerThread / 2;
+            constexpr auto WoPerThread_2 = WoPerThread / 2;
+
+            constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                               Number<KPerThread>{},
+                                                               I1,
+                                                               I1,
+                                                               I1,
+                                                               Number<HoPerThread_2>{},
+                                                               I1,
+                                                               I1,
+                                                               Number<WoPerThread_2>{}));
+
+            StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                         FloatC,
+                         d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.GetElementSpaceSize(),
+                         true>
+                d_thread_buf;
+
+#if 1
+            static_for<0, KPerThread, 1>{}([&](auto ki) {
+                static_for<0, HoPerThread_2, 1>{}([&](auto hi) {
+                    static_for<0, WoPerThread_2, 1>{}([&](auto wi) {
+                        constexpr index_t d_offset =
+                            d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.CalculateOffset(
+                                make_tuple(0, ki, 0, 0, 0, hi, 0, 0, wi));
+
+                        constexpr index_t c_offset_0 =
+                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                                make_tuple(ki, 0, hi * 2, wi * 2));
+                        constexpr index_t c_offset_1 =
+                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                                make_tuple(ki, 0, hi * 2, wi * 2 + 1));
+                        constexpr index_t c_offset_2 =
+                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                                make_tuple(ki, 0, hi * 2 + 1, wi * 2));
+                        constexpr index_t c_offset_3 =
+                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                                make_tuple(ki, 0, hi * 2 + 1, wi * 2 + 1));
+
+                        d_thread_buf(Number<d_offset>{}) = c_thread_buf[Number<c_offset_0>{}];
+                        d_thread_buf(Number<d_offset>{}) = max(c_thread_buf[Number<c_offset_1>{}],
+                                                               d_thread_buf(Number<d_offset>{}));
+                        d_thread_buf(Number<d_offset>{}) = max(c_thread_buf[Number<c_offset_2>{}],
+                                                               d_thread_buf(Number<d_offset>{}));
+                        d_thread_buf(Number<d_offset>{}) = max(c_thread_buf[Number<c_offset_3>{}],
+                                                               d_thread_buf(Number<d_offset>{}));
+                    });
+                });
+            });
+#endif
+
+            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
+
+            constexpr auto d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks = DGlobalStepHacks{};
+
+            ThreadwiseTensorSliceTransfer_v1r3<
+                FloatC,
+                FloatC,
+                decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc),
+                decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc),
+                Sequence<I1, KPerThread, I1, I1, I1, HoPerThread_2, I1, I1, WoPerThread_2>,
+                CThreadTransferSrcDstAccessOrder,
+                CThreadTransferSrcDstVectorDim,
+                CThreadTransferDstScalarPerVector,
+                InMemoryDataOperationEnum_t::Set,
+                1,
+                true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                      make_multi_index(k_block_work_id,
+                                       k_thread_data_on_global,
+                                       n_block_work_id,
+                                       ho_block_work_id,
+                                       ho_thread_id,
+                                       0,
+                                       wo_block_work_id,
+                                       wo_thread_id,
+                                       0))
+                .Run(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc,
+                     make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                     d_thread_buf,
+                     d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                     d_global_buf,
+                     d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks);
+        }
+#endif
     }
 };
 

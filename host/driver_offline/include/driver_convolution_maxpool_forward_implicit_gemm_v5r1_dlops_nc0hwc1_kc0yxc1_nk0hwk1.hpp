@@ -1,5 +1,5 @@
-#ifndef DRIVER_CONVOLUTION_ADD_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NC0HWc1_KC0YXC1_NK0HWK1_HPP
-#define DRIVER_CONVOLUTION_ADD_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NC0HWc1_KC0YXC1_NK0HWK1_HPP
+#ifndef DRIVER_CONVOLUTION_MAXPOOL_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NC0HWc1_KC0YXC1_NK0HWK1_HPP
+#define DRIVER_CONVOLUTION_MAXPOOL_FORWARD_IMPLICIT_GEMM_V5R1_DLOPS_NC0HWc1_KC0YXC1_NK0HWK1_HPP
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -28,7 +28,7 @@ template <ck::index_t BlockSize,
           ck::index_t BThreadTransferSrcScalarPerVector_E2,
           ck::index_t CThreadTransferDstScalarPerVector_K,
           ck::index_t activ_type>
-struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_add
+struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_maxpool
 {
     template <typename... Wei,
               typename... In,
@@ -41,7 +41,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
     __host__ float Run(const ck::TensorDescriptor<Wei...>& wei_k_c0_y_x_c1_global_desc,
                        const ck::TensorDescriptor<In...>& in_n_c0_hi_wi_c1_global_desc,
                        const ck::TensorDescriptor<Out...>& out_n_k0_ho_wo_k1_global_desc,
-                       const ck::TensorDescriptor<Add...>& add_n_k0_hox2_wox2_k1_global_desc,
+                       const ck::TensorDescriptor<Add...>& max_n_k0_hx_wx_k1_global_desc,
                        const ConvStrides& conv_strides,
                        const ConvDilations& conv_dilations,
                        const InLeftPads& in_left_pads,
@@ -72,8 +72,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto Wo = out_n_k0_ho_wo_k1_global_desc.GetLength(I3);
         const auto K1 = out_n_k0_ho_wo_k1_global_desc.GetLength(I4);
 
-        const auto Hox2 = add_n_k0_hox2_wox2_k1_global_desc.GetLength(I2);
-        const auto Wox2 = add_n_k0_hox2_wox2_k1_global_desc.GetLength(I3);
+        const auto Hx = max_n_k0_hx_wx_k1_global_desc.GetLength(I2);
+        const auto Wx = max_n_k0_hx_wx_k1_global_desc.GetLength(I3);
 
         const auto K = wei_k_c0_y_x_c1_global_desc.GetLength(I0);
         const auto Y = wei_k_c0_y_x_c1_global_desc.GetLength(I2);
@@ -182,13 +182,13 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
-        // add tensor
+        // max tensor
         const auto d_k_n_hopx2_wopx2_grid_desc = transform_tensor_descriptor(
-            make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hox2, Wox2, K1)),
+            make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hx, Wx, K1)),
             make_tuple(make_merge_transform(make_tuple(K0, K1)),
                        make_pass_through_transform(N),
-                       make_pad_transform(Hox2, I0, Number<OutRightPadH * 2>{}),
-                       make_pad_transform(Wox2, I0, Number<OutRightPadW * 2>{})),
+                       make_pad_transform(Hx, I0, Number<OutRightPadH/2>{}),
+                       make_pad_transform(Wx, I0, Number<OutRightPadW/2>{})),
             make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
@@ -268,7 +268,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
 
-        constexpr auto d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks =
+        constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks =
             make_tuple(make_tuple(Sequence<0, 1, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 1, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},
@@ -335,10 +335,11 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             decltype(a_e0_e1_k_e2_global_step_hacks),
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_step_hacks),
             decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks),
-            decltype(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks),
+            decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks),
             decltype(a_e0_e1_k_e2_global_move_slice_window_step_hack),
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_move_slice_window_step_hack),
-            activ_type>;
+            activ_type,
+            1>;
 
         const auto a_e0_e1_k0_k1_e2_grid_desc =
             GridwiseGemm::MakeAE0E1K0K1E2GridDescriptor(a_e0_e1_k_e2_grid_desc);
@@ -346,15 +347,15 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             GridwiseGemm::MakeBE0E1NH0H1H2W0W1W2E2GridDescriptor(b_e0_e1_n_ho_wo_e2_grid_desc);
         const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
             GridwiseGemm::MakeCK0K1NH0H1H2W0W1W2GridDescriptor(c_k_n_hop_wop_grid_desc);
-        const auto d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc =
+        const auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc =
             GridwiseGemm::MakeDK0K1NH0H1HxW0W1WxGridDescriptor(d_k_n_hopx2_wopx2_grid_desc);
 
         using AGridDesc_E0_E1_K0_K1_E2 = decltype(a_e0_e1_k0_k1_e2_grid_desc);
         using BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 =
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc);
         using CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 = decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-        using DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2 =
-            decltype(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc);
+        using DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx =
+            decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
 
         const auto grid_size = (K / KPerBlock) * (Hop / HoPerBlock) * (Wop / WoPerBlock) * N;
 
@@ -381,7 +382,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
                 remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
                 true>;
 
@@ -398,7 +399,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               a_e0_e1_k0_k1_e2_grid_desc,
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                               c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                                              d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
+                                              d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                                               c_blockid_to_k_n_h_w_block_cluster_adaptor);
         }
         else
@@ -410,7 +411,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
                 remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
                 false>;
 
@@ -427,7 +428,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               a_e0_e1_k0_k1_e2_grid_desc,
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                               c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                                              d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
+                                              d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                                               c_blockid_to_k_n_h_w_block_cluster_adaptor);
         }
 
@@ -437,8 +438,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             sizeof(BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2));
         DeviceMem c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf(
             sizeof(CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2));
-        DeviceMem d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf(
-            sizeof(DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2));
+        DeviceMem d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf(
+            sizeof(DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx));
         DeviceMem c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf(
             sizeof(CBlockIdToBlockClusterAdaptor_K_N_H_W));
 
@@ -447,8 +448,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             &b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc);
         c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf.ToDevice(
             &c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-        d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf.ToDevice(
-            &d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc);
+        d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf.ToDevice(
+            &d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
         c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.ToDevice(
             &c_blockid_to_k_n_h_w_block_cluster_adaptor);
 
@@ -462,7 +463,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
                 remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
                 true>;
 
@@ -484,7 +485,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 cast_pointer_to_constant_address_space(
                     c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf.GetDeviceBuffer()),
                 cast_pointer_to_constant_address_space(
-                    d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf.GetDeviceBuffer()),
+                    d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf.GetDeviceBuffer()),
                 cast_pointer_to_constant_address_space(
                     c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
@@ -498,7 +499,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
                 remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
                 false>;
 
@@ -520,7 +521,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 cast_pointer_to_constant_address_space(
                     c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf.GetDeviceBuffer()),
                 cast_pointer_to_constant_address_space(
-                    d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf.GetDeviceBuffer()),
+                    d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf.GetDeviceBuffer()),
                 cast_pointer_to_constant_address_space(
                     c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
