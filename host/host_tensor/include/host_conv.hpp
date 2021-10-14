@@ -284,6 +284,25 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
                                out_host.mDesc.GetLengths()[2],
                                out_host.mDesc.GetLengths()[3],
                                out_host.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
+
+    auto maxpool_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
+        auto hx = ho * 2;
+        auto wx = wo * 2;
+
+        auto v0 = out_host(n, k0, hx, wx, k1);
+        auto v1 = out_host(n, k0, hx, wx + 1, k1);
+        auto v2 = out_host(n, k0, hx + 1, wx, k1);
+        auto v3 = out_host(n, k0, hx + 1, wx + 1, k1);
+
+        max_host(n, k0, ho, wo, k1) = std::max({v0, v1, v2, v3});
+    };
+
+    make_ParallelTensorFunctor(maxpool_nchw,
+                               max_host.mDesc.GetLengths()[0],
+                               max_host.mDesc.GetLengths()[1],
+                               max_host.mDesc.GetLengths()[2],
+                               max_host.mDesc.GetLengths()[3],
+                               max_host.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
 }
 
 template <typename TIn, typename TWei, typename TOut, typename InLeftPads, typename InRightPads>

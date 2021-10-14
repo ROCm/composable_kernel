@@ -976,7 +976,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         }
 #endif
 
-#if 0
+#if 1
         // Resize_Add
         if constexpr(add_type == 0)
         {
@@ -1137,12 +1137,12 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                                 make_tuple(ki, 0, hi * 2 + 1, wi * 2 + 1));
 
                         d_thread_buf(Number<d_offset>{}) = c_thread_buf[Number<c_offset_0>{}];
-                        d_thread_buf(Number<d_offset>{}) = max(c_thread_buf[Number<c_offset_1>{}],
-                                                               d_thread_buf(Number<d_offset>{}));
-                        d_thread_buf(Number<d_offset>{}) = max(c_thread_buf[Number<c_offset_2>{}],
-                                                               d_thread_buf(Number<d_offset>{}));
-                        d_thread_buf(Number<d_offset>{}) = max(c_thread_buf[Number<c_offset_3>{}],
-                                                               d_thread_buf(Number<d_offset>{}));
+                        d_thread_buf(Number<d_offset>{}) = fmaxf(c_thread_buf[Number<c_offset_1>{}],
+                                                                 d_thread_buf(Number<d_offset>{}));
+                        d_thread_buf(Number<d_offset>{}) = fmaxf(c_thread_buf[Number<c_offset_2>{}],
+                                                                 d_thread_buf(Number<d_offset>{}));
+                        d_thread_buf(Number<d_offset>{}) = fmax(c_thread_buf[Number<c_offset_3>{}],
+                                                                d_thread_buf(Number<d_offset>{}));
                     });
                 });
             });
