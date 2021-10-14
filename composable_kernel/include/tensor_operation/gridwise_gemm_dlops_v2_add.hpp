@@ -119,6 +119,52 @@ __global__ void
                       c_blockid_to_k_n_h_w_block_cluster_adaptor,
                       integral_constant<bool, HasMainE0BlockLoop>{});
 }
+#elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AGridDesc_E0_E1_K0_K1_E2,
+          typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
+          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
+          typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
+          typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
+          bool HasMainE0BlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_gemm_dlops_v2_add(const FloatAB* __restrict__ p_a_grid,
+                                 const FloatAB* __restrict__ p_b_grid,
+                                 const FloatC* __restrict__ p_bias_grid,
+                                 FloatC* __restrict__ p_c_grid,
+                                 FloatC* __restrict__ p_d_grid)
+{
+    constexpr index_t shared_block_size =
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+
+    __shared__ FloatAB p_shared_block[shared_block_size];
+
+    constexpr auto a_e0_e1_k0_k1_e2_grid_desc = AGridDesc_E0_E1_K0_K1_E2{};
+    constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
+        BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2{};
+    constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc = CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2{};
+    constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc = DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx{};
+    constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
+        CBlockIdToBlockClusterAdaptor_K_N_H_W{};
+
+    GridwiseGemm::Run(p_a_grid,
+                      p_b_grid,
+                      p_bias_grid,
+                      p_c_grid,
+                      p_d_grid,
+                      p_shared_block,
+                      a_e0_e1_k0_k1_e2_grid_desc,
+                      b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                      d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                      c_blockid_to_k_n_h_w_block_cluster_adaptor,
+                      integral_constant<bool, HasMainE0BlockLoop>{});
+}
 #endif
 
 template <index_t BlockSize,
@@ -339,13 +385,23 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         const auto K1 = Number<KPerBlock>{};
         const auto K0 = K / K1;
 
-        const auto H2 = HoPerThread / 2;
+#if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
+        const auto H2 = Number<HoPerThread / 2>{};
         const auto H1 = Number<HoPerBlock / HoPerThread>{};
+        const auto H0 = Number<Hx / (H1 * H2)>{};
+
+        const auto W2 = Number<WoPerThread / 2>{};
+        const auto W1 = Number<WoPerBlock / WoPerThread>{};
+        const auto W0 = Number<Wx / (W1 * W2)>{};
+#else
+        const auto H2 = HoPerThread / 2;
+        const auto H1 = HoPerBlock / HoPerThread;
         const auto H0 = Hx / (H1 * H2);
 
         const auto W2 = WoPerThread / 2;
-        const auto W1 = Number<WoPerBlock / WoPerThread>{};
+        const auto W1 = WoPerBlock / WoPerThread;
         const auto W0 = Wx / (W1 * W2);
+#endif
 
         const auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc = transform_tensor_descriptor(
             d_k_n_hx_wx_grid_desc,
@@ -415,10 +471,17 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         const auto Ho = c_k_n_ho_wo_grid_desc.GetLength(I2);
         const auto Wo = c_k_n_ho_wo_grid_desc.GetLength(I3);
 
+#if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
+        const auto K0 = Number<K / KPerBlock>{};
+        const auto N0 = Number<N / NPerBlock>{};
+        const auto H0 = Number<Ho / HoPerBlock>{};
+        const auto W0 = Number<Wo / WoPerBlock>{};
+#else
         const auto K0 = K / KPerBlock;
         const auto N0 = N / NPerBlock;
         const auto H0 = Ho / HoPerBlock;
         const auto W0 = Wo / WoPerBlock;
+#endif
 
         const auto c_blockid_to_k_n_ho_wo_block_cluster_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_merge_transform(make_tuple(K0, N0, H0, W0))),
@@ -464,15 +527,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         const CBlockIdToBlockClusterAdaptor_K_N_H_W& c_blockid_to_k_n_h_w_block_cluster_adaptor,
         integral_constant<bool, HasMainE0BlockLoop>)
     {
-
-        // constexpr auto a_e0_e1_k0_k1_e2_grid_desc = AGridDesc_E0_E1_K0_K1_E2{};
-        // constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
-        // BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2{};
-        // constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc =
-        // DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx{};
-        // constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
-        // CBlockIdToBlockClusterAdaptor_K_N_H_W{};
-
         const auto bias_k0_k1_grid_desc =
             MakeBiasK0K1GridDescriptor(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
 
