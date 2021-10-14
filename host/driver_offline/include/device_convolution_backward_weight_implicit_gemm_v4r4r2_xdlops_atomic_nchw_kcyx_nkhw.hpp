@@ -82,14 +82,14 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
 #endif
 
     const auto N = in_n_c_hi_wi_desc.GetLength(I0);
-    const auto C = in_n_c_hi_wi_desc.GetLength(I3);
-    const auto K = out_n_k_ho_wo_desc.GetLength(I3);
+    const auto C = in_n_c_hi_wi_desc.GetLength(I1);
+    const auto K = out_n_k_ho_wo_desc.GetLength(I1);
 
-    const auto Ho = out_n_k_ho_wo_desc.GetLength(I1);
-    const auto Wo = out_n_k_ho_wo_desc.GetLength(I2);
+    const auto Ho = out_n_k_ho_wo_desc.GetLength(I2);
+    const auto Wo = out_n_k_ho_wo_desc.GetLength(I3);
 
-    const auto Y = wei_k_c_y_x_desc.GetLength(I1);
-    const auto X = wei_k_c_y_x_desc.GetLength(I2);
+    const auto Y = wei_k_c_y_x_desc.GetLength(I2);
+    const auto X = wei_k_c_y_x_desc.GetLength(I3);
 
     const auto GemmM      = K;
     const auto GemmN      = Y * X * C;
