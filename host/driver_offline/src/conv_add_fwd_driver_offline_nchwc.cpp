@@ -113,8 +113,8 @@ int main(int argc, char* argv[])
     constexpr auto X  = Number<3>{};
     constexpr auto C0 = Number<2>{};
     constexpr auto C1 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
 #elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
@@ -123,8 +123,8 @@ int main(int argc, char* argv[])
     constexpr auto X  = Number<3>{};
     constexpr auto C0 = Number<2>{};
     constexpr auto C1 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
 #elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<135>{};
@@ -133,8 +133,8 @@ int main(int argc, char* argv[])
     constexpr auto X  = Number<3>{};
     constexpr auto C0 = Number<2>{};
     constexpr auto C1 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
 #elif 1
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<32>{};

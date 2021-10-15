@@ -95,17 +95,17 @@ int main(int argc, char* argv[])
 
     constexpr index_t activ_type = 1;
 
-#if 1
+#if 0
     constexpr auto N             = Number<1>{};
     constexpr auto Hi            = Number<1080>{};
     constexpr auto Wi            = Number<1920>{};
     constexpr auto Y             = Number<3>{};
     constexpr auto X             = Number<3>{};
-    constexpr auto C0            = Number<2>{};
+    constexpr auto C0            = Number<1>{};
     constexpr auto C1            = Number<8>{};
+    constexpr auto K0            = Number<2>{};
     constexpr auto K1            = Number<8>{};
-    constexpr auto K0            = Number<8>{};
-#elif 1
+#elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<540>{};
     constexpr auto Wi = Number<960>{};
@@ -113,9 +113,9 @@ int main(int argc, char* argv[])
     constexpr auto X  = Number<3>{};
     constexpr auto C0 = Number<2>{};
     constexpr auto C1 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
-#elif 0
+#elif 1
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
     constexpr auto Wi = Number<480>{};
@@ -123,28 +123,8 @@ int main(int argc, char* argv[])
     constexpr auto X  = Number<3>{};
     constexpr auto C0 = Number<2>{};
     constexpr auto C1 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<135>{};
-    constexpr auto Wi = Number<240>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
-#elif 1
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<32>{};
-    constexpr auto Wi = Number<32>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
 #endif
 
     constexpr auto conv_stride_h   = I1;
@@ -290,39 +270,39 @@ int main(int argc, char* argv[])
     {
         const auto tmp = f_make_for_device_nchwc();
 
-        device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<in_data_t,
-                                                                                        acc_data_t,
-                                                                                        out_data_t,
-                                                                                        activ_type>(
-            tmp[I0], // in_lengths_dev
-            tmp[I1], // wei_lengths_dev
-            tmp[I2], // max_lengths_dev
-            tmp[I3], // out_lengths_dev
-            tmp[I4], // conv_strides_dev
-            tmp[I5], // conv_dilations_dev
-            tmp[I6], // in_left_pads_dev
-            tmp[I7], // in_right_pads_dev
-            in,
-            wei,
-            bias,
-            out_device,
-            max_device,
-            nrepeat);
+        device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<
+            in_data_t,
+            acc_data_t,
+            out_data_t,
+            activ_type>(tmp[I0], // in_lengths_dev
+                        tmp[I1], // wei_lengths_dev
+                        tmp[I2], // max_lengths_dev
+                        tmp[I3], // out_lengths_dev
+                        tmp[I4], // conv_strides_dev
+                        tmp[I5], // conv_dilations_dev
+                        tmp[I6], // in_left_pads_dev
+                        tmp[I7], // in_right_pads_dev
+                        in,
+                        wei,
+                        bias,
+                        out_device,
+                        max_device,
+                        nrepeat);
     }
 #endif
 
     if(do_verification)
     {
         host_direct_convolution_maxpool_nchwc(in,
-                                          wei,
-                                          bias,
-                                          out_host,
-                                          max_host,
-                                          make_tuple(conv_stride_h, conv_stride_w),
-                                          make_tuple(conv_dilation_h, conv_dilation_w),
-                                          make_tuple(in_left_pad_h, in_left_pad_w),
-                                          make_tuple(in_right_pad_h, in_right_pad_w),
-                                          activ_type);
+                                              wei,
+                                              bias,
+                                              out_host,
+                                              max_host,
+                                              make_tuple(conv_stride_h, conv_stride_w),
+                                              make_tuple(conv_dilation_h, conv_dilation_w),
+                                              make_tuple(in_left_pad_h, in_left_pad_w),
+                                              make_tuple(in_right_pad_h, in_right_pad_w),
+                                              activ_type);
 
         check_error(out_host, out_device);
         check_error(max_host, max_device);

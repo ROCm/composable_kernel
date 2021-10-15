@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    constexpr index_t activ_type = 0;
+    constexpr index_t activ_type = 1;
 
     const ConvForwardAlgo algo = static_cast<ConvForwardAlgo>(std::stoi(argv[1]));
     const bool do_verification = std::stoi(argv[2]);
@@ -100,48 +100,45 @@ int main(int argc, char* argv[])
     constexpr auto X           = Number<3>{};
     constexpr auto C0          = Number<2>{};
     constexpr auto C1          = Number<8>{};
+    constexpr auto K0          = Number<2>{};
     constexpr auto K1          = Number<8>{};
-    constexpr auto K0          = Number<8>{};
-#elif 1
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<540>{};
-    constexpr auto Wi = Number<960>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
+#elif 0
+    constexpr auto N              = Number<1>{};
+    constexpr auto Hi             = Number<540>{};
+    constexpr auto Wi             = Number<960>{};
+    constexpr auto Y              = Number<3>{};
+    constexpr auto X              = Number<3>{};
+    constexpr auto C0             = Number<2>{};
+    constexpr auto C1             = Number<8>{};
+    constexpr auto K1             = Number<8>{};
+    constexpr auto K0             = Number<8>{};
 #elif 1
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
     constexpr auto Wi = Number<480>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
+    constexpr auto Y  = Number<1>{};
+    constexpr auto X  = Number<1>{};
     constexpr auto C0 = Number<2>{};
     constexpr auto C1 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
-#elif 1
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<135>{};
-    constexpr auto Wi = Number<240>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
 #endif
 
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;
     constexpr auto conv_dilation_h = I1;
     constexpr auto conv_dilation_w = I1;
+#if 0
     constexpr auto in_left_pad_h   = I1;
     constexpr auto in_left_pad_w   = I1;
     constexpr auto in_right_pad_h  = I1;
     constexpr auto in_right_pad_w  = I1;
+#else
+    constexpr auto in_left_pad_h  = I0;
+    constexpr auto in_left_pad_w  = I0;
+    constexpr auto in_right_pad_h = I0;
+    constexpr auto in_right_pad_w = I0;
+#endif
 
     constexpr auto YEff = (Y - I1) * conv_dilation_h + I1;
     constexpr auto XEff = (X - I1) * conv_dilation_w + I1;

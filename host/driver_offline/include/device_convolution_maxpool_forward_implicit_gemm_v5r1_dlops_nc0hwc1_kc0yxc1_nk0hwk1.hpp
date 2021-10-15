@@ -66,7 +66,7 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
     DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
                                            out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
     DeviceMem max_n_k0_hx_wx_k1_device_buf(sizeof(TOut) *
-                                               max_n_k0_hx_wx_k1.mDesc.GetElementSpace());
+                                           max_n_k0_hx_wx_k1.mDesc.GetElementSpace());
 
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
@@ -108,16 +108,16 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
 #elif 1
     constexpr auto BlockSize = 64;
 
-    constexpr auto KPerBlock  = 16;
+    constexpr auto KPerBlock  = K;
     constexpr auto HoPerBlock = 8;
     constexpr auto WoPerBlock = 32;
 
-    constexpr auto E1         = 2 * 9;
+    constexpr auto E1         = C0 * 9;
     constexpr auto E2         = 1;
     constexpr auto K2         = 2;
-    constexpr auto E1PerBlock = 2;
+    constexpr auto E1PerBlock = C0;
 
-    constexpr auto KPerThread  = 16;
+    constexpr auto KPerThread  = K;
     constexpr auto HoPerThread = 2;
     constexpr auto WoPerThread = 2;
     constexpr auto EPerThread  = 1;
@@ -131,7 +131,7 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
 
     constexpr auto BThreadTransferSrcScalarPerVector_E2 = E2;
 
-    constexpr auto CThreadTransferDstScalarPerVector_K = 8;
+    constexpr auto CThreadTransferDstScalarPerVector_K = K1;
 #endif
 
     const auto in_n_c0_hi_wi_c1_desc =

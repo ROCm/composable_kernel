@@ -4,7 +4,7 @@
 template <typename T>
 inline auto activ(T v, const ck::index_t activ_type)
 {
-    const T alpha = 0.30000001192092896; 
+    const T alpha = 0.30000001192092896;
     switch(activ_type)
     {
     case 0: return v;
@@ -147,7 +147,8 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in,
                 }
             }
         }
-        out(n, k0, ho, wo, k1) = activ(v, activ_type) + bias(k0, k1);
+        v += bias(k0, k1);
+        out(n, k0, ho, wo, k1) = activ(v, activ_type);
     };
 
     make_ParallelTensorFunctor(f_nchw,
@@ -275,7 +276,7 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
         }
 
         v += bias(k0, k1);
-        v = activ(v, activ_type); 
+        v = activ(v, activ_type);
 
         out_host(n, k0, ho, wo, k1) = v;
     };

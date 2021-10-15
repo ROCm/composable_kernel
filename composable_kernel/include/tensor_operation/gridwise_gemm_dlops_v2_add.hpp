@@ -997,7 +997,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
             }
         }
 
-
         // Bias
         if constexpr(bias_type == 1)
         {
