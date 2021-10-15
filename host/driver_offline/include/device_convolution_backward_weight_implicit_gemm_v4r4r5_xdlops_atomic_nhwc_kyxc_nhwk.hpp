@@ -364,23 +364,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     constexpr auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks =
         Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0>{};
 
-    using DRIVER_GEMM_XDLOPS =
-        float (*)(const TOut*,
-                  const TIn*,
-                  TWei*,
-                  const decltype(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc)&,
-                  const decltype(in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc)&,
-                  const decltype(wei_gemmm_gemmn_grid_desc)&,
-                  ck::index_t,
-                  ck::index_t,
-                  decltype(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_step_hacks),
-                  decltype(in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_step_hacks),
-                  decltype(wei_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
-                  decltype(out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
-                  decltype(in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
-                  ck::index_t);
-
-    const DRIVER_GEMM_XDLOPS driver_gemm_xdlops = driver_gemm_xdlops_v2r4<
+    const auto driver_gemm_xdlops = driver_gemm_xdlops_v2r4<
         BlockSize,
         TIn,
         TAcc,
