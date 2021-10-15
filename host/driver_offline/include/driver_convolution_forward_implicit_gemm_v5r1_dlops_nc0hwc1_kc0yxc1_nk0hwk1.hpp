@@ -4,7 +4,7 @@
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_dlops_v2.hpp"
+#include "gridwise_gemm_dlops_v2_add.hpp"
 
 template <ck::index_t BlockSize,
           typename FloatAB,
@@ -259,7 +259,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
 
         // GEMM
-        using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3<
+        using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3_add<
             BlockSize,
             FloatAB,
             FloatAcc,
@@ -267,6 +267,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             InMemoryDataOperationEnum_t::Set,
             decltype(a_e0_e1_k_e2_grid_desc),
             decltype(b_e0_e1_n_ho_wo_e2_grid_desc),
+            decltype(c_k_n_hop_wop_grid_desc),
             decltype(c_k_n_hop_wop_grid_desc),
             E1,
             E2,
@@ -298,9 +299,14 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             decltype(a_e0_e1_k_e2_global_step_hacks),
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_step_hacks),
             decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks),
+            decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks),
             decltype(a_e0_e1_k_e2_global_move_slice_window_step_hack),
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_move_slice_window_step_hack),
-            activ_type>;
+            activ_type,
+            0, // bias_type
+            1, // out_type
+            0  // add_type
+            >;
 
         const auto a_e0_e1_k0_k1_e2_grid_desc =
             GridwiseGemm::MakeAE0E1K0K1E2GridDescriptor(a_e0_e1_k_e2_grid_desc);
@@ -469,7 +475,33 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 cast_pointer_to_constant_address_space(
                     c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
+#elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
+        {
+            static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
+            const auto kernel =
+                kernel_gemm_dlops_v2<GridwiseGemm,
+                                     FloatAB,
+                                     FloatC,
+                                     remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
+                                     remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
+                                     remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
+                                     remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
+                                     has_main_e0_block_loop>;
+
+            ave_time = launch_and_time_kernel(kernel,
+                                              nrepeat,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              p_a_grid,
+                                              p_b_grid,
+                                              p_bias_grid,
+                                              p_c_grid);
+        }
 #endif
         return ave_time;
     }

@@ -214,7 +214,6 @@ int main(int argc, char* argv[])
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
     Tensor<in_data_t> add(add_lengths_host);
-    Tensor<out_data_t> out_device(out_lengths_host);
     Tensor<in_data_t> add_device(add_lengths_host);
     Tensor<in_data_t> add_host(add_lengths_host);
     Tensor<out_data_t> bias(bias_lengths_host);
@@ -308,7 +307,6 @@ int main(int argc, char* argv[])
             in,
             wei,
             bias,
-            out_device,
             add,
             add_device,
             nrepeat);

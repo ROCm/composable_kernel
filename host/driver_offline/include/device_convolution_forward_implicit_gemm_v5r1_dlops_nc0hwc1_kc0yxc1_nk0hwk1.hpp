@@ -132,10 +132,6 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 
-    static_assert(in_n_c0_hi_wi_c1_desc.IsKnownAtCompileTime(), "");
-    static_assert(wei_k_c0_y_x_c1_desc.IsKnownAtCompileTime(), "");
-    static_assert(out_n_k0_ho_wo_k1_desc.IsKnownAtCompileTime(), "");
-
     constexpr auto conv_driver =
         DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_outpad<
             BlockSize,

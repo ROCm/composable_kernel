@@ -133,11 +133,56 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_dlops_v2_add(const FloatAB* __restrict__ p_a_grid,
-                                 const FloatAB* __restrict__ p_b_grid,
-                                 const FloatC* __restrict__ p_bias_grid,
-                                 FloatC* __restrict__ p_c_grid,
-                                 FloatC* __restrict__ p_d_grid)
+        kernel_gemm_dlops_v2_resize_add(const FloatAB* __restrict__ p_a_grid,
+                                        const FloatAB* __restrict__ p_b_grid,
+                                        const FloatC* __restrict__ p_bias_grid,
+                                        FloatC* __restrict__ p_d_grid)
+{
+    constexpr index_t shared_block_size =
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+
+    __shared__ FloatAB p_shared_block[shared_block_size];
+
+    constexpr auto a_e0_e1_k0_k1_e2_grid_desc = AGridDesc_E0_E1_K0_K1_E2{};
+    constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
+        BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2{};
+    constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc = CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2{};
+    constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc = DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx{};
+    constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
+        CBlockIdToBlockClusterAdaptor_K_N_H_W{};
+
+    GridwiseGemm::Run(p_a_grid,
+                      p_b_grid,
+                      p_bias_grid,
+                      nullptr,
+                      p_d_grid,
+                      p_shared_block,
+                      a_e0_e1_k0_k1_e2_grid_desc,
+                      b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                      d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                      c_blockid_to_k_n_h_w_block_cluster_adaptor,
+                      integral_constant<bool, HasMainE0BlockLoop>{});
+}
+
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AGridDesc_E0_E1_K0_K1_E2,
+          typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
+          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
+          typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
+          typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
+          bool HasMainE0BlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_gemm_dlops_v2_maxpool(const FloatAB* __restrict__ p_a_grid,
+                                     const FloatAB* __restrict__ p_b_grid,
+                                     const FloatC* __restrict__ p_bias_grid,
+                                     FloatC* __restrict__ p_c_grid,
+                                     FloatC* __restrict__ p_d_grid)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -162,6 +207,49 @@ __global__ void
                       b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                       c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                       d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                      c_blockid_to_k_n_h_w_block_cluster_adaptor,
+                      integral_constant<bool, HasMainE0BlockLoop>{});
+}
+
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AGridDesc_E0_E1_K0_K1_E2,
+          typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
+          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
+          typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
+          bool HasMainE0BlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_gemm_dlops_v2(const FloatAB* __restrict__ p_a_grid,
+                             const FloatAB* __restrict__ p_b_grid,
+                             const FloatC* __restrict__ p_bias_grid,
+                             FloatC* __restrict__ p_c_grid)
+{
+    constexpr index_t shared_block_size =
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+
+    __shared__ FloatAB p_shared_block[shared_block_size];
+
+    constexpr auto a_e0_e1_k0_k1_e2_grid_desc = AGridDesc_E0_E1_K0_K1_E2{};
+    constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
+        BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2{};
+    constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc = CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2{};
+    constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
+        CBlockIdToBlockClusterAdaptor_K_N_H_W{};
+
+    GridwiseGemm::Run(p_a_grid,
+                      p_b_grid,
+                      p_bias_grid,
+                      p_c_grid,
+                      nullptr,
+                      p_shared_block,
+                      a_e0_e1_k0_k1_e2_grid_desc,
+                      b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                      c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                       c_blockid_to_k_n_h_w_block_cluster_adaptor,
                       integral_constant<bool, HasMainE0BlockLoop>{});
 }
@@ -209,6 +297,8 @@ template <index_t BlockSize,
           typename AGlobalMoveSliceWindowStepHacks,
           typename BGlobalMoveSliceWindowStepHacks,
           index_t activ_type = 0,
+          index_t bias_type  = 0,
+          index_t out_type   = 1,
           index_t add_type   = 0>
 struct GridwiseGemmDlops_km_kn_mn_v3_add
 {
@@ -426,13 +516,13 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         const auto K1 = Number<KPerBlock>{};
         const auto K0 = K / K1;
 
-        const auto H2 = HoPerThread * 2;
+        const auto H2 = Number<HoPerThread * 2>{};
         const auto H1 = Number<HoPerBlock / HoPerThread>{};
-        const auto H0 = Hx / (H1 * H2);
+        const auto H0 = Number<Hx / (H1 * H2)>{};
 
-        const auto W2 = WoPerThread * 2;
+        const auto W2 = Number<WoPerThread * 2>{};
         const auto W1 = Number<WoPerBlock / WoPerThread>{};
-        const auto W0 = Wx / (W1 * W2);
+        const auto W0 = Number<Wx / (W1 * W2)>{};
 
         const auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc = transform_tensor_descriptor(
             d_k_n_hx_wx_grid_desc,
@@ -449,11 +539,11 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
     __host__ __device__ static constexpr auto
     MakeDK0K1NH0H1HxW0W1WxGridDescriptor(const DGridDesc_K_N_Hx_Wx& d_k_n_hx_wx_grid_desc)
     {
-        if constexpr(add_type == 0)
+        if constexpr(add_type == 1)
         {
             return MakeDK0K1NH0H1HxW0W1WxGridDescriptorResizeAdd(d_k_n_hx_wx_grid_desc);
         }
-        else if constexpr(add_type == 1)
+        else if constexpr(add_type == 2)
         {
             return MakeDK0K1NH0H1HxW0W1WxGridDescriptorMaxPool(d_k_n_hx_wx_grid_desc);
         }
@@ -543,9 +633,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 
         constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
         constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
-
-        // const auto Ho = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(I3);
-        // const auto Wo = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(I4);
 
         const auto c_k_n_h_w_block_cluster_idx =
             c_blockid_to_k_n_h_w_block_cluster_adaptor.CalculateBottomIndex(
@@ -909,6 +996,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         }
 
         // activ
+        if constexpr(activ_type > 0)
         {
             static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
                 if constexpr(activ_type == 1)
@@ -929,7 +1017,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
             });
         }
 
-        // Bias
+        if constexpr(bias_type == 1)
         {
             constexpr auto bias_k0_k1_thread_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
@@ -982,6 +1070,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 
 #if 1
         // Output
+        if constexpr(out_type == 1)
         {
             // hack to control index calculation when iterating over c_k_n_h0_h1_h2_w0_w1_w2_global
             // tensor
@@ -1032,7 +1121,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 
 #if 1
         // Resize_Add
-        if constexpr(add_type == 0)
+        if constexpr(add_type == 1)
         {
             constexpr auto HoPerThreadx2 = HoPerThread * 2;
             constexpr auto WoPerThreadx2 = WoPerThread * 2;
@@ -1145,7 +1234,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                      d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks);
         }
         // MaxPool
-        else if constexpr(add_type == 1)
+        else if constexpr(add_type == 2)
         {
             static_assert(HoPerThread % 2 == 0 && WoPerThread % 2 == 0, "");
 

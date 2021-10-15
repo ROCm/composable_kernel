@@ -49,7 +49,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                        const FloatAB* __restrict__ p_a_grid,
                        const FloatAB* __restrict__ p_b_grid,
                        const FloatC* __restrict__ p_bias_grid,
-                       FloatC* __restrict__ p_c_grid,
                        FloatC* __restrict__ p_d_grid,
                        const int nrepeat) const
     {
@@ -338,7 +337,11 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             decltype(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks),
             decltype(a_e0_e1_k_e2_global_move_slice_window_step_hack),
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_move_slice_window_step_hack),
-            activ_type>;
+            activ_type,
+            1, // bias_type
+            0, // out_type
+            1  // add_type
+            >;
 
         const auto a_e0_e1_k0_k1_e2_grid_desc =
             GridwiseGemm::MakeAE0E1K0K1E2GridDescriptor(a_e0_e1_k_e2_grid_desc);
@@ -374,7 +377,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         if(has_main_e0_block_loop)
         {
-            const auto kernel = kernel_gemm_dlops_v2_add<
+            const auto kernel = kernel_gemm_dlops_v2_resize_add<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -393,7 +396,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               p_a_grid,
                                               p_b_grid,
                                               p_bias_grid,
-                                              p_c_grid,
                                               p_d_grid,
                                               a_e0_e1_k0_k1_e2_grid_desc,
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
@@ -403,7 +405,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         }
         else
         {
-            const auto kernel = kernel_gemm_dlops_v2_add<
+            const auto kernel = kernel_gemm_dlops_v2_resize_add<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -422,7 +424,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               p_a_grid,
                                               p_b_grid,
                                               p_bias_grid,
-                                              p_c_grid,
                                               p_d_grid,
                                               a_e0_e1_k0_k1_e2_grid_desc,
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
@@ -455,7 +456,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         if(has_main_e0_block_loop)
         {
 
-            const auto kernel = kernel_gemm_dlops_v2_add<
+            const auto kernel = kernel_gemm_dlops_v2_resize_add<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -475,7 +476,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 p_a_grid,
                 p_b_grid,
                 p_bias_grid,
-                p_c_grid,
                 p_d_grid,
                 cast_pointer_to_constant_address_space(
                     a_e0_e1_k0_k1_e2_grid_desc_dev_buf.GetDeviceBuffer()),
@@ -490,8 +490,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         }
         else
         {
-
-            const auto kernel = kernel_gemm_dlops_v2_add<
+            const auto kernel = kernel_gemm_dlops_v2_resize_add<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -511,7 +510,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 p_a_grid,
                 p_b_grid,
                 p_bias_grid,
-                p_c_grid,
                 p_d_grid,
                 cast_pointer_to_constant_address_space(
                     a_e0_e1_k0_k1_e2_grid_desc_dev_buf.GetDeviceBuffer()),
@@ -524,7 +522,35 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 cast_pointer_to_constant_address_space(
                     c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
+#elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
+        {
+            static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
+            const auto kernel = kernel_gemm_dlops_v2_resize_add<
+                GridwiseGemm,
+                FloatAB,
+                FloatC,
+                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
+                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
+                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
+                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
+                has_main_e0_block_loop>;
+
+            ave_time = launch_and_time_kernel(kernel,
+                                              nrepeat,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              p_a_grid,
+                                              p_b_grid,
+                                              p_bias_grid,
+                                              p_d_grid);
+        }
 #endif
         return ave_time;
     }
