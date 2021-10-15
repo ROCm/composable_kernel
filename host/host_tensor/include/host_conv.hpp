@@ -4,10 +4,11 @@
 template <typename T>
 inline auto activ(T v, const ck::index_t activ_type)
 {
+    const T alpha = 0.30000001192092896; 
     switch(activ_type)
     {
     case 0: return v;
-    case 1: return (v >= 0 ? v : 0);
+    case 1: return (v >= 0 ? v : alpha * v);
     case 2: return (1 / (1 + exp(-v)));
     default: throw std::runtime_error("unsupported activ type"); break;
     }
@@ -273,7 +274,8 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
             }
         }
 
-        v = activ(v, activ_type) + bias(k0, k1);
+        v += bias(k0, k1);
+        v = activ(v, activ_type); 
 
         out_host(n, k0, ho, wo, k1) = v;
     };

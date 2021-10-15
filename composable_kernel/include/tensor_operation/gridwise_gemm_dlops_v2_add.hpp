@@ -315,6 +315,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 
     static constexpr auto NPerBlock = I1;
 
+    static constexpr FloatAcc alpha = 0.30000001192092896;
+
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         constexpr auto max_lds_align = Number<ABlockTransferDstScalarPerVector_E2>{};
@@ -995,28 +997,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
             }
         }
 
-        // activ
-        if constexpr(activ_type > 0)
-        {
-            static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
-                if constexpr(activ_type == 1)
-                {
-                    c_thread_buf(i) = c_thread_buf[i] >= 0 ? c_thread_buf[i] : 0.0;
-                }
-                else if constexpr(activ_type == 2)
-                {
-                    FloatAcc x = 1.0 + exp(-c_thread_buf[i]);
 
-                    asm volatile("\n \
-                        v_rcp_f32 %0, %1 \n"
-                                 : "=v"(x)
-                                 : "0"(x));
-
-                    c_thread_buf(i) = x;
-                }
-            });
-        }
-
+        // Bias
         if constexpr(bias_type == 1)
         {
             constexpr auto bias_k0_k1_thread_desc =
@@ -1068,6 +1050,28 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 #endif
         }
 
+        // Activ
+        if constexpr(activ_type > 0)
+        {
+            static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
+                if constexpr(activ_type == 1)
+                {
+                    c_thread_buf(i) =
+                        c_thread_buf[i] >= 0 ? c_thread_buf[i] : alpha * c_thread_buf[i];
+                }
+                else if constexpr(activ_type == 2)
+                {
+                    FloatAcc x = 1.0 + exp(-c_thread_buf[i]);
+
+                    asm volatile("\n \
+                        v_rcp_f32 %0, %1 \n"
+                                 : "=v"(x)
+                                 : "0"(x));
+
+                    c_thread_buf(i) = x;
+                }
+            });
+        }
 #if 1
         // Output
         if constexpr(out_type == 1)

@@ -263,7 +263,7 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::None;
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
 
 #if USE_CONV_FWD_V5R1_NCHWC
     if(algo == ConvForwardAlgo::V5R1NCHWC)

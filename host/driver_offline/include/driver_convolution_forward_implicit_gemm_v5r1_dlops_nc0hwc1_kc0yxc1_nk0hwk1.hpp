@@ -303,7 +303,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             decltype(a_e0_e1_k_e2_global_move_slice_window_step_hack),
             decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_move_slice_window_step_hack),
             activ_type,
-            0, // bias_type
+            1, // bias_type
             1, // out_type
             0  // add_type
             >;

@@ -93,9 +93,9 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-    constexpr index_t activ_type = 0;
+    constexpr index_t activ_type = 1;
 
-#if 0
+#if 1
     constexpr auto N             = Number<1>{};
     constexpr auto Hi            = Number<1080>{};
     constexpr auto Wi            = Number<1920>{};
