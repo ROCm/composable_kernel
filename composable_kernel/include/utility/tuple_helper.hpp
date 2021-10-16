@@ -6,22 +6,6 @@
 
 namespace ck {
 
-template <typename... Ts>
-struct is_known_at_compile_time<Tuple<Ts...>>
-{
-    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
-    {
-        return container_reduce(
-            Tuple<Ts...>{},
-            [](auto x, bool r) {
-                return is_known_at_compile_time<remove_cvref_t<decltype(x)>>::value & r;
-            },
-            true);
-    }
-
-    static constexpr bool value = IsKnownAtCompileTime();
-};
-
 template <typename F, index_t N>
 __host__ __device__ constexpr auto generate_tuple(F&& f, Number<N>)
 {

@@ -5,7 +5,8 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "cluster_descriptor.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
+//#include "threadwise_tensor_slice_transfer.hpp"
+#include "threadwise_tensor_slice_transfer_v3r2.hpp"
 
 namespace ck {
 
@@ -146,22 +147,22 @@ struct BlockwiseTensorSliceTransfer_v4
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
-        ThreadwiseTensorSliceTransfer_v3<ThreadSliceLengths,
-                                         DstInMemOp,
-                                         SrcData,
-                                         DstData,
-                                         SrcDesc,
-                                         DstDesc,
-                                         SrcDimAccessOrder,
-                                         DstDimAccessOrder,
-                                         SrcVectorDim,
-                                         DstVectorDim,
-                                         SrcScalarPerVector,
-                                         DstScalarPerVector,
-                                         SrcScalarStrideInVector,
-                                         DstScalarStrideInVector,
-                                         ThreadTransferSrcResetCoordinateAfterRun,
-                                         ThreadTransferDstResetCoordinateAfterRun>;
+        ThreadwiseTensorSliceTransfer_v3r2<ThreadSliceLengths,
+                                           DstInMemOp,
+                                           SrcData,
+                                           DstData,
+                                           SrcDesc,
+                                           DstDesc,
+                                           SrcDimAccessOrder,
+                                           DstDimAccessOrder,
+                                           SrcVectorDim,
+                                           DstVectorDim,
+                                           SrcScalarPerVector,
+                                           DstScalarPerVector,
+                                           SrcScalarStrideInVector,
+                                           DstScalarStrideInVector,
+                                           ThreadTransferSrcResetCoordinateAfterRun,
+                                           ThreadTransferDstResetCoordinateAfterRun>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

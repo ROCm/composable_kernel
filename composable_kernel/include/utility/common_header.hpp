@@ -31,6 +31,7 @@
 #include "amd_buffer_addressing.hpp"
 #include "static_buffer.hpp"
 #include "dynamic_buffer.hpp"
+#include "is_known_at_compile_time.hpp"
 
 #include "inner_product.hpp"
 
