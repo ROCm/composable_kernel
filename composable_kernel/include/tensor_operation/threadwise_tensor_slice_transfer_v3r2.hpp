@@ -330,7 +330,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
             // copy data from thread_tensor_ to dst_tmp_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-#if 0 // debug
+#if 0
                 dst_tmp_vector.template AsType<DstData>()(i) = type_convert<DstData>{}(
                     thread_tensor_[dst_data_idx + i * dst_scalar_step_in_vector]);
 #else
@@ -596,8 +596,17 @@ struct ThreadwiseTensorSliceTransfer_v3r2
     static constexpr auto thread_tensor_desc_ =
         make_naive_tensor_descriptor_packed(sequence_to_tuple_of_number(SliceLengths{}));
 
+#if 0
     StaticTensor<AddressSpaceEnum_t::Vgpr, SrcData, decltype(thread_tensor_desc_), true>
         thread_tensor_;
+#else
+    StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
+                                    SrcData,
+                                    1,
+                                    decltype(thread_tensor_desc_),
+                                    true>
+        thread_tensor_;
+#endif
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;

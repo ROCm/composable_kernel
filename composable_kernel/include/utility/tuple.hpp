@@ -117,6 +117,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     __host__ __device__ static constexpr index_t Size() { return sizeof...(Xs); }
 
+    // read access
     template <index_t I>
     __host__ __device__ constexpr const auto& At(Number<I>) const
     {
@@ -124,6 +125,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
         return base::GetElementByKey(detail::TupleElementKey<I>{});
     }
 
+    // write access
     template <index_t I>
     __host__ __device__ constexpr auto& At(Number<I>)
     {
@@ -131,12 +133,14 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
         return base::GetElementByKey(detail::TupleElementKey<I>{});
     }
 
+    // read access
     template <index_t I>
     __host__ __device__ constexpr const auto& operator[](Number<I> i) const
     {
         return At(i);
     }
 
+    // write access
     template <index_t I>
     __host__ __device__ constexpr auto& operator()(Number<I> i)
     {

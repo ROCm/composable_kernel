@@ -151,6 +151,20 @@ struct TensorAdaptor
 
     __host__ __device__ constexpr auto GetElementSize() const { return element_size_; }
 
+#if 0 // debug
+    template <index_t I>
+    __host__ __device__ constexpr index_t GetTopDimensionLength(Number<I> idim) const
+    {
+        // TODO: not implemented
+    }
+
+    template <index_t I>
+    __host__ __device__ constexpr index_t GetBottomDimensionLength(Number<I> idim) const
+    {
+        // TODO: not implemented
+    }
+#endif
+
     template <typename TopIdx>
     __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
     {
