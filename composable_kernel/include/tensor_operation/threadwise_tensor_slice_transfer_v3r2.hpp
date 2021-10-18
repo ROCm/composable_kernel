@@ -592,14 +592,30 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
     }
 
+    __device__ constexpr auto GetSrcThreadBufferDescriptor()
+    {
+        // scalar per access on each dim
+        // TODO: don't use lambda_scalar_per_access
+        constexpr auto src_scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+
+        constexpr auto src_scalar_step_in_vector =
+            generate_sequence(detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
+
+        constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
+    }
+
     private:
+#if 0 // debug
     static constexpr auto thread_tensor_desc_ =
         make_naive_tensor_descriptor_packed(sequence_to_tuple_of_number(SliceLengths{}));
 
-#if 0
     StaticTensor<AddressSpaceEnum_t::Vgpr, SrcData, decltype(thread_tensor_desc_), true>
         thread_tensor_;
 #else
+    static constexpr auto thread_tensor_desc_ =
+        make_naive_tensor_descriptor_packed(sequence_to_tuple_of_number(SliceLengths{}));
+
     StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
                                     SrcData,
                                     1,

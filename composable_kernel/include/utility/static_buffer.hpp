@@ -43,18 +43,19 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
 
 // static buffer for vector
 template <AddressSpaceEnum_t AddressSpace,
-          typename T,
+          typename S,
           index_t NumOfVector,
           index_t ScalarPerVector,
-          bool InvalidElementUseNumericalZeroValue> // TODO remove this bool, no longer needed
+          bool InvalidElementUseNumericalZeroValue, // TODO remove this bool, no longer needed,
+          typename enable_if<is_scalar_type<S>::value, bool>::type = false>
 struct StaticBufferTupleOfVector
-    : public StaticallyIndexedArray<vector_type<T, ScalarPerVector>, NumOfVector>
+    : public StaticallyIndexedArray<vector_type<S, ScalarPerVector>, NumOfVector>
 {
-    using type = T;
-    using base = StaticallyIndexedArray<vector_type<T, ScalarPerVector>, NumOfVector>;
+    using V    = typename vector_type<S, ScalarPerVector>::type;
+    using base = StaticallyIndexedArray<vector_type<S, ScalarPerVector>, NumOfVector>;
 
-    static constexpr auto scalar_per_vector = Number<ScalarPerVector>{};
-    static constexpr auto num_of_vector_    = Number<NumOfVector>{};
+    static constexpr auto s_per_v   = Number<ScalarPerVector>{};
+    static constexpr auto num_of_v_ = Number<NumOfVector>{};
 
     __host__ __device__ constexpr StaticBufferTupleOfVector() : base{} {}
 
@@ -67,24 +68,56 @@ struct StaticBufferTupleOfVector
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 
-    // read access
+    // read access of S
     template <index_t I>
-    __host__ __device__ constexpr const T& operator[](Number<I> i) const
+    __host__ __device__ constexpr const S& operator[](Number<I> i) const
     {
-        constexpr auto vector_i = i / scalar_per_vector;
-        constexpr auto scalar_i = i % scalar_per_vector;
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_s = i % s_per_v;
 
-        return base::operator[](vector_i).template AsType<T>()[scalar_i];
+        return base::operator[](i_v).template AsType<S>()[i_s];
     }
 
-    // write access
+    // write access of S
     template <index_t I>
-    __host__ __device__ constexpr T& operator()(Number<I> i)
+    __host__ __device__ constexpr S& operator()(Number<I> i)
     {
-        constexpr auto vector_i = i / scalar_per_vector;
-        constexpr auto scalar_i = i % scalar_per_vector;
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_s = i % s_per_v;
 
-        return base::operator()(vector_i).template AsType<T>()(scalar_i);
+        return base::operator()(i_v).template AsType<S>()(i_s);
+    }
+
+    // read access of X
+    template <typename X,
+              index_t I,
+              typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
+    __host__ __device__ constexpr auto GetAsType(Number<I> i) const
+    {
+        constexpr index_t s_per_x = scalar_type<remove_cvref_t<X>>::vector_size;
+
+        static_assert(s_per_v % s_per_x == 0, "wrong! V must  one or multiple X");
+
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_x = (i % s_per_v) / s_per_x;
+
+        return base::operator[](i_v).template AsType<X>()[i_x];
+    }
+
+    // write access of X
+    template <typename X,
+              index_t I,
+              typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
+    __host__ __device__ constexpr void SetAsType(Number<I> i, X x)
+    {
+        constexpr index_t s_per_x = scalar_type<remove_cvref_t<X>>::vector_size;
+
+        static_assert(s_per_v % s_per_x == 0, "wrong! V must contain one or multiple X");
+
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_x = (i % s_per_v) / s_per_x;
+
+        base::operator()(i_v).template AsType<X>()(i_x) = x;
     }
 };
 
