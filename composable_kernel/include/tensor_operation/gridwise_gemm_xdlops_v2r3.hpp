@@ -397,56 +397,58 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         }();
 
         // A matrix blockwise copy
-        auto a_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4<BlockSize,
-                                            InMemoryDataOperationEnum_t::Set,
-                                            Sequence<KPerBlock, MPerBlock, K1>,
-                                            ABlockTransferThreadSliceLengths_K0_M_K1,
-                                            ABlockTransferThreadClusterLengths_K0_M_K1,
-                                            ABlockTransferThreadClusterArrangeOrder,
-                                            FloatAB,
-                                            FloatAB,
-                                            decltype(a_k0_m_k1_grid_desc),
-                                            decltype(a_k0_m_k1_block_desc),
-                                            ABlockTransferSrcAccessOrder,
-                                            Sequence<1, 0, 2>,
-                                            ABlockTransferSrcVectorDim,
-                                            2,
-                                            ABlockTransferSrcScalarPerVector,
-                                            ABlockTransferDstScalarPerVector_K1,
-                                            1,
-                                            1,
-                                            AThreadTransferSrcResetCoordinateAfterRun,
-                                            true>(a_k0_m_k1_grid_desc,
-                                                  make_multi_index(0, m_block_data_idx_on_grid, 0),
-                                                  a_k0_m_k1_block_desc,
-                                                  make_multi_index(0, 0, 0));
+        auto a_blockwise_copy = BlockwiseTensorSliceTransfer_v4<
+            BlockSize,
+            InMemoryDataOperationEnum_t::Set,
+            Sequence<KPerBlock, MPerBlock, K1>,
+            ABlockTransferThreadSliceLengths_K0_M_K1,
+            ABlockTransferThreadClusterLengths_K0_M_K1,
+            ABlockTransferThreadClusterArrangeOrder,
+            FloatAB,
+            FloatAB,
+            decltype(a_k0_m_k1_grid_desc),
+            decltype(a_k0_m_k1_block_desc),
+            ABlockTransferSrcAccessOrder,
+            Sequence<1, 0, 2>, // TODO: maybe ABlockTransferDstAccessOrder should be the same as
+                               // ABlockTransferSrcAccessOrder?
+            ABlockTransferSrcVectorDim,
+            2,
+            ABlockTransferSrcScalarPerVector,
+            ABlockTransferDstScalarPerVector_K1,
+            1,
+            1,
+            AThreadTransferSrcResetCoordinateAfterRun,
+            true>(a_k0_m_k1_grid_desc,
+                  make_multi_index(0, m_block_data_idx_on_grid, 0),
+                  a_k0_m_k1_block_desc,
+                  make_multi_index(0, 0, 0));
 
         // B matrix blockwise copy
-        auto b_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4<BlockSize,
-                                            InMemoryDataOperationEnum_t::Set,
-                                            Sequence<KPerBlock, NPerBlock, K1>,
-                                            BBlockTransferThreadSliceLengths_K0_N_K1,
-                                            BBlockTransferThreadClusterLengths_K0_N_K1,
-                                            BBlockTransferThreadClusterArrangeOrder,
-                                            FloatAB,
-                                            FloatAB,
-                                            decltype(b_k0_n_k1_grid_desc),
-                                            decltype(b_k0_n_k1_block_desc),
-                                            BBlockTransferSrcAccessOrder,
-                                            Sequence<1, 0, 2>,
-                                            BBlockTransferSrcVectorDim,
-                                            2,
-                                            BBlockTransferSrcScalarPerVector,
-                                            BBlockTransferDstScalarPerVector_K1,
-                                            1,
-                                            1,
-                                            BThreadTransferSrcResetCoordinateAfterRun,
-                                            true>(b_k0_n_k1_grid_desc,
-                                                  make_multi_index(0, n_block_data_idx_on_grid, 0),
-                                                  b_k0_n_k1_block_desc,
-                                                  make_multi_index(0, 0, 0));
+        auto b_blockwise_copy = BlockwiseTensorSliceTransfer_v4<
+            BlockSize,
+            InMemoryDataOperationEnum_t::Set,
+            Sequence<KPerBlock, NPerBlock, K1>,
+            BBlockTransferThreadSliceLengths_K0_N_K1,
+            BBlockTransferThreadClusterLengths_K0_N_K1,
+            BBlockTransferThreadClusterArrangeOrder,
+            FloatAB,
+            FloatAB,
+            decltype(b_k0_n_k1_grid_desc),
+            decltype(b_k0_n_k1_block_desc),
+            BBlockTransferSrcAccessOrder,
+            Sequence<1, 0, 2>, // TODO: maybe BBlockTransferDstAccessOrder should be the same as
+                               // BBlockTransferSrcAccessOrder?
+            BBlockTransferSrcVectorDim,
+            2,
+            BBlockTransferSrcScalarPerVector,
+            BBlockTransferDstScalarPerVector_K1,
+            1,
+            1,
+            BThreadTransferSrcResetCoordinateAfterRun,
+            true>(b_k0_n_k1_grid_desc,
+                  make_multi_index(0, n_block_data_idx_on_grid, 0),
+                  b_k0_n_k1_block_desc,
+                  make_multi_index(0, 0, 0));
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx

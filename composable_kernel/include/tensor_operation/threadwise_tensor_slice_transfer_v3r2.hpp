@@ -172,13 +172,10 @@ struct ThreadwiseTensorSliceTransfer_v3r2
             src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid);
 
-            // copy data from src_tmp_vector to thread_tensor_
+            // copy data from src_tmp_vector to src_thread_scratch_
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-#if 0 // debug
-                thread_tensor_(src_data_idx + i * src_scalar_step_in_vector) =
-                src_tmp_vector.template AsType<SrcData>()[i];
-#else
-                thread_tensor_(src_data_idx_seq + i * src_scalar_step_in_vector) =
+#if 1 // debug
+                src_thread_scratch_(src_data_idx_seq + i * src_scalar_step_in_vector) =
                     src_tmp_vector.template AsType<SrcData>()[i];
 #endif
             });
@@ -228,10 +225,24 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         }
     }
 
+    __device__ void TransferDataFromSrcThreadScratchToDstThreadScratch()
+    {
+        static_ford<SliceLengths>{}([&](auto idx) {
+            // convert from SrcData to DstData here
+            dst_thread_scratch_(idx) = type_convert<DstData>{}(src_thread_scratch_[idx]);
+        });
+    }
+
     template <typename DstBuffer, typename DstStepHacks>
     __device__ void
     RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, const DstStepHacks& dst_step_hacks)
     {
+#if 1 // debug
+      // if there is transpose, it's done here
+      // TODO move this elsewhere
+        TransferDataFromSrcThreadScratchToDstThreadScratch();
+#endif
+
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
                           DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
                       "wrong!");
@@ -328,15 +339,10 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
             vector_type_maker_t<DstData, DstScalarPerVector> dst_tmp_vector;
 
-            // copy data from thread_tensor_ to dst_tmp_vector
+            // copy data from dst_thread_scratch_ to dst_tmp_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-#if 0
-                dst_tmp_vector.template AsType<DstData>()(i) = type_convert<DstData>{}(
-                    thread_tensor_[dst_data_idx + i * dst_scalar_step_in_vector]);
-#else
-                dst_tmp_vector.template AsType<DstData>()(i) = type_convert<DstData>{}(
-                    thread_tensor_[dst_data_idx_seq + i * dst_scalar_step_in_vector]);
-#endif
+                dst_tmp_vector.template AsType<DstData>()(i) =
+                    dst_thread_scratch_[dst_data_idx_seq + i * dst_scalar_step_in_vector];
             });
 
             using dst_vector_t = typename decltype(dst_tmp_vector)::type;
@@ -592,36 +598,92 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
     }
 
-    __device__ constexpr auto GetSrcThreadBufferDescriptor()
+#if 1 // debug
+    __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
-        // scalar per access on each dim
-        // TODO: don't use lambda_scalar_per_access
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto src_scalar_step_in_vector =
-            generate_sequence(detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
-
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
+
+        constexpr auto src_access_lengths_and_vector_length = container_push_back(
+            sequence_to_tuple_of_number(src_access_lengths), Number<SrcScalarPerVector>{});
+
+        constexpr auto desc0 =
+            make_naive_tensor_descriptor_packed(src_access_lengths_and_vector_length);
+
+        // TODO this is hardcoded for GEMM TN layout, it also works for NHWC backward-weight
+        // TODO implemenet the general logic
+        constexpr auto desc1 = transform_tensor_descriptor(
+            desc0,
+            make_tuple(make_pass_through_transform(src_access_lengths_and_vector_length[I0]),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(src_access_lengths_and_vector_length[I1],
+                                      src_access_lengths_and_vector_length[I3])),
+                       make_pass_through_transform(src_access_lengths_and_vector_length[I2])),
+            make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        return desc1;
     }
 
-    private:
-#if 0 // debug
-    static constexpr auto thread_tensor_desc_ =
-        make_naive_tensor_descriptor_packed(sequence_to_tuple_of_number(SliceLengths{}));
+    __device__ static constexpr auto GetDstThreadScratchDescriptor()
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
 
-    StaticTensor<AddressSpaceEnum_t::Vgpr, SrcData, decltype(thread_tensor_desc_), true>
-        thread_tensor_;
-#else
-    static constexpr auto thread_tensor_desc_ =
-        make_naive_tensor_descriptor_packed(sequence_to_tuple_of_number(SliceLengths{}));
+        constexpr auto dst_scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+
+        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
+
+        constexpr auto dst_access_lengths_and_vector_length = container_push_back(
+            sequence_to_tuple_of_number(dst_access_lengths), Number<DstScalarPerVector>{});
+
+        constexpr auto desc0 =
+            make_naive_tensor_descriptor_packed(dst_access_lengths_and_vector_length);
+
+        // TODO this is hardcoded for GEMM TN layout, it also works for NHWC backward-weight
+        // TODO implemenet the general logic
+        constexpr auto desc1 = transform_tensor_descriptor(
+            desc0,
+            make_tuple(make_pass_through_transform(dst_access_lengths_and_vector_length[I0]),
+                       make_pass_through_transform(dst_access_lengths_and_vector_length[I1]),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(dst_access_lengths_and_vector_length[I2],
+                                      dst_access_lengths_and_vector_length[I3]))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        return desc1;
+    }
+#endif
+
+    private:
+#if 1 // debug
+    static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
+    static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
     StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
                                     SrcData,
-                                    1,
-                                    decltype(thread_tensor_desc_),
+                                    SrcScalarPerVector,
+                                    decltype(src_thread_scratch_desc_),
                                     true>
-        thread_tensor_;
+        src_thread_scratch_;
+
+    StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
+                                    DstData,
+                                    DstScalarPerVector,
+                                    decltype(src_thread_scratch_desc_),
+                                    true>
+        dst_thread_scratch_;
 #endif
 
     SrcCoord src_coord_;
