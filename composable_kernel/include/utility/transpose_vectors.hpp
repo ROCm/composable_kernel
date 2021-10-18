@@ -16,10 +16,10 @@ struct transpose_vectors;
 // transpose fp16 2x2
 __device__ void transpose_fp16_2x2(const half2_t& x0, const half2_t& x1, half2_t& y0, half2_t& y1)
 {
+#if 0 // debug
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
-#if 1 // debug
     const vector_type<half_t, 2> vx0{x0}, vx1{x1};
     vector_type<half_t, 2> vy0, vy1;
 
@@ -31,14 +31,24 @@ __device__ void transpose_fp16_2x2(const half2_t& x0, const half2_t& x1, half2_t
 
     y0 = vy0.template AsType<half2_t>()[I0];
     y1 = vy1.template AsType<half2_t>()[I0];
+#else
+    asm volatile("\n \
+            v_pack_b32_f16 %0, %2, %3 \n \
+            v_pack_b32_f16 %1, %2, %3, op_sel:[1, 1] \n \
+            "
+                 : "=v"(y0), "=v"(y1)
+                 : "v"(x0), "v"(x1), "0"(y0), "1"(y1));
 #endif
 }
 
 template <index_t NX, index_t NY>
 struct transpose_vectors<half_t, NX, NY>
 {
-    using X = typename vector_type<half_t, NY>::type;
-    using Y = typename vector_type<half_t, NX>::type;
+    static constexpr index_t s_per_x = NY;
+    static constexpr index_t s_per_y = NX;
+
+    using X = typename vector_type<half_t, s_per_x>::type;
+    using Y = typename vector_type<half_t, s_per_y>::type;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
