@@ -34,6 +34,7 @@
 #include "static_buffer_of_vector_type_v2.hpp"
 #include "dynamic_buffer.hpp"
 #include "is_known_at_compile_time.hpp"
+#include "transpose_vectors.hpp"
 
 #include "inner_product.hpp"
 
