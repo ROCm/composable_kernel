@@ -94,7 +94,7 @@ struct StaticBufferTupleOfVector
               typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
     __host__ __device__ constexpr auto GetAsType(Number<I> i) const
     {
-        constexpr index_t s_per_x = scalar_type<remove_cvref_t<X>>::vector_size;
+        constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
 
         static_assert(s_per_v % s_per_x == 0, "wrong! V must  one or multiple X");
 
@@ -110,7 +110,7 @@ struct StaticBufferTupleOfVector
               typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
     __host__ __device__ constexpr void SetAsType(Number<I> i, X x)
     {
-        constexpr index_t s_per_x = scalar_type<remove_cvref_t<X>>::vector_size;
+        constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
 
         static_assert(s_per_v % s_per_x == 0, "wrong! V must contain one or multiple X");
 

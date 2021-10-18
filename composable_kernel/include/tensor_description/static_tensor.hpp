@@ -81,7 +81,7 @@ struct StaticTensor
 
 // StaticTensor for vector
 template <AddressSpaceEnum_t AddressSpace,
-          typename T,
+          typename S,
           index_t ScalarPerVector,
           typename TensorDesc,
           bool InvalidElementUseNumericalZeroValue,
@@ -97,16 +97,16 @@ struct StaticTensorTupleOfVectorBuffer
 
     __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer() : invalid_element_value_{0} {}
 
-    __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer(T invalid_element_value)
+    __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer(S invalid_element_value)
         : invalid_element_value_{invalid_element_value}
     {
     }
 
-    // read access
+    // read access of S
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
-    __host__ __device__ constexpr const T& operator[](Idx) const
+    __host__ __device__ constexpr const S& operator[](Idx) const
     {
         constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
 
@@ -122,7 +122,7 @@ struct StaticTensorTupleOfVectorBuffer
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return T{0};
+                return S{0};
             }
             else
             {
@@ -131,11 +131,11 @@ struct StaticTensorTupleOfVectorBuffer
         }
     }
 
-    // write access
+    // write access of S
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
-    __host__ __device__ constexpr T& operator()(Idx)
+    __host__ __device__ constexpr S& operator()(Idx)
     {
         constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
 
@@ -153,8 +153,61 @@ struct StaticTensorTupleOfVectorBuffer
         }
     }
 
-    StaticBufferTupleOfVector<AddressSpace, T, num_of_vector_, ScalarPerVector, true> data_;
-    T invalid_element_value_ = T{0};
+    // read access of X
+    template <typename X,
+              typename Idx,
+              typename enable_if<has_same_scalar_type<S, X>::value &&
+                                     is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
+                                 bool>::type = false>
+    __host__ __device__ constexpr X GetAsType(Idx) const
+    {
+        constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
+
+        constexpr index_t offset = coord.GetOffset();
+
+        constexpr bool is_valid = coordinate_has_valid_offset(desc_, coord);
+
+        if constexpr(is_valid)
+        {
+            return data_.template GetAsType<X>(Number<offset>{});
+        }
+        else
+        {
+            if constexpr(InvalidElementUseNumericalZeroValue)
+            {
+                // TODO: is this right way to initialize a vector?
+                return X{0};
+            }
+            else
+            {
+                // TODO: is this right way to initialize a vector?
+                return X{invalid_element_value_};
+            }
+        }
+    }
+
+    // write access of X
+    template <typename X,
+              typename Idx,
+              typename enable_if<has_same_scalar_type<S, X>::value &&
+                                     is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
+                                 bool>::type = false>
+    __host__ __device__ constexpr void SetAsType(Idx, X x)
+    {
+        constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
+
+        constexpr index_t offset = coord.GetOffset();
+
+        constexpr bool is_valid = coordinate_has_valid_offset(desc_, coord);
+
+        if constexpr(is_valid)
+        {
+            data_.template SetAsType<X>(Number<offset>{}, x);
+        }
+    }
+
+    StaticBufferTupleOfVector<AddressSpace, S, num_of_vector_, ScalarPerVector, true> data_;
+    S invalid_element_value_ = S{0};
 };
 
 template <AddressSpaceEnum_t AddressSpace,
