@@ -135,7 +135,7 @@ template <index_t BlockSize,
           bool CAccessOrderMRepeatNRepeat,
           bool ABlockLdsExtraM,
           bool BBlockLdsExtraN>
-struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r4
+struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

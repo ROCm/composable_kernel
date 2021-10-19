@@ -20,10 +20,10 @@
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
-#define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
-#define USE_CONV_WRW_V4R4R4_XDL_NHWC 1
-#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 1
-#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 1
+#define USE_CONV_WRW_V4R4R2_XDL_NCHW 0
+#define USE_CONV_WRW_V4R4R4_XDL_NHWC 0
+#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 0
+#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 0
 #define USE_CONV_WRW_V4R4R5_XDL_ATOMIC_NHWC 1
 
 enum ConvBackwardWeightAlgo
@@ -53,6 +53,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
         printf("rest: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx\n");
+        printf("additional: desired_grid_size\n");
         exit(1);
     }
 
@@ -80,7 +81,7 @@ int main(int argc, char* argv[])
     const index_t in_right_pad_h  = std::stoi(argv[20]);
     const index_t in_right_pad_w  = std::stoi(argv[21]);
 
-    const index_t grid_size = std::stoi(argv[22]);
+    const index_t desired_grid_size = std::stoi(argv[22]);
 
     const index_t YEff = (Y - 1) * conv_dilation_h + 1;
     const index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -348,7 +349,7 @@ int main(int argc, char* argv[])
                         in,
                         wei_device,
                         out,
-                        grid_size,
+                        desired_grid_size,
                         nrepeat);
     }
 #endif
@@ -377,7 +378,7 @@ int main(int argc, char* argv[])
                         in,
                         wei_device,
                         out,
-                        grid_size,
+                        desired_grid_size,
                         nrepeat);
     }
 #endif
@@ -406,7 +407,7 @@ int main(int argc, char* argv[])
                         in,
                         wei_device,
                         out,
-                        grid_size,
+                        desired_grid_size,
                         nrepeat);
     }
 #endif

@@ -27,7 +27,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     const Tensor<TIn>& in_n_hi_wi_c,
     Tensor<TWei>& wei_k_y_x_c,
     const Tensor<TOut>& out_n_ho_wo_k,
-    GridSizeType grid_size,
+    GridSizeType desired_grid_size,
     ck::index_t nrepeat)
 {
     using namespace ck;
@@ -107,7 +107,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 2;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 1
+#elif 0
     // [M, N, K0, K1] = [128, 128, 4, 4], C 64, for fp32
     constexpr index_t BlockSize = 256;
 
@@ -135,7 +135,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 2;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 0
+#elif 1
     // [M, N, K0, K1] = [256, 128, 4, 8], C 128, for fp16
     constexpr index_t BlockSize = 256;
 
@@ -163,7 +163,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 2;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 0
+#elif 1
     // [M, N, K0, K1] = [128, 128, 4, 8], C 64, for fp16
     constexpr index_t BlockSize = 256;
 
@@ -294,7 +294,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     const auto GemmK = GemmKTotal / GemmK1;
 
     const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
-    const index_t GemmKBatch = std::max(grid_size / GridMN, 1);
+    const index_t GemmKBatch = std::max(desired_grid_size / GridMN, 1);
     const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
     const index_t GemmK0     = BatchLen * GemmKPerBlock;
     const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
@@ -409,6 +409,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
         true,
         true>;
 
+    // timing
     for(index_t i = 0; i < 5; ++i)
     {
         float ave_time =
@@ -436,6 +437,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
         }
     }
 
+    // verification
     wei_k_y_x_c_device_buf.ToDevice(wei_k_y_x_c.mData.data());
     driver_gemm_xdlops(static_cast<TOut*>(out_n_ho_wo_k_device_buf.GetDeviceBuffer()),
                        static_cast<TIn*>(in_n_hi_wi_c_device_buf.GetDeviceBuffer()),

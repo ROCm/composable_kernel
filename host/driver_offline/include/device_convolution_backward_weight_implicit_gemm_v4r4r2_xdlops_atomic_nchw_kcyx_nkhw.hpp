@@ -27,7 +27,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
     const Tensor<TIn>& in_n_c_hi_wi,
     Tensor<TWei>& wei_k_c_y_x,
     const Tensor<TOut>& out_n_k_ho_wo,
-    GridSizeType grid_size,
+    GridSizeType desired_grid_size,
     ck::index_t nrepeat)
 {
     using namespace ck;
@@ -98,7 +98,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
     const auto GemmK = GemmKTotal / GemmK1;
 
     const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
-    const index_t GemmKBatch = std::max(grid_size / GridMN, 1);
+    const index_t GemmKBatch = std::max(desired_grid_size / GridMN, 1);
     const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
     const index_t GemmK0     = BatchLen * GemmKPerBlock;
     const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
