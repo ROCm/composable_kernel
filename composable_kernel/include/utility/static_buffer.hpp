@@ -69,6 +69,7 @@ struct StaticBufferTupleOfVector
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 
     // read access of S
+    // i is offset of S
     template <index_t I>
     __host__ __device__ constexpr const S& operator[](Number<I> i) const
     {
@@ -79,6 +80,7 @@ struct StaticBufferTupleOfVector
     }
 
     // write access of S
+    // i is offset of S
     template <index_t I>
     __host__ __device__ constexpr S& operator()(Number<I> i)
     {
@@ -89,6 +91,7 @@ struct StaticBufferTupleOfVector
     }
 
     // read access of X
+    // i is offset of S, not X. i should be aligned to X
     template <typename X,
               index_t I,
               typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
@@ -97,6 +100,7 @@ struct StaticBufferTupleOfVector
         constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
 
         static_assert(s_per_v % s_per_x == 0, "wrong! V must  one or multiple X");
+        static_assert(i % s_per_x == 0, "wrong!");
 
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_x = (i % s_per_v) / s_per_x;
@@ -105,6 +109,7 @@ struct StaticBufferTupleOfVector
     }
 
     // write access of X
+    // i is offset of S, not X. i should be aligned to X
     template <typename X,
               index_t I,
               typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
@@ -113,6 +118,7 @@ struct StaticBufferTupleOfVector
         constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
 
         static_assert(s_per_v % s_per_x == 0, "wrong! V must contain one or multiple X");
+        static_assert(i % s_per_x == 0, "wrong!");
 
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_x = (i % s_per_v) / s_per_x;

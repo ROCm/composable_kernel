@@ -95,6 +95,8 @@ struct StaticTensorTupleOfVectorBuffer
     static constexpr index_t num_of_vector_ =
         math::integer_divide_ceil(element_space_size_, ScalarPerVector);
 
+    using V = vector_type<S, ScalarPerVector>;
+
     __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer() : invalid_element_value_{0} {}
 
     __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer(S invalid_element_value)
@@ -103,6 +105,7 @@ struct StaticTensorTupleOfVectorBuffer
     }
 
     // read access of S
+    // Idx is for S, not V. Idx should be aligned with V
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
@@ -132,6 +135,7 @@ struct StaticTensorTupleOfVectorBuffer
     }
 
     // write access of S
+    // Idx is for S, not V. Idx should be aligned with V
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
