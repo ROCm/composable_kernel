@@ -397,7 +397,7 @@ struct ThreadwiseTensorSliceTransfer_v2
                       "wrong! SrcDesc need to known at compile-time");
     }
 
-    __device__ void SetDstSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
+    __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
         src_coord_ = make_tensor_coordinate(src_desc, src_slice_origin_idx);
     }
