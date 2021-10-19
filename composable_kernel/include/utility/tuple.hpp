@@ -166,5 +166,12 @@ __host__ __device__ constexpr auto make_tuple(Xs&&... xs)
     return Tuple<remove_cvref_t<Xs>...>(std::forward<Xs>(xs)...);
 }
 
+// https://en.cppreference.com/w/cpp/utility/tuple/tie
+template <typename... Args>
+constexpr Tuple<Args&...> tie(Args&... args) noexcept
+{
+    return {args...};
+}
+
 } // namespace ck
 #endif

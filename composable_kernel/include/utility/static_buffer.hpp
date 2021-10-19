@@ -68,7 +68,7 @@ struct StaticBufferTupleOfVector
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 
-    // read access of S
+    // Get S
     // i is offset of S
     template <index_t I>
     __host__ __device__ constexpr const S& operator[](Number<I> i) const
@@ -79,7 +79,7 @@ struct StaticBufferTupleOfVector
         return base::operator[](i_v).template AsType<S>()[i_s];
     }
 
-    // write access of S
+    // Set S
     // i is offset of S
     template <index_t I>
     __host__ __device__ constexpr S& operator()(Number<I> i)
@@ -90,7 +90,7 @@ struct StaticBufferTupleOfVector
         return base::operator()(i_v).template AsType<S>()(i_s);
     }
 
-    // read access of X
+    // Get X
     // i is offset of S, not X. i should be aligned to X
     template <typename X,
               index_t I,
@@ -108,7 +108,7 @@ struct StaticBufferTupleOfVector
         return base::operator[](i_v).template AsType<X>()[i_x];
     }
 
-    // write access of X
+    // Set X
     // i is offset of S, not X. i should be aligned to X
     template <typename X,
               index_t I,
@@ -124,6 +124,30 @@ struct StaticBufferTupleOfVector
         constexpr auto i_x = (i % s_per_v) / s_per_x;
 
         base::operator()(i_v).template AsType<X>()(i_x) = x;
+    }
+
+    // Get read access to vector_type V
+    // i is offset of S, not V. i should be aligned to V
+    template <index_t I>
+    __host__ __device__ constexpr const auto& GetVectorTypeReference(Number<I> i) const
+    {
+        static_assert(i % s_per_v == 0, "wrong!");
+
+        constexpr auto i_v = i / s_per_v;
+
+        return base::operator[](i_v);
+    }
+
+    // Get write access to vector_type V
+    // i is offset of S, not V. i should be aligned to V
+    template <index_t I>
+    __host__ __device__ constexpr auto& GetVectorTypeReference(Number<I> i)
+    {
+        static_assert(i % s_per_v == 0, "wrong!");
+
+        constexpr auto i_v = i / s_per_v;
+
+        return base::operator()(i_v);
     }
 };
 

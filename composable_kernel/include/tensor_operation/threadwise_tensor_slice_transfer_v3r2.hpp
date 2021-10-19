@@ -262,9 +262,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         }
         else
         {
-            // TODO type_convert is not used yet!!!!!
-            using src_vector_t = typename vector_type_maker_t<SrcData, SrcScalarPerVector>::type;
-            using dst_vector_t = typename vector_type_maker_t<DstData, DstScalarPerVector>::type;
 
             // each transpose does
             // DstScalarPerVector # of src vectors in src_thread_scratch_
@@ -297,28 +294,33 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                 constexpr auto data_idx_seq = generate_sequence_v2(
                     [&](auto i) { return Number<data_idx[i]>{}; }, Number<nDim>{});
 
-                // get DstScalarPerVector # of src vectors from src_thread_scratch_
-                const auto src_vectors = generate_tuple(
-                    [&](auto i) {
+                // TODO type_convert is not used yet!!!!!
+                using src_vector_t = vector_type_maker_t<SrcData, SrcScalarPerVector>;
+                using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
+
+                // get DstScalarPerVector # of read-only references to src vectors from
+                // src_thread_scratch_
+                const auto src_vector_refs = generate_tie(
+                    [&](auto i) -> const src_vector_t& {
                         // i increment corresponds to movement in DstVectorDim
-                        return src_thread_scratch_.template GetAsType<src_vector_t>(
+                        return src_thread_scratch_.GetVectorTypeReference(
                             data_idx_seq + i * dst_scalar_step_in_vector);
                     },
                     Number<num_src_vector>{});
 
-                StaticallyIndexedArray<dst_vector_t, num_dst_vector> dst_vectors;
+                // get SrcScalarPerVector # of references to dst vectors from dst_thread_scratch_
+                auto dst_vector_refs = generate_tie(
+                    [&](auto i) -> dst_vector_t& {
+                        // i increment corresponds to movement in SrcVectorDim
+                        return dst_thread_scratch_.GetVectorTypeReference(
+                            data_idx_seq + i * src_scalar_step_in_vector);
+                    },
+                    Number<num_dst_vector>{});
 
                 // do data transpose
                 // TODO type_convert is not used yet!!!!!
-                transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(src_vectors,
-                                                                                     dst_vectors);
-
-                // put SrcScalarPerVector # of dst vectors into dst_thread_scratch_
-                static_for<0, num_dst_vector, 1>{}([&](auto i) {
-                    // i increment corresponds to movement in DstVectorDim
-                    dst_thread_scratch_.template SetAsType<dst_vector_t>(
-                        data_idx_seq + i * src_scalar_step_in_vector, dst_vectors[i]);
-                });
+                transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
+                    src_vector_refs, dst_vector_refs);
             });
         }
 #endif

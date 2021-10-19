@@ -13,6 +13,13 @@ __host__ __device__ constexpr auto generate_tuple(F&& f, Number<N>)
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 
+template <typename F, index_t N>
+__host__ __device__ constexpr auto generate_tie(F&& f, Number<N>)
+{
+    return unpack([&f](auto&&... xs) { return tie(f(xs)...); },
+                  typename arithmetic_sequence_gen<0, N, 1>::type{});
+}
+
 namespace detail {
 
 template <typename F, typename X, index_t... Is>

@@ -104,8 +104,8 @@ struct StaticTensorTupleOfVectorBuffer
     {
     }
 
-    // read access of S
-    // Idx is for S, not V. Idx should be aligned with V
+    // Get S
+    // Idx is for S, not V
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
@@ -134,8 +134,8 @@ struct StaticTensorTupleOfVectorBuffer
         }
     }
 
-    // write access of S
-    // Idx is for S, not V. Idx should be aligned with V
+    // Set S
+    // Idx is for S, not V
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
@@ -157,7 +157,8 @@ struct StaticTensorTupleOfVectorBuffer
         }
     }
 
-    // read access of X
+    // Get X
+    // Idx is for S, not X. Idx should be aligned with X
     template <typename X,
               typename Idx,
               typename enable_if<has_same_scalar_type<S, X>::value &&
@@ -190,7 +191,8 @@ struct StaticTensorTupleOfVectorBuffer
         }
     }
 
-    // write access of X
+    // Set X
+    // Idx is for S, not X. Idx should be aligned with X
     template <typename X,
               typename Idx,
               typename enable_if<has_same_scalar_type<S, X>::value &&
@@ -208,6 +210,30 @@ struct StaticTensorTupleOfVectorBuffer
         {
             data_.template SetAsType<X>(Number<offset>{}, x);
         }
+    }
+
+    // Get read access to V. No is_valid check
+    // Idx is for S, not V. Idx should be aligned with V
+    template <typename Idx>
+    __host__ __device__ constexpr const V& GetVectorTypeReference(Idx) const
+    {
+        constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
+
+        constexpr index_t offset = coord.GetOffset();
+
+        return data_.GetVectorTypeReference(Number<offset>{});
+    }
+
+    // Get read access to V. No is_valid check
+    // Idx is for S, not V. Idx should be aligned with V
+    template <typename Idx>
+    __host__ __device__ constexpr V& GetVectorTypeReference(Idx)
+    {
+        constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
+
+        constexpr index_t offset = coord.GetOffset();
+
+        return data_.GetVectorTypeReference(Number<offset>{});
     }
 
     StaticBufferTupleOfVector<AddressSpace, S, num_of_vector_, ScalarPerVector, true> data_;
