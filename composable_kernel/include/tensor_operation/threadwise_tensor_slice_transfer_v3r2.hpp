@@ -687,6 +687,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
 
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
@@ -699,7 +700,8 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         constexpr auto desc0 =
             make_naive_tensor_descriptor_packed(src_access_lengths_and_vector_length);
 
-        // TODO this is hardcoded for GEMM TN layout, it also works for NHWC backward-weight
+#if 0
+        // TODO this is hardcoded for GEMM TN layout
         // TODO implemenet the general logic
         constexpr auto desc1 = transform_tensor_descriptor(
             desc0,
@@ -710,6 +712,20 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                        make_pass_through_transform(src_access_lengths_and_vector_length[I2])),
             make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+#else
+        // TODO this is hardcoded for NHWC backward-weight kernel
+        // TODO implemenet the general logic
+        constexpr auto desc1 = transform_tensor_descriptor(
+            desc0,
+            make_tuple(make_pass_through_transform(src_access_lengths_and_vector_length[I0]),
+                       make_pass_through_transform(src_access_lengths_and_vector_length[I1]),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(src_access_lengths_and_vector_length[I2],
+                                      src_access_lengths_and_vector_length[I4])),
+                       make_pass_through_transform(src_access_lengths_and_vector_length[I3])),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#endif
 
         return desc1;
     }
@@ -720,6 +736,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         constexpr auto I1 = Number<1>{};
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
 
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
@@ -731,8 +748,8 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
         constexpr auto desc0 =
             make_naive_tensor_descriptor_packed(dst_access_lengths_and_vector_length);
-
-        // TODO this is hardcoded for GEMM TN layout, it also works for NHWC backward-weight
+#if 0
+        // TODO this is hardcoded for GEMM TN layout
         // TODO implemenet the general logic
         constexpr auto desc1 = transform_tensor_descriptor(
             desc0,
@@ -743,6 +760,20 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                                       dst_access_lengths_and_vector_length[I3]))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+#else
+        // TODO this is hardcoded for NHWC backward-weight kernel
+        // TODO implemenet the general logic
+        constexpr auto desc1 = transform_tensor_descriptor(
+            desc0,
+            make_tuple(make_pass_through_transform(dst_access_lengths_and_vector_length[I0]),
+                       make_pass_through_transform(dst_access_lengths_and_vector_length[I1]),
+                       make_pass_through_transform(dst_access_lengths_and_vector_length[I2]),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(dst_access_lengths_and_vector_length[I3],
+                                      dst_access_lengths_and_vector_length[I4]))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+#endif
 
         return desc1;
     }
