@@ -245,12 +245,10 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
     __device__ void TransferDataFromSrcThreadScratchToDstThreadScratch()
     {
-#if 0 // debug
-        static_ford<SliceLengths>{}([&](auto idx) {
-            // convert from SrcData to DstData here
-            dst_thread_scratch_(idx) = type_convert<DstData>{}(src_thread_scratch_[idx]);
-        });
-#else
+        // TODO make this logic more generic
+        // TODO missing type_convert !!!!!!!!!!!!!
+
+        //
         if constexpr(SrcVectorDim == DstVectorDim)
         {
             static_ford<SliceLengths>{}([&](auto idx) {
@@ -321,7 +319,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                     src_vector_refs, dst_vector_refs);
             });
         }
-#endif
     }
 
     template <typename DstBuffer, typename DstStepHacks>
@@ -676,12 +673,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
     __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
-        constexpr auto I4 = Number<4>{};
-
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
@@ -690,47 +681,48 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         constexpr auto src_access_lengths_and_vector_length = container_push_back(
             sequence_to_tuple_of_number(src_access_lengths), Number<SrcScalarPerVector>{});
 
+        // 1st stage of transforms
         constexpr auto desc0 =
             make_naive_tensor_descriptor_packed(src_access_lengths_and_vector_length);
 
-#if 0
-        // TODO this is hardcoded for GEMM TN layout
-        // TODO implemenet the general logic
-        constexpr auto desc1 = transform_tensor_descriptor(
-            desc0,
-            make_tuple(make_pass_through_transform(src_access_lengths_and_vector_length[I0]),
-                       make_merge_transform_v3_division_mod(
-                           make_tuple(src_access_lengths_and_vector_length[I1],
-                                      src_access_lengths_and_vector_length[I3])),
-                       make_pass_through_transform(src_access_lengths_and_vector_length[I2])),
-            make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-#else
-        // TODO this is hardcoded for NHWC backward-weight kernel
-        // TODO implemenet the general logic
-        constexpr auto desc1 = transform_tensor_descriptor(
-            desc0,
-            make_tuple(make_pass_through_transform(src_access_lengths_and_vector_length[I0]),
-                       make_pass_through_transform(src_access_lengths_and_vector_length[I1]),
-                       make_merge_transform_v3_division_mod(
-                           make_tuple(src_access_lengths_and_vector_length[I2],
-                                      src_access_lengths_and_vector_length[I4])),
-                       make_pass_through_transform(src_access_lengths_and_vector_length[I3])),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 4>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#endif
+        // 2nd stage of transforms
+        constexpr auto transforms = generate_tuple(
+            [&](auto i) {
+                if constexpr(i == SrcVectorDim)
+                {
+                    return make_merge_transform_v3_division_mod(
+                        make_tuple(src_access_lengths_and_vector_length[i],
+                                   src_access_lengths_and_vector_length[Number<nDim>{}]));
+                }
+                else
+                {
+                    return make_pass_through_transform(src_access_lengths_and_vector_length[i]);
+                }
+            },
+            Number<nDim>{});
 
-        return desc1;
+        constexpr auto low_dim_idss = generate_tuple(
+            [&](auto i) {
+                if constexpr(i == SrcVectorDim)
+                {
+                    return Sequence<i.value, nDim>{};
+                }
+                else
+                {
+                    return Sequence<i.value>{};
+                }
+            },
+            Number<nDim>{});
+
+        constexpr auto up_dim_idss =
+            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
+
+        return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
     }
 
     __device__ static constexpr auto GetDstThreadScratchDescriptor()
     {
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-        constexpr auto I2 = Number<2>{};
-        constexpr auto I3 = Number<3>{};
-        constexpr auto I4 = Number<4>{};
-
+        // 1st stage of transforms
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
@@ -742,34 +734,39 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         constexpr auto desc0 =
             make_naive_tensor_descriptor_packed(dst_access_lengths_and_vector_length);
 
-#if 0
-        // TODO this is hardcoded for GEMM TN layout
-        // TODO implemenet the general logic
-        constexpr auto desc1 = transform_tensor_descriptor(
-            desc0,
-            make_tuple(make_pass_through_transform(dst_access_lengths_and_vector_length[I0]),
-                       make_pass_through_transform(dst_access_lengths_and_vector_length[I1]),
-                       make_merge_transform_v3_division_mod(
-                           make_tuple(dst_access_lengths_and_vector_length[I2],
-                                      dst_access_lengths_and_vector_length[I3]))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-#else
-        // TODO this is hardcoded for NHWC backward-weight kernel
-        // TODO implemenet the general logic
-        constexpr auto desc1 = transform_tensor_descriptor(
-            desc0,
-            make_tuple(make_pass_through_transform(dst_access_lengths_and_vector_length[I0]),
-                       make_pass_through_transform(dst_access_lengths_and_vector_length[I1]),
-                       make_pass_through_transform(dst_access_lengths_and_vector_length[I2]),
-                       make_merge_transform_v3_division_mod(
-                           make_tuple(dst_access_lengths_and_vector_length[I3],
-                                      dst_access_lengths_and_vector_length[I4]))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-#endif
+        // 2nd stage of transforms
+        constexpr auto transforms = generate_tuple(
+            [&](auto i) {
+                if constexpr(i == DstVectorDim)
+                {
+                    return make_merge_transform_v3_division_mod(
+                        make_tuple(dst_access_lengths_and_vector_length[i],
+                                   dst_access_lengths_and_vector_length[Number<nDim>{}]));
+                }
+                else
+                {
+                    return make_pass_through_transform(dst_access_lengths_and_vector_length[i]);
+                }
+            },
+            Number<nDim>{});
 
-        return desc1;
+        constexpr auto low_dim_idss = generate_tuple(
+            [&](auto i) {
+                if constexpr(i == DstVectorDim)
+                {
+                    return Sequence<i.value, nDim>{};
+                }
+                else
+                {
+                    return Sequence<i.value>{};
+                }
+            },
+            Number<nDim>{});
+
+        constexpr auto up_dim_idss =
+            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
+
+        return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
     }
 
     private:
