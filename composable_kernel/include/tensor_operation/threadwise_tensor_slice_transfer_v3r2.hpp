@@ -185,7 +185,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                        src_scalar_per_access;
             }();
 
-#if 1 // debug
             constexpr auto src_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
 
@@ -198,7 +197,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
             src_thread_scratch_.template SetAsType<src_vector_t>(
                 src_data_idx_seq,
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid));
-#endif
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -330,11 +328,9 @@ struct ThreadwiseTensorSliceTransfer_v3r2
     __device__ void
     RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, const DstStepHacks& dst_step_hacks)
     {
-#if 1 // debug
-      // if there is transpose, it's done here
-      // TODO move this elsewhere
+        // if there is transpose, it's done here
+        // TODO move this elsewhere
         TransferDataFromSrcThreadScratchToDstThreadScratch();
-#endif
 
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
                           DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
@@ -422,7 +418,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                        dst_scalar_per_access;
             }();
 
-#if 1 // debug
             constexpr auto dst_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<dst_data_idx[i]>{}; }, Number<dst_data_idx.Size()>{});
 
@@ -436,7 +431,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                 dst_coord_.GetOffset(),
                 is_dst_valid,
                 dst_thread_scratch_.template GetAsType<dst_vector_t>(dst_data_idx_seq));
-#endif
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -680,7 +674,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
         move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
     }
 
-#if 1 // debug
     __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
         constexpr auto I0 = Number<0>{};
@@ -748,6 +741,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
         constexpr auto desc0 =
             make_naive_tensor_descriptor_packed(dst_access_lengths_and_vector_length);
+
 #if 0
         // TODO this is hardcoded for GEMM TN layout
         // TODO implemenet the general logic
@@ -777,10 +771,8 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
         return desc1;
     }
-#endif
 
     private:
-#if 1 // debug
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
@@ -797,7 +789,6 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                                     decltype(dst_thread_scratch_desc_),
                                     true>
         dst_thread_scratch_;
-#endif
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;
