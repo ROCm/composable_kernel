@@ -245,6 +245,12 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
     __device__ void TransferDataFromSrcThreadScratchToDstThreadScratch()
     {
+#if 0 // debug
+        static_ford<SliceLengths>{}([&](auto idx) {
+            // convert from SrcData to DstData here
+            dst_thread_scratch_(idx) = type_convert<DstData>{}(src_thread_scratch_[idx]);
+        });
+#else
         // TODO make this logic more generic
         // TODO missing type_convert !!!!!!!!!!!!!
 
@@ -319,6 +325,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                     src_vector_refs, dst_vector_refs);
             });
         }
+#endif
     }
 
     template <typename DstBuffer, typename DstStepHacks>
