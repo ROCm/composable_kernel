@@ -397,7 +397,7 @@ struct ThreadwiseTensorSliceTransfer_v2
                       "wrong! SrcDesc need to known at compile-time");
     }
 
-    __device__ void SetDstSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
+    __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
         src_coord_ = make_tensor_coordinate(src_desc, src_slice_origin_idx);
     }
@@ -713,9 +713,6 @@ struct ThreadwiseTensorSliceTransfer_v3
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin))
     {
-        // TODO: fix this
-        static_assert(is_same<SrcData, DstData>::value,
-                      "wrong! current implementation assume SrcData and DstData are same type");
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -985,7 +982,8 @@ struct ThreadwiseTensorSliceTransfer_v3
                 constexpr index_t buffer_offset =
                     buffer_desc_.CalculateOffset(dst_data_idx + i * dst_scalar_step_in_vector);
 
-                dst_tmp_vector.template AsType<DstData>()(i) = buffer_[Number<buffer_offset>{}];
+                dst_tmp_vector.template AsType<DstData>()(i) =
+                    type_convert<DstData>{}(buffer_[Number<buffer_offset>{}]);
             });
 
             using dst_vector_t = typename decltype(dst_tmp_vector)::type;
