@@ -125,9 +125,9 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_
 
     const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
     const index_t GemmKBatch = std::max(desired_grid_size / GridMN, 1);
-    const index_t BatchLen   = std::ceil(GemmKTotal * 1.0 / (GemmK1 * GemmKPerBlock * GemmKBatch));
-    const index_t GemmK0     = BatchLen * GemmKPerBlock;
-    const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
+    const index_t GemmK0 =
+        std::ceil(GemmKTotal * 1.0 / (GemmK1 * GemmKPerBlock * GemmKBatch)) * GemmKPerBlock;
+    const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1;
 
     std::cout << "GemmKTotal: " << GemmKTotal << " GrideSizeMN: " << GridMN
               << " GemmKBatch: " << GemmKBatch << " GemmK0: " << GemmK0 << " gemmKPad: " << GemmKPad
