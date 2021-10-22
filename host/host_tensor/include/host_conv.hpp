@@ -4,7 +4,7 @@
 template <typename T>
 inline auto activ(T v, const ck::index_t activ_type)
 {
-    const T alpha = 0.30000001192092896;
+    const T alpha = 0.3;
     switch(activ_type)
     {
     case 0: return v;
@@ -127,18 +127,19 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in,
     auto f_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
         double v    = 0;
         const int k = k0 * out.mDesc.GetLengths()[4] + k1;
+
         for(int c0 = 0; c0 < wei.mDesc.GetLengths()[1]; ++c0)
         {
-            for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
-                for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
-                    int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                    for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
                     {
-                        int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
-                        if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                           wi < in.mDesc.GetLengths()[3])
+                        for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
                             v += static_cast<const double>(in(n, c0, hi, wi, c1)) *
                                  static_cast<const double>(wei(k, c0, y, x, c1));
@@ -185,29 +186,32 @@ void host_direct_convolution_add_nchwc(const Tensor<TIn>& in,
 
     auto f_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
         double v = 0;
+        auto k   = k0 * out_host.mDesc.GetLengths()[4] + k1;
+
         for(int c0 = 0; c0 < wei.mDesc.GetLengths()[1]; ++c0)
         {
-            for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
-                for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
-                    int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                    for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
                     {
-                        int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
-                        if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                           wi < in.mDesc.GetLengths()[3])
+
+                        for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
                             v += static_cast<const double>(in(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(
-                                     wei(k0 * out_host.mDesc.GetLengths()[4] + k1, c0, y, x, c1));
+                                 static_cast<const double>(wei(k, c0, y, x, c1));
                         }
                     }
                 }
             }
         }
 
-        v = activ(v, activ_type) + bias(k0, k1);
+        v += bias(k0, k1);
+        v = activ(v, activ_type);
 
         const int hox2 = ho * 2;
         const int wox2 = wo * 2;
@@ -253,22 +257,23 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
 
     auto f_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
         double v = 0;
+        auto k   = k0 * out_host.mDesc.GetLengths()[4] + k1;
+
         for(int c0 = 0; c0 < wei.mDesc.GetLengths()[1]; ++c0)
         {
-            for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
-                for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
-                    int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                    for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
                     {
-                        int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
-                        if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                           wi < in.mDesc.GetLengths()[3])
+                        for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
                             v += static_cast<const double>(in(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(
-                                     wei(k0 * out_host.mDesc.GetLengths()[4] + k1, c0, y, x, c1));
+                                 static_cast<const double>(wei(k, c0, y, x, c1));
                         }
                     }
                 }

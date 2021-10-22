@@ -73,7 +73,7 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
     max_n_k0_hx_wx_k1_device_buf.ToDevice(max_n_k0_hx_wx_k1.mData.data());
 
-    constexpr index_t InWeiVectorSize = 8;
+    constexpr index_t InWeiVectorSize = C1;
 
     if(C1 % InWeiVectorSize != 0)
     {
@@ -172,6 +172,12 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
             BThreadTransferSrcScalarPerVector_E2,
             CThreadTransferDstScalarPerVector_K,
             activ_type>{};
+
+    std::cerr << "conv_bias_activ_maxpool_input_"
+              << "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k" << K
+              << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_convout_n" << N << "k" << K0
+              << "h" << Ho << "w" << Wo << "k" << K1 << "_maxpoolout_n" << N << "k" << K0 << "h"
+              << Ho / 2 << "w" << Wo / 2 << "k" << K1 << std::endl;
 
     for(int i = 0; i < 5; i++)
     {

@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-    constexpr index_t activ_type = 0;
+    constexpr index_t activ_type = 1;
 
 #if 0
     constexpr auto N             = Number<1>{};
@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
     constexpr auto C1            = Number<8>{};
     constexpr auto K1            = Number<8>{};
     constexpr auto K0            = Number<8>{};
-#elif 1
+#elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<540>{};
     constexpr auto Wi = Number<960>{};
@@ -125,8 +125,8 @@ int main(int argc, char* argv[])
     constexpr auto C1 = Number<8>{};
     constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
+#elif 1
+    constexpr auto N  = Number<128>{};
     constexpr auto Hi = Number<135>{};
     constexpr auto Wi = Number<240>{};
     constexpr auto Y  = Number<3>{};

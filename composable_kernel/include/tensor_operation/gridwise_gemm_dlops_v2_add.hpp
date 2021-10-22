@@ -315,7 +315,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 
     static constexpr auto NPerBlock = I1;
 
-    static constexpr FloatAcc alpha = 0.30000001192092896;
+    static constexpr FloatAcc alpha = 0.3;
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -360,7 +360,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
 
     __host__ __device__ static constexpr bool CalculateHasMainE1BlockLoop()
     {
-        const bool has_main_e1_block_loop = (E1 + E1PerBlock) / (2 * E1PerBlock) > 1;
+        const bool has_main_e1_block_loop = ((E1 + E1PerBlock) / (2 * E1PerBlock)) > 1;
 
         return has_main_e1_block_loop;
     }
@@ -699,9 +699,9 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                                             decltype(a_e0_e1_k0_k1_e2_grid_desc),
                                             decltype(a_e0_e1_k0_k1_e2_block_copy_desc),
                                             ABlockTransferSrcAccessOrder,
-                                            Sequence<0, 1, 2, 3, 4>, // ABlockTransferDstAccessOrder
+                                            Sequence<0, 1, 2, 3, 4>,
                                             ABlockTransferSrcVectorDim,
-                                            4, // ABlockTransferDstVectorDim
+                                            4,
                                             ABlockTransferSrcScalarPerVector,
                                             ABlockTransferDstScalarPerVector_E2,
                                             1,
