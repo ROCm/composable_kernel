@@ -19,7 +19,8 @@ template <typename GridwiseGemm,
           typename ABK0MK1GridDesc,
           typename BBK0NK1GridDesc,
           typename CM0N0M1N1M2M3M4N2GridDesc,
-          typename CBlockClusterAdaptor>
+          typename CBlockClusterAdaptor,
+          bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -37,14 +38,14 @@ __global__ void
 
     __shared__ FloatAB p_shared_block[shared_block_size];
 
-    GridwiseGemm::Run(p_a_grid,
-                      p_b_grid,
-                      p_c_grid,
-                      p_shared_block,
-                      a_b_k0_m_k1_grid_desc,
-                      b_b_k0_n_k1_grid_desc,
-                      c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                      c_block_cluster_adaptor);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                  p_b_grid,
+                                                  p_c_grid,
+                                                  p_shared_block,
+                                                  a_b_k0_m_k1_grid_desc,
+                                                  b_b_k0_n_k1_grid_desc,
+                                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                                                  c_block_cluster_adaptor);
 }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 template <typename GridwiseGemm,
@@ -53,7 +54,8 @@ template <typename GridwiseGemm,
           typename ABK0MK1GridDesc,
           typename BBK0NK1GridDesc,
           typename CM0N0M1N1M2M3M4N2GridDesc,
-          typename CBlockClusterAdaptor>
+          typename CBlockClusterAdaptor,
+          bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -81,14 +83,14 @@ __global__ void
 
     __shared__ FloatAB p_shared_block[shared_block_size];
 
-    GridwiseGemm::Run(p_a_grid,
-                      p_b_grid,
-                      p_c_grid,
-                      p_shared_block,
-                      a_b_k0_m_k1_grid_desc,
-                      b_b_k0_n_k1_grid_desc,
-                      c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                      c_block_cluster_adaptor);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                  p_b_grid,
+                                                  p_c_grid,
+                                                  p_shared_block,
+                                                  a_b_k0_m_k1_grid_desc,
+                                                  b_b_k0_n_k1_grid_desc,
+                                                  c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                                                  c_block_cluster_adaptor);
 }
 #endif
 
@@ -248,6 +250,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         return grid_size;
     }
 
+    __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
+    {
+        const bool has_main_k0_block_loop = K0 > K0PerBlock;
+
+        return has_main_k0_block_loop;
+    }
+
     __host__ __device__ static constexpr auto
     MakeCM0N0M1N1M2M3M4N2GridDescriptor(const CMNGridDesc& c_m_n_grid_desc)
     {
@@ -338,6 +347,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
     using CM0N0M1N1M2M3M4N2GridDesc = decltype(MakeCM0N0M1N1M2M3M4N2GridDescriptor(CMNGridDesc{}));
     using CBlockClusterAdaptor      = decltype(MakeCBlockClusterAdaptor(CMNGridDesc{}, 1, 1, 1));
 
+    template <bool HasMainKBlockLoop>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
@@ -546,31 +556,35 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
 
         // main body
         index_t k_block_data_begin = 0;
-
-        do
+        if(HasMainKBlockLoop)
         {
-            a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc,
-                                                a_block_slice_copy_step,
-                                                a_k0_m_k1_grid_move_slice_window_step_hack);
-            b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc,
-                                                b_block_slice_copy_step,
-                                                b_k0_n_k1_grid_move_slice_window_step_hack);
+            do
+            {
+                a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc,
+                                                    a_block_slice_copy_step,
+                                                    a_k0_m_k1_grid_move_slice_window_step_hack);
+                b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc,
+                                                    b_block_slice_copy_step,
+                                                    b_k0_n_k1_grid_move_slice_window_step_hack);
 
-            a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
+                a_blockwise_copy.RunRead(
+                    a_b_k0_m_k1_grid_desc, a_grid_buf, a_k0_m_k1_grid_step_hacks);
 
-            block_sync_lds();
+                block_sync_lds();
 
-            b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf, b_k0_n_k1_grid_step_hacks);
+                b_blockwise_copy.RunRead(
+                    b_b_k0_n_k1_grid_desc, b_grid_buf, b_k0_n_k1_grid_step_hacks);
 
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
-            block_sync_lds();
+                block_sync_lds();
 
-            a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
-            b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
+                a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
+                b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
-            k_block_data_begin += K0PerBlock;
-        } while(k_block_data_begin < (K0 - K0PerBlock));
+                k_block_data_begin += K0PerBlock;
+            } while(k_block_data_begin < (K0 - K0PerBlock));
+        }
 
         // tail
         {
