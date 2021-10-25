@@ -156,7 +156,7 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
         std::cout << "gridSize : " << grid_size << std::endl;
     }
 
-    const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I0);
+    const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
 
     const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 

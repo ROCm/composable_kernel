@@ -556,7 +556,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
 
         // main body
         index_t k_block_data_begin = 0;
-        if(HasMainKBlockLoop)
+        if constexpr(HasMainKBlockLoop)
         {
             do
             {
