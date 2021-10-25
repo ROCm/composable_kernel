@@ -102,7 +102,7 @@ template <index_t BlockSize,
           typename CMNGridDesc,
           index_t MPerBlock,
           index_t NPerBlock,
-          index_t KPerBlock,
+          index_t K0PerBlock,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t K1Value,
@@ -158,13 +158,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(ABlockLdsExtraM)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<KPerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
                     make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<KPerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
             }
         }();
 
@@ -173,13 +173,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(BBlockLdsExtraN)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<KPerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
                     make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<KPerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
             }
         }();
 
@@ -220,7 +220,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
              KBatch == b_b_k0_n_k1_grid_desc.GetLength(I0)))
             return false;
 
-        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % KPerBlock == 0))
+        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
             return false;
 
         // check M01, N01
@@ -258,13 +258,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(ABlockLdsExtraM)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<KPerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
                     make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<KPerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
             }
         }();
 
@@ -273,13 +273,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(BBlockLdsExtraN)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<KPerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
                     make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<KPerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
             }
         }();
 
@@ -376,13 +376,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(ABlockLdsExtraM)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<KPerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
                     make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<KPerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
             }
         }();
 
@@ -390,8 +390,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(ABlockLdsExtraM)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<KPerBlock>{} * Number<MPerBlock + 1>{} * K1,
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{} * Number<MPerBlock + 1>{} * K1,
                                Number<MPerBlock + 1>{} * K1,
                                K1,
                                I1));
@@ -399,7 +399,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
                     max_lds_align);
             }
         }();
@@ -408,13 +408,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(BBlockLdsExtraN)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<KPerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
                     make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<KPerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
             }
         }();
 
@@ -422,8 +422,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             if constexpr(BBlockLdsExtraN)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<KPerBlock>{} * Number<NPerBlock + 1>{} * K1,
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{} * Number<NPerBlock + 1>{} * K1,
                                Number<NPerBlock + 1>{} * K1,
                                K1,
                                I1));
@@ -431,7 +431,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<KPerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
                     max_lds_align);
             }
         }();
@@ -439,7 +439,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
                                             InMemoryDataOperationEnum_t::Set,
-                                            Sequence<1, KPerBlock, MPerBlock, K1>,
+                                            Sequence<1, K0PerBlock, MPerBlock, K1>,
                                             ABlockTransferThreadSliceLengths_K0_M_K1,
                                             ABlockTransferThreadClusterLengths_K0_M_K1,
                                             ABlockTransferThreadClusterArrangeOrder,
@@ -466,7 +466,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         auto b_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
                                             InMemoryDataOperationEnum_t::Set,
-                                            Sequence<1, KPerBlock, NPerBlock, K1>,
+                                            Sequence<1, K0PerBlock, NPerBlock, K1>,
                                             BBlockTransferThreadSliceLengths_K0_N_K1,
                                             BBlockTransferThreadClusterLengths_K0_N_K1,
                                             BBlockTransferThreadClusterArrangeOrder,
@@ -491,8 +491,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
-        //     a_mtx[KPerBlock, MPerBlock] is in LDS
-        //     b_mtx[KPerBlock, NPerBlock] is in LDS
+        //     a_mtx[K0PerBlock, MPerBlock] is in LDS
+        //     b_mtx[K0PerBlock, NPerBlock] is in LDS
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
@@ -518,8 +518,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         FloatAB* p_a_block = p_shared_block;
         FloatAB* p_b_block = p_shared_block + a_block_space_size;
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(0, KPerBlock, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(0, KPerBlock, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
 
         // hack to control index calculation when iterating over A and B matrix for threadwise copy
         constexpr auto a_k0_m_k1_grid_step_hacks = AGridStepHacks{};
@@ -569,8 +569,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
             b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
-            k_block_data_begin += KPerBlock;
-        } while(k_block_data_begin < (K0 - KPerBlock));
+            k_block_data_begin += K0PerBlock;
+        } while(k_block_data_begin < (K0 - K0PerBlock));
 
         // tail
         {
