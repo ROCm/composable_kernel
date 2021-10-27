@@ -104,7 +104,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     constexpr index_t WoPerBlock = 32;
 
     constexpr index_t E1         = C0 * Y * X;
-    constexpr index_t E2         = 1;
+    constexpr index_t E2         = C1 / InWeiVectorSize;
     constexpr index_t K2         = 2;
     constexpr index_t E1PerBlock = C0;
 
@@ -126,9 +126,9 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
 #endif
 
     const auto in_n_c0_hi_wi_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1));
+        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, E2));
     const auto wei_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1));
+        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, E2));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 

@@ -129,7 +129,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         // input tensor
         const auto in_n_c0_hip_wip_e2_global_desc = transform_tensor_descriptor(
-            make_naive_tensor_descriptor_packed(make_tuple(K, C0, Hi, Wi, E2)),
+            make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, E2)),
             make_tuple(make_pass_through_transform(N),
                        make_pass_through_transform(C0),
                        make_pad_transform(Hi, InLeftPadH, InRightPadH),
@@ -150,7 +150,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             make_tuple(
                 Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}, Sequence<6>{}));
 
-        const auto b_e_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
+        const auto in_e_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
             in_n_c0_y_ho_x_wo_e2_global_desc,
             make_tuple(make_merge_transform(make_tuple(C0, Y, X)),
                        make_pass_through_transform(N),
@@ -162,7 +162,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
         const auto b_e0_e1_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
-            b_e_n_ho_wo_e2_grid_desc,
+            in_e_n_ho_wo_e2_grid_desc,
             make_tuple(make_unmerge_transform(make_tuple(E0, E1)),
                        make_pass_through_transform(N),
                        make_pass_through_transform(Hop),

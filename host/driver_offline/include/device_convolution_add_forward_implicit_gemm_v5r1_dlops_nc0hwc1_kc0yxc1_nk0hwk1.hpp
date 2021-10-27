@@ -111,7 +111,7 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
     constexpr auto WoPerBlock = 32;
 
     constexpr auto E1         = C0 * 9;
-    constexpr auto E2         = 1;
+    constexpr auto E2         = C1 / InWeiVectorSize;
     constexpr auto K2         = 2;
     constexpr auto E1PerBlock = C0;
 
