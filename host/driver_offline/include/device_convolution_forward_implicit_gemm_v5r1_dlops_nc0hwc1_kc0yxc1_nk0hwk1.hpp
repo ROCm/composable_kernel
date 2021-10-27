@@ -56,10 +56,9 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     DeviceMem in_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
                                           in_n_c0_hi_wi_c1.mDesc.GetElementSpace());
     DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
+    DeviceMem bias_k0_k1_device_buf(sizeof(TOut) * bias_k0_k1.mDesc.GetElementSpace());
     DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
                                            out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
-    DeviceMem bias_k0_k1_device_buf(sizeof(TOut) * bias_k0_k1.mDesc.GetElementSpace());
-
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
@@ -117,12 +116,10 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
         Sequence<1, E1PerBlock, 1, KPerBlock, 1>;
 
-    constexpr index_t ABlockTransferSrcScalarPerVector_E2 = E2;
-    constexpr index_t ABlockTransferDstScalarPerVector_E2 = E2;
-
+    constexpr index_t ABlockTransferSrcScalarPerVector_E2  = E2;
+    constexpr index_t ABlockTransferDstScalarPerVector_E2  = E2;
     constexpr index_t BThreadTransferSrcScalarPerVector_E2 = E2;
-
-    constexpr index_t CThreadTransferDstScalarPerVector_K = K1;
+    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
 #endif
 
     const auto in_n_c0_hi_wi_c1_desc =

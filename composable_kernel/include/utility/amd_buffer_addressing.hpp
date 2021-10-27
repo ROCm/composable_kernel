@@ -319,6 +319,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
         }
         else if constexpr(N == 8)
         {
+            printf("half8_t buffer_load\n");
             // use fp32 load to mimic fp16 load
             float4_t tmp = llvm_amdgcn_raw_buffer_load_fp32x4(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);

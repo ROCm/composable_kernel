@@ -32,7 +32,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 {
     template <typename... Wei,
               typename... In,
-              typename... Add,
+              typename... MaxPool,
               typename... Out,
               typename ConvStrides,
               typename ConvDilations,
@@ -41,7 +41,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
     __host__ float Run(const ck::TensorDescriptor<Wei...>& wei_k_c0_y_x_c1_global_desc,
                        const ck::TensorDescriptor<In...>& in_n_c0_hi_wi_c1_global_desc,
                        const ck::TensorDescriptor<Out...>& out_n_k0_ho_wo_k1_global_desc,
-                       const ck::TensorDescriptor<Add...>& max_n_k0_hx_wx_k1_global_desc,
+                       const ck::TensorDescriptor<MaxPool...>& max_n_k0_hx_wx_k1_global_desc,
                        const ConvStrides& conv_strides,
                        const ConvDilations& conv_dilations,
                        const InLeftPads& in_left_pads,
@@ -95,6 +95,9 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         const auto OutRightPadH = Hop - Ho;
         const auto OutRightPadW = Wop - Wo;
+
+        const auto OutRightPadHx = OutRightPadH / 2;
+        const auto OutRightPadWx = OutRightPadW / 2;
 
         const auto InLeftPadH = in_left_pads[I0];
         const auto InLeftPadW = in_left_pads[I1];
@@ -187,8 +190,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hx, Wx, K1)),
             make_tuple(make_merge_transform(make_tuple(K0, K1)),
                        make_pass_through_transform(N),
-                       make_pad_transform(Hx, I0, Number<OutRightPadH / 2>{}),
-                       make_pad_transform(Wx, I0, Number<OutRightPadW / 2>{})),
+                       make_pad_transform(Hx, I0, Number<OutRightPadHx>{}),
+                       make_pad_transform(Wx, I0, Number<OutRightPadWx>{})),
             make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
@@ -290,6 +293,10 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         // clang-format on
 
+        static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
+
         // GEMM
         using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3_add<
             BlockSize,
@@ -369,20 +376,25 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         float ave_time = 0;
 
+        static_assert(a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
+
 #if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
 
         if(has_main_e0_block_loop)
         {
-            const auto kernel =
-                kernel_gemm_dlops_v2_add<GridwiseGemm,
-                                         FloatAB,
-                                         FloatC,
-                                         remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                                         remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                                         remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                                         remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
-                                         remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                                         true>;
+            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+                GridwiseGemm,
+                FloatAB,
+                FloatC,
+                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
+                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
+                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
+                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
+                true>;
 
             ave_time = launch_and_time_kernel(kernel,
                                               nrepeat,
@@ -402,16 +414,16 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         }
         else
         {
-            const auto kernel =
-                kernel_gemm_dlops_v2_add<GridwiseGemm,
-                                         FloatAB,
-                                         FloatC,
-                                         remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                                         remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                                         remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                                         remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
-                                         remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                                         false>;
+            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+                GridwiseGemm,
+                FloatAB,
+                FloatC,
+                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
+                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
+                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
+                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
+                false>;
 
             ave_time = launch_and_time_kernel(kernel,
                                               nrepeat,
@@ -454,16 +466,16 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         if(has_main_e0_block_loop)
         {
 
-            const auto kernel =
-                kernel_gemm_dlops_v2_add<GridwiseGemm,
-                                         FloatAB,
-                                         FloatC,
-                                         remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                                         remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                                         remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                                         remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
-                                         remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                                         true>;
+            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+                GridwiseGemm,
+                FloatAB,
+                FloatC,
+                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
+                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
+                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
+                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
+                true>;
 
             ave_time = launch_and_time_kernel(
                 kernel,
@@ -490,16 +502,16 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         else
         {
 
-            const auto kernel =
-                kernel_gemm_dlops_v2_add<GridwiseGemm,
-                                         FloatAB,
-                                         FloatC,
-                                         remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                                         remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                                         remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                                         remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
-                                         remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                                         false>;
+            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+                GridwiseGemm,
+                FloatAB,
+                FloatC,
+                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
+                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
+                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
+                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
+                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
+                false>;
 
             ave_time = launch_and_time_kernel(
                 kernel,
