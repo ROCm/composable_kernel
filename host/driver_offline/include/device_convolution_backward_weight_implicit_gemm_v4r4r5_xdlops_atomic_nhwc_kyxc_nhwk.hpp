@@ -107,8 +107,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 2;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 0
-    // [M, N, K0, K1] = [128, 128, 4, 4], C 64, for fp32
+#elif 1
+    // [M, N, K0, K1] = [128, 128, 4, 4], C 64, for fp32 and fp16
     constexpr index_t BlockSize = 256;
 
     constexpr index_t GemmMPerBlock = 128;
@@ -291,13 +291,11 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_
     const auto GemmN      = Y * X * C;
     const auto GemmKTotal = N * Ho * Wo;
 
-    const auto GemmK = GemmKTotal / GemmK1;
-
     const auto GridMN        = GemmM * GemmN / (GemmMPerBlock * GemmNPerBlock);
     const index_t GemmKBatch = std::max(desired_grid_size / GridMN, 1);
-    const index_t BatchLen   = std::ceil(GemmK * 1.0 / (GemmKPerBlock * GemmKBatch));
-    const index_t GemmK0     = BatchLen * GemmKPerBlock;
-    const index_t GemmKPad   = GemmKBatch * GemmK0 * GemmK1;
+    const index_t GemmK0 =
+        math::integer_divide_ceil(GemmKTotal, GemmK1 * GemmKPerBlock * GemmKBatch) * GemmKPerBlock;
+    const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1;
 
     std::cout << "GemmKTotal: " << GemmKTotal << " GrideSizeMN: " << GridMN
               << " GemmKBatch: " << GemmKBatch << " GemmK0: " << GemmK0 << " gemmKPad: " << GemmKPad
