@@ -156,27 +156,58 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
         std::cout << "gridSize : " << grid_size << std::endl;
     }
 
-    const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
-                                                FloatAB,
-                                                FloatC,
-                                                remove_reference_t<ABK0MK1GridDesc>,
-                                                remove_reference_t<BBK0NK1GridDesc>,
-                                                remove_reference_t<CM0N0M1N1M2M3M4N2GridDesc>,
-                                                remove_reference_t<CBlockClusterAdaptor>>;
+    const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
 
+    const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+
+    float ave_time = 0;
 #if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
-    float ave_time = launch_and_time_kernel(kernel,
-                                            nrepeat,
-                                            dim3(grid_size),
-                                            dim3(BlockSize),
-                                            0,
-                                            p_a_grid,
-                                            p_b_grid,
-                                            p_c_grid,
-                                            a_b_k0_m_k1_grid_desc,
-                                            b_b_k0_n_k1_grid_desc,
-                                            c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                            c_block_cluster_adaptor);
+    if(has_main_k0_block_loop)
+    {
+        const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
+                                                    FloatAB,
+                                                    FloatC,
+                                                    remove_reference_t<ABK0MK1GridDesc>,
+                                                    remove_reference_t<BBK0NK1GridDesc>,
+                                                    remove_reference_t<CM0N0M1N1M2M3M4N2GridDesc>,
+                                                    remove_reference_t<CBlockClusterAdaptor>,
+                                                    true>;
+        ave_time          = launch_and_time_kernel(kernel,
+                                          nrepeat,
+                                          dim3(grid_size),
+                                          dim3(BlockSize),
+                                          0,
+                                          p_a_grid,
+                                          p_b_grid,
+                                          p_c_grid,
+                                          a_b_k0_m_k1_grid_desc,
+                                          b_b_k0_n_k1_grid_desc,
+                                          c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                                          c_block_cluster_adaptor);
+    }
+    else
+    {
+        const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
+                                                    FloatAB,
+                                                    FloatC,
+                                                    remove_reference_t<ABK0MK1GridDesc>,
+                                                    remove_reference_t<BBK0NK1GridDesc>,
+                                                    remove_reference_t<CM0N0M1N1M2M3M4N2GridDesc>,
+                                                    remove_reference_t<CBlockClusterAdaptor>,
+                                                    false>;
+        ave_time          = launch_and_time_kernel(kernel,
+                                          nrepeat,
+                                          dim3(grid_size),
+                                          dim3(BlockSize),
+                                          0,
+                                          p_a_grid,
+                                          p_b_grid,
+                                          p_c_grid,
+                                          a_b_k0_m_k1_grid_desc,
+                                          b_b_k0_n_k1_grid_desc,
+                                          c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                                          c_block_cluster_adaptor);
+    }
 
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
     DeviceMem a_b_k0_m_k1_grid_desc_dev_buf(sizeof(ABK0MK1GridDesc));
@@ -189,20 +220,58 @@ __host__ float driver_gemm_xdlops_v2r4(const FloatAB* p_a_grid,
     c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.ToDevice(&c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc);
     c_block_cluster_adaptor_dev_buf.ToDevice(&c_block_cluster_adaptor);
 
-    float ave_time = launch_and_time_kernel(
-        kernel,
-        nrepeat,
-        dim3(grid_size),
-        dim3(BlockSize),
-        0,
-        p_a_grid,
-        p_b_grid,
-        p_c_grid,
-        cast_pointer_to_constant_address_space(a_b_k0_m_k1_grid_desc_dev_buf.GetDeviceBuffer()),
-        cast_pointer_to_constant_address_space(b_b_k0_n_k1_grid_desc_dev_buf.GetDeviceBuffer()),
-        cast_pointer_to_constant_address_space(
-            c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.GetDeviceBuffer()),
-        cast_pointer_to_constant_address_space(c_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+    if(has_main_k0_block_loop)
+    {
+        const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
+                                                    FloatAB,
+                                                    FloatC,
+                                                    remove_reference_t<ABK0MK1GridDesc>,
+                                                    remove_reference_t<BBK0NK1GridDesc>,
+                                                    remove_reference_t<CM0N0M1N1M2M3M4N2GridDesc>,
+                                                    remove_reference_t<CBlockClusterAdaptor>,
+                                                    true>;
+        ave_time          = launch_and_time_kernel(
+            kernel,
+            nrepeat,
+            dim3(grid_size),
+            dim3(BlockSize),
+            0,
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            cast_pointer_to_constant_address_space(a_b_k0_m_k1_grid_desc_dev_buf.GetDeviceBuffer()),
+            cast_pointer_to_constant_address_space(b_b_k0_n_k1_grid_desc_dev_buf.GetDeviceBuffer()),
+            cast_pointer_to_constant_address_space(
+                c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.GetDeviceBuffer()),
+            cast_pointer_to_constant_address_space(
+                c_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+    }
+    else
+    {
+        const auto kernel = kernel_gemm_xdlops_v2r4<GridwiseGemm,
+                                                    FloatAB,
+                                                    FloatC,
+                                                    remove_reference_t<ABK0MK1GridDesc>,
+                                                    remove_reference_t<BBK0NK1GridDesc>,
+                                                    remove_reference_t<CM0N0M1N1M2M3M4N2GridDesc>,
+                                                    remove_reference_t<CBlockClusterAdaptor>,
+                                                    false>;
+        ave_time          = launch_and_time_kernel(
+            kernel,
+            nrepeat,
+            dim3(grid_size),
+            dim3(BlockSize),
+            0,
+            p_a_grid,
+            p_b_grid,
+            p_c_grid,
+            cast_pointer_to_constant_address_space(a_b_k0_m_k1_grid_desc_dev_buf.GetDeviceBuffer()),
+            cast_pointer_to_constant_address_space(b_b_k0_n_k1_grid_desc_dev_buf.GetDeviceBuffer()),
+            cast_pointer_to_constant_address_space(
+                c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc_dev_buf.GetDeviceBuffer()),
+            cast_pointer_to_constant_address_space(
+                c_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+    }
 #endif
     return ave_time;
 }
