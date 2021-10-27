@@ -633,13 +633,15 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
-        // if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-        // printf("a: %d b: %d c: %d d: %d bias: %d\n",
-        //(int)a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize(),
-        //(int)b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize(),
-        //(int)c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize(),
-        //(int)d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize(),
-        //(int)bias_k0_k1_grid_desc.GetElementSpaceSize());
+#if 0
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+            printf("a: %d b: %d c: %d d: %d bias: %d\n",
+                    (int)a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize(),
+                    (int)b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize(),
+                    (int)c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize(),
+                    (int)d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize(),
+                    (int)bias_k0_k1_grid_desc.GetElementSpaceSize());
+#endif
 
         constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
         constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
