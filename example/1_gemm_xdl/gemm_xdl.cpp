@@ -105,9 +105,9 @@ int main(int argc, char* argv[])
     Tensor<BDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<BDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-    ostream_HostTensorDescriptor(a_m_k.mDesc, std::cout << "a_m_k: ");
-    ostream_HostTensorDescriptor(b_k_n.mDesc, std::cout << "b_k_n: ");
-    ostream_HostTensorDescriptor(c_m_n_host_result.mDesc, std::cout << "c_m_n: ");
+    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
+    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
