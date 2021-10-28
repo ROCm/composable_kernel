@@ -63,7 +63,6 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                        AGridMoveSliceWindowStepHacks,
                                        BGridMoveSliceWindowStepHacks,
                                        ck::index_t nrepeat)
-
 {
     using namespace ck;
 

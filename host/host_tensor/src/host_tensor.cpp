@@ -34,6 +34,19 @@ const std::vector<std::size_t>& HostTensorDescriptor::GetLengths() const { retur
 
 const std::vector<std::size_t>& HostTensorDescriptor::GetStrides() const { return mStrides; }
 
+std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
+{
+    os << "dim " << desc.GetNumOfDimension() << ", ";
+
+    os << "lengths {";
+    LogRange(os, desc.GetLengths(), ", ");
+    os << "}, ";
+
+    os << "strides {";
+    LogRange(os, desc.GetStrides(), ", ");
+    os << "}" << std::endl;
+}
+
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os)
 {
     os << "dim " << desc.GetNumOfDimension() << ", ";
