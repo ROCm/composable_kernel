@@ -7,6 +7,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_tensor_slice_transfer.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
+#include "threadwise_tensor_slice_set.hpp"
 #include "blockwise_gemm_dlops_v3.hpp"
 
 namespace ck {
@@ -633,16 +634,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
-#if 0
-        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
-            printf("a: %d b: %d c: %d d: %d bias: %d\n",
-                    (int)a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize(),
-                    (int)b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize(),
-                    (int)c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize(),
-                    (int)d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize(),
-                    (int)bias_k0_k1_grid_desc.GetElementSpaceSize());
-#endif
-
         constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
         constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
 
@@ -768,16 +759,14 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                      true>
             c_thread_buf;
 
-#if 0
         // initialize output thread tensor
         ThreadwiseTensorSliceSet_v1<FloatAcc,
                                     decltype(c_k1_n_h2_w2_thread_gemm_desc),
-                                    Sequence<KPerThread, NPerBlock, HoPerThread, WoPerThread>>{}
+                                    Sequence<KPerThread, I1, HoPerThread, WoPerThread>>{}
             .Run(c_k1_n_h2_w2_thread_gemm_desc,
                  make_tuple(I0, I0, I0, I0),
                  c_thread_buf,
                  FloatAcc{0});
-#endif
 
         constexpr auto b_thread_slice_copy_step =
             make_multi_index(0, E1PerBlock, 0, 0, 0, 0, 0, 0, 0, 0);
