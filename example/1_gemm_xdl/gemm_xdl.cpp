@@ -171,15 +171,19 @@ int main(int argc, char* argv[])
         auto invoker = device_gemm.MakeInvoker();
 
         // run kernel
-        float ave_time = invoker.Run(argument, nrepeat);
+        for(int i = 0; i < 5; ++i)
+        {
+            float ave_time = invoker.Run(argument, nrepeat);
+
+            float perf = static_cast<float>((std::size_t(2) * M * N * K)) /
+                         (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
+                      << std::endl;
+        }
 
         // copy result back to host
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
-        float perf = static_cast<float>((std::size_t(2) * M * N * K)) /
-                     (std::size_t(1000) * 1000 * 1000) / ave_time;
-
-        std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s" << std::endl;
     }
 
     if(do_verification)

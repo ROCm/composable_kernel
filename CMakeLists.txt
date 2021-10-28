@@ -40,6 +40,7 @@ message(STATUS "Build with HIP ${hip_VERSION}")
 
 ## half
 #find_path(HALF_INCLUDE_DIR half.hpp)
+set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/half/include")
 message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
 
 # CMAKE_CXX_FLAGS
