@@ -20,7 +20,7 @@ using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 
-// TN problem
+// NT problem
 using ALayout = ck::tensor_layout::RowMajor;
 using BLayout = ck::tensor_layout::ColumnMajor;
 using CLayout = ck::tensor_layout::RowMajor;
