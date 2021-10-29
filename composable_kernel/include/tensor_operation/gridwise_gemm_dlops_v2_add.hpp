@@ -597,58 +597,462 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         decltype(MakeCBlockIdToKNHoWoBlockClusterAdaptor(CGridDesc_K_N_Ho_Wo{}));
 
     __host__ __device__ static constexpr auto MakeBiasK0K1GridDescriptor(
-        const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx& d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc)
+        const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc)
     {
-        const auto K0 = d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetLength(I0);
-        const auto K1 = d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetLength(I1);
+        const auto K0 = c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetLength(I0);
+        const auto K1 = c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetLength(I1);
 
         return make_naive_tensor_descriptor_packed(make_tuple(K0, K1));
     }
 
-    template <bool HasMainE0BlockLoop>
-    __device__ static void
-    Run(const FloatAB* __restrict__ p_a_global,
-        const FloatAB* __restrict__ p_b_global,
-        const FloatC* __restrict__ p_bias_global,
-        FloatC* __restrict__ p_c_global,
-        FloatC* __restrict__ p_d_global,
-        FloatAB* __restrict__ p_shared_block,
-        const AGridDesc_E0_E1_K0_K1_E2& a_e0_e1_k0_k1_e2_grid_desc,
-        const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2& b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-        const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-        const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx& d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-        const CBlockIdToBlockClusterAdaptor_K_N_H_W& c_blockid_to_k_n_h_w_block_cluster_adaptor,
-        integral_constant<bool, HasMainE0BlockLoop>)
+    __host__ __device__ static constexpr auto MakeCK1NH2W2ThreadDescriptor()
     {
-        const auto bias_k0_k1_grid_desc =
-            MakeBiasK0K1GridDescriptor(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<KPerThread>{}, I1, Number<HoPerThread>{}, Number<WoPerThread>{}));
+        return c_k1_n_h2_w2_thread_gemm_desc;
+    }
 
-        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_c_global, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
-        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_d_global, d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize());
-        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
+    // using CThreadDesc_K1_N_H2_W2 = decltype(MakeCK1NH2W2ThreadDescriptor());
 
-        constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
-        constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
+    __host__ __device__ static constexpr auto GetBlockWiseGemm()
+    {
+        constexpr auto max_lds_align = Number<ABlockTransferDstScalarPerVector_E2>{};
 
+        constexpr auto a_e1_k1_e2_block_gemm_desc = make_naive_tensor_descriptor_aligned(
+            make_tuple(Number<E1PerBlock>{}, Number<KPerBlock>{}, Number<E2>{}), max_lds_align);
+
+        constexpr auto b_e1_n_h_w_e2_block_gemm_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<E1PerBlock>{},
+                                                           I1,
+                                                           Number<HoPerBlock>{},
+                                                           Number<WoPerBlock>{},
+                                                           Number<E2>{}));
+
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
+
+        auto blockwise_gemm =
+            BlockwiseGemmDlops_km_kn_m0m1n0n1_v3<BlockSize,
+                                                 FloatAB,
+                                                 FloatAB,
+                                                 FloatAcc,
+                                                 decltype(a_e1_k1_e2_block_gemm_desc),
+                                                 decltype(b_e1_n_h_w_e2_block_gemm_desc),
+                                                 decltype(c_k1_n_h2_w2_thread_gemm_desc),
+                                                 EPerThread,
+                                                 K2>{};
+
+        return blockwise_gemm;
+    }
+
+    __device__ static constexpr auto GetCThreadIndex()
+    {
+        auto blockwise_gemm = GetBlockWiseGemm();
+        auto c_thread_mtx_index =
+            blockwise_gemm.GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id());
+
+        return c_thread_mtx_index;
+    };
+
+    __device__ static constexpr auto GetCBlockIndex(
+        const CBlockIdToBlockClusterAdaptor_K_N_H_W& c_blockid_to_k_n_h_w_block_cluster_adaptor)
+    {
         const auto c_k_n_h_w_block_cluster_idx =
             c_blockid_to_k_n_h_w_block_cluster_adaptor.CalculateBottomIndex(
                 make_multi_index(get_block_1d_id()));
+        return c_k_n_h_w_block_cluster_idx;
+    }
 
-        const index_t k_block_work_id =
-            __builtin_amdgcn_readfirstlane(c_k_n_h_w_block_cluster_idx[I0]);
-        const index_t n_block_work_id =
-            __builtin_amdgcn_readfirstlane(c_k_n_h_w_block_cluster_idx[I1]);
-        const index_t ho_block_work_id =
-            __builtin_amdgcn_readfirstlane(c_k_n_h_w_block_cluster_idx[I2]);
-        const index_t wo_block_work_id =
-            __builtin_amdgcn_readfirstlane(c_k_n_h_w_block_cluster_idx[I3]);
+    template <typename BiasGlobalBuff,
+              typename CThreadBuff,
+              typename CBlockIndex,
+              typename CThreadIndex,
+              typename BiasGridDesc_K0_K1,
+              typename CThreadDesc_K1_N_H2_W2>
+    __device__ static void BiasOp(BiasGlobalBuff& bias_global_buf,
+                                  CThreadBuff& c_thread_buf,
+                                  const CBlockIndex& c_block_idx,
+                                  const CThreadIndex& c_thread_idx,
+                                  const BiasGridDesc_K0_K1& bias_k0_k1_grid_desc,
+                                  const CThreadDesc_K1_N_H2_W2&)
+
+    {
+        const index_t k_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+
+        const auto k_thread_id = c_thread_idx[I0];
+
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = CThreadDesc_K1_N_H2_W2{};
+
+        constexpr auto bias_k0_k1_thread_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
+
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     FloatC,
+                     bias_k0_k1_thread_desc.GetElementSpaceSize(),
+                     true>
+            bias_thread_buf;
+
+        const index_t k_thread_data_on_global = k_thread_id * KPerThread;
+
+        auto bias_threadwise_transfer =
+            ThreadwiseTensorSliceTransfer_v2<FloatC,
+                                             FloatC,
+                                             decltype(bias_k0_k1_grid_desc),
+                                             decltype(bias_k0_k1_thread_desc),
+                                             Sequence<I1, Number<KPerThread>{}>,
+                                             Sequence<0, 1>,
+                                             1,
+                                             CThreadTransferDstScalarPerVector,
+                                             false,
+                                             true>(
+                bias_k0_k1_grid_desc, make_multi_index(k_block_work_id, k_thread_data_on_global));
+
+        constexpr auto bias_k0_k1_global_tensor_step_hacks = make_tuple(
+            make_tuple(Sequence<0>{}, Sequence<0>{}), make_tuple(Sequence<0>{}, Sequence<0>{}));
+
+        bias_threadwise_transfer.Run(bias_k0_k1_grid_desc,
+                                     bias_global_buf,
+                                     bias_k0_k1_thread_desc,
+                                     make_tuple(I0, I0),
+                                     bias_thread_buf,
+                                     bias_k0_k1_global_tensor_step_hacks);
+
+        static_for<0, KPerThread, 1>{}([&](auto ki) {
+            static_for<0, HoPerThread, 1>{}([&](auto hi) {
+                static_for<0, WoPerThread, 1>{}([&](auto wi) {
+                    constexpr index_t c_offset =
+                        c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(make_tuple(ki, 0, hi, wi));
+                    c_thread_buf(Number<c_offset>{}) =
+                        c_thread_buf[Number<c_offset>{}] + bias_thread_buf[ki];
+                });
+            });
+        });
+    }
+
+    template <typename CThreadBuff, typename CThreadDesc_K1_N_H2_W2>
+    __device__ static void Activation(CThreadBuff& c_thread_buf, const CThreadDesc_K1_N_H2_W2&)
+    {
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = CThreadDesc_K1_N_H2_W2{};
+
+        if constexpr(activ_type > 0)
+        {
+            static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
+                if constexpr(activ_type == 1)
+                {
+                    c_thread_buf(i) =
+                        c_thread_buf[i] >= 0 ? c_thread_buf[i] : alpha * c_thread_buf[i];
+                }
+                else if constexpr(activ_type == 2)
+                {
+                    FloatAcc x = 1.0 + exp(-c_thread_buf[i]);
+
+                    asm volatile("\n \
+                        v_rcp_f32 %0, %1 \n"
+                                 : "=v"(x)
+                                 : "0"(x));
+
+                    c_thread_buf(i) = x;
+                }
+            });
+        }
+    }
+
+    template <typename CThreadBuff,
+              typename CGlobalBuff,
+              typename CBlockIndex,
+              typename CThreadIndex,
+              typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>
+    __device__ static void
+    WriteOut(const CThreadBuff& c_thread_buf,
+             CGlobalBuff& c_global_buf,
+             const CBlockIndex& c_block_idx,
+             const CThreadIndex& c_thread_idx,
+             const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc)
+    {
+        const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+        const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
+        const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
+        const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
+
+        const auto k_thread_id  = c_thread_idx[I0];
+        const auto ho_thread_id = c_thread_idx[I2];
+        const auto wo_thread_id = c_thread_idx[I3];
+
+        // hack to control index calculation when iterating over c_k_n_h0_h1_h2_w0_w1_w2_global
+        // tensor
+        constexpr auto c_k_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks = CGlobalStepHacks{};
+
+        constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                           Number<KPerThread>{},
+                                                           I1,
+                                                           I1,
+                                                           I1,
+                                                           Number<HoPerThread>{},
+                                                           I1,
+                                                           I1,
+                                                           Number<WoPerThread>{}));
+
+        const index_t k_thread_data_on_global = k_thread_id * KPerThread;
+
+        ThreadwiseTensorSliceTransfer_v1r3<
+            FloatAcc,
+            FloatC,
+            decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc),
+            decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc),
+            Sequence<I1, KPerThread, I1, I1, I1, HoPerThread, I1, I1, WoPerThread>,
+            CThreadTransferSrcDstAccessOrder,
+            CThreadTransferSrcDstVectorDim,
+            CThreadTransferDstScalarPerVector,
+            CGlobalMemoryDataOperation,
+            1,
+            true>(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                  make_multi_index(k_block_work_id,
+                                   k_thread_data_on_global,
+                                   n_block_work_id,
+                                   ho_block_work_id,
+                                   ho_thread_id,
+                                   0,
+                                   wo_block_work_id,
+                                   wo_thread_id,
+                                   0))
+            .Run(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc,
+                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                 c_thread_buf,
+                 c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+                 c_global_buf,
+                 c_k_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks);
+    }
+
+    template <typename CThreadBuff,
+              typename DGlobalBuff,
+              typename CBlockIndex,
+              typename CThreadIndex,
+              typename CThreadDesc_K1_N_H2_W2,
+              typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>
+    __device__ static void
+    MaxPool(const CThreadBuff& c_thread_buf,
+            DGlobalBuff& d_global_buf,
+            const CBlockIndex& c_block_idx,
+            const CThreadIndex& c_thread_idx,
+            const CThreadDesc_K1_N_H2_W2&,
+            const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx& d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc)
+    {
+
+        const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+        const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
+        const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
+        const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
+
+        const auto k_thread_id  = c_thread_idx[I0];
+        const auto ho_thread_id = c_thread_idx[I2];
+        const auto wo_thread_id = c_thread_idx[I3];
+
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = CThreadDesc_K1_N_H2_W2{};
+
+        static_assert(HoPerThread % 2 == 0 && WoPerThread % 2 == 0, "");
+
+        constexpr auto HoPerThread_2 = HoPerThread / 2;
+        constexpr auto WoPerThread_2 = WoPerThread / 2;
+
+        constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                           Number<KPerThread>{},
+                                                           I1,
+                                                           I1,
+                                                           I1,
+                                                           Number<HoPerThread_2>{},
+                                                           I1,
+                                                           I1,
+                                                           Number<WoPerThread_2>{}));
+
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     FloatC,
+                     d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.GetElementSpaceSize(),
+                     true>
+            d_thread_buf;
+
+        static_for<0, KPerThread, 1>{}([&](auto ki) {
+            static_for<0, HoPerThread_2, 1>{}([&](auto hi) {
+                static_for<0, WoPerThread_2, 1>{}([&](auto wi) {
+                    constexpr index_t d_offset =
+                        d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.CalculateOffset(
+                            make_tuple(0, ki, 0, 0, 0, hi, 0, 0, wi));
+
+                    constexpr index_t c_offset_0 = c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                        make_tuple(ki, 0, hi * 2, wi * 2));
+                    constexpr index_t c_offset_1 = c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                        make_tuple(ki, 0, hi * 2, wi * 2 + 1));
+                    constexpr index_t c_offset_2 = c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                        make_tuple(ki, 0, hi * 2 + 1, wi * 2));
+                    constexpr index_t c_offset_3 = c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                        make_tuple(ki, 0, hi * 2 + 1, wi * 2 + 1));
+
+                    d_thread_buf(Number<d_offset>{}) = c_thread_buf[Number<c_offset_0>{}];
+                    d_thread_buf(Number<d_offset>{}) =
+                        fmaxf(c_thread_buf[Number<c_offset_1>{}], d_thread_buf(Number<d_offset>{}));
+                    d_thread_buf(Number<d_offset>{}) =
+                        fmaxf(c_thread_buf[Number<c_offset_2>{}], d_thread_buf(Number<d_offset>{}));
+                    d_thread_buf(Number<d_offset>{}) =
+                        fmax(c_thread_buf[Number<c_offset_3>{}], d_thread_buf(Number<d_offset>{}));
+                });
+            });
+        });
+
+        const index_t k_thread_data_on_global = k_thread_id * KPerThread;
+
+        constexpr auto d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks = DGlobalStepHacks{};
+
+        ThreadwiseTensorSliceTransfer_v1r3<
+            FloatC,
+            FloatC,
+            decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc),
+            decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc),
+            Sequence<I1, KPerThread, I1, I1, I1, HoPerThread_2, I1, I1, WoPerThread_2>,
+            CThreadTransferSrcDstAccessOrder,
+            CThreadTransferSrcDstVectorDim,
+            CThreadTransferDstScalarPerVector,
+            InMemoryDataOperationEnum_t::Set,
+            1,
+            true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                  make_multi_index(k_block_work_id,
+                                   k_thread_data_on_global,
+                                   n_block_work_id,
+                                   ho_block_work_id,
+                                   ho_thread_id,
+                                   0,
+                                   wo_block_work_id,
+                                   wo_thread_id,
+                                   0))
+            .Run(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc,
+                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                 d_thread_buf,
+                 d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                 d_global_buf,
+                 d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks);
+    }
+
+    template <typename CThreadBuff,
+              typename DGlobalBuff,
+              typename CBlockIndex,
+              typename CThreadIndex,
+              typename CThreadDesc_K1_N_H2_W2,
+              typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>
+    __device__ static void
+    ResizeAdd(const CThreadBuff& c_thread_buf,
+              DGlobalBuff& d_global_buf,
+              const CBlockIndex& c_block_idx,
+              const CThreadIndex& c_thread_idx,
+              const CThreadDesc_K1_N_H2_W2&,
+              const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx& d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc)
+    {
+
+        const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+        const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
+        const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
+        const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
+
+        const auto k_thread_id  = c_thread_idx[I0];
+        const auto ho_thread_id = c_thread_idx[I2];
+        const auto wo_thread_id = c_thread_idx[I3];
+
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = CThreadDesc_K1_N_H2_W2{};
+
+        constexpr auto HoPerThreadx2 = HoPerThread * 2;
+        constexpr auto WoPerThreadx2 = WoPerThread * 2;
+
+        constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                           Number<KPerThread>{},
+                                                           I1,
+                                                           I1,
+                                                           I1,
+                                                           Number<HoPerThreadx2>{},
+                                                           I1,
+                                                           I1,
+                                                           Number<WoPerThreadx2>{}));
+
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     FloatC,
+                     d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.GetElementSpaceSize(),
+                     true>
+            d_thread_buf;
+
+        static_for<0, KPerThread, 1>{}([&](auto k_i) {
+            static_for<0, HoPerThreadx2, 1>{}([&](auto h_i) {
+                static_for<0, WoPerThreadx2, 1>{}([&](auto w_i) {
+                    d_thread_buf(Number<d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.CalculateOffset(
+                                     make_tuple(0, k_i, 0, 0, 0, h_i, 0, 0, w_i))>{}) =
+                        c_thread_buf[Number<c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
+                            make_tuple(k_i, 0, h_i / 2, w_i / 2))>{}];
+                });
+            });
+        });
+
+        // hack to control index calculation when iterating over d_k_n_ho_wo_global tensor
+        constexpr auto d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks = DGlobalStepHacks{};
+
+        const index_t k_thread_data_on_global = k_thread_id * KPerThread;
+
+        ThreadwiseTensorSliceTransfer_v1r3<
+            FloatC,
+            FloatC,
+            decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc),
+            decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc),
+            Sequence<I1, KPerThread, I1, I1, I1, HoPerThreadx2, I1, I1, WoPerThreadx2>,
+            CThreadTransferSrcDstAccessOrder,
+            CThreadTransferSrcDstVectorDim,
+            CThreadTransferDstScalarPerVector,
+            InMemoryDataOperationEnum_t::Add,
+            1,
+            true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                  make_multi_index(k_block_work_id,
+                                   k_thread_data_on_global,
+                                   n_block_work_id,
+                                   ho_block_work_id,
+                                   ho_thread_id,
+                                   0,
+                                   wo_block_work_id,
+                                   wo_thread_id,
+                                   0))
+            .Run(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc,
+                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                 d_thread_buf,
+                 d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+                 d_global_buf,
+                 d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks);
+    }
+
+    template <typename AGlobalBuff,
+              typename BGlobalBuff,
+              typename CThreadBuff,
+              typename CBlockIndex,
+              typename CThreadIndex,
+              typename CThreadDesc_K1_N_H2_W2,
+              bool HasMainE0BlockLoop>
+    __device__ static void
+    GemmOp(const AGlobalBuff& a_global_buf,
+           const BGlobalBuff& b_global_buf,
+           CThreadBuff& c_thread_buf,
+           FloatAB* __restrict__ p_shared_block,
+           const CBlockIndex& c_block_idx,
+           const CThreadIndex& c_thread_idx,
+           const AGridDesc_E0_E1_K0_K1_E2& a_e0_e1_k0_k1_e2_grid_desc,
+           const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2& b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+           const CThreadDesc_K1_N_H2_W2&,
+           integral_constant<bool, HasMainE0BlockLoop>)
+    {
+        constexpr auto HasMainE1BlockLoop       = CalculateHasMainE1BlockLoop();
+        constexpr auto HasDoubleTailE1BlockLoop = CalculateHasDoubleTailE1BlockLoop();
+
+        // const auto c_k_n_h_w_block_cluster_idx =
+        // GetCBlockIndex(c_blockid_to_k_n_h_w_block_cluster_adaptor);
+        // c_blockid_to_k_n_h_w_block_cluster_adaptor.CalculateBottomIndex(
+        // make_multi_index(get_block_1d_id()));
+
+        const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
+        const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
+        const index_t ho_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I2]);
+        const index_t wo_block_work_id = __builtin_amdgcn_readfirstlane(c_block_idx[I3]);
 
         constexpr auto max_lds_align = Number<ABlockTransferDstScalarPerVector_E2>{};
 
@@ -662,8 +1066,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                                                            Number<WoPerBlock>{},
                                                            Number<E2>{}));
 
-        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<KPerThread>{}, I1, Number<HoPerThread>{}, Number<WoPerThread>{}));
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = CThreadDesc_K1_N_H2_W2{};
 
         auto blockwise_gemm =
             BlockwiseGemmDlops_km_kn_m0m1n0n1_v3<BlockSize,
@@ -675,13 +1078,10 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                                                  decltype(c_k1_n_h2_w2_thread_gemm_desc),
                                                  EPerThread,
                                                  K2>{};
+        // blockwise_gemm.GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id());
 
-        auto c_thread_mtx_index =
-            blockwise_gemm.GetBeginOfCThreadDesc_K_N_Ho_Wo(get_thread_local_1d_id());
-
-        const auto k_thread_id  = c_thread_mtx_index[I0];
-        const auto ho_thread_id = c_thread_mtx_index[I2];
-        const auto wo_thread_id = c_thread_mtx_index[I3];
+        const auto ho_thread_id = c_thread_idx[I2];
+        const auto wo_thread_id = c_thread_idx[I3];
 
         constexpr auto a_e0_e1_k0_k1_e2_block_copy_desc = make_naive_tensor_descriptor_aligned(
             make_tuple(Number<I1>{}, Number<E1>{}, I1, Number<KPerBlock>{}, Number<E2>{}),
@@ -752,12 +1152,12 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             p_shared_block, a_e0_e1_k0_k1_e2_block_copy_desc.GetElementSpaceSize());
 
-        // register allocation for output
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     FloatAcc,
-                     c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
-                     true>
-            c_thread_buf;
+        //// register allocation for output
+        // StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        // FloatAcc,
+        // c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
+        // true>
+        // c_thread_buf;
 
         // initialize output thread tensor
         ThreadwiseTensorSliceSet_v1<FloatAcc,
@@ -995,337 +1395,100 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                 blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
             }
         }
+    }
+
+    template <bool HasMainE0BlockLoop>
+    __device__ static void
+    Run(const FloatAB* __restrict__ p_a_global,
+        const FloatAB* __restrict__ p_b_global,
+        const FloatC* __restrict__ p_bias_global,
+        FloatC* __restrict__ p_c_global,
+        FloatC* __restrict__ p_d_global,
+        FloatAB* __restrict__ p_shared_block,
+        const AGridDesc_E0_E1_K0_K1_E2& a_e0_e1_k0_k1_e2_grid_desc,
+        const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2& b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+        const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+        const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx& d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
+        const CBlockIdToBlockClusterAdaptor_K_N_H_W& c_blockid_to_k_n_h_w_block_cluster_adaptor,
+        integral_constant<bool, HasMainE0BlockLoop>)
+    {
+        const auto bias_k0_k1_grid_desc =
+            MakeBiasK0K1GridDescriptor(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
+
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
+        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_c_global, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
+        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_d_global, d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize());
+        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
+
+        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
+
+        // register allocation for output
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     FloatAcc,
+                     c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
+                     true>
+            c_thread_buf;
+
+        const auto c_k_n_h_w_block_cluster_idx =
+            GetCBlockIndex(c_blockid_to_k_n_h_w_block_cluster_adaptor);
+
+        const auto c_thread_mtx_index = GetCThreadIndex();
+
+        // GemmOp
+        GemmOp(a_global_buf,
+               b_global_buf,
+               c_thread_buf,
+               p_shared_block,
+               c_k_n_h_w_block_cluster_idx,
+               c_thread_mtx_index,
+               a_e0_e1_k0_k1_e2_grid_desc,
+               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+               c_k1_n_h2_w2_thread_gemm_desc,
+               integral_constant<bool, HasMainE0BlockLoop>{});
 
         // Bias
-        if constexpr(bias_type == 1)
-        {
-            constexpr auto bias_k0_k1_thread_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
-
-            StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                         FloatC,
-                         bias_k0_k1_thread_desc.GetElementSpaceSize(),
-                         true>
-                bias_thread_buf;
-
-            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
-
-            auto bias_threadwise_transfer =
-                ThreadwiseTensorSliceTransfer_v2<FloatC,
-                                                 FloatC,
-                                                 decltype(bias_k0_k1_grid_desc),
-                                                 decltype(bias_k0_k1_thread_desc),
-                                                 Sequence<I1, Number<KPerThread>{}>,
-                                                 Sequence<0, 1>,
-                                                 1,
-                                                 CThreadTransferDstScalarPerVector,
-                                                 false,
-                                                 true>(
-                    bias_k0_k1_grid_desc,
-                    make_multi_index(k_block_work_id, k_thread_data_on_global));
-
-            constexpr auto bias_k0_k1_global_tensor_step_hacks = make_tuple(
-                make_tuple(Sequence<0>{}, Sequence<0>{}), make_tuple(Sequence<0>{}, Sequence<0>{}));
-
-            bias_threadwise_transfer.Run(bias_k0_k1_grid_desc,
-                                         bias_global_buf,
-                                         bias_k0_k1_thread_desc,
-                                         make_tuple(I0, I0),
-                                         bias_thread_buf,
-                                         bias_k0_k1_global_tensor_step_hacks);
-
-#if 1
-            static_for<0, KPerThread, 1>{}([&](auto ki) {
-                static_for<0, HoPerThread, 1>{}([&](auto hi) {
-                    static_for<0, WoPerThread, 1>{}([&](auto wi) {
-                        constexpr index_t c_offset = c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
-                            make_tuple(ki, 0, hi, wi));
-                        c_thread_buf(Number<c_offset>{}) =
-                            c_thread_buf[Number<c_offset>{}] + bias_thread_buf[ki];
-                    });
-                });
-            });
-#endif
-        }
+        if constexpr(bias_type > 0)
+            BiasOp(bias_global_buf,
+                   c_thread_buf,
+                   c_k_n_h_w_block_cluster_idx,
+                   c_thread_mtx_index,
+                   bias_k0_k1_grid_desc,
+                   c_k1_n_h2_w2_thread_gemm_desc);
 
         // Activ
         if constexpr(activ_type > 0)
-        {
-            static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
-                if constexpr(activ_type == 1)
-                {
-                    c_thread_buf(i) =
-                        c_thread_buf[i] >= 0 ? c_thread_buf[i] : alpha * c_thread_buf[i];
-                }
-                else if constexpr(activ_type == 2)
-                {
-                    FloatAcc x = 1.0 + exp(-c_thread_buf[i]);
+            Activation(c_thread_buf, c_k1_n_h2_w2_thread_gemm_desc);
 
-                    asm volatile("\n \
-                        v_rcp_f32 %0, %1 \n"
-                                 : "=v"(x)
-                                 : "0"(x));
-
-                    c_thread_buf(i) = x;
-                }
-            });
-        }
-#if 1
         // Output
-        if constexpr(out_type == 1)
-        {
-            // hack to control index calculation when iterating over c_k_n_h0_h1_h2_w0_w1_w2_global
-            // tensor
-            constexpr auto c_k_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks = CGlobalStepHacks{};
-
-            constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                               Number<KPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               I1,
-                                                               Number<HoPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               Number<WoPerThread>{}));
-
-            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
-
-            ThreadwiseTensorSliceTransfer_v1r3<
-                FloatAcc,
-                FloatC,
-                decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc),
-                decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc),
-                Sequence<I1, KPerThread, I1, I1, I1, HoPerThread, I1, I1, WoPerThread>,
-                CThreadTransferSrcDstAccessOrder,
-                CThreadTransferSrcDstVectorDim,
-                CThreadTransferDstScalarPerVector,
-                CGlobalMemoryDataOperation,
-                1,
-                true>(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                      make_multi_index(k_block_work_id,
-                                       k_thread_data_on_global,
-                                       n_block_work_id,
-                                       ho_block_work_id,
-                                       ho_thread_id,
-                                       0,
-                                       wo_block_work_id,
-                                       wo_thread_id,
-                                       0))
-                .Run(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc,
-                     make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                     c_thread_buf,
-                     c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+        if constexpr(out_type > 0)
+            WriteOut(c_thread_buf,
                      c_global_buf,
-                     c_k_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks);
-        }
-#endif
+                     c_k_n_h_w_block_cluster_idx,
+                     c_thread_mtx_index,
+                     c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
 
-#if 1
-        // Resize_Add
         if constexpr(add_type == 1)
-        {
-            constexpr auto HoPerThreadx2 = HoPerThread * 2;
-            constexpr auto WoPerThreadx2 = WoPerThread * 2;
-
-#if 1
-            constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                               Number<KPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               I1,
-                                                               Number<HoPerThreadx2>{},
-                                                               I1,
-                                                               I1,
-                                                               Number<WoPerThreadx2>{}));
-
-            StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                         FloatC,
-                         d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.GetElementSpaceSize(),
-                         true>
-                d_thread_buf;
-
-            static_for<0, KPerThread, 1>{}([&](auto k_i) {
-                static_for<0, HoPerThreadx2, 1>{}([&](auto h_i) {
-                    static_for<0, WoPerThreadx2, 1>{}([&](auto w_i) {
-                        d_thread_buf(Number<d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.CalculateOffset(
-                                         make_tuple(0, k_i, 0, 0, 0, h_i, 0, 0, w_i))>{}) =
-                            c_thread_buf[Number<c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
-                                make_tuple(k_i, 0, h_i / 2, w_i / 2))>{}];
-                    });
-                });
-            });
-
-#else
-            constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                               Number<KPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               I1,
-                                                               Number<HoPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               Number<WoPerThread>{}));
-
-            constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc = transform_tensor_descriptor(
-                c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_desc,
-                make_tuple(
-                    make_pass_through_transform(I1),
-                    make_pass_through_transform(Number<KPerThread>{}),
-                    make_pass_through_transform(I1),
-                    make_pass_through_transform(I1),
-                    make_pass_through_transform(I1),
-                    make_embed_transform(make_tuple(I2, Number<HoPerThread>{}), make_tuple(I0, I1)),
-                    make_pass_through_transform(I1),
-                    make_pass_through_transform(I1),
-                    make_embed_transform(make_tuple(I2, Number<WoPerThread>{}),
-                                         make_tuple(I0, I1))),
-                make_tuple(Sequence<0>{},
-                           Sequence<1>{},
-                           Sequence<2>{},
-                           Sequence<3>{},
-                           Sequence<4>{},
-                           Sequence<5>{},
-                           Sequence<6>{},
-                           Sequence<7>{},
-                           Sequence<8>{}),
-                make_tuple(Sequence<0>{},
-                           Sequence<1>{},
-                           Sequence<2>{},
-                           Sequence<3>{},
-                           Sequence<4>{},
-                           Sequence<5, 6>{},
-                           Sequence<7>{},
-                           Sequence<8>{},
-                           Sequence<9, 10>{}));
-#endif
-
-            // hack to control index calculation when iterating over d_k_n_ho_wo_global tensor
-            constexpr auto d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks = DGlobalStepHacks{};
-
-            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
-
-            ThreadwiseTensorSliceTransfer_v1r3<
-                FloatC,
-                FloatC,
-                decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc),
-                decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc),
-                Sequence<I1, KPerThread, I1, I1, I1, HoPerThreadx2, I1, I1, WoPerThreadx2>,
-                CThreadTransferSrcDstAccessOrder,
-                CThreadTransferSrcDstVectorDim,
-                CThreadTransferDstScalarPerVector,
-                InMemoryDataOperationEnum_t::Add,
-                1,
-                true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                      make_multi_index(k_block_work_id,
-                                       k_thread_data_on_global,
-                                       n_block_work_id,
-                                       ho_block_work_id,
-                                       ho_thread_id,
-                                       0,
-                                       wo_block_work_id,
-                                       wo_thread_id,
-                                       0))
-                .Run(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc,
-                     make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                     d_thread_buf,
-                     d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                     d_global_buf,
-                     d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks);
-        }
-        // MaxPool
+            // Resize_Add
+            ResizeAdd(c_thread_buf,
+                      d_global_buf,
+                      c_k_n_h_w_block_cluster_idx,
+                      c_thread_mtx_index,
+                      c_k1_n_h2_w2_thread_gemm_desc,
+                      d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
         else if constexpr(add_type == 2)
-        {
-            static_assert(HoPerThread % 2 == 0 && WoPerThread % 2 == 0, "");
-
-            constexpr auto HoPerThread_2 = HoPerThread / 2;
-            constexpr auto WoPerThread_2 = WoPerThread / 2;
-
-            constexpr auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                               Number<KPerThread>{},
-                                                               I1,
-                                                               I1,
-                                                               I1,
-                                                               Number<HoPerThread_2>{},
-                                                               I1,
-                                                               I1,
-                                                               Number<WoPerThread_2>{}));
-
-            StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                         FloatC,
-                         d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.GetElementSpaceSize(),
-                         true>
-                d_thread_buf;
-
-#if 1
-            static_for<0, KPerThread, 1>{}([&](auto ki) {
-                static_for<0, HoPerThread_2, 1>{}([&](auto hi) {
-                    static_for<0, WoPerThread_2, 1>{}([&](auto wi) {
-                        constexpr index_t d_offset =
-                            d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.CalculateOffset(
-                                make_tuple(0, ki, 0, 0, 0, hi, 0, 0, wi));
-
-                        constexpr index_t c_offset_0 =
-                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
-                                make_tuple(ki, 0, hi * 2, wi * 2));
-                        constexpr index_t c_offset_1 =
-                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
-                                make_tuple(ki, 0, hi * 2, wi * 2 + 1));
-                        constexpr index_t c_offset_2 =
-                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
-                                make_tuple(ki, 0, hi * 2 + 1, wi * 2));
-                        constexpr index_t c_offset_3 =
-                            c_k1_n_h2_w2_thread_gemm_desc.CalculateOffset(
-                                make_tuple(ki, 0, hi * 2 + 1, wi * 2 + 1));
-
-                        d_thread_buf(Number<d_offset>{}) = c_thread_buf[Number<c_offset_0>{}];
-                        d_thread_buf(Number<d_offset>{}) = fmaxf(c_thread_buf[Number<c_offset_1>{}],
-                                                                 d_thread_buf(Number<d_offset>{}));
-                        d_thread_buf(Number<d_offset>{}) = fmaxf(c_thread_buf[Number<c_offset_2>{}],
-                                                                 d_thread_buf(Number<d_offset>{}));
-                        d_thread_buf(Number<d_offset>{}) = fmax(c_thread_buf[Number<c_offset_3>{}],
-                                                                d_thread_buf(Number<d_offset>{}));
-                    });
-                });
-            });
-#endif
-
-            const index_t k_thread_data_on_global = k_thread_id * KPerThread;
-
-            constexpr auto d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks = DGlobalStepHacks{};
-
-            ThreadwiseTensorSliceTransfer_v1r3<
-                FloatC,
-                FloatC,
-                decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc),
-                decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc),
-                Sequence<I1, KPerThread, I1, I1, I1, HoPerThread_2, I1, I1, WoPerThread_2>,
-                CThreadTransferSrcDstAccessOrder,
-                CThreadTransferSrcDstVectorDim,
-                CThreadTransferDstScalarPerVector,
-                InMemoryDataOperationEnum_t::Set,
-                1,
-                true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                      make_multi_index(k_block_work_id,
-                                       k_thread_data_on_global,
-                                       n_block_work_id,
-                                       ho_block_work_id,
-                                       ho_thread_id,
-                                       0,
-                                       wo_block_work_id,
-                                       wo_thread_id,
-                                       0))
-                .Run(d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc,
-                     make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
-                     d_thread_buf,
-                     d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                     d_global_buf,
-                     d_k_n_h0_h1_hx_w0_w1_wx_global_tensor_step_hacks);
-        }
-#endif
+            // MaxPool
+            MaxPool(c_thread_buf,
+                    d_global_buf,
+                    c_k_n_h_w_block_cluster_idx,
+                    c_thread_mtx_index,
+                    c_k1_n_h2_w2_thread_gemm_desc,
+                    d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
     }
 };
 
