@@ -92,8 +92,8 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::Sigmoid;
-    // constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+    // constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::Sigmoid;
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
 
 #if 0
     constexpr auto N              = Number<1>{};

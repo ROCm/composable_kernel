@@ -336,12 +336,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks),
             decltype(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_global_tensor_step_hacks),
             decltype(a_e0_e1_k_e2_global_move_slice_window_step_hack),
-            decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_move_slice_window_step_hack),
-            activ_type,
-            1, // bias_type
-            0, // out_type
-            1  // add_type
-            >;
+            decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_move_slice_window_step_hack)>;
 
         const auto a_e0_e1_k0_k1_e2_grid_desc =
             GridwiseGemm::MakeAE0E1K0K1E2GridDescriptor(a_e0_e1_k_e2_grid_desc);
@@ -350,7 +345,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
             GridwiseGemm::MakeCK0K1NH0H1H2W0W1W2GridDescriptor(c_k_n_hop_wop_grid_desc);
         const auto d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc =
-            GridwiseGemm::MakeDK0K1NH0H1HxW0W1WxGridDescriptor(d_k_n_hopx2_wopx2_grid_desc);
+            GridwiseGemm::MakeDK0K1NH0H1HxW0W1WxGridDescriptorResizeAdd(
+                d_k_n_hopx2_wopx2_grid_desc);
 
         using AGridDesc_E0_E1_K0_K1_E2 = decltype(a_e0_e1_k0_k1_e2_grid_desc);
         using BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 =
