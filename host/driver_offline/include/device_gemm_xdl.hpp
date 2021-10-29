@@ -90,7 +90,7 @@ struct DeviceGemmXdl
 
     static constexpr auto K1Number = Number<K1>{};
 
-    static auto MakeAK0MK1GridDescriptor(index_t M, index_t K, index_t StrideA)
+    static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
         assert(K % K1 == 0);
 
@@ -117,7 +117,7 @@ struct DeviceGemmXdl
         return a_grid_desc_k0_m_k1;
     }
 
-    static auto MakeBK0NK1GridDescriptor(index_t K, index_t N, index_t StrideB)
+    static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
         assert(K % K1 == 0);
 
@@ -144,7 +144,7 @@ struct DeviceGemmXdl
         return b_grid_desc_k0_n_k1;
     }
 
-    static auto MakeCMNGridDescriptor(index_t M, index_t N, index_t StrideC)
+    static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
         if constexpr(is_same<tensor_layout::RowMajor, CLayout>::value)
         {
@@ -156,9 +156,9 @@ struct DeviceGemmXdl
         }
     }
 
-    using AGridDesc_K0_M_K1 = decltype(MakeAK0MK1GridDescriptor(1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(MakeBK0NK1GridDescriptor(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCMNGridDescriptor(1, 1, 1));
+    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
+    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
+    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // TODO remove these hacks
     static constexpr auto a_k0_m_k1_grid_step_hacks =
@@ -246,9 +246,9 @@ struct DeviceGemmXdl
         BBlockLdsAddExtraN>;
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(CGridDesc_M_N{}));
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
 
-    using Block2CTileMap = decltype(GridwiseGemm::MakeCBlockClusterAdaptor(CGridDesc_M_N{}, 1, 1));
+    using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     // Argument
     struct Argument : public BaseArgument
@@ -267,13 +267,12 @@ struct DeviceGemmXdl
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              a_grid_desc_k0_m_k1_{DeviceGemmXdl::MakeAK0MK1GridDescriptor(M, K, StrideA)},
-              b_grid_desc_k0_n_k1_{DeviceGemmXdl::MakeBK0NK1GridDescriptor(K, N, StrideB)},
-              c_grid_desc_m_n_{DeviceGemmXdl::MakeCMNGridDescriptor(M, N, StrideC)},
+              a_grid_desc_k0_m_k1_{DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA)},
+              b_grid_desc_k0_n_k1_{DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
+              c_grid_desc_m_n_{DeviceGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{
-                  GridwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(c_grid_desc_m_n_)},
-              block_2_c_tile_map_{
-                  GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01)},
+                  GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_)},
+              block_2_ctile_map_{GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01)},
               M01_{M01},
               N01_{N01}
         {
@@ -287,7 +286,7 @@ struct DeviceGemmXdl
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        Block2CTileMap block_2_c_tile_map_;
+        Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
     };
@@ -353,7 +352,7 @@ struct DeviceGemmXdl
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.block_2_c_tile_map_);
+                                                  arg.block_2_ctile_map_);
             }
             else
             {
@@ -378,7 +377,7 @@ struct DeviceGemmXdl
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.block_2_c_tile_map_);
+                                                  arg.block_2_ctile_map_);
             }
 
             return ave_time;
