@@ -330,7 +330,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         if(has_main_e0_block_loop)
         {
             const auto kernel =
-                kernel_gemm_dlops_v2<GridwiseGemm,
+                kernel_gemm_dlops_v3<GridwiseGemm,
                                      FloatAB,
                                      FloatC,
                                      remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
@@ -356,7 +356,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         else
         {
             const auto kernel =
-                kernel_gemm_dlops_v2<GridwiseGemm,
+                kernel_gemm_dlops_v3<GridwiseGemm,
                                      FloatAB,
                                      FloatC,
                                      remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
