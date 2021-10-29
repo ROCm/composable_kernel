@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_GEMM_V2_ADD_HPP
-#define CK_GRIDWISE_GEMM_V2_ADD_HPP
+#ifndef CK_GRIDWISE_GEMM_V3_HPP
+#define CK_GRIDWISE_GEMM_V3_HPP
 
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
@@ -301,7 +301,7 @@ template <index_t BlockSize,
           index_t bias_type  = 0,
           index_t out_type   = 1,
           index_t add_type   = 0>
-struct GridwiseGemmDlops_km_kn_mn_v3_add
+struct GridwiseGemmDlops_km_kn_mn_v3
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -733,8 +733,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
     {
         constexpr auto c_k1_n_h2_w2_thread_gemm_desc = CThreadDesc_K1_N_H2_W2{};
 
-        if constexpr(activ_type > 0)
-        {
             static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}([&](auto i) {
                 if constexpr(activ_type == 1)
                 {
@@ -753,7 +751,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3_add
                     c_thread_buf(i) = x;
                 }
             });
-        }
     }
 
     template <typename CThreadBuff,

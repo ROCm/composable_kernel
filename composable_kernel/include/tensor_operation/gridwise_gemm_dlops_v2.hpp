@@ -148,7 +148,7 @@ template <index_t BlockSize,
           typename AGlobalMoveSliceWindowStepHacks,
           typename BGlobalMoveSliceWindowStepHacks,
           ActivTypeEnum_t activ_type = ActivTypeEnum_t::None>
-struct GridwiseGemmDlops_km_kn_mn_v3
+struct GridwiseGemmDlops_km_kn_mn_v2
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

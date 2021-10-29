@@ -4,7 +4,7 @@
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_dlops_v2_add.hpp"
+#include "gridwise_gemm_dlops_v3.hpp"
 
 template <ck::index_t BlockSize,
           typename FloatAB,
@@ -294,7 +294,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
 
         // GEMM
-        using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3_add<
+        using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3<
             BlockSize,
             FloatAB,
             FloatAcc,
