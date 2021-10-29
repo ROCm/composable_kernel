@@ -6,7 +6,7 @@
 template <typename TInWei,
           typename TAcc,
           typename TOut,
-          ck::index_t activ_type,
+          ck::ActivTypeEnum_t activ_type,
           typename InLengths,
           typename WeiLengths,
           typename AddLengths,
@@ -71,7 +71,7 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
     add_n_k0_hox2_wox2_k1_device_buf.ToDevice(add_n_k0_hox2_wox2_k1.mData.data());
 
-    constexpr index_t InWeiVectorSize = C1;
+    constexpr index_t InWeiVectorSize = 8;
 
     if(C1 % InWeiVectorSize != 0)
     {
@@ -106,16 +106,16 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
 #elif 1
     constexpr auto BlockSize = 64;
 
-    constexpr auto KPerBlock  = K;
+    constexpr auto KPerBlock  = 8;
     constexpr auto HoPerBlock = 8;
     constexpr auto WoPerBlock = 32;
 
-    constexpr auto E1         = C0 * 9;
-    constexpr auto E2         = C1 / InWeiVectorSize;
+    constexpr auto E1         = 2 * 9;
+    constexpr auto E2         = 1;
     constexpr auto K2         = 2;
-    constexpr auto E1PerBlock = C0;
+    constexpr auto E1PerBlock = 2;
 
-    constexpr auto KPerThread  = K;
+    constexpr auto KPerThread  = KPerBlock;
     constexpr auto HoPerThread = 2;
     constexpr auto WoPerThread = 2;
     constexpr auto EPerThread  = 1;
@@ -124,27 +124,20 @@ void device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0
     using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
         Sequence<1, E1PerBlock, 1, KPerBlock, 1>;
 
-    constexpr auto ABlockTransferSrcScalarPerVector_E2 = E2;
-    constexpr auto ABlockTransferDstScalarPerVector_E2 = E2;
-
+    constexpr auto ABlockTransferSrcScalarPerVector_E2  = E2;
+    constexpr auto ABlockTransferDstScalarPerVector_E2  = E2;
     constexpr auto BThreadTransferSrcScalarPerVector_E2 = E2;
-
-    constexpr auto CThreadTransferDstScalarPerVector_K = K1;
+    constexpr auto CThreadTransferDstScalarPerVector_K  = InWeiVectorSize;
 #endif
 
     const auto in_n_c0_hi_wi_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, C1));
+        make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, E2));
     const auto wei_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1));
+        make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, E2));
     const auto add_n_k0_hox2_wox2_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hox2, Wox2, K1));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
-
-    static_assert(in_n_c0_hi_wi_c1_desc.IsKnownAtCompileTime(), "");
-    static_assert(wei_k_c0_y_x_c1_desc.IsKnownAtCompileTime(), "");
-    static_assert(add_n_k0_hox2_wox2_k1_desc.IsKnownAtCompileTime(), "");
-    static_assert(out_n_k0_ho_wo_k1_desc.IsKnownAtCompileTime(), "");
 
     constexpr auto conv_driver =
         DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_add<

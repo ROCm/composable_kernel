@@ -15,7 +15,7 @@
 #include "device_tensor.hpp"
 #include "device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
 
-#define USE_DYNAMIC_MODE 0
+#define USE_DYNAMIC_MODE 1
 #define USE_CONV_FWD_V5R1_NCHWC 1
 
 enum ConvForwardAlgo
@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    constexpr index_t activ_type = 1;
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
 
     const ConvForwardAlgo algo = static_cast<ConvForwardAlgo>(std::stoi(argv[1]));
     const bool do_verification = std::stoi(argv[2]);

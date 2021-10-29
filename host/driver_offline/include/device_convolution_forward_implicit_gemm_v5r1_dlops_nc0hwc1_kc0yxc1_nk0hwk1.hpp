@@ -63,7 +63,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
 
-    constexpr index_t InWeiVectorSize = C1;
+    constexpr index_t InWeiVectorSize = 8;
 
     if(C1 % InWeiVectorSize != 0)
     {
@@ -98,29 +98,34 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
 #elif 1
     constexpr index_t BlockSize = 64;
 
-    constexpr index_t KPerBlock  = K;
+    constexpr index_t KPerBlock  = 8;
     constexpr index_t HoPerBlock = 8;
     constexpr index_t WoPerBlock = 32;
 
-    constexpr index_t E1         = C0 * Y * X;
-    constexpr index_t E2         = C1 / InWeiVectorSize;
+    constexpr index_t E1         = 2 * 9;
+    constexpr index_t E2         = 1;
     constexpr index_t K2         = 2;
-    constexpr index_t E1PerBlock = C0;
+    constexpr index_t E1PerBlock = 2;
 
-    constexpr index_t KPerThread  = K;
+    constexpr index_t KPerThread  = KPerBlock;
     constexpr index_t HoPerThread = 2;
     constexpr index_t WoPerThread = 2;
     constexpr index_t EPerThread  = 1;
 
-    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 = Sequence<1, Y * X, 1, 1, E2>;
+    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 = Sequence<1, 9, 1, 1, E2>;
     using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
         Sequence<1, E1PerBlock, 1, KPerBlock, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E2  = E2;
     constexpr index_t ABlockTransferDstScalarPerVector_E2  = E2;
     constexpr index_t BThreadTransferSrcScalarPerVector_E2 = E2;
-    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
+    constexpr index_t CThreadTransferDstScalarPerVector_K  = InWeiVectorSize;
 #endif
+
+    if(KPerThread % InWeiVectorSize != 0)
+    {
+        throw std::runtime_error("wrong! C1 cannot be divided by InWeiVectorSize");
+    }
 
     const auto in_n_c0_hi_wi_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, E2));

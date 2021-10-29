@@ -27,7 +27,7 @@ template <ck::index_t BlockSize,
           ck::index_t ABlockTransferDstScalarPerVector_E2,
           ck::index_t BThreadTransferSrcScalarPerVector_E2,
           ck::index_t CThreadTransferDstScalarPerVector_K,
-          ck::index_t activ_type>
+          ck::ActivTypeEnum_t activ_type>
 struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_add
 {
     template <typename... Wei,
@@ -84,7 +84,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto ConvDilationH = conv_dilations[I0];
         const auto ConvDilationW = conv_dilations[I1];
 
-#if 1
+#if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
         const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
         const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
 #else
@@ -94,6 +94,9 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         const auto OutRightPadH = Hop - Ho;
         const auto OutRightPadW = Wop - Wo;
+
+        const auto OutRightPadHx = OutRightPadH * 2;
+        const auto OutRightPadWx = OutRightPadW * 2;
 
         const auto InLeftPadH = in_left_pads[I0];
         const auto InLeftPadW = in_left_pads[I1];
@@ -186,8 +189,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hox2, Wox2, K1)),
             make_tuple(make_merge_transform(make_tuple(K0, K1)),
                        make_pass_through_transform(N),
-                       make_pad_transform(Hox2, I0, Number<OutRightPadH * 2>{}),
-                       make_pad_transform(Wox2, I0, Number<OutRightPadW * 2>{})),
+                       make_pad_transform(Hox2, I0, OutRightPadHx),
+                       make_pad_transform(Wox2, I0, OutRightPadWx)),
             make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
@@ -247,6 +250,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_move_slice_window_step_hack =
             Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
 
+        // hack to control index calculation when iterating over c_k0_k1_n_h0_h1_h2_w0_w1_w2_global tensor
         constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_global_tensor_step_hacks =
             make_tuple(make_tuple(Sequence<0, 1, 0, 0, 0, 0, 0, 0, 0>{},
                                   Sequence<0, 1, 0, 0, 0, 0, 0, 0, 0>{},
@@ -288,10 +292,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{}));
 
         // clang-format on
-        static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(d_k_n_hopx2_wopx2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
 
         // GEMM
         using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3<
@@ -452,7 +452,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         if(has_main_e0_block_loop)
         {
 
-            const auto kernel = kernel_gemm_dlops_v2_resize_add<
+            const auto kernel = kernel_gemm_dlops_v3_resize_add<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -486,7 +486,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         }
         else
         {
-            const auto kernel = kernel_gemm_dlops_v2_resize_add<
+            const auto kernel = kernel_gemm_dlops_v3_resize_add<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
