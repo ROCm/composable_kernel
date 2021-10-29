@@ -85,7 +85,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto ConvDilationH = conv_dilations[I0];
         const auto ConvDilationW = conv_dilations[I1];
 
-#if 1
+#if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
         const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
         const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
 #else
@@ -190,8 +190,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             make_naive_tensor_descriptor_packed(make_tuple(N, K0, Hx, Wx, K1)),
             make_tuple(make_merge_transform(make_tuple(K0, K1)),
                        make_pass_through_transform(N),
-                       make_pad_transform(Hx, I0, Number<OutRightPadHx>{}),
-                       make_pad_transform(Wx, I0, Number<OutRightPadWx>{})),
+                       make_pad_transform(Hx, I0, OutRightPadHx),
+                       make_pad_transform(Wx, I0, OutRightPadWx)),
             make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
@@ -293,10 +293,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         // clang-format on
 
-        static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
-
         // GEMM
         using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3<
             BlockSize,
@@ -371,16 +367,11 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         float ave_time = 0;
 
-        static_assert(a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
-        static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
-
 #if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
 
         if(has_main_e0_block_loop)
         {
-            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+            const auto kernel = kernel_gemm_dlops_v3_maxpool<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -409,7 +400,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         }
         else
         {
-            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+            const auto kernel = kernel_gemm_dlops_v3_maxpool<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -461,7 +452,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         if(has_main_e0_block_loop)
         {
 
-            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+            const auto kernel = kernel_gemm_dlops_v3_maxpool<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -497,7 +488,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         else
         {
 
-            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+            const auto kernel = kernel_gemm_dlops_v3_maxpool<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
