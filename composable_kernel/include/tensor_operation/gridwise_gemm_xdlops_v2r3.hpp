@@ -254,16 +254,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return has_main_k0_block_loop;
     }
 
-#if 0 // debug
-    __host__ __device__ static constexpr auto
-        MakePaddedGridDescriptors(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
-                                  const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
-                                  const CGridDesc_M_N& c_grid_desc_m_n)
-    {
-
-    }
-#endif
-
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CGridDesc_M_N& c_grid_desc_m_n)
     {
