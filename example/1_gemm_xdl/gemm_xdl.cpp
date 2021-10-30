@@ -12,6 +12,7 @@
 #include "gemm_common.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
+#include "device_base.hpp"
 #include "device_gemm_xdl.hpp"
 
 // Currently ADataType and BDataType need to be the same
@@ -20,13 +21,13 @@ using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 
-#if 0 
 // NT problem
 using ALayout = ck::tensor_layout::RowMajor;
 using BLayout = ck::tensor_layout::ColumnMajor;
 using CLayout = ck::tensor_layout::RowMajor;
 
-using DeviceGemm = ck::tensor_operation::device::DeviceGemmXdl<
+// tuning parameter for NT problem
+using DeviceGemm0 = ck::tensor_operation::device::DeviceGemmXdl<
     ADataType,              // ADataType,
     BDataType,              // BDataType,
     CDataType,              // CDataType,
@@ -61,13 +62,9 @@ using DeviceGemm = ck::tensor_operation::device::DeviceGemmXdl<
     1,                      // CThreadTransferDstScalarPerVector,
     true,                   // ABlockLdsAddExtraM,
     true>;                  // BBlockLdsAddExtraN
-#else
-// TN problem
-using ALayout = ck::tensor_layout::ColumnMajor;
-using BLayout = ck::tensor_layout::RowMajor;
-using CLayout = ck::tensor_layout::RowMajor;
 
-using DeviceGemm = ck::tensor_operation::device::DeviceGemmXdl<
+// tuning parameter for NT problem
+using DeviceGemm1 = ck::tensor_operation::device::DeviceGemmXdl<
     ADataType,              // ADataType,
     BDataType,              // BDataType,
     CDataType,              // CDataType,
@@ -76,33 +73,32 @@ using DeviceGemm = ck::tensor_operation::device::DeviceGemmXdl<
     BLayout,                // BLayout,
     CLayout,                // CLayout,
     256,                    // BlockSize,
-    256,                    // MPerBlock,
+    128,                    // MPerBlock,
     128,                    // NPerBlock,
     4,                      // K0PerBlock,
     8,                      // K1,
     32,                     // MPerXDL,
     32,                     // NPerXDL,
-    4,                      // MXdlPerWave,
+    2,                      // MXdlPerWave,
     2,                      // NXdlPerWave,
-    ck::Sequence<1, 4, 8>,  // ABlockTransferThreadSliceLengths_K0_M_K1,
+    ck::Sequence<1, 2, 8>,  // ABlockTransferThreadSliceLengths_K0_M_K1,
     ck::Sequence<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1,
-    ck::Sequence<0, 2, 1>,  // ABlockTransferThreadClusterArrangeOrder,
-    ck::Sequence<0, 2, 1>,  // ABlockTransferSrcAccessOrder,
-    1,                      // ABlockTransferSrcVectorDim,
-    4,                      // ABlockTransferSrcScalarPerVector,
+    ck::Sequence<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder,
+    ck::Sequence<1, 0, 2>,  // ABlockTransferSrcAccessOrder,
+    2,                      // ABlockTransferSrcVectorDim,
+    8,                      // ABlockTransferSrcScalarPerVector,
     8,                      // ABlockTransferDstScalarPerVector_K1,
     ck::Sequence<1, 2, 8>,  // BBlockTransferThreadSliceLengths_K0_N_K1,
     ck::Sequence<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1,
-    ck::Sequence<0, 2, 1>,  // BBlockTransferThreadClusterArrangeOrder,
-    ck::Sequence<0, 2, 1>,  // BBlockTransferSrcAccessOrder,
-    1,                      // BBlockTransferSrcVectorDim,
-    2,                      // BBlockTransferSrcScalarPerVector,
+    ck::Sequence<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder,
+    ck::Sequence<1, 0, 2>,  // BBlockTransferSrcAccessOrder,
+    2,                      // BBlockTransferSrcVectorDim,
+    8,                      // BBlockTransferSrcScalarPerVector,
     8,                      // BBlockTransferDstScalarPerVector_K1,
     7,                      // CThreadTransferSrcDstVectorDim,
     1,                      // CThreadTransferDstScalarPerVector,
     true,                   // ABlockLdsAddExtraM,
     true>;                  // BBlockLdsAddExtraN
-#endif
 
 int main(int argc, char* argv[])
 {
@@ -187,41 +183,85 @@ int main(int argc, char* argv[])
         b_k_n_device_buf.ToDevice(b_k_n.mData.data());
         c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
-        DeviceGemm device_gemm;
+        using BaseOp      = ck::tensor_operation::device::BaseOperator;
+        using BaseInvoker = ck::tensor_operation::device::BaseInvoker;
+        using BaseArg     = ck::tensor_operation::device::BaseArgument;
 
-        static_assert(DeviceGemm::IsValidCompilationParameter(),
-                      "wrong! Compilation parameters for DeviceGemm is invalid");
+        std::vector<std::tuple<std::unique_ptr<BaseOp>,
+                               std::unique_ptr<BaseInvoker>,
+                               std::unique_ptr<BaseArg>>>
+            device_gemm_tuples;
 
-        const auto argument =
-            device_gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                     static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                     static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                     M,
-                                     N,
-                                     K,
-                                     StrideA,
-                                     StrideB,
-                                     StrideC);
-
-        if(!device_gemm.IsSupportedArgument(argument))
         {
-            throw std::runtime_error(
-                "wrong! device_gemm with the specified compilation parameters does "
-                "not support this GEMM problem");
+            using Gemm         = DeviceGemm0;
+            using GemmInvoker  = Gemm::Invoker;
+            using GemmArgument = Gemm::Argument;
+
+            auto gemm    = Gemm{};
+            auto invoker = gemm.MakeInvoker();
+            auto argument =
+                gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                  static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                  static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                  M,
+                                  N,
+                                  K,
+                                  StrideA,
+                                  StrideB,
+                                  StrideC);
+
+            device_gemm_tuples.push_back(std::make_tuple(std::make_unique<Gemm>(gemm),
+                                                         std::make_unique<GemmInvoker>(invoker),
+                                                         std::make_unique<GemmArgument>(argument)));
         }
 
-        auto invoker = device_gemm.MakeInvoker();
-
-        // run kernel
-        for(int i = 0; i < 5; ++i)
         {
-            float ave_time = invoker.Run(argument, nrepeat);
+            using Gemm         = DeviceGemm1;
+            using GemmInvoker  = Gemm::Invoker;
+            using GemmArgument = Gemm::Argument;
 
-            float perf = static_cast<float>((std::size_t(2) * M * N * K)) /
-                         (std::size_t(1000) * 1000 * 1000) / ave_time;
+            auto gemm    = Gemm{};
+            auto invoker = gemm.MakeInvoker();
+            auto argument =
+                gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                  static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                  static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                  M,
+                                  N,
+                                  K,
+                                  StrideA,
+                                  StrideB,
+                                  StrideC);
 
-            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
-                      << std::endl;
+            device_gemm_tuples.push_back(std::make_tuple(std::make_unique<Gemm>(gemm),
+                                                         std::make_unique<GemmInvoker>(invoker),
+                                                         std::make_unique<GemmArgument>(argument)));
+        }
+
+        for(auto& device_gemm_tuple : device_gemm_tuples)
+        {
+            auto& gemm_ptr     = std::get<0>(device_gemm_tuple);
+            auto& invoker_ptr  = std::get<1>(device_gemm_tuple);
+            auto& argument_ptr = std::get<2>(device_gemm_tuple);
+
+            if(!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
+            {
+                throw std::runtime_error(
+                    "wrong! device_gemm with the specified compilation parameters does "
+                    "not support this GEMM problem");
+            }
+
+            // run kernel
+            for(int i = 0; i < 5; ++i)
+            {
+                float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+
+                float perf = static_cast<float>((std::size_t(2) * M * N * K)) /
+                             (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+                std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
+                          << std::endl;
+            }
         }
 
         // copy result back to host

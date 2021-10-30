@@ -6,31 +6,11 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
+#include "device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-struct BaseArgument
-{
-};
-
-struct BaseInvoker
-{
-    float Run(const BaseArgument&, int = 1)
-    {
-        throw std::runtime_error(
-            "wrong! BaseInvoker::Run(const BaseArgument&), should not get here");
-    }
-
-    virtual float Run(const BaseArgument*, int = 1)
-    {
-        throw std::runtime_error(
-            "wrong! BaseInvoker::Run(const BaseArgument*), should not get here");
-    }
-
-    virtual ~BaseInvoker() {}
-};
 
 template <typename ADataType,
           typename BDataType,
@@ -66,7 +46,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceGemmXdl
+struct DeviceGemmXdl : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -367,7 +347,10 @@ struct DeviceGemmXdl
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg) { return *dynamic_cast<const Argument*>(p_arg); }
+        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        {
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+        }
     };
 
     static constexpr bool IsValidCompilationParameter()
@@ -383,6 +366,11 @@ struct DeviceGemmXdl
                                            arg.c_grid_desc_m_n_,
                                            arg.M01_,
                                            arg.N01_);
+    }
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
     static auto MakeArgument(const ADataType* p_a,
