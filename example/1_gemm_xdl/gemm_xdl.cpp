@@ -20,12 +20,12 @@ using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 
+#if 0 
 // NT problem
 using ALayout = ck::tensor_layout::RowMajor;
 using BLayout = ck::tensor_layout::ColumnMajor;
 using CLayout = ck::tensor_layout::RowMajor;
 
-// following compilation parameters are hardcoded for NT problem
 using DeviceGemm = ck::tensor_operation::device::DeviceGemmXdl<
     ADataType,              // ADataType,
     BDataType,              // BDataType,
@@ -61,6 +61,48 @@ using DeviceGemm = ck::tensor_operation::device::DeviceGemmXdl<
     1,                      // CThreadTransferDstScalarPerVector,
     true,                   // ABlockLdsAddExtraM,
     true>;                  // BBlockLdsAddExtraN
+#else
+// TN problem
+using ALayout = ck::tensor_layout::ColumnMajor;
+using BLayout = ck::tensor_layout::RowMajor;
+using CLayout = ck::tensor_layout::RowMajor;
+
+using DeviceGemm = ck::tensor_operation::device::DeviceGemmXdl<
+    ADataType,              // ADataType,
+    BDataType,              // BDataType,
+    CDataType,              // CDataType,
+    AccDataType,            // AccDataType,
+    ALayout,                // ALayout,
+    BLayout,                // BLayout,
+    CLayout,                // CLayout,
+    256,                    // BlockSize,
+    256,                    // MPerBlock,
+    128,                    // NPerBlock,
+    4,                      // K0PerBlock,
+    8,                      // K1,
+    32,                     // MPerXDL,
+    32,                     // NPerXDL,
+    4,                      // MXdlPerWave,
+    2,                      // NXdlPerWave,
+    ck::Sequence<1, 4, 8>,  // ABlockTransferThreadSliceLengths_K0_M_K1,
+    ck::Sequence<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1,
+    ck::Sequence<0, 2, 1>,  // ABlockTransferThreadClusterArrangeOrder,
+    ck::Sequence<0, 2, 1>,  // ABlockTransferSrcAccessOrder,
+    1,                      // ABlockTransferSrcVectorDim,
+    4,                      // ABlockTransferSrcScalarPerVector,
+    8,                      // ABlockTransferDstScalarPerVector_K1,
+    ck::Sequence<1, 2, 8>,  // BBlockTransferThreadSliceLengths_K0_N_K1,
+    ck::Sequence<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1,
+    ck::Sequence<0, 2, 1>,  // BBlockTransferThreadClusterArrangeOrder,
+    ck::Sequence<0, 2, 1>,  // BBlockTransferSrcAccessOrder,
+    1,                      // BBlockTransferSrcVectorDim,
+    2,                      // BBlockTransferSrcScalarPerVector,
+    8,                      // BBlockTransferDstScalarPerVector_K1,
+    7,                      // CThreadTransferSrcDstVectorDim,
+    1,                      // CThreadTransferDstScalarPerVector,
+    true,                   // ABlockLdsAddExtraM,
+    true>;                  // BBlockLdsAddExtraN
+#endif
 
 int main(int argc, char* argv[])
 {

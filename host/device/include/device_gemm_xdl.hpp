@@ -2,28 +2,12 @@
 #define DEVICE_GEMM_XDL_HPP
 
 #include "common_header.hpp"
+#include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
 
 namespace ck {
-
-namespace tensor_layout {
-
-struct BaseTensorLayout
-{
-};
-
-struct RowMajor : public BaseTensorLayout
-{
-};
-
-struct ColumnMajor : public BaseTensorLayout
-{
-};
-
-} // namespace tensor_layout
-
 namespace tensor_operation {
 namespace device {
 
@@ -389,13 +373,6 @@ struct DeviceGemmXdl
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
-        if constexpr(!(is_same<ALayout, tensor_layout::RowMajor>::value &&
-                       is_same<BLayout, tensor_layout::ColumnMajor>::value &&
-                       is_same<CLayout, tensor_layout::RowMajor>::value))
-        {
-            return false;
-        }
-
         return true;
     }
 

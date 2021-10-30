@@ -186,6 +186,7 @@ enable_cppcheck(
         composable_kernel/src/kernel_wrapper
     INCLUDE
         host/host_tensor/include
+        host/device/include
         host/solver/include
         host/driver_offline/include
         composable_kernel/include/*
