@@ -26,79 +26,19 @@ using ALayout = ck::tensor_layout::RowMajor;
 using BLayout = ck::tensor_layout::ColumnMajor;
 using CLayout = ck::tensor_layout::RowMajor;
 
-// tuning parameter for NT problem
-using DeviceGemm0 = ck::tensor_operation::device::DeviceGemmXdl<
-    ADataType,              // ADataType,
-    BDataType,              // BDataType,
-    CDataType,              // CDataType,
-    AccDataType,            // AccDataType,
-    ALayout,                // ALayout,
-    BLayout,                // BLayout,
-    CLayout,                // CLayout,
-    256,                    // BlockSize,
-    256,                    // MPerBlock,
-    128,                    // NPerBlock,
-    4,                      // K0PerBlock,
-    8,                      // K1,
-    32,                     // MPerXDL,
-    32,                     // NPerXDL,
-    4,                      // MXdlPerWave,
-    2,                      // NXdlPerWave,
-    ck::Sequence<1, 4, 8>,  // ABlockTransferThreadSliceLengths_K0_M_K1,
-    ck::Sequence<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1,
-    ck::Sequence<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder,
-    ck::Sequence<1, 0, 2>,  // ABlockTransferSrcAccessOrder,
-    2,                      // ABlockTransferSrcVectorDim,
-    8,                      // ABlockTransferSrcScalarPerVector,
-    8,                      // ABlockTransferDstScalarPerVector_K1,
-    ck::Sequence<1, 2, 8>,  // BBlockTransferThreadSliceLengths_K0_N_K1,
-    ck::Sequence<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1,
-    ck::Sequence<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder,
-    ck::Sequence<1, 0, 2>,  // BBlockTransferSrcAccessOrder,
-    2,                      // BBlockTransferSrcVectorDim,
-    8,                      // BBlockTransferSrcScalarPerVector,
-    8,                      // BBlockTransferDstScalarPerVector_K1,
-    7,                      // CThreadTransferSrcDstVectorDim,
-    1,                      // CThreadTransferDstScalarPerVector,
-    true,                   // ABlockLdsAddExtraM,
-    true>;                  // BBlockLdsAddExtraN
+template <ck::index_t... Is>
+using Seq = ck::Sequence<Is...>;
 
-// tuning parameter for NT problem
-using DeviceGemm1 = ck::tensor_operation::device::DeviceGemmXdl<
-    ADataType,              // ADataType,
-    BDataType,              // BDataType,
-    CDataType,              // CDataType,
-    AccDataType,            // AccDataType,
-    ALayout,                // ALayout,
-    BLayout,                // BLayout,
-    CLayout,                // CLayout,
-    256,                    // BlockSize,
-    128,                    // MPerBlock,
-    128,                    // NPerBlock,
-    4,                      // K0PerBlock,
-    8,                      // K1,
-    32,                     // MPerXDL,
-    32,                     // NPerXDL,
-    2,                      // MXdlPerWave,
-    2,                      // NXdlPerWave,
-    ck::Sequence<1, 2, 8>,  // ABlockTransferThreadSliceLengths_K0_M_K1,
-    ck::Sequence<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1,
-    ck::Sequence<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder,
-    ck::Sequence<1, 0, 2>,  // ABlockTransferSrcAccessOrder,
-    2,                      // ABlockTransferSrcVectorDim,
-    8,                      // ABlockTransferSrcScalarPerVector,
-    8,                      // ABlockTransferDstScalarPerVector_K1,
-    ck::Sequence<1, 2, 8>,  // BBlockTransferThreadSliceLengths_K0_N_K1,
-    ck::Sequence<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1,
-    ck::Sequence<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder,
-    ck::Sequence<1, 0, 2>,  // BBlockTransferSrcAccessOrder,
-    2,                      // BBlockTransferSrcVectorDim,
-    8,                      // BBlockTransferSrcScalarPerVector,
-    8,                      // BBlockTransferDstScalarPerVector_K1,
-    7,                      // CThreadTransferSrcDstVectorDim,
-    1,                      // CThreadTransferDstScalarPerVector,
-    true,                   // ABlockLdsAddExtraM,
-    true>;                  // BBlockLdsAddExtraN
+// Compilation parameters for NT problem
+// clang-format off
+using DeviceGemms = std::tuple<
+//                                          ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout, Block,  MPer,  NPer, K0Per, K1, MPer, NPer, MXdl, NXdl, ABlockTransferThread,   ABlockTransferThread, ABlockTransferThread, ABlockTransfer,      ABlock,          ABlock, ABlockTransfer,  BBlockTransfer,  BBlockTransfer,  BBlockTransfer, BBlockTransfer, BBlockTransfer, BBlockTransfer, BBlockTransfer, CThreadTransfer, CThreadTransfer, ABlockLds, BBlockLds
+//                                                                                                                    Size, Block, Block, Block,      XDL,  XDL,  Per,  Per, SliceLengths_K0_M_K1, ClusterLengths_K0_M_K1,  ClusterArrangeOrder, SrcAccessOrder, TransferSrc,     TransferSrc,   DstScalarPer,     ThreadSlice,   ThreadCluster,   ThreadCluster, SrcAccessOrder,   SrcVectorDim,      SrcScalar,      DstScalar, SrcDstVectorDim,       DstScalar, AddExtraM, AddExtraN
+//                                                                                                                                                               Wave, Wave,                                                                                       VectorDim, ScalarPerVector,                                        Vector_K1, Lengths_K0_N_K1, Lengths_K0_N_K1,   ArrangeOrder,     PerVector,   PerVector_K1,                        PerVector,
+ck::tensor_operation::device::DeviceGemmXdl<ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,   256,   256,   128,     4,  8,   32,   32,    4,    2,         Seq<1, 4, 8>,          Seq<4, 64, 1>,         Seq<1, 0, 2>,   Seq<1, 0, 2>,            2,               8,              8,   Seq<1, 2, 8>,   Seq<4, 64, 1>,    Seq<1, 0, 2>,    Seq<1, 0, 2>,              2,             8,              8,               7,               1,      true,      true>,
+ck::tensor_operation::device::DeviceGemmXdl<ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,   256,   128,   128,     4,  8,   32,   32,    2,    2,         Seq<1, 2, 8>,          Seq<4, 64, 1>,         Seq<1, 0, 2>,   Seq<1, 0, 2>,            2,               8,              8,   Seq<1, 2, 8>,   Seq<4, 64, 1>,    Seq<1, 0, 2>,    Seq<1, 0, 2>,              2,             8,              8,               7,               1,      true,      true>
+>;
+// clang-format on
 
 int main(int argc, char* argv[])
 {
@@ -173,100 +113,77 @@ int main(int argc, char* argv[])
         b_k_n.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5});
     }
 
-    // run on GPU
+    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
+    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
+    DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+
+    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
+
+    using BaseOp      = ck::tensor_operation::device::BaseOperator;
+    using BaseInvoker = ck::tensor_operation::device::BaseInvoker;
+    using BaseArg     = ck::tensor_operation::device::BaseArgument;
+
+    std::vector<
+        std::tuple<std::unique_ptr<BaseOp>, std::unique_ptr<BaseInvoker>, std::unique_ptr<BaseArg>>>
+        device_gemm_combos;
+
+    ck::static_for<0, std::tuple_size_v<DeviceGemms>, 1>{}([&](auto i) {
+        using Gemm         = remove_cvref_t<decltype(std::get<i>(DeviceGemms{}))>;
+        using GemmInvoker  = typename Gemm::Invoker;
+        using GemmArgument = typename Gemm::Argument;
+
+        auto gemm    = Gemm{};
+        auto invoker = gemm.MakeInvoker();
+        auto argument =
+            gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                              static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                              static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                              M,
+                              N,
+                              K,
+                              StrideA,
+                              StrideB,
+                              StrideC);
+
+        device_gemm_combos.push_back(std::make_tuple(std::make_unique<Gemm>(gemm),
+                                                     std::make_unique<GemmInvoker>(invoker),
+                                                     std::make_unique<GemmArgument>(argument)));
+    });
+
+    for(auto& device_gemm_combo : device_gemm_combos)
     {
-        DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-        DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-        DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+        auto& gemm_ptr     = std::get<0>(device_gemm_combo);
+        auto& invoker_ptr  = std::get<1>(device_gemm_combo);
+        auto& argument_ptr = std::get<2>(device_gemm_combo);
 
-        a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-        b_k_n_device_buf.ToDevice(b_k_n.mData.data());
-        c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
-
-        using BaseOp      = ck::tensor_operation::device::BaseOperator;
-        using BaseInvoker = ck::tensor_operation::device::BaseInvoker;
-        using BaseArg     = ck::tensor_operation::device::BaseArgument;
-
-        std::vector<std::tuple<std::unique_ptr<BaseOp>,
-                               std::unique_ptr<BaseInvoker>,
-                               std::unique_ptr<BaseArg>>>
-            device_gemm_tuples;
-
+        if(!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            using Gemm         = DeviceGemm0;
-            using GemmInvoker  = Gemm::Invoker;
-            using GemmArgument = Gemm::Argument;
-
-            auto gemm    = Gemm{};
-            auto invoker = gemm.MakeInvoker();
-            auto argument =
-                gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                  static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                  static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                  M,
-                                  N,
-                                  K,
-                                  StrideA,
-                                  StrideB,
-                                  StrideC);
-
-            device_gemm_tuples.push_back(std::make_tuple(std::make_unique<Gemm>(gemm),
-                                                         std::make_unique<GemmInvoker>(invoker),
-                                                         std::make_unique<GemmArgument>(argument)));
+            throw std::runtime_error(
+                "wrong! device_gemm with the specified compilation parameters does "
+                "not support this GEMM problem");
         }
 
+        for(int i = 0; i < 5; ++i)
         {
-            using Gemm         = DeviceGemm1;
-            using GemmInvoker  = Gemm::Invoker;
-            using GemmArgument = Gemm::Argument;
+            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
-            auto gemm    = Gemm{};
-            auto invoker = gemm.MakeInvoker();
-            auto argument =
-                gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                  static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                  static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                  M,
-                                  N,
-                                  K,
-                                  StrideA,
-                                  StrideB,
-                                  StrideC);
+            std::size_t flop = std::size_t(2) * M * N * K;
+            std::size_t num_btype =
+                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
 
-            device_gemm_tuples.push_back(std::make_tuple(std::make_unique<Gemm>(gemm),
-                                                         std::make_unique<GemmInvoker>(invoker),
-                                                         std::make_unique<GemmArgument>(argument)));
+            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+            float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+            std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                      << " GB/s" << std::endl;
         }
-
-        for(auto& device_gemm_tuple : device_gemm_tuples)
-        {
-            auto& gemm_ptr     = std::get<0>(device_gemm_tuple);
-            auto& invoker_ptr  = std::get<1>(device_gemm_tuple);
-            auto& argument_ptr = std::get<2>(device_gemm_tuple);
-
-            if(!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
-            {
-                throw std::runtime_error(
-                    "wrong! device_gemm with the specified compilation parameters does "
-                    "not support this GEMM problem");
-            }
-
-            // run kernel
-            for(int i = 0; i < 5; ++i)
-            {
-                float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
-
-                float perf = static_cast<float>((std::size_t(2) * M * N * K)) /
-                             (std::size_t(1000) * 1000 * 1000) / ave_time;
-
-                std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
-                          << std::endl;
-            }
-        }
-
-        // copy result back to host
-        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
     }
+
+    // copy result back to host
+    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
     if(do_verification)
     {
