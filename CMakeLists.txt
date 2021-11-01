@@ -199,3 +199,4 @@ enable_cppcheck(
 
 add_subdirectory(host)
 add_subdirectory(example)
+add_subdirectory(profiler)
