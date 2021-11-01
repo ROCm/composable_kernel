@@ -18,20 +18,67 @@
 
 int main(int argc, char* argv[])
 {
+    enum GemmLayout
+    {
+        MK_KN, // 0
+        MK_NK, // 1
+        KM_KN, // 2
+        KM_NK, // 3
+    };
+
     // Currently ADataType and BDataType need to be the same
     using ADataType   = ck::half_t;
     using BDataType   = ck::half_t;
     using CDataType   = ck::half_t;
     using AccDataType = float;
 
-    // NT problem
-    using ALayout = ck::tensor_layout::RowMajor;
-    using BLayout = ck::tensor_layout::ColumnMajor;
-    using CLayout = ck::tensor_layout::RowMajor;
+    if(argc != 12)
+    {
+        printf("arg1 to 5: layout, do_verification, init_method, do_log, nrepeat\n");
+        printf("arg6 to 11: M, N, K, StrideA, StrideB, StrideC\n");
+        exit(1);
+    }
 
-    ck::profiler::
-        profile_gemm<ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout>(argc,
-                                                                                              argv);
+    const auto layout          = static_cast<GemmLayout>(std::stoi(argv[1]));
+    const bool do_verification = std::stoi(argv[2]);
+    const int init_method      = std::stoi(argv[3]);
+    const bool do_log          = std::stoi(argv[4]);
+    const int nrepeat          = std::stoi(argv[5]);
+
+    const int M = std::stoi(argv[6]);
+    const int N = std::stoi(argv[7]);
+    const int K = std::stoi(argv[8]);
+
+    const int StrideA = std::stoi(argv[9]);
+    const int StrideB = std::stoi(argv[10]);
+    const int StrideC = std::stoi(argv[11]);
+
+    if(layout == GemmLayout::MK_NK)
+    {
+        ck::profiler::profile_gemm<ADataType,
+                                   BDataType,
+                                   CDataType,
+                                   AccDataType,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::ColumnMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else if(layout == GemmLayout::KM_KN)
+    {
+        ck::profiler::profile_gemm<ADataType,
+                                   BDataType,
+                                   CDataType,
+                                   AccDataType,
+                                   ck::tensor_layout::ColumnMajor,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else
+    {
+        throw std::runtime_error("wrong! this GEMM layout not implemented");
+    }
 
     return 1;
 }

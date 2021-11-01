@@ -17,29 +17,18 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm(int argc, char* argv[])
+void profile_gemm(int do_verification,
+                  int init_method,
+                  bool do_log,
+                  int nrepeat,
+                  int M,
+                  int N,
+                  int K,
+                  int StrideA,
+                  int StrideB,
+                  int StrideC)
 {
     using namespace ck;
-
-    if(argc != 11)
-    {
-        printf("arg1 to 4: do_verification, init_method, do_log, nrepeat\n");
-        printf("arg5 to 10: M, N, K, StrideA, StrideB, StrideC\n");
-        exit(1);
-    }
-
-    const bool do_verification = std::stoi(argv[1]);
-    const int init_method      = std::stoi(argv[2]);
-    const bool do_log          = std::stoi(argv[3]);
-    const int nrepeat          = std::stoi(argv[4]);
-
-    const index_t M = std::stoi(argv[5]);
-    const index_t N = std::stoi(argv[6]);
-    const index_t K = std::stoi(argv[7]);
-
-    const index_t StrideA = std::stoi(argv[8]);
-    const index_t StrideB = std::stoi(argv[9]);
-    const index_t StrideC = std::stoi(argv[10]);
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
