@@ -27,7 +27,7 @@ template <ck::index_t BlockSize,
           ck::index_t ABlockTransferDstScalarPerVector_E2,
           ck::index_t BThreadTransferSrcScalarPerVector_E2,
           ck::index_t CThreadTransferDstScalarPerVector_K,
-          ck::index_t activ_type>
+          ck::ActivTypeEnum_t activ_type>
 struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_maxpool
 {
     template <typename... Wei,
@@ -88,16 +88,22 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 #if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
         const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
         const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
+
+        const auto OutRightPadH = Hop - Ho;
+        const auto OutRightPadW = Wop - Wo;
+
+        const auto OutRightPadHx = Number<OutRightPadH / 2>{};
+        const auto OutRightPadWx = Number<OutRightPadW / 2>{};
 #else
         const auto Hop = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
         const auto Wop = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
-#endif
 
         const auto OutRightPadH = Hop - Ho;
         const auto OutRightPadW = Wop - Wo;
 
         const auto OutRightPadHx = OutRightPadH / 2;
         const auto OutRightPadWx = OutRightPadW / 2;
+#endif
 
         const auto InLeftPadH = in_left_pads[I0];
         const auto InLeftPadW = in_left_pads[I1];
@@ -380,7 +386,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
                 remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                true>;
+                true,
+                activ_type>;
 
             ave_time = launch_and_time_kernel(kernel,
                                               nrepeat,
@@ -409,7 +416,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
                 remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                false>;
+                false,
+                activ_type>;
 
             ave_time = launch_and_time_kernel(kernel,
                                               nrepeat,
@@ -461,7 +469,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
                 remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                true>;
+                true,
+                activ_type>;
 
             ave_time = launch_and_time_kernel(
                 kernel,
@@ -497,7 +506,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
                 remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                false>;
+                false,
+                activ_type>;
 
             ave_time = launch_and_time_kernel(
                 kernel,
@@ -529,7 +539,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
             static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
-            const auto kernel = kernel_gemm_dlops_v2_maxpool<
+            const auto kernel = kernel_gemm_dlops_v3_maxpool<
                 GridwiseGemm,
                 FloatAB,
                 FloatC,
@@ -538,7 +548,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
                 remove_reference_t<DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                has_main_e0_block_loop>;
+                has_main_e0_block_loop,
+                activ_type>;
 
             ave_time = launch_and_time_kernel(kernel,
                                               nrepeat,
