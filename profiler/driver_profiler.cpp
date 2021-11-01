@@ -18,7 +18,20 @@
 
 int main(int argc, char* argv[])
 {
-    ck::profiler::profile_gemm(argc, argv);
+    // Currently ADataType and BDataType need to be the same
+    using ADataType   = ck::half_t;
+    using BDataType   = ck::half_t;
+    using CDataType   = ck::half_t;
+    using AccDataType = float;
+
+    // NT problem
+    using ALayout = ck::tensor_layout::RowMajor;
+    using BLayout = ck::tensor_layout::ColumnMajor;
+    using CLayout = ck::tensor_layout::RowMajor;
+
+    ck::profiler::
+        profile_gemm<ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout>(argc,
+                                                                                              argv);
 
     return 1;
 }

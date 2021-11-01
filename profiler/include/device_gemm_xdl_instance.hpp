@@ -7,6 +7,9 @@ using DeviceOpCombo = std::tuple<std::unique_ptr<ck::tensor_operation::device::B
                                  std::unique_ptr<ck::tensor_operation::device::BaseInvoker>,
                                  std::unique_ptr<ck::tensor_operation::device::BaseArgument>>;
 
+using DeviceGemmXdlBaseOpPtr =
+    std::unique_ptr<ck::tensor_operation::device::DeviceGemmXdlBaseOperator>;
+
 namespace device_gemm_xdl_instance {
 
 using F16 = ck::half_t;

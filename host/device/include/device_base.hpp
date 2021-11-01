@@ -11,7 +11,7 @@ struct BaseArgument
     BaseArgument(const BaseArgument&) = default;
     BaseArgument& operator=(const BaseArgument&) = default;
 
-    virtual ~BaseArgument(){};
+    virtual ~BaseArgument() {}
 };
 
 struct BaseInvoker
@@ -22,7 +22,7 @@ struct BaseInvoker
 
     virtual float Run(const BaseArgument*, int = 1) = 0;
 
-    virtual ~BaseInvoker(){};
+    virtual ~BaseInvoker() {}
 };
 
 struct BaseOperator
@@ -33,7 +33,7 @@ struct BaseOperator
 
     virtual bool IsSupportedArgument(const BaseArgument*) = 0;
 
-    virtual ~BaseOperator(){};
+    virtual ~BaseOperator() {}
 };
 
 } // namespace device

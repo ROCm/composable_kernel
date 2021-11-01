@@ -5,38 +5,11 @@ namespace ck {
 namespace profiler {
 namespace device_gemm_xdl_instance {
 
-void add_device_gemms_xdl_instnace_f16_f16_f16_mk_nk_mn_vol1(
-    std::vector<DeviceOpCombo>& device_op_combos,
-    ck::half_t* p_a,
-    ck::half_t* p_b,
-    ck::half_t* p_c,
-    int M,
-    int N,
-    int K,
-    int StrideA,
-    int StrideB,
-    int StrideC);
-
-void add_device_gemms_xdl_instnace_f16_f16_f16_mk_nk_mn_vol2(
-    std::vector<DeviceOpCombo>& device_op_combos,
-    ck::half_t* p_a,
-    ck::half_t* p_b,
-    ck::half_t* p_c,
-    int M,
-    int N,
-    int K,
-    int StrideA,
-    int StrideB,
-    int StrideC);
+void add_device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
+void add_device_gemm_xdl_instance_f16_f16_f16_km_kn_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
 
 } // namespace device_gemm_xdl_instance
-} // namespace profiler
-} // namespace ck
 
-namespace ck {
-namespace profiler {
-
-#if 0
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -44,21 +17,9 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-#endif
 void profile_gemm(int argc, char* argv[])
 {
     using namespace ck;
-
-    // Currently ADataType and BDataType need to be the same
-    using ADataType   = half_t;
-    using BDataType   = half_t;
-    using CDataType   = half_t;
-    using AccDataType = float;
-
-    // NT problem
-    using ALayout = tensor_layout::RowMajor;
-    using BLayout = tensor_layout::ColumnMajor;
-    using CLayout = tensor_layout::RowMajor;
 
     if(argc != 11)
     {
@@ -137,60 +98,46 @@ void profile_gemm(int argc, char* argv[])
     b_device_buf.ToDevice(b_k_n.mData.data());
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
-    std::vector<DeviceOpCombo> device_gemm_combos;
+    // add device GEMM instances
+    std::vector<DeviceGemmXdlBaseOpPtr> gemm_ptrs;
 
-    if constexpr(is_same_v<ALayout, tensor_layout::RowMajor> &&
+    if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
+                 is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
+                 is_same_v<ALayout, tensor_layout::RowMajor> &&
                  is_same_v<BLayout, tensor_layout::ColumnMajor> &&
                  is_same_v<CLayout, tensor_layout::RowMajor>)
     {
-        device_gemm_xdl_instance::add_device_gemms_xdl_instnace_f16_f16_f16_mk_nk_mn_vol1(
-            device_gemm_combos,
-            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            StrideC);
-
-        device_gemm_xdl_instance::add_device_gemms_xdl_instnace_f16_f16_f16_mk_nk_mn_vol2(
-            device_gemm_combos,
-            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            StrideC);
+        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn(gemm_ptrs);
     }
-#if 0
-    else if constexpr(is_same_v<ALayout, tensor_layout::ColumnMajor> &&
+    else if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
+                      is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
+                      is_same_v<ALayout, tensor_layout::ColumnMajor> &&
                       is_same_v<BLayout, tensor_layout::RowMajor> &&
                       is_same_v<CLayout, tensor_layout::RowMajor>)
     {
-        add_device_gemms_xdl_f16_f16_f16_km_kn_mn(
-            device_gemm_combos,
-            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            StrideC);
+        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_km_kn_mn(gemm_ptrs);
     }
-#endif
 
-    for(auto& device_gemm_combo : device_gemm_combos)
+    if(gemm_ptrs.size() <= 0)
     {
-        auto& gemm_ptr     = std::get<0>(device_gemm_combo);
-        auto& invoker_ptr  = std::get<1>(device_gemm_combo);
-        auto& argument_ptr = std::get<2>(device_gemm_combo);
+        throw std::runtime_error("wrong! no device GEMM instance found");
+    }
+
+    // profile device GEMM instances
+    for(auto& gemm_ptr : gemm_ptrs)
+    {
+        auto argument_ptr =
+            gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                          static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC);
+
+        auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
         if(!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {

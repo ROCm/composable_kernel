@@ -1,16 +1,34 @@
 #ifndef DEVICE_GEMM_XDL_HPP
 #define DEVICE_GEMM_XDL_HPP
 
+#include <iostream>
+#include "device.hpp"
+#include "gemm_common.hpp"
+#include "device_base.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
-#include "device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
+
+struct DeviceGemmXdlBaseOperator : public BaseOperator
+{
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                              const void* p_b,
+                                                              void* p_c,
+                                                              ck::index_t M,
+                                                              ck::index_t N,
+                                                              ck::index_t K,
+                                                              ck::index_t StrideA,
+                                                              ck::index_t StrideB,
+                                                              ck::index_t StrideC) = 0;
+
+    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+};
 
 template <typename ADataType,
           typename BDataType,
@@ -46,7 +64,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceGemmXdl : public BaseOperator
+struct DeviceGemmXdl : public DeviceGemmXdlBaseOperator
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -347,6 +365,7 @@ struct DeviceGemmXdl : public BaseOperator
             return ave_time;
         }
 
+        // polymorphic
         float Run(const BaseArgument* p_arg, int nrepeat = 1) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
@@ -368,6 +387,7 @@ struct DeviceGemmXdl : public BaseOperator
                                            arg.N01_);
     }
 
+    // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
@@ -387,6 +407,36 @@ struct DeviceGemmXdl : public BaseOperator
     }
 
     static auto MakeInvoker() { return Invoker{}; }
+
+    // polymorphic
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                      const void* p_b,
+                                                      void* p_c,
+                                                      index_t M,
+                                                      index_t N,
+                                                      index_t K,
+                                                      index_t StrideA,
+                                                      index_t StrideB,
+                                                      index_t StrideC) override
+    {
+        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
+                                          static_cast<const BDataType*>(p_b),
+                                          static_cast<CDataType*>(p_c),
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          1,
+                                          1);
+    }
+
+    // polymorphic
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>(Invoker{});
+    }
 };
 
 } // namespace device
