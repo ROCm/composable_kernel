@@ -18,80 +18,103 @@
 
 int main(int argc, char* argv[])
 {
-    enum GemmLayout
+    if(argc != 13)
     {
-        MK_KN, // 0: NN
-        MK_NK, // 1: NT
-        KM_KN, // 2: TN
-        KM_NK, // 3: TT
-    };
-
-    // Currently ADataType and BDataType need to be the same
-    using ADataType   = ck::half_t;
-    using BDataType   = ck::half_t;
-    using CDataType   = ck::half_t;
-    using AccDataType = float;
-
-    if(argc != 12)
-    {
-        printf("arg1 to 5: layout, do_verification, init_method, do_log, nrepeat\n");
-        printf("arg6 to 11: M, N, K, StrideA, StrideB, StrideC\n");
+        printf("arg1 to 6: datatype, layout, do_verification, init_method, do_log, nrepeat\n");
+        printf("arg7 to 12: M, N, K, StrideA, StrideB, StrideC\n");
         exit(1);
     }
 
-    const auto layout          = static_cast<GemmLayout>(std::stoi(argv[1]));
-    const bool do_verification = std::stoi(argv[2]);
-    const int init_method      = std::stoi(argv[3]);
-    const bool do_log          = std::stoi(argv[4]);
-    const int nrepeat          = std::stoi(argv[5]);
+    const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[1]));
+    const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[2]));
+    const bool do_verification = std::stoi(argv[3]);
+    const int init_method      = std::stoi(argv[4]);
+    const bool do_log          = std::stoi(argv[5]);
+    const int nrepeat          = std::stoi(argv[6]);
 
-    const int M = std::stoi(argv[6]);
-    const int N = std::stoi(argv[7]);
-    const int K = std::stoi(argv[8]);
+    const int M = std::stoi(argv[7]);
+    const int N = std::stoi(argv[8]);
+    const int K = std::stoi(argv[9]);
 
-    const int StrideA = std::stoi(argv[9]);
-    const int StrideB = std::stoi(argv[10]);
-    const int StrideC = std::stoi(argv[11]);
+    const int StrideA = std::stoi(argv[10]);
+    const int StrideB = std::stoi(argv[11]);
+    const int StrideC = std::stoi(argv[12]);
 
-    if(layout == GemmLayout::MK_KN)
+    if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_gemm<ADataType,
-                                   BDataType,
-                                   CDataType,
-                                   AccDataType,
+        ck::profiler::profile_gemm<ck::half_t,
+                                   ck::half_t,
+                                   ck::half_t,
                                    ck::tensor_layout::RowMajor,
                                    ck::tensor_layout::RowMajor,
                                    ck::tensor_layout::RowMajor>(
             do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
     }
-    else if(layout == GemmLayout::MK_NK)
+    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_gemm<ADataType,
-                                   BDataType,
-                                   CDataType,
-                                   AccDataType,
+        ck::profiler::profile_gemm<ck::half_t,
+                                   ck::half_t,
+                                   ck::half_t,
                                    ck::tensor_layout::RowMajor,
                                    ck::tensor_layout::ColumnMajor,
                                    ck::tensor_layout::RowMajor>(
             do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
     }
-    else if(layout == GemmLayout::KM_KN)
+    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_gemm<ADataType,
-                                   BDataType,
-                                   CDataType,
-                                   AccDataType,
+        ck::profiler::profile_gemm<ck::half_t,
+                                   ck::half_t,
+                                   ck::half_t,
                                    ck::tensor_layout::ColumnMajor,
                                    ck::tensor_layout::RowMajor,
                                    ck::tensor_layout::RowMajor>(
             do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
     }
-    else if(layout == GemmLayout::KM_NK)
+    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_gemm<ADataType,
-                                   BDataType,
-                                   CDataType,
-                                   AccDataType,
+        ck::profiler::profile_gemm<ck::half_t,
+                                   ck::half_t,
+                                   ck::half_t,
+                                   ck::tensor_layout::ColumnMajor,
+                                   ck::tensor_layout::ColumnMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_gemm<float,
+                                   float,
+                                   float,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_gemm<float,
+                                   float,
+                                   float,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::ColumnMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        ck::profiler::profile_gemm<float,
+                                   float,
+                                   float,
+                                   ck::tensor_layout::ColumnMajor,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        ck::profiler::profile_gemm<float,
+                                   float,
+                                   float,
                                    ck::tensor_layout::ColumnMajor,
                                    ck::tensor_layout::ColumnMajor,
                                    ck::tensor_layout::RowMajor>(
@@ -99,7 +122,7 @@ int main(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("wrong! this GEMM layout not implemented");
+        throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
 
     return 1;

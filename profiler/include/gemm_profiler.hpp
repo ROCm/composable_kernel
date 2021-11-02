@@ -5,17 +5,83 @@ namespace ck {
 namespace profiler {
 namespace device_gemm_xdl_instance {
 
-void add_device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
-void add_device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
-void add_device_gemm_xdl_instance_f16_f16_f16_km_kn_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
-void add_device_gemm_xdl_instance_f16_f16_f16_km_nk_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
+template <>
+void add_device_gemm_xdl_instance<float,
+                                  float,
+                                  float,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
+
+template <>
+void add_device_gemm_xdl_instance<float,
+                                  float,
+                                  float,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
+
+template <>
+void add_device_gemm_xdl_instance<float,
+                                  float,
+                                  float,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
+
+template <>
+void add_device_gemm_xdl_instance<float,
+                                  float,
+                                  float,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
+
+template <>
+void add_device_gemm_xdl_instance<ck::half_t,
+                                  ck::half_t,
+                                  ck::half_t,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
+
+template <>
+void add_device_gemm_xdl_instance<ck::half_t,
+                                  ck::half_t,
+                                  ck::half_t,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
+
+template <>
+void add_device_gemm_xdl_instance<ck::half_t,
+                                  ck::half_t,
+                                  ck::half_t,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::RowMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
+
+template <>
+void add_device_gemm_xdl_instance<ck::half_t,
+                                  ck::half_t,
+                                  ck::half_t,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::ColumnMajor,
+                                  ck::tensor_layout::RowMajor>(
+    std::vector<DeviceGemmXdlBaseOpPtr>&);
 
 } // namespace device_gemm_xdl_instance
 
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -57,9 +123,7 @@ void profile_gemm(int do_verification,
 
     switch(init_method)
     {
-    case 0:
-        // no initialization
-        break;
+    case 0: break;
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_1{});
         b_k_n.GenerateTensorValue(GeneratorTensor_1{});
@@ -97,38 +161,9 @@ void profile_gemm(int do_verification,
     // add device GEMM instances
     std::vector<DeviceGemmXdlBaseOpPtr> gemm_ptrs;
 
-    if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
-                 is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
-                 is_same_v<ALayout, tensor_layout::RowMajor> &&
-                 is_same_v<BLayout, tensor_layout::RowMajor> &&
-                 is_same_v<CLayout, tensor_layout::RowMajor>)
-    {
-        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn(gemm_ptrs);
-    }
-    else if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
-                      is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
-                      is_same_v<ALayout, tensor_layout::RowMajor> &&
-                      is_same_v<BLayout, tensor_layout::ColumnMajor> &&
-                      is_same_v<CLayout, tensor_layout::RowMajor>)
-    {
-        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn(gemm_ptrs);
-    }
-    else if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
-                      is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
-                      is_same_v<ALayout, tensor_layout::ColumnMajor> &&
-                      is_same_v<BLayout, tensor_layout::RowMajor> &&
-                      is_same_v<CLayout, tensor_layout::RowMajor>)
-    {
-        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_km_kn_mn(gemm_ptrs);
-    }
-    else if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
-                      is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
-                      is_same_v<ALayout, tensor_layout::ColumnMajor> &&
-                      is_same_v<BLayout, tensor_layout::ColumnMajor> &&
-                      is_same_v<CLayout, tensor_layout::RowMajor>)
-    {
-        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_km_nk_mn(gemm_ptrs);
-    }
+    device_gemm_xdl_instance::
+        add_device_gemm_xdl_instance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
+            gemm_ptrs);
 
     if(gemm_ptrs.size() <= 0)
     {
@@ -174,7 +209,6 @@ void profile_gemm(int do_verification,
 
         if(do_verification)
         {
-            // copy result back to host
             c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
             check_error(c_m_n_host_result, c_m_n_device_result);

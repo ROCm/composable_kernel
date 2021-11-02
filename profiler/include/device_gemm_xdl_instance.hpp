@@ -1,11 +1,6 @@
 #pragma once
-
 namespace ck {
 namespace profiler {
-
-using DeviceOpCombo = std::tuple<std::unique_ptr<ck::tensor_operation::device::BaseOperator>,
-                                 std::unique_ptr<ck::tensor_operation::device::BaseInvoker>,
-                                 std::unique_ptr<ck::tensor_operation::device::BaseArgument>>;
 
 using DeviceGemmXdlBaseOpPtr =
     std::unique_ptr<ck::tensor_operation::device::DeviceGemmXdlBaseOperator>;
@@ -20,6 +15,14 @@ using Col = ck::tensor_layout::ColumnMajor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
+
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+void add_device_gemm_xdl_instance(std::vector<DeviceGemmXdlBaseOpPtr>&);
 
 } // namespace device_gemm_xdl_instance
 } // namespace profiler

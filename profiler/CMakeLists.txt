@@ -14,6 +14,10 @@ include_directories(BEFORE
 
 # device_gemm_instance
 set(DEVICE_GEMM_INSTANCE_SOURCE 
+    device_gemm_xdl_instance_f32_f32_f32_mk_kn_mn.cpp;
+    device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn.cpp;
+    device_gemm_xdl_instance_f32_f32_f32_km_kn_mn.cpp;
+    device_gemm_xdl_instance_f32_f32_f32_km_nk_mn.cpp;
     device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn.cpp;
     device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn.cpp;
     device_gemm_xdl_instance_f16_f16_f16_km_kn_mn.cpp;
