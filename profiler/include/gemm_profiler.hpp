@@ -79,6 +79,11 @@ void profile_gemm(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5});
     }
 
+    if(do_verification)
+    {
+        host_gemm_mk_kn_mn(a_m_k, b_k_n, c_m_n_host_result);
+    }
+
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
@@ -128,47 +133,46 @@ void profile_gemm(int do_verification,
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
-        if(!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            throw std::runtime_error(
-                "wrong! device_gemm with the specified compilation parameters does "
-                "not support this GEMM problem");
+            for(int i = 0; i < 5; ++i)
+            {
+                float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+
+                std::size_t flop      = std::size_t(2) * M * N * K;
+                std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * M +
+                                        sizeof(CDataType) * M * N;
+
+                float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+                float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+                std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                          << " GB/s" << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << "this device GEMM instance does not support this GEMM problem"
+                      << std::endl;
         }
 
-        for(int i = 0; i < 5; ++i)
+        if(do_verification)
         {
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            // copy result back to host
+            c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-            std::size_t flop = std::size_t(2) * M * N * K;
-            std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
+            check_error(c_m_n_host_result, c_m_n_device_result);
 
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-            std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s" << std::endl;
-        }
-    }
-
-    // copy result back to host
-    c_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
-    if(do_verification)
-    {
-        host_gemm_mk_kn_mn(a_m_k, b_k_n, c_m_n_host_result);
-
-        check_error(c_m_n_host_result, c_m_n_device_result);
-
-        if(do_log)
-        {
-            LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                << std::endl;
-            LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                << std::endl;
+            if(do_log)
+            {
+                LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                    << std::endl;
+                LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                    << std::endl;
+            }
         }
     }
 }

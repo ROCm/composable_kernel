@@ -249,15 +249,26 @@ struct DeviceGemmXdl : public DeviceGemmXdlBaseOperator
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              a_grid_desc_k0_m_k1_{DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA)},
-              b_grid_desc_k0_n_k1_{DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
-              c_grid_desc_m_n_{DeviceGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{
-                  GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_)},
-              block_2_ctile_map_{GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01)},
+              a_grid_desc_k0_m_k1_{},
+              b_grid_desc_k0_n_k1_{},
+              c_grid_desc_m_n_{},
+              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              block_2_ctile_map_{},
               M01_{M01},
               N01_{N01}
         {
+            a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+            c_grid_desc_m_n_     = DeviceGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+
+            if(GridwiseGemm::CheckValidity(
+                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+            {
+                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+
+                block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+            }
         }
 
         //  private:
