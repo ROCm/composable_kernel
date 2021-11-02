@@ -20,10 +20,10 @@ int main(int argc, char* argv[])
 {
     enum GemmLayout
     {
-        MK_KN, // 0
-        MK_NK, // 1
-        KM_KN, // 2
-        KM_NK, // 3
+        MK_KN, // 0: NN
+        MK_NK, // 1: NT
+        KM_KN, // 2: TN
+        KM_NK, // 3: TT
     };
 
     // Currently ADataType and BDataType need to be the same

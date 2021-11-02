@@ -5,8 +5,10 @@ namespace ck {
 namespace profiler {
 namespace device_gemm_xdl_instance {
 
+void add_device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
 void add_device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
 void add_device_gemm_xdl_instance_f16_f16_f16_km_kn_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
+void add_device_gemm_xdl_instance_f16_f16_f16_km_nk_mn(std::vector<DeviceGemmXdlBaseOpPtr>&);
 
 } // namespace device_gemm_xdl_instance
 
@@ -98,8 +100,16 @@ void profile_gemm(int do_verification,
     if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
                  is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
                  is_same_v<ALayout, tensor_layout::RowMajor> &&
-                 is_same_v<BLayout, tensor_layout::ColumnMajor> &&
+                 is_same_v<BLayout, tensor_layout::RowMajor> &&
                  is_same_v<CLayout, tensor_layout::RowMajor>)
+    {
+        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn(gemm_ptrs);
+    }
+    else if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
+                      is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
+                      is_same_v<ALayout, tensor_layout::RowMajor> &&
+                      is_same_v<BLayout, tensor_layout::ColumnMajor> &&
+                      is_same_v<CLayout, tensor_layout::RowMajor>)
     {
         device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn(gemm_ptrs);
     }
@@ -110,6 +120,14 @@ void profile_gemm(int do_verification,
                       is_same_v<CLayout, tensor_layout::RowMajor>)
     {
         device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_km_kn_mn(gemm_ptrs);
+    }
+    else if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
+                      is_same_v<CDataType, ck::half_t> && is_same_v<AccDataType, float> &&
+                      is_same_v<ALayout, tensor_layout::ColumnMajor> &&
+                      is_same_v<BLayout, tensor_layout::ColumnMajor> &&
+                      is_same_v<CLayout, tensor_layout::RowMajor>)
+    {
+        device_gemm_xdl_instance::add_device_gemm_xdl_instance_f16_f16_f16_km_nk_mn(gemm_ptrs);
     }
 
     if(gemm_ptrs.size() <= 0)

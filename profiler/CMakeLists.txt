@@ -14,8 +14,10 @@ include_directories(BEFORE
 
 # device_gemm_instance
 set(DEVICE_GEMM_INSTANCE_SOURCE 
-    device_gemm_xdl_instance_vol1.cpp;
-    device_gemm_xdl_instance_vol2.cpp;
+    device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn.cpp;
+    device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn.cpp;
+    device_gemm_xdl_instance_f16_f16_f16_km_kn_mn.cpp;
+    device_gemm_xdl_instance_f16_f16_f16_km_nk_mn.cpp;
 )
 
 add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE}) 
