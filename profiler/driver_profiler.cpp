@@ -25,8 +25,8 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[1]));
-    const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[2]));
+    const int data_type       = static_cast<GemmDataType>(std::stoi(argv[1]));
+    const int layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[2]));
     const bool do_verification = std::stoi(argv[3]);
     const int init_method      = std::stoi(argv[4]);
     const bool do_log          = std::stoi(argv[5]);
