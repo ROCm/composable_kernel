@@ -135,21 +135,18 @@ void profile_gemm(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            for(int i = 0; i < 5; ++i)
-            {
-                float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
-                std::size_t flop      = std::size_t(2) * M * N * K;
-                std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * M +
-                                        sizeof(CDataType) * M * N;
+            std::size_t flop = std::size_t(2) * M * N * K;
+            std::size_t num_btype =
+                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
 
-                float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-                float gb_per_sec = num_btype / 1.E6 / ave_time;
+            float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-                std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                          << " GB/s" << std::endl;
-            }
+            std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                      << " GB/s" << std::endl;
         }
         else
         {
