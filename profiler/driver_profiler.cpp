@@ -53,7 +53,18 @@ int main(int argc, char* argv[])
     const int StrideB = std::stoi(argv[10]);
     const int StrideC = std::stoi(argv[11]);
 
-    if(layout == GemmLayout::MK_NK)
+    if(layout == GemmLayout::MK_KN)
+    {
+        ck::profiler::profile_gemm<ADataType,
+                                   BDataType,
+                                   CDataType,
+                                   AccDataType,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else if(layout == GemmLayout::MK_NK)
     {
         ck::profiler::profile_gemm<ADataType,
                                    BDataType,
@@ -72,6 +83,17 @@ int main(int argc, char* argv[])
                                    AccDataType,
                                    ck::tensor_layout::ColumnMajor,
                                    ck::tensor_layout::RowMajor,
+                                   ck::tensor_layout::RowMajor>(
+            do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
+    }
+    else if(layout == GemmLayout::KM_NK)
+    {
+        ck::profiler::profile_gemm<ADataType,
+                                   BDataType,
+                                   CDataType,
+                                   AccDataType,
+                                   ck::tensor_layout::ColumnMajor,
+                                   ck::tensor_layout::ColumnMajor,
                                    ck::tensor_layout::RowMajor>(
             do_verification, init_method, do_log, nrepeat, M, N, K, StrideA, StrideB, StrideC);
     }
