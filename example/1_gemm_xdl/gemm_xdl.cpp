@@ -15,58 +15,106 @@
 #include "device_base.hpp"
 #include "device_gemm_xdl.hpp"
 
-// Currently ADataType and BDataType need to be the same
-using ADataType   = ck::half_t;
-using BDataType   = ck::half_t;
-using CDataType   = ck::half_t;
-using AccDataType = float;
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+struct DeviceGemmInstance;
 
-// NT problem
-using ALayout = ck::tensor_layout::RowMajor;
-using BLayout = ck::tensor_layout::ColumnMajor;
-using CLayout = ck::tensor_layout::RowMajor;
+template <>
+struct DeviceGemmInstance<ck::half_t,
+                          ck::half_t,
+                          ck::half_t,
+                          ck::tensor_layout::RowMajor,
+                          ck::tensor_layout::ColumnMajor,
+                          ck::tensor_layout::RowMajor>
+{
+    using F16 = ck::half_t;
+    using F32 = float;
 
-template <ck::index_t... Is>
-using Seq = ck::Sequence<Is...>;
+    using Row = ck::tensor_layout::RowMajor;
+    using Col = ck::tensor_layout::ColumnMajor;
 
-// Compilation parameters for NT problem
-// clang-format off
-using DeviceGemms = std::tuple<
-//                                          ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout, Block,  MPer,  NPer, K0Per, K1, MPer, NPer, MXdl, NXdl, ABlockTransferThread,   ABlockTransferThread, ABlockTransferThread, ABlockTransfer,      ABlock,          ABlock, ABlockTransfer,  BBlockTransfer,  BBlockTransfer,  BBlockTransfer, BBlockTransfer, BBlockTransfer, BBlockTransfer, BBlockTransfer, CThreadTransfer, CThreadTransfer, ABlockLds, BBlockLds
-//                                                                                                                    Size, Block, Block, Block,      XDL,  XDL,  Per,  Per, SliceLengths_K0_M_K1, ClusterLengths_K0_M_K1,  ClusterArrangeOrder, SrcAccessOrder, TransferSrc,     TransferSrc,   DstScalarPer,     ThreadSlice,   ThreadCluster,   ThreadCluster, SrcAccessOrder,   SrcVectorDim,      SrcScalar,      DstScalar, SrcDstVectorDim,       DstScalar, AddExtraM, AddExtraN
-//                                                                                                                                                               Wave, Wave,                                                                                       VectorDim, ScalarPerVector,                                        Vector_K1, Lengths_K0_N_K1, Lengths_K0_N_K1,   ArrangeOrder,     PerVector,   PerVector_K1,                        PerVector,
-ck::tensor_operation::device::DeviceGemmXdl<ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,   256,   256,   128,     4,  8,   32,   32,    4,    2,         Seq<1, 4, 8>,          Seq<4, 64, 1>,         Seq<1, 0, 2>,   Seq<1, 0, 2>,            2,               8,              8,   Seq<1, 2, 8>,   Seq<4, 64, 1>,    Seq<1, 0, 2>,    Seq<1, 0, 2>,              2,             8,              8,               7,               1,      true,      true>,
-ck::tensor_operation::device::DeviceGemmXdl<ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,   256,   128,   128,     4,  8,   32,   32,    2,    2,         Seq<1, 2, 8>,          Seq<4, 64, 1>,         Seq<1, 0, 2>,   Seq<1, 0, 2>,            2,               8,              8,   Seq<1, 2, 8>,   Seq<4, 64, 1>,    Seq<1, 0, 2>,    Seq<1, 0, 2>,              2,             8,              8,               7,               1,      true,      true>
->;
-// clang-format on
+    template <ck::index_t... Is>
+    using S = ck::Sequence<Is...>;
+
+    // Compilation parameters for NT problem
+    // clang-format off
+    using type =
+        //########################################| AData| BData| CData| AccData| ALayout| BLayout| CLayout| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
+        //########################################|  Type|  Type|  Type|    Type|        |        |        |  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
+        //########################################|      |      |      |        |        |        |        |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_N_K1| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1| Lengths_K0_N_K1| Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|                |       PerVector|          |          |
+        //########################################|      |      |      |        |        |        |        |      |      |      |      |   |     |     |     |     |                |                |               |               |               |               |               |                |                |               |               |              |               |               |                |                |          |          |
+        ck::tensor_operation::device::DeviceGemmXdl<  F16,   F16,   F16,     F32,     Row,     Col,     Row,   256,   256,   128,     4,  8,   32,   32,    4,    2,      S<1, 4, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      S<1, 2, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,               7,               1,      true,      true>;
+    // clang-format on
+};
+
+template <>
+struct DeviceGemmInstance<float,
+                          float,
+                          float,
+                          ck::tensor_layout::RowMajor,
+                          ck::tensor_layout::ColumnMajor,
+                          ck::tensor_layout::RowMajor>
+{
+    using F16 = ck::half_t;
+    using F32 = float;
+
+    using Row = ck::tensor_layout::RowMajor;
+    using Col = ck::tensor_layout::ColumnMajor;
+
+    template <ck::index_t... Is>
+    using S = ck::Sequence<Is...>;
+
+    // Compilation parameters for NT problem
+    // clang-format off
+    using type =
+    //########################################| AData| BData| CData| AccData| ALayout| BLayout| CLayout| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
+    //########################################|  Type|  Type|  Type|    Type|        |        |        |  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
+    //########################################|      |      |      |        |        |        |        |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_N_K1| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1| Lengths_K0_N_K1| Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|                |       PerVector|          |          |
+    //########################################|      |      |      |        |        |        |        |      |      |      |      |   |     |     |     |     |                |                |               |               |               |               |               |                |                |               |               |              |               |               |                |                |          |          |
+    ck::tensor_operation::device::DeviceGemmXdl<  F32,   F32,   F32,     F32,     Row,     Col,     Row,   256,   256,   128,     4,  4,   32,   32,    4,    2,      S<1, 4, 4>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      S<1, 2, 4>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,               7,               1,      true,      true>;
+    // clang-format on
+};
 
 int main(int argc, char* argv[])
 {
-    using namespace ck;
-
-    if(argc != 11)
+    if(argc != 4)
     {
-        printf("arg1 to 4: do_verification, init_method, do_log, nrepeat\n");
-        printf("arg5 to 10: M, N, K, StrideA, StrideB, StrideC\n");
-        exit(1);
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: run kernel # of times (>1)\n");
+        exit(0);
     }
 
     const bool do_verification = std::stoi(argv[1]);
     const int init_method      = std::stoi(argv[2]);
-    const bool do_log          = std::stoi(argv[3]);
-    const int nrepeat          = std::stoi(argv[4]);
+    const int nrepeat          = std::stoi(argv[3]);
 
-    const index_t M = std::stoi(argv[5]);
-    const index_t N = std::stoi(argv[6]);
-    const index_t K = std::stoi(argv[7]);
+    // GEMM shape
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 
-    const index_t StrideA = std::stoi(argv[8]);
-    const index_t StrideB = std::stoi(argv[9]);
-    const index_t StrideC = std::stoi(argv[10]);
+    ck::index_t StrideA = 4096;
+    ck::index_t StrideB = 4096;
+    ck::index_t StrideC = 4096;
+
+    // matrix data type
+    using ADataType = ck::half_t;
+    using BDataType = ck::half_t;
+    using CDataType = ck::half_t;
+
+    // matrix layout
+    using ALayout = ck::tensor_layout::RowMajor;
+    using BLayout = ck::tensor_layout::ColumnMajor;
+    using CLayout = ck::tensor_layout::RowMajor;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(is_same<decltype(layout), tensor_layout::RowMajor>::value)
+            if(std::is_same<decltype(layout), ck::tensor_layout::RowMajor>::value)
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
                                             std::vector<std::size_t>({stride, 1}));
@@ -89,22 +137,8 @@ int main(int argc, char* argv[])
 
     switch(init_method)
     {
-    case 0:
-        // no initialization
-        break;
+    case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_1{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1{});
-        break;
-    case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_1{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2{-5, 5});
-        break;
-    case 3:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1{});
-        break;
-    case 4:
         a_m_k.GenerateTensorValue(GeneratorTensor_2{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2{-5, 5});
         break;
@@ -121,68 +155,42 @@ int main(int argc, char* argv[])
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
-    using BaseOp      = ck::tensor_operation::device::BaseOperator;
-    using BaseInvoker = ck::tensor_operation::device::BaseInvoker;
-    using BaseArg     = ck::tensor_operation::device::BaseArgument;
+    // do GEMM
+    auto gemm =
+        typename DeviceGemmInstance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>::
+            type{};
 
-    std::vector<
-        std::tuple<std::unique_ptr<BaseOp>, std::unique_ptr<BaseInvoker>, std::unique_ptr<BaseArg>>>
-        device_gemm_combos;
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                      M,
+                                      N,
+                                      K,
+                                      StrideA,
+                                      StrideB,
+                                      StrideC);
 
-    ck::static_for<0, std::tuple_size_v<DeviceGemms>, 1>{}([&](auto i) {
-        using Gemm         = remove_cvref_t<decltype(std::get<i>(DeviceGemms{}))>;
-        using GemmInvoker  = typename Gemm::Invoker;
-        using GemmArgument = typename Gemm::Argument;
-
-        auto gemm    = Gemm{};
-        auto invoker = gemm.MakeInvoker();
-        auto argument =
-            gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                              static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                              static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                              M,
-                              N,
-                              K,
-                              StrideA,
-                              StrideB,
-                              StrideC);
-
-        device_gemm_combos.push_back(std::make_tuple(std::make_unique<Gemm>(gemm),
-                                                     std::make_unique<GemmInvoker>(invoker),
-                                                     std::make_unique<GemmArgument>(argument)));
-    });
-
-    for(auto& device_gemm_combo : device_gemm_combos)
+    if(!gemm.IsSupportedArgument(argument))
     {
-        auto& gemm_ptr     = std::get<0>(device_gemm_combo);
-        auto& invoker_ptr  = std::get<1>(device_gemm_combo);
-        auto& argument_ptr = std::get<2>(device_gemm_combo);
-
-        if(!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            throw std::runtime_error(
-                "wrong! device_gemm with the specified compilation parameters does "
-                "not support this GEMM problem");
-        }
-
-        for(int i = 0; i < 5; ++i)
-        {
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
-
-            std::size_t flop = std::size_t(2) * M * N * K;
-            std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
-
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-            std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s" << std::endl;
-        }
+        throw std::runtime_error(
+            "wrong! device_gemm with the specified compilation parameters does "
+            "not support this GEMM problem");
     }
 
-    // copy result back to host
+    float ave_time = invoker.Run(argument, nrepeat);
+
+    std::size_t flop = std::size_t(2) * M * N * K;
+    std::size_t num_btype =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl;
+
     c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
     if(do_verification)
@@ -190,15 +198,5 @@ int main(int argc, char* argv[])
         host_gemm_mk_kn_mn(a_m_k, b_k_n, c_m_n_host_result);
 
         check_error(c_m_n_host_result, c_m_n_device_result);
-
-        if(do_log)
-        {
-            LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                << std::endl;
-            LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                << std::endl;
-        }
     }
 }

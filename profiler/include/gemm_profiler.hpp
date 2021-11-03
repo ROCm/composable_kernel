@@ -125,18 +125,6 @@ void profile_gemm(int do_verification,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_1{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1{});
-        break;
-    case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_1{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2{-5, 5});
-        break;
-    case 3:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1{});
-        break;
-    case 4:
         a_m_k.GenerateTensorValue(GeneratorTensor_2{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2{-5, 5});
         break;

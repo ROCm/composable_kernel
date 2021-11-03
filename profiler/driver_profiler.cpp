@@ -20,13 +20,18 @@ int main(int argc, char* argv[])
 {
     if(argc != 13)
     {
-        printf("arg1 to 6: datatype, layout, do_verification, init_method, do_log, nrepeat\n");
+        printf("arg1: data type (0=fp32, 1=fp16)\n");
+        printf("arg2: matrix layout (0=NN, 1=NT, 2=TN, 3=TT)\n");
+        printf("arg3: verification (0=no, 1=yes)\n");
+        printf("arg4: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg5: print matrix value (0=no, 1=yes)\n");
+        printf("arg6: run kernel # of times (>1)\n");
         printf("arg7 to 12: M, N, K, StrideA, StrideB, StrideC\n");
         exit(1);
     }
 
-    const int data_type       = static_cast<GemmDataType>(std::stoi(argv[1]));
-    const int layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[2]));
+    const int data_type        = static_cast<GemmDataType>(std::stoi(argv[1]));
+    const int layout           = static_cast<GemmMatrixLayout>(std::stoi(argv[2]));
     const bool do_verification = std::stoi(argv[3]);
     const int init_method      = std::stoi(argv[4]);
     const bool do_log          = std::stoi(argv[5]);
