@@ -31,7 +31,7 @@ extern "C" {
 #endif
 
 #ifdef __HIP_PLATFORM_HCC__
-#define EXECUTION_SPECIFIER __device__ __host__
+#define EXECUTION_SPECIFIER __device__
 #else
 #define EXECUTION_SPECIFIER
 #endif // MIOPEN_BACKEND_HIP

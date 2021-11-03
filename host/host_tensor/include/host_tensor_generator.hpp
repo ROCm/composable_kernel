@@ -53,11 +53,11 @@ struct GeneratorTensor_3
     }
 };
 
-template <typename T>
-struct GeneratorTensor_4
+template <>
+struct GeneratorTensor_3<ushort>
 {
-    T min_value = 0;
-    T max_value = 1;
+    float min_value = 0;
+    float max_value = 1;
 
     template <typename... Is>
     float operator()(Is...)
