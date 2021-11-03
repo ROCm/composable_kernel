@@ -2,6 +2,7 @@
 #define DEVICE_HPP
 
 #include <memory>
+#include <functional>
 #include <thread>
 #include <chrono>
 #include "hip/hip_runtime.h"
@@ -80,5 +81,4 @@ float launch_and_time_kernel(
 
     return timer.GetElapsedTime() / nrepeat;
 }
-
 #endif
