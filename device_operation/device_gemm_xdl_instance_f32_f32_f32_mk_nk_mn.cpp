@@ -8,6 +8,15 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_xdl_instance {
 
+using F16 = ck::half_t;
+using F32 = float;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
 // Compilation parameters for a[m, k] * b[n, k] = c[m, n]
 using device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn = std::tuple<
     // clang-format off

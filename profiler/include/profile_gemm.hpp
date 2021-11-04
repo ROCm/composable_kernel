@@ -155,6 +155,10 @@ void profile_gemm(int do_verification,
         throw std::runtime_error("wrong! no device GEMM instance found");
     }
 
+    float best_ave_time   = 0;
+    float best_tflops     = 0;
+    float best_gb_per_sec = 0;
+
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
@@ -185,30 +189,40 @@ void profile_gemm(int do_verification,
 
             std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                       << " GB/s" << std::endl;
+
+            if(tflops > best_tflops)
+            {
+                best_tflops     = tflops;
+                best_ave_time   = ave_time;
+                best_gb_per_sec = gb_per_sec;
+            }
+
+            if(do_verification)
+            {
+                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+                check_error(c_m_n_host_result, c_m_n_device_result);
+
+                if(do_log)
+                {
+                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                        << std::endl;
+                }
+            }
         }
         else
         {
             std::cout << "this device GEMM instance does not support this GEMM problem"
                       << std::endl;
         }
-
-        if(do_verification)
-        {
-            c_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
-            check_error(c_m_n_host_result, c_m_n_device_result);
-
-            if(do_log)
-            {
-                LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                    << std::endl;
-                LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                    << std::endl;
-            }
-        }
     }
+
+    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
+              << best_gb_per_sec << " GB/s" << std::endl;
 }
 
 } // namespace profiler
