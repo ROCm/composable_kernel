@@ -5,6 +5,7 @@
 #include "device.hpp"
 #include "gemm_common.hpp"
 #include "device_base.hpp"
+#include "device_gemm.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -14,21 +15,6 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-struct DeviceGemm : public BaseOperator
-{
-    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                              const void* p_b,
-                                                              void* p_c,
-                                                              ck::index_t M,
-                                                              ck::index_t N,
-                                                              ck::index_t K,
-                                                              ck::index_t StrideA,
-                                                              ck::index_t StrideB,
-                                                              ck::index_t StrideC) = 0;
-
-    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-};
 
 template <typename ADataType,
           typename BDataType,
@@ -79,11 +65,11 @@ struct DeviceGemmXdl : public DeviceGemm
         const index_t K0 = K / K1;
 
         const auto a_grid_desc_m_k = [&]() {
-            if constexpr(is_same<tensor_layout::RowMajor, ALayout>::value)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
             }
-            else if constexpr(is_same<tensor_layout::ColumnMajor, ALayout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
             }
@@ -106,11 +92,11 @@ struct DeviceGemmXdl : public DeviceGemm
         const index_t K0 = K / K1;
 
         const auto b_grid_desc_k_n = [&]() {
-            if constexpr(is_same<tensor_layout::RowMajor, BLayout>::value)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(StrideB, I1));
             }
-            else if constexpr(is_same<tensor_layout::ColumnMajor, BLayout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
             }
@@ -128,11 +114,11 @@ struct DeviceGemmXdl : public DeviceGemm
 
     static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
-        if constexpr(is_same<tensor_layout::RowMajor, CLayout>::value)
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
         {
             return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
         }
-        else if constexpr(is_same<tensor_layout::ColumnMajor, CLayout>::value)
+        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
         {
             return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
         }
