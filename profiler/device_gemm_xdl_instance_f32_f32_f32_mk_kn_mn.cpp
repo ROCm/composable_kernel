@@ -28,7 +28,7 @@ using device_gemm_xdl_instance_f32_f32_f32_mk_kn_mn =
 
 template <>
 void add_device_gemm_xdl_instance<F32, F32, F32, Row, Row, Row>(
-    std::vector<DeviceGemmXdlBaseOpPtr>& device_op_instances)
+    std::vector<DeviceGemmPtr>& device_op_instances)
 {
     using DeviceGemms = device_gemm_xdl_instance::device_gemm_xdl_instance_f32_f32_f32_mk_kn_mn;
 

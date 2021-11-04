@@ -2,8 +2,7 @@
 namespace ck {
 namespace profiler {
 
-using DeviceGemmXdlBaseOpPtr =
-    std::unique_ptr<ck::tensor_operation::device::DeviceGemmXdlBaseOperator>;
+using DeviceGemmPtr = std::unique_ptr<ck::tensor_operation::device::DeviceGemm>;
 
 namespace device_gemm_xdl_instance {
 
@@ -22,7 +21,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void add_device_gemm_xdl_instance(std::vector<DeviceGemmXdlBaseOpPtr>&);
+void add_device_gemm_xdl_instance(std::vector<DeviceGemmPtr>&);
 
 } // namespace device_gemm_xdl_instance
 } // namespace profiler

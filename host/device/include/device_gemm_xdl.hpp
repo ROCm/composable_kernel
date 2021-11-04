@@ -15,7 +15,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-struct DeviceGemmXdlBaseOperator : public BaseOperator
+struct DeviceGemm : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                               const void* p_b,
@@ -64,7 +64,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceGemmXdl : public DeviceGemmXdlBaseOperator
+struct DeviceGemmXdl : public DeviceGemm
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

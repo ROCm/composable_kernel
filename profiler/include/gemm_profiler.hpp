@@ -11,8 +11,7 @@ void add_device_gemm_xdl_instance<float,
                                   float,
                                   ck::tensor_layout::RowMajor,
                                   ck::tensor_layout::RowMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 template <>
 void add_device_gemm_xdl_instance<float,
@@ -20,8 +19,7 @@ void add_device_gemm_xdl_instance<float,
                                   float,
                                   ck::tensor_layout::RowMajor,
                                   ck::tensor_layout::ColumnMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 template <>
 void add_device_gemm_xdl_instance<float,
@@ -29,8 +27,7 @@ void add_device_gemm_xdl_instance<float,
                                   float,
                                   ck::tensor_layout::ColumnMajor,
                                   ck::tensor_layout::RowMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 template <>
 void add_device_gemm_xdl_instance<float,
@@ -38,8 +35,7 @@ void add_device_gemm_xdl_instance<float,
                                   float,
                                   ck::tensor_layout::ColumnMajor,
                                   ck::tensor_layout::ColumnMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 template <>
 void add_device_gemm_xdl_instance<ck::half_t,
@@ -47,8 +43,7 @@ void add_device_gemm_xdl_instance<ck::half_t,
                                   ck::half_t,
                                   ck::tensor_layout::RowMajor,
                                   ck::tensor_layout::RowMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 template <>
 void add_device_gemm_xdl_instance<ck::half_t,
@@ -56,8 +51,7 @@ void add_device_gemm_xdl_instance<ck::half_t,
                                   ck::half_t,
                                   ck::tensor_layout::RowMajor,
                                   ck::tensor_layout::ColumnMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 template <>
 void add_device_gemm_xdl_instance<ck::half_t,
@@ -65,8 +59,7 @@ void add_device_gemm_xdl_instance<ck::half_t,
                                   ck::half_t,
                                   ck::tensor_layout::ColumnMajor,
                                   ck::tensor_layout::RowMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 template <>
 void add_device_gemm_xdl_instance<ck::half_t,
@@ -74,8 +67,7 @@ void add_device_gemm_xdl_instance<ck::half_t,
                                   ck::half_t,
                                   ck::tensor_layout::ColumnMajor,
                                   ck::tensor_layout::ColumnMajor,
-                                  ck::tensor_layout::RowMajor>(
-    std::vector<DeviceGemmXdlBaseOpPtr>&);
+                                  ck::tensor_layout::RowMajor>(std::vector<DeviceGemmPtr>&);
 
 } // namespace device_gemm_xdl_instance
 
@@ -96,8 +88,6 @@ void profile_gemm(int do_verification,
                   int StrideB,
                   int StrideC)
 {
-    using namespace ck;
-
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::RowMajor>::value)
@@ -114,8 +104,8 @@ void profile_gemm(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<BDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<BDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -147,7 +137,7 @@ void profile_gemm(int do_verification,
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // add device GEMM instances
-    std::vector<DeviceGemmXdlBaseOpPtr> gemm_ptrs;
+    std::vector<DeviceGemmPtr> gemm_ptrs;
 
     device_gemm_xdl_instance::
         add_device_gemm_xdl_instance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
