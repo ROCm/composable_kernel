@@ -27,15 +27,15 @@ template <>
 struct DeviceGemmInstance<ck::half_t,
                           ck::half_t,
                           ck::half_t,
-                          ck::tensor_layout::RowMajor,
-                          ck::tensor_layout::ColumnMajor,
-                          ck::tensor_layout::RowMajor>
+                          ck::tensor_layout::gemm::RowMajor,
+                          ck::tensor_layout::gemm::ColumnMajor,
+                          ck::tensor_layout::gemm::RowMajor>
 {
     using F16 = ck::half_t;
     using F32 = float;
 
-    using Row = ck::tensor_layout::RowMajor;
-    using Col = ck::tensor_layout::ColumnMajor;
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
 
     template <ck::index_t... Is>
     using S = ck::Sequence<Is...>;
@@ -55,15 +55,15 @@ template <>
 struct DeviceGemmInstance<float,
                           float,
                           float,
-                          ck::tensor_layout::RowMajor,
-                          ck::tensor_layout::ColumnMajor,
-                          ck::tensor_layout::RowMajor>
+                          ck::tensor_layout::gemm::RowMajor,
+                          ck::tensor_layout::gemm::ColumnMajor,
+                          ck::tensor_layout::gemm::RowMajor>
 {
     using F16 = ck::half_t;
     using F32 = float;
 
-    using Row = ck::tensor_layout::RowMajor;
-    using Col = ck::tensor_layout::ColumnMajor;
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
 
     template <ck::index_t... Is>
     using S = ck::Sequence<Is...>;
@@ -108,13 +108,13 @@ int main(int argc, char* argv[])
     using CDataType = ck::half_t;
 
     // matrix layout
-    using ALayout = ck::tensor_layout::RowMajor;
-    using BLayout = ck::tensor_layout::ColumnMajor;
-    using CLayout = ck::tensor_layout::RowMajor;
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(std::is_same<decltype(layout), ck::tensor_layout::RowMajor>::value)
+            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
                                             std::vector<std::size_t>({stride, 1}));
