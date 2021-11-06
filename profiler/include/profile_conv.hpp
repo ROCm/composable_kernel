@@ -150,6 +150,10 @@ void profile_conv(int do_verification,
         throw std::runtime_error("wrong! no device Conv instance found");
     }
 
+    float best_ave_time   = 0;
+    float best_tflops     = 0;
+    float best_gb_per_sec = 0;
+
     // profile device Conv instances
     for(auto& conv_ptr : conv_ptrs)
     {
@@ -186,32 +190,39 @@ void profile_conv(int do_verification,
 
             std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                       << " GB/s" << std::endl;
-        }
-        else
-        {
-            std::cout << "this device conv instance does not support this conv problem"
-                      << std::endl;
-        }
 
-        if(do_verification)
-        {
-            out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
-
-            check_error(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result);
-
-            if(do_log)
+            if(tflops > best_tflops)
             {
-                LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi.mData, ",") << std::endl;
-                LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x.mData, ",") << std::endl;
-                LogRangeAsType<float>(
-                    std::cout << "out_host  : ", out_n_k_ho_wo_host_result.mData, ",")
-                    << std::endl;
-                LogRangeAsType<float>(
-                    std::cout << "out_device: ", out_n_k_ho_wo_device_result.mData, ",")
-                    << std::endl;
+                best_tflops     = tflops;
+                best_ave_time   = ave_time;
+                best_gb_per_sec = gb_per_sec;
+            }
+
+            if(do_verification)
+            {
+                out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
+
+                check_error(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result);
+
+                if(do_log)
+                {
+                    LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(
+                        std::cout << "out_host  : ", out_n_k_ho_wo_host_result.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(
+                        std::cout << "out_device: ", out_n_k_ho_wo_device_result.mData, ",")
+                        << std::endl;
+                }
             }
         }
     }
+
+    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
+              << best_gb_per_sec << " GB/s" << std::endl;
 }
 
 } // namespace profiler
