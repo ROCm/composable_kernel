@@ -19,6 +19,15 @@
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
 
+enum ConvTensorLayout
+{
+    NCHW,
+    NHWC,
+    CHWN,
+    NCHWc,
+    NHWCc
+};
+
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV_WRW_V4R4R2_XDL_NCHW 0
 #define USE_CONV_WRW_V4R4R4_XDL_NHWC 0

@@ -21,6 +21,15 @@
 #define USE_CONV_BWD_V4R1_XDL_NHWC 0
 #define USE_CONV_BWD_V4R1R2_XDL_NHWC 1
 
+enum ConvTensorLayout
+{
+    NCHW,
+    NHWC,
+    CHWN,
+    NCHWc,
+    NHWCc
+};
+
 enum ConvBackwardDataAlgo
 {
     V4R1XDLNHWC,   // 0

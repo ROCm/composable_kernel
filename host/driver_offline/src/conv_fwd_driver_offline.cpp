@@ -28,6 +28,15 @@
 #define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
 #define USE_CONV_FWD_V4R4R4_XDL_NHWC 1
 
+enum ConvTensorLayout
+{
+    NCHW,
+    NHWC,
+    CHWN,
+    NCHWc,
+    NHWCc
+};
+
 enum ConvForwardAlgo
 {
     V4R4NCHW,      // 0

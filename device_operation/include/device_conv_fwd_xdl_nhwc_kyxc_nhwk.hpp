@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_XDL_HPP
-#define DEVICE_CONV_XDL_HPP
+#ifndef DEVICE_CONV_FWD_XDL_NHWC_KYXC_NHWK_HPP
+#define DEVICE_CONV_FWD_XDL_NHWC_KYXC_NHWK_HPP
 
 #include <iostream>
 #include "device.hpp"
@@ -10,12 +10,14 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
+#include "device_conv.hpp"
+#include "device_conv_fwd_xdl.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// specification for 2D conv: in[n, hi, wi, c] * wei[k, y, x, c] = out[n, ho, wo, k]
+// specialization for 2D conv: in[n, hi, wi, c] * wei[k, y, x, c] = out[n, ho, wo, k]
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -31,12 +33,19 @@ template <typename InDataType,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadSliceLengths_K0_M_K1,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
+          typename ABlockTransferThreadClusterArrangeOrder,
+          typename ABlockTransferSrcAccessOrder,
+          ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
           typename BBlockTransferThreadSliceLengths_K0_N_K1,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
+          typename BBlockTransferThreadClusterArrangeOrder,
+          typename BBlockTransferSrcAccessOrder,
+          ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
+          ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
@@ -80,61 +89,73 @@ struct DeviceConvFwdXdl<
     BBlockLdsAddExtraN                          // bool BBlockLdsAddExtraN>
     > : public DeviceConvFwd
 {
-    using ABDatatype = InDataType;
+    using ADataType = InDataType;
+    using BDataType = WeiDataType;
+    using CDataType = OutDataType;
+
+    // TODO make A/B datatype different
+    using ABDataType = InDataType;
+
+    // TODO make it support any # of spatial dimensions
+    static constexpr index_t NDimSpatial = 2;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    static constexpr auto K1Number = Number<K1>{};
+    static constexpr auto K1Number     = Number<K1>{};
+    static constexpr auto GemmK1Number = K1Number;
 
-    static auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        ck::index_t N,
-        ck::index_t K,
-        ck::index_t C,
-        std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
-        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
-        std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
-        std::array<ck::index_t, NDimSpatial> conv_filter_strides,
-        std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
-        std::array<ck::index_t, NDimSpatial> input_image_left_pads,
-        std::array<ck::index_t, NDimSpatial> input_image_right_pads)
+    static auto
+    MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
+                                                    ck::index_t K,
+                                                    ck::index_t C,
+                                                    std::vector<ck::index_t> input_spatial_lengths,
+                                                    std::vector<ck::index_t> filter_spatial_lengths,
+                                                    std::vector<ck::index_t> output_spatial_lengths,
+                                                    std::vector<ck::index_t> conv_filter_strides,
+                                                    std::vector<ck::index_t> conv_filter_dilations,
+                                                    std::vector<ck::index_t> input_left_pads,
+                                                    std::vector<ck::index_t> input_right_pads)
     {
         using namespace ck;
 
-        const index_t Hi = in_n_hi_wi_c_grid_desc.GetLength(I1);
-        const index_t Wi = in_n_hi_wi_c_grid_desc.GetLength(I2);
+        const index_t Hi = input_spatial_lengths[0];
+        const index_t Wi = input_spatial_lengths[1];
 
-        const index_t Ho = out_n_ho_wo_k_grid_desc.GetLength(I1);
-        const index_t Wo = out_n_ho_wo_k_grid_desc.GetLength(I2);
+        const index_t Ho = output_spatial_lengths[0];
+        const index_t Wo = output_spatial_lengths[1];
 
-        const index_t Y = wei_k_y_x_c_grid_desc.GetLength(I1);
-        const index_t X = wei_k_y_x_c_grid_desc.GetLength(I2);
+        const index_t Y = filter_spatial_lengths[0];
+        const index_t X = filter_spatial_lengths[1];
 
-        const index_t ConvStrideH = conv_strides[I0];
-        const index_t ConvStrideW = conv_strides[I1];
+        const index_t ConvStrideH = conv_filter_strides[0];
+        const index_t ConvStrideW = conv_filter_strides[1];
 
-        const index_t ConvDilationH = conv_dilations[I0];
-        const index_t ConvDilationW = conv_dilations[I1];
+        const index_t ConvDilationH = conv_filter_dilations[0];
+        const index_t ConvDilationW = conv_filter_dilations[1];
 
-        const index_t InLeftPadH = in_left_pads[I0];
-        const index_t InLeftPadW = in_left_pads[I1];
+        const index_t InLeftPadH = input_left_pads[0];
+        const index_t InLeftPadW = input_left_pads[1];
 
-        const index_t InRightPadH = in_right_pads[I0];
-        const index_t InRightPadW = in_right_pads[I1];
+        const index_t InRightPadH = input_right_pads[0];
+        const index_t InRightPadW = input_right_pads[1];
 
         const index_t GemmMRaw = N * Ho * Wo;
         const index_t GemmN    = K;
         const index_t GemmK    = Y * X * C;
 
-        const auto GemmMPad = math::integer_least_multiple(GemmMRaw, GemmMPerBlock) - GemmMRaw;
+        const auto GemmMPad = math::integer_least_multiple(GemmMRaw, MPerBlock) - GemmMRaw;
 
         assert(GemmK % GemmK1Number == 0);
 
         const index_t GemmK0 = GemmK / GemmK1Number;
 
         // A: input tensor
+        const auto in_n_hi_wi_c_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
+
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
             in_n_hi_wi_c_grid_desc,
             make_tuple(make_pass_through_transform(N),
@@ -177,8 +198,11 @@ struct DeviceConvFwdXdl<
                                         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
         // B: weight tensor
+        const auto wei_k_yxc_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(K, Y * X * C));
+
         const auto wei_gemmk_gemmn_grid_desc = transform_tensor_descriptor(
-            make_naive_tensor_descriptor_packed(make_tuple(K, Y * X * C)),
+            wei_k_yxc_grid_desc,
             make_tuple(make_pass_through_transform(K), make_pass_through_transform(Y * X * C)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<1>{}, Sequence<0>{}));
@@ -191,8 +215,11 @@ struct DeviceConvFwdXdl<
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         // C: output tensor
+        const auto out_nhowo_k_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
+
         const auto out_gemmmraw_gemmn_grid_desc = transform_tensor_descriptor(
-            make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K)),
+            out_nhowo_k_grid_desc,
             make_tuple(make_pass_through_transform(N * Ho * Wo), make_pass_through_transform(K)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -210,11 +237,11 @@ struct DeviceConvFwdXdl<
     }
 
     using ABCGridDescs = decltype(MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        1, 1, 1, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}));
+        1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
 
-    using AGridDesc_K0_M_K1 = decltype(ABCGridDescs{}[I0]);
-    using BGridDesc_K0_N_K1 = decltype(ABCGridDescs{}[I1]);
-    using CGridDesc_M_N     = decltype(ABCGridDescs{}[I2]);
+    using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
+    using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
+    using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // TODO remove these hacks
     static constexpr auto a_k0_m_k1_grid_step_hacks = make_tuple(
@@ -316,13 +343,15 @@ struct DeviceConvFwdXdl<
                  ck::index_t N,
                  ck::index_t K,
                  ck::index_t C,
-                 std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial> conv_filter_strides,
-                 std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
-                 std::array<ck::index_t, NDimSpatial> input_image_left_pads,
-                 std::array<ck::index_t, NDimSpatial> input_image_right_pads)
+                 std::vector<ck::index_t> input_spatial_lengths,
+                 std::vector<ck::index_t> filter_spatial_lengths,
+                 std::vector<ck::index_t> output_spatial_lengths,
+                 std::vector<ck::index_t> conv_filter_strides,
+                 std::vector<ck::index_t> conv_filter_dilations,
+                 std::vector<ck::index_t> input_left_pads,
+                 std::vector<ck::index_t> input_right_pads,
+                 ck::index_t M01,
+                 ck::index_t N01)
             : p_a_grid_{p_in_grid},
               p_b_grid_{p_wei_grid},
               p_c_grid_{p_out_grid},
@@ -343,8 +372,8 @@ struct DeviceConvFwdXdl<
                 output_spatial_lengths,
                 conv_filter_strides,
                 conv_filter_dilations,
-                input_image_left_pads,
-                input_image_right_pads);
+                input_left_pads,
+                input_right_pads);
 
             a_grid_desc_k0_m_k1_ = descs[I0];
             b_grid_desc_k0_n_k1_ = descs[I1];
@@ -376,7 +405,7 @@ struct DeviceConvFwdXdl<
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdl::Argument;
+        using Argument = DeviceConvFwdXdl::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -417,10 +446,10 @@ struct DeviceConvFwdXdl<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -442,10 +471,10 @@ struct DeviceConvFwdXdl<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -499,13 +528,13 @@ struct DeviceConvFwdXdl<
                              ck::index_t N,
                              ck::index_t K,
                              ck::index_t C,
-                             std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
-                             std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
-                             std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
-                             std::array<ck::index_t, NDimSpatial> conv_filter_strides,
-                             std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
-                             std::array<ck::index_t, NDimSpatial> input_image_left_pads,
-                             std::array<ck::index_t, NDimSpatial> input_image_right_pads)
+                             std::vector<ck::index_t> input_spatial_lengths,
+                             std::vector<ck::index_t> filter_spatial_lengths,
+                             std::vector<ck::index_t> output_spatial_lengths,
+                             std::vector<ck::index_t> conv_filter_strides,
+                             std::vector<ck::index_t> conv_filter_dilations,
+                             std::vector<ck::index_t> input_left_pads,
+                             std::vector<ck::index_t> input_right_pads)
     {
         return Argument{p_in_grid,
                         p_wei_grid,
@@ -518,8 +547,8 @@ struct DeviceConvFwdXdl<
                         output_spatial_lengths,
                         conv_filter_strides,
                         conv_filter_dilations,
-                        input_image_left_pads,
-                        input_image_right_pads,
+                        input_left_pads,
+                        input_right_pads,
                         1,
                         1};
     }
@@ -534,27 +563,27 @@ struct DeviceConvFwdXdl<
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
-                        std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
-                        std::array<ck::index_t, NDimSpatial> conv_filter_strides,
-                        std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
-                        std::array<ck::index_t, NDimSpatial> input_image_left_pads,
-                        std::array<ck::index_t, NDimSpatial> input_image_right_pads) override
+                        std::vector<ck::index_t> input_spatial_lengths,
+                        std::vector<ck::index_t> filter_spatial_lengths,
+                        std::vector<ck::index_t> output_spatial_lengths,
+                        std::vector<ck::index_t> conv_filter_strides,
+                        std::vector<ck::index_t> conv_filter_dilations,
+                        std::vector<ck::index_t> input_left_pads,
+                        std::vector<ck::index_t> input_right_pads) override
     {
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<const WeiDataType*>(p_wei_grid),
                                           static_cast<OutDataType*>(p_out_grid),
-                                          M,
                                           N,
                                           K,
+                                          C,
                                           input_spatial_lengths,
                                           filter_spatial_lengths,
                                           output_spatial_lengths,
                                           conv_filter_strides,
                                           conv_filter_dilations,
-                                          input_image_left_pads,
-                                          input_image_right_pads,
+                                          input_left_pads,
+                                          input_right_pads,
                                           1,
                                           1);
     }

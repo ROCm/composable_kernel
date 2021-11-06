@@ -20,7 +20,7 @@ int gemm_profiler(int argc, char* argv[])
 {
     if(argc != 14)
     {
-        printf("arg1: tensor operation\n");
+        printf("arg1: tensor operation (gemm=GEMM)\n");
         printf("arg2: data type (0=fp32, 1=fp16)\n");
         printf("arg3: matrix layout (0=NN, 1=NT, 2=TN, 3=TT)\n");
         printf("arg4: verification (0=no, 1=yes)\n");

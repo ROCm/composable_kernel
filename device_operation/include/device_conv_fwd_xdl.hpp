@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_XDL_HPP
-#define DEVICE_CONV_XDL_HPP
+#ifndef DEVICE_CONV_FWD_XDL_HPP
+#define DEVICE_CONV_FWD_XDL_HPP
 
 #include <iostream>
 #include "device.hpp"
@@ -50,7 +50,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceConvFwdXdl : public DeviceConvFwd;
+struct DeviceConvFwdXdl;
 
 } // namespace device
 } // namespace tensor_operation

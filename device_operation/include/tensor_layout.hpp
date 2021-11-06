@@ -33,6 +33,18 @@ struct NHWK : public BaseTensorLayout
 {
 };
 
+struct NCHW : public BaseTensorLayout
+{
+};
+
+struct KCYX : public BaseTensorLayout
+{
+};
+
+struct NKHW : public BaseTensorLayout
+{
+};
+
 } // namespace convolution
 
 } // namespace tensor_layout

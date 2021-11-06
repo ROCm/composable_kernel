@@ -14,15 +14,13 @@ int main(int argc, char* argv[])
     {
         return gemm_profiler(argc, argv);
     }
-#if 0
-    else if (strcmp(argv[1], "conv") == 0)
+    else if(strcmp(argv[1], "conv") == 0)
     {
         return conv_profiler(argc, argv);
     }
-#endif
     else
     {
-        // printf("arg1: tensor operation (gemm=GEMM, conv=Convolution)\n");
-        printf("arg1: tensor operation (gemm=GEMM)\n");
+        printf("arg1: tensor operation (gemm=GEMM, conv=Convolution)\n");
+        return 0;
     }
 }

@@ -1,12 +1,12 @@
 #include <stdlib.h>
 #include "config.hpp"
 #include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_instance.hpp"
+#include "device_gemm_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_gemm_xdl_instance {
+namespace device_gemm_instance {
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -36,10 +36,10 @@ using device_gemm_xdl_instance_f32_f32_f32_mk_kn_mn = std::tuple<
     >;
 
 template <>
-void add_device_gemm_xdl_instance<F32, F32, F32, Row, Row, Row>(
+void add_device_gemm_instance<F32, F32, F32, Row, Row, Row>(
     std::vector<DeviceGemmPtr>& device_op_instances)
 {
-    using DeviceGemms = device_gemm_xdl_instance::device_gemm_xdl_instance_f32_f32_f32_mk_kn_mn;
+    using DeviceGemms = device_gemm_instance::device_gemm_xdl_instance_f32_f32_f32_mk_kn_mn;
 
     const auto device_gemms = DeviceGemms{};
 
@@ -52,7 +52,7 @@ void add_device_gemm_xdl_instance<F32, F32, F32, Row, Row, Row>(
     });
 }
 
-} // namespace device_gemm_xdl_instance
+} // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
