@@ -321,6 +321,7 @@ int main(int argc, char* argv[])
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
+    std::srand(100);
     switch(init_method)
     {
     case 0:

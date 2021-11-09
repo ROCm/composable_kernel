@@ -167,6 +167,7 @@ enum ActivTypeEnum_t
 
 // index type
 using index_t = int32_t;
+using long_index_t = int64_t;
 
 } // namespace ck
 #endif

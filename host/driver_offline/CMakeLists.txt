@@ -41,3 +41,7 @@ target_link_libraries(conv_wrw_driver_offline PRIVATE host_tensor)
 target_link_libraries(gemm_driver_offline PRIVATE host_tensor)
 
 target_link_libraries(conv3d_fwd_driver_offline PRIVATE host_tensor)
+
+set(SIMPLE_TEST src/simple_test.cpp)
+add_executable(simple_test ${SIMPLE_TEST})
+target_link_libraries(simple_test PRIVATE)

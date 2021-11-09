@@ -16,12 +16,7 @@
 #include "device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
-#define USE_CONV_FWD_V4R4_NCHW 0
-#define USE_CONV_FWD_V4R4R2_NHWC 0
-#define USE_CONV_FWD_V6R1_NCHW 0
-#define USE_CONV_FWD_V5R1_NCHW 0
-#define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
-#define USE_CONV_FWD_V4R4R4_XDL_NHWC 1
+#define USE_CONV3D_FWD_V4R4R4_XDL_NHWC 1
 
 enum ConvForwardAlgo
 {
@@ -241,7 +236,7 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
-#if USE_CONV_FWD_V4R4R4_XDL_NHWC
+#if USE_CONV3D_FWD_V4R4R4_XDL_NHWC
     if(algo == ConvForwardAlgo::V4R4R4XDLNDHWC)
     {
         if(layout != ConvTensorLayout::NDHWC)

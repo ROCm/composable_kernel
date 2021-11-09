@@ -319,6 +319,7 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
     float error     = 0;
     float max_diff  = -1;
     float ref_value = 0, result_value = 0;
+<<<<<<< HEAD
 
     if constexpr(std::is_same<ushort, T>::value)
     {
@@ -335,6 +336,10 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
         }
     }
     else
+=======
+    printf("ref.mData.size() = %ld\n", ref.mData.size());
+    for(std::size_t i = 0; i < ref.mData.size(); ++i)
+>>>>>>> WIP: conv3d works with small-tiling tuning parameters, but not large tiling
     {
         for(int i = 0; i < ref.mData.size(); ++i)
         {

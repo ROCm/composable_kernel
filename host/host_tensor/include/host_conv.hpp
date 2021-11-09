@@ -98,7 +98,7 @@ void host_direct_convolution3d(const Tensor<TIn>& in,
                                    out.mDesc.GetLengths()[1],
                                    out.mDesc.GetLengths()[2],
                                    out.mDesc.GetLengths()[3],
-                                   out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
+                                   out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency() - 8);
     }
     else
     {
