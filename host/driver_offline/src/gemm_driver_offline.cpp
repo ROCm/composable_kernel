@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+//#include <half.hpp>
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -73,10 +73,14 @@ int main(int argc, char* argv[])
     using ab_data_t  = float;
     using acc_data_t = float;
     using c_data_t   = float;
-#elif 1
+#elif 0
     using ab_data_t  = half_t;
     using acc_data_t = float;
     using c_data_t   = half_t;
+#elif 1
+    using ab_data_t  = ushort;
+    using acc_data_t = float;
+    using c_data_t   = ushort;
 #elif 1
     using ab_data_t  = int8_t;
     using acc_data_t = int32_t;
@@ -155,24 +159,24 @@ int main(int argc, char* argv[])
         // no initialization
         break;
     case 1:
-        a.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
         break;
     case 2:
-        a.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
         break;
     case 3:
-        a.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
         break;
     case 4:
-        a.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
         break;
     default:
-        a.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_3<ab_data_t>{0.0, 1.0}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_3<ab_data_t>{-0.5, 0.5}, num_thread);
     }
 
 #if USE_GEMM_XDL_MK_KN_MN
@@ -273,7 +277,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_gemm(a, b, c_host, layout);
+        host_gemm_bfp16(a, b, c_host, layout);
 
         check_error(c_host, c_device);
 

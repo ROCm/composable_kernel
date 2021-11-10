@@ -4,6 +4,7 @@
 #include <cmath>
 #include "config.hpp"
 
+template <typename T = float>
 struct GeneratorTensor_1
 {
     int value = 1;
@@ -12,6 +13,18 @@ struct GeneratorTensor_1
     float operator()(Is...)
     {
         return value;
+    }
+};
+
+template <>
+struct GeneratorTensor_1<ushort>
+{
+    float value = 1.0;
+
+    template <typename... Is>
+    float operator()(Is...)
+    {
+        return float_to_bfloat16(value);
     }
 };
 
@@ -26,6 +39,7 @@ struct GeneratorTensor_0
     }
 };
 
+template <typename T = float>
 struct GeneratorTensor_2
 {
     int min_value = 0;
@@ -38,7 +52,21 @@ struct GeneratorTensor_2
     }
 };
 
-template <typename T>
+template <>
+struct GeneratorTensor_2<ushort>
+{
+    int min_value = 0;
+    int max_value = 1;
+
+    template <typename... Is>
+    float operator()(Is...)
+    {
+        float tmp = (std::rand() % (max_value - min_value)) + min_value;
+        return float_to_bfloat16(tmp);
+    }
+};
+
+template <typename T = float>
 struct GeneratorTensor_3
 {
     T min_value = 0;
