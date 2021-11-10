@@ -203,30 +203,30 @@ int main(int argc, char* argv[])
         // no initialization
         break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_1<out_data_t>{}, num_thread);
         break;
     case 2:
-        in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_2<out_data_t>{-5, 5}, num_thread);
         break;
     case 3:
-        in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_1<out_data_t>{}, num_thread);
         break;
     case 4:
-        in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_2<out_data_t>{-5, 5}, num_thread);
         break;
     case 5:
-        in.GenerateTensorValue(GeneratorTensor_3<float>{-0.1, 0.1}, num_thread);
-        out.GenerateTensorValue(GeneratorTensor_3<float>{-0.1, 0.1}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_3<in_data_t>{-0.1, 0.1}, num_thread);
+        out.GenerateTensorValue(GeneratorTensor_3<out_data_t>{-0.1, 0.1}, num_thread);
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{1, 5}, num_thread);
 
         auto gen_out = [](auto... is) {
-            return GeneratorTensor_2{1, 5}(is...) * GeneratorTensor_Checkboard{}(is...);
+            return GeneratorTensor_2<out_data_t>{1, 5}(is...) * GeneratorTensor_Checkboard{}(is...);
         };
         out.GenerateTensorValue(gen_out, num_thread);
     }
