@@ -352,7 +352,8 @@ void check_error<ushort>(const Tensor<ushort>& ref, const Tensor<ushort>& result
     }
 
     std::cout << "error: " << error << std::endl;
-    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
+    std::cout << "max_diff: " << max_diff << ", ref: " << ref_value << ", res: " << result_value
+              << std::endl;
 }
 
 #endif

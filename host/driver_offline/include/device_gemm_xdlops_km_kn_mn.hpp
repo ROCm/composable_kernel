@@ -180,14 +180,14 @@ void device_gemm_xdlops_km_kn_mn(const Tensor<ABType>& a_k_m,
     using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 4, 8>;
     using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 64, 1>;
 
-    constexpr index_t ABlockTransferSrcScalarPerVector_M  = 4;
-    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 8;
+    constexpr index_t ABlockTransferSrcScalarPerVector_M  = 1;
+    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 1;
 
     using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<1, 2, 8>;
     using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<4, 64, 1>;
 
-    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 2;
-    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 1;
+    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 1;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
 #elif 0

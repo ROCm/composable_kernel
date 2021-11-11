@@ -158,11 +158,11 @@ void host_gemm(const Tensor<AType>& a,
     }
 }
 
-template <typename AType, typename BType, typename CType>
-void host_gemm_bfp16(const Tensor<AType>& a,
-                     const Tensor<BType>& b,
-                     Tensor<CType>& c,
-                     const GemmMatrixLayout layout)
+template <>
+void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
+                                       const Tensor<ushort>& b,
+                                       Tensor<ushort>& c,
+                                       const GemmMatrixLayout layout)
 {
     if(layout == GemmMatrixLayout::MK_KN_MN)
     {

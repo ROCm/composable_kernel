@@ -4,7 +4,7 @@
 #include <cmath>
 #include "config.hpp"
 
-template <typename T = float>
+template <typename T>
 struct GeneratorTensor_1
 {
     int value = 1;
@@ -22,9 +22,21 @@ struct GeneratorTensor_1<ushort>
     float value = 1.0;
 
     template <typename... Is>
-    float operator()(Is...)
+    ushort operator()(Is...)
     {
         return float_to_bfloat16(value);
+    }
+};
+
+template <>
+struct GeneratorTensor_1<int8_t>
+{
+    int8_t value = 1;
+
+    template <typename... Is>
+    int8_t operator()(Is...)
+    {
+        return value;
     }
 };
 
@@ -39,7 +51,7 @@ struct GeneratorTensor_0
     }
 };
 
-template <typename T = float>
+template <typename T>
 struct GeneratorTensor_2
 {
     int min_value = 0;
@@ -59,14 +71,27 @@ struct GeneratorTensor_2<ushort>
     int max_value = 1;
 
     template <typename... Is>
-    float operator()(Is...)
+    ushort operator()(Is...)
     {
         float tmp = (std::rand() % (max_value - min_value)) + min_value;
         return float_to_bfloat16(tmp);
     }
 };
 
-template <typename T = float>
+template <>
+struct GeneratorTensor_2<int8_t>
+{
+    int min_value = 0;
+    int max_value = 1;
+
+    template <typename... Is>
+    int8_t operator()(Is...)
+    {
+        return (std::rand() % (max_value - min_value)) + min_value;
+    }
+};
+
+template <typename T>
 struct GeneratorTensor_3
 {
     T min_value = 0;
@@ -88,13 +113,29 @@ struct GeneratorTensor_3<ushort>
     float max_value = 1;
 
     template <typename... Is>
-    float operator()(Is...)
+    ushort operator()(Is...)
     {
         float tmp = float(std::rand()) / float(RAND_MAX);
 
         float fp32_tmp = min_value + tmp * (max_value - min_value);
 
         return float_to_bfloat16(fp32_tmp);
+    }
+};
+
+template <>
+struct GeneratorTensor_3<int8_t>
+{
+    float min_value = 0;
+    float max_value = 1;
+
+    template <typename... Is>
+    int8_t operator()(Is...)
+    {
+        int8_t min_tmp = static_cast<int8_t>(min_value);
+        int8_t max_tmp = static_cast<int8_t>(max_value);
+
+        return (std::rand() % (max_tmp - min_tmp)) + min_tmp;
     }
 };
 
