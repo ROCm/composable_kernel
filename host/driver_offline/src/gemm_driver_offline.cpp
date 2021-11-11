@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-//#include <half.hpp>
+#include <half.hpp>
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
