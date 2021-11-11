@@ -169,7 +169,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_mk_kn_mn = [&](auto m, auto n) {
             const int K = a.mDesc.GetLengths()[1];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {
@@ -187,7 +187,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_mk_nk_mn = [&](auto m, auto n) {
             const int K = a.mDesc.GetLengths()[1];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {
@@ -205,7 +205,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_km_kn_mn = [&](auto m, auto n) {
             const int K = a.mDesc.GetLengths()[0];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {
@@ -223,7 +223,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_km_nk_mn = [&](auto m, auto n) {
             const int K = a.mDesc.GetLengths()[0];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {
@@ -241,7 +241,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_mk_kn_nm = [&](auto n, auto m) {
             const int K = a.mDesc.GetLengths()[1];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {
@@ -259,7 +259,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_mk_nk_nm = [&](auto n, auto m) {
             const int K = a.mDesc.GetLengths()[1];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {
@@ -277,7 +277,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_km_kn_nm = [&](auto n, auto m) {
             const int K = a.mDesc.GetLengths()[0];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {
@@ -295,7 +295,7 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
         auto f_km_nk_nm = [&](auto n, auto m) {
             const int K = a.mDesc.GetLengths()[0];
 
-            float v = 0;
+            double v = 0;
 
             for(int k = 0; k < K; ++k)
             {

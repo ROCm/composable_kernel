@@ -113,7 +113,7 @@ struct host_direct_convolution_fwd<ushort, ushort, ushort>
         constexpr auto I1 = Number<1>{};
 
         auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-            float v = 0;
+            double v = 0;
             for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
             {
                 for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
@@ -135,7 +135,7 @@ struct host_direct_convolution_fwd<ushort, ushort, ushort>
         };
 
         auto f_nhwc = [&](auto n, auto ho, auto wo, auto k) {
-            float v = 0;
+            double v = 0;
             for(int c = 0; c < wei.mDesc.GetLengths()[3]; ++c)
             {
                 for(int y = 0; y < wei.mDesc.GetLengths()[1]; ++y)
