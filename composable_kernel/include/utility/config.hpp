@@ -94,7 +94,7 @@
 #define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER 0
 
 // merge transformation use magic number division
-#define CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION 0
+#define CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION 1
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be

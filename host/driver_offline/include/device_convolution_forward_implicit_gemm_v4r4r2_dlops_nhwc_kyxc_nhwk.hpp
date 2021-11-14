@@ -141,14 +141,14 @@ void device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk(
 #endif
 
     const auto descs =
-        transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(in_n_hi_wi_c_desc,
-                                                                          wei_k_y_x_c_desc,
-                                                                          out_n_ho_wo_k_desc,
-                                                                          conv_strides,
-                                                                          conv_dilations,
-                                                                          in_left_pads,
-                                                                          in_right_pads,
-                                                                          Number<GemmK1>{});
+        transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk(in_n_hi_wi_c_desc,
+                                                                      wei_k_y_x_c_desc,
+                                                                      out_n_ho_wo_k_desc,
+                                                                      conv_strides,
+                                                                      conv_dilations,
+                                                                      in_left_pads,
+                                                                      in_right_pads,
+                                                                      Number<GemmK1>{});
 
     const auto in_gemmk0_gemmm_gemmk1_grid_desc  = descs[I0];
     const auto wei_gemmk0_gemmn_gemmk1_grid_desc = descs[I1];

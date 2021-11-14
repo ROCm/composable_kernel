@@ -11,7 +11,6 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
-#include "host_conv.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk.hpp"
@@ -28,6 +27,15 @@
 #define USE_CONV_FWD_V4R4R2_XDL_NCHW 0
 #define USE_CONV_FWD_V4R4R4_XDL_NHWC 1
 
+enum ConvTensorLayout
+{
+    NCHW,
+    NHWC,
+    CHWN,
+    NCHWc,
+    NHWCc
+};
+
 enum ConvForwardAlgo
 {
     V4R4NCHW,      // 0
@@ -37,6 +45,93 @@ enum ConvForwardAlgo
     V4R4R2XDLNCHW, // 4
     V4R4R4XDLNHWC  // 5
 };
+
+template <typename TIn,
+          typename TWei,
+          typename TOut,
+          typename ConvStrides,
+          typename ConvDilations,
+          typename InLeftPads,
+          typename InRightPads>
+void host_convolution_forward(const Tensor<TIn>& in,
+                              const Tensor<TWei>& wei,
+                              Tensor<TOut>& out,
+                              const ConvStrides& conv_strides,
+                              const ConvDilations& conv_dilations,
+                              const InLeftPads& in_left_pads,
+                              const InRightPads&,
+                              const ConvTensorLayout layout = ConvTensorLayout::NCHW)
+{
+    using namespace ck;
+
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
+        double v = 0;
+        for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
+        {
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+            {
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                {
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
+                    {
+                        v += static_cast<const double>(in(n, c, hi, wi)) *
+                             static_cast<const double>(wei(k, c, y, x));
+                    }
+                }
+            }
+        }
+        out(n, k, ho, wo) = v;
+    };
+
+    auto f_nhwc = [&](auto n, auto ho, auto wo, auto k) {
+        double v = 0;
+        for(int c = 0; c < wei.mDesc.GetLengths()[3]; ++c)
+        {
+            for(int y = 0; y < wei.mDesc.GetLengths()[1]; ++y)
+            {
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int x = 0; x < wei.mDesc.GetLengths()[2]; ++x)
+                {
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[1] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[2])
+                    {
+                        v += static_cast<const double>(in(n, hi, wi, c)) *
+                             static_cast<const double>(wei(k, y, x, c));
+                    }
+                }
+            }
+        }
+        out(n, ho, wo, k) = v;
+    };
+
+    if(layout == ConvTensorLayout::NCHW)
+    {
+        make_ParallelTensorFunctor(f_nchw,
+                                   out.mDesc.GetLengths()[0],
+                                   out.mDesc.GetLengths()[1],
+                                   out.mDesc.GetLengths()[2],
+                                   out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
+    }
+    else if(layout == ConvTensorLayout::NHWC)
+    {
+        make_ParallelTensorFunctor(f_nhwc,
+                                   out.mDesc.GetLengths()[0],
+                                   out.mDesc.GetLengths()[1],
+                                   out.mDesc.GetLengths()[2],
+                                   out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
+    }
+    else
+    {
+        throw std::runtime_error("wrong! not supported layout");
+    }
+}
 
 int main(int argc, char* argv[])
 {
@@ -425,14 +520,14 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution(in,
-                                wei,
-                                out_host,
-                                make_tuple(conv_stride_h, conv_stride_w),
-                                make_tuple(conv_dilation_h, conv_dilation_w),
-                                make_tuple(in_left_pad_h, in_left_pad_w),
-                                make_tuple(in_right_pad_h, in_right_pad_w),
-                                layout);
+        host_convolution_forward(in,
+                                 wei,
+                                 out_host,
+                                 make_tuple(conv_stride_h, conv_stride_w),
+                                 make_tuple(conv_dilation_h, conv_dilation_w),
+                                 make_tuple(in_left_pad_h, in_left_pad_w),
+                                 make_tuple(in_right_pad_h, in_right_pad_w),
+                                 layout);
 
         check_error(out_host, out_device);
 
