@@ -92,7 +92,7 @@ extern "C" __global__ void convolution_forward_implicit_gemm_v4r4_xdlops_nhwc_ky
     const auto wei_k_y_x_c_desc   = make_naive_tensor_descriptor_packed(make_tuple(k, y, x, c));
     const auto out_n_ho_wo_k_desc = make_naive_tensor_descriptor_packed(make_tuple(n, ho, wo, k));
 
-    const auto descs = transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
+    const auto descs = transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk(
         in_n_hi_wi_c_desc,
         wei_k_y_x_c_desc,
         out_n_ho_wo_k_desc,
@@ -230,14 +230,14 @@ extern "C" __global__ void
         make_naive_tensor_descriptor_packed(make_tuple(256, 28, 28, 256));
 
     constexpr auto descs =
-        transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(in_n_hi_wi_c_desc,
-                                                                          wei_k_y_x_c_desc,
-                                                                          out_n_ho_wo_k_desc,
-                                                                          make_tuple(1, 1),
-                                                                          make_tuple(1, 1),
-                                                                          make_tuple(1, 1),
-                                                                          make_tuple(1, 1),
-                                                                          Number<K1>{});
+        transform_forward_convolution_into_gemm_v4r4r4_nhwc_kyxc_nhwk(in_n_hi_wi_c_desc,
+                                                                      wei_k_y_x_c_desc,
+                                                                      out_n_ho_wo_k_desc,
+                                                                      make_tuple(1, 1),
+                                                                      make_tuple(1, 1),
+                                                                      make_tuple(1, 1),
+                                                                      make_tuple(1, 1),
+                                                                      Number<K1>{});
 
     constexpr auto a_k0_m_k1_grid_desc_tmp = descs[I0];
     constexpr auto b_k0_n_k1_grid_desc_tmp = descs[I1];
