@@ -40,6 +40,7 @@ message(STATUS "Build with HIP ${hip_VERSION}")
 
 ## half
 #find_path(HALF_INCLUDE_DIR half.hpp)
+set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/half/include")
 message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
 
 # CMAKE_CXX_FLAGS
@@ -185,6 +186,7 @@ enable_cppcheck(
         composable_kernel/src/kernel_wrapper
     INCLUDE
         host/host_tensor/include
+        host/device/include
         host/solver/include
         host/driver_offline/include
         composable_kernel/include/*
@@ -196,3 +198,5 @@ enable_cppcheck(
 )
 
 add_subdirectory(host)
+add_subdirectory(example)
+add_subdirectory(profiler)

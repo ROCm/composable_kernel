@@ -304,7 +304,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                                                 NRepeat,
                                                                 K1>;
 
-        return BlockwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(c_m_n_grid_desc);
+        return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_m_n_grid_desc);
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
@@ -596,7 +596,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         // output: register to global memory
         {
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
-                blockwise_gemm.GetCM0N0M1N1M2M3M4N2BlockDescriptor();
+                blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
 
             constexpr auto M0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I0);
             constexpr auto N0 = c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc.GetLength(I1);

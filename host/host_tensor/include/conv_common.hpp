@@ -3,15 +3,6 @@
 
 #include "tensor_descriptor.hpp"
 
-enum ConvTensorLayout
-{
-    NCHW,
-    NHWC,
-    CHWN,
-    NCHWc,
-    NHWCc
-};
-
 template <typename... InDesc,
           typename... WeiDesc,
           typename ConvStrides,
