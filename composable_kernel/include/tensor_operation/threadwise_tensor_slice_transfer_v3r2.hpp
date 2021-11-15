@@ -245,26 +245,19 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
     __device__ void TransferDataFromSrcThreadScratchToDstThreadScratch()
     {
-#if 0 // debug
+#if !CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE
         static_ford<SliceLengths>{}([&](auto idx) {
             // convert from SrcData to DstData here
             dst_thread_scratch_(idx) = type_convert<DstData>{}(src_thread_scratch_[idx]);
         });
 #else
-        // TODO make this logic more generic
-        // TODO missing type_convert !!!!!!!!!!!!!
-
-        //
-        if constexpr(SrcVectorDim == DstVectorDim)
+        // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
+        // TODO make this logic more generic for more sub-dword datatype
+        if constexpr(SrcVectorDim != DstVectorDim &&
+                     is_same<half_t, remove_cvref_t<SrcData>>::value &&
+                     is_same<half_t, remove_cvref_t<DstData>>::value &&
+                     SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0)
         {
-            static_ford<SliceLengths>{}([&](auto idx) {
-                // convert from SrcData to DstData here
-                dst_thread_scratch_(idx) = type_convert<DstData>{}(src_thread_scratch_[idx]);
-            });
-        }
-        else
-        {
-
             // each transpose does
             // DstScalarPerVector # of src vectors in src_thread_scratch_
             // SrcScalarPerVector # of dst vectors in dst_thread_scratch_
@@ -323,6 +316,13 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                 // TODO type_convert is not used yet!!!!!
                 transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
+            });
+        }
+        else
+        {
+            static_ford<SliceLengths>{}([&](auto idx) {
+                // convert from SrcData to DstData here
+                dst_thread_scratch_(idx) = type_convert<DstData>{}(src_thread_scratch_[idx]);
             });
         }
 #endif
