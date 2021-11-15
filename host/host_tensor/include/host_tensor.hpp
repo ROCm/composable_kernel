@@ -120,6 +120,8 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
+    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
+
     private:
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
@@ -224,7 +226,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
     template <typename G>
-    void GenerateTensorValue(G g, std::size_t num_thread = 1)
+    void GenerateTensorValue(G g, std::size_t num_thread = std::thread::hardware_concurrency())
     {
         switch(mDesc.GetNumOfDimension())
         {

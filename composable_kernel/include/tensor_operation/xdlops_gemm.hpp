@@ -583,17 +583,17 @@ struct XdlopsGemm
         static_assert(KPack % mfma_instr.k_per_blk == 0, "KPack cannot be divided by k_per_blk");
     }
 
-    template <typename CM0N0M1N1M2N2Desc>
+    template <typename CDesc_M0_N0_M1_N1_M2_N2>
     __host__ __device__ static constexpr auto
-    MakeCM0N0M1N1M2M3M4N2Descriptor(const CM0N0M1N1M2N2Desc& c_m0_n0_m1_n1_m2_n2_desc)
+    MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
     {
-        const auto M0 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I0);
-        const auto N0 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I1);
-        const auto M1 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I2);
-        const auto N1 = c_m0_n0_m1_n1_m2_n2_desc.GetLength(I3);
+        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
+        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
+        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
 
         return transform_tensor_descriptor(
-            c_m0_n0_m1_n1_m2_n2_desc,
+            c_desc_m0_n0_m1_n1_m2_n2,
             make_tuple(make_pass_through_transform(M0),
                        make_pass_through_transform(N0),
                        make_pass_through_transform(M1),

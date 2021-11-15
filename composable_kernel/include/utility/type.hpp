@@ -16,6 +16,9 @@ struct is_same<X, X> : public integral_constant<bool, true>
 {
 };
 
+template <typename X, typename Y>
+inline constexpr bool is_same_v = is_same<X, Y>::value;
+
 template <typename T>
 using remove_reference_t = typename std::remove_reference<T>::type;
 

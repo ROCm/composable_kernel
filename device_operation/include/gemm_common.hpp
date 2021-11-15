@@ -13,4 +13,10 @@ enum GemmMatrixLayout
     KM_NK_NM, // 7
 };
 
+enum GemmDataType
+{
+    F32_F32_F32, // 0
+    F16_F16_F16, // 1
+};
+
 #endif
