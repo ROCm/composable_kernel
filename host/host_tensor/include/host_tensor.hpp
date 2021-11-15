@@ -321,4 +321,41 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
     std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
 }
 
+float bf16_to_f32(ushort src_val)
+{
+    typedef union
+    {
+        ushort x, y;
+        float f32;
+    } bf16_f32_t;
+
+    bf16_f32_t v;
+    v.x = 0;
+    v.y = src_val;
+    return v.f32;
+}
+
+template <>
+void check_error<ushort>(const Tensor<ushort>& ref, const Tensor<ushort>& result)
+{
+    float error     = 0;
+    float max_diff  = -1;
+    float ref_value = 0, result_value = 0;
+    for(int i = 0; i < ref.mData.size(); ++i)
+    {
+        error += std::abs(bf16_to_f32(ref.mData[i]) - bf16_to_f32(result.mData[i]));
+        float diff = std::abs(bf16_to_f32(ref.mData[i]) - bf16_to_f32(result.mData[i]));
+        if(max_diff < diff)
+        {
+            max_diff     = diff;
+            ref_value    = bf16_to_f32(ref.mData[i]);
+            result_value = bf16_to_f32(result.mData[i]);
+        }
+    }
+
+    std::cout << "error: " << error << std::endl;
+    std::cout << "max_diff: " << max_diff << ", ref: " << ref_value << ", res: " << result_value
+              << std::endl;
+}
+
 #endif
