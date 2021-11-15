@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-//#include <half.hpp>
+#include <half.hpp>
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -11,7 +11,6 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
-#include "host_conv.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
 
@@ -22,6 +21,87 @@ enum ConvForwardAlgo
 {
     V5R1NCHWC // 0
 };
+
+template <typename TIn,
+          typename TWei,
+          typename TOut,
+          typename ConvStrides,
+          typename ConvDilations,
+          typename InLeftPads,
+          typename InRightPads>
+void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
+                                           const Tensor<TWei>& wei,
+                                           const Tensor<TOut>& bias,
+                                           Tensor<TOut>& out_host,
+                                           Tensor<TOut>& max_host,
+                                           const ConvStrides& conv_strides,
+                                           const ConvDilations& conv_dilations,
+                                           const InLeftPads& in_left_pads,
+                                           const InRightPads&,
+                                           const ck::ActivTypeEnum_t activ_type)
+{
+    using namespace ck;
+
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    auto f_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
+        double v = 0;
+        auto k   = k0 * out_host.mDesc.GetLengths()[4] + k1;
+
+        for(int c0 = 0; c0 < wei.mDesc.GetLengths()[1]; ++c0)
+        {
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+            {
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                {
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
+                    {
+                        for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
+                        {
+                            v += static_cast<const double>(in(n, c0, hi, wi, c1)) *
+                                 static_cast<const double>(wei(k, c0, y, x, c1));
+                        }
+                    }
+                }
+            }
+        }
+
+        v += bias(k0, k1);
+        v = activ(v, activ_type);
+
+        out_host(n, k0, ho, wo, k1) = v;
+    };
+
+    make_ParallelTensorFunctor(f_nchw,
+                               out_host.mDesc.GetLengths()[0],
+                               out_host.mDesc.GetLengths()[1],
+                               out_host.mDesc.GetLengths()[2],
+                               out_host.mDesc.GetLengths()[3],
+                               out_host.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
+
+    auto maxpool_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
+        auto hx = ho * 2;
+        auto wx = wo * 2;
+
+        auto v0 = out_host(n, k0, hx, wx, k1);
+        auto v1 = out_host(n, k0, hx, wx + 1, k1);
+        auto v2 = out_host(n, k0, hx + 1, wx, k1);
+        auto v3 = out_host(n, k0, hx + 1, wx + 1, k1);
+
+        max_host(n, k0, ho, wo, k1) = std::max({v0, v1, v2, v3});
+    };
+
+    make_ParallelTensorFunctor(maxpool_nchw,
+                               max_host.mDesc.GetLengths()[0],
+                               max_host.mDesc.GetLengths()[1],
+                               max_host.mDesc.GetLengths()[2],
+                               max_host.mDesc.GetLengths()[3],
+                               max_host.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
+}
 
 int main(int argc, char* argv[])
 {
@@ -98,17 +178,17 @@ int main(int argc, char* argv[])
 
     constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
 
-#if 0
-    constexpr auto N             = Number<1>{};
-    constexpr auto Hi            = Number<1080>{};
-    constexpr auto Wi            = Number<1920>{};
-    constexpr auto Y             = Number<3>{};
-    constexpr auto X             = Number<3>{};
-    constexpr auto C0            = Number<3>{};
-    constexpr auto C1            = Number<4>{};
-    constexpr auto K0            = Number<2>{};
-    constexpr auto K1            = Number<8>{};
-#elif 1
+#if 1
+    constexpr auto N                         = Number<1>{};
+    constexpr auto Hi                        = Number<1080>{};
+    constexpr auto Wi                        = Number<1920>{};
+    constexpr auto Y                         = Number<3>{};
+    constexpr auto X                         = Number<3>{};
+    constexpr auto C0                        = Number<2>{};
+    constexpr auto C1                        = Number<8>{};
+    constexpr auto K0                        = Number<2>{};
+    constexpr auto K1                        = Number<8>{};
+#elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<1080>{};
     constexpr auto Wi = Number<1920>{};
