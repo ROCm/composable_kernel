@@ -4,7 +4,8 @@
 #include "transform_backward_weight_convolution_into_gemm_v4r4r2_nchw_kcyx_nkhw.hpp"
 #include "driver_gemm_xdlops_v2r3.hpp"
 
-template <typename TInWei,
+template <typename TIn,
+          typename TWei,
           typename TAcc,
           typename TOut,
           typename InLengths,
@@ -22,8 +23,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
     const InRightPads& in_right_pads,
-    const Tensor<TInWei>& in_n_c_hi_wi,
-    Tensor<TInWei>& wei_k_c_y_x,
+    const Tensor<TIn>& in_n_c_hi_wi,
+    Tensor<TWei>& wei_k_c_y_x,
     const Tensor<TOut>& out_n_k_ho_wo,
     ck::index_t nrepeat)
 {
@@ -35,8 +36,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
 
-    DeviceMem in_n_c_hi_wi_device_buf(sizeof(TInWei) * in_n_c_hi_wi.mDesc.GetElementSpace());
-    DeviceMem wei_k_c_y_x_device_buf(sizeof(TInWei) * wei_k_c_y_x.mDesc.GetElementSpace());
+    DeviceMem in_n_c_hi_wi_device_buf(sizeof(TIn) * in_n_c_hi_wi.mDesc.GetElementSpace());
+    DeviceMem wei_k_c_y_x_device_buf(sizeof(TWei) * wei_k_c_y_x.mDesc.GetElementSpace());
     DeviceMem out_n_k_ho_wo_device_buf(sizeof(TOut) * out_n_k_ho_wo.mDesc.GetElementSpace());
 
     in_n_c_hi_wi_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
@@ -47,7 +48,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     const auto wei_k_c_y_x_desc   = make_naive_tensor_descriptor_packed(wei_k_c_y_x_lengths);
     const auto out_n_k_ho_wo_desc = make_naive_tensor_descriptor_packed(out_n_k_ho_wo_lengths);
 
-#if 1
+#if 0
     // [M, N, K0, K1] = [128, 128, 4, 8] for fp16
     constexpr index_t BlockSize = 256;
 
@@ -164,9 +165,9 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
     {
         float ave_time = driver_gemm_xdlops_v2r3<
             BlockSize,
-            TInWei,
+            TIn,
             TAcc,
-            TOut,
+            TWei,
             InMemoryDataOperationEnum_t::Set,
             decltype(out_gemmk0_gemmm_gemmk1_grid_desc),
             decltype(in_gemmk0_gemmn_gemmk1_grid_desc),
@@ -207,8 +208,8 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nk
             true,  // ABlockLdsExtraM
             true   // BBlockLdsExtraN
             >(static_cast<TOut*>(out_n_k_ho_wo_device_buf.GetDeviceBuffer()),
-              static_cast<TInWei*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
-              static_cast<TInWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
+              static_cast<TIn*>(in_n_c_hi_wi_device_buf.GetDeviceBuffer()),
+              static_cast<TWei*>(wei_k_c_y_x_device_buf.GetDeviceBuffer()),
               out_gemmk0_gemmm_gemmk1_grid_desc,
               in_gemmk0_gemmn_gemmk1_grid_desc,
               wei_gemmm_gemmn_grid_desc,

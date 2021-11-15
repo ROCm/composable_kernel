@@ -3,6 +3,7 @@
 #include "host_tensor.hpp"
 #include "transform_backward_data_convolution_into_gemm_v4r1_nhwc_kyxc_nhwk.hpp"
 #include "driver_gemm_xdlops_v2r3.hpp"
+#include "debug.hpp"
 
 template <typename TInWei,
           typename TAcc,
@@ -275,8 +276,8 @@ void device_convolution_backward_data_implicit_gemm_v4r1_xdlops_nhwc_kyxc_nhwk(
               wei_gemmk0_gemmm_gemmk1_grid_desc,
               out_gemmk0_gemmn_gemmk1_grid_desc,
               in_gemmm_gemmn_grid_desc,
-              debug_driver_gemm_xdlops_v2r3::M01,
-              debug_driver_gemm_xdlops_v2r3::N01,
+              debug::debug_driver_gemm_xdlops_v2r3::M01,
+              debug::debug_driver_gemm_xdlops_v2r3::N01,
               wei_gemmk0_gemmm_gemmk1_grid_step_hacks,
               out_gemmk0_gemmn_gemmk1_grid_step_hacks,
               in_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,

@@ -11,17 +11,123 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
-#include "host_conv_bwd_weight.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
+#include "device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk.hpp"
+
+enum ConvTensorLayout
+{
+    NCHW,
+    NHWC,
+    CHWN,
+    NCHWc,
+    NHWCc
+};
 
 #define USE_DYNAMIC_MODE 1
-#define USE_CONV_WRW_V4R4R2_XDL_NCHW 1
+#define USE_CONV_WRW_V4R4R2_XDL_NCHW 0
+#define USE_CONV_WRW_V4R4R4_XDL_NHWC 0
+#define USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW 0
+#define USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC 0
+#define USE_CONV_WRW_V4R4R5_XDL_ATOMIC_NHWC 1
 
 enum ConvBackwardWeightAlgo
 {
-    V4R4R2XDLNCHW,
+    V4R4R2XDLNCHW,       // 0
+    V4R4R4XDLNHWC,       // 1
+    V4R4R2XDLATOMICNCHW, // 2
+    V4R4R4XDLATOMICNHWC, // 3
+    V4R4R5XDLATOMICNHWC, // 4
 };
+
+template <typename TOut,
+          typename TIn,
+          typename TWei,
+          typename ConvStrides,
+          typename ConvDilations,
+          typename InLeftPads,
+          typename InRightPads>
+void host_convolution_backward_weight(const Tensor<TOut>& out,
+                                      const Tensor<TIn>& in,
+                                      Tensor<TWei>& wei,
+                                      const ConvStrides& conv_strides,
+                                      const ConvDilations& conv_dilations,
+                                      const InLeftPads& in_left_pads,
+                                      const InRightPads&,
+                                      const ConvTensorLayout layout = ConvTensorLayout::NCHW)
+{
+    using namespace ck;
+
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+    auto f_kcyx       = [&](auto k, auto c, auto y, auto x) {
+        double v = 0;
+        for(int n = 0; n < out.mDesc.GetLengths()[0]; ++n)
+        {
+            for(int ho = 0; ho < out.mDesc.GetLengths()[2]; ++ho)
+            {
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int wo = 0; wo < out.mDesc.GetLengths()[3]; ++wo)
+                {
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
+                    {
+                        v += static_cast<const double>(in(n, c, hi, wi)) *
+                             static_cast<const double>(out(n, k, ho, wo));
+                    }
+                }
+            }
+        }
+        wei(k, c, y, x) = v;
+    };
+
+    auto f_kyxc = [&](auto k, auto y, auto x, auto c) {
+        double v = 0;
+        for(int n = 0; n < out.mDesc.GetLengths()[0]; ++n)
+        {
+            for(int ho = 0; ho < out.mDesc.GetLengths()[1]; ++ho)
+            {
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
+                for(int wo = 0; wo < out.mDesc.GetLengths()[2]; ++wo)
+                {
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[1] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[2])
+                    {
+                        v += static_cast<const double>(in(n, hi, wi, c)) *
+                             static_cast<const double>(out(n, ho, wo, k));
+                    }
+                }
+            }
+        }
+        wei(k, y, x, c) = v;
+    };
+
+    if(layout == ConvTensorLayout::NCHW)
+    {
+        make_ParallelTensorFunctor(f_kcyx,
+                                   wei.mDesc.GetLengths()[0],
+                                   wei.mDesc.GetLengths()[1],
+                                   wei.mDesc.GetLengths()[2],
+                                   wei.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
+    }
+    else if(layout == ConvTensorLayout::NHWC)
+    {
+        make_ParallelTensorFunctor(f_kyxc,
+                                   wei.mDesc.GetLengths()[0],
+                                   wei.mDesc.GetLengths()[1],
+                                   wei.mDesc.GetLengths()[2],
+                                   wei.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
+    }
+    else
+    {
+        throw std::runtime_error("wrong! not supported layout");
+    }
+}
 
 int main(int argc, char* argv[])
 {
@@ -37,10 +143,11 @@ int main(int argc, char* argv[])
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
-    if(argc != 22)
+    if(argc != 23)
     {
         printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
         printf("rest: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx\n");
+        printf("additional: desired_grid_size\n");
         exit(1);
     }
 
@@ -67,6 +174,8 @@ int main(int argc, char* argv[])
     const index_t in_left_pad_w   = std::stoi(argv[19]);
     const index_t in_right_pad_h  = std::stoi(argv[20]);
     const index_t in_right_pad_w  = std::stoi(argv[21]);
+
+    const index_t desired_grid_size = std::stoi(argv[22]);
 
     const index_t YEff = (Y - 1) * conv_dilation_h + 1;
     const index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -114,16 +223,19 @@ int main(int argc, char* argv[])
 
 #if 0
     using in_data_t  = float;
+    using wei_data_t = float;
     using acc_data_t = float;
     using out_data_t = float;
 #elif 1
     using in_data_t   = half_t;
-    using acc_data_t  = float;
     using out_data_t  = half_t;
+    using acc_data_t  = float;
+    using wei_data_t  = float;
 #elif 1
     using in_data_t  = int8_t;
-    using acc_data_t = int32_t;
     using out_data_t = int8_t;
+    using acc_data_t = int32_t;
+    using wei_data_t = int8_t;
 #endif
 
     std::vector<std::size_t> in_lengths_host(4), wei_lengths_host(4), out_lengths_host(4);
@@ -164,8 +276,8 @@ int main(int argc, char* argv[])
     }
 
     Tensor<in_data_t> in(in_lengths_host);
-    Tensor<in_data_t> wei_device(wei_lengths_host);
-    Tensor<out_data_t> wei_host(wei_lengths_host);
+    Tensor<wei_data_t> wei_device(wei_lengths_host);
+    Tensor<wei_data_t> wei_host(wei_lengths_host);
     Tensor<out_data_t> out(out_lengths_host);
 
     std::cout << "layout: " << layout << std::endl;
@@ -231,6 +343,26 @@ int main(int argc, char* argv[])
                           in_right_pads_dev);
     };
 
+    auto f_make_for_device_nhwc = [&]() {
+        const auto in_lengths_dev     = make_tuple(N, Hi, Wi, C);
+        const auto wei_lengths_dev    = make_tuple(K, Y, X, C);
+        const auto out_lengths_dev    = make_tuple(N, Ho, Wo, K);
+        const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
+        const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
+        const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
+        const auto in_right_pads_dev  = make_tuple(in_right_pad_h, in_right_pad_w);
+
+        return make_tuple(in_lengths_dev,
+                          wei_lengths_dev,
+                          out_lengths_dev,
+                          conv_strides_dev,
+                          conv_dilations_dev,
+                          in_left_pads_dev,
+                          in_right_pads_dev);
+    };
+
+    // set zero to wei_device
+    wei_device.GenerateTensorValue(GeneratorTensor_0{}, num_thread);
 #if USE_CONV_WRW_V4R4R2_XDL_NCHW
     if(algo == ConvBackwardWeightAlgo::V4R4R2XDLNCHW)
     {
@@ -242,6 +374,7 @@ int main(int argc, char* argv[])
         const auto tmp = f_make_for_device_nchw();
 
         device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw<in_data_t,
+                                                                                      wei_data_t,
                                                                                       acc_data_t,
                                                                                       out_data_t>(
             tmp[I0],
@@ -258,16 +391,131 @@ int main(int argc, char* argv[])
     }
 #endif
 
+#if USE_CONV_WRW_V4R4R4_XDL_NHWC
+    if(algo == ConvBackwardWeightAlgo::V4R4R4XDLNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk<in_data_t,
+                                                                                      wei_data_t,
+                                                                                      acc_data_t,
+                                                                                      out_data_t>(
+            tmp[I0],
+            tmp[I1],
+            tmp[I2],
+            tmp[I3],
+            tmp[I4],
+            tmp[I5],
+            tmp[I6],
+            in,
+            wei_device,
+            out,
+            nrepeat);
+    }
+#endif
+
+#if USE_CONV_WRW_V4R4R2_XDL_ATOMIC_NCHW
+    if(algo == ConvBackwardWeightAlgo::V4R4R2XDLATOMICNCHW)
+    {
+        if(layout != ConvTensorLayout::NCHW)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nchw();
+
+        device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_kcyx_nkhw<
+            in_data_t,
+            wei_data_t,
+            acc_data_t,
+            out_data_t>(tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        tmp[I3],
+                        tmp[I4],
+                        tmp[I5],
+                        tmp[I6],
+                        in,
+                        wei_device,
+                        out,
+                        desired_grid_size,
+                        nrepeat);
+    }
+#endif
+
+#if USE_CONV_WRW_V4R4R4_XDL_ATOMIC_NHWC
+    if(algo == ConvBackwardWeightAlgo::V4R4R4XDLATOMICNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_convolution_backward_weight_implicit_gemm_v4r4r4_xdlops_atomic_nhwc_kyxc_nhwk<
+            in_data_t,
+            wei_data_t,
+            acc_data_t,
+            out_data_t>(tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        tmp[I3],
+                        tmp[I4],
+                        tmp[I5],
+                        tmp[I6],
+                        in,
+                        wei_device,
+                        out,
+                        desired_grid_size,
+                        nrepeat);
+    }
+#endif
+
+#if USE_CONV_WRW_V4R4R5_XDL_ATOMIC_NHWC
+    if(algo == ConvBackwardWeightAlgo::V4R4R5XDLATOMICNHWC)
+    {
+        if(layout != ConvTensorLayout::NHWC)
+        {
+            throw std::runtime_error("wrong! layout");
+        }
+
+        const auto tmp = f_make_for_device_nhwc();
+
+        device_convolution_backward_weight_implicit_gemm_v4r4r5_xdlops_atomic_nhwc_kyxc_nhwk<
+            in_data_t,
+            wei_data_t,
+            acc_data_t,
+            out_data_t>(tmp[I0],
+                        tmp[I1],
+                        tmp[I2],
+                        tmp[I3],
+                        tmp[I4],
+                        tmp[I5],
+                        tmp[I6],
+                        in,
+                        wei_device,
+                        out,
+                        desired_grid_size,
+                        nrepeat);
+    }
+#endif
+
     if(do_verification)
     {
-        host_direct_convolution_backward_weights(out,
-                                                 in,
-                                                 wei_host,
-                                                 make_tuple(conv_stride_h, conv_stride_w),
-                                                 make_tuple(conv_dilation_h, conv_dilation_w),
-                                                 make_tuple(in_left_pad_h, in_left_pad_w),
-                                                 make_tuple(in_right_pad_h, in_right_pad_w),
-                                                 layout);
+        host_convolution_backward_weight(out,
+                                         in,
+                                         wei_host,
+                                         make_tuple(conv_stride_h, conv_stride_w),
+                                         make_tuple(conv_dilation_h, conv_dilation_w),
+                                         make_tuple(in_left_pad_h, in_left_pad_w),
+                                         make_tuple(in_right_pad_h, in_right_pad_w),
+                                         layout);
 
         check_error(wei_host, wei_device);
 
