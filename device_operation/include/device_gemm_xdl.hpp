@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include "device.hpp"
-#include "gemm_common.hpp"
 #include "device_base.hpp"
 #include "device_gemm.hpp"
 #include "common_header.hpp"
