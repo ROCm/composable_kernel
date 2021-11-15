@@ -37,7 +37,10 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    StaticBufferV2<AddressSpaceEnum_t::Vgpr, vector_type<FloatAcc, 16>, MRepeat * NRepeat, true>
+    StaticBufferOfVectorTypeV2<AddressSpaceEnum_t::Vgpr,
+                               vector_type<FloatAcc, 16>,
+                               MRepeat * NRepeat,
+                               true>
         c_thread_buf_;
 
     __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }

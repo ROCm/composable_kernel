@@ -76,7 +76,7 @@
 #define CK_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 #endif
 
-// experimental implementation
+// experimental implementation for buffer load/store/atomic
 #ifndef CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
 #define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 1
 #endif
@@ -87,6 +87,11 @@
 
 #ifndef CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
+#endif
+
+// experimental implementation for in-regsiter sub-dword transpose
+#ifndef CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE
+#define CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE 1
 #endif
 
 // pass tensor descriptor by value or void*

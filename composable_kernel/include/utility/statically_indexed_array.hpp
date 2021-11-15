@@ -8,20 +8,38 @@
 namespace ck {
 
 namespace detail {
+template <typename X, typename Y>
+struct tuple_concat;
 
-template <typename T, index_t NSize>
-__host__ __device__ constexpr auto generate_same_type_tuple()
+template <typename... Xs, typename... Ys>
+struct tuple_concat<Tuple<Xs...>, Tuple<Ys...>>
 {
-    return generate_tuple([](auto) -> T { return T{}; }, Number<NSize>{});
-}
+    using type = Tuple<Xs..., Ys...>;
+};
 
-template <typename T, index_t NSize>
-using same_type_tuple = decltype(generate_same_type_tuple<T, NSize>());
+template <typename T, index_t N>
+struct StaticallyIndexedArrayImpl
+{
+    using type =
+        typename tuple_concat<typename StaticallyIndexedArrayImpl<T, N / 2>::type,
+                              typename StaticallyIndexedArrayImpl<T, N - N / 2>::type>::type;
+};
 
+template <typename T>
+struct StaticallyIndexedArrayImpl<T, 0>
+{
+    using type = Tuple<>;
+};
+
+template <typename T>
+struct StaticallyIndexedArrayImpl<T, 1>
+{
+    using type = Tuple<T>;
+};
 } // namespace detail
 
-template <typename T, index_t NSize>
-using StaticallyIndexedArray = detail::same_type_tuple<T, NSize>;
+template <typename T, index_t N>
+using StaticallyIndexedArray = typename detail::StaticallyIndexedArrayImpl<T, N>::type;
 
 template <typename X, typename... Xs>
 __host__ __device__ constexpr auto make_statically_indexed_array(const X& x, const Xs&... xs)

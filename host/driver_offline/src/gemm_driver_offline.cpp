@@ -10,7 +10,6 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "gemm_common.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdlops_mk_kn_mn.hpp"
@@ -31,6 +30,18 @@
 #define USE_GEMM_XDL_KM_KN_NM 0
 #define USE_GEMM_XDL_KM_NK_NM 0
 
+enum GemmMatrixLayout
+{
+    MK_KN_MN, // 0
+    MK_NK_MN, // 1
+    KM_KN_MN, // 2
+    KM_NK_MN, // 3
+    MK_KN_NM, // 4
+    MK_NK_NM, // 5
+    KM_KN_NM, // 6
+    KM_NK_NM  // 7
+};
+
 enum GemmAlgo
 {
     Xdl_MK_KN_MN, // 0
@@ -43,6 +54,161 @@ enum GemmAlgo
     Xdl_KM_NK_NM, // 7
 };
 
+template <typename AType, typename BType, typename CType>
+void host_gemm(const Tensor<AType>& a,
+               const Tensor<BType>& b,
+               Tensor<CType>& c,
+               const GemmMatrixLayout layout)
+{
+    if(layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        auto f_mk_kn_mn = [&](auto m, auto n) {
+            const int K = a.mDesc.GetLengths()[1];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(k, n));
+            }
+
+            c(m, n) = v;
+        };
+
+        make_ParallelTensorFunctor(f_mk_kn_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else if(layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        auto f_mk_nk_mn = [&](auto m, auto n) {
+            const int K = a.mDesc.GetLengths()[1];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(n, k));
+            }
+
+            c(m, n) = v;
+        };
+
+        make_ParallelTensorFunctor(f_mk_nk_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else if(layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        auto f_km_kn_mn = [&](auto m, auto n) {
+            const int K = a.mDesc.GetLengths()[0];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(k, n));
+            }
+
+            c(m, n) = v;
+        };
+
+        make_ParallelTensorFunctor(f_km_kn_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else if(layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        auto f_km_nk_mn = [&](auto m, auto n) {
+            const int K = a.mDesc.GetLengths()[0];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(n, k));
+            }
+
+            c(m, n) = v;
+        };
+
+        make_ParallelTensorFunctor(f_km_nk_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else if(layout == GemmMatrixLayout::MK_KN_NM)
+    {
+        auto f_mk_kn_nm = [&](auto n, auto m) {
+            const int K = a.mDesc.GetLengths()[1];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(k, n));
+            }
+
+            c(n, m) = v;
+        };
+
+        make_ParallelTensorFunctor(f_mk_kn_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else if(layout == GemmMatrixLayout::MK_NK_NM)
+    {
+        auto f_mk_nk_nm = [&](auto n, auto m) {
+            const int K = a.mDesc.GetLengths()[1];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(n, k));
+            }
+
+            c(n, m) = v;
+        };
+
+        make_ParallelTensorFunctor(f_mk_nk_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else if(layout == GemmMatrixLayout::KM_KN_NM)
+    {
+        auto f_km_kn_nm = [&](auto n, auto m) {
+            const int K = a.mDesc.GetLengths()[0];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(k, n));
+            }
+
+            c(n, m) = v;
+        };
+
+        make_ParallelTensorFunctor(f_km_kn_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else if(layout == GemmMatrixLayout::KM_NK_NM)
+    {
+        auto f_km_nk_nm = [&](auto n, auto m) {
+            const int K = a.mDesc.GetLengths()[0];
+
+            double v = 0;
+
+            for(int k = 0; k < K; ++k)
+            {
+                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(n, k));
+            }
+
+            c(n, m) = v;
+        };
+
+        make_ParallelTensorFunctor(f_km_nk_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+    }
+    else
+    {
+        throw std::runtime_error("wrong! not supported layout");
+    }
+}
 int main(int argc, char* argv[])
 {
     using namespace ck;
@@ -73,10 +239,14 @@ int main(int argc, char* argv[])
     using ab_data_t  = float;
     using acc_data_t = float;
     using c_data_t   = float;
-#elif 1
+#elif 0
     using ab_data_t  = half_t;
     using acc_data_t = float;
     using c_data_t   = half_t;
+#elif 1
+    using ab_data_t  = ushort;
+    using acc_data_t = float;
+    using c_data_t   = ushort;
 #elif 1
     using ab_data_t  = int8_t;
     using acc_data_t = int32_t;
@@ -155,24 +325,24 @@ int main(int argc, char* argv[])
         // no initialization
         break;
     case 1:
-        a.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
         break;
     case 2:
-        a.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
         break;
     case 3:
-        a.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_1<ab_data_t>{}, num_thread);
         break;
     case 4:
-        a.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_2<ab_data_t>{-5, 5}, num_thread);
         break;
     default:
-        a.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
-        b.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
+        a.GenerateTensorValue(GeneratorTensor_3<ab_data_t>{0.0, 1.0}, num_thread);
+        b.GenerateTensorValue(GeneratorTensor_3<ab_data_t>{-0.5, 0.5}, num_thread);
     }
 
 #if USE_GEMM_XDL_MK_KN_MN

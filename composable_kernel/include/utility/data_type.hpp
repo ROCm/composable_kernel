@@ -58,6 +58,18 @@ __host__ __device__ constexpr auto make_vector_type(Number<N>)
 template <typename TV>
 struct scalar_type;
 
+// is_scalar_type
+template <typename TV>
+struct is_scalar_type
+{
+    static constexpr bool value = (scalar_type<remove_cvref_t<TV>>::vector_size == 1);
+};
+
+// has_same_scalar_type
+template <typename X, typename Y>
+using has_same_scalar_type = is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                     typename scalar_type<remove_cvref_t<Y>>::type>;
+
 template <typename T, index_t N>
 struct scalar_type<T __attribute__((ext_vector_type(N)))>
 {

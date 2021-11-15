@@ -117,6 +117,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     __host__ __device__ static constexpr index_t Size() { return sizeof...(Xs); }
 
+    // read access
     template <index_t I>
     __host__ __device__ constexpr const auto& At(Number<I>) const
     {
@@ -124,6 +125,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
         return base::GetElementByKey(detail::TupleElementKey<I>{});
     }
 
+    // write access
     template <index_t I>
     __host__ __device__ constexpr auto& At(Number<I>)
     {
@@ -131,12 +133,14 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
         return base::GetElementByKey(detail::TupleElementKey<I>{});
     }
 
+    // read access
     template <index_t I>
     __host__ __device__ constexpr const auto& operator[](Number<I> i) const
     {
         return At(i);
     }
 
+    // write access
     template <index_t I>
     __host__ __device__ constexpr auto& operator()(Number<I> i)
     {
@@ -160,6 +164,13 @@ template <typename... Xs>
 __host__ __device__ constexpr auto make_tuple(Xs&&... xs)
 {
     return Tuple<remove_cvref_t<Xs>...>(std::forward<Xs>(xs)...);
+}
+
+// https://en.cppreference.com/w/cpp/utility/tuple/tie
+template <typename... Args>
+constexpr Tuple<Args&...> tie(Args&... args) noexcept
+{
+    return {args...};
 }
 
 } // namespace ck

@@ -1,12 +1,11 @@
 #pragma once
 #include "host_tensor.hpp"
-#include "gemm_common.hpp"
 
-template <typename AType, typename BType, typename CType>
-void host_gemm(const Tensor<AType>& a,
-               const Tensor<BType>& b,
-               Tensor<CType>& c,
-               const GemmMatrixLayout layout)
+template <>
+void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
+                                       const Tensor<ushort>& b,
+                                       Tensor<ushort>& c,
+                                       const GemmMatrixLayout layout)
 {
     if(layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -17,10 +16,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(k, n));
+                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(k, n));
             }
 
-            c(m, n) = v;
+            c(m, n) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_kn_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -35,10 +34,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(n, k));
+                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(n, k));
             }
 
-            c(m, n) = v;
+            c(m, n) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_nk_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -53,10 +52,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(k, n));
+                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(k, n));
             }
 
-            c(m, n) = v;
+            c(m, n) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_km_kn_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -71,10 +70,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(n, k));
+                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(n, k));
             }
 
-            c(m, n) = v;
+            c(m, n) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_km_nk_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -89,10 +88,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(k, n));
+                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(k, n));
             }
 
-            c(n, m) = v;
+            c(n, m) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_kn_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -107,10 +106,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(m, k)) * static_cast<const double>(b(n, k));
+                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(n, k));
             }
 
-            c(n, m) = v;
+            c(n, m) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_nk_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -125,10 +124,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(k, n));
+                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(k, n));
             }
 
-            c(n, m) = v;
+            c(n, m) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_km_kn_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -143,10 +142,10 @@ void host_gemm(const Tensor<AType>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += static_cast<const double>(a(k, m)) * static_cast<const double>(b(n, k));
+                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(n, k));
             }
 
-            c(n, m) = v;
+            c(n, m) = float_to_bfloat16(v);
         };
 
         make_ParallelTensorFunctor(f_km_nk_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
