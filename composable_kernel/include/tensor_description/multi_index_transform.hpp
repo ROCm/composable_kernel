@@ -30,7 +30,8 @@ struct PassThrough
     __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
 
     template <typename LowIdx, typename UpIdx>
-    __host__ __device__ static void CalculateLowerIndex(LowIdx& idx_low, const UpIdx& idx_up)
+    __host__ __device__ static constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                                  const UpIdx& idx_up)
     {
         static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
                       "wrong! inconsistent # of dimension");
@@ -1708,7 +1709,8 @@ struct Vectorize
     __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
 
     template <typename LowIdx, typename UpIdx>
-    __host__ __device__ void CalculateLowerIndex(LowIdx& idx_low, const UpIdx& idx_up) const
+    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                           const UpIdx& idx_up) const
     {
         static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
                       "wrong! inconsistent # of dimension");

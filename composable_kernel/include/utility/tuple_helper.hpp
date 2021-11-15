@@ -6,26 +6,17 @@
 
 namespace ck {
 
-template <typename... Ts>
-struct is_known_at_compile_time<Tuple<Ts...>>
-{
-    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
-    {
-        return container_reduce(
-            Tuple<Ts...>{},
-            [](auto x, bool r) {
-                return is_known_at_compile_time<remove_cvref_t<decltype(x)>>::value & r;
-            },
-            true);
-    }
-
-    static constexpr bool value = IsKnownAtCompileTime();
-};
-
 template <typename F, index_t N>
 __host__ __device__ constexpr auto generate_tuple(F&& f, Number<N>)
 {
     return unpack([&f](auto&&... xs) { return make_tuple(f(xs)...); },
+                  typename arithmetic_sequence_gen<0, N, 1>::type{});
+}
+
+template <typename F, index_t N>
+__host__ __device__ constexpr auto generate_tie(F&& f, Number<N>)
+{
+    return unpack([&f](auto&&... xs) { return tie(f(xs)...); },
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 

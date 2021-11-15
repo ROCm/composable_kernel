@@ -9,12 +9,29 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "gemm_common.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
 #include "device_gemm_xdl.hpp"
 #include "profile_gemm.hpp"
+
+enum GemmMatrixLayout
+{
+    MK_KN_MN, // 0
+    MK_NK_MN, // 1
+    KM_KN_MN, // 2
+    KM_NK_MN, // 3
+    MK_KN_NM, // 4
+    MK_NK_NM, // 5
+    KM_KN_NM, // 6
+    KM_NK_NM, // 7
+};
+
+enum GemmDataType
+{
+    F32_F32_F32, // 0
+    F16_F16_F16, // 1
+};
 
 int gemm_profiler(int argc, char* argv[])
 {
