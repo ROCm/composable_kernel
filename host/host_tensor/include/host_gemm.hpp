@@ -16,10 +16,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(k, n));
+                v += ck::bf16_to_f32(a(m, k)) * ck::bf16_to_f32(b(k, n));
             }
 
-            c(m, n) = float_to_bfloat16(v);
+            c(m, n) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_kn_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -34,10 +34,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(n, k));
+                v += ck::bf16_to_f32(a(m, k)) * ck::bf16_to_f32(b(n, k));
             }
 
-            c(m, n) = float_to_bfloat16(v);
+            c(m, n) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_nk_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -52,10 +52,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(k, n));
+                v += ck::bf16_to_f32(a(k, m)) * ck::bf16_to_f32(b(k, n));
             }
 
-            c(m, n) = float_to_bfloat16(v);
+            c(m, n) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_km_kn_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -70,10 +70,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(n, k));
+                v += ck::bf16_to_f32(a(k, m)) * ck::bf16_to_f32(b(n, k));
             }
 
-            c(m, n) = float_to_bfloat16(v);
+            c(m, n) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_km_nk_mn, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -88,10 +88,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(k, n));
+                v += ck::bf16_to_f32(a(m, k)) * ck::bf16_to_f32(b(k, n));
             }
 
-            c(n, m) = float_to_bfloat16(v);
+            c(n, m) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_kn_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -106,10 +106,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(m, k)) * bfloat16_to_float(b(n, k));
+                v += ck::bf16_to_f32(a(m, k)) * ck::bf16_to_f32(b(n, k));
             }
 
-            c(n, m) = float_to_bfloat16(v);
+            c(n, m) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_mk_nk_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -124,10 +124,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(k, n));
+                v += ck::bf16_to_f32(a(k, m)) * ck::bf16_to_f32(b(k, n));
             }
 
-            c(n, m) = float_to_bfloat16(v);
+            c(n, m) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_km_kn_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(
@@ -142,10 +142,10 @@ void host_gemm<ushort, ushort, ushort>(const Tensor<ushort>& a,
 
             for(int k = 0; k < K; ++k)
             {
-                v += bfloat16_to_float(a(k, m)) * bfloat16_to_float(b(n, k));
+                v += ck::bf16_to_f32(a(k, m)) * ck::bf16_to_f32(b(n, k));
             }
 
-            c(n, m) = float_to_bfloat16(v);
+            c(n, m) = ck::f32_to_bf16(v);
         };
 
         make_ParallelTensorFunctor(f_km_nk_nm, c.mDesc.GetLengths()[0], c.mDesc.GetLengths()[1])(

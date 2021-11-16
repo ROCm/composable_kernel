@@ -29,6 +29,12 @@ __device__ void inner_product<float, float, float>(const float& a, const float& 
 }
 
 template <>
+__device__ void inner_product<ushort, ushort, float>(const ushort& a, const ushort& b, float& c)
+{
+    c += bf16_to_f32(a) * bf16_to_f32(b);
+}
+
+template <>
 __device__ void
 inner_product<float2_t, float2_t, float>(const float2_t& a, const float2_t& b, float& c)
 {
