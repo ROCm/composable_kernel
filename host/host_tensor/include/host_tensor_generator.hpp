@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include "config.hpp"
+#include "data_type.hpp"
 
 template <typename T>
 struct GeneratorTensor_1
@@ -24,7 +25,7 @@ struct GeneratorTensor_1<ushort>
     template <typename... Is>
     ushort operator()(Is...)
     {
-        return float_to_bfloat16(value);
+        return ck::f32_to_bf16(value);
     }
 };
 
@@ -74,7 +75,7 @@ struct GeneratorTensor_2<ushort>
     ushort operator()(Is...)
     {
         float tmp = (std::rand() % (max_value - min_value)) + min_value;
-        return float_to_bfloat16(tmp);
+        return ck::f32_to_bf16(tmp);
     }
 };
 
@@ -119,7 +120,7 @@ struct GeneratorTensor_3<ushort>
 
         float fp32_tmp = min_value + tmp * (max_value - min_value);
 
-        return float_to_bfloat16(fp32_tmp);
+        return ck::f32_to_bf16(fp32_tmp);
     }
 };
 
