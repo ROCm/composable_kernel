@@ -299,53 +299,41 @@ HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> s
 
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
+float bf16_to_f32_(ushort src_val);
+
 template <typename T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float error     = 0;
     float max_diff  = -1;
     float ref_value = 0, result_value = 0;
-    for(int i = 0; i < ref.mData.size(); ++i)
+
+    if constexpr(std::is_same<ushort, T>::value)
     {
-        error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        if(max_diff < diff)
+        for(int i = 0; i < ref.mData.size(); ++i)
         {
-            max_diff     = diff;
-            ref_value    = ref.mData[i];
-            result_value = result.mData[i];
+            error += std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
+            float diff = std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
+            if(max_diff < diff)
+            {
+                max_diff     = diff;
+                ref_value    = bf16_to_f32_(ref.mData[i]);
+                result_value = bf16_to_f32_(result.mData[i]);
+            }
         }
     }
-
-    std::cout << "error: " << error << std::endl;
-    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
-}
-
-__host__ __device__ float bf16_to_f32(ushort src_val)
-{
-    union
+    else
     {
-        uint32_t int32;
-        float fp32;
-    } u = {uint32_t(src_val) << 16};
-    return u.fp32;
-}
-
-template <>
-void check_error<ushort>(const Tensor<ushort>& ref, const Tensor<ushort>& result)
-{
-    float error     = 0;
-    float max_diff  = -1;
-    float ref_value = 0, result_value = 0;
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        error += std::abs(bf16_to_f32(ref.mData[i]) - bf16_to_f32(result.mData[i]));
-        float diff = std::abs(bf16_to_f32(ref.mData[i]) - bf16_to_f32(result.mData[i]));
-        if(max_diff < diff)
+        for(int i = 0; i < ref.mData.size(); ++i)
         {
-            max_diff     = diff;
-            ref_value    = bf16_to_f32(ref.mData[i]);
-            result_value = bf16_to_f32(result.mData[i]);
+            error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
+            float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
+            if(max_diff < diff)
+            {
+                max_diff     = diff;
+                ref_value    = ref.mData[i];
+                result_value = result.mData[i];
+            }
         }
     }
 

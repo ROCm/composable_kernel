@@ -61,3 +61,13 @@ void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream
     LogRange(os, desc.GetStrides(), ", ");
     os << "}" << std::endl;
 }
+
+float bf16_to_f32_(ushort src_val)
+{
+    union
+    {
+        uint32_t int32;
+        float fp32;
+    } u = {uint32_t(src_val) << 16};
+    return u.fp32;
+}

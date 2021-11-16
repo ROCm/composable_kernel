@@ -92,7 +92,7 @@ struct GridwiseReduction_xy_to_x_multiblock
         __shared__ compType p_in_block_buffer[BlockBufferSize];
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>{}(zeroVal));
+            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
         auto workspace_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             ws_values_global, dst1dDesc.GetLength(I0) * BlkGroupSize);
 
@@ -223,7 +223,7 @@ struct GridwiseReduction_xy_to_x_multiblock
         __shared__ int p_in_block_indices_buffer[BlockBufferSize];
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>{}(zeroVal));
+            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
         auto workspace_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             ws_values_global, dst1dDesc.GetLength(I0) * BlkGroupSize);
         auto workspace_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(

@@ -165,7 +165,7 @@ struct unary_identic
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __device__ inline constexpr T operator()(T a) const { return a * type_convert<T>{}(scaler); };
+    __device__ inline constexpr T operator()(T a) const { return a * type_convert<T>(scaler); };
 
     float scaler = 1.0f;
 };
@@ -187,7 +187,7 @@ struct unary_square
     {
         a = a * a;
 
-        return a * type_convert<T>{}(scaler);
+        return a * type_convert<T>(scaler);
     };
 
     float scaler = 1.0f;
@@ -210,7 +210,7 @@ struct unary_abs
     {
         a = abs(a);
 
-        return a * type_convert<T>{}(scaler);
+        return a * type_convert<T>(scaler);
     };
 
     float scaler = 1.0f;
@@ -249,7 +249,7 @@ struct unary_abs<half_t, hasDividing>
     {
         a = static_cast<half_t>(__habs(a));
 
-        return a * type_convert<half_t>{}(scaler);
+        return a * type_convert<half_t>(scaler);
     };
 
     float scaler = 1.0f;
