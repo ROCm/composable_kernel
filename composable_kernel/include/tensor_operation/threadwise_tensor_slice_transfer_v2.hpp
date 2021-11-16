@@ -351,7 +351,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     dst_vector_desc.CalculateOffset(dst_vector_idx);
 
                 dst_vector.template AsType<DstData>()(Number<dst_vector_offset>{}) =
-                    type_convert<DstData>{}(buffer_[Number<buffer_offset>{}]);
+                    type_convert<DstData>(buffer_[Number<buffer_offset>{}]);
             });
 
             using dst_vector_t = typename decltype(dst_vector)::type;
@@ -750,7 +750,7 @@ struct ThreadwiseTensorSliceTransfer_v4r1
                 constexpr index_t dst_offset = dst_desc.CalculateOffset(
                     dst_origin_idx + data_to_origin_disp_idx + src_vector_idx);
 
-                dst_buf(Number<dst_offset>{}) = type_convert<DstData>{}(
+                dst_buf(Number<dst_offset>{}) = type_convert<DstData>(
                     src_vector.template AsType<DstData>()[Number<src_vector_offset>{}]);
             });
         });

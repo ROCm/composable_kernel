@@ -6,14 +6,24 @@
 #include "data_type.hpp"
 
 template <typename T>
+struct GeneratorTensor_0
+{
+    template <typename... Is>
+    T operator()(Is...)
+    {
+        return T{0};
+    }
+};
+
+template <typename T>
 struct GeneratorTensor_1
 {
     int value = 1;
 
     template <typename... Is>
-    float operator()(Is...)
+    T operator()(Is...)
     {
-        return value;
+        return ck::type_convert<T>(value);
     }
 };
 
@@ -25,7 +35,7 @@ struct GeneratorTensor_1<ushort>
     template <typename... Is>
     ushort operator()(Is...)
     {
-        return ck::f32_to_bf16(value);
+        return ck::type_convert<ushort>(value);
     }
 };
 
@@ -41,17 +51,6 @@ struct GeneratorTensor_1<int8_t>
     }
 };
 
-struct GeneratorTensor_0
-{
-    int value = 0;
-
-    template <typename... Is>
-    float operator()(Is...)
-    {
-        return value;
-    }
-};
-
 template <typename T>
 struct GeneratorTensor_2
 {
@@ -59,7 +58,7 @@ struct GeneratorTensor_2
     int max_value = 1;
 
     template <typename... Is>
-    float operator()(Is...)
+    T operator()(Is...)
     {
         return (std::rand() % (max_value - min_value)) + min_value;
     }
@@ -75,7 +74,7 @@ struct GeneratorTensor_2<ushort>
     ushort operator()(Is...)
     {
         float tmp = (std::rand() % (max_value - min_value)) + min_value;
-        return ck::f32_to_bf16(tmp);
+        return ck::type_convert<ushort>(tmp);
     }
 };
 
@@ -99,7 +98,7 @@ struct GeneratorTensor_3
     T max_value = 1;
 
     template <typename... Is>
-    float operator()(Is...)
+    T operator()(Is...)
     {
         float tmp = float(std::rand()) / float(RAND_MAX);
 
@@ -120,7 +119,7 @@ struct GeneratorTensor_3<ushort>
 
         float fp32_tmp = min_value + tmp * (max_value - min_value);
 
-        return ck::f32_to_bf16(fp32_tmp);
+        return ck::type_convert<ushort>(fp32_tmp);
     }
 };
 

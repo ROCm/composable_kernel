@@ -106,12 +106,12 @@ void profile_conv(int do_verification,
     {
     case 0: break;
     case 1:
-        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2{-5, 5});
-        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2{-5, 5});
+        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         break;
     default:
-        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0});
-        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5});
+        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
+        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
     if(do_verification)
