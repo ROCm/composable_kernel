@@ -85,7 +85,7 @@ struct GridwiseReduction_xy_to_x_direct_warpwise
         const auto zeroVal = opReduce::GetReductionZeroVal();
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>{}(zeroVal));
+            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
         auto dst_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_dst_global, dst1dDesc.GetElementSpaceSize());
 
@@ -154,11 +154,11 @@ struct GridwiseReduction_xy_to_x_direct_warpwise
         if(thread_inwarp_id == 0)
         {
             if(!float_equal_one{}(alpha))
-                accuValue_buf(I0) *= type_convert<compType>{}(alpha);
+                accuValue_buf(I0) *= type_convert<compType>(alpha);
 
             StaticBuffer<AddressSpaceEnum_t::Vgpr, dstDataType, 1, true> dstValue_buf;
 
-            dstValue_buf(I0) = type_convert<dstDataType>{}(accuValue_buf[I0]);
+            dstValue_buf(I0) = type_convert<dstDataType>(accuValue_buf[I0]);
 
             if(!float_equal_zero{}(beta))
             {
@@ -218,7 +218,7 @@ struct GridwiseReduction_xy_to_x_direct_warpwise
         const auto zeroVal = opReduce::GetReductionZeroVal();
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>{}(zeroVal));
+            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
         auto dst_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_dst_global, dst1dDesc.GetElementSpaceSize());
         auto dst_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
@@ -293,11 +293,11 @@ struct GridwiseReduction_xy_to_x_direct_warpwise
         if(thread_inwarp_id == 0)
         {
             if(!float_equal_one{}(alpha))
-                accuValue_buf(I0) *= type_convert<compType>{}(alpha);
+                accuValue_buf(I0) *= type_convert<compType>(alpha);
 
             StaticBuffer<AddressSpaceEnum_t::Vgpr, dstDataType, 1, true> dstValue_buf;
 
-            dstValue_buf(I0) = type_convert<dstDataType>{}(accuValue_buf[I0]);
+            dstValue_buf(I0) = type_convert<dstDataType>(accuValue_buf[I0]);
 
             if(!float_equal_zero{}(beta))
             {
@@ -375,10 +375,8 @@ struct GridwiseReduction_xy_to_x_direct_warpwise
 
         const auto zeroVal = opReduce::GetReductionZeroVal();
 
-        const auto src_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Global>(ws_values_global,
-                                                            src2dDesc.GetElementSpaceSize(),
-                                                            type_convert<srcDataType>{}(zeroVal));
+        const auto src_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            ws_values_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
         const auto src_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             ws_indices_global, src2dDesc.GetElementSpaceSize());
         auto dst_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
@@ -472,11 +470,11 @@ struct GridwiseReduction_xy_to_x_direct_warpwise
         if(thread_inwarp_id == 0)
         {
             if(!float_equal_one{}(alpha))
-                accuValue_buf(I0) *= type_convert<compType>{}(alpha);
+                accuValue_buf(I0) *= type_convert<compType>(alpha);
 
             StaticBuffer<AddressSpaceEnum_t::Vgpr, dstDataType, 1, true> dstValue_buf;
 
-            dstValue_buf(I0) = type_convert<dstDataType>{}(accuValue_buf[I0]);
+            dstValue_buf(I0) = type_convert<dstDataType>(accuValue_buf[I0]);
 
             if(!float_equal_zero{}(beta))
             {

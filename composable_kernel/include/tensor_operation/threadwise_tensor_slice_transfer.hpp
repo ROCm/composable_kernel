@@ -196,7 +196,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     src_slice_origin_idx + dst_data_idx + i * dst_scalar_step_in_vector);
 
                 dst_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>{}(src_buf[Number<src_offset>{}]);
+                    type_convert<DstData>(src_buf[Number<src_offset>{}]);
             });
 
             const bool is_dst_valid =
@@ -983,7 +983,7 @@ struct ThreadwiseTensorSliceTransfer_v3
                     buffer_desc_.CalculateOffset(dst_data_idx + i * dst_scalar_step_in_vector);
 
                 dst_tmp_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>{}(buffer_[Number<buffer_offset>{}]);
+                    type_convert<DstData>(buffer_[Number<buffer_offset>{}]);
             });
 
             using dst_vector_t = typename decltype(dst_tmp_vector)::type;
@@ -1403,7 +1403,7 @@ struct ThreadwiseTensorSliceTransfer_v4
             // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                 dst_tmp_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>{}(src_tmp_vector.template AsType<SrcData>()[i]);
+                    type_convert<DstData>(src_tmp_vector.template AsType<SrcData>()[i]);
             });
 
             // copy data from dst_tmp_vector into dst_buf
