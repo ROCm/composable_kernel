@@ -927,7 +927,7 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
-__host__ __device__ float bf16_to_f32(ushort src_val)
+static __host__ __device__ float bf16_to_f32(ushort src_val)
 {
     union
     {
@@ -937,7 +937,7 @@ __host__ __device__ float bf16_to_f32(ushort src_val)
     return u.fp32;
 }
 
-__host__ __device__ ushort f32_to_bf16(float src_val)
+static __host__ __device__ ushort f32_to_bf16(float src_val)
 {
     union
     {
