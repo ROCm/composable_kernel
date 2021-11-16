@@ -5,7 +5,6 @@
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
-#include "bfloat16_dev.hpp"
 
 // "Constant" address space for kernel parameter
 #define CONSTANT __attribute__((address_space(4)))
