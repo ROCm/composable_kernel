@@ -927,23 +927,36 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
-__host__ __device__ float bf16_to_f32(ushort src_val)
+// Convert X to Y
+template <typename Y, typename X>
+__host__ __device__ Y type_convert(X x)
+{
+    return static_cast<Y>(x);
+}
+
+// convert bfp16 to fp32
+template <>
+inline __host__ __device__ float type_convert(ushort x)
 {
     union
     {
         uint32_t int32;
         float fp32;
-    } u = {uint32_t(src_val) << 16};
+    } u = {uint32_t(x) << 16};
+
     return u.fp32;
 }
 
-__host__ __device__ ushort f32_to_bf16(float src_val)
+// convert fp32 to bfp16
+template <>
+inline __host__ __device__ ushort type_convert(float x)
 {
     union
     {
         float fp32;
         uint32_t int32;
-    } u = {src_val};
+    } u = {x};
+
     if(~u.int32 & 0x7f800000)
     {
         // When the exponent bits are not all 1s, then the value is zero, normal,
@@ -976,40 +989,14 @@ __host__ __device__ ushort f32_to_bf16(float src_val)
         // the bloat16's mantissa bits are all 0.
         u.int32 |= 0x10000; // Preserve signaling NaN
     }
+
     return uint16_t(u.int32 >> 16);
-}
-
-// data type conversion
-template <typename T>
-struct type_convert
-{
-    template <typename X>
-    __device__ T operator()(X x) const
-    {
-        return static_cast<T>(x);
-    }
-};
-
-template <>
-template <>
-__device__ float type_convert<float>::operator()<ushort>(ushort x) const
-{
-    return bf16_to_f32(x);
-}
-
-template <>
-template <>
-__device__ ushort type_convert<ushort>::operator()<float>(float x) const
-{
-    return f32_to_bf16(x);
 }
 
 // TODO: deprecate this
 template <typename T>
 struct inner_product_with_conversion
 {
-    static constexpr auto convert = type_convert<T>();
-
     template <typename X, index_t N>
     __device__ T operator()(typename vector_type<X, N>::type a,
                             typename vector_type<X, N>::type b) const
@@ -1020,13 +1007,16 @@ struct inner_product_with_conversion
         T acc = 0;
 
         static_for<0, N, 1>{}([&](auto i) {
-            acc += convert(a_vector.Scalars()[i]) * convert(b_vector.Scalars()[i]);
+            acc += type_convert<T>(a_vector.Scalars()[i]) * type_convert<T>(b_vector.Scalars()[i]);
         });
 
         return acc;
     }
 
-    __device__ T operator()(float_t a, float_t b) const { return convert(a) * convert(b); }
+    __device__ T operator()(float_t a, float_t b) const
+    {
+        return type_convert<T>(a) * type_convert<T>(b);
+    }
 
     __device__ T operator()(int8x4_t a, int8x4_t b) const
     {
@@ -1036,7 +1026,8 @@ struct inner_product_with_conversion
         T acc = 0;
 
         static_for<0, 4, 1>{}([&](auto i) {
-            acc += convert(a_vector.AsType<int8_t>()[i]) * convert(b_vector.AsType<int8_t>()[i]);
+            acc += type_convert<T>(a_vector.AsType<int8_t>()[i]) *
+                   type_convert<T>(b_vector.AsType<int8_t>()[i]);
         });
 
         return acc;
@@ -1050,7 +1041,8 @@ struct inner_product_with_conversion
         T acc = 0;
 
         static_for<0, 8, 1>{}([&](auto i) {
-            acc += convert(a_vector.AsType<int8_t>()[i]) * convert(b_vector.AsType<int8_t>()[i]);
+            acc += type_convert<T>(a_vector.AsType<int8_t>()[i]) *
+                   type_convert<T>(b_vector.AsType<int8_t>()[i]);
         });
 
         return acc;
@@ -1064,7 +1056,8 @@ struct inner_product_with_conversion
         T acc = 0;
 
         static_for<0, 16, 1>{}([&](auto i) {
-            acc += convert(a_vector.AsType<int8_t>()[i]) * convert(b_vector.AsType<int8_t>()[i]);
+            acc += type_convert<T>(a_vector.AsType<int8_t>()[i]) *
+                   type_convert<T>(b_vector.AsType<int8_t>()[i]);
         });
 
         return acc;
