@@ -591,7 +591,7 @@ struct GridwiseBatchedGemm_sk0mk1_k0nk1_smn_xdlops_v2r3
         const FloatAB* p_a_grid = p_a_grid_;
         FloatAB* p_c_grid       = p_c_grid_;
 
-        // for (int si = 0; si < S; ++si)
+        for (int si = 0; si < S; ++si)
         {
             auto blockwise_gemm =
                 BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
