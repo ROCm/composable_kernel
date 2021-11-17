@@ -97,7 +97,7 @@ void host_convolution_forward(const Tensor<TIn>& in,
 
         if constexpr(is_same<TOut, ushort>::value)
         {
-            out(n, k, ho, wo) = type_convert<ushort>(v);
+            out(n, k, ho, wo) = ck::type_convert<ushort>(static_cast<float>(v));
         }
         else
         {
@@ -134,7 +134,7 @@ void host_convolution_forward(const Tensor<TIn>& in,
         }
         if constexpr(is_same<TOut, ushort>::value)
         {
-            out(n, ho, wo, k) = ck::type_convert<ushort>(v);
+            out(n, ho, wo, k) = ck::type_convert<ushort>(static_cast<float>(v));
         }
         else
         {
@@ -257,7 +257,7 @@ int main(int argc, char* argv[])
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;
-#elif 0
+#elif 1
     using in_data_t   = half_t;
     using acc_data_t  = float;
     using out_data_t  = half_t;
