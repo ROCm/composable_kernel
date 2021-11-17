@@ -613,12 +613,12 @@ struct XdlopsGemm
                        Sequence<4, 5, 6>{},
                        Sequence<7>{}));
     }
-    
+
     template <typename CSM0N0M1N1M2N2Desc>
     __host__ __device__ static constexpr auto
     MakeCSM0N0M1N1M2M3M4N2Descriptor(const CSM0N0M1N1M2N2Desc& c_s_m0_n0_m1_n1_m2_n2_desc)
     {
-        const auto S = c_s_m0_n0_m1_n1_m2_n2_desc.GetLength(I0);
+        const auto S  = c_s_m0_n0_m1_n1_m2_n2_desc.GetLength(I0);
         const auto M0 = c_s_m0_n0_m1_n1_m2_n2_desc.GetLength(I1);
         const auto N0 = c_s_m0_n0_m1_n1_m2_n2_desc.GetLength(I2);
         const auto M1 = c_s_m0_n0_m1_n1_m2_n2_desc.GetLength(I3);
@@ -626,7 +626,7 @@ struct XdlopsGemm
 
         return transform_tensor_descriptor(
             c_s_m0_n0_m1_n1_m2_n2_desc,
-            make_tuple(make_pass_through_transform(S), 
+            make_tuple(make_pass_through_transform(S),
                        make_pass_through_transform(M0),
                        make_pass_through_transform(N0),
                        make_pass_through_transform(M1),
@@ -650,7 +650,6 @@ struct XdlopsGemm
                        Sequence<5, 6, 7>{},
                        Sequence<8>{}));
     }
-
 
     __device__ static constexpr index_t GetRegSizePerXdlops()
     {

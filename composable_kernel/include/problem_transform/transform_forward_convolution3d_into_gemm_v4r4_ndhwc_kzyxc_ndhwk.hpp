@@ -17,7 +17,8 @@ template <typename... Wei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-__host__ __device__ constexpr auto transform_forward_convolution3d_into_gemm_v4r4_nhwc_kyxc_nhwk_pad(
+__host__ __device__ constexpr auto
+transform_forward_convolution3d_into_gemm_v4r4_nhwc_kyxc_nhwk_pad(
     const TensorDescriptor<Wei...>& wei_k_z_y_x_c_grid_desc,
     const TensorDescriptor<In...>& in_n_di_hi_wi_c_grid_desc,
     const TensorDescriptor<Out...>& out_n_do_ho_wo_k_grid_desc,
@@ -90,7 +91,8 @@ __host__ __device__ constexpr auto transform_forward_convolution3d_into_gemm_v4r
                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
                    make_pass_through_transform(C)),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>),
-        make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5, 6>, Sequence<7>{}));
+        make_tuple(
+            Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5, 6>, Sequence<7>{}));
 
     const auto in_gemmk_gemmn_grid_desc =
         transform_tensor_descriptor(in_n_z_do_y_ho_x_wo_c_grid_desc,
@@ -117,7 +119,8 @@ template <typename... Wei,
           typename ConvDilations,
           typename InLeftPads,
           typename InRightPads>
-__host__ __device__ constexpr auto transform_forward_convolution3d_into_gemm_v4r4_nhwc_kyxc_nhwk_1x1(
+__host__ __device__ constexpr auto
+transform_forward_convolution3d_into_gemm_v4r4_nhwc_kyxc_nhwk_1x1(
     const TensorDescriptor<Wei...>& wei_k_z_y_x_c_grid_desc,
     const TensorDescriptor<In...>& in_n_di_hi_wi_c_grid_desc,
     const TensorDescriptor<Out...>& out_n_do_ho_wo_k_grid_desc,
@@ -160,11 +163,10 @@ __host__ __device__ constexpr auto transform_forward_convolution3d_into_gemm_v4r
     const auto InRightPadH = in_right_pads[I1];
     const auto InRightPadW = in_right_pads[I2];
 
-    assert(Z == 1 && Y == 1 && X == 1 && 
-           ConvStrideD == 1 && ConvStrideH == 1 && ConvStrideW == 1 && 
-           ConvDilationD == 1 && ConvDilationH == 1 && ConvDilationW == 1 && 
-           InLeftPadD == 0 && InLeftPadH == 0 && InLeftPadW == 0 && 
-           InRightPadD == 0 && InRightPadH == 0 && InRightPadW == 0);
+    assert(Z == 1 && Y == 1 && X == 1 && ConvStrideD == 1 && ConvStrideH == 1 && ConvStrideW == 1 &&
+           ConvDilationD == 1 && ConvDilationH == 1 && ConvDilationW == 1 && InLeftPadD == 0 &&
+           InLeftPadH == 0 && InLeftPadW == 0 && InRightPadD == 0 && InRightPadH == 0 &&
+           InRightPadW == 0);
 
     // weight tensor
     const auto wei_gemmk_gemmm_grid_desc = transform_tensor_descriptor(

@@ -433,7 +433,7 @@ __host__ __device__ constexpr auto make_tensor_coordinate_step(const TensorDesc&
     constexpr index_t ndim_visible = TensorDesc::GetNumOfVisibleDimension();
     constexpr auto visible_dim_ids = TensorDesc::GetVisibleDimensionIds();
 
-    if constexpr (UpdateLowerIndexHack::Size() != ntransform)
+    if constexpr(UpdateLowerIndexHack::Size() != ntransform)
     {
         printf("\n\n\n\n%s%s\n", Number<ntransform>{}, Number<UpdateLowerIndexHack::Size()>{});
     }

@@ -95,9 +95,11 @@ extern "C" __global__ void convolution3d_forward_implicit_gemm_v4r4_xdlops_nhwc_
     const index_t ho = (hi + leftPadH + rightPadH - convDilationY * (y - 1) - 1) / convStrideH + 1;
     const index_t wo = (wi + leftPadW + rightPadW - convDilationX * (x - 1) - 1) / convStrideW + 1;
 
-    const auto in_n_di_hi_wi_c_desc  = make_naive_tensor_descriptor_packed(make_tuple(n, di, hi, wi, c));
-    const auto wei_k_z_y_x_c_desc   = make_naive_tensor_descriptor_packed(make_tuple(k, z, y, x, c));
-    const auto out_n_do_ho_wo_k_desc = make_naive_tensor_descriptor_packed(make_tuple(n, do, ho, wo, k));
+    const auto in_n_di_hi_wi_c_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(n, di, hi, wi, c));
+    const auto wei_k_z_y_x_c_desc = make_naive_tensor_descriptor_packed(make_tuple(k, z, y, x, c));
+    const auto out_n_do_ho_wo_k_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(n, do, ho, wo, k));
 
     const auto descs = transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
         in_n_di_hi_wi_c_desc,
@@ -238,13 +240,13 @@ extern "C" __global__ void
 
     constexpr auto descs =
         transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(in_n_di_hi_wi_c_desc,
-                                                                          wei_k_z_y_x_c_desc,
-                                                                          out_n_do_ho_wo_k_desc,
-                                                                          make_tuple(1, 1, 1),
-                                                                          make_tuple(1, 1, 1),
-                                                                          make_tuple(1, 1, 1),
-                                                                          make_tuple(1, 1, 1),
-                                                                          Number<K1>{});
+                                                                            wei_k_z_y_x_c_desc,
+                                                                            out_n_do_ho_wo_k_desc,
+                                                                            make_tuple(1, 1, 1),
+                                                                            make_tuple(1, 1, 1),
+                                                                            make_tuple(1, 1, 1),
+                                                                            make_tuple(1, 1, 1),
+                                                                            Number<K1>{});
 
     constexpr auto a_k0_m_k1_grid_desc_tmp = descs[I0];
     constexpr auto b_k0_n_k1_grid_desc_tmp = descs[I1];
@@ -362,4 +364,3 @@ extern "C" __global__ void
                       c_m0_m1_m2_n_grid_desc,
                       c_blockid_to_m0_n0_block_cluster_adaptor);
 };
-

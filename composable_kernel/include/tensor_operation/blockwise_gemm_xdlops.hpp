@@ -204,10 +204,10 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     {
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
-            // static_cast<index_t>(a_thread_desc_.GetElementSpaceSize()));
+        // static_cast<index_t>(a_thread_desc_.GetElementSpaceSize()));
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatAB>(
             b_thread_desc_.GetElementSpaceSize());
-            // static_cast<index_t>(b_thread_desc_.GetElementSpaceSize()));
+        // static_cast<index_t>(b_thread_desc_.GetElementSpaceSize()));
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             // read A

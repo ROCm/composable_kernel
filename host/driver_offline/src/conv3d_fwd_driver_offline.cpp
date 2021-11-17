@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+//#include <half.hpp>
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -41,7 +41,8 @@ int main(int argc, char* argv[])
     {
         printf("argc = %d\n", argc);
         printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
-        printf("rest: N, K, C, Z, Y, X, Di, Hi, Wi, Sz, Sy, Sx, Dz, Dy, Dx, LeftPz, LeftPy, LeftPx, RightPz, RightPy, RightPx\n");
+        printf("rest: N, K, C, Z, Y, X, Di, Hi, Wi, Sz, Sy, Sx, Dz, Dy, Dx, LeftPz, LeftPy, "
+               "LeftPx, RightPz, RightPy, RightPx\n");
         exit(1);
     }
 
@@ -219,13 +220,14 @@ int main(int argc, char* argv[])
     }
 
     auto f_make_for_device_ndhwc = [&]() {
-        const auto in_lengths_dev     = make_tuple(N, Di, Hi, Wi, C);
-        const auto wei_lengths_dev    = make_tuple(K, Z, Y, X, C);
-        const auto out_lengths_dev    = make_tuple(N, Do, Ho, Wo, K);
-        const auto conv_strides_dev   = make_tuple(conv_stride_d, conv_stride_h, conv_stride_w);
-        const auto conv_dilations_dev = make_tuple(conv_dilation_d, conv_dilation_h, conv_dilation_w);
-        const auto in_left_pads_dev   = make_tuple(in_left_pad_d, in_left_pad_h, in_left_pad_w);
-        const auto in_right_pads_dev  = make_tuple(in_right_pad_d, in_right_pad_h, in_right_pad_w);
+        const auto in_lengths_dev   = make_tuple(N, Di, Hi, Wi, C);
+        const auto wei_lengths_dev  = make_tuple(K, Z, Y, X, C);
+        const auto out_lengths_dev  = make_tuple(N, Do, Ho, Wo, K);
+        const auto conv_strides_dev = make_tuple(conv_stride_d, conv_stride_h, conv_stride_w);
+        const auto conv_dilations_dev =
+            make_tuple(conv_dilation_d, conv_dilation_h, conv_dilation_w);
+        const auto in_left_pads_dev  = make_tuple(in_left_pad_d, in_left_pad_h, in_left_pad_w);
+        const auto in_right_pads_dev = make_tuple(in_right_pad_d, in_right_pad_h, in_right_pad_w);
 
         return make_tuple(in_lengths_dev,
                           wei_lengths_dev,
@@ -246,10 +248,9 @@ int main(int argc, char* argv[])
 
         const auto tmp = f_make_for_device_ndhwc();
 
-        device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk<
-                in_data_t,
-                acc_data_t,
-                out_data_t>(
+        device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk<in_data_t,
+                                                                                   acc_data_t,
+                                                                                   out_data_t>(
             tmp[I0],
             tmp[I1],
             tmp[I2],
@@ -286,4 +287,3 @@ int main(int argc, char* argv[])
         }
     }
 }
-
