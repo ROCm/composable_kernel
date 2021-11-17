@@ -32,8 +32,15 @@ template <typename T>
 inline constexpr bool is_pointer_v = std::is_pointer<T>::value;
 
 template <typename Y, typename X, typename enable_if<sizeof(X) == sizeof(Y), bool>::type = false>
-__host__ __device__ constexpr Y as_type(X x)
+__host__ __device__ constexpr Y bit_cast(const X& x)
 {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST
+    Y y;
+
+    __builtin_memcpy(&y, &x, sizeof(X));
+
+    return y;
+#else
     union AsType
     {
         X x;
@@ -41,6 +48,7 @@ __host__ __device__ constexpr Y as_type(X x)
     };
 
     return AsType{x}.y;
+#endif
 }
 
 } // namespace ck
