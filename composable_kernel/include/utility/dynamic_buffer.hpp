@@ -83,12 +83,28 @@ struct DynamicBuffer
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp;
+
+                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+
+                return is_valid_element ? tmp : X{0};
+#else
                 return is_valid_element ? *c_style_pointer_cast<const X*>(&p_data_[i]) : X{0};
+#endif
             }
             else
             {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp;
+
+                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+
+                return is_valid_element ? tmp : X{invalid_element_value_};
+#else
                 return is_valid_element ? *c_style_pointer_cast<const X*>(&p_data_[i])
                                         : X{invalid_element_value_};
+#endif
             }
         }
     }
@@ -117,7 +133,13 @@ struct DynamicBuffer
 #else
             if(is_valid_element)
             {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp = x;
+
+                __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
+#else
                 *c_style_pointer_cast<X*>(&p_data_[i]) = x;
+#endif
             }
 #endif
         }
@@ -126,7 +148,13 @@ struct DynamicBuffer
             if(is_valid_element)
             {
 #if !CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp = x;
+
+                __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
+#else
                 *c_style_pointer_cast<X*>(&p_data_[i]) = x;
+#endif
 #else
                 // HACK: compiler would lower IR "store<i8, 16> address_space(3)" into
                 // inefficient
@@ -201,7 +229,13 @@ struct DynamicBuffer
                 }
                 else
                 {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                    X tmp = x;
+
+                    __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
+#else
                     *c_style_pointer_cast<X*>(&p_data_[i]) = x;
+#endif
                 }
 #endif
             }
@@ -210,7 +244,13 @@ struct DynamicBuffer
         {
             if(is_valid_element)
             {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp = x;
+
+                __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
+#else
                 *c_style_pointer_cast<X*>(&p_data_[i]) = x;
+#endif
             }
         }
     }
