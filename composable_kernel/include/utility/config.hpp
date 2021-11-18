@@ -99,7 +99,19 @@
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
 // merge transformation use magic number division
+#ifndef CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
 #define CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION 1
+#endif
+
+// use __builtin_memcpy instead of pointer cast to access a vector from pointer of scalar
+#ifndef CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 0
+#endif
+
+// use __builtin_memcpy instead of union to do bit_cast
+#ifndef CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST
+#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
+#endif
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
@@ -119,7 +131,7 @@
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE 1
 #endif
 
-// workaround for compiler crash when using buffer load/store for i8
+// workaround for compiler gnerating inefficient ds_write instructions
 #ifndef CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 #endif
