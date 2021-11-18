@@ -226,13 +226,6 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
         }
 
         const auto N0 = N / N1;
-        printf("N = %d, N0 = %d, N1 = %d, stride = %ld, stride_max = %d\n",
-               N,
-               N0,
-               N1,
-               stride,
-               max_stride);
-        fflush(stdout);
         if(N0 * N1 != N)
         {
             throw std::runtime_error(__func__ +
@@ -241,7 +234,6 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
     }
 
     const auto N0 = N / N1;
-
     const auto GemmM  = N1 * Do * Ho * Wo;
     const auto GemmN  = K;
     const auto GemmK  = Z * Y * X * C;

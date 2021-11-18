@@ -198,9 +198,9 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 0
+
+#elif 0  // smallest threadblock. Useful for debugging
     // [M, N, K0, K1] = [128, 128, 4, 8], C = 64, for fp16
-    // constexpr index_t BlockSize = 256;
     constexpr index_t BlockSize = 64;
 
     constexpr index_t GemmMPerBlock = 16;
@@ -312,8 +312,8 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 #endif
 
-#define _jfy_ver_ 0
-#if _jfy_ver_ == 1
+#define _jfy_ver_ 1
+#if _jfy_ver_ == 0
     const auto descs =
         transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(in_n_di_hi_wi_c_desc,
                                                                             wei_k_z_y_x_c_desc,

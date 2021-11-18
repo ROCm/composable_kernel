@@ -66,20 +66,20 @@ void host_direct_convolution3d(const Tensor<TIn>& in,
 
     auto f_ndhwc = [&](auto n, auto do_, auto ho, auto wo, auto k) {
         double v = 0;
-        for(int c = 0; c < wei.mDesc.GetLengths()[4]; ++c)
+        for(int z = 0; z < wei.mDesc.GetLengths()[1]; ++z)
         {
-            for(int z = 0; z < wei.mDesc.GetLengths()[1]; ++z)
+            int di = do_ * conv_strides[I0] + z * conv_dilations[I0] - in_left_pads[I0];
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
-                int di = do_ * conv_strides[I0] + z * conv_dilations[I0] - in_left_pads[I0];
-                for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+                int hi = ho * conv_strides[I1] + y * conv_dilations[I1] - in_left_pads[I1];
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
-                    int hi = ho * conv_strides[I1] + y * conv_dilations[I1] - in_left_pads[I1];
-                    for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                    int wi = wo * conv_strides[I2] + x * conv_dilations[I2] - in_left_pads[I2];
+                    if(di >= 0 && di < in.mDesc.GetLengths()[1] && hi >= 0 &&
+                       hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
                     {
-                        int wi = wo * conv_strides[I2] + x * conv_dilations[I2] - in_left_pads[I2];
-                        if(di >= 0 && di < in.mDesc.GetLengths()[1] && hi >= 0 &&
-                           hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                           wi < in.mDesc.GetLengths()[3])
+                        for(int c = 0; c < wei.mDesc.GetLengths()[4]; ++c)
                         {
                             v += static_cast<const double>(in(n, di, hi, wi, c)) *
                                  static_cast<const double>(wei(k, z, y, x, c));
@@ -98,8 +98,7 @@ void host_direct_convolution3d(const Tensor<TIn>& in,
                                    out.mDesc.GetLengths()[1],
                                    out.mDesc.GetLengths()[2],
                                    out.mDesc.GetLengths()[3],
-                                   out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency() -
-                                                              8);
+                                   out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency() - 8);
     }
     else
     {
