@@ -9,7 +9,6 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "gemm_common.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
@@ -139,12 +138,12 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());

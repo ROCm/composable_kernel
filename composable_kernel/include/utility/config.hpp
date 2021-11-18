@@ -133,7 +133,7 @@
 
 // workaround for compiler gnerating inefficient ds_write instructions
 #ifndef CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
-#define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 0
+#define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 #endif
 
 namespace ck {

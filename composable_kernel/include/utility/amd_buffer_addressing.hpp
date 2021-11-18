@@ -606,7 +606,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                 dst_wave_addr_offset + 4 * sizeof(half_t),
                                                 0);
 #else
-            llvm_amdgcn_raw_buffer_store_fp32x4(as_type<float4_t>(src_thread_data),
+            llvm_amdgcn_raw_buffer_store_fp32x4(bit_cast<float4_t>(src_thread_data),
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset,
