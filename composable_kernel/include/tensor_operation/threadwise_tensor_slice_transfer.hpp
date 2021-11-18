@@ -217,6 +217,22 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     is_dst_valid,
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
             }
+            else if constexpr(DstInMemOp == InMemoryDataOperationEnum_t::Add)
+            {
+
+                typename vector_type_maker<DstData, DstScalarPerVector>::type tmp;
+                tmp.template AsType<dst_vector_t>()(Number<0>{}) =
+                    dst_buf.template Get<dst_vector_t>(dst_coord_.GetOffset(), is_dst_valid);
+
+                static_for<0, DstScalarPerVector, 1>{}([&](auto t) {
+                    dst_vector.template AsType<DstData>()(t) += tmp.template AsType<DstData>()[t];
+                });
+
+                dst_buf.template Set<dst_vector_t>(
+                    dst_coord_.GetOffset(),
+                    is_dst_valid,
+                    dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
+            }
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -662,6 +678,25 @@ struct ThreadwiseTensorSliceTransfer_v2
 
         // is it OK to construct a new step every time?
         const auto adjusted_step = make_tensor_coordinate_step(src_desc, adjusted_step_idx);
+
+        move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
+    }
+
+    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    template <typename SrcMoveSliceWindowStepHack>
+    __device__ void
+    MoveSrcSliceWindow(const SrcDesc& src_desc,
+                       const Index& src_slice_origin_step_idx,
+                       const SrcMoveSliceWindowStepHack& src_move_slice_window_step_hack)
+    {
+        // if src coord was not reset by RunRead(), then need to adjust the step here
+        const auto adjusted_step_idx =
+            SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
+                                       : src_slice_origin_step_idx + GetSrcCoordinateResetStep();
+
+        // is it OK to construct a new step every time?
+        const auto adjusted_step = make_tensor_coordinate_step(
+            src_desc, adjusted_step_idx, src_move_slice_window_step_hack);
 
         move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
     }
