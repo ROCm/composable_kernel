@@ -144,9 +144,9 @@ inner_product<int8x4_t, int8x4_t, int32_t>(const int8x4_t& a, const int8x4_t& b,
             v_dot4_i32_i8 %0, %1, %2, %0\n \
             "
                  : "=v"(c)
-                 : "v"(as_type<int32_t>(a)), "v"(as_type<int32_t>(b)), "0"(c));
+                 : "v"(bit_cast<int32_t>(a)), "v"(bit_cast<int32_t>(b)), "0"(c));
 #else
-    c = __builtin_amdgcn_sdot4(as_type<int32_t>(a), as_type<int32_t>(b), c, false);
+    c = __builtin_amdgcn_sdot4(bit_cast<int32_t>(a), bit_cast<int32_t>(b), c, false);
 #endif
 #else
     const vector_type<int8_t, 4> a_vector{a};

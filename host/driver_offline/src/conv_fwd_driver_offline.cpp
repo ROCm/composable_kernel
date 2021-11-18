@@ -258,7 +258,7 @@ int main(int argc, char* argv[])
     using in_data_t   = half_t;
     using acc_data_t  = float;
     using out_data_t  = half_t;
-#elif 1
+#elif 0
     using in_data_t  = ushort;
     using acc_data_t = float;
     using out_data_t = ushort;
