@@ -96,6 +96,7 @@
 // pass tensor descriptor by value or void*
 #define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE 1
 #define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER 0
+#define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
 // merge transformation use magic number division
 #ifndef CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
@@ -140,7 +141,15 @@ namespace ck {
 enum InMemoryDataOperationEnum_t
 {
     Set,
-    AtomicAdd
+    AtomicAdd,
+    Add
+};
+
+enum ActivTypeEnum_t
+{
+    None = 0,
+    LeakyRelu,
+    Sigmoid
 };
 
 // index type

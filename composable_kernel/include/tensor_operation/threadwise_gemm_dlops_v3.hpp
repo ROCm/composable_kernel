@@ -9,21 +9,22 @@ namespace ck {
 // C[M, N] += transpose(A[K, M]) * B[K, N]
 //   Element of matrix can be vectorized data
 // Assume:
-//   1. ADesc, BDesc, CDesc are known at compile-time
+//   1. AThreadDesc_E1_K_E2, BThreadDesc_E1_N_Ho_Wo_E2, CThreadDesc_K_N_Ho_Wo are known at
+//   compile-time
 //   2. AOriginIdx, BOriginIdx, COriginIdx are known at compile-time
 template <typename FloatA,
           typename FloatB,
           typename FloatC,
-          typename ADesc,
-          typename BDesc,
-          typename CDesc,
-          index_t H,
-          index_t W,
-          typename enable_if<ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
-                                 CDesc::IsKnownAtCompileTime(),
+          typename AThreadDesc_E1_K_E2,
+          typename BThreadDesc_E1_N_Ho_Wo_E2,
+          typename CThreadDesc_K_N_Ho_Wo,
+          typename enable_if<AThreadDesc_E1_K_E2::IsKnownAtCompileTime() &&
+                                 BThreadDesc_E1_N_Ho_Wo_E2::IsKnownAtCompileTime() &&
+                                 CThreadDesc_K_N_Ho_Wo::IsKnownAtCompileTime(),
                              bool>::type = false>
 struct ThreadwiseGemmDlops_km_kn_mn_v3
 {
+
     template <typename ABuffer,
               typename AOriginIdx,
               typename BBuffer,
@@ -37,8 +38,10 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
                                CBuffer& c_buf,
                                COriginIdx)
     {
-        static_assert(ADesc::IsKnownAtCompileTime() && BDesc::IsKnownAtCompileTime() &&
-                          CDesc::IsKnownAtCompileTime(),
+
+        static_assert(AThreadDesc_E1_K_E2::IsKnownAtCompileTime() &&
+                          BThreadDesc_E1_N_Ho_Wo_E2::IsKnownAtCompileTime() &&
+                          CThreadDesc_K_N_Ho_Wo::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
         static_assert(is_known_at_compile_time<remove_cvref_t<AOriginIdx>>::value &&
@@ -54,102 +57,107 @@ struct ThreadwiseGemmDlops_km_kn_mn_v3
 
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
 
-        constexpr auto E = ADesc{}.GetLength(I0);
-        constexpr auto K = ADesc{}.GetLength(I1);
+        constexpr auto E1 = AThreadDesc_E1_K_E2{}.GetLength(I0);
+        constexpr auto K  = AThreadDesc_E1_K_E2{}.GetLength(I1);
+        constexpr auto E2 = AThreadDesc_E1_K_E2{}.GetLength(I2);
+
+        constexpr auto Ho = BThreadDesc_E1_N_Ho_Wo_E2{}.GetLength(I2);
+        constexpr auto Wo = BThreadDesc_E1_N_Ho_Wo_E2{}.GetLength(I3);
 
         constexpr auto a_origin_idx = to_multi_index(AOriginIdx{});
         constexpr auto b_origin_idx = to_multi_index(BOriginIdx{});
         constexpr auto c_origin_idx = to_multi_index(COriginIdx{});
 
-        static_for<0, E, 1>{}([&](auto e) {
+        if constexpr((Ho % 2 == 0) && (Wo % 2 == 0))
+        {
+            constexpr auto SubHW = 2;
+
             static_for<0, K, 1>{}([&](auto k) {
-                constexpr index_t a_offset =
-                    ADesc{}.CalculateOffset(a_origin_idx + make_tuple(e, k));
+                static_for<0, Ho, SubHW>{}([&](auto h) {
+                    static_for<0, Wo, SubHW>{}([&](auto w) {
+                        static_for<0, E1, 1>{}([&](auto e1) {
+                            static_for<0, E2, 1>{}([&](auto e2) {
+                                constexpr index_t a_offset = AThreadDesc_E1_K_E2{}.CalculateOffset(
+                                    a_origin_idx + make_tuple(e1, k, e2));
 
-                if constexpr(H == 2 && W == 2)
-                {
-                    constexpr index_t b_offset_0 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 0, 0));
-                    constexpr index_t b_offset_1 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 0, 1));
-                    constexpr index_t b_offset_2 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 1, 0));
-                    constexpr index_t b_offset_3 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 1, 1));
+                                constexpr index_t b0_offset =
+                                    BThreadDesc_E1_N_Ho_Wo_E2{}.CalculateOffset(
+                                        b_origin_idx + make_tuple(e1, 0, h, w, e2));
 
-                    constexpr index_t c_offset_0 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 0, 0));
-                    constexpr index_t c_offset_1 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 0, 1));
-                    constexpr index_t c_offset_2 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 1, 0));
-                    constexpr index_t c_offset_3 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 1, 1));
+                                constexpr index_t b1_offset =
+                                    BThreadDesc_E1_N_Ho_Wo_E2{}.CalculateOffset(
+                                        b_origin_idx + make_tuple(e1, 0, h, w + 1, e2));
 
-                    amd_assembly_outer_product_1x4(a_buf[Number<a_offset>{}],
-                                                   b_buf[Number<b_offset_0>{}],
-                                                   b_buf[Number<b_offset_1>{}],
-                                                   b_buf[Number<b_offset_2>{}],
-                                                   b_buf[Number<b_offset_3>{}],
-                                                   c_buf(Number<c_offset_0>{}),
-                                                   c_buf(Number<c_offset_1>{}),
-                                                   c_buf(Number<c_offset_2>{}),
-                                                   c_buf(Number<c_offset_3>{}));
-                }
-                else if constexpr(H == 4 && W == 1)
-                {
-                    constexpr index_t b_offset_0 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 0, 0));
-                    constexpr index_t b_offset_1 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 1, 0));
-                    constexpr index_t b_offset_2 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 2, 0));
-                    constexpr index_t b_offset_3 =
-                        BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, 3, 0));
+                                constexpr index_t b2_offset =
+                                    BThreadDesc_E1_N_Ho_Wo_E2{}.CalculateOffset(
+                                        b_origin_idx + make_tuple(e1, 0, h + 1, w, e2));
 
-                    constexpr index_t c_offset_0 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 0, 0));
-                    constexpr index_t c_offset_1 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 1, 0));
-                    constexpr index_t c_offset_2 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 2, 0));
-                    constexpr index_t c_offset_3 =
-                        CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, 3, 0));
+                                constexpr index_t b3_offset =
+                                    BThreadDesc_E1_N_Ho_Wo_E2{}.CalculateOffset(
+                                        b_origin_idx + make_tuple(e1, 0, h + 1, w + 1, e2));
 
-                    amd_assembly_outer_product_1x4(a_buf[Number<a_offset>{}],
-                                                   b_buf[Number<b_offset_0>{}],
-                                                   b_buf[Number<b_offset_1>{}],
-                                                   b_buf[Number<b_offset_2>{}],
-                                                   b_buf[Number<b_offset_3>{}],
-                                                   c_buf(Number<c_offset_0>{}),
-                                                   c_buf(Number<c_offset_1>{}),
-                                                   c_buf(Number<c_offset_2>{}),
-                                                   c_buf(Number<c_offset_3>{}));
-                }
-                else
-                {
-                    static_for<0, H, 1>{}([&](auto h) {
-                        static_for<0, W, 1>{}([&](auto w) {
-                            constexpr index_t b_offset =
-                                BDesc{}.CalculateOffset(b_origin_idx + make_tuple(e, 0, h, w));
+                                constexpr index_t c0_offset =
+                                    CThreadDesc_K_N_Ho_Wo{}.CalculateOffset(c_origin_idx +
+                                                                            make_tuple(k, 0, h, w));
 
-                            constexpr index_t c_offset =
-                                CDesc{}.CalculateOffset(c_origin_idx + make_tuple(k, 0, h, w));
+                                constexpr index_t c1_offset =
+                                    CThreadDesc_K_N_Ho_Wo{}.CalculateOffset(
+                                        c_origin_idx + make_tuple(k, 0, h, w + 1));
 
-#if 0
-                            c_buf(Number<c_offset>{}) += inner_product_with_conversion<FloatC>{}(
-                                a_buf[Number<a_offset>{}], b_buf[Number<b_offset>{}]);
-#else
-                            amd_assembly_inner_product(a_buf[Number<a_offset>{}],
-                                                       b_buf[Number<b_offset>{}],
-                                                       c_buf(Number<c_offset>{}));
-#endif
+                                constexpr index_t c2_offset =
+                                    CThreadDesc_K_N_Ho_Wo{}.CalculateOffset(
+                                        c_origin_idx + make_tuple(k, 0, h + 1, w));
+
+                                constexpr index_t c3_offset =
+                                    CThreadDesc_K_N_Ho_Wo{}.CalculateOffset(
+                                        c_origin_idx + make_tuple(k, 0, h + 1, w + 1));
+
+                                amd_assembly_outer_product_1x4(a_buf[Number<a_offset>{}],
+                                                               b_buf[Number<b0_offset>{}],
+                                                               b_buf[Number<b1_offset>{}],
+                                                               b_buf[Number<b2_offset>{}],
+                                                               b_buf[Number<b3_offset>{}],
+                                                               c_buf(Number<c0_offset>{}),
+                                                               c_buf(Number<c1_offset>{}),
+                                                               c_buf(Number<c2_offset>{}),
+                                                               c_buf(Number<c3_offset>{}));
+                            });
                         });
                     });
-                }
+                });
             });
-        });
+        }
+        else
+        {
+
+            static_for<0, K, 1>{}([&](auto k) {
+                static_for<0, Ho, 1>{}([&](auto h) {
+                    static_for<0, Wo, 1>{}([&](auto w) {
+                        static_for<0, E1, 1>{}([&](auto e1) {
+                            static_for<0, E2, 1>{}([&](auto e2) {
+                                constexpr index_t a_offset = AThreadDesc_E1_K_E2{}.CalculateOffset(
+                                    a_origin_idx + make_tuple(e1, k, e2));
+
+                                constexpr index_t b_offset =
+                                    BThreadDesc_E1_N_Ho_Wo_E2{}.CalculateOffset(
+                                        b_origin_idx + make_tuple(e1, 0, h, w, e2));
+
+                                constexpr index_t c_offset =
+                                    CThreadDesc_K_N_Ho_Wo{}.CalculateOffset(c_origin_idx +
+                                                                            make_tuple(k, 0, h, w));
+
+                                inner_product<FloatA, FloatB, FloatC>(a_buf[Number<a_offset>{}],
+                                                                      b_buf[Number<b_offset>{}],
+                                                                      c_buf(Number<c_offset>{}));
+                            });
+                        });
+                    });
+                });
+            });
+        }
     }
 };
 
