@@ -14,6 +14,7 @@ namespace ck {
 // 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
 // 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
 template <index_t BlockSize,
+          typename SrcElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
           typename BlockSliceLengths,
           typename ThreadSliceLengths,
@@ -39,12 +40,17 @@ struct BlockwiseTensorSliceTransfer_v4
 
     using Index = MultiIndex<nDim>;
 
-    __device__ constexpr BlockwiseTensorSliceTransfer_v4(const SrcDesc& src_desc,
-                                                         const Index& src_block_slice_origin,
-                                                         const DstDesc& dst_desc,
-                                                         const Index& dst_block_slice_origin)
-        : threadwise_transfer_(
-              src_desc, make_zero_multi_index<nDim>(), dst_desc, make_zero_multi_index<nDim>())
+    __device__ constexpr BlockwiseTensorSliceTransfer_v4(
+        const SrcDesc& src_desc,
+        const Index& src_block_slice_origin,
+        const DstDesc& dst_desc,
+        const Index& dst_block_slice_origin,
+        const SrcElementwiseOperation& src_element_op)
+        : threadwise_transfer_(src_desc,
+                               make_zero_multi_index<nDim>(),
+                               dst_desc,
+                               make_zero_multi_index<nDim>(),
+                               src_element_op)
 
     {
         static_assert(nDim == remove_reference_t<remove_cv_t<SrcDesc>>::GetNumOfDimension() &&
@@ -147,6 +153,7 @@ struct BlockwiseTensorSliceTransfer_v4
 
     using ThreadwiseTransfer =
         ThreadwiseTensorSliceTransfer_v3r2<ThreadSliceLengths,
+                                           SrcElementwiseOperation,
                                            DstInMemOp,
                                            SrcData,
                                            DstData,

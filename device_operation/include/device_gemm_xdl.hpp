@@ -22,6 +22,8 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
           typename CElementwiseOperation,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -50,7 +52,8 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
+struct DeviceGemmXdl
+    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -177,6 +180,8 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
+        AElementwiseOperation,
+        BElementwiseOperation,
         CElementwiseOperation,
         MPerBlock,
         NPerBlock,
@@ -233,6 +238,8 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                  index_t StrideC,
                  index_t M01,
                  index_t N01,
+                 AElementwiseOperation a_element_op,
+                 BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
@@ -244,6 +251,8 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
+              a_element_op_{a_element_op},
+              b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
             a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
@@ -271,6 +280,8 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
+        AElementwiseOperation a_element_op_;
+        BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
     };
 
@@ -321,9 +332,11 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                     remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
                     remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
-                    true,
-                    CElementwiseOperation>;
+                    true>;
 
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
@@ -336,8 +349,10 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.block_2_ctile_map_,
-                                                  arg.c_element_op_);
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.c_element_op_,
+                                                  arg.block_2_ctile_map_);
             }
             else
             {
@@ -348,9 +363,11 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                     remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
                     remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
-                    false,
-                    CElementwiseOperation>;
+                    false>;
 
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
@@ -363,8 +380,10 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.block_2_ctile_map_,
-                                                  arg.c_element_op_);
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.c_element_op_,
+                                                  arg.block_2_ctile_map_);
             }
 
             return ave_time;
@@ -407,9 +426,24 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
+                             AElementwiseOperation a_element_op,
+                             BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, 1, 1, c_element_op};
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        StrideA,
+                        StrideB,
+                        StrideC,
+                        1,
+                        1,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -424,6 +458,8 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
+                                                      AElementwiseOperation a_element_op,
+                                                      BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
@@ -437,6 +473,8 @@ struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
                                           StrideC,
                                           1,
                                           1,
+                                          a_element_op,
+                                          b_element_op,
                                           c_element_op);
     }
 

@@ -50,7 +50,7 @@ template <typename SrcData,
           typename DstData,
           typename SrcDesc,
           typename DstDesc,
-          typename ElementwiseOp,
+          typename SrcElementwiseOperation,
           typename SliceLengths,
           typename DimAccessOrder,
           index_t DstVectorDim,
@@ -69,11 +69,12 @@ struct ThreadwiseTensorSliceTransfer_v1r3
 
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3(const DstDesc& dst_desc,
-                                                            const Index& dst_slice_origin_idx,
-                                                            const ElementwiseOp element_op)
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3(
+        const DstDesc& dst_desc,
+        const Index& dst_slice_origin_idx,
+        const SrcElementwiseOperation src_element_op)
         : dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin_idx)),
-          element_op_{element_op}
+          src_element_op_{src_element_op}
     {
         static_assert(SrcDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc need to known at compile-time");
@@ -200,7 +201,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
 
                 // apply element-wise operation and type convert
                 dst_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>(element_op_(src_buf[Number<src_offset>{}]));
+                    type_convert<DstData>(src_element_op_(src_buf[Number<src_offset>{}]));
             });
 
             const bool is_dst_valid =
@@ -377,7 +378,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
 
     private:
     DstCoord dst_coord_;
-    ElementwiseOp element_op_;
+    SrcElementwiseOperation src_element_op_;
 }; // namespace ck
 
 // Assume:

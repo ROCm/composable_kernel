@@ -19,9 +19,11 @@ template <typename GridwiseGemm,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
           typename Block2CTileMap,
-          bool HasMainKBlockLoop,
-          typename CElementwiseOperation>
+          bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -33,8 +35,10 @@ __global__ void
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            const Block2CTileMap block_2_ctile_map,
-            const CElementwiseOperation c_element_op)
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const Block2CTileMap block_2_ctile_map)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -48,8 +52,10 @@ __global__ void
                                                   a_grid_desc_k0_m_k1,
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  block_2_ctile_map,
-                                                  c_element_op);
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  block_2_ctile_map);
 }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 template <typename GridwiseGemm,
@@ -58,8 +64,10 @@ template <typename GridwiseGemm,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-          typename Block2CTileMap,
-          typename CElementwiseOperation>
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename Block2CTileMap>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -70,8 +78,10 @@ __global__ void
                                 const void CONSTANT* p_a_grid_desc_k0_m_k1,
                                 const void CONSTANT* p_b_grid_desc_k0_n_k1,
                                 const void CONSTANT* p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                const void CONSTANT* p_block_2_ctile_map,
-                                const void CONSTANT* p_c_element_op)
+                                const void CONSTANT* p_a_element_op,
+                                const void CONSTANT* p_b_element_op,
+                                const void CONSTANT* p_c_element_op,
+                                const void CONSTANT* p_block_2_ctile_map)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -85,6 +95,10 @@ __global__ void
             cast_pointer_to_generic_address_space(p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2));
     const auto block_2_ctile_map = *reinterpret_cast<const Block2CTileMap*>(
         cast_pointer_to_generic_address_space(p_block_2_ctile_map));
+    const auto a_element_op = *reinterpret_cast<const AElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_a_element_op));
+    const auto b_element_op = *reinterpret_cast<const BElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_b_element_op));
     const auto c_element_op = *reinterpret_cast<const CElementwiseOperation*>(
         cast_pointer_to_generic_address_space(p_c_element_op));
 
@@ -97,8 +111,10 @@ __global__ void
                                                   a_grid_desc_k0_m_k1,
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  block_2_ctile_map,
-                                                  c_element_op);
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  block_2_ctile_map);
 }
 #endif
 
@@ -110,6 +126,8 @@ template <index_t BlockSize,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M_N,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
           typename CElementwiseOperation,
           index_t MPerBlock,
           index_t NPerBlock,
@@ -362,8 +380,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
         const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
         const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2& c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-        const Block2CTileMap& block_2_ctile_map,
-        const CElementwiseOperation& c_element_op)
+        const AElementwiseOperation& a_element_op,
+        const BElementwiseOperation& b_element_op,
+        const CElementwiseOperation& c_element_op,
+        const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
@@ -421,6 +441,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
+                                            AElementwiseOperation,
                                             InMemoryDataOperationEnum_t::Set,
                                             Sequence<K0PerBlock, MPerBlock, K1>,
                                             ABlockTransferThreadSliceLengths_K0_M_K1,
@@ -442,11 +463,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                             true>(a_grid_desc_k0_m_k1,
                                                   make_multi_index(0, m_block_data_idx_on_grid, 0),
                                                   a_block_desc_k0_m_k1,
-                                                  make_multi_index(0, 0, 0));
+                                                  make_multi_index(0, 0, 0),
+                                                  a_element_op);
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
+                                            BElementwiseOperation,
                                             InMemoryDataOperationEnum_t::Set,
                                             Sequence<K0PerBlock, NPerBlock, K1>,
                                             BBlockTransferThreadSliceLengths_K0_N_K1,
@@ -468,7 +491,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                             true>(b_grid_desc_k0_n_k1,
                                                   make_multi_index(0, n_block_data_idx_on_grid, 0),
                                                   b_block_desc_k0_n_k1,
-                                                  make_multi_index(0, 0, 0));
+                                                  make_multi_index(0, 0, 0),
+                                                  b_element_op);
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
