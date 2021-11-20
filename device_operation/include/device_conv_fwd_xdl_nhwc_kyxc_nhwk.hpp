@@ -22,6 +22,9 @@ template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename AccDataType,
+          typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -58,6 +61,9 @@ struct DeviceConvFwdXdl<
     ck::tensor_layout::convolution::NHWC,     // typename InLayout,
     ck::tensor_layout::convolution::KYXC,     // typename WeiLayout,
     ck::tensor_layout::convolution::NHWK,     // typename OutLayout,
+    InElementwiseOperation,                   // typename InElementwiseOperation,
+    WeiElementwiseOperation,                  // typename WeiElementwiseOperation,
+    OutElementwiseOperation,                  // typename OutElementwiseOperation,
     BlockSize,                                // ck::index_t BlockSize,
     MPerBlock,                                // ck::index_t MPerBlock,
     NPerBlock,                                // ck::index_t NPerBlock,
@@ -87,7 +93,8 @@ struct DeviceConvFwdXdl<
     CThreadTransferDstScalarPerVector,          // ck::index_t CThreadTransferDstScalarPerVector,
     ABlockLdsAddExtraM,                         // bool ABlockLdsAddExtraM,
     BBlockLdsAddExtraN                          // bool BBlockLdsAddExtraN>
-    > : public DeviceConvFwd
+    >
+    : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -293,6 +300,9 @@ struct DeviceConvFwdXdl<
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
+        InElementwiseOperation,
+        WeiElementwiseOperation,
+        OutElementwiseOperation,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -351,7 +361,10 @@ struct DeviceConvFwdXdl<
                  std::vector<ck::index_t> input_left_pads,
                  std::vector<ck::index_t> input_right_pads,
                  ck::index_t M01,
-                 ck::index_t N01)
+                 ck::index_t N01,
+                 InElementwiseOperation in_element_op,
+                 WeiElementwiseOperation wei_element_op,
+                 OutElementwiseOperation out_element_op)
             : p_a_grid_{p_in_grid},
               p_b_grid_{p_wei_grid},
               p_c_grid_{p_out_grid},
@@ -361,7 +374,10 @@ struct DeviceConvFwdXdl<
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
               block_2_ctile_map_{},
               M01_{M01},
-              N01_{N01}
+              N01_{N01},
+              in_element_op_{in_element_op},
+              wei_element_op_{wei_element_op},
+              out_element_op_{out_element_op}
         {
             const auto descs = DeviceConvFwdXdl::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
                 N,
@@ -400,6 +416,9 @@ struct DeviceConvFwdXdl<
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
+        InElementwiseOperation in_element_op_;
+        WeiElementwiseOperation wei_element_op_;
+        OutElementwiseOperation out_element_op_;
     };
 
     // Invoker
@@ -449,6 +468,9 @@ struct DeviceConvFwdXdl<
                     remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    InElementwiseOperation,
+                    WeiElementwiseOperation,
+                    OutElementwiseOperation,
                     remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
                     true>;
 
@@ -463,6 +485,9 @@ struct DeviceConvFwdXdl<
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.in_element_op_,
+                                                  arg.wei_element_op_,
+                                                  arg.out_element_op_,
                                                   arg.block_2_ctile_map_);
             }
             else
@@ -474,6 +499,9 @@ struct DeviceConvFwdXdl<
                     remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    InElementwiseOperation,
+                    WeiElementwiseOperation,
+                    OutElementwiseOperation,
                     remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
                     false>;
 
@@ -488,6 +516,9 @@ struct DeviceConvFwdXdl<
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.in_element_op_,
+                                                  arg.wei_element_op_,
+                                                  arg.out_element_op_,
                                                   arg.block_2_ctile_map_);
             }
 
@@ -534,7 +565,10 @@ struct DeviceConvFwdXdl<
                              std::vector<ck::index_t> conv_filter_strides,
                              std::vector<ck::index_t> conv_filter_dilations,
                              std::vector<ck::index_t> input_left_pads,
-                             std::vector<ck::index_t> input_right_pads)
+                             std::vector<ck::index_t> input_right_pads,
+                             InElementwiseOperation in_element_op,
+                             WeiElementwiseOperation wei_element_op,
+                             OutElementwiseOperation out_element_op)
     {
         return Argument{p_in_grid,
                         p_wei_grid,
@@ -550,7 +584,10 @@ struct DeviceConvFwdXdl<
                         input_left_pads,
                         input_right_pads,
                         1,
-                        1};
+                        1,
+                        in_element_op,
+                        wei_element_op,
+                        out_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -569,7 +606,10 @@ struct DeviceConvFwdXdl<
                         std::vector<ck::index_t> conv_filter_strides,
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads) override
+                        std::vector<ck::index_t> input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        WeiElementwiseOperation wei_element_op,
+                        OutElementwiseOperation out_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<const WeiDataType*>(p_wei_grid),
@@ -585,7 +625,10 @@ struct DeviceConvFwdXdl<
                                           input_left_pads,
                                           input_right_pads,
                                           1,
-                                          1);
+                                          1,
+                                          in_element_op,
+                                          wei_element_op,
+                                          out_element_op);
     }
 
     // polymorphic
@@ -593,7 +636,7 @@ struct DeviceConvFwdXdl<
     {
         return std::make_unique<Invoker>(Invoker{});
     }
-};
+}; // namespace device
 
 } // namespace device
 } // namespace tensor_operation

@@ -14,7 +14,7 @@
 #include "device_base.hpp"
 #include "device_gemm_xdl.hpp"
 
-struct Equal
+struct PassThrough
 {
     template <typename T>
     __host__ __device__ constexpr T operator()(T v) const
@@ -204,8 +204,8 @@ int main(int argc, char* argv[])
                                             ALayout,
                                             BLayout,
                                             CLayout,
-                                            Equal,
-                                            Equal,
+                                            PassThrough,
+                                            PassThrough,
                                             Relu>::type{};
 
     auto invoker  = gemm.MakeInvoker();
@@ -218,8 +218,8 @@ int main(int argc, char* argv[])
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      Equal{},
-                                      Equal{},
+                                      PassThrough{},
+                                      PassThrough{},
                                       Relu{});
 
     if(!gemm.IsSupportedArgument(argument))
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_gemm_mk_kn_mn(a_m_k, b_k_n, c_m_n_host_result, Equal{}, Equal{}, Relu{});
+        host_gemm_mk_kn_mn(a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, Relu{});
 
         check_error(c_m_n_host_result, c_m_n_device_result);
     }

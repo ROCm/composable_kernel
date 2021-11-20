@@ -8,12 +8,17 @@
 #include "device_tensor.hpp"
 #include "device_conv.hpp"
 #include "device_conv_instance.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_conv_instance {
 
+using DeviceConvFwdNoOpPtr = DeviceConvFwdPtr<ck::tensor_operation::element_wise::PassThrough,
+                                              ck::tensor_operation::element_wise::PassThrough,
+                                              ck::tensor_operation::element_wise::PassThrough>;
+
 template <>
 void add_device_conv_fwd_instance<2,
                                   float,
@@ -22,7 +27,7 @@ void add_device_conv_fwd_instance<2,
                                   ck::tensor_layout::convolution::NHWC,
                                   ck::tensor_layout::convolution::KYXC,
                                   ck::tensor_layout::convolution::NHWK>(
-    std::vector<ck::tensor_operation::device::DeviceConvFwdPtr>&);
+    std::vector<DeviceConvFwdNoOpPtr>&);
 
 template <>
 void add_device_conv_fwd_instance<2,
@@ -32,7 +37,7 @@ void add_device_conv_fwd_instance<2,
                                   ck::tensor_layout::convolution::NHWC,
                                   ck::tensor_layout::convolution::KYXC,
                                   ck::tensor_layout::convolution::NHWK>(
-    std::vector<ck::tensor_operation::device::DeviceConvFwdPtr>&);
+    std::vector<DeviceConvFwdNoOpPtr>&);
 
 } // namespace device_conv_instance
 } // namespace device
@@ -133,8 +138,13 @@ void profile_conv(int do_verification,
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+    using DeviceConvFwdNoOpPtr =
+        ck::tensor_operation::device::DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>;
+
     // add device Conv instances
-    std::vector<ck::tensor_operation::device::DeviceConvFwdPtr> conv_ptrs;
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
 
     ck::tensor_operation::device::device_conv_instance::add_device_conv_fwd_instance<2,
                                                                                      InDataType,
@@ -170,7 +180,10 @@ void profile_conv(int do_verification,
             conv_filter_strides,
             conv_filter_dilations,
             input_left_pads,
-            input_right_pads);
+            input_right_pads,
+            PassThrough{},
+            PassThrough{},
+            PassThrough{});
 
         auto invoker_ptr = conv_ptr->MakeInvokerPointer();
 
