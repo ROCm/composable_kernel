@@ -36,15 +36,6 @@ struct BaseOperator
     virtual ~BaseOperator() {}
 };
 
-struct BaseGpuOperator
-{
-    BaseGpuOperator()                       = default;
-    BaseGpuOperator(const BaseGpuOperator&) = default;
-    BaseGpuOperator& operator=(const BaseGpuOperator&) = default;
-
-    virtual ~BaseGpuOperator() {}
-};
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

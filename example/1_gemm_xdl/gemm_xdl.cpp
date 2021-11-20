@@ -14,7 +14,7 @@
 #include "device_base.hpp"
 #include "device_gemm_xdl.hpp"
 
-struct Activation : public ck::tensor_operation::device::BaseGpuOperator
+struct Activation
 {
     float alpha = 0.1;
 
@@ -191,7 +191,7 @@ int main(int argc, char* argv[])
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      std::make_unique<Activation>(activation));
+                                      activation);
 
     if(!gemm.IsSupportedArgument(argument))
     {

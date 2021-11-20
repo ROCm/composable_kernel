@@ -34,7 +34,7 @@ __global__ void
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
             const Block2CTileMap block_2_ctile_map,
-            const CElementwiseOperation c_elementwise_op)
+            const CElementwiseOperation c_element_op)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -49,7 +49,7 @@ __global__ void
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                                   block_2_ctile_map,
-                                                  c_elementwise_op);
+                                                  c_element_op);
 }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 template <typename GridwiseGemm,
@@ -58,7 +58,8 @@ template <typename GridwiseGemm,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-          typename Block2CTileMap>
+          typename Block2CTileMap,
+          typename CElementwiseOperation>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -69,7 +70,8 @@ __global__ void
                                 const void CONSTANT* p_a_grid_desc_k0_m_k1,
                                 const void CONSTANT* p_b_grid_desc_k0_n_k1,
                                 const void CONSTANT* p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                const void CONSTANT* p_block_2_ctile_map)
+                                const void CONSTANT* p_block_2_ctile_map,
+                                const void CONSTANT* p_c_element_op)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -83,6 +85,8 @@ __global__ void
             cast_pointer_to_generic_address_space(p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2));
     const auto block_2_ctile_map = *reinterpret_cast<const Block2CTileMap*>(
         cast_pointer_to_generic_address_space(p_block_2_ctile_map));
+    const auto c_element_op = *reinterpret_cast<const CElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_c_element_op));
 
     __shared__ FloatAB p_shared_block[shared_block_size];
 
@@ -93,7 +97,8 @@ __global__ void
                                                   a_grid_desc_k0_m_k1,
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  block_2_ctile_map);
+                                                  block_2_ctile_map,
+                                                  c_element_op);
 }
 #endif
 
@@ -105,7 +110,7 @@ template <index_t BlockSize,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M_N,
-          typename CElementwiseOp,
+          typename CElementwiseOperation,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
@@ -358,7 +363,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
         const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2& c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
         const Block2CTileMap& block_2_ctile_map,
-        const CElementwiseOp& c_elementwise_op)
+        const CElementwiseOperation& c_element_op)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
@@ -578,10 +583,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 make_naive_tensor_descriptor_packed(make_tuple(
                     Number<M0>{}, Number<N0>{}, I1, I1, Number<M2>{}, I1, Number<M4>{}, I1));
 
-            // elementwise Op to C
-            static_for<0, c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize(), 1>{}(
-                [&](auto i) { c_thread_buf(i) = c_elementwise_op(c_thread_buf[i]); });
-
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
             const auto c_thread_mtx_on_block =
@@ -619,6 +620,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                    FloatC,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                   CElementwiseOperation,
                                                    Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
                                                    CThreadTransferSrcDstAccessOrder,
                                                    CThreadTransferSrcDstVectorDim,
@@ -626,7 +628,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                    CGlobalMemoryDataOperation,
                                                    1,
                                                    true>{
-
                     c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(m_thread_data_on_grid_idx[I0],
                                      n_thread_data_on_grid_idx[I0],
@@ -635,7 +636,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                      m_thread_data_on_grid_idx[I2],
                                      m_thread_data_on_grid_idx[I3],
                                      m_thread_data_on_grid_idx[I4],
-                                     n_thread_data_on_grid_idx[I2])};
+                                     n_thread_data_on_grid_idx[I2]),
+                    c_element_op};
 
             c_thread_copy.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),

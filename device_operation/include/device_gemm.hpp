@@ -8,6 +8,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename CElementwiseOperation>
 struct DeviceGemm : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -20,12 +21,13 @@ struct DeviceGemm : public BaseOperator
                         ck::index_t StrideA,
                         ck::index_t StrideB,
                         ck::index_t StrideC,
-                        std::unique_ptr<BaseGpuOperator> c_element_op_ptr) = 0;
+                        CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-using DeviceGemmPtr = std::unique_ptr<DeviceGemm>;
+template <typename CElementwiseOperation>
+using DeviceGemmPtr = std::unique_ptr<DeviceGemm<CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

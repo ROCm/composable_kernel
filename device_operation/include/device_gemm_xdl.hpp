@@ -50,7 +50,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceGemmXdl : public DeviceGemm
+struct DeviceGemmXdl : public DeviceGemm<CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -233,7 +233,7 @@ struct DeviceGemmXdl : public DeviceGemm
                  index_t StrideC,
                  index_t M01,
                  index_t N01,
-                 CElementwiseOperation c_elementwise_op)
+                 CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -244,7 +244,7 @@ struct DeviceGemmXdl : public DeviceGemm
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
-              c_elementwise_op_{c_elementwise_op}
+              c_element_op_{c_element_op}
         {
             a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
@@ -271,7 +271,7 @@ struct DeviceGemmXdl : public DeviceGemm
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
-        CElementwiseOperation c_elementwise_op_;
+        CElementwiseOperation c_element_op_;
     };
 
     // Invoker
@@ -337,7 +337,7 @@ struct DeviceGemmXdl : public DeviceGemm
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.block_2_ctile_map_,
-                                                  arg.c_elementwise_op_);
+                                                  arg.c_element_op_);
             }
             else
             {
@@ -364,7 +364,7 @@ struct DeviceGemmXdl : public DeviceGemm
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.block_2_ctile_map_,
-                                                  arg.c_elementwise_op_);
+                                                  arg.c_element_op_);
             }
 
             return ave_time;
@@ -407,36 +407,24 @@ struct DeviceGemmXdl : public DeviceGemm
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
-                             std::unique_ptr<BaseGpuOperator> c_op_ptr)
+                             CElementwiseOperation c_element_op)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        M,
-                        N,
-                        K,
-                        StrideA,
-                        StrideB,
-                        StrideC,
-                        1,
-                        1,
-                        *dynamic_cast<CElementwiseOperation*>(c_op_ptr.get())};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, 1, 1, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a,
-                        const void* p_b,
-                        void* p_c,
-                        index_t M,
-                        index_t N,
-                        index_t K,
-                        index_t StrideA,
-                        index_t StrideB,
-                        index_t StrideC,
-                        std::unique_ptr<BaseGpuOperator> c_op_ptr) override
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                      const void* p_b,
+                                                      void* p_c,
+                                                      index_t M,
+                                                      index_t N,
+                                                      index_t K,
+                                                      index_t StrideA,
+                                                      index_t StrideB,
+                                                      index_t StrideC,
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -449,7 +437,7 @@ struct DeviceGemmXdl : public DeviceGemm
                                           StrideC,
                                           1,
                                           1,
-                                          *dynamic_cast<CElementwiseOperation*>(c_op_ptr.get()));
+                                          c_element_op);
     }
 
     // polymorphic
