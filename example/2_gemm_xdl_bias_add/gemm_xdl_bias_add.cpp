@@ -14,7 +14,9 @@
 #include "device_base.hpp"
 #include "example/2_gemm_xdl_bias_add/include/device_gemm_xdl_bias_add.hpp"
 
-// C[m, n] = alpha(A[m, k] * B[k, n]) + beta * D[m] + gamma * E[m, n]
+// C[m, n] = alpha(A[m, k] * B[k, n]) + beta * C0[m, n] + gamma * C1[m]
+// assume C0 has same layout as C
+// assume C1 is contiguous in memory
 
 struct PassThrough
 {
@@ -175,9 +177,19 @@ int main(int argc, char* argv[])
     Tensor<BDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<BDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
+    // C0[m ,n]
+    Tensor<BDataType> c0_m_n(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+
+    // C1[m]
+    Tensor<CDataType> c1_m_n(HostTensorDescriptor(
+        std::vector<std::size_t>({static_cast<std::size_t>(M), static_cast<std::size_t>(N)}),
+        std::vector<std::size_t>({1, 0})));
+
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
+    std::cout << "c0_m_n: " << c0_m_n.mDesc << std::endl;
+    std::cout << "c1_m_n: " << c1_m_n.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -185,19 +197,27 @@ int main(int argc, char* argv[])
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        c0_m_n.GenerateTensorValue(GeneratorTensor_2<CDataType>{-5, 5});
+        c1_m_n.GenerateTensorValue(GeneratorTensor_2<CDataType>{-5, 5});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        c0_m_n.GenerateTensorValue(GeneratorTensor_3<CDataType>{0.0, 1.0});
+        c1_m_n.GenerateTensorValue(GeneratorTensor_3<CDataType>{0.0, 1.0});
     }
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem c0_m_n_device_buf(sizeof(CDataType) * c0_m_n.mDesc.GetElementSpace());
+    DeviceMem c1_m_n_device_buf(sizeof(CDataType) * c1_m_n.mDesc.GetElementSpace());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
+    c0_m_n_device_buf.ToDevice(c0_m_n.mData.data());
+    c1_m_n_device_buf.ToDevice(c1_m_n.mData.data());
 
     // do GEMM
     auto gemm = typename DeviceGemmInstance<ADataType,
@@ -214,6 +234,8 @@ int main(int argc, char* argv[])
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
                                       static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c0_m_n_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c1_m_n_device_buf.GetDeviceBuffer()),
                                       M,
                                       N,
                                       K,
