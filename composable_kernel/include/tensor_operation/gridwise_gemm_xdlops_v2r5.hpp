@@ -614,6 +614,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5
                                                    FloatC,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                   decltype(c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                   decltype(c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    CElementwiseOperation,
                                                    Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
                                                    CThreadTransferSrcDstAccessOrder,
@@ -623,6 +625,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5
                                                    1,
                                                    true>{
                     c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                    c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                    c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(m_thread_data_on_grid_idx[I0],
                                      n_thread_data_on_grid_idx[I0],
                                      m_thread_data_on_grid_idx[I1],
@@ -638,7 +642,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5
                               c_thread_buf,
                               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                               c_grid_buf,
-                              c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks);
+                              c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks,
+                              c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                              c0_grid_buf,
+                              c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                              c1_grid_buf);
         }
     }
 }; // namespace ck
