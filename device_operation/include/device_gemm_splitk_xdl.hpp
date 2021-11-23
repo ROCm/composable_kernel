@@ -49,6 +49,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN,
+          bool IsSplitK,
           ck::index_t DesiredGridSize>
 struct DeviceGemmSplitKXdl : public DeviceGemm
 {
@@ -140,6 +141,8 @@ struct DeviceGemmSplitKXdl : public DeviceGemm
 
     static auto GetKBatchAndKPad(index_t M, index_t N, index_t K)
     {
+        if(!IsSplitK)
+            return std::make_tuple(1, K);
         const auto GridMN    = M * N / (MPerBlock * NPerBlock);
         const index_t KBatch = std::max(DesiredGridSize / GridMN, 1);
         const index_t K0     = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
@@ -203,6 +206,54 @@ struct DeviceGemmSplitKXdl : public DeviceGemm
         AccDataType,
         CDataType,
         InMemoryDataOperationEnum_t::Set,
+        AGridDesc_K0_M_K1,
+        BGridDesc_K0_N_K1,
+        CGridDesc_M_N,
+        MPerBlock,
+        NPerBlock,
+        K0PerBlock,
+        MPerXDL,
+        NPerXDL,
+        K1,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadSliceLengths_K0_M_K1,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false, // AThreadTransferSrcResetCoordinateAfterRun,
+        BBlockTransferThreadSliceLengths_K0_N_K1,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false,                            // BThreadTransferSrcResetCoordinateAfterRun,
+        Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
+        CThreadTransferSrcDstVectorDim,
+        CThreadTransferDstScalarPerVector,
+        decltype(a_kbatch_k0_m_k1_grid_step_hacks),          //  AGridStepHacks,
+        decltype(b_kbatch_k0_n_k1_grid_step_hacks),          //  BGridStepHacks,
+        decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks), //  CGridStepHacks,
+        decltype(
+            a_kbatch_k0_m_k1_grid_move_slice_window_step_hacks), //  AGridMoveSliceWindowStepHacks,
+        decltype(
+            b_kbatch_k0_n_k1_grid_move_slice_window_step_hacks), //  BGridMoveSliceWindowStepHacks,
+        false,                                                   // CAccessOrderMRepeatNRepeat,
+        ABlockLdsAddExtraM,
+        BBlockLdsAddExtraN>;
+
+    // GridwiseGemm
+    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4<
+        BlockSize,
+        ADataType, // TODO: distinguish A/B datatype
+        AccDataType,
+        CDataType,
+        InMemoryDataOperationEnum_t::AtomicAdd,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
