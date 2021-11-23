@@ -36,7 +36,7 @@ struct PassThrough
 // v2 is from bias vector
 struct BiasAdd
 {
-#if 0
+#if 1
     // correct result
     // no scratch memory, good VGPR allocation (59)
     // good perf (101Tflops)
@@ -55,7 +55,7 @@ struct BiasAdd
 
         return b;
     }
-#elif 1
+#elif 0
     float alpha = 0.1;
     float beta  = 0.2;
     float gamma = 0.3;
