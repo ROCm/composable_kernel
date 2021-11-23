@@ -13,7 +13,7 @@ rocm/tensorflow:rocm4.3.1-tf2.6-dev                                          \
 /bin/bash
 ```
 
-## Build ``gemm_xdl```
+## Build ```gemm_xdl```
 ```bash
 mkdir build && cd build
 ```
@@ -38,7 +38,7 @@ cmake                                                                  \
 #arg1: verification (0=no, 1=yes)
 #arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 #arg3: run kernel # of times (>1)
-./example/gemm_xdl.sh 0 1 5
+./example/gemm_xdl 0 1 5
 ```
 
 Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
