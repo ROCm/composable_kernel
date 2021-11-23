@@ -32,7 +32,7 @@ template <typename SrcData,
           typename DstDesc,
           typename Dst0Desc, // this is really one of sources, but it has same shape as DstDesc
           typename Dst1Desc, // this is really one of sources, but it has same shape as DstDesc
-          typename SrcElementwiseOperation,
+          typename DstElementwiseOperation,
           typename SliceLengths,
           typename DimAccessOrder,
           index_t DstVectorDim,
@@ -60,11 +60,11 @@ struct ThreadwiseTensorSliceTransfer_v1r4
         const Dst0Desc& dst0_desc,
         const Dst1Desc& dst1_desc,
         const Index& dst_slice_origin_idx,
-        const SrcElementwiseOperation src_element_op)
+        const DstElementwiseOperation& dst_element_op)
         : dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin_idx)),
           dst0_coord_(make_tensor_coordinate(dst0_desc, dst_slice_origin_idx)),
           dst1_coord_(make_tensor_coordinate(dst1_desc, dst_slice_origin_idx)),
-          src_element_op_{src_element_op}
+          dst_element_op_{dst_element_op}
     {
         static_assert(SrcDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc need to known at compile-time");
@@ -258,15 +258,45 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             using dst_vector_t =
                 typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
-            // copy data from src_buf into dst_vector
-            static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                constexpr index_t src_offset = src_desc.CalculateOffset(
-                    src_slice_origin_idx + dst_data_idx + i * dst_scalar_step_in_vector);
+            // load dst0 and dst1 and apply elementwise operation
+            {
+                // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+                // TODO: fix this
+                static_assert(DstScalarPerVector == 1, "wrong!");
 
-                // apply element-wise operation and type convert
-                dst_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>(src_element_op_(src_buf[Number<src_offset>{}]));
-            });
+                // copy data from src_buf into dst_vector_src_data
+                constexpr index_t src_offset =
+                    src_desc.CalculateOffset(src_slice_origin_idx + dst_data_idx);
+
+                const SrcData src_v = src_buf[Number<src_offset>{}];
+
+                // load dst0 and dst1
+                const bool is_dst0_valid =
+                    coordinate_has_valid_offset_assuming_visible_index_is_valid(dst0_desc,
+                                                                                dst0_coord_);
+                const bool is_dst1_valid =
+                    coordinate_has_valid_offset_assuming_visible_index_is_valid(dst1_desc,
+                                                                                dst1_coord_);
+
+                const DstData dst0_v =
+                    dst0_buf.template Get<DstData>(dst0_coord_.GetOffset(), is_dst0_valid);
+                const DstData dst1_v =
+                    dst1_buf.template Get<DstData>(dst1_coord_.GetOffset(), is_dst1_valid);
+
+#if !CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R4_TYPE_CONVERT_ISSUE
+                // apply element-wise operation in SrcData type
+                const SrcData dst_v = dst_element_op_(
+                    src_v, type_convert<SrcData>(dst0_v), type_convert<SrcData>(dst1_v));
+
+                // apply type convert
+                dst_vector.template AsType<DstData>()(Number<0>{}) = type_convert<DstData>(dst_v);
+#else
+                // apply element-wise operation in DstData type
+                const DstData dst_v = dst_element_op_(src_v, dst0_v, dst1_v);
+
+                dst_vector.template AsType<DstData>()(Number<0>{}) = dst_v;
+#endif
+            }
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
@@ -327,11 +357,27 @@ struct ThreadwiseTensorSliceTransfer_v1r4
                     {
                         move_tensor_coordinate(
                             dst_desc, dst_coord_, dst_forward_steps[dim_access_order[i]]);
+
+                        // dst0
+                        move_tensor_coordinate(
+                            dst0_desc, dst0_coord_, dst0_forward_steps[dim_access_order[i]]);
+
+                        // dst1
+                        move_tensor_coordinate(
+                            dst1_desc, dst1_coord_, dst1_forward_steps[dim_access_order[i]]);
                     }
                     else
                     {
                         move_tensor_coordinate(
                             dst_desc, dst_coord_, dst_backward_steps[dim_access_order[i]]);
+
+                        // dst0
+                        move_tensor_coordinate(
+                            dst0_desc, dst0_coord_, dst0_backward_steps[dim_access_order[i]]);
+
+                        // dst1
+                        move_tensor_coordinate(
+                            dst1_desc, dst1_coord_, dst1_backward_steps[dim_access_order[i]]);
                     }
                 }
             });
@@ -469,7 +515,7 @@ struct ThreadwiseTensorSliceTransfer_v1r4
     DstCoord dst_coord_;
     Dst0Coord dst0_coord_;
     Dst1Coord dst1_coord_;
-    SrcElementwiseOperation src_element_op_;
+    const DstElementwiseOperation dst_element_op_;
 }; // namespace ck
 
 } // namespace ck

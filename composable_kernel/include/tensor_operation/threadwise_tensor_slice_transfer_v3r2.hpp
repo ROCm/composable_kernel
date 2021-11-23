@@ -810,7 +810,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;
-    SrcElementwiseOperation src_element_op_;
+    const SrcElementwiseOperation src_element_op_;
 };
 
 } // namespace ck
