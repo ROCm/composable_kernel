@@ -13,7 +13,7 @@ rocm/tensorflow:rocm4.3.1-tf2.6-dev                                          \
 /bin/bash
 ```
 
-## Build ``gemm_xdl_bias_add```
+## Build ```gemm_xdl_bias_add```
 ```bash
 mkdir build && cd build
 ```
