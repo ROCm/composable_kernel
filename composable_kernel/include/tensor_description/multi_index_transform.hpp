@@ -1075,8 +1075,8 @@ struct Merge_v2_magic_division
     __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
 
     template <typename LowIdx, typename UpIdx>
-    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
-                                                           const UpIdx& idx_up) const
+    __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                  const UpIdx& idx_up) const
     {
         static_assert(LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
                       "wrong! inconsistent # of dimension");
@@ -1094,6 +1094,28 @@ struct Merge_v2_magic_division
 
         idx_low(Number<0>{}) = tmp;
     }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        index_t tmp = idx_up[Number<0>{}];
+
+        static_for<NDimLow - 1, 0, -1>{}([&, this](auto i) {
+            // jfy_debug
+            index_t tmp3 = (as_type<uint32_t>(tmp) * this->low_lengths_magic_divisor_multiplier_[i] & 0xFFFF0000);
+            index_t tmp2 = (tmp3 + as_type<uint32_t>(tmp)) >> this->low_lengths_magic_divisor_shift_[i];
+            // jfy_debug_end
+            idx_low(i) = tmp - tmp2 * this->low_lengths_[i];
+            tmp        = tmp2;
+        });
+
+        idx_low(Number<0>{}) = tmp;
+    }
+
 
     template <typename LowIdxDiff,
               typename UpIdxDiff,

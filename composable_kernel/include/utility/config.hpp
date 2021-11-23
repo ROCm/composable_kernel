@@ -61,7 +61,7 @@
 
 // AMD buffer addressing
 #ifndef CK_USE_AMD_BUFFER_ADDRESSING
-#define CK_USE_AMD_BUFFER_ADDRESSING 0
+#define CK_USE_AMD_BUFFER_ADDRESSING 1
 #endif
 
 // only gfx908 support native floating point atomic add

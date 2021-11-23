@@ -111,7 +111,7 @@ struct MagicDivision
     }
 
     // magic division for uint32_t
-    __host__ __device__ static constexpr uint32_t
+    __device__ static constexpr uint32_t
     DoMagicDivision(uint32_t dividend, uint32_t multiplier, uint32_t shift)
     {
         uint32_t tmp = __umulhi(dividend, multiplier);
@@ -122,7 +122,7 @@ struct MagicDivision
     // HACK: use dividend_i32 as if it's uint32_t, dividend_i32 need to be
     // non-negative for result to be correct
     // TODO: figure out how to do magic number divison for int32_t as dividended
-    __host__ __device__ static constexpr int32_t
+    __device__ static constexpr int32_t
     DoMagicDivision(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
     {
         uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);

@@ -170,7 +170,7 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
     constexpr index_t GemmBBlockTransferDstScalarPerVector_GemmK1 = 8;
 
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
-#elif 0
+#elif 1
     // [M, N, K0, K1] = [128, 256, 4, 8], C = 128, for fp16
     constexpr index_t BlockSize = 256;
 
@@ -312,7 +312,9 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 #endif
 
-#define _jfy_ver_ 1
+#define _jfy_ver_ 2
+
+
 #if _jfy_ver_ == 0
     const auto descs =
         transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(in_n_di_hi_wi_c_desc,
@@ -457,7 +459,7 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
                       << std::endl;
         }
     }
-#else
+#elif   _jfy_ver_ == 1
     const auto descs = transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
         in_n_di_hi_wi_c_desc,
         wei_k_z_y_x_c_desc,
@@ -479,23 +481,24 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
            in_s_gemmk0_gemmm_gemmk1_grid_desc.GetElementSize());
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
+    constexpr index_t NumTransformsOfData = 21;
     constexpr auto in_gemmk0_gemmm_gemmk1_grid_step_hacks =
-        make_tuple(make_tuple(uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{}),
-                   make_tuple(uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{},
-                              uniform_sequence_gen<24, 0>::type{}));
+        make_tuple(make_tuple(uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{}),
+                   make_tuple(uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfData, 0>::type{}));
 
     constexpr auto wei_gemmk0_gemmn_gemmk1_grid_step_hacks =
         make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0+: GemmK0
@@ -505,26 +508,28 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
                               Sequence<0, 0, 0, 0, 0>{},   // 1-: GemmN
                               Sequence<0, 0, 0, 0, 0>{})); // 2-: GemmK1
 
+    constexpr index_t NumTransformsOfOutput = 23;
     constexpr auto out_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
-        make_tuple(make_tuple(uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{}),
-                   make_tuple(uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{},
-                              uniform_sequence_gen<31, 0>::type{}));
+        make_tuple(make_tuple(uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{}),
+                   make_tuple(uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{},
+                              uniform_sequence_gen<NumTransformsOfOutput, 0>::type{}));
 
     constexpr auto in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks =
-        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
+        uniform_sequence_gen<NumTransformsOfData, 0>::type{};
+    // Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
 
     constexpr auto wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks =
         Sequence<0, 0, 0, 0, 0>{};
@@ -551,7 +556,7 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
            out_s_gemmm_gemmn_grid_desc.CalculateOffset(make_multi_index(1, 0, 0)));
     fflush(stdout);
 
-    for(index_t i = 0; i < 1; ++i)
+    for(index_t i = 0; i < 5; ++i)
     {
         float ave_time = driver_batched_gemm_xdlops_v2r3<
             BlockSize,
@@ -625,6 +630,177 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
                       << std::endl;
         }
     }
+
+#elif _jfy_ver_ == 2
+    const auto descs =
+        ck::transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN_v2(in_n_di_hi_wi_c_desc,
+                                                                            wei_k_z_y_x_c_desc,
+                                                                            out_n_do_ho_wo_k_desc,
+                                                                            conv_strides,
+                                                                            conv_dilations,
+                                                                            in_left_pads,
+                                                                            in_right_pads,
+                                                                            Number<GemmK1>{});
+
+    const auto in_gemmk0_gemmm_gemmk1_grid_desc  = descs[I0];
+    const auto wei_gemmk0_gemmn_gemmk1_grid_desc = descs[I1];
+    const auto out_gemmm_gemmn_grid_desc         = descs[I2];
+
+    printf("%s: %d %ld %ld\n",
+           __FILE__,
+           __LINE__,
+           in_gemmk0_gemmm_gemmk1_grid_desc.GetElementSpaceSize(),
+           in_gemmk0_gemmm_gemmk1_grid_desc.GetElementSize());
+
+    // HACK: hacks that control index calculation when iterating over A, B, C matrix
+    constexpr auto in_gemmk0_gemmm_gemmk1_grid_step_hacks = make_tuple(
+        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: GemmK0
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: GemmM
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 2+: GemmK1
+        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: GemmK0
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: GemmM
+                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 2-: GemmK1
+
+    constexpr auto wei_gemmk0_gemmn_gemmk1_grid_step_hacks =
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0+: GemmK0
+                              Sequence<0, 0, 0, 0, 0>{},   // 1+: GemmN
+                              Sequence<0, 0, 0, 0, 0>{}),  // 2+: GemmK1
+                   make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0-: GemmK0
+                              Sequence<0, 0, 0, 0, 0>{},   // 1-: GemmN
+                              Sequence<0, 0, 0, 0, 0>{})); // 2-: GemmK1
+
+    constexpr auto out_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
+                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
+
+    constexpr auto in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks =
+        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
+
+    constexpr auto wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks =
+        Sequence<0, 0, 0, 0, 0>{};
+
+    const auto N = in_n_di_hi_wi_c_desc.GetLength(I0);
+    const auto Di = in_n_di_hi_wi_c_desc.GetLength(I1);
+    const auto Hi = in_n_di_hi_wi_c_desc.GetLength(I2);
+    const auto Wi = in_n_di_hi_wi_c_desc.GetLength(I3);
+    const auto C  = in_n_di_hi_wi_c_desc.GetLength(I4);
+    const auto Do = out_n_do_ho_wo_k_lengths[I1];
+    const auto Ho = out_n_do_ho_wo_k_lengths[I2];
+    const auto Wo = out_n_do_ho_wo_k_lengths[I3];
+    const auto K  = out_n_do_ho_wo_k_lengths[I4];
+    const index_t N1 = out_gemmm_gemmn_grid_desc.GetLength(I0) / (Do * Ho * Wo);
+    const index_t S = N / N1;
+    const index_t a_batch_stride = N1 * Di * Hi * Wi * C;
+    const index_t c_batch_stride = N1 * Do * Ho * Wo * K;
+    printf("a_batch_stride = %d, c_batch_stride = %d\n", a_batch_stride, c_batch_stride);
+    // printf("a_offset(0,0,0,0) = %d, a_offset(1,0,0,0) = %d\n",
+           // in_gemmk0_gemmm_gemmk1_grid_desc.CalculateOffset(make_multi_index(0, 0, 0, 0)),
+           // in_gemmk0_gemmm_gemmk1_grid_desc.CalculateOffset(make_multi_index(1, 0, 0, 0)));
+    // printf("c_offset(0,0,0) = %d, c_offset(1,0,0) = %d\n",
+           // out_s_gemmm_gemmn_grid_desc.CalculateOffset(make_multi_index(0, 0, 0)),
+           // out_gemmm_gemmn_grid_desc.CalculateOffset(make_multi_index(1, 0, 0)));
+    fflush(stdout);
+
+    for(index_t i = 0; i < 5; ++i)
+    {
+        float ave_time = driver_batched_gemm_xdlops_v2r3<
+            BlockSize,
+            TInWei,
+            TAcc,
+            TOut,
+            InMemoryDataOperationEnum_t::Set,
+            decltype(in_gemmk0_gemmm_gemmk1_grid_desc),
+            decltype(wei_gemmk0_gemmn_gemmk1_grid_desc),
+            decltype(out_gemmm_gemmn_grid_desc),
+            GemmMPerBlock,
+            GemmNPerBlock,
+            GemmKPerBlock,
+            GemmMPerXDL,
+            GemmNPerXDL,
+            GemmK1,
+            MRepeat,
+            NRepeat,
+            GemmABlockTransferThreadSliceLengths_GemmK0_GemmM_GemmK1,
+            GemmABlockTransferThreadClusterLengths_GemmK0_GemmM_GemmK1,
+            Sequence<1, 0, 2>,
+            Sequence<1, 0, 2>,
+            2,
+            GemmABlockTransferSrcScalarPerVector_GemmK1,
+            GemmABlockTransferDstScalarPerVector_GemmK1,
+            false, // don't move back src coordinate after threadwise copy
+            GemmBBlockTransferThreadSliceLengths_GemmK0_GemmN_GemmK1,
+            GemmBBlockTransferThreadClusterLengths_GemmK0_GemmN_GemmK1,
+            Sequence<1, 0, 2>,
+            Sequence<1, 0, 2>,
+            2,
+            GemmBBlockTransferSrcScalarPerVector_GemmK1,
+            GemmBBlockTransferDstScalarPerVector_GemmK1,
+            false, // don't move back src coordinate after threadwise copy
+            Sequence<2, 3, 0, 1, 7, 5, 4, 6>,
+            7,
+            GemmCThreadTransferDstScalarPerVector,
+            decltype(in_gemmk0_gemmm_gemmk1_grid_step_hacks),
+            decltype(wei_gemmk0_gemmn_gemmk1_grid_step_hacks),
+            decltype(out_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),
+            decltype(in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks),
+            decltype(wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks),
+            false, // CAccessOrderMRepeatNRepeat
+            true,  // ABlockLdsExtraM
+            true   // BBlockLdsExtraN
+            >(static_cast<TInWei*>(in_n_di_hi_wi_c_device_buf.GetDeviceBuffer()),
+              static_cast<TInWei*>(wei_k_z_y_x_c_device_buf.GetDeviceBuffer()),
+              static_cast<TOut*>(out_n_do_ho_wo_k_device_buf.GetDeviceBuffer()),
+              S,
+              a_batch_stride,
+              c_batch_stride,
+              in_gemmk0_gemmm_gemmk1_grid_desc,
+              wei_gemmk0_gemmn_gemmk1_grid_desc,
+              out_gemmm_gemmn_grid_desc,
+              debug::debug_driver_gemm_xdlops_v2r3::M01,
+              debug::debug_driver_gemm_xdlops_v2r3::N01,
+              in_gemmk0_gemmm_gemmk1_grid_step_hacks,
+              wei_gemmk0_gemmn_gemmk1_grid_step_hacks,
+              out_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks,
+              in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks,
+              wei_gemmk0_gemmn_gemmk1_grid_move_slice_window_step_hacks,
+              nrepeat);
+
+        {
+            // const auto N = out_n_do_ho_wo_k_lengths[I0];
+            // const auto K = out_n_do_ho_wo_k_lengths[I4];
+            // const auto C = wei_k_z_y_x_c_lengths[I4];
+
+            // const auto Do = out_n_do_ho_wo_k_lengths[I1];
+            // const auto Ho = out_n_do_ho_wo_k_lengths[I2];
+            // const auto Wo = out_n_do_ho_wo_k_lengths[I3];
+
+            const auto Z = wei_k_z_y_x_c_lengths[I1];
+            const auto Y = wei_k_z_y_x_c_lengths[I2];
+            const auto X = wei_k_z_y_x_c_lengths[I3];
+
+            float perf =
+                static_cast<float>((std::size_t(2) * N * K * Do * Ho * Wo * C * Z * Y * X)) /
+                (std::size_t(1000) * 1000 * 1000) / ave_time;
+
+            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
+                      << std::endl;
+        }
+    }
+
 #endif
 
     // copy result back to host
