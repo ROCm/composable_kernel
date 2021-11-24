@@ -12,7 +12,7 @@
 #include "gridwise_gemm_xdlops_v2r4.hpp"
 
 #ifndef CK_RUN_KERNEL_AND_TIME
-#define CK_RUN_KERNEL_AND_TIME 0
+#define CK_RUN_KERNEL_AND_TIME 1
 #endif
 
 namespace ck {
