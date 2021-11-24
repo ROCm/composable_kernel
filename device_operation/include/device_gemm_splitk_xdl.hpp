@@ -11,6 +11,10 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r4.hpp"
 
+#ifndef CK_RUN_KERNEL_AND_TIME
+#define CK_RUN_KERNEL_AND_TIME 0
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -49,7 +53,6 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN,
-          bool IsSplitK,
           ck::index_t DesiredGridSize>
 struct DeviceGemmSplitKXdl : public DeviceGemm
 {
@@ -63,7 +66,7 @@ struct DeviceGemmSplitKXdl : public DeviceGemm
     static auto
     MakeAGridDescriptor_KBatch_K0_M_K1(index_t M, index_t K, index_t StrideA, int KBatch, int KPad)
     {
-        assert(K % K1 == 0);
+        assert(KPad % (K1 * KBatch) == 0);
 
         const index_t K0 = KPad / (K1 * KBatch);
 
@@ -96,7 +99,7 @@ struct DeviceGemmSplitKXdl : public DeviceGemm
     static auto
     MakeBGridDescriptor_KBatch_K0_N_K1(index_t K, index_t N, index_t StrideB, int KBatch, int KPad)
     {
-        assert(K % K1 == 0);
+        assert(KPad % (K1 * KBatch) == 0);
 
         const index_t K0 = KPad / (K1 * KBatch);
 
@@ -141,8 +144,6 @@ struct DeviceGemmSplitKXdl : public DeviceGemm
 
     static auto GetKBatchAndKPad(index_t M, index_t N, index_t K)
     {
-        if(!IsSplitK)
-            return std::make_tuple(1, K);
         const auto GridMN    = M * N / (MPerBlock * NPerBlock);
         const index_t KBatch = std::max(DesiredGridSize / GridMN, 1);
         const index_t K0     = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
@@ -405,18 +406,8 @@ struct DeviceGemmSplitKXdl : public DeviceGemm
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
-            {
-                const auto kernel = kernel_gemm_xdlops_v2r4<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
-                    true>;
-
+            const auto Run = [&](const auto& kernel) {
+#if CK_RUN_KERNEL_AND_TIME
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
                                                   dim3(grid_size),
@@ -429,31 +420,82 @@ struct DeviceGemmSplitKXdl : public DeviceGemm
                                                   arg.b_grid_desc_kbatch_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.block_2_ctile_map_);
+#else
+                nrepeat++;
+                launch_kernel(kernel,
+                              dim3(grid_size),
+                              dim3(BlockSize),
+                              0,
+                              arg.p_a_grid_,
+                              arg.p_b_grid_,
+                              arg.p_c_grid_,
+                              arg.a_grid_desc_kbatch_k0_m_k1_,
+                              arg.b_grid_desc_kbatch_k0_n_k1_,
+                              arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                              arg.block_2_ctile_map_);
+#endif
+            };
+            if(has_main_k0_block_loop)
+            {
+                if(kbatch == 1)
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        true>;
+
+                    Run(kernel);
+                }
+                else
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4<
+                        GridwiseGemmAtomicAdd,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        true>;
+
+                    Run(kernel);
+                }
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r4<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
-                    false>;
+                if(kbatch == 1)
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.a_grid_desc_kbatch_k0_m_k1_,
-                                                  arg.b_grid_desc_kbatch_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.block_2_ctile_map_);
+                    Run(kernel);
+                }
+                else
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4<
+                        GridwiseGemmAtomicAdd,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        false>;
+
+                    Run(kernel);
+                }
             }
 
             return ave_time;
