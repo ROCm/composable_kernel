@@ -18,9 +18,14 @@
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV3D_FWD_V4R4R4_XDL_NHWC 1
 
+enum Conv3dTensorLayout
+{
+    NDHWC = 0
+};
+
 enum ConvForwardAlgo
 {
-    V4R4R4XDLNDHWC // 0
+    V4R4R4XDLNDHWC = 0 // 0
 };
 
 int main(int argc, char* argv[])
@@ -46,12 +51,12 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    const ConvTensorLayout layout = static_cast<ConvTensorLayout>(std::stoi(argv[1]));
-    const ConvForwardAlgo algo    = static_cast<ConvForwardAlgo>(std::stoi(argv[2]));
-    const bool do_verification    = std::stoi(argv[3]);
-    const int init_method         = std::stoi(argv[4]);
-    const bool do_log             = std::stoi(argv[5]);
-    const int nrepeat             = std::stoi(argv[6]);
+    const Conv3dTensorLayout layout = static_cast<Conv3dTensorLayout>(std::stoi(argv[1]));
+    const ConvForwardAlgo algo      = static_cast<ConvForwardAlgo>(std::stoi(argv[2]));
+    const bool do_verification      = std::stoi(argv[3]);
+    const int init_method           = std::stoi(argv[4]);
+    const bool do_log               = std::stoi(argv[5]);
+    const int nrepeat               = std::stoi(argv[6]);
 
     const index_t N  = std::stoi(argv[7]);
     const index_t K  = std::stoi(argv[8]);
@@ -91,12 +96,12 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    const ConvTensorLayout layout = static_cast<ConvTensorLayout>(std::stoi(argv[1]));
-    const ConvForwardAlgo algo    = static_cast<ConvForwardAlgo>(std::stoi(argv[2]));
-    const bool do_verification    = std::stoi(argv[3]);
-    const int init_method         = std::stoi(argv[4]);
-    const bool do_log             = std::stoi(argv[5]);
-    const int nrepeat             = std::stoi(argv[6]);
+    const Conv3dTensorLayout layout = static_cast<Conv3dTensorLayout>(std::stoi(argv[1]));
+    const ConvForwardAlgo algo      = static_cast<ConvForwardAlgo>(std::stoi(argv[2]));
+    const bool do_verification      = std::stoi(argv[3]);
+    const int init_method           = std::stoi(argv[4]);
+    const bool do_log               = std::stoi(argv[5]);
+    const int nrepeat               = std::stoi(argv[6]);
 
     constexpr auto N  = Number<128>{};
     constexpr auto C  = Number<192>{};
@@ -146,7 +151,7 @@ int main(int argc, char* argv[])
 
     std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5);
 
-    if(layout == ConvTensorLayout::NDHWC)
+    if(layout == Conv3dTensorLayout::NDHWC)
     {
         in_lengths_host[0]  = static_cast<std::size_t>(N);
         in_lengths_host[1]  = static_cast<std::size_t>(Di);
@@ -191,30 +196,30 @@ int main(int argc, char* argv[])
         // no initialization
         break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
         break;
     case 2:
-        in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
         break;
     case 3:
-        in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
         break;
     case 4:
-        in.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
         break;
     case 5:
-        in.GenerateTensorValue(GeneratorTensor_3<float>{0.0, 1.0}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_3<float>{-0.5, 0.5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_3<in_data_t>{0.0, 1.0}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_3<in_data_t>{-0.5, 0.5}, num_thread);
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{1, 5}, num_thread);
 
         auto gen_wei = [](auto... is) {
-            return GeneratorTensor_2{1, 5}(is...) * GeneratorTensor_Checkboard{}(is...);
+            return GeneratorTensor_2<in_data_t>{1, 5}(is...) * GeneratorTensor_Checkboard{}(is...);
         };
         wei.GenerateTensorValue(gen_wei, num_thread);
     }
@@ -241,7 +246,7 @@ int main(int argc, char* argv[])
 #if USE_CONV3D_FWD_V4R4R4_XDL_NHWC
     if(algo == ConvForwardAlgo::V4R4R4XDLNDHWC)
     {
-        if(layout != ConvTensorLayout::NDHWC)
+        if(layout != Conv3dTensorLayout::NDHWC)
         {
             throw std::runtime_error("wrong! layout");
         }
@@ -263,18 +268,16 @@ int main(int argc, char* argv[])
             out_device,
             nrepeat);
     }
-#endif
 
     if(do_verification)
     {
-        host_direct_convolution3d(in,
-                                  wei,
-                                  out_host,
-                                  make_tuple(conv_stride_d, conv_stride_h, conv_stride_w),
-                                  make_tuple(conv_dilation_d, conv_dilation_h, conv_dilation_w),
-                                  make_tuple(in_left_pad_d, in_left_pad_h, in_left_pad_w),
-                                  make_tuple(in_right_pad_d, in_right_pad_h, in_right_pad_w),
-                                  layout);
+        host_conv3d_ndhwc_kzyxc_ndhwk(in,
+                                      wei,
+                                      out_host,
+                                      make_tuple(conv_stride_d, conv_stride_h, conv_stride_w),
+                                      make_tuple(conv_dilation_d, conv_dilation_h, conv_dilation_w),
+                                      make_tuple(in_left_pad_d, in_left_pad_h, in_left_pad_w),
+                                      make_tuple(in_right_pad_d, in_right_pad_h, in_right_pad_w));
 
         check_error(out_host, out_device);
 
@@ -286,4 +289,5 @@ int main(int argc, char* argv[])
             LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
         }
     }
+#endif
 }

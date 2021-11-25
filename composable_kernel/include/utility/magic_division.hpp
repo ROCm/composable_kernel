@@ -118,6 +118,13 @@ struct MagicDivision
         return (tmp + dividend) >> shift;
     }
 
+    __host__ static constexpr uint32_t
+    DoMagicDivision(uint32_t dividend, uint32_t multiplier, uint32_t shift)
+    {
+        uint32_t tmp = (dividend * multiplier & 0xFFFF0000);
+        return (tmp + dividend) >> shift;
+    }
+
     // magic division for int32_t
     // HACK: use dividend_i32 as if it's uint32_t, dividend_i32 need to be
     // non-negative for result to be correct
@@ -128,6 +135,16 @@ struct MagicDivision
         uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
         uint32_t tmp          = __umulhi(dividend_u32, multiplier);
         return (tmp + dividend_u32) >> shift;
+    }
+
+    __host__ static constexpr int32_t
+    DoMagicDivision(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
+    {
+        uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
+        uint32_t tmp = (dividend_u32 * multiplier & 0xFFFF0000);
+        return (tmp + dividend_u32) >> shift;
+        // uint32_t tmp = (bit_cast<uint32_t>(divident_u32) * multiplier & 0xFFFF0000);
+        // return (tmp + bit_cast<uint32_t>(divident_u32)) >> shift;
     }
 };
 

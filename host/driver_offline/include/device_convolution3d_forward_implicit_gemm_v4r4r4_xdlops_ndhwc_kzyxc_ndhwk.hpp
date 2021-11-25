@@ -312,7 +312,7 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
     constexpr index_t GemmCThreadTransferDstScalarPerVector = 1;
 #endif
 
-#define _jfy_ver_ 2
+#define _jfy_ver_ 1
 
 
 #if _jfy_ver_ == 0
