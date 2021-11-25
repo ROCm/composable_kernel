@@ -4,9 +4,6 @@
 #include "device_gemm_splitk_xdl.hpp"
 #include "device_gemm_instance.hpp"
 
-#ifndef CK_USE_SPLITK_XDLOPS
-#define CK_USE_SPLITK_XDLOPS 1
-#endif
 
 namespace ck {
 namespace tensor_operation {

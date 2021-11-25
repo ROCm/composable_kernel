@@ -123,6 +123,11 @@
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 #endif
 
+// using split k xdlops kernel
+#ifndef CK_USE_SPLITK_XDLOPS
+#define CK_USE_SPLITK_XDLOPS 1
+#endif
+
 namespace ck {
 
 enum InMemoryDataOperationEnum_t
