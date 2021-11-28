@@ -204,7 +204,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
     //   2) N1 * (Do * Ho * Wo * K) < (2^31 - 1)
     //   3) N1 * (Di * Hi * Wi * C) < (2^31 - 1)
     //
-    // Do NOT confuse (N0, N1) in this function with (N0, N1) in gridewise GEMM.
+    // Do NOT confuse (B, N1) in this function with (B, N1) in gridewise GEMM.
     auto N1 = N + 1;
 
     {
@@ -222,19 +222,15 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
             }
         }
 
-        const auto N0 = N / N1;
-        if(N0 * N1 != N)
+        const auto B = N / N1;
+        if(B * N1 != N)
         {
             throw std::runtime_error(__func__ +
-                                     std::string(": failed to umerge N into (N0, N1).\n"));
+                                     std::string(": failed to umerge N into (B, N1).\n"));
         }
     }
 
-    // jfy_debug
-    // N1 = N / 2;
-    // jfy_debug_end
-
-    const auto N0 = N / N1;
+    const auto B      = N / N1;
     const auto GemmM  = N1 * Do * Ho * Wo;
     const auto GemmN  = K;
     const auto GemmK  = Z * Y * X * C;
@@ -253,7 +249,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
 
     const auto in_n0_n1_z_do_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
         in_n_dip_hip_wip_c_grid_desc,
-        make_tuple(make_unmerge_transform(make_tuple(N0, N1)),
+        make_tuple(make_unmerge_transform(make_tuple(B, N1)),
                    make_embed_transform(make_tuple(Z, Do), make_tuple(ConvDilationD, ConvStrideD)),
                    make_embed_transform(make_tuple(Y, Ho), make_tuple(ConvDilationH, ConvStrideH)),
                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
@@ -264,7 +260,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
 
     const auto in_n0_gemmk_gemmm_grid_desc = transform_tensor_descriptor(
         in_n0_n1_z_do_y_ho_x_wo_c_grid_desc,
-        make_tuple(make_pass_through_transform(N0),
+        make_tuple(make_pass_through_transform(B),
                    make_merge_transform(make_tuple(Z, Y, X, C)),
                    make_merge_transform(make_tuple(N1, Do, Ho, Wo))),
         make_tuple(Sequence<0>{}, Sequence<2, 4, 6, 8>{}, Sequence<1, 3, 5, 7>{}),
@@ -272,7 +268,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
 
     const auto in_n0_gemmk0_gemmm_gemmk1_grid_desc =
         transform_tensor_descriptor(in_n0_gemmk_gemmm_grid_desc,
-                                    make_tuple(make_pass_through_transform(N0),
+                                    make_tuple(make_pass_through_transform(B),
                                                make_unmerge_transform(make_tuple(GemmK0, GemmK1)),
                                                make_pass_through_transform(GemmM)),
                                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
@@ -294,8 +290,8 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
 
     // C: output tensor
     const auto out_n0_gemmm_gemmn_grid_desc = transform_tensor_descriptor(
-        make_naive_tensor_descriptor_packed<true>(make_tuple(N0, N1 * Do * Ho * Wo, K)),
-        make_tuple(make_pass_through_transform(N0),
+        make_naive_tensor_descriptor_packed<true>(make_tuple(B, N1 * Do * Ho * Wo, K)),
+        make_tuple(make_pass_through_transform(B),
                    make_pass_through_transform(N1 * Do * Ho * Wo),
                    make_pass_through_transform(K)),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),

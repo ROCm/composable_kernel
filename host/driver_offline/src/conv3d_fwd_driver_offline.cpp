@@ -1,6 +1,10 @@
+#include <chrono>
+#include <ctime>
+#include <fstream>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
+// #include <initialzer_list>
+
 #include <cstdlib>
 #include <stdlib.h>
 //#include <half.hpp>
@@ -17,6 +21,32 @@
 
 #define USE_DYNAMIC_MODE 1
 #define USE_CONV3D_FWD_V4R4R4_XDL_NHWC 1
+
+template <typename TIn, typename TWei, typename TOut>
+__global__ void naive_conv_fwd_ndhwc(const TIn* __restrict__ p_in,
+                                     const TWei* __restrict__ p_wei,
+                                     TOut* __restrict__ p_out,
+                                     int N,
+                                     int K,
+                                     int C,
+                                     int Di,
+                                     int Hi,
+                                     int Wi,
+                                     int Z,
+                                     int Y,
+                                     int X,
+                                     int Do,
+                                     int Ho,
+                                     int Wo,
+                                     int stride_z,
+                                     int stride_y,
+                                     int stride_x,
+                                     int dilation_z,
+                                     int dilation_y,
+                                     int dilation_x,
+                                     int pad_z,
+                                     int pad_y,
+                                     int pad_x);
 
 enum Conv3dTensorLayout
 {
@@ -46,7 +76,8 @@ int main(int argc, char* argv[])
     {
         printf("argc = %d\n", argc);
         printf("arg1 to 6: layout, algo, do_verification, init_method, do_log, nrepeat\n");
-        printf("rest: N, K, C, Z, Y, X, Di, Hi, Wi, Sz, Sy, Sx, Dz, Dy, Dx, LeftPz, LeftPy, "
+        printf("rest: N, K, C, Z, Y, X, Di, Hi, Wi, stride_z, stride_y, stride_x, dilation_z, "
+               "dilation_y, dilation_x, LeftPz, LeftPy, "
                "LeftPx, RightPz, RightPy, RightPx\n");
         exit(1);
     }
@@ -193,7 +224,7 @@ int main(int argc, char* argv[])
     switch(init_method)
     {
     case 0:
-        // no initialization
+        // no initialzation
         break;
     case 1:
         in.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
@@ -271,13 +302,56 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_conv3d_ndhwc_kzyxc_ndhwk(in,
-                                      wei,
-                                      out_host,
-                                      make_tuple(conv_stride_d, conv_stride_h, conv_stride_w),
-                                      make_tuple(conv_dilation_d, conv_dilation_h, conv_dilation_w),
-                                      make_tuple(in_left_pad_d, in_left_pad_h, in_left_pad_w),
-                                      make_tuple(in_right_pad_d, in_right_pad_h, in_right_pad_w));
+#if 0
+        host_conv3d_ndhwc_kzyxc_ndhwk(
+                in,
+                wei,
+                out_host,
+                make_tuple(conv_stride_d, conv_stride_h, conv_stride_w),
+                make_tuple(conv_dilation_d, conv_dilation_h, conv_dilation_w),
+                make_tuple(in_left_pad_d, in_left_pad_h, in_left_pad_w),
+                make_tuple(in_right_pad_d, in_right_pad_h, in_right_pad_w));
+#else
+        DeviceMem input(sizeof(in_data_t) * N * Di * Hi * Wi * C);
+        DeviceMem weight(sizeof(in_data_t) * K * Z * Y * X * C);
+        DeviceMem output(sizeof(out_data_t) * N * Do * Ho * Wo * K);
+
+        input.ToDevice(in.mData.data());
+        weight.ToDevice(wei.mData.data());
+
+        const auto naive_conv_fwd_kernel = naive_conv_fwd_ndhwc<in_data_t, in_data_t, out_data_t>;
+        launch_and_time_kernel(naive_conv_fwd_kernel,
+                               1,
+                               dim3(256),
+                               dim3(256),
+                               0,
+                               static_cast<in_data_t*>(input.GetDeviceBuffer()),
+                               static_cast<in_data_t*>(weight.GetDeviceBuffer()),
+                               static_cast<out_data_t*>(output.GetDeviceBuffer()),
+                               N,
+                               K,
+                               C,
+                               Di,
+                               Hi,
+                               Wi,
+                               Z,
+                               Y,
+                               X,
+                               Do,
+                               Ho,
+                               Wo,
+                               conv_stride_d,
+                               conv_stride_h,
+                               conv_stride_w,
+                               conv_dilation_d,
+                               conv_dilation_h,
+                               conv_dilation_w,
+                               in_left_pad_d,
+                               in_left_pad_h,
+                               in_left_pad_w);
+
+        output.FromDevice(out_host.mData.data());
+#endif
 
         check_error(out_host, out_device);
 
@@ -287,7 +361,131 @@ int main(int argc, char* argv[])
             LogRangeAsType<float>(std::cout << "wei: ", wei.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
+
+            // const int numLinesPerFile = 1000000;
+            // for(int ii = 0; ii < (out_host.mData.size() + numLinesPerFile - 1) / numLinesPerFile;
+            //     ++ii)
+            // {
+            //     std::ofstream fout;
+            //     fout.open(std::to_string(ii) + ".dat");
+            //
+            //     float diff    = -1;
+            //     long diff_idx = -1;
+            //     for(int l = 0; l < numLinesPerFile; ++l)
+            //     {
+            //         long idx       = static_cast<long>(ii) * numLinesPerFile + l;
+            //         float host_v   = static_cast<float>(out_host.mData[idx]);
+            //         float device_v = static_cast<float>(out_device.mData[idx]);
+            //         fout << idx << " " << device_v << " " << host_v << "\n";
+            //         if(std::abs(host_v - device_v) > diff)
+            //         {
+            //             diff_idx = idx;
+            //             diff     = std::abs(host_v - device_v);
+            //         }
+            //     }
+            //     fout << "diff = " << diff << " @" << diff_idx << std::endl;
+            //
+            //     fout.close();
+            // }
         }
     }
 #endif
 }
+
+/*
+ * \brief naive implementation of 3D convolution. Layout is NDHWC.
+ *
+ * \param N number of batches
+ * \param K number of filters
+ * \param C number of channels of weight
+ * \param (Di, Hi, Wi) depth, height and width dimension of data
+ * \param (Z, Y, X) depth, height and width dimensions of weights
+ * \param (Do, Ho, Wo) depth, height and width dimension of output
+ * \param (stride_z, stride_y, stride_x) strides
+ * \param (dilation_z, dilation_y, dilation_x) dilations
+ * \param (pad_z, pad_y, pad_x) pads
+ */
+template <typename TIn, typename TWei, typename TOut>
+__global__ void naive_conv_fwd_ndhwc(const TIn* __restrict__ p_in,
+                                     const TWei* __restrict__ p_wei,
+                                     TOut* __restrict__ p_out,
+                                     int N,
+                                     int K,
+                                     int C,
+                                     int Di,
+                                     int Hi,
+                                     int Wi,
+                                     int Z,
+                                     int Y,
+                                     int X,
+                                     int Do,
+                                     int Ho,
+                                     int Wo,
+                                     int stride_z,
+                                     int stride_y,
+                                     int stride_x,
+                                     int dilation_z,
+                                     int dilation_y,
+                                     int dilation_x,
+                                     int pad_z,
+                                     int pad_y,
+                                     int pad_x)
+{
+    const int tid            = blockIdx.x * blockDim.x + threadIdx.x;
+    const int num_threads    = blockDim.x * gridDim.x;
+    const long output_length = N * Do * Ho * Wo * K;
+
+    const int out_strides[] = {Do * Ho * Wo * K, Ho * Wo * K, Wo * K, K};
+    const int in_strides[]  = {Di * Hi * Wi * C, Hi * Wi * C, Wi * C, C};
+    const int wei_strides[] = {Z * Y * X * C, Y * X * C, X * C, C};
+
+    for(long ii = tid; ii < output_length; ii += num_threads)
+    {
+        const int n  = ii / out_strides[0];
+        int k        = ii - n * out_strides[0];
+        const int dO = k / out_strides[1];
+        k -= dO * out_strides[1];
+        const int ho = k / out_strides[2];
+        k -= ho * out_strides[2];
+        const int wo = k / out_strides[3];
+        k -= wo * out_strides[3];
+
+        double value = 0.0;
+
+        const TIn* in_n   = p_in + static_cast<long>(n) * in_strides[0];
+        const TWei* wei_k = p_wei + static_cast<long>(k) * wei_strides[0];
+
+        for(int z = 0; z < Z; ++z)
+        {
+            int di              = stride_z * dO - pad_z + dilation_z * z;
+            const TIn* in_n_di  = in_n + di * in_strides[1];
+            const TWei* wei_k_z = wei_k + z * wei_strides[1];
+
+            for(int y = 0; y < Y; ++y)
+            {
+                int hi                = stride_y * ho - pad_y + dilation_y * y;
+                const TIn* in_n_di_hi = in_n_di + hi * in_strides[2];
+                const TWei* wei_k_z_y = wei_k_z + y * wei_strides[2];
+
+                for(int x = 0; x < X; ++x)
+                {
+                    int wi                   = stride_x * wo - pad_x + dilation_x * x;
+                    const TIn* in_n_di_hi_wi = in_n_di_hi + wi * in_strides[3];
+                    const TWei* wei_k_z_y_x  = wei_k_z_y + x * wei_strides[3];
+
+                    if(di >= 0 && di < Di && hi >= 0 && hi < Hi && wi >= 0 && wi < Wi)
+                    {
+                        for(int c = 0; c < C; ++c)
+                        {
+                            value += static_cast<const double>(in_n_di_hi_wi[c]) *
+                                     static_cast<const double>(wei_k_z_y_x[c]);
+                        }
+                    }
+                }
+            }
+        }
+
+        p_out[ii] = static_cast<TOut>(value);
+    }
+}
+

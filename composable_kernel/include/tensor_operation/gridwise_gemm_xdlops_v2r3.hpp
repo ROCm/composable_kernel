@@ -498,6 +498,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 K1>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
+        constexpr auto c_thread_desc =
+            blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned =

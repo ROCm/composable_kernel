@@ -185,7 +185,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1, 3, 5>{}, Sequence<2, 4, 6>{}));
 
-        return xdlops_gemm.MakeCDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_b_m0_n0_m1_n1_m2_n2);
+        return xdlops_gemm.MakeCDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(
+            c_grid_desc_b_m0_n0_m1_n1_m2_n2);
     }
 
     __host__ __device__ static constexpr auto MakeABlockDescriptor_K0_M0_M1_M2_K1()
