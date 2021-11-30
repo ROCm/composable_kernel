@@ -68,42 +68,55 @@ struct DynamicBuffer
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
-                                                                          t_per_x>(
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>, t_per_x>(
                     p_data_, i, is_valid_element, element_space_size_);
             }
             else
             {
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
-
+                                                                               t_per_x>(
+                    p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
             }
         }
         else
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
+                if(is_valid_element)
+                {
+
 #if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
-                X tmp;
+                    X tmp;
 
-                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
-
-                return is_valid_element ? tmp : X{0};
+                    __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+                    return tmp;
 #else
-                return is_valid_element ? *c_style_pointer_cast<const X*>(&p_data_[i]) : X{0};
+                    return *c_style_pointer_cast<const X*>(&p_data_[i]);
 #endif
+                }
+                else
+                {
+                    return X{0};
+                }
             }
             else
             {
+                if(is_valid_element)
+                {
+
 #if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
-                X tmp;
+                    X tmp;
 
-                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
-
-                return is_valid_element ? tmp : X{invalid_element_value_};
+                    __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+                    return tmp;
 #else
-                return is_valid_element ? *c_style_pointer_cast<const X*>(&p_data_[i])
-                                        : X{invalid_element_value_};
+                    return *c_style_pointer_cast<const X*>(&p_data_[i]);
 #endif
+                }
+                else
+                {
+                    return X{invalid_element_value_};
+                }
             }
         }
     }
