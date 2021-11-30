@@ -37,12 +37,15 @@ int gemm_profiler(int argc, char* argv[])
 {
     if(argc != 14)
     {
-        printf("arg1: tensor operation (gemm=GEMM)\n");
-        printf("arg2: data type (0=fp32, 1=fp16)\n");
-        printf("arg3: matrix layout (0=NN, 1=NT, 2=TN, 3=TT)\n");
-        printf("arg4: verification (0=no, 1=yes)\n");
-        printf("arg5: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg6: print matrix value (0=no, 1=yes)\n");
+        printf("arg1: tensor operation (gemm: GEMM)\n");
+        printf("arg2: data type (0: fp32; 1: fp16)\n");
+        printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
+        printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
+        printf("                     2: A[k, n] * B[k, n] = C[m, n];\n");
+        printf("                     3: A[k, n] * B[n, k] = C[m, n])\n");
+        printf("arg4: verification (0: no; 1: yes)\n");
+        printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
+        printf("arg8: print tensor value (0: no; 1: yes)\n");
         printf("arg7: run kernel # of times (>1)\n");
         printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
         exit(1);
