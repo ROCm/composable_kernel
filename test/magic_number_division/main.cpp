@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
@@ -41,6 +42,19 @@ gpu_naive_division(int32_t divisor, const int32_t* p_dividend, int32_t* p_result
     }
 }
 
+__host__ void cpu_magic_number_division(uint32_t magic_multiplier,
+                                        uint32_t magic_shift,
+                                        const int32_t* p_dividend,
+                                        int32_t* p_result,
+                                        uint64_t num)
+{
+    for(uint64_t data_id = 0; data_id < num; ++data_id)
+    {
+        p_result[data_id] =
+            ck::MagicDivision::DoMagicDivision(p_dividend[data_id], magic_multiplier, magic_shift);
+    }
+}
+
 template <typename T>
 T check_error(const std::vector<T>& ref, const std::vector<T>& result)
 {
@@ -64,7 +78,7 @@ T check_error(const std::vector<T>& ref, const std::vector<T>& result)
     return max_diff;
 }
 
-int main(int, char*[])
+int main(int, char* [])
 {
     uint64_t num_divisor  = 4096;
     uint64_t num_dividend = 1L << 16;
@@ -90,6 +104,7 @@ int main(int, char*[])
 
     std::vector<int32_t> naive_result_host(num_dividend);
     std::vector<int32_t> magic_result_host(num_dividend);
+    std::vector<int32_t> magic_result_host2(num_dividend);
 
     dividends_dev_buf.ToDevice(dividends_host.data());
 
@@ -122,6 +137,20 @@ int main(int, char*[])
         magic_result_dev_buf.FromDevice(magic_result_host.data());
 
         int32_t max_diff = check_error(naive_result_host, magic_result_host);
+
+        if(max_diff != 0)
+        {
+            pass = false;
+            continue;
+        }
+
+        cpu_magic_number_division(magic_multiplier,
+                                  magic_shift,
+                                  dividends_host.data(),
+                                  magic_result_host2.data(),
+                                  num_dividend);
+
+        max_diff = check_error(naive_result_host, magic_result_host2);
 
         if(max_diff != 0)
         {
