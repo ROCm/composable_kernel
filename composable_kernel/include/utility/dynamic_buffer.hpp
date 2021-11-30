@@ -56,7 +56,7 @@ struct DynamicBuffer
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X need to be multiple T");
 
-#if CK_USE_AMD_BUFFER_ADDRESSING
+#if CK_USE_AMD_BUFFER_LOAD
         bool constexpr use_amd_buffer_addressing = true;
 #else
         bool constexpr use_amd_buffer_addressing = false;
@@ -68,28 +68,14 @@ struct DynamicBuffer
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                /*
-                 * TODO: use amd_buffer_load_invalid_element_return_zero causes problems.
-                 */
-                // return amd_buffer_load_invalid_element_return_return_zero<remove_cvref_t<T>,
-                //                                                           t_per_x>(
-                //     p_data_, i, is_valid_element, element_space_size_);
-
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
-                X tmp;
-
-                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
-
-                return is_valid_element ? tmp : X{0};
-#else
-                return is_valid_element ? *c_style_pointer_cast<const X*>(&p_data_[i]) : X{0};
-#endif
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
+                                                                          t_per_x>(
+                    p_data_, i, is_valid_element, element_space_size_);
             }
             else
             {
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
-                                                                               t_per_x>(
-                    p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
+
             }
         }
         else
@@ -138,7 +124,7 @@ struct DynamicBuffer
 
         if constexpr(GetAddressSpace() == AddressSpaceEnum_t::Global)
         {
-#if CK_USE_AMD_BUFFER_ADDRESSING
+#if CK_USE_AMD_BUFFER_STORE
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_store<remove_cvref_t<T>, t_per_x>(
@@ -284,7 +270,7 @@ struct DynamicBuffer
 
         static_assert(GetAddressSpace() == AddressSpaceEnum_t::Global, "only support global mem");
 
-#if CK_USE_AMD_BUFFER_ADDRESSING
+#if CK_USE_AMD_BUFFER_ATOMIC_ADD
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
         amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x>(
