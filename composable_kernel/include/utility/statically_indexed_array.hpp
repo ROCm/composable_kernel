@@ -54,5 +54,49 @@ __host__ __device__ constexpr auto make_statically_indexed_array()
     return StaticallyIndexedArray<X, 0>();
 }
 
+template <typename T, index_t N>
+struct StaticallyIndexedArray_v2
+{
+    __host__ __device__ constexpr StaticallyIndexedArray_v2() = default;
+
+    __host__ __device__ static constexpr index_t Size() { return N; }
+
+    // read access
+    template <index_t I>
+    __host__ __device__ constexpr const auto& At(Number<I>) const
+    {
+        static_assert(I < N, "wrong! out of range");
+
+        return data_[I];
+    }
+
+    // write access
+    template <index_t I>
+    __host__ __device__ constexpr auto& At(Number<I>)
+    {
+        static_assert(I < N, "wrong! out of range");
+
+        return data_[I];
+    }
+
+    // read access
+    template <index_t I>
+    __host__ __device__ constexpr const auto& operator[](Number<I> i) const
+    {
+        return At(i);
+    }
+
+    // write access
+    template <index_t I>
+    __host__ __device__ constexpr auto& operator()(Number<I> i)
+    {
+        return At(i);
+    }
+
+    __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
+
+    T data_[N];
+};
+
 } // namespace ck
 #endif

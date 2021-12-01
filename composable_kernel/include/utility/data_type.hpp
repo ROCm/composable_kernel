@@ -1081,11 +1081,11 @@ struct NumericLimits<half_t>
     static constexpr unsigned short binary_max    = 0x7BFF;
     static constexpr unsigned short binary_lowest = 0xFBFF;
 
-    __host__ __device__ static constexpr half_t Min() { return as_type<half_t>(binary_min); }
+    __host__ __device__ static constexpr half_t Min() { return bit_cast<half_t>(binary_min); }
 
-    __host__ __device__ static constexpr half_t Max() { return as_type<half_t>(binary_max); }
+    __host__ __device__ static constexpr half_t Max() { return bit_cast<half_t>(binary_max); }
 
-    __host__ __device__ static constexpr half_t Lowest() { return as_type<half_t>(binary_lowest); }
+    __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
 };
 
 } // namespace ck

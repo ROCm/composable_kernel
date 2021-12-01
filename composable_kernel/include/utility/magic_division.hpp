@@ -125,7 +125,7 @@ struct MagicDivision
     __host__ __device__ static constexpr int32_t
     DoMagicDivision(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
     {
-        uint32_t dividend_u32 = as_type<uint32_t>(dividend_i32);
+        uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
         uint32_t tmp          = __umulhi(dividend_u32, multiplier);
         return (tmp + dividend_u32) >> shift;
     }
