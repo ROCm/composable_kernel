@@ -507,7 +507,7 @@ struct MfmaSelector
 
     static constexpr auto selected_mfma = mfma_type<GetMfma<base_type, MPerXdlops, NPerXdlops>()>{};
 
-    __host__ __device__ static constexpr void mfma_check()
+    __host__ __device__ constexpr MfmaSelector()
     {
         static_assert(selected_mfma.group_size * selected_mfma.num_groups_per_blk ==
                           selected_mfma.num_regs_per_blk,
@@ -532,8 +532,6 @@ struct MfmaSelector
                           (selected_mfma.num_input_blks == selected_mfma.num_output_blks),
                       "is_k_reduction wrong!");
     }
-
-    __host__ __device__ constexpr MfmaSelector() { mfma_check(); }
 
     static constexpr bool IsABroadcast()
     {
@@ -620,6 +618,8 @@ struct XdlopsGemm
     {
         return MPerXdlops * NPerXdlops / mfma_instr.wave_size;
     }
+
+    __device__ static constexpr index_t GetWaveSize() { return mfma_instr.wave_size; }
 
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const

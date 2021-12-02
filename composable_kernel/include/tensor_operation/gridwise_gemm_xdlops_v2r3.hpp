@@ -557,6 +557,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         // output: register to global memory
         {
+            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
+                blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
                 blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
 
@@ -568,10 +571,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I5);
             constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I6);
             constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I7);
-
-            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-                make_naive_tensor_descriptor_packed(make_tuple(
-                    Number<M0>{}, Number<N0>{}, I1, I1, Number<M2>{}, I1, Number<M4>{}, I1));
 
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
