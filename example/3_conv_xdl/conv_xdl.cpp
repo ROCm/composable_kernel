@@ -106,34 +106,64 @@ void host_verify(const Tensor<TIn>& in,
 
 int main(int argc, char* argv[])
 {
-    if(argc != 4)
+    bool do_verification = 0;
+    int init_method      = 0;
+    int nrepeat          = 5;
+
+    // Conv shape
+    ck::index_t N               = 128;
+    ck::index_t K               = 256;
+    ck::index_t C               = 192;
+    ck::index_t Y               = 3;
+    ck::index_t X               = 3;
+    ck::index_t Hi              = 71;
+    ck::index_t Wi              = 71;
+    ck::index_t conv_stride_h   = 2;
+    ck::index_t conv_stride_w   = 2;
+    ck::index_t conv_dilation_h = 1;
+    ck::index_t conv_dilation_w = 1;
+    ck::index_t in_left_pad_h   = 1;
+    ck::index_t in_left_pad_w   = 1;
+    ck::index_t in_right_pad_h  = 1;
+    ck::index_t in_right_pad_w  = 1;
+
+    if(argc == 4)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+    }
+    else if(argc == 19)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+
+        N               = std::stoi(argv[4]);
+        K               = std::stoi(argv[5]);
+        C               = std::stoi(argv[6]);
+        Y               = std::stoi(argv[7]);
+        X               = std::stoi(argv[8]);
+        Hi              = std::stoi(argv[9]);
+        Wi              = std::stoi(argv[10]);
+        conv_stride_h   = std::stoi(argv[11]);
+        conv_stride_w   = std::stoi(argv[12]);
+        conv_dilation_h = std::stoi(argv[13]);
+        conv_dilation_w = std::stoi(argv[14]);
+        in_left_pad_h   = std::stoi(argv[15]);
+        in_left_pad_w   = std::stoi(argv[16]);
+        in_right_pad_h  = std::stoi(argv[17]);
+        in_right_pad_w  = std::stoi(argv[18]);
+    }
+    else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: run kernel # of times (>1)\n");
+        printf("arg4 to 18: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+               "RightPx\n");
         exit(0);
     }
-
-    const bool do_verification = std::stoi(argv[1]);
-    const int init_method      = std::stoi(argv[2]);
-    const int nrepeat          = std::stoi(argv[3]);
-
-    // Conv shape
-    const ck::index_t N               = 128;
-    const ck::index_t K               = 256;
-    const ck::index_t C               = 192;
-    const ck::index_t Y               = 3;
-    const ck::index_t X               = 3;
-    const ck::index_t Hi              = 71;
-    const ck::index_t Wi              = 71;
-    const ck::index_t conv_stride_h   = 2;
-    const ck::index_t conv_stride_w   = 2;
-    const ck::index_t conv_dilation_h = 1;
-    const ck::index_t conv_dilation_w = 1;
-    const ck::index_t in_left_pad_h   = 1;
-    const ck::index_t in_left_pad_w   = 1;
-    const ck::index_t in_right_pad_h  = 1;
-    const ck::index_t in_right_pad_w  = 1;
 
     const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
     const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
