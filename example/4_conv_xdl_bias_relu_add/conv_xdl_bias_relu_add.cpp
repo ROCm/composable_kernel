@@ -201,7 +201,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
     }
-    if(argc == 19)
+    else if(argc == 19)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
