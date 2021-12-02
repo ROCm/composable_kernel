@@ -13,9 +13,12 @@ include_directories(BEFORE
 
 set(GEMM_XDL_SOURCE 1_gemm_xdl/gemm_xdl.cpp)
 set(GEMM_XDL_BIAS_ADD_SOURCE 2_gemm_xdl_bias_add/gemm_xdl_bias_add.cpp)
+set(CONV_XDL_SOURCE 3_conv_xdl/conv_xdl.cpp)
 
 add_executable(gemm_xdl ${GEMM_XDL_SOURCE})
 add_executable(gemm_xdl_bias_add ${GEMM_XDL_BIAS_ADD_SOURCE})
+add_executable(conv_xdl ${CONV_XDL_SOURCE})
 
 target_link_libraries(gemm_xdl PRIVATE host_tensor)
 target_link_libraries(gemm_xdl_bias_add PRIVATE host_tensor)
+target_link_libraries(conv_xdl PRIVATE host_tensor)
