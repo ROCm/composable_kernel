@@ -545,7 +545,7 @@ struct MfmaSelector
                selected_mfma.k_per_blk;
     }
 
-    static constexpr index_t GetKPerThread() { return selected_mfma.k_per_blk; }
+    static constexpr index_t GetK1PerXdlops() { return selected_mfma.k_per_blk; }
 };
 
 template <typename base_type, index_t MPerXdlops, index_t NPerXdlops, index_t KPack>
@@ -708,7 +708,7 @@ struct XdlopsGemm
     static constexpr auto mfma_instr = mfma.selected_mfma;
 
     static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
-    static constexpr auto K1PerXdlops = mfma.GetKPerThread();
+    static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
     static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
 
     __host__ __device__ static constexpr auto GetCM0M1M2NThreadBlkLengths()
