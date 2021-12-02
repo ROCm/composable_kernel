@@ -11,8 +11,8 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
-#include "example/4_conv_xdl_bias_relu_add/include/device_conv_fwd_xdl_two_extra_source_reduce.hpp"
-#include "example/4_conv_xdl_bias_relu_add/include/device_conv_fwd_xdl_two_extra_source_reduce_nhwc_kyxc_nhwk.hpp"
+#include "example/4_conv_xdl_bias_relu_add/include/device_conv_fwd_xdl_bias_activation_add.hpp"
+#include "example/4_conv_xdl_bias_relu_add/include/device_conv_fwd_xdl_bias_activation_add_nhwc_kyxc_nhwk.hpp"
 
 struct PassThrough
 {
@@ -23,13 +23,17 @@ struct PassThrough
     }
 };
 
-struct Relu
+struct BiasReluAdd
 {
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
+    template <typename T1, typename T2>
+    __host__ __device__ constexpr float operator()(float v0, T1 v1, T2 v2) const
     {
-        T tmp = 0.1 * v;
-        return tmp > 0 ? tmp : 0;
+        float a = v0 + v1;
+        float b = float(0.1) * a;
+        float c = b > 0 ? b : 0;
+        float d = c + v2;
+
+        return d;
     }
 };
 
@@ -47,15 +51,15 @@ using OutLayout = ck::tensor_layout::convolution::NHWK;
 
 using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
-using OutElementOp = Relu;
+using OutElementOp = BiasReluAdd;
 
 using DeviceConvFwdInstance =
     // clang-format off
-    //############################################|    NDim|     InData|     WeiData|     OutData|     AccData|       In|       Wei|       Out|          In|         Wei|           Out| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
-    //############################################| Spatial|       Type|        Type|        Type|        Type|   Layout|    Layout|    Layout| Elementwise| Elementwise|   Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
-    //############################################|        |           |            |            |            |         |          |          |   Operation|   Operation|     Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_N_K1| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1| Lengths_K0_N_K1| Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|                |       PerVector|          |          |
-    //############################################|        |           |            |            |            |         |          |          |            |            |              |      |      |      |      |   |     |     |     |     |                |                |               |               |               |               |               |                |                |               |               |              |               |               |                |                |          |          |
-    ck::tensor_operation::device::DeviceConvFwdXdl_two_extra_source_reduce<       2, InDataType, WeiDataType, OutDataType, AccDataType, InLayout, WeiLayout, OutLayout, InElementOp, WeiElementOp, OutElementOp,   256,   128,   256,     4,  8,   32,   32,    2,    4,      S<1, 2, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      S<1, 4, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,               7,               1,      true,      true>;
+//################################################################|    NDim|     InData|     WeiData|     OutData|     AccData|       In|       Wei|       Out|          In|         Wei|           Out| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
+//################################################################| Spatial|       Type|        Type|        Type|        Type|   Layout|    Layout|    Layout| Elementwise| Elementwise|   Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
+//################################################################|        |           |            |            |            |         |          |          |   Operation|   Operation|     Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_N_K1| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1| Lengths_K0_N_K1| Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|                |       PerVector|          |          |
+//################################################################|        |           |            |            |            |         |          |          |            |            |              |      |      |      |      |   |     |     |     |     |                |                |               |               |               |               |               |                |                |               |               |              |               |               |                |                |          |          |
+ck::tensor_operation::device::DeviceConvFwdXdl_bias_activation_add<       2, InDataType, WeiDataType, OutDataType, AccDataType, InLayout, WeiLayout, OutLayout, InElementOp, WeiElementOp, OutElementOp,   256,   128,   256,     4,  8,   32,   32,    2,    4,      S<1, 2, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      S<1, 4, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,               7,               1,      true,      true>;
 // clang-format on
 
 template <typename TIn,
@@ -64,54 +68,58 @@ template <typename TIn,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp>
-void host_verify(const Tensor<TIn>& in,
-                 const Tensor<TWei>& wei,
-                 Tensor<TOut>& out,
-                 const std::vector<ck::index_t>& conv_strides,
-                 const std::vector<ck::index_t>& conv_dilations,
-                 const std::vector<ck::index_t>& in_left_pads,
-                 const std::vector<ck::index_t>&,
-                 const InElementOp& in_element_op,
-                 const WeiElementOp& wei_element_op,
-                 const OutElementOp& out_element_op)
+void host_reference_calculation(const Tensor<TIn>& in_n_c_hi_wi,
+                                const Tensor<TWei>& wei_k_c_y_x,
+                                Tensor<TOut>& out_n_k_ho_wo,
+                                const Tensor<TOut>& bias_k,
+                                const Tensor<TOut>& resi_n_k_ho_wo,
+                                const std::vector<ck::index_t>& conv_strides,
+                                const std::vector<ck::index_t>& conv_dilations,
+                                const std::vector<ck::index_t>& in_left_pads,
+                                const std::vector<ck::index_t>&,
+                                const InElementOp& in_element_op,
+                                const WeiElementOp& wei_element_op,
+                                const OutElementOp& out_element_op)
 {
     auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
         double v = 0;
-        for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
+        for(int c = 0; c < wei_k_c_y_x.mDesc.GetLengths()[1]; ++c)
         {
-            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+            for(int y = 0; y < wei_k_c_y_x.mDesc.GetLengths()[2]; ++y)
             {
                 int hi = ho * conv_strides[0] + y * conv_dilations[0] - in_left_pads[0];
-                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                for(int x = 0; x < wei_k_c_y_x.mDesc.GetLengths()[3]; ++x)
                 {
                     int wi = wo * conv_strides[1] + x * conv_dilations[1] - in_left_pads[1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
+                    if(hi >= 0 && hi < in_n_c_hi_wi.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in_n_c_hi_wi.mDesc.GetLengths()[3])
                     {
-                        v += in_element_op(static_cast<const double>(in(n, c, hi, wi))) *
-                             wei_element_op(static_cast<const double>(wei(k, c, y, x)));
+                        v += in_element_op(static_cast<const double>(in_n_c_hi_wi(n, c, hi, wi))) *
+                             wei_element_op(static_cast<const double>(wei_k_c_y_x(k, c, y, x)));
                     }
                 }
             }
         }
-        out(n, k, ho, wo) = out_element_op(v);
+
+        out_n_k_ho_wo(n, k, ho, wo) = out_element_op(v, bias_k(k), resi_n_k_ho_wo(n, k, ho, wo));
     };
 
     make_ParallelTensorFunctor(f_nchw,
-                               out.mDesc.GetLengths()[0],
-                               out.mDesc.GetLengths()[1],
-                               out.mDesc.GetLengths()[2],
-                               out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
+                               out_n_k_ho_wo.mDesc.GetLengths()[0],
+                               out_n_k_ho_wo.mDesc.GetLengths()[1],
+                               out_n_k_ho_wo.mDesc.GetLengths()[2],
+                               out_n_k_ho_wo.mDesc.GetLengths()[3])(
+        std::thread::hardware_concurrency());
 }
 
 int main(int argc, char* argv[])
 {
-    if(argc != 4)
+    // if(argc != 4)
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: run kernel # of times (>1)\n");
-        exit(0);
+        //     exit(0);
     }
 
     const bool do_verification = std::stoi(argv[1]);
@@ -119,6 +127,7 @@ int main(int argc, char* argv[])
     const int nrepeat          = std::stoi(argv[3]);
 
     // Conv shape
+#if 0
     const ck::index_t N               = 128;
     const ck::index_t K               = 256;
     const ck::index_t C               = 192;
@@ -134,6 +143,23 @@ int main(int argc, char* argv[])
     const ck::index_t in_left_pad_w   = 1;
     const ck::index_t in_right_pad_h  = 1;
     const ck::index_t in_right_pad_w  = 1;
+#else
+    const ck::index_t N               = std::stoi(argv[4]);
+    const ck::index_t K               = std::stoi(argv[5]);
+    const ck::index_t C               = std::stoi(argv[6]);
+    const ck::index_t Y               = std::stoi(argv[7]);
+    const ck::index_t X               = std::stoi(argv[8]);
+    const ck::index_t Hi              = std::stoi(argv[9]);
+    const ck::index_t Wi              = std::stoi(argv[10]);
+    const ck::index_t conv_stride_h   = std::stoi(argv[11]);
+    const ck::index_t conv_stride_w   = std::stoi(argv[12]);
+    const ck::index_t conv_dilation_h = std::stoi(argv[13]);
+    const ck::index_t conv_dilation_w = std::stoi(argv[14]);
+    const ck::index_t in_left_pad_h   = std::stoi(argv[15]);
+    const ck::index_t in_left_pad_w   = std::stoi(argv[16]);
+    const ck::index_t in_right_pad_h  = std::stoi(argv[17]);
+    const ck::index_t in_right_pad_w  = std::stoi(argv[18]);
+#endif
 
     const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
     const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -178,9 +204,18 @@ int main(int argc, char* argv[])
     Tensor<OutDataType> out_n_k_ho_wo_device_result(
         f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
+    // bias: assume contiguous 1d vector
+    Tensor<OutDataType> bias_k(
+        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(K)})));
+
+    // residual: assume same layout as output tensor
+    Tensor<OutDataType> resi_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
+
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
     std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo_host_result.mDesc << std::endl;
+    std::cout << "bias_k: " << bias_k.mDesc << std::endl;
+    std::cout << "resi_n_k_ho_wo: " << resi_n_k_ho_wo.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -188,39 +223,49 @@ int main(int argc, char* argv[])
     case 1:
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        bias_k.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        resi_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        bias_k.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
+        resi_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) *
                              out_n_k_ho_wo_device_result.mDesc.GetElementSpace());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpace());
+    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_k_ho_wo.mDesc.GetElementSpace());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
+    bias_device_buf.ToDevice(bias_k.mData.data());
+    resi_device_buf.ToDevice(resi_n_k_ho_wo.mData.data());
 
-    // do GEMM
-    auto conv     = DeviceConvFwdInstance{};
-    auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                      N,
-                                      K,
-                                      C,
-                                      std::vector<ck::index_t>{{Hi, Wi}},
-                                      std::vector<ck::index_t>{{Y, X}},
-                                      std::vector<ck::index_t>{{Ho, Wo}},
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads,
-                                      InElementOp{},
-                                      WeiElementOp{},
-                                      OutElementOp{});
+    auto conv    = DeviceConvFwdInstance{};
+    auto invoker = conv.MakeInvoker();
+    auto argument =
+        conv.MakeArgument(static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+                          static_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                          static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                          static_cast<const OutDataType*>(bias_device_buf.GetDeviceBuffer()),
+                          static_cast<const OutDataType*>(resi_device_buf.GetDeviceBuffer()),
+                          N,
+                          K,
+                          C,
+                          std::vector<ck::index_t>{{Hi, Wi}},
+                          std::vector<ck::index_t>{{Y, X}},
+                          std::vector<ck::index_t>{{Ho, Wo}},
+                          conv_filter_strides,
+                          conv_filter_dilations,
+                          input_left_pads,
+                          input_right_pads,
+                          InElementOp{},
+                          WeiElementOp{},
+                          OutElementOp{});
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -246,16 +291,18 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(in_n_c_hi_wi,
-                    wei_k_c_y_x,
-                    out_n_k_ho_wo_host_result,
-                    conv_filter_strides,
-                    conv_filter_dilations,
-                    input_left_pads,
-                    input_right_pads,
-                    InElementOp{},
-                    WeiElementOp{},
-                    OutElementOp{});
+        host_reference_calculation(in_n_c_hi_wi,
+                                   wei_k_c_y_x,
+                                   out_n_k_ho_wo_host_result,
+                                   bias_k,
+                                   resi_n_k_ho_wo,
+                                   conv_filter_strides,
+                                   conv_filter_dilations,
+                                   input_left_pads,
+                                   input_right_pads,
+                                   InElementOp{},
+                                   WeiElementOp{},
+                                   OutElementOp{});
 
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
