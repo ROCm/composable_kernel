@@ -1,4 +1,4 @@
-# Instructions for ```gemm_xdl_bias_add``` Example
+# Instructions for ```gemm_xdl_bias_relu_add``` Example
 
 ## Docker script
 ```bash
@@ -13,7 +13,7 @@ rocm/tensorflow:rocm4.3.1-tf2.6-dev                                          \
 /bin/bash
 ```
 
-## Build ```gemm_xdl_bias_add```
+## Build ```gemm_xdl_bias_relu_add```
 ```bash
 mkdir build && cd build
 ```
@@ -30,16 +30,16 @@ cmake                                                                  \
 ```
 
 ```bash
- make -j gemm_xdl_bias_add
+ make -j gemm_xdl_bias_relu_add
 ```
 
-## Run ```gemm_xdl_bias_add```
+## Run ```gemm_xdl_bias_relu_add```
 ```bash
 #arg1: verification (0=no, 1=yes)
 #arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 #arg3: run kernel # of times (>1)
 #arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC
-./example/gemm_xdl_bias_add 0 1 5 3840 4096 4096 4096 4096 4096
+./example/gemm_xdl_bias_relu_add 0 1 5 3840 4096 4096 4096 4096 4096
 ```
 
 Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
