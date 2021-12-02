@@ -22,6 +22,13 @@ struct StaticBufferOfVectorTypeV2 : public StaticallyIndexedArray<T, N>
 
     static constexpr index_t vector_size = GetVectorSize();
 
+    __host__ __device__ static constexpr index_t GetNumVectors() { return N; }
+
+    __host__ __device__ static constexpr index_t GetNumElements()
+    {
+        return GetVectorSize() * GetNumVectors();
+    }
+
     VecBaseType invalid_element_value_ = VecBaseType{0};
 
     T invalid_vec_value_ = T{0};
@@ -89,6 +96,12 @@ struct StaticBufferOfVectorTypeV2 : public StaticallyIndexedArray<T, N>
     __host__ __device__ constexpr auto& operator()(Number<I> i)
     {
         return GetElement(i, true);
+    }
+
+    __host__ __device__ void Clear()
+    {
+        static_for<0, GetNumElements(), 1>{}(
+            [&](auto i) { GetElement(i, true) = invalid_element_value_; });
     }
 
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }

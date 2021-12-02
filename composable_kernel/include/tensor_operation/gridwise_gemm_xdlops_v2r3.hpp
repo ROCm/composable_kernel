@@ -518,6 +518,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         // main body
         index_t k0_block_data_begin = 0;
 
+        c_thread_buf.Clear();
+
         if constexpr(HasMainKBlockLoop)
         {
             do
