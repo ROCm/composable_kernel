@@ -136,6 +136,11 @@
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 #endif
 
+// workaround for register spill due to compiler issue, when casting type between fp32 and fp16
+#ifndef CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R4_TYPE_CONVERT_ISSUE
+#define CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R4_TYPE_CONVERT_ISSUE 1
+#endif
+
 namespace ck {
 
 enum InMemoryDataOperationEnum_t

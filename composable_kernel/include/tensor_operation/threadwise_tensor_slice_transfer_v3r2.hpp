@@ -46,6 +46,7 @@ struct lambda_scalar_per_access_for_src_and_dst
 //   3. src_slice_origin and dst_slice_origin are not known at compile-time,
 //   4. Use thread buffer
 template <typename SliceLengths,
+          typename SrcElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
           typename SrcData,
           typename DstData,
@@ -76,12 +77,15 @@ struct ThreadwiseTensorSliceTransfer_v3r2
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_v3r2(const SrcDesc& src_desc,
-                                                            const Index& src_slice_origin,
-                                                            const DstDesc& dst_desc,
-                                                            const Index& dst_slice_origin)
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v3r2(
+        const SrcDesc& src_desc,
+        const Index& src_slice_origin,
+        const DstDesc& dst_desc,
+        const Index& dst_slice_origin,
+        const SrcElementwiseOperation& src_element_op)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
-          dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin))
+          dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
+          src_element_op_(src_element_op)
     {
     }
 
@@ -191,12 +195,22 @@ struct ThreadwiseTensorSliceTransfer_v3r2
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
-            using src_vector_t = typename vector_type_maker_t<SrcData, SrcScalarPerVector>::type;
+            using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
+            using src_vector_t    = typename src_vector_type::type;
 
-            // copy data from src_buf to src_thread_scratch_
+            // copy data from src_buf into src_vector_container
+            auto src_vector_container = src_vector_type{
+                src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
+
+            // apply SrcElementwiseOperation on src_vector_container
+            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                src_vector_container.template AsType<SrcData>()(i) =
+                    src_element_op_(src_vector_container.template AsType<SrcData>()[i]);
+            });
+
+            // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_.template SetAsType<src_vector_t>(
-                src_data_idx_seq,
-                src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid));
+                src_data_idx_seq, src_vector_container.template AsType<src_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -796,6 +810,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;
+    const SrcElementwiseOperation src_element_op_;
 };
 
 } // namespace ck
