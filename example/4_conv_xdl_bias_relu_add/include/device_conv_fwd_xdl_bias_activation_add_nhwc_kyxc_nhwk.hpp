@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_FWD_XDL_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV_FWD_XDL_NHWC_KYXC_NHWK_HPP
+#ifndef DEVICE_CONV_FWD_XDL_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
+#define DEVICE_CONV_FWD_XDL_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
 
 #include <iostream>
 #include "device.hpp"
@@ -9,9 +9,8 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
-#include "device_conv.hpp"
-#include "device_conv_fwd_xdl.hpp"
+#include "gridwise_gemm_xdlops_v2r5.hpp"
+#include "example/4_conv_xdl_bias_relu_add/include/device_conv_fwd_xdl_bias_activation_add.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -52,7 +51,7 @@ template <typename InDataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceConvFwdXdl<
+struct DeviceConvFwdXdl_bias_activation_add<
     2,                                        // ck::index_t NDimSpatial,
     InDataType,                               // typename InDataType,
     WeiDataType,                              // typename WeiDataType,
@@ -93,8 +92,7 @@ struct DeviceConvFwdXdl<
     CThreadTransferDstScalarPerVector,          // ck::index_t CThreadTransferDstScalarPerVector,
     ABlockLdsAddExtraM,                         // bool ABlockLdsAddExtraM,
     BBlockLdsAddExtraN                          // bool BBlockLdsAddExtraN>
-    >
-    : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
+    > : public BaseOperator
 {
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -110,6 +108,7 @@ struct DeviceConvFwdXdl<
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
 
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
@@ -154,6 +153,8 @@ struct DeviceConvFwdXdl<
         const index_t GemmK    = Y * X * C;
 
         const auto GemmMPad = math::integer_least_multiple(GemmMRaw, MPerBlock) - GemmMRaw;
+
+        const auto GemmM = GemmMRaw + GemmMPad;
 
         assert(GemmK % GemmK1Number == 0);
 
@@ -238,9 +239,18 @@ struct DeviceConvFwdXdl<
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
+        // C0: bias tensor: assume a contiguous vector
+        const auto bias_grid_desc_gemmm_gemmn =
+            make_naive_tensor_descriptor(make_tuple(GemmM, GemmN), make_tuple(0, 1));
+
+        // C1: residual tensor: assume same layout as output tensor
+        const auto resi_grid_desc_gemmm_gemmn = out_gemmm_gemmn_grid_desc;
+
         return make_tuple(in_gemmk0_gemmm_gemmk1_grid_desc,
                           wei_gemmk0_gemmn_gemmk1_grid_desc,
-                          out_gemmm_gemmn_grid_desc);
+                          out_gemmm_gemmn_grid_desc,
+                          bias_grid_desc_gemmm_gemmn,
+                          resi_grid_desc_gemmm_gemmn);
     }
 
     using ABCGridDescs = decltype(MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
@@ -249,6 +259,8 @@ struct DeviceConvFwdXdl<
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
+    using C0GridDesc_M_N    = remove_cvref_t<decltype(ABCGridDescs{}[I3])>;
+    using C1GridDesc_M_N    = remove_cvref_t<decltype(ABCGridDescs{}[I4])>;
 
     // TODO remove these hacks
     static constexpr auto a_k0_m_k1_grid_step_hacks = make_tuple(
@@ -291,7 +303,7 @@ struct DeviceConvFwdXdl<
     static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0, 0, 0>{};
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5<
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -300,6 +312,8 @@ struct DeviceConvFwdXdl<
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
+        C0GridDesc_M_N,
+        C1GridDesc_M_N,
         InElementwiseOperation,
         WeiElementwiseOperation,
         OutElementwiseOperation,
@@ -342,6 +356,12 @@ struct DeviceConvFwdXdl<
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
 
+    using C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C0GridDesc_M_N{}));
+
+    using C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C1GridDesc_M_N{}));
+
     using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     // Argument
@@ -350,6 +370,8 @@ struct DeviceConvFwdXdl<
         Argument(const InDataType* p_in_grid,
                  const WeiDataType* p_wei_grid,
                  OutDataType* p_out_grid,
+                 const OutDataType* p_bias_grid,
+                 const OutDataType* p_resi_grid,
                  ck::index_t N,
                  ck::index_t K,
                  ck::index_t C,
@@ -368,10 +390,16 @@ struct DeviceConvFwdXdl<
             : p_a_grid_{p_in_grid},
               p_b_grid_{p_wei_grid},
               p_c_grid_{p_out_grid},
+              p_c0_grid_{p_bias_grid},
+              p_c1_grid_{p_resi_grid},
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
+              c0_grid_desc_m_n_{},
+              c1_grid_desc_m_n_{},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -379,27 +407,35 @@ struct DeviceConvFwdXdl<
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op}
         {
-            const auto descs = DeviceConvFwdXdl::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-                N,
-                K,
-                C,
-                input_spatial_lengths,
-                filter_spatial_lengths,
-                output_spatial_lengths,
-                conv_filter_strides,
-                conv_filter_dilations,
-                input_left_pads,
-                input_right_pads);
+            const auto descs = DeviceConvFwdXdl_bias_activation_add::
+                MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(N,
+                                                                K,
+                                                                C,
+                                                                input_spatial_lengths,
+                                                                filter_spatial_lengths,
+                                                                output_spatial_lengths,
+                                                                conv_filter_strides,
+                                                                conv_filter_dilations,
+                                                                input_left_pads,
+                                                                input_right_pads);
 
             a_grid_desc_k0_m_k1_ = descs[I0];
             b_grid_desc_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_     = descs[I2];
+            c0_grid_desc_m_n_    = descs[I3];
+            c1_grid_desc_m_n_    = descs[I4];
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
             {
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+
+                c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c0_grid_desc_m_n_);
+
+                c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c1_grid_desc_m_n_);
 
                 block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
@@ -409,10 +445,16 @@ struct DeviceConvFwdXdl<
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
+        const CDataType* p_c0_grid_;
+        const CDataType* p_c1_grid_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
+        C0GridDesc_M_N c0_grid_desc_m_n_;
+        C1GridDesc_M_N c1_grid_desc_m_n_;
         CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -424,7 +466,7 @@ struct DeviceConvFwdXdl<
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceConvFwdXdl::Argument;
+        using Argument = DeviceConvFwdXdl_bias_activation_add::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -439,6 +481,12 @@ struct DeviceConvFwdXdl<
 
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.c0_grid_desc_m_n_{ " << arg.c0_grid_desc_m_n_.GetLength(I0)
+                          << ", " << arg.c0_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.c1_grid_desc_m_n_{ " << arg.c1_grid_desc_m_n_.GetLength(I0)
+                          << ", " << arg.c1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
@@ -448,7 +496,7 @@ struct DeviceConvFwdXdl<
                                             arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r5 has invalid setting");
             }
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
@@ -461,17 +509,22 @@ struct DeviceConvFwdXdl<
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v2r5<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceConvFwdXdl_bias_activation_add::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceConvFwdXdl_bias_activation_add::BGridDesc_K0_N_K1>,
+                    remove_reference_t<
+                        DeviceConvFwdXdl_bias_activation_add::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceConvFwdXdl_bias_activation_add::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceConvFwdXdl_bias_activation_add::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceConvFwdXdl_bias_activation_add::Block2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -482,9 +535,13 @@ struct DeviceConvFwdXdl<
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
+                                                  arg.p_c0_grid_,
+                                                  arg.p_c1_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,
@@ -492,17 +549,22 @@ struct DeviceConvFwdXdl<
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v2r5<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceConvFwdXdl_bias_activation_add::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceConvFwdXdl_bias_activation_add::BGridDesc_K0_N_K1>,
+                    remove_reference_t<
+                        DeviceConvFwdXdl_bias_activation_add::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceConvFwdXdl_bias_activation_add::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceConvFwdXdl_bias_activation_add::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceConvFwdXdl_bias_activation_add::Block2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -513,9 +575,13 @@ struct DeviceConvFwdXdl<
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
+                                                  arg.p_c0_grid_,
+                                                  arg.p_c1_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,
@@ -556,6 +622,8 @@ struct DeviceConvFwdXdl<
     static auto MakeArgument(const InDataType* p_in_grid,
                              const WeiDataType* p_wei_grid,
                              OutDataType* p_out_grid,
+                             const OutDataType* p_bias_grid,
+                             const OutDataType* p_resi_grid,
                              ck::index_t N,
                              ck::index_t K,
                              ck::index_t C,
@@ -573,6 +641,8 @@ struct DeviceConvFwdXdl<
         return Argument{p_in_grid,
                         p_wei_grid,
                         p_out_grid,
+                        p_bias_grid,
+                        p_resi_grid,
                         N,
                         K,
                         C,
@@ -591,51 +661,6 @@ struct DeviceConvFwdXdl<
     }
 
     static auto MakeInvoker() { return Invoker{}; }
-
-    // polymorphic
-    std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_in_grid,
-                        const void* p_wei_grid,
-                        void* p_out_grid,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t C,
-                        std::vector<ck::index_t> input_spatial_lengths,
-                        std::vector<ck::index_t> filter_spatial_lengths,
-                        std::vector<ck::index_t> output_spatial_lengths,
-                        std::vector<ck::index_t> conv_filter_strides,
-                        std::vector<ck::index_t> conv_filter_dilations,
-                        std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads,
-                        InElementwiseOperation in_element_op,
-                        WeiElementwiseOperation wei_element_op,
-                        OutElementwiseOperation out_element_op) override
-    {
-        return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
-                                          static_cast<const WeiDataType*>(p_wei_grid),
-                                          static_cast<OutDataType*>(p_out_grid),
-                                          N,
-                                          K,
-                                          C,
-                                          input_spatial_lengths,
-                                          filter_spatial_lengths,
-                                          output_spatial_lengths,
-                                          conv_filter_strides,
-                                          conv_filter_dilations,
-                                          input_left_pads,
-                                          input_right_pads,
-                                          1,
-                                          1,
-                                          in_element_op,
-                                          wei_element_op,
-                                          out_element_op);
-    }
-
-    // polymorphic
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
-    {
-        return std::make_unique<Invoker>(Invoker{});
-    }
 }; // namespace device
 
 } // namespace device

@@ -1,5 +1,5 @@
-#ifndef DEVICE_GEMM_XDL_HPP
-#define DEVICE_GEMM_XDL_HPP
+#ifndef DEVICE_GEMM_XDL_TWO_EXTRA_SOURCE_REDUCE_HPP
+#define DEVICE_GEMM_XDL_TWO_EXTRA_SOURCE_REDUCE_HPP
 
 #include <iostream>
 #include "device.hpp"
@@ -9,7 +9,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
+#include "gridwise_gemm_xdlops_v2r5.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -52,8 +52,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceGemmXdl
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -130,6 +129,12 @@ struct DeviceGemmXdl
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using C0GridDesc_M_N    = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+
+    // hardcoding
+    // TODO: fix this
+    using C1GridDesc_M_N =
+        decltype(make_naive_tensor_descriptor(make_tuple(1, 1), make_tuple(I1, I0)));
 
     // TODO remove these hacks
     static constexpr auto a_k0_m_k1_grid_step_hacks =
@@ -171,7 +176,7 @@ struct DeviceGemmXdl
     static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -180,6 +185,8 @@ struct DeviceGemmXdl
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
+        C0GridDesc_M_N,
+        C1GridDesc_M_N,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
@@ -222,6 +229,12 @@ struct DeviceGemmXdl
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
 
+    using C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C0GridDesc_M_N{}));
+
+    using C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C1GridDesc_M_N{}));
+
     using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     // Argument
@@ -230,6 +243,8 @@ struct DeviceGemmXdl
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
+                 const CDataType* p_c0_grid,
+                 const CDataType* p_c1_grid,
                  index_t M,
                  index_t N,
                  index_t K,
@@ -244,10 +259,16 @@ struct DeviceGemmXdl
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
+              p_c0_grid_{p_c0_grid},
+              p_c1_grid_{p_c1_grid},
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
+              c0_grid_desc_m_n_{},
+              c1_grid_desc_m_n_{},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -255,15 +276,33 @@ struct DeviceGemmXdl
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m_n_     = DeviceGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_k0_m_k1_ =
+                DeviceGemmXdl_two_extra_source_reduce::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ =
+                DeviceGemmXdl_two_extra_source_reduce::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+            c_grid_desc_m_n_ =
+                DeviceGemmXdl_two_extra_source_reduce::MakeCGridDescriptor_M_N(M, N, StrideC);
+
+            // assume C0 has same layout as C
+            // TODO: fix this
+            c0_grid_desc_m_n_ =
+                DeviceGemmXdl_two_extra_source_reduce::MakeCGridDescriptor_M_N(M, N, StrideC);
+
+            // hardcoding C1 layout
+            // TODO: fix this
+            c1_grid_desc_m_n_ = make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, I0));
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
             {
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+
+                c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c0_grid_desc_m_n_);
+
+                c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
+                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c1_grid_desc_m_n_);
 
                 block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
@@ -273,10 +312,16 @@ struct DeviceGemmXdl
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
+        const CDataType* p_c0_grid_;
+        const CDataType* p_c1_grid_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
+        C0GridDesc_M_N c0_grid_desc_m_n_;
+        C1GridDesc_M_N c1_grid_desc_m_n_;
         CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -288,7 +333,7 @@ struct DeviceGemmXdl
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdl::Argument;
+        using Argument = DeviceGemmXdl_two_extra_source_reduce::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -303,6 +348,12 @@ struct DeviceGemmXdl
 
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.c0_grid_desc_m_n_{ " << arg.c0_grid_desc_m_n_.GetLength(I0)
+                          << ", " << arg.c0_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.c1_grid_desc_m_n_{ " << arg.c1_grid_desc_m_n_.GetLength(I0)
+                          << ", " << arg.c1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
@@ -312,7 +363,7 @@ struct DeviceGemmXdl
                                             arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r5 has invalid setting");
             }
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
@@ -325,17 +376,22 @@ struct DeviceGemmXdl
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v2r5<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::BGridDesc_K0_N_K1>,
+                    remove_reference_t<
+                        DeviceGemmXdl_two_extra_source_reduce::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceGemmXdl_two_extra_source_reduce::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceGemmXdl_two_extra_source_reduce::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::Block2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -346,9 +402,13 @@ struct DeviceGemmXdl
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
+                                                  arg.p_c0_grid_,
+                                                  arg.p_c1_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -356,17 +416,22 @@ struct DeviceGemmXdl
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v2r5<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::BGridDesc_K0_N_K1>,
+                    remove_reference_t<
+                        DeviceGemmXdl_two_extra_source_reduce::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceGemmXdl_two_extra_source_reduce::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        DeviceGemmXdl_two_extra_source_reduce::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::Block2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -377,9 +442,13 @@ struct DeviceGemmXdl
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
+                                                  arg.p_c0_grid_,
+                                                  arg.p_c1_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -420,6 +489,8 @@ struct DeviceGemmXdl
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              CDataType* p_c,
+                             const CDataType* p_c0,
+                             const CDataType* p_c1,
                              index_t M,
                              index_t N,
                              index_t K,
@@ -433,6 +504,8 @@ struct DeviceGemmXdl
         return Argument{p_a,
                         p_b,
                         p_c,
+                        p_c0,
+                        p_c1,
                         M,
                         N,
                         K,
@@ -452,6 +525,8 @@ struct DeviceGemmXdl
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       void* p_c,
+                                                      const void* p_c0,
+                                                      const void* p_c1,
                                                       index_t M,
                                                       index_t N,
                                                       index_t K,
@@ -460,11 +535,13 @@ struct DeviceGemmXdl
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op)
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
+                                          static_cast<const CDataType*>(p_c0),
+                                          static_cast<const CDataType*>(p_c1),
                                           M,
                                           N,
                                           K,
@@ -479,7 +556,7 @@ struct DeviceGemmXdl
     }
 
     // polymorphic
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer()
     {
         return std::make_unique<Invoker>(Invoker{});
     }
