@@ -214,6 +214,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     dst_coord_.GetOffset(),
                     is_dst_valid,
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
+                printf("copy: %d %d\n", dst_coord_.GetOffset(), dst_coord_.GetIndex()[I0]);
             }
             else if constexpr(DstInMemOp == InMemoryDataOperationEnum_t::AtomicAdd)
             {

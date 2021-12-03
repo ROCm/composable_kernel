@@ -162,23 +162,23 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 4;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
-#elif 1
+#elif 0
     // [M, N, K0, K1] = [256, 128, 4, 8], C = 128, for fp16
     constexpr index_t BlockSize = 256;
 
-    constexpr index_t MPerBlock = 256;
+    constexpr index_t MPerBlock = 32;
     constexpr index_t NPerBlock = 128;
     constexpr index_t KPerBlock = 4;
 
-    constexpr index_t MPerXDL = 32;
-    constexpr index_t NPerXDL = 32;
+    constexpr index_t MPerXDL = 16;
+    constexpr index_t NPerXDL = 16;
     constexpr index_t K1      = 8;
 
-    constexpr index_t MRepeat = 4;
-    constexpr index_t NRepeat = 2;
+    constexpr index_t MRepeat = 1;
+    constexpr index_t NRepeat = 4;
 
-    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 4, 8>;
-    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 64, 1>;
+    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<1, 1, 8>;
+    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<4, 32, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_K1 = 8;
     constexpr index_t ABlockTransferDstScalarPerVector_K1 = 8;
@@ -188,6 +188,34 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
 
     constexpr index_t BBlockTransferSrcScalarPerVector_N  = 2;
     constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
+
+    constexpr index_t CThreadTransferDstScalarPerVector = 1;
+#elif 1
+    // [M, N, K0, K1] = [256, 128, 4, 8], C = 128, for fp16
+    constexpr index_t BlockSize = 64;
+
+    constexpr index_t MPerBlock = 48;
+    constexpr index_t NPerBlock = 16;
+    constexpr index_t KPerBlock = 4;
+
+    constexpr index_t MPerXDL = 16;
+    constexpr index_t NPerXDL = 16;
+    constexpr index_t K1      = 8;
+
+    constexpr index_t MRepeat = 3;
+    constexpr index_t NRepeat = 1;
+
+    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<4, 1, 8>;
+    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<1, 48, 1>;
+
+    constexpr index_t ABlockTransferSrcScalarPerVector_K1 = 1;
+    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 1;
+
+    using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<4, 1, 8>;
+    using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<1, 16, 1>;
+
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 1;
+    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 1;
 
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
 #elif 0
@@ -351,8 +379,7 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
                                                 b_k_n.mDesc.GetStrides()[1],
                                                 b_k_n.mDesc.GetStrides()[0]));
 
-    const auto c_m_n_grid_desc = make_naive_tensor_descriptor(
-        make_tuple(M, N), make_tuple(c_m_n.mDesc.GetStrides()[0], c_m_n.mDesc.GetStrides()[1]));
+    const auto c_m_n_grid_desc = make_naive_tensor_descriptor_packed(make_tuple(M, N));
 
     // HACK: hacks that control index calculation when iterating over A, B, C matrix
     constexpr auto a_k0_m_k1_grid_step_hacks = make_tuple(make_tuple(Sequence<0>{},   // 0+: K0

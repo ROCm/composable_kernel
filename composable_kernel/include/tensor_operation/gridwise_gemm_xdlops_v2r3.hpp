@@ -288,13 +288,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_k0_m_k1 = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
+            // if constexpr(ABlockLdsExtraM)
+            //{
+            // return make_naive_tensor_descriptor(
+            // make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+            // make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
+            //}
+            // else
             {
                 return make_naive_tensor_descriptor_aligned(
                     make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
@@ -303,13 +303,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_k0_n_k1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
+            // if constexpr(BBlockLdsExtraN)
+            //{
+            // return make_naive_tensor_descriptor(
+            // make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+            // make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
+            //}
+            // else
             {
                 return make_naive_tensor_descriptor_aligned(
                     make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
@@ -619,6 +619,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             const index_t n_thread_data_on_grid =
                 n_block_data_idx_on_grid + c_thread_mtx_on_block[I1];
 
+            printf("%d %d %d\n",
+                   get_thread_local_1d_id(),
+                   c_thread_mtx_on_block[I0],
+                   c_thread_mtx_on_block[I1]);
+
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks = CGridStepHacks{};
 
             const auto m_thread_data_on_grid_to_m0_m1_m2_m3_m4_adaptor =
@@ -640,6 +645,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_grid));
 
+            c_thread_buf.Fill(get_thread_local_1d_id());
+
+            if(get_thread_local_1d_id() == 0)
+                printf("%d %d %d\n",
+                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I0),
+                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I1),
+                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I2));
+
             auto c_thread_copy =
                 ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
                                                    FloatC,
@@ -652,7 +665,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                    CThreadTransferDstScalarPerVector,
                                                    CGlobalMemoryDataOperation,
                                                    1,
-                                                   true>{
+                                                   false>{
                     c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(m_thread_data_on_grid_idx[I0],
                                      n_thread_data_on_grid_idx[I0],

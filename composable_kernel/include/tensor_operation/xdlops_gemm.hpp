@@ -589,6 +589,7 @@ struct XdlopsGemm
         const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
         const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
         const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        const auto N2 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I5);
 
         return transform_tensor_descriptor(
             c_desc_m0_n0_m1_n1_m2_n2,
@@ -599,7 +600,7 @@ struct XdlopsGemm
                        make_unmerge_transform(make_tuple(mfma_instr.num_groups_per_blk,
                                                          mfma_instr.num_input_blks,
                                                          mfma_instr.group_size)),
-                       make_pass_through_transform(mfma_instr.num_threads_per_blk)),
+                       make_pass_through_transform(N2)),
             make_tuple(Sequence<0>{},
                        Sequence<1>{},
                        Sequence<2>{},

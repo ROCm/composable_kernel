@@ -22,7 +22,7 @@ REPEAT=$6
 
 ######### layout  algo  verify  init  log  repeat  N__ K___ C___ Y X Hi_ Wi__ Strides Dilations LeftPads RightPads  Desired_grid_size__
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  128  192 3 3  71   71     2 2       1 1      1 1       1 1    $DESIRED_GRID_SIZE
- $DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  256  192 3 3  71   71     2 2       1 1      1 1       1 1    $DESIRED_GRID_SIZE
+ $DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT    1   16   32 1 1   1   48     1 1       1 1      0 0       0 0    $DESIRED_GRID_SIZE
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  256 1024 1 7  17   17     1 1       1 1      0 3       0 3    $DESIRED_GRID_SIZE
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  256  256  256 3 3  14   14     1 1       1 1      1 1       1 1    $DESIRED_GRID_SIZE
 #$DRIVER $LAYOUT $ALGO $VERIFY $INIT $LOG $REPEAT  128  128  128 3 3  14   14     1 1       1 1      1 1       1 1    $DESIRED_GRID_SIZE
