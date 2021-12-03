@@ -6,13 +6,17 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
+using DeviceGemmNoOpPtr = DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
+                                        ck::tensor_operation::element_wise::PassThrough,
+                                        ck::tensor_operation::element_wise::PassThrough>;
+
 template <>
 void add_device_gemm_instance<float,
                               float,
                               float,
                               ck::tensor_layout::gemm::RowMajor,
                               ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 template <>
 void add_device_gemm_instance<float,
@@ -20,7 +24,7 @@ void add_device_gemm_instance<float,
                               float,
                               ck::tensor_layout::gemm::RowMajor,
                               ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 template <>
 void add_device_gemm_instance<float,
@@ -28,7 +32,7 @@ void add_device_gemm_instance<float,
                               float,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 template <>
 void add_device_gemm_instance<float,
@@ -36,7 +40,7 @@ void add_device_gemm_instance<float,
                               float,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 template <>
 void add_device_gemm_instance<ck::half_t,
@@ -44,7 +48,7 @@ void add_device_gemm_instance<ck::half_t,
                               ck::half_t,
                               ck::tensor_layout::gemm::RowMajor,
                               ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 template <>
 void add_device_gemm_instance<ck::half_t,
@@ -52,7 +56,7 @@ void add_device_gemm_instance<ck::half_t,
                               ck::half_t,
                               ck::tensor_layout::gemm::RowMajor,
                               ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 template <>
 void add_device_gemm_instance<ck::half_t,
@@ -60,7 +64,7 @@ void add_device_gemm_instance<ck::half_t,
                               ck::half_t,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 template <>
 void add_device_gemm_instance<ck::half_t,
@@ -68,7 +72,7 @@ void add_device_gemm_instance<ck::half_t,
                               ck::half_t,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmPtr>&);
+                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -132,7 +136,12 @@ void profile_gemm(int do_verification,
 
     if(do_verification)
     {
-        host_gemm_mk_kn_mn(a_m_k, b_k_n, c_m_n_host_result);
+        host_gemm_mk_kn_mn(a_m_k,
+                           b_k_n,
+                           c_m_n_host_result,
+                           ck::tensor_operation::element_wise::PassThrough{},
+                           ck::tensor_operation::element_wise::PassThrough{},
+                           ck::tensor_operation::element_wise::PassThrough{});
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
@@ -144,7 +153,7 @@ void profile_gemm(int do_verification,
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::DeviceGemmPtr> gemm_ptrs;
+    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmNoOpPtr> gemm_ptrs;
 
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_instance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
@@ -171,7 +180,10 @@ void profile_gemm(int do_verification,
                                           K,
                                           StrideA,
                                           StrideB,
-                                          StrideC);
+                                          StrideC,
+                                          ck::tensor_operation::element_wise::PassThrough{},
+                                          ck::tensor_operation::element_wise::PassThrough{},
+                                          ck::tensor_operation::element_wise::PassThrough{});
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 

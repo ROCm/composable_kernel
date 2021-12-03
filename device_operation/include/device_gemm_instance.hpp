@@ -2,6 +2,7 @@
 #define DEVICE_GEMM_INSTANTCE_HPP
 
 #include "device_gemm.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -14,7 +15,10 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void add_device_gemm_instance(std::vector<DeviceGemmPtr>&);
+void add_device_gemm_instance(
+    std::vector<DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
+                              ck::tensor_operation::element_wise::PassThrough,
+                              ck::tensor_operation::element_wise::PassThrough>>&);
 
 } // namespace device_gemm_instance
 } // namespace device
