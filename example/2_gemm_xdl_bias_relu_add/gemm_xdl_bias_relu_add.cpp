@@ -20,10 +20,42 @@
 //     0 in the "n" dimension
 // assume C1 and C have same layout C
 
+struct BiasReluAdd
+{
+    template <typename T1, typename T2>
+    __host__ constexpr float operator()(float v0, T1 v1, T2 v2) const
+    {
+        float b = v0 + v1;
+        float c = b > 0 ? b : 0;
+        float d = c + v2;
+
+        return d;
+    }
+
+    template <typename T1, typename T2>
+    __device__ constexpr float operator()(float v0, T1 v1, T2 v2) const
+    {
+#if 0
+        float a = v1 + v0;
+        float b = max(a, float(0));
+        float c = b + v2;
+
+        return c;
+#else
+        float a = v1 + v2;
+        float b = v2;
+
+        float c = (v0 > -v1) ? a + v0 : v2;
+
+        return c;
+#endif
+    }
+};
+
 // v0 is from A * B
 // v1 is from C0
 // v2 is from C1
-struct BiasReluAdd
+struct BiasLeakyReluAdd
 {
     template <typename T1, typename T2>
     __host__ constexpr float operator()(float v0, T1 v1, T2 v2) const
@@ -51,7 +83,7 @@ struct BiasReluAdd
     }
 };
 
-struct BiasRelu
+struct BiasLeakyRelu
 {
     template <typename T1, typename T2>
     __host__ constexpr float operator()(float v0, T1 v1, T2) const
@@ -99,7 +131,7 @@ struct BiasAdd
     }
 #elif 0
     float alpha = 0.1;
-    float beta  = 0.2;
+    float beta = 0.2;
     float gamma = 0.3;
 
     // wrong result
