@@ -189,9 +189,9 @@ int main(int argc, char* argv[])
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      PassThrough{},
-                                      PassThrough{},
-                                      Relu{});
+                                      AOp{},
+                                      BOp{},
+                                      COp{});
 
     if(!gemm.IsSupportedArgument(argument))
     {
