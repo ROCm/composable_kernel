@@ -123,17 +123,9 @@ struct DeviceGemmInstance<float,
 
 int main(int argc, char* argv[])
 {
-    if(argc != 4)
-    {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
-        exit(0);
-    }
-
-    const bool do_verification = std::stoi(argv[1]);
-    const int init_method      = std::stoi(argv[2]);
-    const int nrepeat          = std::stoi(argv[3]);
+    bool do_verification = 0;
+    int init_method      = 0;
+    int nrepeat          = 5;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -143,6 +135,35 @@ int main(int argc, char* argv[])
     ck::index_t StrideA = 4096;
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
+
+    if(argc == 4)
+    {
+        M = std::stoi(argv[4]);
+        N = std::stoi(argv[5]);
+        K = std::stoi(argv[6]);
+    }
+    else if(argc == 10)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+
+        M = std::stoi(argv[4]);
+        N = std::stoi(argv[5]);
+        K = std::stoi(argv[6]);
+
+        StrideA = std::stoi(argv[7]);
+        StrideB = std::stoi(argv[8]);
+        StrideC = std::stoi(argv[9]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
+        exit(0);
+    }
 
     // matrix data type
     using ADataType = ck::half_t;
