@@ -72,44 +72,26 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
 
-    static auto
-    MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
-                                                    ck::index_t K,
-                                                    ck::index_t C,
-                                                    std::vector<ck::index_t> input_spatial_lengths,
-                                                    std::vector<ck::index_t> filter_spatial_lengths,
-                                                    std::vector<ck::index_t> output_spatial_lengths,
-                                                    std::vector<ck::index_t> conv_filter_strides,
-                                                    std::vector<ck::index_t> conv_filter_dilations,
-                                                    std::vector<ck::index_t> input_left_pads,
-                                                    std::vector<ck::index_t> input_right_pads)
+    static auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
+        ck::index_t N,
+        ck::index_t K,
+        ck::index_t C,
+        std::vector<ck::index_t> input_spatial_lengths,
+        std::vector<ck::index_t> /*filter_spatial_lengths*/,
+        std::vector<ck::index_t> /*output_spatial_lengths*/,
+        std::vector<ck::index_t> /*conv_filter_strides*/,
+        std::vector<ck::index_t> /*conv_filter_dilations*/,
+        std::vector<ck::index_t> /*input_left_pads*/,
+        std::vector<ck::index_t> /*input_right_pads*/)
     {
         using namespace ck;
 
-        const index_t Hi = input_spatial_lengths[0];
-        const index_t Wi = input_spatial_lengths[1];
+        const index_t H = input_spatial_lengths[0];
+        const index_t W = input_spatial_lengths[1];
 
-        const index_t Ho = output_spatial_lengths[0];
-        const index_t Wo = output_spatial_lengths[1];
-
-        const index_t Y = filter_spatial_lengths[0];
-        const index_t X = filter_spatial_lengths[1];
-
-        const index_t ConvStrideH = conv_filter_strides[0];
-        const index_t ConvStrideW = conv_filter_strides[1];
-
-        const index_t ConvDilationH = conv_filter_dilations[0];
-        const index_t ConvDilationW = conv_filter_dilations[1];
-
-        const index_t InLeftPadH = input_left_pads[0];
-        const index_t InLeftPadW = input_left_pads[1];
-
-        const index_t InRightPadH = input_right_pads[0];
-        const index_t InRightPadW = input_right_pads[1];
-
-        const index_t GemmMRaw = N * Ho * Wo;
+        const index_t GemmMRaw = N * H * W;
         const index_t GemmN    = K;
-        const index_t GemmK    = Y * X * C;
+        const index_t GemmK    = C;
 
         const auto GemmMPad = math::integer_least_multiple(GemmMRaw, MPerBlock) - GemmMRaw;
 
@@ -118,76 +100,30 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
         const index_t GemmK0 = GemmK / GemmK1Number;
 
         // A: input tensor
-        const auto in_n_hi_wi_c_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
+        const auto in_gemmmraw_gemmk_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(N * H * W, C));
 
-        const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
-            in_n_hi_wi_c_grid_desc,
-            make_tuple(make_pass_through_transform(N),
-                       make_pad_transform(Hi, InLeftPadH, InRightPadH),
-                       make_pad_transform(Wi, InLeftPadW, InRightPadW),
-                       make_pass_through_transform(C)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-
-        const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
-            in_n_hip_wip_c_grid_desc,
-            make_tuple(
-                make_pass_through_transform(N),
-                make_embed_transform(make_tuple(Y, Ho), make_tuple(ConvDilationH, ConvStrideH)),
-                make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
-                make_pass_through_transform(C)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
-
-        const auto in_gemmk_gemmmraw_grid_desc =
-            transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
-                                        make_tuple(make_merge_transform(make_tuple(Y, X, C)),
-                                                   make_merge_transform(make_tuple(N, Ho, Wo))),
-                                        make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-        const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
-            in_gemmk_gemmmraw_grid_desc,
+        const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            in_gemmmraw_gemmk_grid_desc,
             make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                       make_pass_through_transform(GemmMRaw)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                       make_right_pad_transform(GemmMRaw, GemmMPad)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-        const auto in_gemmk0_gemmm_gemmk1_grid_desc =
-            transform_tensor_descriptor(in_gemmk0_gemmmraw_gemmk1_grid_desc,
-                                        make_tuple(make_pass_through_transform(GemmK0),
-                                                   make_right_pad_transform(GemmMRaw, GemmMPad),
-                                                   make_pass_through_transform(GemmK1Number)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-
         // B: weight tensor
-        const auto wei_k_yxc_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(K, Y * X * C));
-
-        const auto wei_gemmk_gemmn_grid_desc = transform_tensor_descriptor(
-            wei_k_yxc_grid_desc,
-            make_tuple(make_pass_through_transform(K), make_pass_through_transform(Y * X * C)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<1>{}, Sequence<0>{}));
+        const auto wei_gemmn_gemmk_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(K, C));
 
         const auto wei_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
-            wei_gemmk_gemmn_grid_desc,
+            wei_gemmn_gemmk_grid_desc,
             make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
                        make_pass_through_transform(GemmN)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         // C: output tensor
-        const auto out_nhowo_k_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
-
-        const auto out_gemmmraw_gemmn_grid_desc = transform_tensor_descriptor(
-            out_nhowo_k_grid_desc,
-            make_tuple(make_pass_through_transform(N * Ho * Wo), make_pass_through_transform(K)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+        const auto out_gemmmraw_gemmn_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(N * H * W, K));
 
         const auto out_gemmm_gemmn_grid_desc =
             transform_tensor_descriptor(out_gemmmraw_gemmn_grid_desc,
@@ -209,44 +145,42 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // TODO remove these hacks
-    static constexpr auto a_k0_m_k1_grid_step_hacks = make_tuple(
-        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0>{},   // 0+: K0
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0>{},   // 1+: M
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0>{}),  // 2+: K1
-        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0>{},   // 0-: K0
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0>{},   // 1-: M
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0>{})); // 2-: K1
+    static constexpr auto a_k0_m_k1_grid_step_hacks =
+        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
+                              Sequence<0, 0, 0>{},   // 1+: M
+                              Sequence<0, 0, 0>{}),  // 2+: K1
+                   make_tuple(Sequence<0, 0, 0>{},   // 0-: K0
+                              Sequence<0, 0, 0>{},   // 1-: M
+                              Sequence<0, 0, 0>{})); // 2-: K1
 
     static constexpr auto b_k0_n_k1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0+: K0
-                              Sequence<0, 0, 0, 0, 0>{},   // 1+: N
-                              Sequence<0, 0, 0, 0, 0>{}),  // 2+: K1
-                   make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0-: K0
-                              Sequence<0, 0, 0, 0, 0>{},   // 1-: N
-                              Sequence<0, 0, 0, 0, 0>{})); // 2-: K1
+        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
+                              Sequence<0, 0, 0>{},   // 1+: N
+                              Sequence<0, 0, 0>{}),  // 2+: K1
+                   make_tuple(Sequence<0, 0, 0>{},   // 0-: K0
+                              Sequence<0, 0, 0>{},   // 1-: N
+                              Sequence<0, 0, 0>{})); // 2-: K1
 
     static constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
+                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
 
-    static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks =
-        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0>{};
-
-    static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0, 0, 0>{};
+    static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
+    static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
@@ -335,7 +269,11 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
               N01_{N01},
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
-              out_element_op_{out_element_op}
+              out_element_op_{out_element_op},
+              filter_spatial_lengths_{filter_spatial_lengths},
+              conv_filter_strides_{conv_filter_strides},
+              input_left_pads_{input_left_pads},
+              input_right_pads_{input_right_pads}
         {
             const auto descs =
                 DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(N,
@@ -377,6 +315,11 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
         InElementwiseOperation in_element_op_;
         WeiElementwiseOperation wei_element_op_;
         OutElementwiseOperation out_element_op_;
+        // for checking IsSupportedArgument()
+        std::vector<index_t> filter_spatial_lengths_;
+        std::vector<index_t> conv_filter_strides_;
+        std::vector<index_t> input_left_pads_;
+        std::vector<index_t> input_right_pads_;
     };
 
     // Invoker
@@ -498,6 +441,15 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // check if it's 1x1 conv
+        if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
+             arg.conv_filter_strides_[0] == 1 && arg.conv_filter_strides_[1] == 1 &&
+             arg.input_left_pads_[0] == 0 && arg.input_left_pads_[1] == 0 &&
+             arg.input_right_pads_[0] == 0 && arg.input_right_pads_[1] == 0))
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
