@@ -39,6 +39,9 @@ void add_device_conv_fwd_instance<2,
                                   ck::tensor_layout::convolution::NHWK>(
     std::vector<DeviceConvFwdNoOpPtr>&);
 
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_fp16_instances(
+    std::vector<DeviceConvFwdNoOpPtr>&);
+
 } // namespace device_conv_instance
 } // namespace device
 } // namespace tensor_operation
@@ -154,6 +157,9 @@ void profile_conv(int do_verification,
                                                                                      WeiLayout,
                                                                                      OutLayout>(
         conv_ptrs);
+
+    ck::tensor_operation::device::device_conv_instance::
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_fp16_instances(conv_ptrs);
 
     if(conv_ptrs.size() <= 0)
     {

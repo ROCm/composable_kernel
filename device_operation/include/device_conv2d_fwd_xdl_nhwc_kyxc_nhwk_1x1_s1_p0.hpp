@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_FWD_XDL_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV_FWD_XDL_NHWC_KYXC_NHWK_HPP
+#ifndef DEVICE_CONV2D_FWD_XDL_NHWC_KYXC_NHWK_1X1_S1_P0_HPP
+#define DEVICE_CONV2D_FWD_XDL_NHWC_KYXC_NHWK_1X1_S1_P0_HPP
 
 #include <iostream>
 #include "device.hpp"
@@ -10,14 +10,12 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
-#include "device_conv.hpp"
-#include "device_conv_fwd_xdl.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// specialization for 2D conv: in[n, hi, wi, c] * wei[k, y, x, c] = out[n, ho, wo, k]
+// 1x1 conv2d, stride=1, pad=0
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -52,50 +50,11 @@ template <typename InDataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceConvFwdXdl<
-    2,                                        // ck::index_t NDimSpatial,
-    InDataType,                               // typename InDataType,
-    WeiDataType,                              // typename WeiDataType,
-    OutDataType,                              // typename OutDataType,
-    AccDataType,                              // typename AccDataType,
-    ck::tensor_layout::convolution::NHWC,     // typename InLayout,
-    ck::tensor_layout::convolution::KYXC,     // typename WeiLayout,
-    ck::tensor_layout::convolution::NHWK,     // typename OutLayout,
-    InElementwiseOperation,                   // typename InElementwiseOperation,
-    WeiElementwiseOperation,                  // typename WeiElementwiseOperation,
-    OutElementwiseOperation,                  // typename OutElementwiseOperation,
-    BlockSize,                                // ck::index_t BlockSize,
-    MPerBlock,                                // ck::index_t MPerBlock,
-    NPerBlock,                                // ck::index_t NPerBlock,
-    K0PerBlock,                               // ck::index_t K0PerBlock,
-    K1,                                       // ck::index_t K1,
-    MPerXDL,                                  // ck::index_t MPerXDL,
-    NPerXDL,                                  // ck::index_t NPerXDL,
-    MXdlPerWave,                              // ck::index_t MXdlPerWave,
-    NXdlPerWave,                              // ck::index_t NXdlPerWave,
-    ABlockTransferThreadSliceLengths_K0_M_K1, // typename ABlockTransferThreadSliceLengths_K0_M_K1,
-    ABlockTransferThreadClusterLengths_K0_M_K1, // typename
-                                                // ABlockTransferThreadClusterLengths_K0_M_K1,
-    ABlockTransferThreadClusterArrangeOrder,    // typename ABlockTransferThreadClusterArrangeOrder,
-    ABlockTransferSrcAccessOrder,               // typename ABlockTransferSrcAccessOrder,
-    ABlockTransferSrcVectorDim,                 // ck::index_t ABlockTransferSrcVectorDim,
-    ABlockTransferSrcScalarPerVector,           // ck::index_t ABlockTransferSrcScalarPerVector,
-    ABlockTransferDstScalarPerVector_K1,        // ck::index_t ABlockTransferDstScalarPerVector_K1,
-    BBlockTransferThreadSliceLengths_K0_N_K1, // typename BBlockTransferThreadSliceLengths_K0_N_K1,
-    BBlockTransferThreadClusterLengths_K0_N_K1, // typename
-                                                // BBlockTransferThreadClusterLengths_K0_N_K1,
-    BBlockTransferThreadClusterArrangeOrder,    // typename BBlockTransferThreadClusterArrangeOrder,
-    BBlockTransferSrcAccessOrder,               // typename BBlockTransferSrcAccessOrder,
-    BBlockTransferSrcVectorDim,                 // ck::index_t BBlockTransferSrcVectorDim,
-    BBlockTransferSrcScalarPerVector,           // ck::index_t BBlockTransferSrcScalarPerVector,
-    BBlockTransferDstScalarPerVector_K1,        // ck::index_t BBlockTransferDstScalarPerVector_K1,
-    CThreadTransferSrcDstVectorDim,             // ck::index_t CThreadTransferSrcDstVectorDim,
-    CThreadTransferDstScalarPerVector,          // ck::index_t CThreadTransferDstScalarPerVector,
-    ABlockLdsAddExtraM,                         // bool ABlockLdsAddExtraM,
-    BBlockLdsAddExtraN                          // bool BBlockLdsAddExtraN>
-    >
+struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1_P0
     : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
+    using DeviceOp = DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1_P0;
+
     using ADataType = InDataType;
     using BDataType = WeiDataType;
     using CDataType = OutDataType;
@@ -103,7 +62,6 @@ struct DeviceConvFwdXdl<
     // TODO make A/B datatype different
     using ABDataType = InDataType;
 
-    // TODO make it support any # of spatial dimensions
     static constexpr index_t NDimSpatial = 2;
 
     static constexpr auto I0 = Number<0>{};
@@ -379,17 +337,17 @@ struct DeviceConvFwdXdl<
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op}
         {
-            const auto descs = DeviceConvFwdXdl::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-                N,
-                K,
-                C,
-                input_spatial_lengths,
-                filter_spatial_lengths,
-                output_spatial_lengths,
-                conv_filter_strides,
-                conv_filter_dilations,
-                input_left_pads,
-                input_right_pads);
+            const auto descs =
+                DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(N,
+                                                                          K,
+                                                                          C,
+                                                                          input_spatial_lengths,
+                                                                          filter_spatial_lengths,
+                                                                          output_spatial_lengths,
+                                                                          conv_filter_strides,
+                                                                          conv_filter_dilations,
+                                                                          input_left_pads,
+                                                                          input_right_pads);
 
             a_grid_desc_k0_m_k1_ = descs[I0];
             b_grid_desc_k0_n_k1_ = descs[I1];
@@ -424,7 +382,7 @@ struct DeviceConvFwdXdl<
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceConvFwdXdl::Argument;
+        using Argument = DeviceOp::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -465,13 +423,13 @@ struct DeviceConvFwdXdl<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceOp::Block2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -496,13 +454,13 @@ struct DeviceConvFwdXdl<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceConvFwdXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceConvFwdXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceConvFwdXdl::Block2CTileMap>,
+                    remove_reference_t<DeviceOp::Block2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,
