@@ -39,6 +39,9 @@ void add_device_conv_fwd_instance<2,
                                   ck::tensor_layout::convolution::NHWK>(
     std::vector<DeviceConvFwdNoOpPtr>&);
 
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_fp16_instances(
+    std::vector<DeviceConvFwdNoOpPtr>&);
+
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_fp16_instances(
     std::vector<DeviceConvFwdNoOpPtr>&);
 
@@ -159,6 +162,9 @@ void profile_conv(int do_verification,
         conv_ptrs);
 
     ck::tensor_operation::device::device_conv_instance::
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_fp16_instances(conv_ptrs);
+
+    ck::tensor_operation::device::device_conv_instance::
         add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_fp16_instances(conv_ptrs);
 
     if(conv_ptrs.size() <= 0)
@@ -166,6 +172,7 @@ void profile_conv(int do_verification,
         throw std::runtime_error("wrong! no device Conv instance found");
     }
 
+    std::string best_conv_name;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
@@ -195,6 +202,8 @@ void profile_conv(int do_verification,
 
         if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            std::string conv_name = conv_ptr->GetTypeString();
+
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
             std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
@@ -208,10 +217,11 @@ void profile_conv(int do_verification,
             float gb_per_sec = num_btype / 1.E6 / ave_time;
 
             std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s" << std::endl;
+                      << " GB/s, " << conv_name << std::endl;
 
             if(tflops > best_tflops)
             {
+                best_conv_name  = conv_name;
                 best_tflops     = tflops;
                 best_ave_time   = ave_time;
                 best_gb_per_sec = gb_per_sec;
@@ -241,7 +251,7 @@ void profile_conv(int do_verification,
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s" << std::endl;
+              << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
 }
 
 } // namespace profiler

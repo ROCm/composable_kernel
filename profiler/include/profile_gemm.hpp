@@ -164,6 +164,7 @@ void profile_gemm(int do_verification,
         throw std::runtime_error("wrong! no device GEMM instance found");
     }
 
+    std::string best_gemm_name;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
@@ -189,9 +190,12 @@ void profile_gemm(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            std::string gemm_name = gemm_ptr->GetTypeString();
+
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
             std::size_t flop = std::size_t(2) * M * N * K;
+
             std::size_t num_btype =
                 sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
 
@@ -200,10 +204,11 @@ void profile_gemm(int do_verification,
             float gb_per_sec = num_btype / 1.E6 / ave_time;
 
             std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s" << std::endl;
+                      << " GB/s, " << gemm_name << std::endl;
 
             if(tflops > best_tflops)
             {
+                best_gemm_name  = gemm_name;
                 best_tflops     = tflops;
                 best_ave_time   = ave_time;
                 best_gb_per_sec = gb_per_sec;
@@ -234,7 +239,7 @@ void profile_gemm(int do_verification,
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s" << std::endl;
+              << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
 }
 
 } // namespace profiler

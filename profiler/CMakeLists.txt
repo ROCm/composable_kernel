@@ -34,6 +34,7 @@ install(TARGETS device_gemm_instance LIBRARY DESTINATION lib)
 set(DEVICE_CONV_INSTANCE_SOURCE 
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_f16_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f16_instance.cpp;
 ) 
 
@@ -48,4 +49,5 @@ set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp conv_profiler.cpp)
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
-target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
+target_link_libraries(ckProfiler PRIVATE device_conv_instance)

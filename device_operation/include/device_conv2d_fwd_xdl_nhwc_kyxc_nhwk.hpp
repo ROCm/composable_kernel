@@ -2,6 +2,7 @@
 #define DEVICE_CONV2D_FWD_XDL_NHWC_KYXC_NHWK_HPP
 
 #include <iostream>
+#include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
 #include "device_conv.hpp"
@@ -593,6 +594,24 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
+    }
+
+    // polymorphic
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
+            << "<"
+            << BlockSize << ", "
+            << MPerBlock << ", "
+            << NPerBlock << ", "
+            << K0PerBlock
+            << ">";
+        // clang-format on
+
+        return str.str();
     }
 }; // namespace device
 

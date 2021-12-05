@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV2D_FWD_XDL_NHWC_KYXC_NHWK_1X1_S1_P0_HPP
-#define DEVICE_CONV2D_FWD_XDL_NHWC_KYXC_NHWK_1X1_S1_P0_HPP
+#ifndef DEVICE_CONV2D_FWD_XDL_NHWC_KYXC_NHWK_1X1_P0_HPP
+#define DEVICE_CONV2D_FWD_XDL_NHWC_KYXC_NHWK_1X1_P0_HPP
 
 #include <iostream>
 #include <sstream>
@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// 1x1 conv2d, stride=1, pad=0
+// 1x1 conv2d, pad=0
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -51,10 +51,10 @@ template <typename InDataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
-struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1_P0
+struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_P0
     : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
-    using DeviceOp = DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1_P0;
+    using DeviceOp = DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_P0;
 
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -79,18 +79,24 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
         ck::index_t C,
         std::vector<ck::index_t> input_spatial_lengths,
         std::vector<ck::index_t> /*filter_spatial_lengths*/,
-        std::vector<ck::index_t> /*output_spatial_lengths*/,
-        std::vector<ck::index_t> /*conv_filter_strides*/,
+        std::vector<ck::index_t> output_spatial_lengths,
+        std::vector<ck::index_t> conv_filter_strides,
         std::vector<ck::index_t> /*conv_filter_dilations*/,
         std::vector<ck::index_t> /*input_left_pads*/,
         std::vector<ck::index_t> /*input_right_pads*/)
     {
         using namespace ck;
 
-        const index_t H = input_spatial_lengths[0];
-        const index_t W = input_spatial_lengths[1];
+        const index_t Hi = input_spatial_lengths[0];
+        const index_t Wi = input_spatial_lengths[1];
 
-        const index_t GemmMRaw = N * H * W;
+        const index_t Ho = output_spatial_lengths[0];
+        const index_t Wo = output_spatial_lengths[1];
+
+        const index_t ConvStrideH = conv_filter_strides[0];
+        const index_t ConvStrideW = conv_filter_strides[1];
+
+        const index_t GemmMRaw = N * Ho * Wo;
         const index_t GemmN    = K;
         const index_t GemmK    = C;
 
@@ -101,15 +107,32 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
         const index_t GemmK0 = GemmK / GemmK1Number;
 
         // A: input tensor
-        const auto in_gemmmraw_gemmk_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(N * H * W, C));
+        const auto in_n_hi_wi_c_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
-        const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-            in_gemmmraw_gemmk_grid_desc,
+        const auto in_n_ho_wo_c_grid_desc = transform_tensor_descriptor(
+            in_n_hi_wi_c_grid_desc,
+            make_tuple(make_pass_through_transform(N),
+                       make_embed_transform(make_tuple(Ho), make_tuple(ConvStrideH)),
+                       make_embed_transform(make_tuple(Wo), make_tuple(ConvStrideW)),
+                       make_pass_through_transform(C)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+        const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
+            in_n_ho_wo_c_grid_desc,
             make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                       make_right_pad_transform(GemmMRaw, GemmMPad)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                       make_merge_transform(make_tuple(N, Ho, Wo))),
+            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+        const auto in_gemmk0_gemmm_gemmk1_grid_desc =
+            transform_tensor_descriptor(in_gemmk0_gemmmraw_gemmk1_grid_desc,
+                                        make_tuple(make_pass_through_transform(GemmK0),
+                                                   make_right_pad_transform(GemmMRaw, GemmMPad),
+                                                   make_pass_through_transform(GemmK1Number)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
         // B: weight tensor
         const auto wei_gemmn_gemmk_grid_desc =
@@ -124,7 +147,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
 
         // C: output tensor
         const auto out_gemmmraw_gemmn_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(N * H * W, K));
+            make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
 
         const auto out_gemmm_gemmn_grid_desc =
             transform_tensor_descriptor(out_gemmmraw_gemmn_grid_desc,
@@ -147,12 +170,12 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
 
     // TODO remove these hacks
     static constexpr auto a_k0_m_k1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
-                              Sequence<0, 0, 0>{},   // 1+: M
-                              Sequence<0, 0, 0>{}),  // 2+: K1
-                   make_tuple(Sequence<0, 0, 0>{},   // 0-: K0
-                              Sequence<0, 0, 0>{},   // 1-: M
-                              Sequence<0, 0, 0>{})); // 2-: K1
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: K0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: M
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 2+: K1
+                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: K0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: M
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 2-: K1
 
     static constexpr auto b_k0_n_k1_grid_step_hacks =
         make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
@@ -180,7 +203,8 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
                               Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
                               Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
 
-    static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
+    static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks =
+        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{};
     static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
 
     // GridwiseGemm
@@ -272,7 +296,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op},
               filter_spatial_lengths_{filter_spatial_lengths},
-              conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
@@ -318,7 +341,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
         OutElementwiseOperation out_element_op_;
         // for checking IsSupportedArgument()
         std::vector<index_t> filter_spatial_lengths_;
-        std::vector<index_t> conv_filter_strides_;
         std::vector<index_t> input_left_pads_;
         std::vector<index_t> input_right_pads_;
     };
@@ -444,7 +466,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
     {
         // check if it's 1x1 conv
         if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
-             arg.conv_filter_strides_[0] == 1 && arg.conv_filter_strides_[1] == 1 &&
              arg.input_left_pads_[0] == 0 && arg.input_left_pads_[1] == 0 &&
              arg.input_right_pads_[0] == 0 && arg.input_right_pads_[1] == 0))
         {
@@ -554,7 +575,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_S1
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_s1_P0"
+        str << "DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_P0"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
