@@ -25,7 +25,10 @@ int main(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: tensor operation (gemm: GEMM; conv_fwd: ForwardConvolution)\n");
+        printf(
+            "arg1: tensor operation (gemm: GEMM;\n"
+            "                        conv_fwd: ForwardConvolution;\n"
+            "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add)\n");
         return 0;
     }
 }
