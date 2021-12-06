@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// conv2d: in[n, hi, wi, c] * wei[k, y, x, c] = out[n, ho, wo, k]
+// out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -484,7 +484,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             return ave_time;
         }
 
-        // polymorphic
         float Run(const BaseArgument* p_arg, int nrepeat = 1) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
@@ -506,7 +505,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                            arg.N01_);
     }
 
-    // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
@@ -551,7 +549,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
     static auto MakeInvoker() { return Invoker{}; }
 
-    // polymorphic
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in_grid,
                         const void* p_wei_grid,
@@ -590,13 +587,11 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                           out_element_op);
     }
 
-    // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
     }
 
-    // polymorphic
     std::string GetTypeString() const override
     {
         auto str = std::stringstream();
