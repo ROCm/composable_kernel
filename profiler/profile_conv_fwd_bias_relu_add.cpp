@@ -84,13 +84,13 @@ int profile_conv_fwd_bias_relu_add(int argc, char* argv[])
     if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
        wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        ck::profiler::profile_conv_fwd_bias_relu_add_imple<2,
-                                                           ck::half_t,
-                                                           ck::half_t,
-                                                           ck::half_t,
-                                                           ck::tensor_layout::convolution::NHWC,
-                                                           ck::tensor_layout::convolution::KYXC,
-                                                           ck::tensor_layout::convolution::NHWK>(
+        ck::profiler::profile_conv_fwd_bias_relu_add_impl<2,
+                                                          ck::half_t,
+                                                          ck::half_t,
+                                                          ck::half_t,
+                                                          ck::tensor_layout::convolution::NHWC,
+                                                          ck::tensor_layout::convolution::KYXC,
+                                                          ck::tensor_layout::convolution::NHWK>(
             do_verification,
             init_method,
             do_log,

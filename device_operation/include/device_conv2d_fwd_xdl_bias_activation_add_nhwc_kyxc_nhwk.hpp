@@ -53,7 +53,9 @@ template <typename InDataType,
           bool ABlockLdsAddExtraM,
           bool BBlockLdsAddExtraN>
 struct DeviceConv2dFwdXdl_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public BaseOperator
+    : public DeviceConvFwdBiasActivationAdd<InElementwiseOperation,
+                                            WeiElementwiseOperation,
+                                            OutElementwiseOperation>
 {
     using DeviceOp =
         DeviceConv2dFwdXdl_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
@@ -617,6 +619,53 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Out
     }
 
     static auto MakeInvoker() { return Invoker{}; }
+
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_in_grid,
+                        const void* p_wei_grid,
+                        void* p_out_grid,
+                        const void* p_bias_grid,
+                        const void* p_resi_grid,
+                        ck::index_t N,
+                        ck::index_t K,
+                        ck::index_t C,
+                        std::vector<ck::index_t> input_spatial_lengths,
+                        std::vector<ck::index_t> filter_spatial_lengths,
+                        std::vector<ck::index_t> output_spatial_lengths,
+                        std::vector<ck::index_t> conv_filter_strides,
+                        std::vector<ck::index_t> conv_filter_dilations,
+                        std::vector<ck::index_t> input_left_pads,
+                        std::vector<ck::index_t> input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        WeiElementwiseOperation wei_element_op,
+                        OutElementwiseOperation out_element_op) override
+    {
+        return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
+                                          static_cast<const WeiDataType*>(p_wei_grid),
+                                          static_cast<OutDataType*>(p_out_grid),
+                                          static_cast<const OutDataType*>(p_bias_grid),
+                                          static_cast<const OutDataType*>(p_resi_grid),
+                                          N,
+                                          K,
+                                          C,
+                                          input_spatial_lengths,
+                                          filter_spatial_lengths,
+                                          output_spatial_lengths,
+                                          conv_filter_strides,
+                                          conv_filter_dilations,
+                                          input_left_pads,
+                                          input_right_pads,
+                                          1,
+                                          1,
+                                          in_element_op,
+                                          wei_element_op,
+                                          out_element_op);
+    }
+
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>(Invoker{});
+    }
 
     std::string GetTypeString() const override
     {

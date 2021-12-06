@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_FWD_HPP
-#define DEVICE_CONV_FWD_HPP
+#ifndef DEVICE_CONV_FWD_BIAS_ACTIVATION_ADD_HPP
+#define DEVICE_CONV_FWD_BIAS_ACTIVATION_ADD_HPP
 
 #include <iostream>
 #include "device_base.hpp"
@@ -17,6 +17,8 @@ struct DeviceConvFwdBiasActivationAdd : public BaseOperator
     MakeArgumentPointer(const void* p_in,
                         const void* p_wei,
                         void* p_out,
+                        const void* p_bias,
+                        const void* p_resi,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
@@ -37,8 +39,10 @@ struct DeviceConvFwdBiasActivationAdd : public BaseOperator
 template <typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-using DeviceConvFwdPtr = std::unique_ptr<
-    DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
+using DeviceConvFwdBiasActivationAddPtr =
+    std::unique_ptr<DeviceConvFwdBiasActivationAdd<InElementwiseOperation,
+                                                   WeiElementwiseOperation,
+                                                   OutElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

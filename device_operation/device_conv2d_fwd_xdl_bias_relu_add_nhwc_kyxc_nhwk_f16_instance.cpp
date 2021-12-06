@@ -39,8 +39,8 @@ using device_conv2d_fwd_xdl_bias_relu_add_nhwc_kyxc_nhwk_f16_instances = std::tu
     // clang-format on
     >;
 
-add_device_conv2d_fwd_bias_relu_add_xdl_nhwc_kyxc_nhwk_fp16_instances(
-    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReLuAdd>>&
+void add_device_conv2d_fwd_bias_relu_add_xdl_nhwc_kyxc_nhwk_fp16_instances(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instance_container)
 {
     using Instances = device_conv2d_fwd_xdl_bias_relu_add_nhwc_kyxc_nhwk_f16_instances;
@@ -52,7 +52,7 @@ add_device_conv2d_fwd_bias_relu_add_xdl_nhwc_kyxc_nhwk_fp16_instances(
 
         auto instance = Instance{};
 
-        device_conv_instances.push_back(std::make_unique<Instance>(instance));
+        instance_container.push_back(std::make_unique<Instance>(instance));
     });
 }
 

@@ -118,10 +118,8 @@ struct BiasReluAdd
 
         return c;
 #else
-        float a = v1 + v2;
-        float b = v2;
-
-        float c = (v0 > -v1) ? a + v0 : v2;
+        float b = v1 + v2;
+        float c = (v0 > -v1) ? b + v0 : v2;
 
         return c;
 #endif

@@ -6,23 +6,21 @@
 #include "host_conv.hpp"
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
-#include "device_conv.hpp"
+#include "device_conv_fwd.hpp"
 #include "element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_fwd_bias_activation_add_instance {
+namespace device_conv2d_fwd_instance {
 
 using DeviceConvFwdNoOpPtr = DeviceConvFwdPtr<ck::tensor_operation::element_wise::PassThrough,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               ck::tensor_operation::element_wise::PassThrough>;
 
-add_device_conv2d_fwd_bias_relu_add_xdl_nhwc_kyxc_nhwk_fp16_instances(
-    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReLuAdd>>&
-        instance_container)
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_fp16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 
-} // namespace device_conv2d_fwd_bias_activation_add_instance
+} // namespace device_conv2d_fwd_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -37,20 +35,20 @@ template <int NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-void profile_conv(int do_verification,
-                  int init_method,
-                  bool do_log,
-                  int nrepeat,
-                  ck::index_t N,
-                  ck::index_t K,
-                  ck::index_t C,
-                  std::vector<ck::index_t> input_spatial_lengths,
-                  std::vector<ck::index_t> filter_spatial_lengths,
-                  std::vector<ck::index_t> output_spatial_lengths,
-                  std::vector<ck::index_t> conv_filter_strides,
-                  std::vector<ck::index_t> conv_filter_dilations,
-                  std::vector<ck::index_t> input_left_pads,
-                  std::vector<ck::index_t> input_right_pads)
+void profile_conv_fwd_bias_relu_bias_impl(int do_verification,
+                                          int init_method,
+                                          bool do_log,
+                                          int nrepeat,
+                                          ck::index_t N,
+                                          ck::index_t K,
+                                          ck::index_t C,
+                                          std::vector<ck::index_t> input_spatial_lengths,
+                                          std::vector<ck::index_t> filter_spatial_lengths,
+                                          std::vector<ck::index_t> output_spatial_lengths,
+                                          std::vector<ck::index_t> conv_filter_strides,
+                                          std::vector<ck::index_t> conv_filter_dilations,
+                                          std::vector<ck::index_t> input_left_pads,
+                                          std::vector<ck::index_t> input_right_pads)
 {
     const ck::index_t Y = filter_spatial_lengths[0];
     const ck::index_t X = filter_spatial_lengths[1];
@@ -129,20 +127,26 @@ void profile_conv(int do_verification,
     // add device Conv instances
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
 
-    ck::tensor_operation::device::device_conv_instance::add_device_conv_fwd_instance<2,
-                                                                                     InDataType,
-                                                                                     WeiDataType,
-                                                                                     OutDataType,
-                                                                                     InLayout,
-                                                                                     WeiLayout,
-                                                                                     OutLayout>(
-        conv_ptrs);
+    if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, float> &&
+                 ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
+                 ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
+    {
+        ck::tensor_operation::device::device_conv2d_fwd_instance::
+            add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_fp32_instances(conv_ptrs);
+    }
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::half_t> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
+    {
+        ck::tensor_operation::device::device_conv2d_fwd_instance::
+            add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_fp16_instances(conv_ptrs);
 
-    ck::tensor_operation::device::device_conv_instance::
-        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_fp16_instances(conv_ptrs);
+        ck::tensor_operation::device::device_conv2d_fwd_instance::
+            add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_fp16_instances(conv_ptrs);
 
-    ck::tensor_operation::device::device_conv_instance::
-        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_fp16_instances(conv_ptrs);
+        ck::tensor_operation::device::device_conv2d_fwd_instance::
+            add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_fp16_instances(conv_ptrs);
+    }
 
     if(conv_ptrs.size() <= 0)
     {

@@ -135,16 +135,16 @@ void profile_conv_fwd_impl(int do_verification,
     // add device Conv instances
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
 
-    if constexpr(is_same_v<remove_cv_t<InDataType>, float> &&
-                 is_same_v<remove_cv_t<WeiDataType>, float> &&
-                 is_same_v<remove_cv_t<OutDataType>, float>)
+    if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, float> &&
+                 ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
+                 ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
     {
         ck::tensor_operation::device::device_conv2d_fwd_instance::
             add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_fp32_instances(conv_ptrs);
     }
-    else if constexpr(ck::is_same_v<remove_cv_t<InDataType>, ck::half_t> &&
-                      ck::is_same_v<remove_cv_t<WeiDataType>, ck::half_t> &&
-                      ck::is_same_v<remove_cv_t<OutDataType>, ck::half_t>)
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::half_t> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
     {
         ck::tensor_operation::device::device_conv2d_fwd_instance::
             add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_fp16_instances(conv_ptrs);
