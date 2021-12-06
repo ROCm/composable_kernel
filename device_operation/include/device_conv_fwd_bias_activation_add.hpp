@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_HPP
-#define DEVICE_CONV_HPP
+#ifndef DEVICE_CONV_FWD_HPP
+#define DEVICE_CONV_FWD_HPP
 
 #include <iostream>
 #include "device_base.hpp"
@@ -11,7 +11,7 @@ namespace device {
 template <typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct DeviceConvFwd : public BaseOperator
+struct DeviceConvFwdBiasActivationAdd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in,

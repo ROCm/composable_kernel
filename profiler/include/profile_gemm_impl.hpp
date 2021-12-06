@@ -88,16 +88,16 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm(int do_verification,
-                  int init_method,
-                  bool do_log,
-                  int nrepeat,
-                  int M,
-                  int N,
-                  int K,
-                  int StrideA,
-                  int StrideB,
-                  int StrideC)
+void profile_gemm_impl(int do_verification,
+                       int init_method,
+                       bool do_log,
+                       int nrepeat,
+                       int M,
+                       int N,
+                       int K,
+                       int StrideA,
+                       int StrideB,
+                       int StrideC)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {

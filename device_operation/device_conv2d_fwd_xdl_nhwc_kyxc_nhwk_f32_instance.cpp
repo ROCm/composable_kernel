@@ -1,20 +1,14 @@
 #include <stdlib.h>
 #include "config.hpp"
 #include "device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
-#include "device_conv_instance.hpp"
 #include "element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv_instance {
+namespace device_conv2d_fwd_instance {
 
-using F16 = ck::half_t;
 using F32 = float;
-
-using NHWC = ck::tensor_layout::convolution::NHWC;
-using KYXC = ck::tensor_layout::convolution::KYXC;
-using NHWK = ck::tensor_layout::convolution::NHWK;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -44,8 +38,7 @@ using device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances = std::tuple<
     // clang-format on
     >;
 
-template <>
-void add_device_conv_fwd_instance<2, F32, F32, F32, NHWC, KYXC, NHWK>(
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_fp32_instances(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& device_conv_instances)
 {
     using DeviceConvs = device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances;
@@ -61,7 +54,7 @@ void add_device_conv_fwd_instance<2, F32, F32, F32, NHWC, KYXC, NHWK>(
     });
 }
 
-} // namespace device_conv_instance
+} // namespace device_conv2d_fwd_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

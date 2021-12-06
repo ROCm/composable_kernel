@@ -5,7 +5,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
-#include "device_conv.hpp"
+#include "device_conv_fwd.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"

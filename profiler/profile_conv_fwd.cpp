@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
-#include "profile_conv.hpp"
+#include "profile_conv_fwd_impl.hpp"
 
 enum ConvDataType
 {
@@ -30,11 +30,11 @@ enum ConvOutputLayout
     NHWK, // 1
 };
 
-int conv_profiler(int argc, char* argv[])
+int profile_conv_fwd(int argc, char* argv[])
 {
     if(argc != 25)
     {
-        printf("arg1: tensor operation (conv: Convolution)\n");
+        printf("arg1: tensor operation (conv_fwd: ForwardConvolution)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: input tensor layout (0: NCHW; 1: NHWC)\n");
         printf("arg4: weight tensor layout (0: KCYX; 1: KYXC)\n");
@@ -83,13 +83,13 @@ int conv_profiler(int argc, char* argv[])
     if(data_type == ConvDataType::F32_F32_F32 && in_layout == ConvInputLayout::NHWC &&
        wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        ck::profiler::profile_conv<2,
-                                   float,
-                                   float,
-                                   float,
-                                   ck::tensor_layout::convolution::NHWC,
-                                   ck::tensor_layout::convolution::KYXC,
-                                   ck::tensor_layout::convolution::NHWK>(
+        ck::profiler::profile_conv_fwd_impl<2,
+                                            float,
+                                            float,
+                                            float,
+                                            ck::tensor_layout::convolution::NHWC,
+                                            ck::tensor_layout::convolution::KYXC,
+                                            ck::tensor_layout::convolution::NHWK>(
             do_verification,
             init_method,
             do_log,
@@ -108,13 +108,13 @@ int conv_profiler(int argc, char* argv[])
     else if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
             wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        ck::profiler::profile_conv<2,
-                                   ck::half_t,
-                                   ck::half_t,
-                                   ck::half_t,
-                                   ck::tensor_layout::convolution::NHWC,
-                                   ck::tensor_layout::convolution::KYXC,
-                                   ck::tensor_layout::convolution::NHWK>(
+        ck::profiler::profile_conv_fwd_impl<2,
+                                            ck::half_t,
+                                            ck::half_t,
+                                            ck::half_t,
+                                            ck::tensor_layout::convolution::NHWC,
+                                            ck::tensor_layout::convolution::KYXC,
+                                            ck::tensor_layout::convolution::NHWK>(
             do_verification,
             init_method,
             do_log,

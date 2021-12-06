@@ -5,7 +5,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
-#include "device_conv.hpp"
+#include "device_conv_fwd_bias_activation_add.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -634,8 +634,7 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Out
 
         return str.str();
     }
-}; // namespace device
-
+};
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

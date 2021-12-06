@@ -1,13 +1,12 @@
 #include <stdlib.h>
 #include "config.hpp"
 #include "device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0.hpp"
-#include "device_conv_instance.hpp"
 #include "element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv_instance {
+namespace device_conv2d_fwd_instance {
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -55,7 +54,7 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_fp16_instances(
     });
 }
 
-} // namespace device_conv_instance
+} // namespace device_conv2d_fwd_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
