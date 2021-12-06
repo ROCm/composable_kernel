@@ -10,7 +10,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r5.hpp"
+#include "gridwise_gemm_xdlops_v2r6.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -269,7 +269,7 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0, 0, 0>{};
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6<
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -462,7 +462,7 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                             arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r5 has invalid setting");
+                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r6 has invalid setting");
             }
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
@@ -475,7 +475,7 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v2r5<
+                const auto kernel = kernel_gemm_xdlops_v2r6<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -512,7 +512,7 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r5<
+                const auto kernel = kernel_gemm_xdlops_v2r6<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
