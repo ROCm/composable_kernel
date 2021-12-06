@@ -17,7 +17,7 @@ namespace tensor_operation {
 namespace device {
 
 // out[N, Ho, Wo, K] =
-//     activate(in[N, Hi, Wi, C] * wei[K, Y, X, C] + bias[K]) + residual[N, Ho, Wo, K]
+//     activate(in[N, Hi, Wi, C] * wei[K, Y, X, C] + bias[K])
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -209,14 +209,10 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         const auto bias_grid_desc_gemmm_gemmn =
             make_naive_tensor_descriptor(make_tuple(GemmM, GemmN), make_tuple(I0, I1));
 
-        // C1: residual tensor: assume same layout as output tensor
-        const auto resi_grid_desc_gemmm_gemmn = out_gemmm_gemmn_grid_desc;
-
         return make_tuple(in_gemmk0_gemmm_gemmk1_grid_desc,
                           wei_gemmk0_gemmn_gemmk1_grid_desc,
                           out_gemmm_gemmn_grid_desc,
-                          bias_grid_desc_gemmm_gemmn,
-                          resi_grid_desc_gemmm_gemmn);
+                          bias_grid_desc_gemmm_gemmn);
     }
 
     using ABCGridDescs = decltype(MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
@@ -226,7 +222,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
     using C0GridDesc_M_N    = remove_cvref_t<decltype(ABCGridDescs{}[I3])>;
-    using C1GridDesc_M_N    = remove_cvref_t<decltype(ABCGridDescs{}[I4])>;
 
     // TODO remove these hacks
     static constexpr auto a_k0_m_k1_grid_step_hacks = make_tuple(
@@ -279,7 +274,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
         C0GridDesc_M_N,
-        C1GridDesc_M_N,
         InElementwiseOperation,
         WeiElementwiseOperation,
         OutElementwiseOperation,
@@ -325,9 +319,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     using C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C0GridDesc_M_N{}));
 
-    using C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C1GridDesc_M_N{}));
-
     using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     // Argument
@@ -337,7 +328,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                  const WeiDataType* p_wei_grid,
                  OutDataType* p_out_grid,
                  const OutDataType* p_bias_grid,
-                 const OutDataType* p_resi_grid,
                  ck::index_t N,
                  ck::index_t K,
                  ck::index_t C,
@@ -357,15 +347,12 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
               p_b_grid_{p_wei_grid},
               p_c_grid_{p_out_grid},
               p_c0_grid_{p_bias_grid},
-              p_c1_grid_{p_resi_grid},
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
               c0_grid_desc_m_n_{},
-              c1_grid_desc_m_n_{},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
               c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -389,7 +376,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             b_grid_desc_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_     = descs[I2];
             c0_grid_desc_m_n_    = descs[I3];
-            c1_grid_desc_m_n_    = descs[I4];
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
@@ -400,9 +386,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c0_grid_desc_m_n_);
 
-                c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c1_grid_desc_m_n_);
-
                 block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
@@ -412,15 +395,12 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
         const CDataType* p_c0_grid_;
-        const CDataType* p_c1_grid_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         C0GridDesc_M_N c0_grid_desc_m_n_;
-        C1GridDesc_M_N c1_grid_desc_m_n_;
         CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
         C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -450,9 +430,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
                 std::cout << "arg.c0_grid_desc_m_n_{ " << arg.c0_grid_desc_m_n_.GetLength(I0)
                           << ", " << arg.c0_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-
-                std::cout << "arg.c1_grid_desc_m_n_{ " << arg.c1_grid_desc_m_n_.GetLength(I0)
-                          << ", " << arg.c1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
@@ -483,7 +460,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     remove_reference_t<DeviceOp::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceOp::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
@@ -499,12 +475,10 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.p_c0_grid_,
-                                                  arg.p_c1_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,
@@ -520,7 +494,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     remove_reference_t<DeviceOp::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceOp::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
@@ -536,12 +509,10 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.p_c0_grid_,
-                                                  arg.p_c1_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,
@@ -581,7 +552,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                              const WeiDataType* p_wei_grid,
                              OutDataType* p_out_grid,
                              const OutDataType* p_bias_grid,
-                             const OutDataType* p_resi_grid,
                              ck::index_t N,
                              ck::index_t K,
                              ck::index_t C,
@@ -600,7 +570,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                         p_wei_grid,
                         p_out_grid,
                         p_bias_grid,
-                        p_resi_grid,
                         N,
                         K,
                         C,
@@ -625,7 +594,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                         const void* p_wei_grid,
                         void* p_out_grid,
                         const void* p_bias_grid,
-                        const void* p_resi_grid,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
@@ -644,7 +612,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                           static_cast<const WeiDataType*>(p_wei_grid),
                                           static_cast<OutDataType*>(p_out_grid),
                                           static_cast<const OutDataType*>(p_bias_grid),
-                                          static_cast<const OutDataType*>(p_resi_grid),
                                           N,
                                           K,
                                           C,

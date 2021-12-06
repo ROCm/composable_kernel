@@ -28,7 +28,7 @@ using OutLayout = ck::tensor_layout::convolution::NHWK;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd;
+using OutElementOp = ck::tensor_operation::element_wise::AddRelu;
 
 // clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
@@ -50,7 +50,6 @@ void host_reference_calculation(const Tensor<TIn>& in_n_c_hi_wi,
                                 const Tensor<TWei>& wei_k_c_y_x,
                                 Tensor<TOut>& out_n_k_ho_wo,
                                 const Tensor<TOut>& bias_k,
-                                const Tensor<TOut>& resi_n_k_ho_wo,
                                 const std::vector<ck::index_t>& conv_strides,
                                 const std::vector<ck::index_t>& conv_dilations,
                                 const std::vector<ck::index_t>& in_left_pads,
@@ -79,7 +78,7 @@ void host_reference_calculation(const Tensor<TIn>& in_n_c_hi_wi,
             }
         }
 
-        out_n_k_ho_wo(n, k, ho, wo) = out_element_op(v, bias_k(k), resi_n_k_ho_wo(n, k, ho, wo));
+        out_n_k_ho_wo(n, k, ho, wo) = out_element_op(v, bias_k(k));
     };
 
     make_ParallelTensorFunctor(f_nchw,
@@ -198,14 +197,10 @@ int main(int argc, char* argv[])
     Tensor<OutDataType> bias_k(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(K)})));
 
-    // residual: assume same layout as output tensor
-    Tensor<OutDataType> resi_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
-
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
     std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo_host_result.mDesc << std::endl;
     std::cout << "bias_k: " << bias_k.mDesc << std::endl;
-    std::cout << "resi_n_k_ho_wo: " << resi_n_k_ho_wo.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -214,13 +209,11 @@ int main(int argc, char* argv[])
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         bias_k.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-        resi_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
         bias_k.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
-        resi_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
@@ -228,12 +221,10 @@ int main(int argc, char* argv[])
     DeviceMem out_device_buf(sizeof(OutDataType) *
                              out_n_k_ho_wo_device_result.mDesc.GetElementSpace());
     DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpace());
-    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_k_ho_wo.mDesc.GetElementSpace());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
     bias_device_buf.ToDevice(bias_k.mData.data());
-    resi_device_buf.ToDevice(resi_n_k_ho_wo.mData.data());
 
     auto conv    = DeviceConvFwdInstance{};
     auto invoker = conv.MakeInvoker();
@@ -242,7 +233,6 @@ int main(int argc, char* argv[])
                           static_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                           static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
                           static_cast<const OutDataType*>(bias_device_buf.GetDeviceBuffer()),
-                          static_cast<const OutDataType*>(resi_device_buf.GetDeviceBuffer()),
                           N,
                           K,
                           C,
@@ -270,8 +260,7 @@ int main(int argc, char* argv[])
 
     std::size_t num_btype = sizeof(InDataType) * (N * C * Hi * Wi) +
                             sizeof(WeiDataType) * (K * C * Y * X) +
-                            sizeof(OutDataType) * (N * K * Ho * Wo) + sizeof(OutDataType) * (K) +
-                            sizeof(OutDataType) * (N * K * Ho * Wo);
+                            sizeof(OutDataType) * (N * K * Ho * Wo) + sizeof(OutDataType) * (K);
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -286,7 +275,6 @@ int main(int argc, char* argv[])
                                    wei_k_c_y_x,
                                    out_n_k_ho_wo_host_result,
                                    bias_k,
-                                   resi_n_k_ho_wo,
                                    conv_filter_strides,
                                    conv_filter_dilations,
                                    input_left_pads,

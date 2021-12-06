@@ -19,7 +19,6 @@ template <typename GridwiseGemm,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
           typename C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-          typename C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -34,12 +33,10 @@ __global__ void
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
             const FloatC* __restrict__ p_c0_grid,
-            const FloatC* __restrict__ p_c1_grid,
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
             const C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            const C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -54,13 +51,11 @@ __global__ void
                                                   p_b_grid,
                                                   p_c_grid,
                                                   p_c0_grid,
-                                                  p_c1_grid,
                                                   p_shared_block,
                                                   a_grid_desc_k0_m_k1,
                                                   b_grid_desc_k0_n_k1,
                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                                   c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                                   a_element_op,
                                                   b_element_op,
                                                   c_element_op,
@@ -76,7 +71,6 @@ template <index_t BlockSize,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M_N,
           typename C0GridDesc_M_N,
-          typename C1GridDesc_M_N,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -326,9 +320,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6
     using C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C0GridDesc_M_N{}));
 
-    using C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C1GridDesc_M_N{}));
-
     using Block2CTileMap = decltype(MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     template <bool HasMainKBlockLoop>
@@ -337,13 +328,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6
         const FloatAB* __restrict__ p_b_grid,
         FloatC* __restrict__ p_c_grid,
         const FloatC* __restrict__ p_c0_grid,
-        const FloatC* __restrict__ p_c1_grid,
         FloatAB* __restrict__ p_shared_block,
         const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
         const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
         const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2& c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
         const C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2& c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-        const C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2& c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
         const CElementwiseOperation& c_element_op,
@@ -358,9 +347,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6
 
         auto c0_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c0_grid, c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
-
-        auto c1_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_c1_grid, c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
 
         const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
 
@@ -615,7 +601,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   decltype(c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    CElementwiseOperation,
                                                    Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
                                                    CThreadTransferSrcDstAccessOrder,
@@ -626,7 +611,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6
                                                    true>{
                     c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                     make_multi_index(m_thread_data_on_grid_idx[I0],
                                      n_thread_data_on_grid_idx[I0],
                                      m_thread_data_on_grid_idx[I1],
@@ -644,9 +628,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6
                               c_grid_buf,
                               c_m0_n0_m1_n1_m2_m3_m4_n2_grid_tensor_step_hacks,
                               c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                              c0_grid_buf,
-                              c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                              c1_grid_buf);
+                              c0_grid_buf);
         }
     }
 }; // namespace ck

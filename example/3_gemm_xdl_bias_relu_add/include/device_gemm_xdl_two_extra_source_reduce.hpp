@@ -2,6 +2,7 @@
 #define DEVICE_GEMM_XDL_TWO_EXTRA_SOURCE_REDUCE_HPP
 
 #include <iostream>
+#include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
 #include "device_gemm.hpp"
@@ -559,6 +560,23 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
     std::unique_ptr<BaseInvoker> MakeInvokerPointer()
     {
         return std::make_unique<Invoker>(Invoker{});
+    }
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceGemmXdl_two_extra_source_reduce"
+            << "<"
+            << BlockSize << ", "
+            << MPerBlock << ", "
+            << NPerBlock << ", "
+            << K0PerBlock
+            << ">";
+        // clang-format on
+
+        return str.str();
     }
 };
 

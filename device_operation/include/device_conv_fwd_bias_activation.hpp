@@ -18,7 +18,6 @@ struct DeviceConvFwdBiasActivation : public BaseOperator
                         const void* p_wei,
                         void* p_out,
                         const void* p_bias,
-                        const void* p_resi,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,

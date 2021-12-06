@@ -12,25 +12,7 @@
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "device_operation/include/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
-
-struct PassThrough
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        return v;
-    }
-};
-
-struct Relu
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        T tmp = 0.1 * v;
-        return tmp > 0 ? tmp : 0;
-    }
-};
+#include "element_wise_operation.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -44,9 +26,9 @@ using InLayout  = ck::tensor_layout::convolution::NHWC;
 using WeiLayout = ck::tensor_layout::convolution::KYXC;
 using OutLayout = ck::tensor_layout::convolution::NHWK;
 
-using InElementOp  = PassThrough;
-using WeiElementOp = PassThrough;
-using OutElementOp = Relu;
+using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 using DeviceConvFwdInstance =
     ck::tensor_operation::device::DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K

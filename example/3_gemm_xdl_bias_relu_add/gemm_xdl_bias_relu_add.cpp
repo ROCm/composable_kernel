@@ -12,7 +12,7 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "example/2_gemm_xdl_bias_relu_add/include/device_gemm_xdl_two_extra_source_reduce.hpp"
+#include "example/3_gemm_xdl_bias_relu_add/include/device_gemm_xdl_two_extra_source_reduce.hpp"
 
 // C[m, n] = Relu(A[m, k] * B[k, n] + C0[m]) + C1[m, n]
 // assume C0 is contiguous in memory

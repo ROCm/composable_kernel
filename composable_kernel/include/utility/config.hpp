@@ -145,7 +145,6 @@
 #define CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R5_TYPE_CONVERT_ISSUE 1
 #endif
 
-
 namespace ck {
 
 enum InMemoryDataOperationEnum_t

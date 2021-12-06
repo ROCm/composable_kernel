@@ -31,7 +31,6 @@ template <typename SrcData,
           typename SrcDesc,
           typename DstDesc,
           typename Dst0Desc, // this is really one of sources, but it has same shape as DstDesc
-          typename Dst1Desc, // this is really one of sources, but it has same shape as DstDesc
           typename DstElementwiseOperation,
           typename SliceLengths,
           typename DimAccessOrder,
@@ -49,21 +48,17 @@ struct ThreadwiseTensorSliceTransfer_v1r5
 
     using DstCoord  = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
     using Dst0Coord = decltype(make_tensor_coordinate(Dst0Desc{}, Index{}));
-    using Dst1Coord = decltype(make_tensor_coordinate(Dst1Desc{}, Index{}));
 
     using DstCoordStep  = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
     using Dst0CoordStep = decltype(make_tensor_coordinate_step(Dst0Desc{}, Index{}));
-    using Dst1CoordStep = decltype(make_tensor_coordinate_step(Dst1Desc{}, Index{}));
 
     __device__ constexpr ThreadwiseTensorSliceTransfer_v1r5(
         const DstDesc& dst_desc,
         const Dst0Desc& dst0_desc,
-        const Dst1Desc& dst1_desc,
         const Index& dst_slice_origin_idx,
         const DstElementwiseOperation& dst_element_op)
         : dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin_idx)),
           dst0_coord_(make_tensor_coordinate(dst0_desc, dst_slice_origin_idx)),
-          dst1_coord_(make_tensor_coordinate(dst1_desc, dst_slice_origin_idx)),
           dst_element_op_{dst_element_op}
     {
         static_assert(SrcDesc::IsKnownAtCompileTime(),
@@ -79,10 +74,8 @@ struct ThreadwiseTensorSliceTransfer_v1r5
               typename SrcBuffer,
               typename DstBuffer,
               typename Dst0Buffer,
-              typename Dst1Buffer,
               typename DstStepHacks,
-              typename Dst0StepHacks,
-              typename Dst1StepHacks>
+              typename Dst0StepHacks>
     __device__ void Run(const SrcDesc&,
                         const SrcSliceOriginIdx&,
                         const SrcBuffer& src_buf,
@@ -91,10 +84,7 @@ struct ThreadwiseTensorSliceTransfer_v1r5
                         const DstStepHacks& dst_step_hacks,
                         const Dst0Desc& dst0_desc,
                         const Dst0Buffer& dst0_buf,
-                        const Dst0StepHacks& dst0_step_hacks,
-                        const Dst1Desc& dst1_desc,
-                        const Dst1Buffer& dst1_buf,
-                        const Dst1StepHacks& dst1_step_hacks)
+                        const Dst0StepHacks& dst0_step_hacks)
     {
         static_assert(SrcDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc need to known at compile-time");
@@ -156,22 +146,6 @@ struct ThreadwiseTensorSliceTransfer_v1r5
             },
             Number<nDim>{});
 
-        // make forward steps: dst1
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
-        // TODO: fix this
-        const auto dst1_forward_steps = generate_tuple(
-            [&](auto i) {
-                Index forward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? dst_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(
-                    dst1_desc, forward_step_idx, dst1_step_hacks[I0][i]);
-            },
-            Number<nDim>{});
-
         // make backward steps: dst
         const auto dst_backward_steps = generate_tuple(
             [&](auto i) {
@@ -199,22 +173,6 @@ struct ThreadwiseTensorSliceTransfer_v1r5
 
                 return make_tensor_coordinate_step(
                     dst0_desc, backward_step_idx, dst0_step_hacks[I1][i]);
-            },
-            Number<nDim>{});
-
-        // make backward steps: dst1
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
-        // TODO: fix this
-        const auto dst1_backward_steps = generate_tuple(
-            [&](auto i) {
-                Index backward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -dst_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(
-                    dst1_desc, backward_step_idx, dst1_step_hacks[I1][i]);
             },
             Number<nDim>{});
 
@@ -258,7 +216,7 @@ struct ThreadwiseTensorSliceTransfer_v1r5
             using dst_vector_t =
                 typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
-            // load dst0 and dst1 and apply elementwise operation
+            // load dst0 and apply elementwise operation
             {
                 // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
                 // TODO: fix this
@@ -270,29 +228,22 @@ struct ThreadwiseTensorSliceTransfer_v1r5
 
                 const SrcData src_v = src_buf[Number<src_offset>{}];
 
-                // load dst0 and dst1
+                // load dst0
                 const bool is_dst0_valid =
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(dst0_desc,
                                                                                 dst0_coord_);
-                const bool is_dst1_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(dst1_desc,
-                                                                                dst1_coord_);
-
                 const DstData dst0_v =
                     dst0_buf.template Get<DstData>(dst0_coord_.GetOffset(), is_dst0_valid);
-                const DstData dst1_v =
-                    dst1_buf.template Get<DstData>(dst1_coord_.GetOffset(), is_dst1_valid);
 
 #if !CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R5_TYPE_CONVERT_ISSUE
                 // apply element-wise operation in SrcData type
-                const SrcData dst_v = dst_element_op_(
-                    src_v, type_convert<SrcData>(dst0_v), type_convert<SrcData>(dst1_v));
+                const SrcData dst_v = dst_element_op_(src_v, type_convert<SrcData>(dst0_v));
 
                 // apply type convert
                 dst_vector.template AsType<DstData>()(Number<0>{}) = type_convert<DstData>(dst_v);
 #else
                 // apply element-wise operation in DstData type
-                const DstData dst_v = dst_element_op_(src_v, dst0_v, dst1_v);
+                const DstData dst_v = dst_element_op_(src_v, dst0_v);
 
                 dst_vector.template AsType<DstData>()(Number<0>{}) = dst_v;
 #endif
@@ -361,10 +312,6 @@ struct ThreadwiseTensorSliceTransfer_v1r5
                         // dst0
                         move_tensor_coordinate(
                             dst0_desc, dst0_coord_, dst0_forward_steps[dim_access_order[i]]);
-
-                        // dst1
-                        move_tensor_coordinate(
-                            dst1_desc, dst1_coord_, dst1_forward_steps[dim_access_order[i]]);
                     }
                     else
                     {
@@ -374,10 +321,6 @@ struct ThreadwiseTensorSliceTransfer_v1r5
                         // dst0
                         move_tensor_coordinate(
                             dst0_desc, dst0_coord_, dst0_backward_steps[dim_access_order[i]]);
-
-                        // dst1
-                        move_tensor_coordinate(
-                            dst1_desc, dst1_coord_, dst1_backward_steps[dim_access_order[i]]);
                     }
                 }
             });
@@ -397,7 +340,6 @@ struct ThreadwiseTensorSliceTransfer_v1r5
               typename SrcBuffer,
               typename DstBuffer,
               typename Dst0Buffer,
-              typename Dst1Buffer,
               typename DstStepHacks>
     __device__ void Run(const SrcDesc&,
                         const SrcSliceOriginIdx&,
@@ -406,9 +348,7 @@ struct ThreadwiseTensorSliceTransfer_v1r5
                         DstBuffer& dst_buf,
                         const DstStepHacks& dst_step_hacks,
                         const Dst0Desc& dst0_desc,
-                        const Dst0Buffer& dst0_buf,
-                        const Dst1Desc& dst1_desc,
-                        const Dst1Buffer& dst1_buf)
+                        const Dst0Buffer& dst0_buf)
     {
         auto f_step_hacks = [&](auto desc) {
             constexpr index_t ntransform = decltype(desc)::GetNumOfTransform();
@@ -430,10 +370,7 @@ struct ThreadwiseTensorSliceTransfer_v1r5
             dst_step_hacks,
             dst0_desc,
             dst0_buf,
-            f_step_hacks(dst0_desc),
-            dst1_desc,
-            dst1_buf,
-            f_step_hacks(dst1_desc));
+            f_step_hacks(dst0_desc));
     }
 
     __device__ static constexpr auto GetDstCoordinateResetStep()
@@ -514,7 +451,6 @@ struct ThreadwiseTensorSliceTransfer_v1r5
     private:
     DstCoord dst_coord_;
     Dst0Coord dst0_coord_;
-    Dst1Coord dst1_coord_;
     const DstElementwiseOperation dst_element_op_;
 }; // namespace ck
 
