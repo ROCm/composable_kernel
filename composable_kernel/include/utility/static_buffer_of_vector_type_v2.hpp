@@ -104,11 +104,6 @@ struct StaticBufferOfVectorTypeV2 : public StaticallyIndexedArray<T, N>
             [&](auto i) { GetElement(i, true) = invalid_element_value_; });
     }
 
-    __host__ __device__ void Fill(VecBaseType val)
-    {
-        static_for<0, GetNumElements(), 1>{}([&](auto i) { GetElement(i, true) = val; });
-    }
-
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }

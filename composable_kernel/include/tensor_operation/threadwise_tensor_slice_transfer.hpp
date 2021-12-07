@@ -165,8 +165,8 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_access_idx[I0];
 
-                    static_for<0, i, 1>{}([&](auto j) {
-                        tmp = tmp * ordered_access_lengths[j] + ordered_access_idx[j];
+                    static_for<1, i, 1>{}([&](auto j) {
+                        tmp = tmp * ordered_access_lengths[j - 1] + ordered_access_idx[j];
                     });
 
                     forward_sweep_(i) = tmp % 2 == 0;
@@ -214,7 +214,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     dst_coord_.GetOffset(),
                     is_dst_valid,
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
-                printf("copy: %d %d\n", dst_coord_.GetOffset(), dst_coord_.GetIndex()[I0]);
             }
             else if constexpr(DstInMemOp == InMemoryDataOperationEnum_t::AtomicAdd)
             {
