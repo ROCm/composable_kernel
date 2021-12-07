@@ -334,6 +334,33 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
     constexpr index_t BlockSize = 64;
 
     constexpr index_t MPerBlock = 48;
+    constexpr index_t NPerBlock = 32;
+    constexpr index_t KPerBlock = 4;
+
+    constexpr index_t MPerXDL = 16;
+    constexpr index_t NPerXDL = 16;
+    constexpr index_t K1      = 8;
+
+    constexpr index_t MRepeat = 3;
+    constexpr index_t NRepeat = 2;
+
+    using ABlockTransferThreadSliceLengths_K0_M_K1   = Sequence<4, 1, 8>;
+    using ABlockTransferThreadClusterLengths_K0_M_K1 = Sequence<1, 48, 1>;
+
+    constexpr index_t ABlockTransferSrcScalarPerVector_K1 = 8;
+    constexpr index_t ABlockTransferDstScalarPerVector_K1 = 8;
+
+    using BBlockTransferThreadSliceLengths_K0_N_K1   = Sequence<4, 1, 8>;
+    using BBlockTransferThreadClusterLengths_K0_N_K1 = Sequence<1, 32, 1>;
+
+    constexpr index_t BBlockTransferSrcScalarPerVector_N  = 1;
+    constexpr index_t BBlockTransferDstScalarPerVector_K1 = 8;
+
+    constexpr index_t CThreadTransferDstScalarPerVector = 1;
+#elif 1
+    constexpr index_t BlockSize = 64;
+
+    constexpr index_t MPerBlock = 48;
     constexpr index_t NPerBlock = 16;
     constexpr index_t KPerBlock = 4;
 
