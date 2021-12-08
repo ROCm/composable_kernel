@@ -15,13 +15,13 @@ include_directories(BEFORE
 # device_gemm_instance
 set(DEVICE_GEMM_INSTANCE_SOURCE 
    ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f32_f32_f32_mk_kn_mn.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f32_f32_f32_km_kn_mn.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f32_f32_f32_km_nk_mn.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_km_kn_mn.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_km_nk_mn.cpp;
+   #${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn.cpp;
+   #${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f32_f32_f32_km_kn_mn.cpp;
+   #${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f32_f32_f32_km_nk_mn.cpp;
+   #${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_mk_kn_mn.cpp;
+   #${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn.cpp;
+   #${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_km_kn_mn.cpp;
+   #${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_km_nk_mn.cpp;
 ) 
 
 add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE}) 
@@ -43,8 +43,10 @@ set_target_properties(device_conv_instance PROPERTIES POSITION_INDEPENDENT_CODE 
 install(TARGETS device_conv_instance LIBRARY DESTINATION lib) 
 
 # ck_profiler
-set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp conv_profiler.cpp)
+#set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp conv_profiler.cpp)
+set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp)
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
-target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance)
+#target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_instance)

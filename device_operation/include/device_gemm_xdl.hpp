@@ -78,10 +78,14 @@ struct DeviceGemmXdl
             }
         }();
 
+        const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+
+        std::cout << "PadM = " << PadM << " M = " << M + PadM << std::endl;
+
         const auto a_grid_desc_k0_m_k1 =
             transform_tensor_descriptor(a_grid_desc_m_k,
                                         make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(M)),
+                                                   make_pad_transform(M, I0, PadM)),
                                         make_tuple(Sequence<1>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
@@ -105,10 +109,14 @@ struct DeviceGemmXdl
             }
         }();
 
+        const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+        std::cout << "PadN = " << PadN << " N = " << N + PadN << std::endl;
+
         const auto b_grid_desc_k0_n_k1 =
             transform_tensor_descriptor(b_grid_desc_k_n,
                                         make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(N)),
+                                                   make_pad_transform(N, I0, PadN)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
@@ -117,14 +125,27 @@ struct DeviceGemmXdl
 
     static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
-        {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
-        }
-        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
-        {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
-        }
+        const auto c_grid_desc_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+            }
+        }();
+
+        const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+        const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+        const auto c_grid_desc_m_n_ = transform_tensor_descriptor(
+            c_grid_desc_m_n,
+            make_tuple(make_pad_transform(M, I0, PadM), make_pad_transform(N, I0, PadN)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return c_grid_desc_m_n_;
     }
 
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
@@ -149,22 +170,22 @@ struct DeviceGemmXdl
                               Sequence<0, 0, 0>{})); // 2-: K1
 
     static constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
+        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
+                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
+                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
 
     static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
 
@@ -293,6 +314,10 @@ struct DeviceGemmXdl
         float Run(const Argument& arg, int nrepeat = 1)
         {
             {
+                std::cout << "MPerBlock = " << MPerBlock << " NPerBlock = " << NPerBlock
+                          << " MXdlPerWave = " << MXdlPerWave << " NXdlPerWave = " << NXdlPerWave
+                          << std::endl;
+
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
                           << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
