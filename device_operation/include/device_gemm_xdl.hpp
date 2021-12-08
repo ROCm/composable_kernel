@@ -80,12 +80,10 @@ struct DeviceGemmXdl
 
         const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
 
-        std::cout << "PadM = " << PadM << " M = " << M + PadM << std::endl;
-
         const auto a_grid_desc_k0_m_k1 =
             transform_tensor_descriptor(a_grid_desc_m_k,
                                         make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pad_transform(M, I0, PadM)),
+                                                   make_right_pad_transform(M, PadM)),
                                         make_tuple(Sequence<1>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
@@ -111,12 +109,10 @@ struct DeviceGemmXdl
 
         const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
 
-        std::cout << "PadN = " << PadN << " N = " << N + PadN << std::endl;
-
         const auto b_grid_desc_k0_n_k1 =
             transform_tensor_descriptor(b_grid_desc_k_n,
                                         make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pad_transform(N, I0, PadN)),
+                                                   make_right_pad_transform(N, PadN)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
@@ -141,7 +137,7 @@ struct DeviceGemmXdl
 
         const auto c_grid_desc_m_n_ = transform_tensor_descriptor(
             c_grid_desc_m_n,
-            make_tuple(make_pad_transform(M, I0, PadM), make_pad_transform(N, I0, PadN)),
+            make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -314,9 +310,10 @@ struct DeviceGemmXdl
         float Run(const Argument& arg, int nrepeat = 1)
         {
             {
-                std::cout << "MPerBlock = " << MPerBlock << " NPerBlock = " << NPerBlock
-                          << " MXdlPerWave = " << MXdlPerWave << " NXdlPerWave = " << NXdlPerWave
-                          << std::endl;
+                std::cout << "BlockGemmShape: {" << MPerBlock << ", " << NPerBlock << ", "
+                          << K0PerBlock << "}, WaveGemmShape: {" << MXdlPerWave * MPerXDL << ", "
+                          << NXdlPerWave * NPerXDL << "} XDLGemmShape: {" << MPerXDL << ", "
+                          << NPerXDL << "}" << std::endl;
 
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "

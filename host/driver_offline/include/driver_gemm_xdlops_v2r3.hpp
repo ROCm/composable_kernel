@@ -5,15 +5,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
-
-struct OpPassThrough
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        return v;
-    }
-};
+#include "element_wise_operation.hpp"
 
 template <ck::index_t BlockSize,
           typename FloatAB,
@@ -79,7 +71,7 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
 
-    using ElementwiseOperation = OpPassThrough;
+    using ElementwiseOperation = ck::tensor_operation::element_wise::PassThrough;
 
     using GridwiseGemm =
         GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<BlockSize,
@@ -166,7 +158,7 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
 
     float ave_time = 0;
 
-    auto element_op_ = OpPassThrough{};
+    auto element_op_ = ElementwiseOperation{};
 
 #if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
     if(has_main_k0_block_loop)
