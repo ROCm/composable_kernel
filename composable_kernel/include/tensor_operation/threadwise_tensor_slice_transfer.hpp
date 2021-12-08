@@ -166,7 +166,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                     index_t tmp = ordered_access_idx[I0];
 
                     static_for<1, i, 1>{}([&](auto j) {
-                        tmp = tmp * ordered_access_lengths[j - 1] + ordered_access_idx[j];
+                        tmp = tmp * ordered_access_lengths[j] + ordered_access_idx[j];
                     });
 
                     forward_sweep_(i) = tmp % 2 == 0;
