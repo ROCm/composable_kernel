@@ -426,7 +426,6 @@ struct DeviceGemmSplitKXdl
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
-#if CK_RUN_KERNEL_AND_TIME
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
                                                   dim3(grid_size),
@@ -442,23 +441,29 @@ struct DeviceGemmSplitKXdl
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
                                                   arg.block_2_ctile_map_);
-#else
-                nrepeat++;
-                launch_kernel(kernel,
-                              dim3(grid_size),
-                              dim3(BlockSize),
-                              0,
-                              arg.p_a_grid_,
-                              arg.p_b_grid_,
-                              arg.p_c_grid_,
-                              arg.a_grid_desc_kbatch_k0_m_k1_,
-                              arg.b_grid_desc_kbatch_k0_n_k1_,
-                              arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                              arg.a_element_op_,
-                              arg.b_element_op_,
-                              arg.c_element_op_,
-                              arg.block_2_ctile_map_);
-#endif
+                if(kbatch > 1)
+                {
+                    hipGetErrorString(
+                        hipMemset(arg.p_c_grid_,
+                                  0,
+                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_.GetElementSpaceSize() *
+                                      sizeof(CDataType)));
+
+                    launch_kernel(kernel,
+                                  dim3(grid_size),
+                                  dim3(BlockSize),
+                                  0,
+                                  arg.p_a_grid_,
+                                  arg.p_b_grid_,
+                                  arg.p_c_grid_,
+                                  arg.a_grid_desc_kbatch_k0_m_k1_,
+                                  arg.b_grid_desc_kbatch_k0_n_k1_,
+                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                  arg.a_element_op_,
+                                  arg.b_element_op_,
+                                  arg.c_element_op_,
+                                  arg.block_2_ctile_map_);
+                }
             };
             if(has_main_k0_block_loop)
             {
