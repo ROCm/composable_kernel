@@ -507,7 +507,7 @@ struct MfmaSelector
 
     static constexpr auto selected_mfma = mfma_type<GetMfma<base_type, MPerXdlops, NPerXdlops>()>{};
 
-    __host__ __device__ static constexpr void mfma_check()
+    __host__ __device__ constexpr MfmaSelector()
     {
         static_assert(selected_mfma.group_size * selected_mfma.num_groups_per_blk ==
                           selected_mfma.num_regs_per_blk,
@@ -533,8 +533,6 @@ struct MfmaSelector
                       "is_k_reduction wrong!");
     }
 
-    __host__ __device__ constexpr MfmaSelector() { mfma_check(); }
-
     static constexpr bool IsABroadcast()
     {
         static_assert(NPerXdlops >= MPerXdlops, "only support ABroadcast");
@@ -547,7 +545,7 @@ struct MfmaSelector
                selected_mfma.k_per_blk;
     }
 
-    static constexpr index_t GetKPerThread() { return selected_mfma.k_per_blk; }
+    static constexpr index_t GetK1PerXdlops() { return selected_mfma.k_per_blk; }
 };
 
 template <typename base_type, index_t MPerXdlops, index_t NPerXdlops, index_t KPack>
@@ -620,6 +618,8 @@ struct XdlopsGemm
     {
         return MPerXdlops * NPerXdlops / mfma_instr.wave_size;
     }
+
+    __device__ static constexpr index_t GetWaveSize() { return mfma_instr.wave_size; }
 
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
@@ -708,7 +708,7 @@ struct XdlopsGemm
     static constexpr auto mfma_instr = mfma.selected_mfma;
 
     static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
-    static constexpr auto K1PerXdlops = mfma.GetKPerThread();
+    static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();
     static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
 
     __host__ __device__ static constexpr auto GetCM0M1M2NThreadBlkLengths()

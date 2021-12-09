@@ -38,7 +38,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
     StaticBufferOfVectorTypeV2<AddressSpaceEnum_t::Vgpr,
-                               vector_type<FloatAcc, 16>,
+                               vector_type<FloatAcc, xdlops_gemm.GetRegSizePerXdlops()>,
                                MRepeat * NRepeat,
                                true>
         c_thread_buf_;
@@ -136,7 +136,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
         constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
 
-        return make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, I1, M0, M1, M2, N));
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -246,14 +247,15 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     }
 
     private:
-    // A[K, M]
+    // A[K0, M0, M1, M2, K1]
     static constexpr auto a_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<K0>{}, I1, I1, I1, Number<K1>{}));
 
-    // B[K, N]
+    // B[K0, N0, N1, N2, K1]
     static constexpr auto b_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<K0>{}, I1, I1, I1, Number<K1>{}));
 
+    // C[M, N]
     static constexpr auto c_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
 

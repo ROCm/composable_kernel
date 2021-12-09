@@ -8,6 +8,9 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
 struct DeviceConvFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -23,11 +26,17 @@ struct DeviceConvFwd : public BaseOperator
                         std::vector<ck::index_t> conv_filter_strides,
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads) = 0;
+                        std::vector<ck::index_t> input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        WeiElementwiseOperation wei_element_op,
+                        OutElementwiseOperation out_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
+template <typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
 struct DeviceConvBwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -43,11 +52,17 @@ struct DeviceConvBwd : public BaseOperator
                         std::vector<ck::index_t> conv_filter_strides,
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads) = 0;
+                        std::vector<ck::index_t> input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        WeiElementwiseOperation wei_element_op,
+                        OutElementwiseOperation out_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
+template <typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
 struct DeviceConvWrw : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -63,14 +78,31 @@ struct DeviceConvWrw : public BaseOperator
                         std::vector<ck::index_t> conv_filter_strides,
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads) = 0;
+                        std::vector<ck::index_t> input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        WeiElementwiseOperation wei_element_op,
+                        OutElementwiseOperation out_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-using DeviceConvFwdPtr = std::unique_ptr<DeviceConvFwd>;
-using DeviceConvBwdPtr = std::unique_ptr<DeviceConvBwd>;
-using DeviceConvWrwPtr = std::unique_ptr<DeviceConvWrw>;
+template <typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
+using DeviceConvFwdPtr = std::unique_ptr<
+    DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
+
+template <typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
+using DeviceConvBwdPtr = std::unique_ptr<
+    DeviceConvBwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
+
+template <typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
+using DeviceConvWrwPtr = std::unique_ptr<
+    DeviceConvWrw<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
