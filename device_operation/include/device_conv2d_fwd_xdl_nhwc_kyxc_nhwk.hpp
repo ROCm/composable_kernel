@@ -79,7 +79,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                                     ck::index_t C,
                                                     std::vector<ck::index_t> input_spatial_lengths,
                                                     std::vector<ck::index_t> filter_spatial_lengths,
-                                                    std::vector<ck::index_t> output_spatial_lengths,
                                                     std::vector<ck::index_t> conv_filter_strides,
                                                     std::vector<ck::index_t> conv_filter_dilations,
                                                     std::vector<ck::index_t> input_left_pads,
@@ -89,6 +88,13 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
         const index_t Hi = input_spatial_lengths[0];
         const index_t Wi = input_spatial_lengths[1];
+
+        const auto output_spatial_lengths = ComputeOutputSpatialLengths(input_spatial_lengths,
+                                                                        filter_spatial_lengths,
+                                                                        conv_filter_strides,
+                                                                        conv_filter_dilations,
+                                                                        input_left_pads,
+                                                                        input_right_pads);
 
         const index_t Ho = output_spatial_lengths[0];
         const index_t Wo = output_spatial_lengths[1];
@@ -304,7 +310,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     }
 
     using ABCGridDescs = decltype(MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
+        1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
@@ -362,7 +368,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                  ck::index_t C,
                  std::vector<ck::index_t> input_spatial_lengths,
                  std::vector<ck::index_t> filter_spatial_lengths,
-                 std::vector<ck::index_t> output_spatial_lengths,
                  std::vector<ck::index_t> conv_filter_strides,
                  std::vector<ck::index_t> conv_filter_dilations,
                  std::vector<ck::index_t> input_left_pads,
@@ -621,7 +626,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                              ck::index_t C,
                              std::vector<ck::index_t> input_spatial_lengths,
                              std::vector<ck::index_t> filter_spatial_lengths,
-                             std::vector<ck::index_t> output_spatial_lengths,
                              std::vector<ck::index_t> conv_filter_strides,
                              std::vector<ck::index_t> conv_filter_dilations,
                              std::vector<ck::index_t> input_left_pads,
@@ -638,7 +642,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         C,
                         input_spatial_lengths,
                         filter_spatial_lengths,
-                        output_spatial_lengths,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -661,7 +664,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         ck::index_t C,
                         std::vector<ck::index_t> input_spatial_lengths,
                         std::vector<ck::index_t> filter_spatial_lengths,
-                        std::vector<ck::index_t> output_spatial_lengths,
                         std::vector<ck::index_t> conv_filter_strides,
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
@@ -678,7 +680,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                           C,
                                           input_spatial_lengths,
                                           filter_spatial_lengths,
-                                          output_spatial_lengths,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,

@@ -459,7 +459,7 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
         }
     }
 #elif _jfy_ver_ == 1
-    const auto descs = transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
+    const auto descs = transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
         in_n_di_hi_wi_c_desc,
         wei_k_z_y_x_c_desc,
         out_n_do_ho_wo_k_desc,

@@ -149,7 +149,7 @@ template <typename... In,
           typename InRightPads,
           index_t GemmK1Value>
 __host__ __device__ constexpr auto
-transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_splitN(
+transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
     const TensorDescriptor<In...>& in_n_di_hi_wi_c_grid_desc,
     const TensorDescriptor<Wei...>& wei_k_z_y_x_c_grid_desc,
     const TensorDescriptor<Out...>& out_n_do_ho_wo_k_grid_desc,
