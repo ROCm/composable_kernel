@@ -649,7 +649,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5
                               c1_grid_buf);
         }
     }
-}; // namespace ck
+};
 
 } // namespace ck
 #endif
