@@ -165,7 +165,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_access_idx[I0];
 
-                    static_for<0, i, 1>{}([&](auto j) {
+                    static_for<1, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_access_lengths[j] + ordered_access_idx[j];
                     });
 
