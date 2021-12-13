@@ -114,6 +114,16 @@ struct BlockwiseTensorSliceTransfer_v4
         }
     }
 
+    template <typename SrcBuffer, typename DstBuffer>
+    __device__ void Run(const SrcDesc& src_desc,
+                        const SrcBuffer& src_buf,
+                        const DstDesc& dst_desc,
+                        DstBuffer& dst_buf)
+    {
+        RunRead(src_desc, src_buf);
+        RunWrite(dst_desc, dst_buf);
+    }
+
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& step)
     {
         if(BlockSize == thread_cluster_desc_.GetElementSize() or

@@ -29,8 +29,8 @@ template <typename InDataType,
           ck::index_t NPerBlock,
           ck::index_t K0PerBlock,
           ck::index_t K1,
-          ck::index_t MPerXDL,
-          ck::index_t NPerXDL,
+          ck::index_t MPerXdl,
+          ck::index_t NPerXdl,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadSliceLengths_K0_M_K1,
@@ -266,8 +266,8 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
         MPerBlock,
         NPerBlock,
         K0PerBlock,
-        MPerXDL,
-        NPerXDL,
+        MPerXdl,
+        NPerXdl,
         K1,
         MXdlPerWave,
         NXdlPerWave,
@@ -299,10 +299,12 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
         ABlockLdsAddExtraM,
         BBlockLdsAddExtraN>;
 
+#if !DEBUG_USE_C_SHUFFLE
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
 
     using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+#endif
 
     // Argument
     struct Argument : public BaseArgument
@@ -331,7 +333,11 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
+#if !DEBUG_USE_C_SHUFFLE
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+#else
+              c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_{},
+#endif
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -358,8 +364,15 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
             {
+#if !DEBUG_USE_C_SHUFFLE
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+#else
+                c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_ =
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl(
+                            c_grid_desc_m_n_);
+#endif
 
                 block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
@@ -372,8 +385,15 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        Block2CTileMap block_2_ctile_map_;
+#if !DEBUG_USE_C_SHUFFLE
+        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
+            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+#else
+        typename GridwiseGemm::
+            CGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl
+                c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_;
+#endif
+        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         InElementwiseOperation in_element_op_;
@@ -427,11 +447,17 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
                     CDataType,
                     remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+#if !DEBUG_USE_C_SHUFFLE
+                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+#else
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            CGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
+#endif
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceOp::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -444,7 +470,11 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
+#if !DEBUG_USE_C_SHUFFLE
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+#else
+                                                  arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+#endif
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,
@@ -458,11 +488,17 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
                     CDataType,
                     remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+#if !DEBUG_USE_C_SHUFFLE
+                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+#else
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            CGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
+#endif
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceOp::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -475,7 +511,11 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
+#if !DEBUG_USE_C_SHUFFLE
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+#else
+                                                  arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+#endif
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,

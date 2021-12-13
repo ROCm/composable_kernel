@@ -1,8 +1,6 @@
 #ifndef CK_STATIC_TENSOR_HPP
 #define CK_STATIC_TENSOR_HPP
 
-#include "ignore.hpp"
-
 namespace ck {
 
 // StaticTensor for Scalar
@@ -17,10 +15,10 @@ struct StaticTensor
     static constexpr index_t ndim_               = TensorDesc::GetNumOfDimension();
     static constexpr index_t element_space_size_ = desc_.GetElementSpaceSize();
 
-    __host__ __device__ constexpr StaticTensor() : invalid_element_value_{0} {}
+    __host__ __device__ constexpr StaticTensor() : invalid_element_scalar_value_{0} {}
 
     __host__ __device__ constexpr StaticTensor(T invalid_element_value)
-        : invalid_element_value_{invalid_element_value}
+        : invalid_element_scalar_value_{invalid_element_value}
     {
     }
 
@@ -44,11 +42,11 @@ struct StaticTensor
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return T{0};
+                return zero_scalar_value_;
             }
             else
             {
-                return invalid_element_value_;
+                return invalid_element_scalar_value_;
             }
         }
     }
@@ -71,12 +69,14 @@ struct StaticTensor
         }
         else
         {
-            return ignore;
+            return ignored_element_scalar_;
         }
     }
 
     StaticBuffer<AddressSpace, T, element_space_size_, true> data_;
-    T invalid_element_value_ = T{0};
+    static constexpr T zero_scalar_value_ = T{0};
+    const T invalid_element_scalar_value_;
+    T ignored_element_scalar_;
 };
 
 // StaticTensor for vector
@@ -97,10 +97,13 @@ struct StaticTensorTupleOfVectorBuffer
 
     using V = vector_type<S, ScalarPerVector>;
 
-    __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer() : invalid_element_value_{0} {}
+    __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer()
+        : invalid_element_scalar_value_{0}
+    {
+    }
 
     __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer(S invalid_element_value)
-        : invalid_element_value_{invalid_element_value}
+        : invalid_element_scalar_value_{invalid_element_value}
     {
     }
 
@@ -125,11 +128,11 @@ struct StaticTensorTupleOfVectorBuffer
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return S{0};
+                return zero_scalar_value_;
             }
             else
             {
-                return invalid_element_value_;
+                return invalid_element_scalar_value_;
             }
         }
     }
@@ -153,7 +156,7 @@ struct StaticTensorTupleOfVectorBuffer
         }
         else
         {
-            return ignore;
+            return ignored_element_scalar_;
         }
     }
 
@@ -186,7 +189,7 @@ struct StaticTensorTupleOfVectorBuffer
             else
             {
                 // TODO: is this right way to initialize a vector?
-                return X{invalid_element_value_};
+                return X{invalid_element_scalar_value_};
             }
         }
     }
@@ -237,7 +240,9 @@ struct StaticTensorTupleOfVectorBuffer
     }
 
     StaticBufferTupleOfVector<AddressSpace, S, num_of_vector_, ScalarPerVector, true> data_;
-    S invalid_element_value_ = S{0};
+    static constexpr S zero_scalar_value_ = S{0};
+    const S invalid_element_scalar_value_ = S{0};
+    S ignored_element_scalar_;
 };
 
 template <AddressSpaceEnum_t AddressSpace,

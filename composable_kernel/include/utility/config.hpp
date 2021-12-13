@@ -24,12 +24,16 @@
 #define CK_MIN_BLOCK_PER_CU 2
 #endif
 
-// buffer resourse
+// GPU-specific parameters
 #if defined(CK_AMD_GPU_GFX803) || defined(CK_AMD_GPU_GFX900) || defined(CK_AMD_GPU_GFX906) || \
     defined(CK_AMD_GPU_GFX908) || defined(CK_AMD_GPU_GFX90A)
+// buffer resourse
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
+// wave size
+#define CK_GPU_WAVE_SIZE 64
 #elif defined(CK_AMD_GPU_GFX1030)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
+#define CK_GPU_WAVE_SIZE 32
 #endif
 
 // FMA instruction

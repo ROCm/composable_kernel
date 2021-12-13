@@ -165,6 +165,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_src_access_idx[I0];
 
+                    // TODO: BUG: should start at 1
                     static_for<0, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_src_access_lengths[j] + ordered_src_access_idx[j];
                     });
@@ -412,6 +413,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_dst_access_idx[I0];
 
+                    // TODO: BUG: should start at 1
                     static_for<0, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_idx[j];
                     });
@@ -512,7 +514,8 @@ struct ThreadwiseTensorSliceTransfer_v3r2
     template <typename DstBuffer>
     __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
     {
-        constexpr index_t ntransform_dst = DstDesc::GetNumOfTransform();
+        // TODO: why need remove_cvref_t ?
+        constexpr index_t ntransform_dst = remove_cvref_t<DstDesc>::GetNumOfTransform();
 
         constexpr auto zeros = typename uniform_sequence_gen<ntransform_dst, 0>::type{};
 
@@ -545,6 +548,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
 
             forward_sweep_(I0) = true;
 
+            // TODO: BUG: should start at 1
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_src_access_lengths[I0] - 1;
 
@@ -608,6 +612,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_dst_access_lengths[I0] - 1;
 
+                // TODO: BUG: should start at 1
                 static_for<0, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_lengths[j] - 1;
                 });
