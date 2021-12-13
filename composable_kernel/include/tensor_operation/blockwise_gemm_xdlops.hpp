@@ -157,10 +157,13 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CGridDesc_M_N& c_grid_desc_m_n)
     {
+        const auto M = c_grid_desc_m_n.GetLength(I0);
+        const auto N = c_grid_desc_m_n.GetLength(I1);
+
         const auto c_grid_desc_m0_n0_m1_n1_m2_n2 = transform_tensor_descriptor(
             c_grid_desc_m_n,
-            make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerXDL)),
-                       make_unmerge_transform(make_tuple(NRepeat, NWaves, NPerXDL))),
+            make_tuple(make_unmerge_transform(make_tuple(M / (MWaves * MPerXDL), MWaves, MPerXDL)),
+                       make_unmerge_transform(make_tuple(N / (NWaves * NPerXDL), NWaves, NPerXDL))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}));
 
