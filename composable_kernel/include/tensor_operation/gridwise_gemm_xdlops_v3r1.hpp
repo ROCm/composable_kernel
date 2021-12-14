@@ -10,7 +10,7 @@
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "threadwise_tensor_slice_set.hpp"
 
-#define DEBUG_USE_C_SHUFFLE 0
+#define DEBUG_USE_C_SHUFFLE 1
 
 namespace ck {
 
@@ -290,11 +290,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);
 
+        const auto MBlock = M / MPerBlock;
+        const auto NBlock = N / NPerBlock;
+
         constexpr index_t MWave = MPerBlock / (MRepeat * MPerXdl);
         constexpr index_t NWave = NPerBlock / (NRepeat * NPerXdl);
-
-        const index_t MBlock = M / (MWave * MPerXdl * MRepeat);
-        const index_t NBlock = N / (NWave * NPerXdl * NRepeat);
 
         const auto c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl =
             transform_tensor_descriptor(
@@ -439,7 +439,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
+#if 0
                                             AElementwiseOperation,
+#else
+                                            ck::tensor_operation::element_wise::PassThrough,
+#endif
                                             InMemoryDataOperationEnum_t::Set,
                                             Sequence<K0PerBlock, MPerBlock, K1>,
                                             ABlockTransferThreadSliceLengths_K0_M_K1,
@@ -467,7 +471,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         // B matrix blockwise copy
         auto b_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
+#if 0
                                             BElementwiseOperation,
+#else
+                                            ck::tensor_operation::element_wise::PassThrough,
+#endif
                                             InMemoryDataOperationEnum_t::Set,
                                             Sequence<K0PerBlock, NPerBlock, K1>,
                                             BBlockTransferThreadSliceLengths_K0_N_K1,
@@ -654,7 +662,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                                    FloatC,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+#if 0
                                                    CElementwiseOperation,
+#else
+                                                   ck::tensor_operation::element_wise::PassThrough,
+#endif
                                                    Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
                                                    CThreadTransferSrcDstAccessOrder,
                                                    CThreadTransferSrcDstVectorDim,
@@ -739,7 +751,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    ck::tensor_operation::element_wise::PassThrough,
-                                                   Sequence<I1, I1, I1, I1, M2, M3, M4, N2>,
+                                                   Sequence<I1, I1, I1, I1, M2, I1, M4, I1>,
                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                                    7,
                                                    1,
@@ -758,8 +770,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                     ck::tensor_operation::element_wise::PassThrough{}};
 
             // TODO: this is hardcoded, only works for BlockSize = 256. fix it!
-            constexpr index_t MThread_CCopy = 16;
-            constexpr index_t NThread_CCopy = 16;
+            constexpr index_t MThread_CCopy = 32;
+            constexpr index_t NThread_CCopy = 8;
 
             constexpr index_t MPerThread_CCopy = MPerBlock_CCopy / MThread_CCopy;
             constexpr index_t NPerThread_CCopy = NPerBlock_CCopy / NThread_CCopy;
@@ -767,6 +779,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             constexpr auto c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl =
                 make_naive_tensor_descriptor_packed(make_tuple(
                     I1, I1, Number<MPerBlock_CCopy>{}, I1, I1, Number<NPerBlock_CCopy>{}));
+
+            static_assert(c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl
+                                  .GetElementSpaceSize() == 64 * 64,
+                          "wrong!");
 
             auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
                 static_cast<FloatAcc*>(p_shared),
@@ -789,8 +805,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                 Sequence<0, 1, 2, 3, 4, 5>, // typename DstDimAccessOrder,
                 5,                          // index_t SrcVectorDim,
                 5,                          // index_t DstVectorDim,
-                MThread_CCopy,              // index_t SrcScalarPerVector,
-                NThread_CCopy,              // index_t DstScalarPerVector,
+                NPerThread_CCopy,           // index_t SrcScalarPerVector,
+                NPerThread_CCopy,           // index_t DstScalarPerVector,
                 1,                          // index_t SrcScalarStrideInVector,
                 1,                          // index_t DstScalarStrideInVector,
                 true,                       // bool ThreadTransferSrcResetCoordinateAfterRun,
@@ -827,6 +843,30 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                         c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                         c_block_buf);
 
+#if 0
+                    if(get_thread_local_1d_id() == 0)
+                    {
+                        for(int mwave = 0; mwave < MWave; ++mwave)
+                        {
+                            for(int mperxdl = 0; mperxdl < MPerXdl; ++mperxdl)
+                            {
+                                for(int nwave = 0; nwave < NWave; ++nwave)
+                                {
+                                    for(int nperxdl = 0; nperxdl < NPerXdl; ++nperxdl)
+                                    {
+                                        int m = mwave * MPerXdl + mperxdl;
+                                        int n = nwave * NPerXdl + nperxdl;
+
+                                        int offset = m * NWave * NPerXdl + n;
+
+                                        c_block_buf(offset) = 10 * mwave + nwave;
+                                    }
+                                }
+                            }
+                        }
+                    }
+#endif
+
                     // make sure ds_write from c_thread_copy_vgpr_to_lds is completed
                     block_sync_lds();
 
@@ -836,6 +876,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                         c_block_buf,
                         c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                         c_grid_buf);
+
+                    // make sure ds_read from c_block_copy_lds_to_global is completed
+                    block_sync_lds();
 
                     // move on nrepeat dimension
                     if constexpr(nrepeat_forward_sweep && (nrepeat < NRepeat - 1))

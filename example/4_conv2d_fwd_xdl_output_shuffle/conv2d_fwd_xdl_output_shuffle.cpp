@@ -198,6 +198,10 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
+        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
+        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{});
+        break;
+    case 2:
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         break;
@@ -272,5 +276,15 @@ int main(int argc, char* argv[])
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
         check_error(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result);
+
+        {
+            LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out_host  : ", out_n_k_ho_wo_host_result.mData, ",")
+                << std::endl;
+            LogRangeAsType<float>(
+                std::cout << "out_device: ", out_n_k_ho_wo_device_result.mData, ",")
+                << std::endl;
+        }
     }
 }
