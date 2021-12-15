@@ -223,46 +223,6 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
     using C0GridDesc_M_N    = remove_cvref_t<decltype(ABCGridDescs{}[I3])>;
 
-    // TODO remove these hacks
-    static constexpr auto a_k0_m_k1_grid_step_hacks = make_tuple(
-        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0>{},   // 0+: K0
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0>{},   // 1+: M
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0>{}),  // 2+: K1
-        make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0>{},   // 0-: K0
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0>{},   // 1-: M
-                   Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0>{})); // 2-: K1
-
-    static constexpr auto b_k0_n_k1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0+: K0
-                              Sequence<0, 0, 0, 0, 0>{},   // 1+: N
-                              Sequence<0, 0, 0, 0, 0>{}),  // 2+: K1
-                   make_tuple(Sequence<0, 0, 0, 0, 0>{},   // 0-: K0
-                              Sequence<0, 0, 0, 0, 0>{},   // 1-: N
-                              Sequence<0, 0, 0, 0, 0>{})); // 2-: K1
-
-    static constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
-
-    static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks =
-        Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0>{};
-
-    static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0, 0, 0>{};
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r6<
         BlockSize,
@@ -304,12 +264,7 @@ struct DeviceConv2dFwdXdl_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
         7,                                // CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
-        decltype(a_k0_m_k1_grid_step_hacks),                   //  AGridStepHacks,
-        decltype(b_k0_n_k1_grid_step_hacks),                   //  BGridStepHacks,
-        decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),   //  CGridStepHacks,
-        decltype(a_k0_m_k1_grid_move_slice_window_step_hacks), //  AGridMoveSliceWindowStepHacks,
-        decltype(b_k0_n_k1_grid_move_slice_window_step_hacks), //  BGridMoveSliceWindowStepHacks,
-        false,                                                 // CAccessOrderMRepeatNRepeat,
+        false, // CAccessOrderMRepeatNRepeat,
         ABlockLdsAddExtraM,
         BBlockLdsAddExtraN>;
 
