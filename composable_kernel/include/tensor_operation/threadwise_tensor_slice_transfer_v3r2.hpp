@@ -47,6 +47,7 @@ struct lambda_scalar_per_access_for_src_and_dst
 //   4. Use thread buffer
 template <typename SliceLengths,
           typename SrcElementwiseOperation,
+          typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
           typename SrcData,
           typename DstData,
@@ -80,12 +81,14 @@ struct ThreadwiseTensorSliceTransfer_v3r2
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3r2(
         const SrcDesc& src_desc,
         const Index& src_slice_origin,
+        const SrcElementwiseOperation& src_element_op,
         const DstDesc& dst_desc,
         const Index& dst_slice_origin,
-        const SrcElementwiseOperation& src_element_op)
+        const DstElementwiseOperation& dst_element_op)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
-          src_element_op_(src_element_op)
+          src_element_op_(src_element_op),
+          dst_element_op_(dst_element_op)
     {
     }
 
@@ -816,6 +819,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
     SrcCoord src_coord_;
     DstCoord dst_coord_;
     const SrcElementwiseOperation src_element_op_;
+    const DstElementwiseOperation dst_element_op_;
 };
 
 } // namespace ck
