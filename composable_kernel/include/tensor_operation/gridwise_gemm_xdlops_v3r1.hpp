@@ -735,7 +735,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                           "wrong!");
 
             auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
-                static_cast<FloatAcc*>(p_shared),
+                static_cast<FloatC*>(p_shared),
                 c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl
                     .GetElementSpaceSize());
 
@@ -795,7 +795,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             // VGPR to LDS
             auto c_thread_copy_vgpr_to_lds =
                 ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
-                                                   FloatAcc,
+                                                   FloatC,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    ck::tensor_operation::element_wise::PassThrough,
@@ -825,7 +825,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                 Sequence<1, 1, MPerThread_CCopy, 1, 1, NPerThread_CCopy>, // ThreadSliceLengths,
                 Sequence<1, 1, MThread_CCopy, 1, 1, NThread_CCopy>,       // ThreadClusterLengths,
                 Sequence<0, 1, 2, 3, 4, 5>, // typename ThreadClusterArrangeOrder,
-                FloatAcc,                   // typename SrcData,
+                FloatC,                   // typename SrcData,
                 FloatC,                     // typename DstData,
                 decltype(c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
                 decltype(c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
