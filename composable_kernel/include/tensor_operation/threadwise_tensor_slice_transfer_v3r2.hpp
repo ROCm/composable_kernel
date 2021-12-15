@@ -447,13 +447,24 @@ struct ThreadwiseTensorSliceTransfer_v3r2
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-            using dst_vector_t = typename vector_type_maker_t<DstData, DstScalarPerVector>::type;
+            using dst_vector_type = vector_type_maker_t<DstData, DstScalarPerVector>;
+            using dst_vector_t    = typename dst_vector_type::type;
 
-            // copy data from dst_thread_scratch_ to dst_buf
+            // copy data from dst_thread_scratch_ into dst_vector_container
+            auto dst_vector_container = dst_vector_type{
+                dst_thread_scratch_.template GetAsType<dst_vector_t>(dst_data_idx_seq)};
+
+            // apply DstElementwiseOperation on dst_vector_container
+            static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                dst_vector_container.template AsType<DstData>()(i) =
+                    dst_element_op_(dst_vector_container.template AsType<DstData>()[i]);
+            });
+
+            // copy data from dst_vector_container to dst_buf
             dst_buf.template Set<dst_vector_t>(
                 dst_coord_.GetOffset(),
                 is_dst_valid,
-                dst_thread_scratch_.template GetAsType<dst_vector_t>(dst_data_idx_seq));
+                dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
