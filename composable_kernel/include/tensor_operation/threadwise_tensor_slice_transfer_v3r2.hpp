@@ -500,7 +500,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
     template <typename SrcBuffer>
     __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
     {
-        constexpr index_t ntransform_src = SrcDesc::GetNumOfTransform();
+        constexpr index_t ntransform_src = remove_cvref_t<SrcDesc>::GetNumOfTransform();
 
         constexpr auto zeros = typename uniform_sequence_gen<ntransform_src, 0>::type{};
 

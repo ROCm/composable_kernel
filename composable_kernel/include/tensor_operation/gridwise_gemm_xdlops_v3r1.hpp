@@ -94,11 +94,6 @@ template <index_t BlockSize,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector,
-          typename AGridStepHacks,
-          typename BGridStepHacks,
-          typename CGridStepHacks,
-          typename AGridMoveSliceWindowStepHacks,
-          typename BGridMoveSliceWindowStepHacks,
           bool CAccessOrderMRepeatNRepeat,
           bool ABlockLdsExtraM,
           bool BBlockLdsExtraN>
@@ -457,19 +452,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
 
-        // hack to control index calculation when iterating over A and B matrix for threadwise copy
-        constexpr auto a_k0_m_k1_grid_step_hacks = AGridStepHacks{};
-        constexpr auto b_k0_n_k1_grid_step_hacks = BGridStepHacks{};
-
-        // hack to control index calculation when move slice window for A and B matrix for
-        // threadwise copy
-        constexpr auto a_k0_m_k1_grid_move_slice_window_step_hack = AGridMoveSliceWindowStepHacks{};
-        constexpr auto b_k0_n_k1_grid_move_slice_window_step_hack = BGridMoveSliceWindowStepHacks{};
-
         // preload data into LDS
         {
-            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, a_k0_m_k1_grid_step_hacks);
-            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, b_k0_n_k1_grid_step_hacks);
+            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
 
             a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
             b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
@@ -484,20 +470,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         {
             do
             {
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
-                                                    a_block_slice_copy_step,
-                                                    a_k0_m_k1_grid_move_slice_window_step_hack);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
-                                                    b_block_slice_copy_step,
-                                                    b_k0_n_k1_grid_move_slice_window_step_hack);
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
 
-                a_blockwise_copy.RunRead(
-                    a_grid_desc_k0_m_k1, a_grid_buf, a_k0_m_k1_grid_step_hacks);
+                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
 
                 block_sync_lds();
 
-                b_blockwise_copy.RunRead(
-                    b_grid_desc_k0_n_k1, b_grid_buf, b_k0_n_k1_grid_step_hacks);
+                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
