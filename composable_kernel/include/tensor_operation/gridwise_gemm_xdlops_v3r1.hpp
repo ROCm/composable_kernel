@@ -459,7 +459,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
         }
 
-        // clear C
+        // Initialize C
         c_thread_buf.Clear();
 
         // main body

@@ -290,7 +290,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                         const DstDesc& dst_desc,
                         DstBuffer& dst_buf)
     {
-        constexpr index_t ntransform_dst = DstDesc::GetNumOfTransform();
+        constexpr index_t ntransform_dst = remove_cvref_t<DstDesc>::GetNumOfTransform();
 
         constexpr auto zeros = typename uniform_sequence_gen<ntransform_dst, 0>::type{};
 

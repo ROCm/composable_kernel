@@ -132,45 +132,6 @@ struct DeviceGemmXdl
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
-    // TODO remove these hacks
-    static constexpr auto a_k0_m_k1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
-                              Sequence<0, 0, 0>{},   // 1+: M
-                              Sequence<0, 0, 0>{}),  // 2+: K1
-                   make_tuple(Sequence<0, 0, 0>{},   // 0-: K0
-                              Sequence<0, 0, 0>{},   // 1-: M
-                              Sequence<0, 0, 0>{})); // 2-: K1
-
-    static constexpr auto b_k0_n_k1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
-                              Sequence<0, 0, 0>{},   // 1+: N
-                              Sequence<0, 0, 0>{}),  // 2+: K1
-                   make_tuple(Sequence<0, 0, 0>{},   // 0-: K0
-                              Sequence<0, 0, 0>{},   // 1-: N
-                              Sequence<0, 0, 0>{})); // 2-: K1
-
-    static constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
-
-    static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
-
-    static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
@@ -211,19 +172,9 @@ struct DeviceGemmXdl
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
-        decltype(a_k0_m_k1_grid_step_hacks),                   //  AGridStepHacks,
-        decltype(b_k0_n_k1_grid_step_hacks),                   //  BGridStepHacks,
-        decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),   //  CGridStepHacks,
-        decltype(a_k0_m_k1_grid_move_slice_window_step_hacks), //  AGridMoveSliceWindowStepHacks,
-        decltype(b_k0_n_k1_grid_move_slice_window_step_hacks), //  BGridMoveSliceWindowStepHacks,
-        false,                                                 // CAccessOrderMRepeatNRepeat,
+        false, // CAccessOrderMRepeatNRepeat,
         ABlockLdsAddExtraM,
         BBlockLdsAddExtraN>;
-
-    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-
-    using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     // Argument
     struct Argument : public BaseArgument
@@ -277,8 +228,9 @@ struct DeviceGemmXdl
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
+            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -332,11 +284,11 @@ struct DeviceGemmXdl
                     CDataType,
                     remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -363,11 +315,11 @@ struct DeviceGemmXdl
                     CDataType,
                     remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,
