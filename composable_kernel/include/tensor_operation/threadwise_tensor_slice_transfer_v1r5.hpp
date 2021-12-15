@@ -339,14 +339,12 @@ struct ThreadwiseTensorSliceTransfer_v1r5
     template <typename SrcSliceOriginIdx,
               typename SrcBuffer,
               typename DstBuffer,
-              typename Dst0Buffer,
-              typename DstStepHacks>
+              typename Dst0Buffer>
     __device__ void Run(const SrcDesc&,
                         const SrcSliceOriginIdx&,
                         const SrcBuffer& src_buf,
                         const DstDesc& dst_desc,
                         DstBuffer& dst_buf,
-                        const DstStepHacks& dst_step_hacks,
                         const Dst0Desc& dst0_desc,
                         const Dst0Buffer& dst0_buf)
     {
@@ -367,7 +365,7 @@ struct ThreadwiseTensorSliceTransfer_v1r5
             src_buf,
             dst_desc,
             dst_buf,
-            dst_step_hacks,
+            f_step_hacks(dst_desc),
             dst0_desc,
             dst0_buf,
             f_step_hacks(dst0_desc));
