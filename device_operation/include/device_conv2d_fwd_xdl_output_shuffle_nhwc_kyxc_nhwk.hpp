@@ -70,6 +70,8 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
 
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
@@ -419,6 +421,27 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
 
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout
+                    << "arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_{ "
+                    << arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_
+                           .GetLength(I0)
+                    << ", "
+                    << arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_
+                           .GetLength(I1)
+                    << ", "
+                    << arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_
+                           .GetLength(I2)
+                    << ", "
+                    << arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_
+                           .GetLength(I3)
+                    << ", "
+                    << arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_
+                           .GetLength(I4)
+                    << ", "
+                    << arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_
+                           .GetLength(I5)
+                    << "}" << std::endl;
             }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
