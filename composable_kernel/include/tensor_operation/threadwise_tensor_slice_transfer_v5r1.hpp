@@ -1,44 +1,11 @@
-#ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_V3R1_HPP
-#define CK_THREADWISE_TENSOR_SLICE_TRANSFER_V3R1_HPP
+#ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
+#define CK_THREADWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "static_tensor.hpp"
 
 namespace ck {
-
-namespace detail {
-// TODO: How to fix this? It uses an struct instead of lambda because lambda
-// doesn't have constructor
-template <index_t SrcVectorDim,
-          index_t SrcScalarPerVector,
-          index_t DstVectorDim,
-          index_t DstScalarPerVector>
-struct lambda_scalar_per_access_for_src_and_dst
-{
-    __host__ __device__ constexpr auto operator()(index_t i) const
-    {
-        if(i == SrcVectorDim && i == DstVectorDim)
-        {
-            return math::lcm(SrcScalarPerVector, DstScalarPerVector);
-        }
-        else if(i == SrcVectorDim)
-        {
-            return SrcScalarPerVector;
-        }
-        else if(i == DstVectorDim)
-        {
-            return DstScalarPerVector;
-        }
-        else
-        {
-            return 1;
-        }
-    }
-};
-
-} // namespace detail
 
 // Assume:
 //   1. src_desc and dst_desc are not known at compile-time
@@ -46,8 +13,6 @@ struct lambda_scalar_per_access_for_src_and_dst
 //   3. src_slice_origin and dst_slice_origin are not known at compile-time,
 //   4. Use thread buffer
 template <typename SliceLengths,
-          typename SrcElementwiseOperation,
-          typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
           typename SrcData,
           typename DstData,
@@ -55,20 +20,21 @@ template <typename SliceLengths,
           typename DstDesc,
           typename SrcDimAccessOrder,
           typename DstDimAccessOrder,
-          index_t SrcVectorDim,
-          index_t DstVectorDim,
-          index_t SrcScalarPerVector,
-          index_t DstScalarPerVector,
-          index_t SrcScalarStrideInVector,
-          index_t DstScalarStrideInVector,
+          typename SrcVectorTensorLengths,
+          typename DstVectorTensorLengths,
+          typename SrcVectorTensorContiguousDimOrder,
+          typename DstVectorTensorContiguousDimOrder,
           bool SrcResetCoordinateAfterRun, // control whether to move back src coordinate after each
                                            // RunRead(),  will be fused with MoveSrcSliceWindow to
                                            // save addr computation
           bool DstResetCoordinateAfterRun> // control whether to move back dst coordinate after each
                                            // RunWrite(),  will be fused with MoveDstSliceWindow to
                                            // save addr computation
-struct ThreadwiseTensorSliceTransfer_v3r1
+struct ThreadwiseTensorSliceTransfer_v5r1
 {
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+
     static constexpr index_t nDim = SliceLengths::Size();
     using Index                   = MultiIndex<nDim>;
 
@@ -78,18 +44,22 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_v3r1(
-        const SrcDesc& src_desc,
-        const Index& src_slice_origin,
-        const SrcElementwiseOperation& src_element_op,
-        const DstDesc& dst_desc,
-        const Index& dst_slice_origin,
-        const DstElementwiseOperation& dst_element_op)
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v5r1(const SrcDesc& src_desc,
+                                                            const Index& src_slice_origin,
+                                                            const DstDesc& dst_desc,
+                                                            const Index& dst_slice_origin)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
-          dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
-          src_element_op_(src_element_op),
-          dst_element_op_(dst_element_op)
+          dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin))
     {
+        // TODO: fix this
+        static_assert(is_same<SrcData, DstData>::value,
+                      "wrong! current implementation assume SrcData and DstData are same type");
+
+        static_for<0, nDim, 1>{}([](auto i) {
+            static_assert(SliceLengths::At(i) % SrcVectorTensorLengths::At(i) == 0 &&
+                              SliceLengths::At(i) % DstVectorTensorLengths::At(i) == 0,
+                          "wrong!");
+        });
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -114,15 +84,23 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             is_same<remove_cvref_t<typename SrcBuffer::type>, remove_cvref_t<SrcData>>::value,
             "wrong! SrcBuffer and SrcData data type are inconsistent");
 
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
+        // tensor descriptor for src_vector
+        constexpr auto src_vector_tensor_lengths = SrcVectorTensorLengths{};
 
-        // scalar per access on each dim
-        // TODO: don't use lambda_scalar_per_access
-        constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+        constexpr auto src_vector_tensor_strides = container_reorder_given_old2new(
+            container_reverse_exclusive_scan(
+                container_reorder_given_new2old(src_vector_tensor_lengths,
+                                                SrcVectorTensorContiguousDimOrder{}),
+                math::multiplies{},
+                I1),
+            SrcVectorTensorContiguousDimOrder{});
 
-        constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
+        constexpr auto src_vector_desc =
+            make_naive_tensor_descriptor(sequence_to_tuple_of_number(src_vector_tensor_lengths),
+                                         sequence_to_tuple_of_number(src_vector_tensor_strides));
+
+        // access order and lengths
+        constexpr auto src_access_lengths = SliceLengths{} / src_vector_tensor_lengths;
 
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
@@ -135,7 +113,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 Index forward_step_idx;
 
                 static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? src_scalar_per_access[i] : 0;
+                    forward_step_idx(j) = (i.value == j.value) ? src_vector_tensor_lengths[i] : 0;
                 });
 
                 return make_tensor_coordinate_step(
@@ -149,7 +127,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 Index backward_step_idx;
 
                 static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -src_scalar_per_access[i] : 0;
+                    backward_step_idx(j) = (i.value == j.value) ? -src_vector_tensor_lengths[i] : 0;
                 });
 
                 return make_tensor_coordinate_step(
@@ -168,8 +146,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_src_access_idx[I0];
 
-                    // TODO: BUG: should start at 1
-                    static_for<1, i, 1>{}([&](auto j) {
+                    static_for<0, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_src_access_lengths[j] + ordered_src_access_idx[j];
                     });
 
@@ -190,31 +167,33 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 });
 
                 return container_reorder_given_old2new(ordered_idx, src_dim_access_order) *
-                       src_scalar_per_access;
+                       src_vector_tensor_lengths;
             }();
 
-            constexpr auto src_data_idx_seq = generate_sequence_v2(
-                [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
+            vector_type_maker_t<SrcData, src_vector_desc.GetElementSpaceSize()> src_vector;
+
+            using src_vector_t = typename decltype(src_vector)::type;
 
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
-            using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
-            using src_vector_t    = typename src_vector_type::type;
+            // copy data from src_buf to src_vector
+            src_vector.template AsType<src_vector_t>()(I0) =
+                src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid);
 
-            // copy data from src_buf into src_vector_container
-            auto src_vector_container = src_vector_type{
-                src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
+            // copy data from src_vector to buffer_
+            static_ford<SrcVectorTensorLengths>{}([&](auto src_vector_idx_) {
+                constexpr auto src_vector_idx = to_multi_index(src_vector_idx_);
 
-            // apply SrcElementwiseOperation on src_vector_container
-            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                src_vector_container.template AsType<SrcData>()(i) =
-                    src_element_op_(src_vector_container.template AsType<SrcData>()[i]);
+                constexpr index_t src_vector_offset =
+                    src_vector_desc.CalculateOffset(src_vector_idx);
+
+                constexpr index_t buffer_offset =
+                    buffer_desc_.CalculateOffset(src_data_idx + src_vector_idx);
+
+                buffer_(Number<buffer_offset>{}) =
+                    src_vector.template AsType<SrcData>()[Number<src_vector_offset>{}];
             });
-
-            // copy data from src_vector_container into src_thread_scratch_
-            src_thread_scratch_.template SetAsType<src_vector_t>(
-                src_data_idx_seq, src_vector_container.template AsType<src_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -233,7 +212,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             }
             ();
 
-            // move src coord
+            // move
             static_for<0, nDim, 1>{}([&](auto i) {
                 if constexpr(move_on_dim[i])
                 {
@@ -261,99 +240,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
     }
 
-    __device__ void TransferDataFromSrcThreadScratchToDstThreadScratch()
-    {
-#if !CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE
-        static_ford<SliceLengths>{}([&](auto idx) {
-            // convert from SrcData to DstData here
-            dst_thread_scratch_(idx) = type_convert<DstData>(src_thread_scratch_[idx]);
-        });
-#else
-        // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
-        // TODO make this logic more generic for more sub-dword datatype
-        if constexpr(SrcVectorDim != DstVectorDim &&
-                     is_same<half_t, remove_cvref_t<SrcData>>::value &&
-                     is_same<half_t, remove_cvref_t<DstData>>::value &&
-                     SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0)
-        {
-            // each transpose does
-            // DstScalarPerVector # of src vectors in src_thread_scratch_
-            // SrcScalarPerVector # of dst vectors in dst_thread_scratch_
-            constexpr index_t num_src_vector = Number<DstScalarPerVector>{};
-            constexpr index_t num_dst_vector = Number<SrcScalarPerVector>{};
-
-            // Assume SrcVectorDim is not the same as DstVectorDim, so we do transpose
-            // TODO: make this logic generic for all scenario
-            static_assert(SrcVectorDim != DstVectorDim, "wrong");
-
-            constexpr auto src_scalar_step_in_vector = generate_sequence(
-                detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
-
-            constexpr auto dst_scalar_step_in_vector = generate_sequence(
-                detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
-
-            constexpr auto scalar_per_access = generate_sequence(
-                detail::lambda_scalar_per_access_for_src_and_dst<SrcVectorDim,
-                                                                 SrcScalarPerVector,
-                                                                 DstVectorDim,
-                                                                 DstScalarPerVector>{},
-                Number<nDim>{});
-
-            constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
-
-            static_ford<decltype(access_lengths)>{}([&](auto access_idx) {
-                constexpr auto data_idx = access_idx * scalar_per_access;
-
-                constexpr auto data_idx_seq = generate_sequence_v2(
-                    [&](auto i) { return Number<data_idx[i]>{}; }, Number<nDim>{});
-
-                // TODO type_convert is not used yet!!!!!
-                using src_vector_t = vector_type_maker_t<SrcData, SrcScalarPerVector>;
-                using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
-
-                // get DstScalarPerVector # of read-only references to src vectors from
-                // src_thread_scratch_
-                const auto src_vector_refs = generate_tie(
-                    [&](auto i) -> const src_vector_t& {
-                        // i increment corresponds to movement in DstVectorDim
-                        return src_thread_scratch_.GetVectorTypeReference(
-                            data_idx_seq + i * dst_scalar_step_in_vector);
-                    },
-                    Number<num_src_vector>{});
-
-                // get SrcScalarPerVector # of references to dst vectors from dst_thread_scratch_
-                auto dst_vector_refs = generate_tie(
-                    [&](auto i) -> dst_vector_t& {
-                        // i increment corresponds to movement in SrcVectorDim
-                        return dst_thread_scratch_.GetVectorTypeReference(
-                            data_idx_seq + i * src_scalar_step_in_vector);
-                    },
-                    Number<num_dst_vector>{});
-
-                // do data transpose
-                // TODO type_convert is not used yet!!!!!
-                transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
-                    src_vector_refs, dst_vector_refs);
-            });
-        }
-        else
-        {
-            static_ford<SliceLengths>{}([&](auto idx) {
-                // convert from SrcData to DstData here
-                dst_thread_scratch_(idx) = type_convert<DstData>(src_thread_scratch_[idx]);
-            });
-        }
-#endif
-    }
-
     template <typename DstBuffer, typename DstStepHacks>
     __device__ void
     RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, const DstStepHacks& dst_step_hacks)
     {
-        // if there is transpose, it's done here
-        // TODO move this elsewhere
-        TransferDataFromSrcThreadScratchToDstThreadScratch();
-
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
                           DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
                       "wrong!");
@@ -362,15 +252,23 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value,
             "wrong! SrcBuffer or DstBuffer data type is wrong");
 
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
+        // tensor descriptor for dst_vector
+        constexpr auto dst_vector_tensor_lengths = DstVectorTensorLengths{};
 
-        // src scalar per access on each dim
-        // TODO: don't use this
-        constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+        constexpr auto dst_vector_tensor_strides = container_reorder_given_old2new(
+            container_reverse_exclusive_scan(
+                container_reorder_given_new2old(dst_vector_tensor_lengths,
+                                                DstVectorTensorContiguousDimOrder{}),
+                math::multiplies{},
+                I1),
+            DstVectorTensorContiguousDimOrder{});
 
-        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
+        constexpr auto dst_vector_desc =
+            make_naive_tensor_descriptor(sequence_to_tuple_of_number(dst_vector_tensor_lengths),
+                                         sequence_to_tuple_of_number(dst_vector_tensor_strides));
+
+        // dst access order and lengths
+        constexpr auto dst_access_lengths = SliceLengths{} / dst_vector_tensor_lengths;
 
         constexpr auto dst_dim_access_order = DstDimAccessOrder{};
 
@@ -383,7 +281,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 Index forward_step_idx;
 
                 static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? dst_scalar_per_access[i] : 0;
+                    forward_step_idx(j) = (i.value == j.value) ? dst_vector_tensor_lengths[i] : 0;
                 });
 
                 return make_tensor_coordinate_step(
@@ -397,7 +295,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 Index backward_step_idx;
 
                 static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -dst_scalar_per_access[i] : 0;
+                    backward_step_idx(j) = (i.value == j.value) ? -dst_vector_tensor_lengths[i] : 0;
                 });
 
                 return make_tensor_coordinate_step(
@@ -416,7 +314,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_dst_access_idx[I0];
 
-                    // TODO: BUG: should start at 1
                     static_for<0, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_idx[j];
                     });
@@ -438,33 +335,35 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 });
 
                 return container_reorder_given_old2new(ordered_idx, dst_dim_access_order) *
-                       dst_scalar_per_access;
+                       dst_vector_tensor_lengths;
             }();
 
-            constexpr auto dst_data_idx_seq = generate_sequence_v2(
-                [&](auto i) { return Number<dst_data_idx[i]>{}; }, Number<dst_data_idx.Size()>{});
+            vector_type_maker_t<DstData, dst_vector_desc.GetElementSpaceSize()> dst_vector;
 
+            // copy data from buffer_ to dst_vector (also cast from SrcData to DstData)
+            static_ford<DstVectorTensorLengths>{}([&](auto dst_vector_idx_) {
+                constexpr auto dst_vector_idx = to_multi_index(dst_vector_idx_);
+
+                constexpr index_t buffer_offset =
+                    buffer_desc_.CalculateOffset(dst_data_idx + dst_vector_idx);
+
+                constexpr index_t dst_vector_offset =
+                    dst_vector_desc.CalculateOffset(dst_vector_idx);
+
+                dst_vector.template AsType<DstData>()(Number<dst_vector_offset>{}) =
+                    type_convert<DstData>(buffer_[Number<buffer_offset>{}]);
+            });
+
+            using dst_vector_t = typename decltype(dst_vector)::type;
+
+            // copy data from dst_vector to dst_buf
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-            using dst_vector_type = vector_type_maker_t<DstData, DstScalarPerVector>;
-            using dst_vector_t    = typename dst_vector_type::type;
-
-            // copy data from dst_thread_scratch_ into dst_vector_container
-            auto dst_vector_container = dst_vector_type{
-                dst_thread_scratch_.template GetAsType<dst_vector_t>(dst_data_idx_seq)};
-
-            // apply DstElementwiseOperation on dst_vector_container
-            static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                dst_vector_container.template AsType<DstData>()(i) =
-                    dst_element_op_(dst_vector_container.template AsType<DstData>()[i]);
-            });
-
-            // copy data from dst_vector_container to dst_buf
             dst_buf.template Set<dst_vector_t>(
                 dst_coord_.GetOffset(),
                 is_dst_valid,
-                dst_vector_container.template AsType<dst_vector_t>()[I0]);
+                dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -483,7 +382,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             }
             ();
 
-            // move dst coord
+            // move
             static_for<0, nDim, 1>{}([&](auto i) {
                 if constexpr(move_on_dim[i])
                 {
@@ -514,7 +413,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     template <typename SrcBuffer>
     __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
     {
-        constexpr index_t ntransform_src = remove_cvref_t<SrcDesc>::GetNumOfTransform();
+        constexpr index_t ntransform_src = SrcDesc::GetNumOfTransform();
 
         constexpr auto zeros = typename uniform_sequence_gen<ntransform_src, 0>::type{};
 
@@ -528,8 +427,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     template <typename DstBuffer>
     __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
     {
-        // TODO: why need remove_cvref_t ?
-        constexpr index_t ntransform_dst = remove_cvref_t<DstDesc>::GetNumOfTransform();
+        constexpr index_t ntransform_dst = DstDesc::GetNumOfTransform();
 
         constexpr auto zeros = typename uniform_sequence_gen<ntransform_dst, 0>::type{};
 
@@ -542,14 +440,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
     __device__ static constexpr auto GetSrcCoordinateResetStep()
     {
-        constexpr auto I0 = Number<0>{};
+        constexpr auto src_vector_tensor_lengths = SrcVectorTensorLengths{};
 
-        // scalar per access on each dim
-        // TODO: don't use lambda_scalar_per_access
-        constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
-
-        constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
+        constexpr auto src_access_lengths = SliceLengths{} / src_vector_tensor_lengths;
 
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
@@ -562,7 +455,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
             forward_sweep_(I0) = true;
 
-            // TODO: BUG: should start at 1
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_src_access_lengths[I0] - 1;
 
@@ -586,7 +478,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             });
 
             return container_reorder_given_old2new(ordered_idx, src_dim_access_order) *
-                   src_scalar_per_access;
+                   src_vector_tensor_lengths;
         }();
 
         //
@@ -603,14 +495,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
     __device__ static constexpr auto GetDstCoordinateResetStep()
     {
-        constexpr auto I0 = Number<0>{};
+        constexpr auto dst_vector_tensor_lengths = DstVectorTensorLengths{};
 
-        // scalar per access on each dim
-        // TODO: don't use lambda_scalar_per_access
-        constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
-
-        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
+        constexpr auto dst_access_lengths = SliceLengths{} / dst_vector_tensor_lengths;
 
         constexpr auto dst_dim_access_order = DstDimAccessOrder{};
 
@@ -626,8 +513,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_dst_access_lengths[I0] - 1;
 
-                // TODO: BUG: should start at 1
-                static_for<1, i, 1>{}([&](auto j) {
+                static_for<0, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_lengths[j] - 1;
                 });
 
@@ -647,7 +533,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             });
 
             return container_reorder_given_old2new(ordered_idx, dst_dim_access_order) *
-                   dst_scalar_per_access;
+                   dst_vector_tensor_lengths;
         }();
 
         //
@@ -695,7 +581,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
     }
-
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
     __device__ void MoveDstSliceWindow(const DstDesc& dst_desc,
                                        const Index& dst_slice_origin_step_idx)
@@ -711,126 +596,16 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         move_tensor_coordinate(dst_desc, dst_coord_, adjusted_step);
     }
 
-    __device__ static constexpr auto GetSrcThreadScratchDescriptor()
-    {
-        constexpr auto src_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
-
-        constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
-
-        constexpr auto src_access_lengths_and_vector_length = container_push_back(
-            sequence_to_tuple_of_number(src_access_lengths), Number<SrcScalarPerVector>{});
-
-        // 1st stage of transforms
-        constexpr auto desc0 =
-            make_naive_tensor_descriptor_packed(src_access_lengths_and_vector_length);
-
-        // 2nd stage of transforms
-        constexpr auto transforms = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == SrcVectorDim)
-                {
-                    return make_merge_transform_v3_division_mod(
-                        make_tuple(src_access_lengths_and_vector_length[i],
-                                   src_access_lengths_and_vector_length[Number<nDim>{}]));
-                }
-                else
-                {
-                    return make_pass_through_transform(src_access_lengths_and_vector_length[i]);
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto low_dim_idss = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == SrcVectorDim)
-                {
-                    return Sequence<i.value, nDim>{};
-                }
-                else
-                {
-                    return Sequence<i.value>{};
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto up_dim_idss =
-            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
-
-        return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
-    }
-
-    __device__ static constexpr auto GetDstThreadScratchDescriptor()
-    {
-        // 1st stage of transforms
-        constexpr auto dst_scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
-
-        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
-
-        constexpr auto dst_access_lengths_and_vector_length = container_push_back(
-            sequence_to_tuple_of_number(dst_access_lengths), Number<DstScalarPerVector>{});
-
-        constexpr auto desc0 =
-            make_naive_tensor_descriptor_packed(dst_access_lengths_and_vector_length);
-
-        // 2nd stage of transforms
-        constexpr auto transforms = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == DstVectorDim)
-                {
-                    return make_merge_transform_v3_division_mod(
-                        make_tuple(dst_access_lengths_and_vector_length[i],
-                                   dst_access_lengths_and_vector_length[Number<nDim>{}]));
-                }
-                else
-                {
-                    return make_pass_through_transform(dst_access_lengths_and_vector_length[i]);
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto low_dim_idss = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == DstVectorDim)
-                {
-                    return Sequence<i.value, nDim>{};
-                }
-                else
-                {
-                    return Sequence<i.value>{};
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto up_dim_idss =
-            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
-
-        return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
-    }
-
     private:
-    static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
-    static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
+    static constexpr auto buffer_desc_ =
+        make_naive_tensor_descriptor_packed(sequence_to_tuple_of_number(SliceLengths{}));
 
-    StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
-                                    SrcData,
-                                    SrcScalarPerVector,
-                                    decltype(src_thread_scratch_desc_),
-                                    true>
-        src_thread_scratch_;
+    static constexpr auto buffer_size_ = buffer_desc_.GetElementSpaceSize();
 
-    StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
-                                    DstData,
-                                    DstScalarPerVector,
-                                    decltype(dst_thread_scratch_desc_),
-                                    true>
-        dst_thread_scratch_;
+    StaticBuffer<AddressSpaceEnum_t::Vgpr, SrcData, buffer_size_, true> buffer_;
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;
-    const SrcElementwiseOperation src_element_op_;
-    const DstElementwiseOperation dst_element_op_;
 };
 
 } // namespace ck

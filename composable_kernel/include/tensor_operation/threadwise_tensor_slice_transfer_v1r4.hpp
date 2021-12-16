@@ -141,7 +141,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make forward steps: dst0
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst0_forward_steps = generate_tuple(
             [&](auto i) {
@@ -157,7 +158,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make forward steps: dst1
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst1_forward_steps = generate_tuple(
             [&](auto i) {
@@ -187,7 +189,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make backward steps: dst0
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst0_backward_steps = generate_tuple(
             [&](auto i) {
@@ -203,7 +206,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make backward steps: dst1
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst1_backward_steps = generate_tuple(
             [&](auto i) {

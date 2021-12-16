@@ -1,11 +1,11 @@
-#ifndef CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V2_HPP
-#define CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V2_HPP
+#ifndef CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_HPP
+#define CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_HPP
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "cluster_descriptor.hpp"
-#include "threadwise_tensor_slice_transfer_v2.hpp"
+#include "threadwise_tensor_slice_transfer_v3r1.hpp"
 
 namespace ck {
 
@@ -14,6 +14,8 @@ namespace ck {
 // 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
 // 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
 template <index_t BlockSize,
+          typename SrcElementwiseOperation,
+          typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
           typename BlockSliceLengths,
           typename ThreadSliceLengths,
@@ -25,10 +27,12 @@ template <index_t BlockSize,
           typename DstDesc,
           typename SrcDimAccessOrder,
           typename DstDimAccessOrder,
-          typename SrcVectorTensorLengths,
-          typename DstVectorTensorLengths,
-          typename SrcVectorTensorContiguousDimOrder,
-          typename DstVectorTensorContiguousDimOrder,
+          index_t SrcVectorDim,
+          index_t DstVectorDim,
+          index_t SrcScalarPerVector,
+          index_t DstScalarPerVector,
+          index_t SrcScalarStrideInVector,
+          index_t DstScalarStrideInVector,
           bool ThreadTransferSrcResetCoordinateAfterRun,
           bool ThreadTransferDstResetCoordinateAfterRun>
 struct BlockwiseTensorSliceTransfer_v4r1
@@ -37,12 +41,19 @@ struct BlockwiseTensorSliceTransfer_v4r1
 
     using Index = MultiIndex<nDim>;
 
-    __device__ constexpr BlockwiseTensorSliceTransfer_v4r1(const SrcDesc& src_desc,
-                                                           const Index& src_block_slice_origin,
-                                                           const DstDesc& dst_desc,
-                                                           const Index& dst_block_slice_origin)
-        : threadwise_transfer_(
-              src_desc, make_zero_multi_index<nDim>(), dst_desc, make_zero_multi_index<nDim>())
+    __device__ constexpr BlockwiseTensorSliceTransfer_v4r1(
+        const SrcDesc& src_desc,
+        const Index& src_block_slice_origin,
+        const SrcElementwiseOperation& src_element_op,
+        const DstDesc& dst_desc,
+        const Index& dst_block_slice_origin,
+        const DstElementwiseOperation& dst_element_op)
+        : threadwise_transfer_(src_desc,
+                               make_zero_multi_index<nDim>(),
+                               src_element_op,
+                               dst_desc,
+                               make_zero_multi_index<nDim>(),
+                               dst_element_op)
 
     {
         static_assert(nDim == remove_reference_t<remove_cv_t<SrcDesc>>::GetNumOfDimension() &&
@@ -86,6 +97,16 @@ struct BlockwiseTensorSliceTransfer_v4r1
         }
     }
 
+    template <typename SrcBuffer>
+    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
+    {
+        if(BlockSize == thread_cluster_desc_.GetElementSize() or
+           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
+        {
+            threadwise_transfer_.RunRead(src_desc, src_buf);
+        }
+    }
+
     template <typename DstBuffer>
     __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
     {
@@ -94,6 +115,16 @@ struct BlockwiseTensorSliceTransfer_v4r1
         {
             threadwise_transfer_.RunWrite(dst_desc, dst_buf);
         }
+    }
+
+    template <typename SrcBuffer, typename DstBuffer>
+    __device__ void Run(const SrcDesc& src_desc,
+                        const SrcBuffer& src_buf,
+                        const DstDesc& dst_desc,
+                        DstBuffer& dst_buf)
+    {
+        RunRead(src_desc, src_buf);
+        RunWrite(dst_desc, dst_buf);
     }
 
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& step)
@@ -135,6 +166,8 @@ struct BlockwiseTensorSliceTransfer_v4r1
 
     using ThreadwiseTransfer =
         ThreadwiseTensorSliceTransfer_v3r1<ThreadSliceLengths,
+                                           SrcElementwiseOperation,
+                                           DstElementwiseOperation,
                                            DstInMemOp,
                                            SrcData,
                                            DstData,
@@ -142,10 +175,12 @@ struct BlockwiseTensorSliceTransfer_v4r1
                                            DstDesc,
                                            SrcDimAccessOrder,
                                            DstDimAccessOrder,
-                                           SrcVectorTensorLengths,
-                                           DstVectorTensorLengths,
-                                           SrcVectorTensorContiguousDimOrder,
-                                           DstVectorTensorContiguousDimOrder,
+                                           SrcVectorDim,
+                                           DstVectorDim,
+                                           SrcScalarPerVector,
+                                           DstScalarPerVector,
+                                           SrcScalarStrideInVector,
+                                           DstScalarStrideInVector,
                                            ThreadTransferSrcResetCoordinateAfterRun,
                                            ThreadTransferDstResetCoordinateAfterRun>;
 
