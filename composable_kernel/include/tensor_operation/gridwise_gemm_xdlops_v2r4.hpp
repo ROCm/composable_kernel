@@ -700,7 +700,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                      m_thread_data_on_grid_idx[I3],
                                      m_thread_data_on_grid_idx[I4],
                                      n_thread_data_on_grid_idx[I2]),
-                                     c_element_op};
+                    c_element_op};
 
             c_thread_copy.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),

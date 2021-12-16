@@ -387,25 +387,26 @@ struct DeviceGemmSplitKXdl
     {
         using Argument = DeviceGemmSplitKXdl::Argument;
 
+        void ShowInfo(const Argument& arg)
+        {
+            std::cout << "arg.a_grid_desc_kbatch_k0_m_k1_{"
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) << ", "
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1) << ", "
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2) << ", "
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I3) << "}" << std::endl;
+
+            std::cout << "arg.b_grid_desc_kbatch_k0_n_k1_{"
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I0) << ", "
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1) << ", "
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I2) << ", "
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I3) << "}" << std::endl;
+
+            std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
+                      << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+        }
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto kbatch = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
-            {
-                std::cout << "arg.a_grid_desc_kbatch_k0_m_k1_{"
-                          << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) << ", "
-                          << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1) << ", "
-                          << ", " << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2) << ", "
-                          << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I3) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_kbatch_k0_n_k1_{"
-                          << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I0) << ", "
-                          << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1) << ", "
-                          << ", " << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I2) << ", "
-                          << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I3) << "}" << std::endl;
-
-                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
-                          << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-            }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                             arg.b_grid_desc_kbatch_k0_n_k1_,
@@ -426,22 +427,27 @@ struct DeviceGemmSplitKXdl
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.a_grid_desc_kbatch_k0_m_k1_,
-                                                  arg.b_grid_desc_kbatch_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
-                if(kbatch > 1)
+                if(nrepeat > 0)
+                {
+                    ShowInfo(arg);
+                    ave_time = launch_and_time_kernel(kernel,
+                                                      nrepeat,
+                                                      dim3(grid_size),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      arg.p_a_grid_,
+                                                      arg.p_b_grid_,
+                                                      arg.p_c_grid_,
+                                                      arg.a_grid_desc_kbatch_k0_m_k1_,
+                                                      arg.b_grid_desc_kbatch_k0_n_k1_,
+                                                      arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                      arg.a_element_op_,
+                                                      arg.b_element_op_,
+                                                      arg.c_element_op_,
+                                                      arg.block_2_ctile_map_);
+                }
+
+                if(kbatch > 1 || nrepeat <= 0)
                 {
                     hipGetErrorString(
                         hipMemset(arg.p_c_grid_,

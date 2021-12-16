@@ -16,3 +16,10 @@ set(MAGIC_NUMBER_DIVISISON_SOURCE magic_number_division/main.cpp)
 add_executable(test_magic_number_division ${MAGIC_NUMBER_DIVISISON_SOURCE})
 
 target_link_libraries(test_magic_number_division PRIVATE host_tensor)
+
+
+set(SPLIT_K_SOURCE split_k/main.cpp)
+
+add_executable(test_split_k ${SPLIT_K_SOURCE})
+target_link_libraries(test_split_k PRIVATE host_tensor)
+target_link_libraries(test_split_k PRIVATE device_gemm_instance)
