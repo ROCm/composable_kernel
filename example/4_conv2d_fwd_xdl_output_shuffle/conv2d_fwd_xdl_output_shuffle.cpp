@@ -28,7 +28,7 @@ using OutLayout = ck::tensor_layout::convolution::NHWK;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+using OutElementOp = ck::tensor_operation::element_wise::binary::PassThrough_v2;
 
 using DeviceConvFwdInstance = ck::tensor_operation::device::
     DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
@@ -76,7 +76,15 @@ void host_verify(const Tensor<TIn>& in,
                 }
             }
         }
+#if 0
         out(n, k, ho, wo) = out_element_op(v);
+#else
+        double v2 = out(n, k, ho, wo);
+
+        out_element_op(v2, v);
+
+        out(n, k, ho, wo) = v2;
+#endif
     };
 
     make_ParallelTensorFunctor(f_nchw,

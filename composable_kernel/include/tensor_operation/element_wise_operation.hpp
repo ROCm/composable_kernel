@@ -4,6 +4,25 @@
 namespace ck {
 namespace tensor_operation {
 namespace element_wise {
+namespace binary {
+
+struct PassThrough_v2
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        y = x;
+    }
+};
+
+} // namespace binary
+} // namespace element_wise
+} // namespace tensor_operation
+} // namespace ck
+
+namespace ck {
+namespace tensor_operation {
+namespace element_wise {
 
 struct PassThrough
 {

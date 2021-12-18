@@ -7,6 +7,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_xdlops.hpp"
 #include "blockwise_tensor_slice_transfer_v4r1.hpp"
+#include "blockwise_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
@@ -654,6 +655,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                        n_thread_data_on_block_idx[I2]),
                       ck::tensor_operation::element_wise::PassThrough{}};
 
+#if 0
             auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v4r1<
                 BlockSize,                                       // index_t BlockSize,
                 ck::tensor_operation::element_wise::PassThrough, // SrcElementwiseOperation,
@@ -698,6 +700,45 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                  c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                  make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
                  c_element_op};
+#else
+            auto c_block_copy_lds_to_global          = BlockwiseTensorSliceTransfer_v6r1<
+                BlockSize,                  // index_t BlockSize,
+                CElementwiseOperation,      // ElementwiseOperation,
+                CGlobalMemoryDataOperation, // DstInMemOp,
+                Sequence<1,
+                         MRepeatPerShuffle_CCopy,
+                         MPerBlock_CCopy,
+                         1,
+                         NRepeatPerShuffle_CCopy,
+                         NPerBlock_CCopy>, // BlockSliceLengths,
+                Sequence<1,
+                         MRepeatPerShuffle_CCopy,
+                         MPerThread_CCopy,
+                         1,
+                         NRepeatPerShuffle_CCopy,
+                         NPerThread_CCopy>, // ThreadSliceLengths,
+                Sequence<1,
+                         MRepeatPerThread_CCopy,
+                         MThread_CCopy,
+                         1,
+                         NRepeatPerThread_CCopy,
+                         NThread_CCopy>,    // ThreadClusterLengths,
+                Sequence<0, 1, 2, 3, 4, 5>, // typename ThreadClusterArrangeOrder,
+                FloatC,                     // typename SrcData,
+                FloatC,                     // typename DstData,
+                decltype(c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
+                decltype(c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
+                Sequence<0, 1, 2, 3, 4, 5>, // typename DimAccessOrder,
+                5,                          // index_t VectorDim,
+                NScalarPerVector_CCopy,     // index_t ScalarPerVector,
+                true,  // bool ThreadTransferSrcResetCoordinateAfterRun,
+                false> // bool ThreadTransferDstResetCoordinateAfterRun>
+                {c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                 make_multi_index(0, 0, 0, 0, 0, 0),
+                 c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                 make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
+                 c_element_op};
+#endif
 
             constexpr auto mrepeat_forward_step =
                 make_multi_index(0, MRepeatPerShuffle_CCopy, 0, 0, 0, 0);

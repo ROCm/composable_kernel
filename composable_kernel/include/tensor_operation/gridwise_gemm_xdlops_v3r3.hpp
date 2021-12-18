@@ -688,7 +688,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
                                        n_thread_data_on_block_idx[I2]),
                       ck::tensor_operation::element_wise::PassThrough{}};
 
-            auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v4r3<
+            auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r3<
                 BlockSize,                                       // index_t BlockSize,
                 ck::tensor_operation::element_wise::PassThrough, // SrcElementwiseOperation,
                 CElementwiseOperation,                           // DstElementwiseOperation,
