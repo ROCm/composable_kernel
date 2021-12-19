@@ -259,11 +259,10 @@ struct ThreadwiseTensorSliceTransfer_v6r1
 
             forward_sweep_(I0) = true;
 
-            // TODO: BUG: should start at 1
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_access_lengths[I0] - 1;
 
-                static_for<0, i, 1>{}([&](auto j) {
+                static_for<1, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
                 });
 
