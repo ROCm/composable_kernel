@@ -18,7 +18,6 @@ template <index_t BlockSize,
           typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
           typename BlockSliceLengths,
-          typename ThreadSliceLengths,
           typename ThreadClusterLengths,
           typename ThreadClusterArrangeOrder,
           typename SrcData,
@@ -39,6 +38,8 @@ struct BlockwiseTensorSliceTransfer_v4r1
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
 
+    static constexpr auto thread_slice_lengths = BlockSliceLengths{} / ThreadClusterLengths{};
+
     using Index = MultiIndex<nDim>;
 
     __device__ constexpr BlockwiseTensorSliceTransfer_v4r1(
@@ -58,14 +59,13 @@ struct BlockwiseTensorSliceTransfer_v4r1
     {
         static_assert(nDim == remove_reference_t<remove_cv_t<SrcDesc>>::GetNumOfDimension() &&
                           nDim == remove_reference_t<remove_cv_t<DstDesc>>::GetNumOfDimension() &&
-                          nDim == BlockSliceLengths::Size() && nDim == ThreadSliceLengths::Size() &&
                           nDim == ThreadClusterLengths::Size() &&
                           nDim == ThreadClusterArrangeOrder::Size() &&
                           nDim == SrcDimAccessOrder::Size() && nDim == DstDimAccessOrder::Size(),
                       "wrong! nDim not consistent");
 
         static_assert(
-            is_same<BlockSliceLengths, decltype(ThreadSliceLengths{} * ThreadClusterLengths{})>{},
+            is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
             "wrong! threads should be mapped to cover entire slicing window");
 
         static_assert(BlockSize >= thread_cluster_desc_.GetElementSize(),
@@ -77,7 +77,7 @@ struct BlockwiseTensorSliceTransfer_v4r1
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
                 make_multi_index(get_thread_local_1d_id()));
 
-            const auto thread_data_idx_begin = thread_cluster_idx * ThreadSliceLengths{};
+            const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
 
             threadwise_transfer_.SetSrcSliceOrigin(src_desc,
                                                    src_block_slice_origin + thread_data_idx_begin);
@@ -165,7 +165,7 @@ struct BlockwiseTensorSliceTransfer_v4r1
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
-        ThreadwiseTensorSliceTransfer_v3r1<ThreadSliceLengths,
+        ThreadwiseTensorSliceTransfer_v3r1<decltype(thread_slice_lengths),
                                            SrcElementwiseOperation,
                                            DstElementwiseOperation,
                                            DstInMemOp,
