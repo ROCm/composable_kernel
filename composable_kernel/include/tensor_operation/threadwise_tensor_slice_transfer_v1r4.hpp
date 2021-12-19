@@ -116,9 +116,6 @@ struct ThreadwiseTensorSliceTransfer_v1r4
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto dst_scalar_step_in_vector =
-            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
-
         constexpr auto access_lengths = SliceLengths{} / dst_scalar_per_access;
 
         constexpr auto dim_access_order = DimAccessOrder{};
