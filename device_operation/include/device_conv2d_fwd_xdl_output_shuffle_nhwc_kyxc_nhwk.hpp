@@ -252,7 +252,6 @@ struct DeviceConv2dFwdXdl_Output_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N
         Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
         7,                                // CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
-        false, // CAccessOrderMRepeatNRepeat,
         ABlockLdsAddExtraM,
         BBlockLdsAddExtraN>;
 

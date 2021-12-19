@@ -4,7 +4,6 @@
 namespace ck {
 namespace tensor_operation {
 namespace element_wise {
-namespace binary {
 
 struct PassThrough_v2
 {
@@ -15,7 +14,25 @@ struct PassThrough_v2
     }
 };
 
-} // namespace binary
+struct AddReluAdd_v2
+{
+    template <typename T>
+    __host__ constexpr void operator()(T& y, const T& x0, const T& x1, const T& x2) const
+    {
+        T a = x0 + x1;
+        T b = a > 0 ? a : 0;
+        y   = b + x2;
+    }
+
+    template <typename T>
+    __device__ constexpr void operator()(T& y, const T& x0, const T& x1, const T& x2) const
+    {
+        T a = x0 + x1;
+        T b = a > 0 ? a : 0;
+        y   = b + x2;
+    }
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck

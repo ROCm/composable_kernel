@@ -271,20 +271,8 @@ struct
         Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
         7,                                // CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
-        false, // CAccessOrderMRepeatNRepeat,
         ABlockLdsAddExtraM,
         BBlockLdsAddExtraN>;
-
-    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-
-    using C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C0GridDesc_M_N{}));
-
-    using C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C1GridDesc_M_N{}));
-
-    using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     // Argument
     struct Argument : public BaseArgument
@@ -319,9 +307,9 @@ struct
               c_grid_desc_m_n_{},
               c0_grid_desc_m_n_{},
               c1_grid_desc_m_n_{},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_{},
+              c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_{},
+              c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -350,14 +338,20 @@ struct
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
             {
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+                c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_ =
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl(
+                            c_grid_desc_m_n_);
 
-                c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c0_grid_desc_m_n_);
+                c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_ =
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl(
+                            c0_grid_desc_m_n_);
 
-                c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c1_grid_desc_m_n_);
+                c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_ =
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl(
+                            c1_grid_desc_m_n_);
 
                 block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
@@ -374,10 +368,16 @@ struct
         CGridDesc_M_N c_grid_desc_m_n_;
         C0GridDesc_M_N c0_grid_desc_m_n_;
         C1GridDesc_M_N c1_grid_desc_m_n_;
-        CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::
+            CGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl
+                c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_;
+        typename GridwiseGemm::
+            C0GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl
+                c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_;
+        typename GridwiseGemm::
+            C1GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl
+                c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_;
+        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         InElementwiseOperation in_element_op_;
@@ -437,34 +437,41 @@ struct
                     CDataType,
                     remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceOp::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceOp::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            CGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            C0GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            C1GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceOp::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     true>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.p_c0_grid_,
-                                                  arg.p_c1_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.in_element_op_,
-                                                  arg.wei_element_op_,
-                                                  arg.out_element_op_,
-                                                  arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    kernel,
+                    nrepeat,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.p_c0_grid_,
+                    arg.p_c1_grid_,
+                    arg.a_grid_desc_k0_m_k1_,
+                    arg.b_grid_desc_k0_n_k1_,
+                    arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+                    arg.c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+                    arg.c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+                    arg.in_element_op_,
+                    arg.wei_element_op_,
+                    arg.out_element_op_,
+                    arg.block_2_ctile_map_);
             }
             else
             {
@@ -474,34 +481,41 @@ struct
                     CDataType,
                     remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceOp::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceOp::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceOp::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            CGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            C0GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            C1GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<DeviceOp::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.p_c0_grid_,
-                                                  arg.p_c1_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.in_element_op_,
-                                                  arg.wei_element_op_,
-                                                  arg.out_element_op_,
-                                                  arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    kernel,
+                    nrepeat,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.p_c0_grid_,
+                    arg.p_c1_grid_,
+                    arg.a_grid_desc_k0_m_k1_,
+                    arg.b_grid_desc_k0_n_k1_,
+                    arg.c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+                    arg.c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+                    arg.c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl_,
+                    arg.in_element_op_,
+                    arg.wei_element_op_,
+                    arg.out_element_op_,
+                    arg.block_2_ctile_map_);
             }
 
             return ave_time;

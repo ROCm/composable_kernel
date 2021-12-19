@@ -6,7 +6,8 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_xdlops.hpp"
-#include "blockwise_tensor_slice_transfer_v4r3.hpp"
+#include "blockwise_tensor_slice_transfer_v4r1.hpp"
+#include "blockwise_tensor_slice_transfer_v6r3.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
@@ -28,10 +29,12 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v3r1(
+        kernel_gemm_xdlops_v3r3(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
+            const FloatC* __restrict__ p_c0_grid,
+            const FloatC* __restrict__ p_c1_grid,
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const CGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl
@@ -105,7 +108,6 @@ template <index_t BlockSize,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector,
-          bool CAccessOrderMRepeatNRepeat,
           bool ABlockLdsExtraM,
           bool BBlockLdsExtraN>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
@@ -226,9 +228,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
         return has_main_k0_block_loop;
     }
 
+    template <typename CGridDesc_M_N_>
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl(
-        const CGridDesc_M_N& c_grid_desc_m_n)
+        const CGridDesc_M_N_& c_grid_desc_m_n)
     {
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);
@@ -309,6 +312,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
         FloatC* __restrict__ p_c_grid,
+        const FloatC* __restrict__ p_c0_grid,
+        const FloatC* __restrict__ p_c1_grid,
         void* __restrict__ p_shared,
         const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
         const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
@@ -316,7 +321,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
             c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
         const C0GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl&
             c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-        const C0GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl&
+        const C1GridDescriptor_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl&
             c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
@@ -388,7 +393,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r3<BlockSize,
+            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
@@ -419,7 +424,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r3<BlockSize,
+            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
@@ -689,10 +694,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
                       ck::tensor_operation::element_wise::PassThrough{}};
 
             auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r3<
-                BlockSize,                                       // index_t BlockSize,
-                ck::tensor_operation::element_wise::PassThrough, // SrcElementwiseOperation,
-                CElementwiseOperation,                           // DstElementwiseOperation,
-                CGlobalMemoryDataOperation,                      // DstInMemOp,
+                BlockSize,                  // index_t BlockSize,
+                CElementwiseOperation,      // ElementwiseOperation,
+                CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
                          MRepeatPerShuffle_CCopy,
                          MPerBlock_CCopy,
@@ -712,28 +716,28 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
                          NRepeatPerThread_CCopy,
                          NThread_CCopy>,    // ThreadClusterLengths,
                 Sequence<0, 1, 2, 3, 4, 5>, // typename ThreadClusterArrangeOrder,
-                FloatC,                     // typename SrcData,
+                FloatC,                     // typename Src0Data,
+                FloatC,                     // typename Src1Data,
+                FloatC,                     // typename Src2Data,
                 FloatC,                     // typename DstData,
                 decltype(c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
-                decltype(c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
                 decltype(c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
                 decltype(c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
-                Sequence<0, 1, 2, 3, 4, 5>, // typename SrcDimAccessOrder,
-                Sequence<0, 1, 2, 3, 4, 5>, // typename DstDimAccessOrder,
-                5,                          // index_t SrcVectorDim,
-                5,                          // index_t DstVectorDim,
-                NScalarPerVector_CCopy,     // index_t SrcScalarPerVector,
-                NScalarPerVector_CCopy,     // index_t DstScalarPerVector,
-                1,                          // index_t SrcScalarStrideInVector,
-                1,                          // index_t DstScalarStrideInVector,
-                true,                       // bool ThreadTransferSrcResetCoordinateAfterRun,
+                decltype(c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
+                Sequence<0, 1, 2, 3, 4, 5>, // typename DimAccessOrder,
+                5,                          // index_t VectorDim,
+                NScalarPerVector_CCopy,     // index_t ScalarPerVector,
+                true,                       // bool ThreadTransferSrc0ResetCoordinateAfterRun,
+                false,                      // bool ThreadTransferSrc1ResetCoordinateAfterRun,
+                false,                      // bool ThreadTransferSrc2ResetCoordinateAfterRun,
                 false>                      // bool ThreadTransferDstResetCoordinateAfterRun>
                 {c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                  make_multi_index(0, 0, 0, 0, 0, 0),
-                 ck::tensor_operation::element_wise::PassThrough{},
-                 c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                  c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                 make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
                  c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                 make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
+                 c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                  make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
                  c_element_op};
 
@@ -775,27 +779,41 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
                     c_block_copy_lds_to_global.Run(
                         c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                         c_block_buf,
-                        c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                         c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                        c0_grid_buf,
                         c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                        c1_grid_buf,
+                        c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                         c_grid_buf);
 
                     // move on nrepeat dimension
                     if constexpr(nrepeat_forward_sweep &&
                                  (nrepeat < NRepeat - NRepeatPerShuffle_CCopy))
                     {
+                        c_block_copy_lds_to_global.MoveSrc1SliceWindow(
+                            c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                            nrepeat_forward_step);
+
+                        c_block_copy_lds_to_global.MoveSrc2SliceWindow(
+                            c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                            nrepeat_forward_step);
+
                         c_block_copy_lds_to_global.MoveDstSliceWindow(
                             c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                            c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                            c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                             nrepeat_forward_step);
                     }
                     else if constexpr((!nrepeat_forward_sweep) && (nrepeat > 0))
                     {
+                        c_block_copy_lds_to_global.MoveSrc1SliceWindow(
+                            c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                            nrepeat_backward_step);
+
+                        c_block_copy_lds_to_global.MoveSrc2SliceWindow(
+                            c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                            nrepeat_backward_step);
+
                         c_block_copy_lds_to_global.MoveDstSliceWindow(
                             c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                            c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                            c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                             nrepeat_backward_step);
                     }
                 });
@@ -803,10 +821,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
                 // move on mrepeat dimension
                 if constexpr(mrepeat < MRepeat - MRepeatPerShuffle_CCopy)
                 {
+                    c_block_copy_lds_to_global.MoveSrc1SliceWindow(
+                        c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                        mrepeat_forward_step);
+
+                    c_block_copy_lds_to_global.MoveSrc2SliceWindow(
+                        c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
+                        mrepeat_forward_step);
+
                     c_block_copy_lds_to_global.MoveDstSliceWindow(
                         c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                        c0_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                        c1_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                         mrepeat_forward_step);
                 }
             });

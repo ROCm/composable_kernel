@@ -94,7 +94,6 @@ template <index_t BlockSize,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector,
-          bool CAccessOrderMRepeatNRepeat,
           bool ABlockLdsExtraM,
           bool BBlockLdsExtraN>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1

@@ -30,8 +30,7 @@ template <typename SrcData,
           index_t ScalarPerVector,
           InMemoryDataOperationEnum_t DstInMemOp,
           bool SrcResetCoordinateAfterRun,
-          bool DstResetCoordinateAfterRun,
-          typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
+          bool DstResetCoordinateAfterRun>
 struct ThreadwiseTensorSliceTransfer_v6r1
 {
     static constexpr index_t nDim = SliceLengths::Size();
@@ -85,55 +84,41 @@ struct ThreadwiseTensorSliceTransfer_v6r1
         constexpr auto ordered_access_lengths =
             container_reorder_given_new2old(access_lengths, dim_access_order);
 
+        auto make_forward_steps = [&](auto desc) {
+            return generate_tuple(
+                [&](auto i) {
+                    Index forward_step_idx;
+
+                    static_for<0, nDim, 1>{}([&](auto j) {
+                        forward_step_idx(j) = (i.value == j.value) ? scalar_per_access[i] : 0;
+                    });
+
+                    return make_tensor_coordinate_step(desc, forward_step_idx);
+                },
+                Number<nDim>{});
+        };
+
+        auto make_backward_steps = [&](auto desc) {
+            return generate_tuple(
+                [&](auto i) {
+                    Index backward_step_idx;
+
+                    static_for<0, nDim, 1>{}([&](auto j) {
+                        backward_step_idx(j) = (i.value == j.value) ? -scalar_per_access[i] : 0;
+                    });
+
+                    return make_tensor_coordinate_step(desc, backward_step_idx);
+                },
+                Number<nDim>{});
+        };
+
         // make forward steps
-        const auto src_forward_steps = generate_tuple(
-            [&](auto i) {
-                Index forward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(src_desc, forward_step_idx);
-            },
-            Number<nDim>{});
-
-        const auto dst_forward_steps = generate_tuple(
-            [&](auto i) {
-                Index forward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(dst_desc, forward_step_idx);
-            },
-            Number<nDim>{});
+        const auto src_forward_steps = make_forward_steps(src_desc);
+        const auto dst_forward_steps = make_forward_steps(dst_desc);
 
         // make backward steps
-        const auto src_backward_steps = generate_tuple(
-            [&](auto i) {
-                Index backward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(src_desc, backward_step_idx);
-            },
-            Number<nDim>{});
-
-        const auto dst_backward_steps = generate_tuple(
-            [&](auto i) {
-                Index backward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(dst_desc, backward_step_idx);
-            },
-            Number<nDim>{});
+        const auto src_backward_steps = make_backward_steps(src_desc);
+        const auto dst_backward_steps = make_backward_steps(dst_desc);
 
         // loop over slice window
         static_ford<decltype(ordered_access_lengths)>{}([&](auto ordered_access_idx) {
@@ -240,7 +225,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1
         if constexpr(SrcResetCoordinateAfterRun)
         {
             const auto src_reset_step =
-                make_tensor_coordinate_step(src_desc, GetSrcCoordinateResetStep());
+                make_tensor_coordinate_step(src_desc, GetCoordinateResetStep());
 
             move_tensor_coordinate(src_desc, src_coord_, src_reset_step);
         }
@@ -248,13 +233,13 @@ struct ThreadwiseTensorSliceTransfer_v6r1
         if constexpr(DstResetCoordinateAfterRun)
         {
             const auto dst_reset_step =
-                make_tensor_coordinate_step(dst_desc, GetDstCoordinateResetStep());
+                make_tensor_coordinate_step(dst_desc, GetCoordinateResetStep());
 
             move_tensor_coordinate(dst_desc, dst_coord_, dst_reset_step);
         }
     }
 
-    __device__ static constexpr auto GetSrcCoordinateResetStep()
+    __device__ static constexpr auto GetCoordinateResetStep()
     {
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
@@ -279,64 +264,6 @@ struct ThreadwiseTensorSliceTransfer_v6r1
                 index_t tmp = ordered_access_lengths[I0] - 1;
 
                 static_for<0, i, 1>{}([&](auto j) {
-                    tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
-                });
-
-                forward_sweep_(i) = tmp % 2 == 0;
-            });
-
-            return forward_sweep_;
-        }();
-
-        // calculate src data index after last iteration in RunRead(), if it has not being reset by
-        // RunRead()
-        constexpr auto data_idx = [&]() {
-            Index ordered_idx;
-
-            static_for<0, nDim, 1>{}([&](auto i) {
-                ordered_idx(i) = forward_sweep[i] ? ordered_access_lengths[i] - 1 : 0;
-            });
-
-            return container_reorder_given_old2new(ordered_idx, dim_access_order) *
-                   scalar_per_access;
-        }();
-
-        //
-        constexpr auto reset_data_step = [&]() {
-            Index reset_data_step_;
-
-            static_for<0, nDim, 1>{}([&](auto i) { reset_data_step_(i) = -data_idx[i]; });
-
-            return reset_data_step_;
-        }();
-
-        return reset_data_step;
-    }
-
-    __device__ static constexpr auto GetDstCoordinateResetStep()
-    {
-        // scalar per access on each dim
-        // TODO: don't use lambda_scalar_per_access
-        constexpr auto scalar_per_access = generate_sequence(
-            detail::lambda_scalar_per_access<VectorDim, ScalarPerVector>{}, Number<nDim>{});
-
-        constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
-
-        constexpr auto dim_access_order = DimAccessOrder{};
-
-        constexpr auto ordered_access_lengths =
-            container_reorder_given_new2old(access_lengths, dim_access_order);
-
-        // judge move forward or move backward during the last iteration
-        constexpr auto forward_sweep = [&]() {
-            StaticallyIndexedArray<bool, nDim> forward_sweep_;
-
-            forward_sweep_(I0) = true;
-
-            static_for<1, nDim, 1>{}([&](auto i) {
-                index_t tmp = ordered_access_lengths[I0] - 1;
-
-                static_for<1, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
                 });
 
@@ -375,9 +302,9 @@ struct ThreadwiseTensorSliceTransfer_v6r1
                                        const Index& src_slice_origin_step_idx)
     {
         // if src coord was not reset by RunRead(), then need to adjust the step here
-        const auto adjusted_step_idx =
-            SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
-                                       : src_slice_origin_step_idx + GetSrcCoordinateResetStep();
+        const auto adjusted_step_idx = SrcResetCoordinateAfterRun
+                                           ? src_slice_origin_step_idx
+                                           : src_slice_origin_step_idx + GetCoordinateResetStep();
 
         // is it OK to construct a new step every time?
         const auto adjusted_step = make_tensor_coordinate_step(src_desc, adjusted_step_idx);
@@ -390,9 +317,9 @@ struct ThreadwiseTensorSliceTransfer_v6r1
                                        const Index& dst_slice_origin_step_idx)
     {
         // if dst coord was not reset by Run(), then need to adjust the step here
-        const auto adjusted_step_idx =
-            DstResetCoordinateAfterRun ? dst_slice_origin_step_idx
-                                       : dst_slice_origin_step_idx + GetDstCoordinateResetStep();
+        const auto adjusted_step_idx = DstResetCoordinateAfterRun
+                                           ? dst_slice_origin_step_idx
+                                           : dst_slice_origin_step_idx + GetCoordinateResetStep();
 
         // is it OK to construct a new step every time?
         const auto adjusted_step = make_tensor_coordinate_step(dst_desc, adjusted_step_idx);
