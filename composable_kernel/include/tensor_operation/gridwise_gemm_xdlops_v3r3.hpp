@@ -97,6 +97,7 @@ template <index_t BlockSize,
           index_t ABlockTransferSrcScalarPerVector,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
+          bool ABlockLdsExtraM,
           typename BBlockTransferThreadSliceLengths_K0_N_K1,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
@@ -105,11 +106,14 @@ template <index_t BlockSize,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
-          typename CThreadTransferSrcDstAccessOrder,
-          index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector,
-          bool ABlockLdsExtraM,
-          bool BBlockLdsExtraN>
+          bool BBlockLdsExtraN,
+          index_t MRepeatPerShuffle_CCopy,
+          index_t NRepeatPerShuffle_CCopy,
+          index_t MRepeatThread_CCopy,
+          index_t MThread_CCopy,
+          index_t NRepeatThread_CCopy,
+          index_t NThread_CCopy,
+          index_t NScalarPerVector_CCopy>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
 {
     static constexpr auto I0 = Number<0>{};
@@ -537,7 +541,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
 
         // shuffle and write out
         {
-#if 1
+#if 0
             // TODO: make it tunable
             constexpr index_t MRepeatPerShuffle_CCopy = 1;
             constexpr index_t NRepeatPerShuffle_CCopy = 1;
@@ -550,7 +554,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
 
             // vector length for blockwise copy from LDS to global
             constexpr index_t NScalarPerVector_CCopy = 8;
-#else
+#elif 0
             // TODO: make it tunable
             constexpr index_t MRepeatPerShuffle_CCopy = 1;
             constexpr index_t NRepeatPerShuffle_CCopy = 2;

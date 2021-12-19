@@ -41,6 +41,7 @@ template <typename InDataType,
           ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
+          bool ABlockLdsAddExtraM,
           typename BBlockTransferThreadSliceLengths_K0_N_K1,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
@@ -48,10 +49,14 @@ template <typename InDataType,
           ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
-          ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
-          bool ABlockLdsAddExtraM,
-          bool BBlockLdsAddExtraN>
+          bool BBlockLdsAddExtraN,
+          index_t MRepeatPerShuffle_CCopy,
+          index_t NRepeatPerShuffle_CCopy,
+          index_t MRepeatThread_CCopy,
+          index_t MThread_CCopy,
+          index_t NRepeatThread_CCopy,
+          index_t NThread_CCopy,
+          index_t NScalarPerVector_CCopy>
 struct
     DeviceConv2dFwdXdl_Output_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     : public DeviceConvFwdBiasActivationAdd<InElementwiseOperation,
@@ -260,6 +265,7 @@ struct
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
+        ABlockLdsAddExtraM,
         BBlockTransferThreadSliceLengths_K0_N_K1,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         Sequence<1, 0, 2>, // BBlockTransferThreadClusterArrangeOrder,
@@ -267,12 +273,15 @@ struct
         2,                 // BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
-        false,                            // BThreadTransferSrcResetCoordinateAfterRun,
-        Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
-        7,                                // CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector,
-        ABlockLdsAddExtraM,
-        BBlockLdsAddExtraN>;
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockLdsAddExtraN,
+        MRepeatPerShuffle_CCopy,
+        NRepeatPerShuffle_CCopy,
+        MRepeatThread_CCopy,
+        MThread_CCopy,
+        NRepeatThread_CCopy,
+        NThread_CCopy,
+        NScalarPerVector_CCopy>;
 
     // Argument
     struct Argument : public BaseArgument

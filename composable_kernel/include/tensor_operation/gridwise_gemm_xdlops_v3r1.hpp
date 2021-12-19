@@ -83,6 +83,7 @@ template <index_t BlockSize,
           index_t ABlockTransferSrcScalarPerVector,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
+          bool ABlockLdsExtraM,
           typename BBlockTransferThreadSliceLengths_K0_N_K1,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
@@ -91,11 +92,14 @@ template <index_t BlockSize,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
-          typename CThreadTransferSrcDstAccessOrder,
-          index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector,
-          bool ABlockLdsExtraM,
-          bool BBlockLdsExtraN>
+          bool BBlockLdsExtraN,
+          index_t MRepeatPerShuffle_CCopy,
+          index_t NRepeatPerShuffle_CCopy,
+          index_t MRepeatThread_CCopy,
+          index_t MThread_CCopy,
+          index_t NRepeatThread_CCopy,
+          index_t NThread_CCopy,
+          index_t NScalarPerVector_CCopy>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 {
     static constexpr auto I0 = Number<0>{};
@@ -498,7 +502,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
         // shuffle and write out
         {
-#if 1
+#if 0
             // TODO: make it tunable
             constexpr index_t MRepeatPerShuffle_CCopy = 1;
             constexpr index_t NRepeatPerShuffle_CCopy = 1;
@@ -511,7 +515,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
             // vector length for blockwise copy from LDS to global
             constexpr index_t NScalarPerVector_CCopy = 8;
-#else
+#elif 0
             // TODO: make it tunable
             constexpr index_t MRepeatPerShuffle_CCopy = 1;
             constexpr index_t NRepeatPerShuffle_CCopy = 2;
@@ -654,53 +658,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                        n_thread_data_on_block_idx[I2]),
                       ck::tensor_operation::element_wise::PassThrough{}};
 
-#if 0
-            auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v4r1<
-                BlockSize,                                       // index_t BlockSize,
-                ck::tensor_operation::element_wise::PassThrough, // SrcElementwiseOperation,
-                CElementwiseOperation,                           // DstElementwiseOperation,
-                CGlobalMemoryDataOperation,                      // DstInMemOp,
-                Sequence<1,
-                         MRepeatPerShuffle_CCopy,
-                         MPerBlock_CCopy,
-                         1,
-                         NRepeatPerShuffle_CCopy,
-                         NPerBlock_CCopy>, // BlockSliceLengths,
-                Sequence<1,
-                         MRepeatPerShuffle_CCopy,
-                         MPerThread_CCopy,
-                         1,
-                         NRepeatPerShuffle_CCopy,
-                         NPerThread_CCopy>, // ThreadSliceLengths,
-                Sequence<1,
-                         MRepeatPerThread_CCopy,
-                         MThread_CCopy,
-                         1,
-                         NRepeatPerThread_CCopy,
-                         NThread_CCopy>,    // ThreadClusterLengths,
-                Sequence<0, 1, 2, 3, 4, 5>, // typename ThreadClusterArrangeOrder,
-                FloatC,                     // typename SrcData,
-                FloatC,                     // typename DstData,
-                decltype(c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
-                decltype(c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl),
-                Sequence<0, 1, 2, 3, 4, 5>, // typename SrcDimAccessOrder,
-                Sequence<0, 1, 2, 3, 4, 5>, // typename DstDimAccessOrder,
-                5,                          // index_t SrcVectorDim,
-                5,                          // index_t DstVectorDim,
-                NScalarPerVector_CCopy,     // index_t SrcScalarPerVector,
-                NScalarPerVector_CCopy,     // index_t DstScalarPerVector,
-                1,                          // index_t SrcScalarStrideInVector,
-                1,                          // index_t DstScalarStrideInVector,
-                true,                       // bool ThreadTransferSrcResetCoordinateAfterRun,
-                false>                      // bool ThreadTransferDstResetCoordinateAfterRun>
-                {c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                 make_multi_index(0, 0, 0, 0, 0, 0),
-                 ck::tensor_operation::element_wise::PassThrough{},
-                 c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
-                 make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
-                 c_element_op};
-#else
-            auto c_block_copy_lds_to_global          = BlockwiseTensorSliceTransfer_v6r1<
+            auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r1<
                 BlockSize,                  // index_t BlockSize,
                 CElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
@@ -730,14 +688,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                 Sequence<0, 1, 2, 3, 4, 5>, // typename DimAccessOrder,
                 5,                          // index_t VectorDim,
                 NScalarPerVector_CCopy,     // index_t ScalarPerVector,
-                true,  // bool ThreadTransferSrcResetCoordinateAfterRun,
-                false> // bool ThreadTransferDstResetCoordinateAfterRun>
+                true,                       // bool ThreadTransferSrcResetCoordinateAfterRun,
+                false>                      // bool ThreadTransferDstResetCoordinateAfterRun>
                 {c_block_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                  make_multi_index(0, 0, 0, 0, 0, 0),
                  c_grid_desc_mblock_mrepeat_mwavemperxdl_nblock_nrepeat_nwavenperxdl,
                  make_multi_index(block_work_idx[I0], 0, 0, block_work_idx[I1], 0, 0),
                  c_element_op};
-#endif
 
             constexpr auto mrepeat_forward_step =
                 make_multi_index(0, MRepeatPerShuffle_CCopy, 0, 0, 0, 0);
