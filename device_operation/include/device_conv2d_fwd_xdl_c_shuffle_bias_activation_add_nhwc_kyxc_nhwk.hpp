@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV2D_FWD_XDL_OUTPUT_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV2D_FWD_XDL_OUTPUT_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
+#ifndef DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
+#define DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
 
 #include <iostream>
 #include <sstream>
@@ -54,13 +54,13 @@ template <
     typename CBlockTransferClusterLengths_MBlock_MRepeat_MWaveMPerXdl_NBlock_NRepeat_NWaveNPerXdl,
     index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
 struct
-    DeviceConv2dFwdXdl_Output_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
+    DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     : public DeviceConvFwdBiasActivationAdd<InElementwiseOperation,
                                             WeiElementwiseOperation,
                                             OutElementwiseOperation>
 {
     using DeviceOp =
-        DeviceConv2dFwdXdl_Output_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -642,7 +642,7 @@ struct
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConv2dFwdXdl_Output_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
+        str << "DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

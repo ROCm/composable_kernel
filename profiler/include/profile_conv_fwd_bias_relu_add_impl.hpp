@@ -19,7 +19,10 @@ using DeviceConvFwdBiasReluAddPtr =
                                       ck::tensor_operation::element_wise::PassThrough,
                                       ck::tensor_operation::element_wise::AddReluAdd>;
 
-void add_device_conv2d_fwd_bias_relu_add_xdl_nhwc_kyxc_nhwk_fp16_instances(
+void add_device_conv2d_fwd_bias_relu_xdl_nhwc_kyxc_nhwk_fp16_instances(
+    std::vector<DeviceConvFwdBiasReluAddPtr>&);
+
+void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdBiasReluAddPtr>&);
 
 } // namespace device_conv2d_fwd_bias_activation_add_instance
@@ -208,7 +211,10 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
                  ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
     {
         ck::tensor_operation::device::device_conv2d_fwd_bias_activation_add_instance::
-            add_device_conv2d_fwd_bias_relu_add_xdl_nhwc_kyxc_nhwk_fp16_instances(op_ptrs);
+            add_device_conv2d_fwd_bias_relu_xdl_nhwc_kyxc_nhwk_fp16_instances(op_ptrs);
+
+        ck::tensor_operation::device::device_conv2d_fwd_bias_activation_add_instance::
+            add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
     }
 
     if(op_ptrs.size() <= 0)

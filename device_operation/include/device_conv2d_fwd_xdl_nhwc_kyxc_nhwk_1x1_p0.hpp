@@ -39,16 +39,16 @@ template <typename InDataType,
           ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
+          bool ABlockLdsAddExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
           ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
+          bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
-          bool ABlockLdsAddExtraM,
-          bool BBlockLdsAddExtraN>
+          ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_P0
     : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
@@ -194,19 +194,18 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K_1x1_P0
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
+        ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         Sequence<1, 0, 2>, // BBlockTransferThreadClusterArrangeOrder,
         Sequence<1, 0, 2>, // BBlockTransferSrcAccessOrder,
         2,                 // BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
-        false,                            // BThreadTransferSrcResetCoordinateAfterRun,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockLdsAddExtraN,
         Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
         7,                                // CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector,
-        false, // CAccessOrderMRepeatNRepeat,
-        ABlockLdsAddExtraM,
-        BBlockLdsAddExtraN>;
+        CThreadTransferDstScalarPerVector>;
 
     // Argument
     struct Argument : public BaseArgument

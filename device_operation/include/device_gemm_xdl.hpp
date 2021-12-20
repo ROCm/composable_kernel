@@ -41,16 +41,16 @@ template <typename ADataType,
           ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
+          bool ABlockLdsAddExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
           ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
+          bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
-          bool ABlockLdsAddExtraM,
-          bool BBlockLdsAddExtraN>
+          ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceGemmXdl
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -158,19 +158,18 @@ struct DeviceGemmXdl
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
+        ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
-        false,                            // BThreadTransferSrcResetCoordinateAfterRun,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockLdsAddExtraN,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector,
-        false, // CAccessOrderMRepeatNRepeat,
-        ABlockLdsAddExtraM,
-        BBlockLdsAddExtraN>;
+        CThreadTransferDstScalarPerVector>;
 
     // Argument
     struct Argument : public BaseArgument

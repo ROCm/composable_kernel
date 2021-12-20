@@ -94,6 +94,7 @@ template <index_t BlockSize,
           index_t ABlockTransferSrcScalarPerVector,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
+          bool ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
@@ -101,12 +102,10 @@ template <index_t BlockSize,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
+          bool BBlockLdsExtraN,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector,
-          bool CAccessOrderMRepeatNRepeat,
-          bool ABlockLdsExtraM,
-          bool BBlockLdsExtraN>
+          index_t CThreadTransferDstScalarPerVector>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5
 {
     static constexpr auto I0 = Number<0>{};

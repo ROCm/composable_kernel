@@ -11,7 +11,7 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
-#include "device_conv2d_fwd_xdl_output_shuffle_bias_activation_add_nhwc_kyxc_nhwk.hpp"
+#include "device_operation/include/device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation.hpp"
 
 using InDataType  = ck::half_t;
@@ -28,11 +28,11 @@ using OutLayout = ck::tensor_layout::convolution::NHWK;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd_v2;
+using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-// clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
-   DeviceConv2dFwdXdl_Output_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K 
+    DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
+    // clang-format off
 //      |    InData|     WeiData|     OutData|     AccData|          In|         Wei|           Out| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
 //      |      Type|        Type|        Type|        Type| Elementwise| Elementwise|   Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|   MRepeate|   NRepeate| _MBlock_MRepeat_MWaveMPerXdl| ScalarPerVector|
 //      |          |            |            |            |   Operation|   Operation|     Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          | PerShuffle| PerShuffle| _NBlock_NRepeat_NWaveNPerXdl|   _NWaveNPerXdl|
@@ -46,55 +46,48 @@ template <typename TIn,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp>
-void host_reference_calculation(const Tensor<TIn>& in_n_c_hi_wi,
-                                const Tensor<TWei>& wei_k_c_y_x,
-                                Tensor<TOut>& out_n_k_ho_wo,
-                                const Tensor<TOut>& bias_k,
-                                const Tensor<TOut>& resi_n_k_ho_wo,
-                                const std::vector<ck::index_t>& conv_strides,
-                                const std::vector<ck::index_t>& conv_dilations,
-                                const std::vector<ck::index_t>& in_left_pads,
-                                const std::vector<ck::index_t>& /* in_right_pads */,
-                                const InElementOp& in_element_op,
-                                const WeiElementOp& wei_element_op,
-                                const OutElementOp& out_element_op)
+void host_verify(const Tensor<TIn>& in,
+                 const Tensor<TWei>& wei,
+                 Tensor<TOut>& out,
+                 const std::vector<ck::index_t>& conv_strides,
+                 const std::vector<ck::index_t>& conv_dilations,
+                 const std::vector<ck::index_t>& in_left_pads,
+                 const std::vector<ck::index_t>&,
+                 const InElementOp& in_element_op,
+                 const WeiElementOp& wei_element_op,
+                 const OutElementOp& out_element_op)
 {
     auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
         double v = 0;
-        for(int c = 0; c < wei_k_c_y_x.mDesc.GetLengths()[1]; ++c)
+        for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
         {
-            for(int y = 0; y < wei_k_c_y_x.mDesc.GetLengths()[2]; ++y)
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
                 int hi = ho * conv_strides[0] + y * conv_dilations[0] - in_left_pads[0];
-                for(int x = 0; x < wei_k_c_y_x.mDesc.GetLengths()[3]; ++x)
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
                     int wi = wo * conv_strides[1] + x * conv_dilations[1] - in_left_pads[1];
-                    if(hi >= 0 && hi < in_n_c_hi_wi.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in_n_c_hi_wi.mDesc.GetLengths()[3])
+                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
+                       wi < in.mDesc.GetLengths()[3])
                     {
-                        v += in_element_op(static_cast<const double>(in_n_c_hi_wi(n, c, hi, wi))) *
-                             wei_element_op(static_cast<const double>(wei_k_c_y_x(k, c, y, x)));
+                        v += in_element_op(static_cast<const double>(in(n, c, hi, wi))) *
+                             wei_element_op(static_cast<const double>(wei(k, c, y, x)));
                     }
                 }
             }
         }
+        double v2 = out(n, k, ho, wo);
 
-        double v2 = out_n_k_ho_wo(n, k, ho, wo);
+        out_element_op(v2, v);
 
-        out_element_op(v2,
-                       v,
-                       static_cast<const double>(bias_k(k)),
-                       static_cast<const double>(resi_n_k_ho_wo(n, k, ho, wo)));
-
-        out_n_k_ho_wo(n, k, ho, wo) = v2;
+        out(n, k, ho, wo) = v2;
     };
 
     make_ParallelTensorFunctor(f_nchw,
-                               out_n_k_ho_wo.mDesc.GetLengths()[0],
-                               out_n_k_ho_wo.mDesc.GetLengths()[1],
-                               out_n_k_ho_wo.mDesc.GetLengths()[2],
-                               out_n_k_ho_wo.mDesc.GetLengths()[3])(
-        std::thread::hardware_concurrency());
+                               out.mDesc.GetLengths()[0],
+                               out.mDesc.GetLengths()[1],
+                               out.mDesc.GetLengths()[2],
+                               out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
 }
 
 int main(int argc, char* argv[])
@@ -201,18 +194,9 @@ int main(int argc, char* argv[])
     Tensor<OutDataType> out_n_k_ho_wo_device_result(
         f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
-    // bias: assume contiguous 1d vector
-    Tensor<OutDataType> bias_k(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(K)})));
-
-    // residual: assume same layout as output tensor
-    Tensor<OutDataType> resi_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
-
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
     std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo_host_result.mDesc << std::endl;
-    std::cout << "bias_k: " << bias_k.mDesc << std::endl;
-    std::cout << "resi_n_k_ho_wo: " << resi_n_k_ho_wo.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -220,55 +204,45 @@ int main(int argc, char* argv[])
     case 1:
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
-        bias_k.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-        resi_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
-        bias_k.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
-        resi_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) *
                              out_n_k_ho_wo_device_result.mDesc.GetElementSpace());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpace());
-    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_k_ho_wo.mDesc.GetElementSpace());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
-    bias_device_buf.ToDevice(bias_k.mData.data());
-    resi_device_buf.ToDevice(resi_n_k_ho_wo.mData.data());
 
-    auto conv    = DeviceConvFwdInstance{};
-    auto invoker = conv.MakeInvoker();
-    auto argument =
-        conv.MakeArgument(static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
-                          static_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                          static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                          static_cast<const OutDataType*>(bias_device_buf.GetDeviceBuffer()),
-                          static_cast<const OutDataType*>(resi_device_buf.GetDeviceBuffer()),
-                          N,
-                          K,
-                          C,
-                          std::vector<ck::index_t>{{Hi, Wi}},
-                          std::vector<ck::index_t>{{Y, X}},
-                          std::vector<ck::index_t>{{Ho, Wo}},
-                          conv_filter_strides,
-                          conv_filter_dilations,
-                          input_left_pads,
-                          input_right_pads,
-                          InElementOp{},
-                          WeiElementOp{},
-                          OutElementOp{});
+    // do GEMM
+    auto conv     = DeviceConvFwdInstance{};
+    auto invoker  = conv.MakeInvoker();
+    auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                      N,
+                                      K,
+                                      C,
+                                      std::vector<ck::index_t>{{Hi, Wi}},
+                                      std::vector<ck::index_t>{{Y, X}},
+                                      std::vector<ck::index_t>{{Ho, Wo}},
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads,
+                                      InElementOp{},
+                                      WeiElementOp{},
+                                      OutElementOp{});
 
     if(!conv.IsSupportedArgument(argument))
     {
         throw std::runtime_error(
-            "wrong! device operator with the specified compilation parameters does "
-            "not support this problem");
+            "wrong! device_conv with the specified compilation parameters does "
+            "not support this Conv problem");
     }
 
     float ave_time = invoker.Run(argument, nrepeat);
@@ -277,7 +251,6 @@ int main(int argc, char* argv[])
 
     std::size_t num_btype = sizeof(InDataType) * (N * C * Hi * Wi) +
                             sizeof(WeiDataType) * (K * C * Y * X) +
-                            sizeof(OutDataType) * (N * K * Ho * Wo) + sizeof(OutDataType) * (K) +
                             sizeof(OutDataType) * (N * K * Ho * Wo);
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -289,18 +262,16 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_reference_calculation(in_n_c_hi_wi,
-                                   wei_k_c_y_x,
-                                   out_n_k_ho_wo_host_result,
-                                   bias_k,
-                                   resi_n_k_ho_wo,
-                                   conv_filter_strides,
-                                   conv_filter_dilations,
-                                   input_left_pads,
-                                   input_right_pads,
-                                   InElementOp{},
-                                   WeiElementOp{},
-                                   OutElementOp{});
+        host_verify(in_n_c_hi_wi,
+                    wei_k_c_y_x,
+                    out_n_k_ho_wo_host_result,
+                    conv_filter_strides,
+                    conv_filter_dilations,
+                    input_left_pads,
+                    input_right_pads,
+                    InElementOp{},
+                    WeiElementOp{},
+                    OutElementOp{});
 
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
