@@ -13,11 +13,48 @@ struct PassThrough
         y = x;
     }
 
-    // remove this
+    // TODO remove this
     template <typename T>
     __host__ __device__ constexpr T operator()(T v) const
     {
         return v;
+    }
+};
+
+struct AddRelu
+{
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const
+    {
+        T a = x0 + x1;
+        y   = a > 0 ? a : 0;
+    }
+
+    // TODO remove this
+    template <typename T1>
+    __host__ constexpr float operator()(float v0, T1 v1) const
+    {
+        float b = v0 + v1;
+        float c = b > 0 ? b : 0;
+
+        return c;
+    }
+
+    // TODO remove this
+    template <typename T1>
+    __device__ constexpr float operator()(float v0, T1 v1) const
+    {
+#if 0
+        float a = v1 + v0;
+        float b = max(a, float(0));
+
+        return b;
+#else
+        float b = v1 + v0;
+        float c = b > 0 ? b : 0;
+
+        return c;
+#endif
     }
 };
 
@@ -68,34 +105,6 @@ struct AddReluAdd
 namespace ck {
 namespace tensor_operation {
 namespace element_wise {
-
-struct AddRelu
-{
-    template <typename T1>
-    __host__ constexpr float operator()(float v0, T1 v1) const
-    {
-        float b = v0 + v1;
-        float c = b > 0 ? b : 0;
-
-        return c;
-    }
-
-    template <typename T1>
-    __device__ constexpr float operator()(float v0, T1 v1) const
-    {
-#if 0
-        float a = v1 + v0;
-        float b = max(a, float(0));
-
-        return b;
-#else
-        float b = v1 + v0;
-        float c = b > 0 ? b : 0;
-
-        return c;
-#endif
-    }
-};
 
 struct AddLeakyReluAdd
 {

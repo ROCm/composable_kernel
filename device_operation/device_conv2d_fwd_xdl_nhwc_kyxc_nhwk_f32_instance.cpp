@@ -38,7 +38,7 @@ using device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances = std::tuple<
     // clang-format on
     >;
 
-void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_fp32_instances(
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& device_conv_instances)
 {
     using DeviceConvs = device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances;

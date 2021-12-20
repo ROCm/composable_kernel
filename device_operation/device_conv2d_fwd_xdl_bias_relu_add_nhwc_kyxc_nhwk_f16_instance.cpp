@@ -39,7 +39,7 @@ using device_conv2d_fwd_xdl_bias_relu_add_nhwc_kyxc_nhwk_f16_instances = std::tu
     // clang-format on
     >;
 
-void add_device_conv2d_fwd_bias_relu_add_xdl_nhwc_kyxc_nhwk_fp16_instances(
+void add_device_conv2d_fwd_xdl_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instance_container)
 {

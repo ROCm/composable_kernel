@@ -17,7 +17,6 @@ using S = ck::Sequence<Is...>;
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
 using PassThrough_v2 = ck::tensor_operation::element_wise::PassThrough;
 
-// Compilation parameters for in[n, hi, wi, c] * wei[k, y, x, c] = out[n, ho, wo, k]
 using device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances =
     std::tuple<
         // clang-format off
@@ -41,7 +40,7 @@ using device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances =
         // clang-format on
         >;
 
-void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_fp16_instances(
+void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough_v2>>& device_conv_instances)
 {
     using DeviceConvs = device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances;
