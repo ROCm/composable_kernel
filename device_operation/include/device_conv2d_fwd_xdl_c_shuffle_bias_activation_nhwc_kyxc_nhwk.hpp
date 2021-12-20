@@ -26,6 +26,7 @@ template <
     typename InElementwiseOperation,
     typename WeiElementwiseOperation,
     typename OutElementwiseOperation,
+    InMemoryDataOperationEnum_t OutGlobalMemoryDataOperation,
     ck::index_t BlockSize,
     ck::index_t MPerBlock,
     ck::index_t NPerBlock,
@@ -229,7 +230,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        OutGlobalMemoryDataOperation,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,

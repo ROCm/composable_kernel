@@ -152,14 +152,18 @@ void profile_conv_fwd_impl(int do_verification,
         ck::tensor_operation::device::device_conv2d_fwd_instance::
             add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
 
+#if 0 // debug
         ck::tensor_operation::device::device_conv2d_fwd_instance::
             add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_f16_instances(conv_ptrs);
 
         ck::tensor_operation::device::device_conv2d_fwd_instance::
             add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f16_instances(conv_ptrs);
+#endif
 
+#if 1 // debug
         ck::tensor_operation::device::device_conv2d_fwd_instance::
             add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+#endif
     }
 
     if(conv_ptrs.size() <= 0)
