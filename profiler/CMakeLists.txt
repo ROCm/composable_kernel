@@ -48,6 +48,7 @@ install(TARGETS device_conv2d_fwd_instance LIBRARY DESTINATION lib)
 # device_conv2d_fwd_bias_relu_instance
 set(DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE 
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_bias_relu_nhwc_kyxc_nhwk_f16_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_bias_relu_nhwc_kyxc_nhwk_f16_instance.cpp;
 ) 
 
 add_library(device_conv2d_fwd_bias_relu_instance SHARED ${DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE}) 

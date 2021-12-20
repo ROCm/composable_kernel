@@ -28,7 +28,7 @@ using OutLayout = ck::tensor_layout::convolution::NHWK;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd_v2;
+using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd;
 
 // clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
