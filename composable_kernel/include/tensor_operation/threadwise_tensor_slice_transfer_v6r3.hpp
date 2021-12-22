@@ -70,6 +70,8 @@ struct ThreadwiseTensorSliceTransfer_v6r3
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
           element_op_(element_op)
     {
+        static_assert(SliceLengths::At(Number<VectorDim>{}) % ScalarPerVector == 0,
+                      "wrong! cannot evenly divide");
     }
 
     __device__ void SetSrc0SliceOrigin(const Src0Desc& src0_desc,
