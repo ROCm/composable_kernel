@@ -36,11 +36,11 @@ static constexpr auto MemoryAtomicAdd = ck::InMemoryDataOperationEnum_t::AtomicA
 using DeviceConvFwdInstance = ck::tensor_operation::device::
     DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     // clang-format off
-//      |    InData|     WeiData|     OutData|     AccData|          In|         Wei|           Out|             Out| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-//      |      Type|        Type|        Type|        Type| Elementwise| Elementwise|   Elementwise|    GlobalMemory|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|   MRepeate|   NRepeate| _MBlock_MRepeat_MWaveMPerXdl| ScalarPerVector|
-//      |          |            |            |            |   Operation|   Operation|     Operation|   DataOperation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          | PerShuffle| PerShuffle| _NBlock_NRepeat_NWaveNPerXdl|   _NWaveNPerXdl|
-//      |          |            |            |            |            |            |              |                |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |           |           |                             |                |
-        <InDataType, WeiDataType, OutDataType, AccDataType, InElementOp, WeiElementOp, OutElementOp, MemoryAtomicAdd,   256,   128,   256,     4,  8,   32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,          1,          1,         S<1, 1,  8, 1, 1,32>,               2>;
+//      |    InData|     WeiData|     OutData|     AccData|          In|         Wei|           Out|             Out| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
+//      |      Type|        Type|        Type|        Type| Elementwise| Elementwise|   Elementwise|    GlobalMemory|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
+//      |          |            |            |            |   Operation|   Operation|     Operation|   DataOperation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
+//      |          |            |            |            |            |            |              |                |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
+        <InDataType, WeiDataType, OutDataType, AccDataType, InElementOp, WeiElementOp, OutElementOp, MemoryAtomicAdd,   256,   128,   256,     4,  8,   32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,           1,           1,             S<1, 1,  8, 1, 1,32>,               2>;
 // clang-format on
 
 template <typename TIn,
@@ -209,12 +209,6 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
-        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{});
-        out_n_k_ho_wo_host_result.GenerateTensorValue(GeneratorTensor_1<OutDataType>{});
-        bias_k.GenerateTensorValue(GeneratorTensor_1<OutDataType>{});
-        break;
-    case 2:
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         out_n_k_ho_wo_host_result.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
@@ -298,12 +292,5 @@ int main(int argc, char* argv[])
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
         check_error(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result);
-
-        LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi.mData, ",") << std::endl;
-        LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x.mData, ",") << std::endl;
-        LogRangeAsType<float>(std::cout << "out_host  : ", out_n_k_ho_wo_host_result.mData, ",")
-            << std::endl;
-        LogRangeAsType<float>(std::cout << "out_device: ", out_n_k_ho_wo_device_result.mData, ",")
-            << std::endl;
     }
 }
