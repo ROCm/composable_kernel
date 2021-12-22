@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: tensor operation (gemm=GEMM, conv=Convolution)\n");
+        printf("arg1: tensor operation (gemm=GEMM, conv=Convolution, reduce-Reduction)\n");
         return 0;
     }
 }

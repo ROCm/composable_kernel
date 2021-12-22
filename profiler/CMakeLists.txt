@@ -42,9 +42,27 @@ target_compile_features(device_conv_instance PUBLIC)
 set_target_properties(device_conv_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
 install(TARGETS device_conv_instance LIBRARY DESTINATION lib) 
 
+# device_reduce_instance
+set(DEVICE_REDUCE_INSTANCE_SOURCE
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_threadwise.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_blockwise.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_blockwise_second_call.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_multiblock_atomic_add.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_multiblock_two_call.cpp;
+)
+
+add_library(device_reduce_instance SHARED ${DEVICE_REDUCE_INSTANCE_SOURCE})
+target_include_directories(device_reduce_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+target_compile_features(device_reduce_instance PUBLIC)
+set_target_properties(device_reduce_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_reduce_instance LIBRARY DESTINATION lib)
+
 # ck_profiler
 set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp conv_profiler.cpp reduce_profiler.cpp)
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
-target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance device_reduce_instance)
+
+##add_dependencies(ckProfiler device_gemm_instance device_conv_instance device_reduce_instance)
+

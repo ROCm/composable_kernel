@@ -7,13 +7,13 @@ namespace tensor_operation {
 namespace device {
 namespace device_reduce_instance {
 
-template <int rank_, typename toReduceDims_, ReduceTensorOp_t reduceOp_, NanPropagation_t nanOpt_, ReduceTensorIndices_t indicesOpt_> 
+template <int rank, typename toReduceDims, int reduceOp, int nanOpt, int indicesOpt> 
 struct ReduceDescription
 {
     static constexpr int rank_ = rank; 
     static constexpr int reduceOp_ = reduceOp; 
     static constexpr int nanOpt_ = nanOpt; 
-    static constexpr int indicesOpt_; 
+    static constexpr int indicesOpt_ = indicesOpt; 
 
     using toReduceDims_ = toReduceDims; 
 }; 
@@ -42,14 +42,13 @@ using reduce_description_instances = std::tuple<
     ReduceDescription<4, Sequence<0,1,2>, 3, 0, 1>,                        // for MAX
     ReduceDescription<4, Sequence<0>, 3, 0, 1>, 
     ReduceDescription<4, Sequence<0,1,2>, 4, 0, 1>,                        // for AMAX
-    ReduceDescription<4, Sequence<0>, 4, 0, 1>,    
+    ReduceDescription<4, Sequence<0>, 4, 0, 1>    
     >;
 
 template <typename DescriptionType>
-bool description_match(DescriptionType & description, int rank, const std::vector<int>& toReduceDims, ReduceTensorOp_t reduceOp, NanPropagation_t nanOpt, ReduceTensorIndices_t indicesOpt)
+bool description_match(const DescriptionType & description, int rank, const std::vector<int>& toReduceDims, ReduceTensorOp_t reduceOp, NanPropagation_t nanOpt, ReduceTensorIndices_t indicesOpt)
 {
-     if (description.rank_ != rank || description.reduceOp_ != static_cast<int>(reduceOp) || 
-		     description.nanOpt_ != static_cast<int>(nanOpt) || description.indicesOpt_ != static_cast<int>(indicesOpt)) 
+     if ( description.rank_ != rank || description.reduceOp_ != static_cast<int>(reduceOp) || description.nanOpt_ != static_cast<int>(nanOpt) || description.indicesOpt_ != static_cast<int>(indicesOpt) ) 
 	 return(false); 
 
      if (DescriptionType::toReduceDims_::Size() != toReduceDims.size())
@@ -57,42 +56,13 @@ bool description_match(DescriptionType & description, int rank, const std::vecto
 
      bool result = true; 
 
-     ck::static_for<0, DescriptionType::toReduceDims_::Size(), 1>{}( [&](auto i) {
-          if (DescriptionType::toReduceDims{}[i.value] != toReduceDims[i.value])
+     static_for<0, DescriptionType::toReduceDims_::Size(), 1>{}( [&](auto i) {
+          if (DescriptionType::toReduceDims_::At(i) != toReduceDims[i])
 	      result = false; 
      }); 
 
      return(false); 
 }; 
-
-/*
-template <typename dataType> 
-static int maxVectorSizeForType(dataType)
-{
-    return( 16 / sizeof(dataType) ); 
-};
-
-template <typename dataType>
-static int get_dim_max_vector_size(int dimLength, int dimStride)
-{
-    int len  = maxVectorSizeForType(dataType{});
-
-    // not fastest dim
-    if(dimStride != 1)
-        return (1);
-
-    while(len != 1)
-    {
-        if(dimLength % len == 0)
-            break;
-
-        len /= 2;
-    }
-
-    return (len);
-};
-
-*/
 
 } // namespace device_reduce_instance
 } // namespace device
@@ -105,10 +75,10 @@ namespace profiler {
 template <int rank, typename toReduceDims>
 static std::vector<int> get_toReduce_dims()
 {
-    vector<int> resDims;
+    std::vector<int> resDims;
 
     static_for<0, toReduceDims::Size(), 1>{}( [&](auto i) {
-        resDims.push_back(toRediceDims[i]);
+        resDims.push_back(toReduceDims::At(i));
     }); 
 
     return(resDims); 
@@ -117,15 +87,14 @@ static std::vector<int> get_toReduce_dims()
 template <int rank, typename toReduceDims>
 static std::vector<int> get_invariant_dims()
 {
-    vector<int> resDims;
+    std::vector<int> resDims;
     unsigned int incFlag = 0;
 
     static_for<0, toReduceDims::Size(), 1>{}( [&](auto i) {
-        incFlag = incFlag | (0x1 << toRediceDims[i]);
+        incFlag = incFlag | (0x1 << toReduceDims::At(i));
     }); 
 
-    for(int dim = 0; dim < rank; dim++)
-    {
+    for(int dim = 0; dim < rank; dim++) {
         if(incFlag & (0x1 << dim))
             continue;
         resDims.push_back(dim);
@@ -134,7 +103,7 @@ static std::vector<int> get_invariant_dims()
     return(resDims);
 };
 
-static std::vector<int> to_int_vector(std::vector<size_t> & inData)
+static std::vector<int> to_int_vector(const std::vector<size_t> & inData)
 {
     std::vector<int> outData; 
 
@@ -144,10 +113,29 @@ static std::vector<int> to_int_vector(std::vector<size_t> & inData)
     return(outData); 
 }; 
 
+static void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
+{
+    bool has_error  = false;
+    int error_count = 0;
+
+    for(int i = 0; i < ref.mData.size(); ++i) {
+        if(ref.mData[i] != result.mData[i]) {
+            std::cerr << std::endl << "Indices different at position " << i << " (ref: " << ref.mData[i]
+                      << ", result: " << result.mData[i] << ")" << std::endl;
+            has_error = true;
+            error_count++;
+            if(error_count == 20)
+                break;
+        };
+    }
+
+    if(!has_error)
+        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
+}
 
 template <typename inType, typename compType, typename outType, 
-         int rank_, typename toReduceDims_, ReduceTensorOp_t reduceOp_, NanPropagation_t nanOpt_, ReduceTensorIndices_t indicesOpt_, 
-void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int nrepeat, const std::vector<size_t> inLengths, float alpha, float beta)
+         int rank_, typename toReduceDims_, ReduceTensorOp_t reduceOp, NanPropagation_t nanOpt, ReduceTensorIndices_t indicesOpt>
+void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int nrepeat, const std::vector<size_t> & inLengths, float alpha, float beta)
 {
     Tensor<inType> in(inLengths);
 
@@ -172,91 +160,100 @@ void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int
     Tensor<int> out_indices_host(outLengths);
     Tensor<int> out_indices_dev(outLengths);
 
-    auto outStrides = out_dev.mDesc.GetStrides()
+    auto outStrides = out_dev.mDesc.GetStrides();
 
     // used for mapping to a configuraton instance
     int dim0_length = invariantDims.empty()? 1 : inLengths[invariantDims.back()]; 
     int dim0_stride = invariantDims.empty()? 1 : inStrides[invariantDims.back()]; 
     int dim1_length = inLengths[toReduceDims.back()]; 
     int dim1_stride = inStrides[toReduceDims.back()]; 
-    int dim0_total_length = out_dev.mDesc.GetElementSize();
-    int dim1_total_length = in.mDesc.GetElementSize() / dim0_total_length;
+    size_t dim0_total_length = out_dev.mDesc.GetElementSize();
+    size_t dim1_total_length = in.mDesc.GetElementSize() / dim0_total_length;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
-    bool need_indices = ((indicesOpt != 0) && (reduceOp == 2 || reduceOp == 3 || reduceOp == 4));
+    bool need_indices = ((indicesOpt != ReduceTensorIndices_t::NO_INDICES) &&
+		         (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX || reduceOp == ReduceTensorOp_t::AMAX));
 
     if(do_verification)
     {
         switch(init_method)
         {
         case 0:
-            in.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_1<inType>{}, num_thread);
             if(beta != 0.0f)
-                out_host.GenerateTensorValue(GeneratorTensor_1{}, num_thread);
+                out_host.GenerateTensorValue(GeneratorTensor_1<inType>{}, num_thread);
             break;
         case 1:
-            in.GenerateTensorValue(GeneratorTensor_2{-99, 99}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_2<inType>{-99, 99}, num_thread);
             if(beta != 0.0f)
-                out_host.GenerateTensorValue(GeneratorTensor_2{-5, 5}, num_thread);
+                out_host.GenerateTensorValue(GeneratorTensor_2<inType>{-5, 5}, num_thread);
             break;
         default:
-            in.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_2<inType>{1, 5}, num_thread);
             if(beta != 0.0f)
-                out_host.GenerateTensorValue(GeneratorTensor_2{1, 5}, num_thread);
+                out_host.GenerateTensorValue(GeneratorTensor_2<inType>{1, 5}, num_thread);
         }
 
         if(beta != 0.0f)
             for(size_t i = 0; i < out_host.mDesc.GetElementSpace(); i++)
                 out_dev.mData[i] = out_host.mData[i];
-    }
+    };
 
     if(do_verification)
     {
-         ReductionHost<inType, compType, outType> hostReduce(reduceOp_, nanOpt_, indicesOpt_, in.mDesc, out_host.mDesc, invariantDims, toReduceDims);
+         ReductionHost<inType, compType, outType> hostReduce(reduceOp, nanOpt, indicesOpt, in.mDesc, out_host.mDesc, invariantDims, toReduceDims);
 
          hostReduce.Run(alpha, in.mData.data(), beta, out_host.mData.data(), out_indices_host.mData.data());
     }; 
 
     // these buffers are usually provided by the user application
     DeviceMem in_dev_buf(sizeof(inType) * in.mDesc.GetElementSpace());
-    DeviceMem out_dev_buf(sizeof(outType) * out.mDesc.GetElementSpace());
+    DeviceMem out_dev_buf(sizeof(outType) * out_host.mDesc.GetElementSpace());
 
     in_dev_buf.ToDevice(in.mData.data());
 
     if(beta != 0.0f)
-        out_dev_buf.ToDevice(out.mData.data());
+        out_dev_buf.ToDevice(out_host.mData.data());
 
-    size_t indicesSizeInBytes = need_indices ? out.mDesc.GetElementSize() * sizeof(int) : 0;
+    size_t indicesSizeInBytes = need_indices ? out_host.mDesc.GetElementSize() * sizeof(int) : 0;
 
     DeviceMem out_indices_dev_buf(indicesSizeInBytes);
 
-    float best_ave_time   = 0;
+    float best_avg_time   = 0;
     float best_gb_per_sec = 0;
 
-    std::vector<ck::tensor_operation::device::device_reduce_instance::DeviceReducePtr> reduce_ptrs;
-    std::vector<ck::tensor_operation::device::device_reduce_instance::DeviceReducePtr> reduce2_ptrs;
+    using DeviceReduceInstPtr = ck::tensor_operation::device::DeviceReducePtr<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>; 
+    using DeviceReduceInstPtr2 = ck::tensor_operation::device::DeviceReducePtr<compType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>; 
 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_threadwise<inType, compType, outType, rank_, toReduceDims_, reduceOp_, nanOpt_, indicesOpt_>(reduce_ptrs); 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_blockwise<inType, compType, outType, rank_, toReduceDims_, reduceOp_, nanOpt_, indicesOpt_>(reduce_ptrs); 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_multiblock_atomic_add<inType, compType, outType, rank_, toReduceDims_, reduceOp_, nanOpt_, indicesOpt_>(reduce_ptrs); 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_multiblock_two_call<inType, compType, outType, rank_, toReduceDims_, reduceOp_, nanOpt_, indicesOpt_>(reduce_ptrs); 
+    std::vector<DeviceReduceInstPtr> reduce_ptrs;
+    std::vector<DeviceReduceInstPtr2> reduce2_ptrs;
+
+    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_threadwise<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
+    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_blockwise<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
+    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_multiblock_atomic_add<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
+    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_multiblock_two_call<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
 
     // used for secondary reduction
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_blockwise<compType, compType, outType, rank_, toReduceDims_, reduceOp_, nanOpt_, indicesOpt_>(reduce2_ptrs); 
+    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_blockwise_second_call<compType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce2_ptrs); 
 
     if(reduce_ptrs.empty())
     {
         throw std::runtime_error("Wrong! No device REDUCE instance found");
-    }
+    };
 
     for(auto& reduce_ptr : reduce_ptrs) 
     {
-         auto wsSizeInBytes = reduce_ptr->getWorkspaceSize(to_int_vector(inLengths)); 
+         const auto i_inLengths = to_int_vector(inLengths); 
+	 const auto i_inStrides = to_int_vector(inStrides); 
+	 const auto i_outLengths = to_int_vector(outLengths); 
+	 const auto i_outStrides = to_int_vector(outStrides); 
+
+         auto wsSizeInBytes = reduce_ptr->getWorkspaceSize(i_inLengths); 
 
          DeviceMem ws_dev_buf(wsSizeInBytes); 
 
-         auto argument_ptr = reduce_ptr->MakeArgumentPointer(to_int_vector(inLengths), to_int_vector(inStrides), to_int_vector(outLengths), to_int_vector(outStrides), alpha, beta,  
+         auto argument_ptr = reduce_ptr->MakeArgumentPointer(i_inLengths, i_inStrides, i_outLengths, i_outStrides, alpha, beta,  
 			                          in_dev_buf.GetDeviceBuffer(), out_dev_buf.GetDeviceBuffer(), out_indices_dev_buf.GetDeviceBuffer(), ws_dev_buf.GetDeviceBuffer()); 
 
          if( !reduce_ptr->IsSupportedArgument(argument_ptr.get()) )
@@ -264,39 +261,37 @@ void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int
 
          auto invoker_ptr = reduce_ptr->MakeInvokerPointer();
 
-         float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+         float avg_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
-         std::size_t num_bytes = (size_t)dim0_total_length * dim1_total_length * sizeof(inType) + (size_t)dim0_total_length * sizeof(outType); 
+         std::size_t num_bytes = dim0_total_length * dim1_total_length * sizeof(inType) + dim0_total_length * sizeof(outType); 
 
          if(reduce_ptr->hasFurtherCall()) {
              std::vector<int> inLengths2 = reduce_ptr->getWorkspace2dLengths(argument_ptr.get());    
 	     std::vector<int> inStrides2{inLengths2[1], 1}; 
 
 	     for(auto& reduce2_ptr : reduce2_ptrs) {
-                 auto argument2_ptr = reduce2_ptr->MakeArgumentPointer(to_int_vector(inLengths2), to_int_vector(inStrides2), to_int_vector(outLengths), to_int_vector(outStrides), alpha, beta,  
+                 auto argument2_ptr = reduce2_ptr->MakeArgumentPointer(inLengths2, inStrides2, i_outLengths, i_outStrides, alpha, beta,  
 			                          ws_dev_buf.GetDeviceBuffer(), out_dev_buf.GetDeviceBuffer(), out_indices_dev_buf.GetDeviceBuffer(), nullptr); 
 
                  auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
 
-                 if (!reduce2_ptr->IsSupportedArgument(argument2_ptr.get()) 
+                 if ( !reduce2_ptr->IsSupportedArgument(argument2_ptr.get()) )
 	              continue; 
 		      
-                 float ave_time_2 = invoker2_ptr->Run(argument2_ptr.get(), nrepeat); 
+                 float avg_time_2 = invoker2_ptr->Run(argument2_ptr.get(), nrepeat); 
 
-                 std::size_t num_bytes_2 = (size_t)inLengths2[0] * inLengths2[1] * sizeof(compType); 
+                 std::size_t num_bytes_2 = static_cast<size_t>(inLengths2[0]) * inLengths2[1] * sizeof(compType); 
 
-		 float gb_per_sec = (num_bytes + num_bytes_2) / 1.E6 / (ave_time + ave_time_2); 
+		 float gb_per_sec = (num_bytes + num_bytes_2) / 1.E6 / (avg_time + avg_time_2); 
 
-                 std::cout << "Perf: " << (ave_time+ave_time_2) << " ms, " << gb_per_sec << " GB/s" << std::endl;
+                 std::cout << "Perf: " << (avg_time+avg_time_2) << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
-                 if(tflops > best_tflops)
-                 {
-                     best_ave_time   = ave_time;
+                 if(gb_per_sec > best_gb_per_sec) {
+                     best_avg_time   = avg_time + avg_time_2;
                      best_gb_per_sec = gb_per_sec;
                  }
 
-                 if(do_verification)
-                 {
+                 if(do_verification) {
                      ReductionHost<inType, compType, outType> hostReduce(reduceOp, nanOpt, indicesOpt,
                                                  in.mDesc, out_host.mDesc, invariantDims, toReduceDims);
 
@@ -307,26 +302,26 @@ void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int
                      check_error(out_host, out_dev);
                       
                      if(need_indices) {
-                         indices_dev_buf.FromDevice(out_indices_dev.mData.data());
+                         out_indices_dev_buf.FromDevice(out_indices_dev.mData.data());
                          check_indices(out_indices_host, out_indices_dev);
                      };
                       
-                     if(do_log)
-                     {  
+                     if(do_log) {  
+                         /*
                          LogRange(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
                          LogRange(std::cout << "out_device: ", out_dev.mData, ",") << std::endl;
+                         */
                      }
-		 }; 
+		 } 
 	     }; 
 	 }  
          else {
-             float gb_per_sec = num_bytes / 1.E6 / ave_time; 
+             float gb_per_sec = num_bytes / 1.E6 / avg_time; 
 
-             std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+             std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
-             if(tflops > best_tflops)
-             {
-                 best_ave_time   = ave_time;
+             if(gb_per_sec > best_gb_per_sec) {
+                 best_avg_time   = avg_time;
                  best_gb_per_sec = gb_per_sec;
              }
 
@@ -341,47 +336,51 @@ void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int
                  check_error(out_host, out_dev);
 
                  if(need_indices) {
-                     indices_dev_buf.FromDevice(out_indices_dev.mData.data());
+                     out_indices_dev_buf.FromDevice(out_indices_dev.mData.data());
                      check_indices(out_indices_host, out_indices_dev);
                  }; 
 
-                 if(do_log)
-                 {
+                 if(do_log) {
+/*
                      LogRange(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
                      LogRange(std::cout << "out_device: ", out_dev.mData, ",") << std::endl;
-                 }
+*/		     
+                 }; 
 	     }; 
-         }; 
+         } 
     };
 
-    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s" << std::endl;       
+    std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s" << std::endl;       
 }; 
 
 template <typename inType, typename compType, typename outType>
 void profile_reduce(bool do_verification, int init_method, bool do_log, int nrepeat,
-		  const std::vector<size_t> inLengths, const std::vector<int> toReduceDims, 
+		  const std::vector<size_t> & inLengths, const std::vector<int> & toReduceDims, 
 		  ReduceTensorOp_t reduceOp, NanPropagation_t nanOpt, ReduceTensorIndices_t indicesOpt, 
 		  float alpha, float beta)
 {
     bool matched = false; 
 
-    ck:static_for<0, std::tuple_size<reduce_description_instances>::value, 1>{}( [&](auto i) {
+    using tuple_of_description_instances = tensor_operation::device::device_reduce_instance::reduce_description_instances;
+
+    const auto tuple_object = tuple_of_description_instances{}; 
+
+    static_for<0, std::tuple_size<tuple_of_description_instances>::value, 1>{}( [&](auto i) {
           if (matched)
 	      return; 
 
-          using desc = decltype(std::get<i.value>(reduce_description_instances{})); 
-	  
-          if ( !description_match(desc{}, inLengths.size(), toReduceDims, reduceOp, nanOpt, indicesOpt) )
+          using descType = remove_cvref_t<decltype(std::get<i>(tuple_object))>; 
+
+          if ( !description_match(descType{}, inLengths.size(), toReduceDims, reduceOp, nanOpt, indicesOpt) )
 		 return; 
 
-          using profile_work = profile_reduce_impl<inType, compType, outType, desc::rank, 
-	                desc::toReduceDims_, desc::reduceOp, desc::nanOpt_, desc::indicesOpt_>; 
-
-          profile_work{}(do_verification, init_method, do_log, nrepeat, inLengths, alpha, beta);
+          profile_reduce_impl<inType, compType, outType, descType::rank_, typename descType::toReduceDims_, static_cast<ReduceTensorOp_t>(descType::reduceOp_), 
+	                             static_cast<NanPropagation_t>(descType::nanOpt_), static_cast<ReduceTensorIndices_t>(descType::indicesOpt_)>(
+                 do_verification, init_method, do_log, nrepeat, inLengths, alpha, beta);
 
           matched = true; 
     }); 
-}
+};
 
 } // namespace profiler
 } // namespace ck

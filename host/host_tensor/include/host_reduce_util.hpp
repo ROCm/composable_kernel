@@ -33,9 +33,12 @@
 #include <stdexcept>
 #include <string>
 
-#include "online_reduce_common.hpp"
+#include "reduction_enums.hpp"
 
 namespace reduce {
+
+using ck::ReduceTensorOp_t;
+using ck::NanPropagation_t;
 
 template <typename T>
 static inline bool float_equal_one(T);
@@ -46,7 +49,7 @@ static inline bool float_equal_one(double x) { return x == 1.0; };
 
 static inline bool float_equal_one(half_float::half x)
 {
-    return x == convert_type<half_float::half>(1.0f);
+    return x == static_cast<half_float::half>(1.0f);
 };
 
 template <typename T>
@@ -58,25 +61,25 @@ static inline bool float_equal_zero(double x) { return x == 0.0; };
 
 static inline bool float_equal_zero(half_float::half x)
 {
-    return x == convert_type<half_float::half>(0.0f);
+    return x == static_cast<half_float::half>(0.0f);
 };
 
 template <typename compType>
-static inline std::function<void(compType&)> PreUnaryOpFn(ReduceTensorOp_t op_, std::size_t)
+__host__ static inline std::function<void(compType&)> PreUnaryOpFn(ReduceTensorOp_t op_, std::size_t)
 {
     using std::abs;
 
     switch(op_)
     {
-    case REDUCE_TENSOR_NORM1: return ([&](compType& a_) { a_ = abs(a_); });
-    case REDUCE_TENSOR_NORM2: return ([&](compType& a_) { a_ = a_ * a_; });
-    case REDUCE_TENSOR_AMAX: return ([&](compType& a_) { a_ = abs(a_); });
+    case ReduceTensorOp_t::NORM1: return ([&](compType& a_) { a_ = abs(a_); });
+    case ReduceTensorOp_t::NORM2: return ([&](compType& a_) { a_ = a_ * a_; });
+    case ReduceTensorOp_t::AMAX: return ([&](compType& a_) { a_ = abs(a_); });
 
-    case REDUCE_TENSOR_AVG:
-    case REDUCE_TENSOR_ADD:
-    case REDUCE_TENSOR_MUL:
-    case REDUCE_TENSOR_MIN:
-    case REDUCE_TENSOR_MAX: return ([&](compType&) {});
+    case ReduceTensorOp_t::AVG:
+    case ReduceTensorOp_t::ADD:
+    case ReduceTensorOp_t::MUL:
+    case ReduceTensorOp_t::MIN:
+    case ReduceTensorOp_t::MAX: return ([&](compType&) {});
 
     default:
         throw std::runtime_error(std::string(__FUNCTION__) +
@@ -86,25 +89,25 @@ static inline std::function<void(compType&)> PreUnaryOpFn(ReduceTensorOp_t op_, 
 };
 
 template <typename compType>
-static inline std::function<void(compType&)> PosUnaryOpFn(ReduceTensorOp_t op_, std::size_t divider)
+__host__ static inline std::function<void(compType&)> PosUnaryOpFn(ReduceTensorOp_t op_, std::size_t divider)
 {
     using std::sqrt;
 
     switch(op_)
     {
-    case REDUCE_TENSOR_NORM2: return ([&](compType& a_) { a_ = sqrt(a_); });
+    case ReduceTensorOp_t::NORM2: return ([&](compType& a_) { a_ = sqrt(a_); });
 
-    case REDUCE_TENSOR_AVG:
+    case ReduceTensorOp_t::AVG:
         return ([&, divider](compType& a_) {
-            a_ = a_ / convert_type<compType>(static_cast<float>(divider));
+            a_ = a_ / static_cast<compType>(static_cast<float>(divider));
         });
 
-    case REDUCE_TENSOR_ADD:
-    case REDUCE_TENSOR_NORM1:
-    case REDUCE_TENSOR_MUL:
-    case REDUCE_TENSOR_MIN:
-    case REDUCE_TENSOR_MAX:
-    case REDUCE_TENSOR_AMAX: return ([&](compType&) {});
+    case ReduceTensorOp_t::ADD:
+    case ReduceTensorOp_t::NORM1:
+    case ReduceTensorOp_t::MUL:
+    case ReduceTensorOp_t::MIN:
+    case ReduceTensorOp_t::MAX:
+    case ReduceTensorOp_t::AMAX: return ([&](compType&) {});
     }
 
     throw std::runtime_error(std::string(__FUNCTION__) +
@@ -112,25 +115,25 @@ static inline std::function<void(compType&)> PosUnaryOpFn(ReduceTensorOp_t op_, 
 };
 
 template <typename compType>
-static inline std::function<void(compType&, compType)> ReduceOpFn(ReduceTensorOp_t op_)
+__host__ static inline std::function<void(compType&, compType)> ReduceOpFn(ReduceTensorOp_t op_)
 {
     switch(op_)
     {
-    case REDUCE_TENSOR_ADD:
-    case REDUCE_TENSOR_AVG:
-    case REDUCE_TENSOR_NORM1:
-    case REDUCE_TENSOR_NORM2: return ([&](compType& a_, compType b_) { a_ = a_ + b_; });
+    case ReduceTensorOp_t::ADD:
+    case ReduceTensorOp_t::AVG:
+    case ReduceTensorOp_t::NORM1:
+    case ReduceTensorOp_t::NORM2: return ([&](compType& a_, compType b_) { a_ = a_ + b_; });
 
-    case REDUCE_TENSOR_MUL: return ([&](compType& a_, compType b_) { a_ = a_ * b_; });
+    case ReduceTensorOp_t::MUL: return ([&](compType& a_, compType b_) { a_ = a_ * b_; });
 
-    case REDUCE_TENSOR_MIN:
+    case ReduceTensorOp_t::MIN:
         return ([&](compType& a_, compType b_) {
             if(a_ > b_)
                 a_ = b_;
         });
 
-    case REDUCE_TENSOR_MAX:
-    case REDUCE_TENSOR_AMAX:
+    case ReduceTensorOp_t::MAX:
+    case ReduceTensorOp_t::AMAX:
         return ([&](compType& a_, compType b_) {
             if(a_ < b_)
                 a_ = b_;
@@ -142,12 +145,12 @@ static inline std::function<void(compType&, compType)> ReduceOpFn(ReduceTensorOp
 };
 
 template <typename compType>
-static inline std::function<void(compType&, compType, bool& changed)>
+__host__ static inline std::function<void(compType&, compType, bool& changed)>
 ReduceOpFn2(ReduceTensorOp_t op_)
 {
     switch(op_)
     {
-    case REDUCE_TENSOR_MIN:
+    case ReduceTensorOp_t::MIN:
         return ([&](compType& a_, compType b_, bool& changed) {
             if(a_ > b_)
             {
@@ -158,8 +161,8 @@ ReduceOpFn2(ReduceTensorOp_t op_)
                 changed = false;
         });
 
-    case REDUCE_TENSOR_MAX:
-    case REDUCE_TENSOR_AMAX:
+    case ReduceTensorOp_t::MAX:
+    case ReduceTensorOp_t::AMAX:
         return ([&](compType& a_, compType b_, bool& changed) {
             if(a_ < b_)
             {
@@ -170,11 +173,11 @@ ReduceOpFn2(ReduceTensorOp_t op_)
                 changed = false;
         });
 
-    case REDUCE_TENSOR_ADD:
-    case REDUCE_TENSOR_MUL:
-    case REDUCE_TENSOR_AVG:
-    case REDUCE_TENSOR_NORM1:
-    case REDUCE_TENSOR_NORM2: return (std::function<void(compType&, compType, bool&)>{});
+    case ReduceTensorOp_t::ADD:
+    case ReduceTensorOp_t::MUL:
+    case ReduceTensorOp_t::AVG:
+    case ReduceTensorOp_t::NORM1:
+    case ReduceTensorOp_t::NORM2: return (std::function<void(compType&, compType, bool&)>{});
     };
 
     throw std::runtime_error(std::string(__FUNCTION__) +
@@ -182,21 +185,21 @@ ReduceOpFn2(ReduceTensorOp_t op_)
 };
 
 template <typename compType>
-static inline compType ReduceOpZeroVal(ReduceTensorOp_t op_)
+__host__ static inline compType ReduceOpZeroVal(ReduceTensorOp_t op_)
 {
     switch(op_)
     {
-    case REDUCE_TENSOR_ADD:
-    case REDUCE_TENSOR_AVG:
-    case REDUCE_TENSOR_NORM1:
-    case REDUCE_TENSOR_NORM2: return (convert_type<compType>(0.0f));
+    case ReduceTensorOp_t::ADD:
+    case ReduceTensorOp_t::AVG:
+    case ReduceTensorOp_t::NORM1:
+    case ReduceTensorOp_t::NORM2: return (static_cast<compType>(0.0f));
 
-    case REDUCE_TENSOR_MUL: return (convert_type<compType>(1.0f));
+    case ReduceTensorOp_t::MUL: return (static_cast<compType>(1.0f));
 
-    case REDUCE_TENSOR_MIN: return (std::numeric_limits<compType>::max());
+    case ReduceTensorOp_t::MIN: return (std::numeric_limits<compType>::max());
 
-    case REDUCE_TENSOR_MAX: return (std::numeric_limits<compType>::lowest());
-    case REDUCE_TENSOR_AMAX: return (convert_type<compType>(0.0f));
+    case ReduceTensorOp_t::MAX: return (std::numeric_limits<compType>::lowest());
+    case ReduceTensorOp_t::AMAX: return (static_cast<compType>(0.0f));
     }
 
     throw std::runtime_error(std::string(__FUNCTION__) +
@@ -204,14 +207,14 @@ static inline compType ReduceOpZeroVal(ReduceTensorOp_t op_)
 };
 
 template <typename compType>
-static inline void binop_with_nan_check(NanPropagation_t nanOpt,
+__host__ static inline void binop_with_nan_check(NanPropagation_t nanOpt,
                                         std::function<void(compType&, compType)> opReduce,
                                         compType& accuVal,
                                         compType currVal)
 {
-    using std::isnan;
+    // using std::isnan;
 
-    if(nanOpt == NOT_PROPAGATE_NAN)
+    if(nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN)
         opReduce(accuVal, currVal);
     else
     {
@@ -223,16 +226,16 @@ static inline void binop_with_nan_check(NanPropagation_t nanOpt,
 };
 
 template <typename compType>
-static inline void binop_with_nan_check2(NanPropagation_t nanOpt,
+__host__ static inline void binop_with_nan_check2(NanPropagation_t nanOpt,
                                          std::function<void(compType&, compType, bool&)> opReduce,
                                          compType& accuVal,
                                          compType currVal,
                                          int& accuIndex,
                                          int currIndex)
 {
-    using std::isnan;
+    // using std::isnan;
 
-    if(nanOpt == NOT_PROPAGATE_NAN)
+    if(nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN)
     {
         bool changed;
 

@@ -13,30 +13,34 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "conv_common.hpp"
-#include "host_conv.hpp"
 #include "device_tensor.hpp"
 #include "host_generic_reduction.hpp"
 
 #include "reduction_enums.hpp"
 
+#include "profile_reduce.hpp"
+
 using namespace std;
 
-static struct option long_options[] = {{"inLengths", required_argument, NULL, 'D'},
-                                       {"toReduceDims", required_argument, NULL, 'R'},
-                                       {"reduceOp", required_argument, NULL, 'O'},
-                                       {"compType", required_argument, NULL, 'C'},
-                                       {"outType", required_argument, NULL, 'W'},
-                                       {"nanOpt", required_argument, NULL, 'N'},
-                                       {"indicesOpt", required_argument, NULL, 'I'},
-                                       {"scales", required_argument, NULL, 'S'},
-                                       {"half", no_argument, NULL, '?'},
-                                       {"double", no_argument, NULL, '?'},
-                                       {"dumpout", required_argument, NULL, 'o'},
-                                       {"verify", required_argument, NULL, 'v'},
-                                       {"log", required_argument, NULL, 'l'},
-                                       {"help", no_argument, NULL, '?'},
-                                       {0, 0, 0, 0}};
+using ck::ReduceTensorOp_t;
+using ck::NanPropagation_t;
+using ck::ReduceTensorIndices_t;
+
+static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
+                                       {"toReduceDims", required_argument, nullptr, 'R'},
+                                       {"reduceOp", required_argument, nullptr, 'O'},
+                                       {"compType", required_argument, nullptr, 'C'},
+                                       {"outType", required_argument, nullptr, 'W'},
+                                       {"nanOpt", required_argument, nullptr, 'N'},
+                                       {"indicesOpt", required_argument, nullptr, 'I'},
+                                       {"scales", required_argument, nullptr, 'S'},
+                                       {"half", no_argument, nullptr, '?'},
+                                       {"double", no_argument, nullptr, '?'},
+                                       {"dumpout", required_argument, nullptr, 'o'},
+                                       {"verify", required_argument, nullptr, 'v'},
+                                       {"log", required_argument, nullptr, 'l'},
+                                       {"help", no_argument, nullptr, '?'},
+                                       {nullptr, 0, nullptr, 0}};
 static int option_index             = 0;
 
 template <typename T>
@@ -149,19 +153,19 @@ static void check_reduce_dims(const int rank, const std::vector<int>& toReduceDi
 static bool use_half   = false;
 static bool use_double = false;
 
-static vector<size_t> inLengths;
-static vector<size_t> outLengths;
-static vector<int> toReduceDims;
+static std::vector<size_t> inLengths;
+static std::vector<size_t> outLengths;
+static std::vector<int> toReduceDims;
 
-static vector<float> scales;
+static std::vector<float> scales;
 
-static ReduceTensorOp_t reduceOp        = ReduceTensorOp_t::REDUCE_TENSOR_ADD;
+static ReduceTensorOp_t reduceOp        = ReduceTensorOp_t::ADD;
 static appDataType_t compTypeId         = appFloat;
 static appDataType_t outTypeId          = appFloat;
 static bool compType_assigned           = false;
 static bool outType_assigned            = false;
 static NanPropagation_t nanOpt          = NanPropagation_t::NOT_PROPAGATE_NAN;
-static ReduceTensorIndices_t indicesOpt = ReduceTensorIndices_t::REDUCE_TENSOR_NO_INDICES;
+static ReduceTensorIndices_t indicesOpt = ReduceTensorIndices_t::NO_INDICES;
 static bool do_log                  = false;
 static bool do_verification             = false;
 static bool do_dumpout                  = false;
@@ -282,12 +286,10 @@ static void check_cmdline_arguments(int argc, char* argv[])
         scales.push_back(0.0f);
     };
 
-    if(reduceOp == ReduceTensorOp_t::REDUCE_TENSOR_MIN ||
-       reduceOp == ReduceTensorOp_t::REDUCE_TENSOR_MAX ||
-       reduceOp == ReduceTensorOp_t::REDUCE_TENSOR_AMAX)
+    if(reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX || reduceOp == ReduceTensorOp_t::AMAX)
     {
 
-        if(indicesOpt != ReduceTensorIndices_t::REDUCE_TENSOR_NO_INDICES)
+        if(indicesOpt != ReduceTensorIndices_t::NO_INDICES)
             need_indices = true;
 
         // for indexable operations, no need to assign compType and outType, just let them be same
@@ -297,17 +299,15 @@ static void check_cmdline_arguments(int argc, char* argv[])
     };
 };
 
+using namespace ck::profiler; 
+
 int reduce_profiler(int argc, char* argv[])
 {
-    using namespace ck;
-    using half = half_float::half;
-
     check_cmdline_arguments(argc, argv);
 
     int rank = inLengths.size(); 
 
     check_reduce_dims(rank, toReduceDims);
-
     if(use_half)
     {
         if(!compType_assigned)
@@ -319,41 +319,32 @@ int reduce_profiler(int argc, char* argv[])
         if(!outType_assigned)
             outTypeId = appHalf;
 
-        if(compTypeId == appHalf)
-        {
-            if(outTypeId == appHalf)
-                profile_reduce<half_float::half, half_float::half, half_float::half>(do_verification, init_method, do_log, nrepeat,
-				                                                     inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
-            else
-                profile_reduce<half_float::half, half_float::half, float>(do_verification, init_method, do_log, nrepeat, 
-				                                                     inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+        if(compTypeId == appHalf) {
+           profile_reduce<ck::half_t, ck::half_t, ck::half_t>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
         }
-        else if(compTypeId == appFloat)
-        {
-            if(outTypeId == appHalf)
-                profile_reduce<half_float::half, float, half_float::half>(do_verification, init_method, do_log, nrepeat, 
-				                                                     inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
-            else
-                profile_reduce<half_float::half, float, float>(do_verification, init_method, do_log, nrepeat, 
-				                                                     inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+        else 
+	if(compTypeId == appFloat) {
+           profile_reduce<ck::half_t, float, ck::half_t>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
         }
         else
             throw std::runtime_error("Invalid compType assignment!");
     }
-    else if(use_double)
-        profile_reduce<double, double, double>(do_verification, init_method, do_log, nrepeat, 
-				                                                     inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
-    else
-    {
-        if(compTypeId == appFloat)
-            profile_reduce<float, float, float>(do_verification, init_method, do_log, nrepeat, 
-				                                                     inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
-        else if(compTypeId == appDouble)
-            profile_reduce<float, double, float>(do_verification, init_method, do_log, nrepeat, 
-				                                                     inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+    else 
+    if(use_double) {
+       profile_reduce<double, double, double>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+    }
+    else {
+        if(compTypeId == appFloat) {
+            profile_reduce<float, float, float>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+	}
+        else 
+	if(compTypeId == appDouble) {
+	    profile_reduce<float, double, float>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+	}
         else
             throw std::runtime_error("Invalid compType assignment!");
     };
+
+    return(0); 
 };
 
-}

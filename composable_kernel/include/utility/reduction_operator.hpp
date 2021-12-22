@@ -155,7 +155,7 @@ struct unary_identic
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __device__ inline constexpr T operator()(T a) const { return a * type_convert<T>{}(scaler); };
+    __device__ inline constexpr T operator()(T a) const { return a * type_convert<T>(scaler); };
 
     float scaler = 1.0f;
 };
@@ -177,7 +177,7 @@ struct unary_square
     {
         a = a * a;
 
-        return a * type_convert<T>{}(scaler);
+        return a * type_convert<T>(scaler);
     };
 
     float scaler = 1.0f;
@@ -200,7 +200,7 @@ struct unary_abs
     {
         a = abs(a);
 
-        return a * type_convert<T>{}(scaler);
+        return a * type_convert<T>(scaler);
     };
 
     float scaler = 1.0f;
@@ -214,22 +214,6 @@ struct unary_abs<T, false>
     __device__ inline constexpr T operator()(T a) const { return abs(a); };
 };
 
-// We know for sure that 4.0 has __habs(), but 3.0 does not have it.
-// Let's assume that __habs() exists since 3.5.
-#if HIP_PACKAGE_VERSION_FLAT < 3005000000
-inline __device__ __half __habs(__half x)
-{
-    union
-    {
-        __half half;
-        unsigned short u16;
-    } val;
-    val.half = x;
-    val.u16  = val.u16 & 0x7fff;
-    return val.half;
-}
-#endif
-
 template <bool hasDividing>
 struct unary_abs<half_t, hasDividing>
 {
@@ -239,7 +223,7 @@ struct unary_abs<half_t, hasDividing>
     {
         a = static_cast<half_t>(__habs(a));
 
-        return a * type_convert<half_t>{}(scaler);
+        return a * type_convert<half_t>(scaler);
     };
 
     float scaler = 1.0f;

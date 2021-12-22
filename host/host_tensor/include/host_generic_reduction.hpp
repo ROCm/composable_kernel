@@ -34,7 +34,7 @@
 #include <cassert>
 #include <cmath>
 
-#include "online_reduce_common.hpp"
+#include "reduction_enums.hpp"
 #include "host_reduce_util.hpp"
 
 using float16 = half_float::half;
@@ -44,9 +44,9 @@ class ReductionHost
 {
     public:
     ReductionHost() = default;
-    ReductionHost(const ReduceTensorOp_t reduceOp_,
-                  NanPropagation_t nanOpt_,
-                  ReduceTensorIndices_t indiceOpt_,
+    ReductionHost(const ck::ReduceTensorOp_t reduceOp_,
+                  ck::NanPropagation_t nanOpt_,
+                  ck::ReduceTensorIndices_t indiceOpt_,
                   HostTensorDescriptor& inDesc,
                   HostTensorDescriptor& outDesc,
                   const std::vector<int>& invariantDims_,
@@ -80,31 +80,30 @@ class ReductionHost
 
     void Run(float alpha, const TSrc* in_data, float beta, TDst* out_data, int* indices)
     {
-        if(std::is_same<TComp, float>::value)
+        if constexpr(std::is_same<TComp, float>::value)
         {
-            if(std::is_same<TDst, double>::value)
+            if constexpr(std::is_same<TDst, double>::value)
                 RunImpl<double>(alpha, in_data, beta, out_data, indices);
             else
                 RunImpl<float>(alpha, in_data, beta, out_data, indices);
         }
-        else if(std::is_same<TComp, float16>::value)
+        else if constexpr(std::is_same<TComp, float16>::value)
         {
-            if(std::is_same<TDst, double>::value || std::is_same<TDst, float>::value)
+            if constexpr(std::is_same<TDst, double>::value || std::is_same<TDst, float>::value)
                 RunImpl<TDst>(alpha, in_data, beta, out_data, indices);
             else
                 RunImpl<float16>(alpha, in_data, beta, out_data, indices);
         }
-        else if(std::is_same<TComp, double>::value)
+        else if constexpr (std::is_same<TComp, double>::value)
             RunImpl<double>(alpha, in_data, beta, out_data, indices);
         return;
     };
 
     private:
-    ReduceTensorOp_t reduceOp;
+    ck::ReduceTensorOp_t reduceOp;
 
-    NanPropagation_t nanOpt;
-    ReduceTensorIndices_t indiceOpt;
-    IndicesType_t indicesType;
+    ck::NanPropagation_t nanOpt;
+    ck::ReduceTensorIndices_t indiceOpt;
 
     std::vector<size_t> inLengths;
     std::vector<size_t> outLengths;
@@ -122,9 +121,9 @@ class ReductionHost
     template <typename compType>
     void RunImpl(float alpha, const TSrc* in_data, float beta, TDst* out_data, int* indices)
     {
-        bool need_indices = (indiceOpt == REDUCE_TENSOR_FLATTENED_INDICES) &&
-                            (reduceOp == REDUCE_TENSOR_MIN || reduceOp == REDUCE_TENSOR_MAX ||
-                             reduceOp == REDUCE_TENSOR_AMAX);
+        bool need_indices = (indiceOpt == ck::ReduceTensorIndices_t::FLATTENED_INDICES) &&
+                            (reduceOp == ck::ReduceTensorOp_t::MIN || reduceOp == ck::ReduceTensorOp_t::MAX ||
+                             reduceOp == ck::ReduceTensorOp_t::AMAX);
 
         if(need_indices)
             RunImpl_with_indices<compType>(alpha, in_data, beta, out_data, indices);
@@ -142,7 +141,6 @@ class ReductionHost
         using reduce::ReduceOpZeroVal;
         using reduce::binop_with_nan_check;
         using reduce::binop_with_nan_check2;
-        using reduce::convert_type;
         using reduce::float_equal_one;
         using reduce::float_equal_zero;
 
@@ -169,7 +167,7 @@ class ReductionHost
             {
                 auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                auto currVal = convert_type<compType>(in_data[src_offset]);
+                auto currVal = static_cast<compType>(in_data[src_offset]);
 
                 // unary operation before reducing, needed by AMAX. For MIN/MAX, nothing is actually
                 // done
@@ -181,14 +179,14 @@ class ReductionHost
 
             // scale the accumulated value
             if(!float_equal_one(alpha))
-                accuVal *= convert_type<compType>(alpha);
+                accuVal *= static_cast<compType>(alpha);
 
             // scale the prior dst value and add it to the accumulated value
             if(!float_equal_zero(beta))
-                accuVal += convert_type<compType>(out_data[0]) * convert_type<compType>(beta);
+                accuVal += static_cast<compType>(out_data[0]) * static_cast<compType>(beta);
 
             // store the reduced value to dst location
-            out_data[0] = convert_type<TDst>(accuVal);
+            out_data[0] = static_cast<TDst>(accuVal);
             indices[0]  = accuIndex;
         }
         else
@@ -229,7 +227,7 @@ class ReductionHost
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                    auto currVal = convert_type<compType>(in_data[src_offset]);
+                    auto currVal = static_cast<compType>(in_data[src_offset]);
                     // unary operation before reducing, needed by AMAX. For MIN/MAX, nothing is
                     // actually done
                     PreUnaryOp(currVal);
@@ -240,15 +238,15 @@ class ReductionHost
 
                 // scale the accumulated value
                 if(!float_equal_one(alpha))
-                    accuVal *= convert_type<compType>(alpha);
+                    accuVal *= static_cast<compType>(alpha);
 
                 // scale the prior dst value and add it to the accumulated value
                 if(!float_equal_zero(beta))
                     accuVal +=
-                        convert_type<compType>(out_data[dst_offset]) * convert_type<compType>(beta);
+                        static_cast<compType>(out_data[dst_offset]) * static_cast<compType>(beta);
 
                 // store the reduced value to dst location
-                out_data[dst_offset] = convert_type<TDst>(accuVal);
+                out_data[dst_offset] = static_cast<TDst>(accuVal);
                 indices[dst_offset]  = accuIndex;
             };
         };
@@ -263,7 +261,6 @@ class ReductionHost
         using reduce::ReduceOpZeroVal;
         using reduce::binop_with_nan_check;
         using reduce::binop_with_nan_check2;
-        using reduce::convert_type;
         using reduce::float_equal_one;
         using reduce::float_equal_zero;
 
@@ -289,7 +286,7 @@ class ReductionHost
             {
                 auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                auto currVal = convert_type<compType>(in_data[src_offset]);
+                auto currVal = static_cast<compType>(in_data[src_offset]);
 
                 PreUnaryOp(currVal);
 
@@ -300,14 +297,14 @@ class ReductionHost
 
             // scale the accumulated value
             if(!float_equal_one(alpha))
-                accuVal *= convert_type<compType>(alpha);
+                accuVal *= static_cast<compType>(alpha);
 
             // scale the prior dst value and add it to the accumulated value
             if(!float_equal_zero(beta))
-                accuVal += convert_type<compType>(out_data[0]) * convert_type<compType>(beta);
+                accuVal += static_cast<compType>(out_data[0]) * static_cast<compType>(beta);
 
             // store the reduced value to dst location
-            out_data[0] = convert_type<TDst>(accuVal);
+            out_data[0] = static_cast<TDst>(accuVal);
         }
         else
         {
@@ -346,7 +343,7 @@ class ReductionHost
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                    auto currVal = convert_type<compType>(in_data[src_offset]);
+                    auto currVal = static_cast<compType>(in_data[src_offset]);
 
                     PreUnaryOp(currVal);
 
@@ -357,15 +354,15 @@ class ReductionHost
 
                 // scale the accumulated value
                 if(!float_equal_one(alpha))
-                    accuVal *= convert_type<compType>(alpha);
+                    accuVal *= static_cast<compType>(alpha);
 
                 // scale the prior dst value and add it to the accumulated value
                 if(!float_equal_zero(beta))
                     accuVal +=
-                        convert_type<compType>(out_data[dst_offset]) * convert_type<compType>(beta);
+                        static_cast<compType>(out_data[dst_offset]) * static_cast<compType>(beta);
 
                 // store the reduced value to dst location
-                out_data[dst_offset] = convert_type<TDst>(accuVal);
+                out_data[dst_offset] = static_cast<TDst>(accuVal);
             };
         };
     }; // end of RunImpl_no_indices()

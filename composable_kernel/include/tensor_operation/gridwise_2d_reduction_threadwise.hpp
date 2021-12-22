@@ -58,24 +58,25 @@ template <typename srcDataType,
           NanPropagation_t nanPropaOpt,
           ReduceTensorIndices_t reduceIndicesOpt,
           index_t BlockSize,
-          index_t dim0_thread_cluster_length,
-          index_t dim1_thread_cluster_length,
-          index_t dim0_thread_slice_length,
-          index_t dim1_thread_slice_length,
+          index_t dim0_thread_cluster_size,
+          index_t dim1_thread_cluster_size,
+          index_t dim0_thread_slice_size,
+          index_t dim1_thread_slice_size,
           index_t dim0_max_vector_size,
-          index_t dim1_max_vector_size,
-          bool isFirstCall,
-          bool isLastCall>
+          index_t dim1_max_vector_size>
 struct GridwiseReduction_xy_to_x_threadwise
 {
     static constexpr index_t dim1_VectorSize =
-        math::gcd(dim1_thread_slice_length, dim1_max_vector_size);
+        math::gcd(dim1_thread_slice_size, dim1_max_vector_size);
 
     using opReduce = typename reduce_binary_operator<compType, op>::opType;
     using preUnaryOpType =
-        typename reduce_unary_operator<compType, op, isFirstCall, isLastCall>::preUnaryOp;
+        typename reduce_unary_operator<compType, op, true, true>::preUnaryOp;
     using posUnaryOpType =
-        typename reduce_unary_operator<compType, op, isFirstCall, isLastCall>::posUnaryOp;
+        typename reduce_unary_operator<compType, op, true, true>::posUnaryOp;
+
+    template <typename T>
+    using PassThroughOp = reduce::unary_identic<T, false>; 
 
     static constexpr auto I0 = Number<0>{};
 
@@ -107,11 +108,11 @@ struct GridwiseReduction_xy_to_x_threadwise
         const auto zeroVal = opReduce::GetReductionZeroVal();
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>{}(zeroVal));
+            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
         auto dst_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_dst_global, dst1dDesc.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_length, true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_size, true>
             in_thread_buf;
 
         using threadwise_reduce = ThreadReduce<decltype(in_thread_buf), opReduce, nanPropaOpt>;
@@ -126,9 +127,9 @@ struct GridwiseReduction_xy_to_x_threadwise
         const preUnaryOpType preUnaryOp(divider);
         const posUnaryOpType posUnaryOp(divider);
 
-        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_length>;
+        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_size>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<1>{}, Number<dim1_thread_slice_length>{}));
+            make_tuple(Number<1>{}, Number<dim1_thread_slice_size>{}));
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
 
@@ -144,10 +145,10 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                                     false>(
             src2dDesc, make_multi_index(thread_global_1d_id, 0));
 
-        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_length);
+        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
 
         for(index_t reducedLength = 0; reducedLength < toReduceLength;
-            reducedLength += dim1_thread_slice_length)
+            reducedLength += dim1_thread_slice_size)
         {
             threadwise_src_load.Run(
                 src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
@@ -167,7 +168,7 @@ struct GridwiseReduction_xy_to_x_threadwise
             make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
         if(!float_equal_one{}(alpha))
-            accuValue_buf(I0) *= type_convert<compType>{}(alpha);
+            accuValue_buf(I0) *= type_convert<compType>(alpha);
 
         if(!float_equal_zero{}(beta))
         {
@@ -196,6 +197,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                dstDataType,
                                                decltype(ReducedDataDesc),
                                                dst1dDescType,
+                                               PassThroughOp<dstDataType>, 
                                                Sequence<1>,
                                                Sequence<0>,
                                                0,
@@ -203,7 +205,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                true>(dst1dDesc,
-                                                     make_multi_index(thread_global_1d_id));
+                                                     make_multi_index(thread_global_1d_id), PassThroughOp<dstDataType>{});
 
         threadwise_dst_store.Run(
             ReducedDataDesc, make_tuple(I0), accuValue_buf, dst1dDesc, dst_global_buf);
@@ -225,13 +227,13 @@ struct GridwiseReduction_xy_to_x_threadwise
         const auto zeroVal = opReduce::GetReductionZeroVal();
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>{}(zeroVal));
+            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
         auto dst_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_dst_global, dst1dDesc.GetElementSpaceSize());
         auto dst_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             indices_global, dst1dDesc.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_length, true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_size, true>
             in_thread_buf;
 
         using threadwise_reduce = ThreadReduce<decltype(in_thread_buf), opReduce, nanPropaOpt>;
@@ -247,9 +249,9 @@ struct GridwiseReduction_xy_to_x_threadwise
 
         const preUnaryOpType preUnaryOp(divider);
 
-        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_length>;
+        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_size>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<1>{}, Number<dim1_thread_slice_length>{}));
+            make_tuple(Number<1>{}, Number<dim1_thread_slice_size>{}));
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
 
@@ -265,11 +267,11 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                                     false>(
             src2dDesc, make_multi_index(thread_global_1d_id, 0));
 
-        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_length);
+        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
 
         index_t indexStart = 0;
         for(index_t reducedLength = 0; reducedLength < toReduceLength;
-            reducedLength += dim1_thread_slice_length)
+            reducedLength += dim1_thread_slice_size)
         {
             threadwise_src_load.Run(
                 src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
@@ -282,7 +284,7 @@ struct GridwiseReduction_xy_to_x_threadwise
             threadwise_reduce::Reduce2(
                 in_thread_buf, accuValue_buf(I0), accuIndex_buf(I0), indexStart);
 
-            indexStart += dim1_thread_slice_length;
+            indexStart += dim1_thread_slice_size;
 
             threadwise_src_load.MoveSrcSliceWindow(src2dDesc, in_thread_copy_step);
         }
@@ -291,7 +293,7 @@ struct GridwiseReduction_xy_to_x_threadwise
             make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
         if(!float_equal_one{}(alpha))
-            accuValue_buf(I0) *= type_convert<compType>{}(alpha);
+            accuValue_buf(I0) *= type_convert<compType>(alpha);
 
         if(!float_equal_zero{}(beta))
         {
@@ -312,7 +314,7 @@ struct GridwiseReduction_xy_to_x_threadwise
             threadwise_dst_load.Run(
                 dst1dDesc, dst_global_val_buf, ReducedDataDesc, make_tuple(I0), priorDstValue_buf);
 
-            accuValue_buf(I0) += type_convert<compType>{}( priorDstValue_buf[I0] * beta ); 
+            accuValue_buf(I0) += type_convert<compType>( priorDstValue_buf[I0] * beta ); 
         }
 
         auto threadwise_dst_val_store =
@@ -320,6 +322,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                dstDataType,
                                                decltype(ReducedDataDesc),
                                                dst1dDescType,
+					       PassThroughOp<dstDataType>,
                                                Sequence<1>,
                                                Sequence<0>,
                                                0,
@@ -327,13 +330,14 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(dst1dDesc,
-                                                      make_multi_index(thread_global_1d_id));
+                                                      make_multi_index(thread_global_1d_id), PassThroughOp<dstDataType>{});
 
         auto threadwise_dst_idx_store =
             ThreadwiseTensorSliceTransfer_v1r3<int,
                                                int,
                                                decltype(ReducedDataDesc),
                                                dst1dDescType,
+					       PassThroughOp<int>,
                                                Sequence<1>,
                                                Sequence<0>,
                                                0,
@@ -341,7 +345,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(dst1dDesc,
-                                                      make_multi_index(thread_global_1d_id));
+                                                      make_multi_index(thread_global_1d_id), PassThroughOp<int>{});
 
         threadwise_dst_val_store.Run(
             ReducedDataDesc, make_tuple(I0), accuValue_buf, dst1dDesc, dst_global_val_buf);
@@ -367,7 +371,7 @@ struct GridwiseReduction_xy_to_x_threadwise
         const auto src_global_val_buf =
             make_dynamic_buffer<AddressSpaceEnum_t::Global>(ws_values_global,
                                                             src2dDesc.GetElementSpaceSize(),
-                                                            type_convert<srcDataType>{}(zeroVal));
+                                                            type_convert<srcDataType>(zeroVal));
         const auto src_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             ws_indices_global, src2dDesc.GetElementSpaceSize());
         auto dst_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
@@ -375,9 +379,9 @@ struct GridwiseReduction_xy_to_x_threadwise
         auto dst_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             indices_global, dst1dDesc.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_length, true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_size, true>
             in_thread_val_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, int, dim1_thread_slice_length, true> in_thread_idx_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, int, dim1_thread_slice_size, true> in_thread_idx_buf;
 
         using threadwise_reduce = ThreadReduceWithIndicesInput<decltype(in_thread_val_buf),
                                                                decltype(in_thread_idx_buf),
@@ -392,9 +396,9 @@ struct GridwiseReduction_xy_to_x_threadwise
 
         const auto toReduceLength = src2dDesc.GetLength(Number<1>{});
 
-        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_length>;
+        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_size>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<1>{}, Number<dim1_thread_slice_length>{}));
+            make_tuple(Number<1>{}, Number<dim1_thread_slice_size>{}));
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
 
@@ -422,10 +426,10 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                                         false>(
             src2dDesc, make_multi_index(thread_global_1d_id, 0));
 
-        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_length);
+        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
 
         for(index_t reducedLength = 0; reducedLength < toReduceLength;
-            reducedLength += dim1_thread_slice_length)
+            reducedLength += dim1_thread_slice_size)
         {
             threadwise_src_val_load.Run(src2dDesc,
                                         src_global_val_buf,
@@ -450,7 +454,7 @@ struct GridwiseReduction_xy_to_x_threadwise
             make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
         if(!float_equal_one{}(alpha))
-            accuValue_buf(I0) *= type_convert<compType>{}(alpha);
+            accuValue_buf(I0) *= type_convert<compType>(alpha);
 
         if(!float_equal_zero{}(beta))
         {
@@ -471,7 +475,7 @@ struct GridwiseReduction_xy_to_x_threadwise
             threadwise_dst_load.Run(
                 dst1dDesc, dst_global_val_buf, ReducedDataDesc, make_tuple(I0), priorDstValue_buf);
 
-            accuValue_buf(I0) += type_convert<compType>{}( priorDstValue_buf[I0] * beta ); 
+            accuValue_buf(I0) += type_convert<compType>( priorDstValue_buf[I0] * beta ); 
         }
 
         auto threadwise_dst_val_store =
@@ -479,6 +483,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                dstDataType,
                                                decltype(ReducedDataDesc),
                                                dst1dDescType,
+					       PassThroughOp<dstDataType>,
                                                Sequence<1>,
                                                Sequence<0>,
                                                0,
@@ -486,13 +491,14 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(dst1dDesc,
-                                                      make_multi_index(thread_global_1d_id));
+                                                      make_multi_index(thread_global_1d_id), PassThroughOp<dstDataType>{});
 
         auto threadwise_dst_idx_store =
             ThreadwiseTensorSliceTransfer_v1r3<int,
                                                int,
                                                decltype(ReducedDataDesc),
                                                dst1dDescType,
+					       PassThroughOp<int>,
                                                Sequence<1>,
                                                Sequence<0>,
                                                0,
@@ -500,7 +506,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(dst1dDesc,
-                                                      make_multi_index(thread_global_1d_id));
+                                                      make_multi_index(thread_global_1d_id), PassThroughOp<int>{});
 
         threadwise_dst_val_store.Run(
             ReducedDataDesc, make_tuple(I0), accuValue_buf, dst1dDesc, dst_global_val_buf);
