@@ -187,7 +187,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
         return c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl;
     }
 
-    // TODO: need to calculate LDS usage for C shuffle
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment

@@ -134,8 +134,8 @@ template <index_t BlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t K1Value,
-          index_t MRepeat,
-          index_t NRepeat,
+          index_t MXdlPerWave,
+          index_t NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -169,7 +169,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
         constexpr auto max_lds_align = K1;
 
@@ -188,6 +188,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             }
         }();
 
+        return a_block_desc_k0_m_k1;
+    }
+
+    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
+    {
+        constexpr auto max_lds_align = K1;
+
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_k0_n_k1 = [&]() {
             if constexpr(BBlockLdsExtraN)
@@ -203,14 +210,25 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             }
         }();
 
+        return b_block_desc_k0_n_k1;
+    }
+
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    {
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size =
+        constexpr auto a_block_desc_k0_m_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
+
+        constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
+
+        constexpr auto max_lds_align = K1;
+
+        constexpr auto a_block_space_size_aligned =
             math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto b_block_space_size =
+        constexpr auto b_block_space_size_aligned =
             math::integer_least_multiple(b_block_desc_k0_n_k1.GetElementSpaceSize(), max_lds_align);
 
-        return (a_block_space_size + b_block_space_size) * sizeof(FloatAB);
+        return (a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(FloatAB);
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -224,8 +242,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MRepeat) == 0) &&
-                          (NPerBlock % (NRepeat * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
                       "Invalid tuning param!");
 
         const auto M  = a_grid_desc_k0_m_k1.GetLength(I1);
@@ -315,8 +333,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 decltype(b_block_desc_k0_n_k1),
                                                                 MPerXDL,
                                                                 NPerXDL,
-                                                                MRepeat,
-                                                                NRepeat,
+                                                                MXdlPerWave,
+                                                                NXdlPerWave,
                                                                 K1>;
 
         return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n);
@@ -400,34 +418,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         constexpr auto max_lds_align = K1;
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_m_k1 = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
-            }
-        }();
+        constexpr auto a_block_desc_k0_m_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-            }
-        }();
+        constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
@@ -505,26 +499,25 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 decltype(b_block_desc_k0_n_k1),
                                                                 MPerXDL,
                                                                 NPerXDL,
-                                                                MRepeat,
-                                                                NRepeat,
+                                                                MXdlPerWave,
+                                                                NXdlPerWave,
                                                                 K1>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size =
+        constexpr auto a_block_space_size_aligned =
             math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
 
-        FloatAB* p_a_block = p_shared_block;
-        FloatAB* p_b_block = p_shared_block + a_block_space_size;
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+            static_cast<FloatAB*>(p_shared), a_block_desc_k0_m_k1.GetElementSpaceSize());
+
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+            static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
+            b_block_desc_k0_n_k1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
-
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
-            p_a_block, a_block_desc_k0_m_k1.GetElementSpaceSize());
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
-            p_b_block, b_block_desc_k0_n_k1.GetElementSpaceSize());
 
         // preload data into LDS
         {
