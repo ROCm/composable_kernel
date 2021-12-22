@@ -42,9 +42,6 @@ using compType =
 
 constexpr index_t BlockSize = CK_PARAM_BLOCKSIZE; // tunable
 
-using toReduceDims  = Sequence<CK_PARAM_TOREDUCE_DIMS>;
-using invariantDims = Sequence<CK_PARAM_INVARIANT_DIMS>; // this could be empty
-
 constexpr ReduceTensorOp_t op          = static_cast<ReduceTensorOp_t>(CK_PARAM_REDUCE_OP);
 constexpr NanPropagation_t nanPropaOpt = CK_PARAM_NAN_PROPAGATE == 0
                                              ? NanPropagation_t::NOT_PROPAGATE_NAN
@@ -59,7 +56,7 @@ constexpr bool dst1d_need_padding = static_cast<bool>(CK_PARAM_DST1D_PADDING);
 constexpr bool indexable    = reduce_binary_operator<compType, op>::indexable;
 constexpr bool need_indices = indexable && (reduceIndicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
-constexpr index_t GredThreadBufferLength = CK_PARAM_THREAD_BUFFER_LENGTH; // tunable
+constexpr index_t GredThreadBufferLength = CK_PARAM_DIM1_THREAD_SLICE_LENGTH;
 
 extern "C" __global__ void
 gridwise_generic_reduce_2_prepare(int GridSize, int BlkGroupSize, void* __restrict__ ws_global)
@@ -157,19 +154,19 @@ using refType_dst1dDesc_padded    = typename get_ref_desc_types::refType_dst1dDe
 template <bool need_padding>
 static __device__ auto get_reduction_src2d_descriptor(const void* p_src2dDesc)
 {
-    if constexpr(need_padding)
-        return (*reinterpret_cast<const refType_src2dDesc_padded_12*>(p_src2dDesc));
-    else
-        return (*reinterpret_cast<const refType_src2dDesc*>(p_src2dDesc));
+    using src2dDescType =
+        typename conditional<need_padding, refType_src2dDesc_padded_12, refType_src2dDesc>::type;
+
+    return (*reinterpret_cast<const src2dDescType*>(p_src2dDesc));
 };
 
 template <bool need_padding>
 static __device__ auto get_reduction_dst1d_descriptor(const void* p_dst1dDesc)
 {
-    if constexpr(need_padding)
-        return (*reinterpret_cast<const refType_dst1dDesc_padded*>(p_dst1dDesc));
-    else
-        return (*reinterpret_cast<const refType_dst1dDesc*>(p_dst1dDesc));
+    using dst1dDescType =
+        typename conditional<need_padding, refType_dst1dDesc_padded, refType_dst1dDesc>::type;
+
+    return (*reinterpret_cast<const dst1dDescType*>(p_dst1dDesc));
 };
 
 extern "C" __global__ void gridwise_generic_reduce_2(int origReduceLen,

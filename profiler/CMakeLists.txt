@@ -43,7 +43,7 @@ set_target_properties(device_conv_instance PROPERTIES POSITION_INDEPENDENT_CODE 
 install(TARGETS device_conv_instance LIBRARY DESTINATION lib) 
 
 # ck_profiler
-set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp conv_profiler.cpp)
+set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp conv_profiler.cpp reduce_profiler.cpp)
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
