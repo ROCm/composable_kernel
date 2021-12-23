@@ -385,6 +385,9 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op},
+              Conv_N_{N},
+              Conv_K_{K},
+              Conv_C_{C},
               filter_spatial_lengths_{filter_spatial_lengths},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
@@ -432,6 +435,9 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         WeiElementwiseOperation wei_element_op_;
         OutElementwiseOperation out_element_op_;
         // for checking IsSupportedArgument()
+        index_t Conv_N_;
+        index_t Conv_K_;
+        index_t Conv_C_;
         std::vector<index_t> filter_spatial_lengths_;
         std::vector<index_t> conv_filter_strides_;
         std::vector<index_t> input_left_pads_;
@@ -580,6 +586,21 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             }
         }
 
+        // vector load A/B matrix from global memory
+        if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
+             arg.Conv_C_ % ABlockTransferSrcScalarPerVector == 0 &&
+             arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
+        {
+            return false;
+        }
+
+        // vector store C matrix into global memory
+        if(!(arg.Conv_K_ % CThreadTransferDstScalarPerVector == 0))
+        {
+            return false;
+        }
+
+        // Gridwise GEMM size
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,

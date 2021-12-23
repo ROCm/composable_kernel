@@ -120,19 +120,18 @@ struct
 
         const index_t GemmMRaw = N * Ho * Wo;
         const index_t GemmN    = K;
-        const index_t GemmK    = Y * X * C;
 
-        const auto GemmMPad = math::integer_least_multiple(GemmMRaw, MPerBlock) - GemmMRaw;
-
-        const auto GemmM = GemmMRaw + GemmMPad;
-
-        assert(GemmK % GemmK1Number == 0);
-
-        const index_t GemmK0 = GemmK / GemmK1Number;
+        const auto GemmM    = math::integer_least_multiple(GemmMRaw, MPerBlock);
+        const auto GemmMPad = GemmM - GemmMRaw;
 
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
-        {
+        { // 1x1, stride=1, pad=0
+            const index_t GemmK = Y * X * C;
+            assert(GemmK % GemmK1Number == 0);
+
+            const index_t GemmK0 = GemmK / GemmK1Number;
+
             // A: input tensor
             const auto in_gemmmraw_gemmk_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, C));
@@ -181,7 +180,12 @@ struct
         }
         else if constexpr(ConvForwardSpecialization ==
                           ConvolutionForwardSpecialization_t::Filter1x1Pad0)
-        {
+        { // 1x1, pad=0
+            const index_t GemmK = Y * X * C;
+            assert(GemmK % GemmK1Number == 0);
+
+            const index_t GemmK0 = GemmK / GemmK1Number;
+
             // A: input tensor
             const auto in_n_hi_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
@@ -245,8 +249,113 @@ struct
                               bias_grid_desc_gemmm_gemmn,
                               resi_grid_desc_gemmm_gemmn);
         }
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization_t::OddC)
+        { // C = odd value
+            const index_t GemmKRaw = Y * X * C;
+            const index_t GemmK = math::integer_least_multiple(GemmKRaw, K0PerBlock * GemmK1Number);
+            const index_t GemmKPad = GemmK - GemmKRaw;
+            const index_t GemmK0   = GemmK / GemmK1Number;
+
+            // A: input tensor
+            const auto in_n_hi_wi_c_grid_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
+
+            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
+                in_n_hi_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_pad_transform(Hi, InLeftPadH, InRightPadH),
+                           make_pad_transform(Wi, InLeftPadW, InRightPadW),
+                           make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N),
+                    make_embed_transform(make_tuple(Y, Ho), make_tuple(ConvDilationH, ConvStrideH)),
+                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
+                    make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+
+            const auto in_gemmkraw_gemmmraw_grid_desc =
+                transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
+                                            make_tuple(make_merge_transform(make_tuple(Y, X, C)),
+                                                       make_merge_transform(make_tuple(N, Ho, Wo))),
+                                            make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmk_gemmm_grid_desc = transform_tensor_descriptor(
+                in_gemmkraw_gemmmraw_grid_desc,
+                make_tuple(make_right_pad_transform(GemmKRaw, GemmKPad),
+                           make_right_pad_transform(GemmMRaw, GemmMPad)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+                in_gemmk_gemmm_grid_desc,
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_pass_through_transform(GemmM)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            // B: weight tensor
+            const auto wei_k_yxc_grid_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(K, Y * X * C));
+
+            const auto wei_gemmk_gemmn_grid_desc = transform_tensor_descriptor(
+                wei_k_yxc_grid_desc,
+                make_tuple(make_pass_through_transform(K),
+                           make_right_pad_transform(GemmKRaw, GemmKPad)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<1>{}, Sequence<0>{}));
+
+            const auto wei_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+                wei_gemmk_gemmn_grid_desc,
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_pass_through_transform(GemmN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            // C: output tensor
+            const auto out_nhowo_k_grid_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
+
+            const auto out_gemmmraw_gemmn_grid_desc =
+                transform_tensor_descriptor(out_nhowo_k_grid_desc,
+                                            make_tuple(make_pass_through_transform(N * Ho * Wo),
+                                                       make_pass_through_transform(K)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto out_gemmm_gemmn_grid_desc =
+                transform_tensor_descriptor(out_gemmmraw_gemmn_grid_desc,
+                                            make_tuple(make_right_pad_transform(GemmMRaw, GemmMPad),
+                                                       make_pass_through_transform(GemmN)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            // C0: bias tensor: assume a contiguous vector
+            const auto bias_grid_desc_gemmm_gemmn =
+                make_naive_tensor_descriptor(make_tuple(GemmM, GemmN), make_tuple(I0, I1));
+
+            // C1: residual tensor: assume same layout as output tensor
+            const auto resi_grid_desc_gemmm_gemmn = out_gemmm_gemmn_grid_desc;
+
+            return make_tuple(in_gemmk0_gemmm_gemmk1_grid_desc,
+                              wei_gemmk0_gemmn_gemmk1_grid_desc,
+                              out_gemmm_gemmn_grid_desc,
+                              bias_grid_desc_gemmm_gemmn,
+                              resi_grid_desc_gemmm_gemmn);
+        }
         else
         {
+            const index_t GemmK = Y * X * C;
+            assert(GemmK % GemmK1Number == 0);
+
+            const index_t GemmK0 = GemmK / GemmK1Number;
+
             // A: input tensor
             const auto in_n_hi_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
@@ -437,6 +546,9 @@ struct
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op},
+              Conv_N_{N},
+              Conv_K_{K},
+              Conv_C_{C},
               filter_spatial_lengths_{filter_spatial_lengths},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
@@ -509,6 +621,9 @@ struct
         WeiElementwiseOperation wei_element_op_;
         OutElementwiseOperation out_element_op_;
         // for checking IsSupportedArgument()
+        index_t Conv_N_;
+        index_t Conv_K_;
+        index_t Conv_C_;
         std::vector<index_t> filter_spatial_lengths_;
         std::vector<index_t> conv_filter_strides_;
         std::vector<index_t> input_left_pads_;
@@ -689,6 +804,21 @@ struct
             }
         }
 
+        // vector load A/B matrix from global memory
+        if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
+             arg.Conv_C_ % ABlockTransferSrcScalarPerVector == 0 &&
+             arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
+        {
+            return false;
+        }
+
+        // vector store C matrix into global memory
+        if(!(arg.Conv_K_ % CBlockTransferScalarPerVector_NWaveNPerXdl == 0))
+        {
+            return false;
+        }
+
+        // Gridwise GEMM size
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,

@@ -10,6 +10,7 @@ enum ConvolutionForwardSpecialization_t
     Default,
     Filter1x1Pad0,
     Filter1x1Stride1Pad0,
+    OddC,
 };
 
 } // namespace device

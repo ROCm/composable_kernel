@@ -23,12 +23,6 @@ static constexpr auto InMemoryAtomicAdd = ck::InMemoryDataOperationEnum_t::Atomi
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
-static constexpr auto ConvFwd1x1P0 =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Pad0;
-
-static constexpr auto ConvFwd1x1S1P0 =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0;
-
 using device_conv2d_fwd_xdl_c_shuffle_bias_relu_atomic_add_nhwc_kyxc_nhwk_f16_instances = std::tuple<
     // clang-format off
         //##########################################################################################| InData| WeiData| OutData| AccData|          In|         Wei|         Out|               Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|

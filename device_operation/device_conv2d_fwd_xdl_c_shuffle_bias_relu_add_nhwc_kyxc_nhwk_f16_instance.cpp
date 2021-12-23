@@ -27,6 +27,10 @@ static constexpr auto ConvFwd1x1P0 =
 static constexpr auto ConvFwd1x1S1P0 =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0;
 
+static constexpr auto ConvFwdOddC =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::OddC;
+
+// arbitrary conv
 using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances = std::tuple<
     // clang-format off
         //##############################################################################################| InData| WeiData| OutData| AccData|          In|         Wei|         Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
@@ -49,6 +53,7 @@ using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances
     // clang-format on
     >;
 
+// 1x1, pad 0
 using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_1x1_p0_f16_instances = std::tuple<
     // clang-format off
         //##############################################################################################| InData| WeiData| OutData| AccData|          In|         Wei|         Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
@@ -71,6 +76,7 @@ using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_1x1_p0_f16_in
     // clang-format on
     >;
 
+// 1x1, stride 1, pad 0
 using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_1x1_s1_p0_f16_instances = std::tuple<
     // clang-format off
         //##############################################################################################| InData| WeiData| OutData| AccData|          In|         Wei|         Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
@@ -93,6 +99,29 @@ using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_1x1_s1_p0_f16
     // clang-format on
     >;
 
+// Odd C
+using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_odd_c_f16_instances = std::tuple<
+    // clang-format off
+        //##############################################################################################| InData| WeiData| OutData| AccData|          In|         Wei|         Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
+        //##############################################################################################|   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
+        //##############################################################################################|       |        |        |        |   Operation|   Operation|   Operation|               |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
+        //##############################################################################################|       |        |        |        |            |            |            |               |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 32, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   256,   128,   256,     4,  8,   32,   32,    2,    4,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 32, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   128,   128,   128,     4,  8,   32,   32,    4,    2,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 16, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   256,   128,   128,     4,  8,   32,   32,    2,    2,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 32, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   128,   128,    64,     4,  8,   32,   32,    2,    2,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 32, 1, 1, 4>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   128,    64,   128,     4,  8,   32,   32,    2,    2,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 16, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,    64,    64,    64,     4,  8,   32,   32,    2,    2,     S<4,  2, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  2, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 16, 1, 1, 4>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   256,   128,    64,     4,  8,   32,   32,    2,    1,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 32, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   256,    64,   128,     4,  8,   32,   32,    1,    2,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  8, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 32, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   128,   128,    32,     4,  8,   32,   32,    2,    1,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 32, 1, 1, 4>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,   128,    32,   128,     4,  8,   32,   32,    1,    2,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  4, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 16, 1, 1, 8>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,    64,    64,    32,     4,  8,   32,   32,    2,    1,     S<4,  2, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  2, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 16, 1, 1, 4>,               8>,
+        DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<    F16,     F16,     F16,     F32, PassThrough, PassThrough,  AddReluAdd,    ConvFwdOddC,    64,    32,    64,     4,  8,   32,   32,    1,    2,     S<4,  2, 8>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4,  2, 8>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,           1,           1,             S<1, 1, 16, 1, 1, 4>,               8>
+    // clang-format on
+    >;
+
 void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>& instances)
 {
@@ -104,6 +133,9 @@ void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instan
     add_device_operation_instances(
         instances,
         device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_1x1_s1_p0_f16_instances{});
+    add_device_operation_instances(
+        instances,
+        device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_odd_c_f16_instances{});
 }
 
 } // namespace device_conv2d_fwd_bias_activation_add_instance
