@@ -31,7 +31,7 @@ using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Pad0;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
 using DeviceConvFwdInstance = ck::tensor_operation::device::
     DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
