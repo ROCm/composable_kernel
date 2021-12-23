@@ -34,8 +34,6 @@ install(TARGETS device_gemm_instance LIBRARY DESTINATION lib)
 set(DEVICE_CONV2D_FWD_INSTANCE_SOURCE 
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_f16_instance.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f16_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instance.cpp;
 ) 
 

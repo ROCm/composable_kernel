@@ -160,7 +160,7 @@ enum InMemoryDataOperationEnum_t
 
 enum ActivTypeEnum_t
 {
-    None = 0,
+    None,
     LeakyRelu,
     Sigmoid
 };
