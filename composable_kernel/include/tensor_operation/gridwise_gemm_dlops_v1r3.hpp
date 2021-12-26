@@ -6,7 +6,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_dlops_v2r3.hpp"
-#include "blockwise_tensor_slice_transfer_v2.hpp"
+#include "blockwise_tensor_slice_transfer_v5r1.hpp"
 #include "threadwise_tensor_slice_transfer_v2.hpp"
 #include "threadwise_tensor_slice_set.hpp"
 
@@ -380,7 +380,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
                       "wrong!");
 
         // A matrix blockwise copy
-        auto a_blockwise_copy = BlockwiseTensorSliceTransfer_v4r1<
+        auto a_blockwise_copy = BlockwiseTensorSliceTransfer_v5r1<
             BlockSize,
             InMemoryDataOperationEnum_t::Set,
             Sequence<KPerBlock, 1, MPerBlockM1, K1.value>,
@@ -404,7 +404,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
                   make_multi_index(0, 0, 0, 0));
 
         // B matrix blockwise copy
-        auto b_blockwise_copy = BlockwiseTensorSliceTransfer_v4r1<
+        auto b_blockwise_copy = BlockwiseTensorSliceTransfer_v5r1<
             BlockSize,
             InMemoryDataOperationEnum_t::Set,
             Sequence<KPerBlock, 1, NPerBlockN1, K1.value>,

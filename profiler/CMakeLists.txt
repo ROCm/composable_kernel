@@ -30,21 +30,65 @@ target_compile_features(device_gemm_instance PUBLIC)
 set_target_properties(device_gemm_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
 install(TARGETS device_gemm_instance LIBRARY DESTINATION lib) 
 
-# device_conv_instance
-set(DEVICE_CONV_INSTANCE_SOURCE 
-   ${PROJECT_SOURCE_DIR}/device_operation/device_conv_xdl_instance_f32_f32_f32_nhwc_kyxc_nhwk.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_conv_xdl_instance_f16_f16_f16_nhwc_kyxc_nhwk.cpp;
+# device_conv2d_fwd_instance
+set(DEVICE_CONV2D_FWD_INSTANCE_SOURCE 
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instance.cpp;
 ) 
 
-add_library(device_conv_instance SHARED ${DEVICE_CONV_INSTANCE_SOURCE}) 
-target_include_directories(device_conv_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
-target_compile_features(device_conv_instance PUBLIC)
-set_target_properties(device_conv_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-install(TARGETS device_conv_instance LIBRARY DESTINATION lib) 
+add_library(device_conv2d_fwd_instance SHARED ${DEVICE_CONV2D_FWD_INSTANCE_SOURCE}) 
+target_include_directories(device_conv2d_fwd_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+target_compile_features(device_conv2d_fwd_instance PUBLIC)
+set_target_properties(device_conv2d_fwd_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_conv2d_fwd_instance LIBRARY DESTINATION lib) 
+
+# device_conv2d_fwd_bias_relu_instance
+set(DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE 
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_bias_relu_nhwc_kyxc_nhwk_f16_instance.cpp;
+) 
+
+add_library(device_conv2d_fwd_bias_relu_instance SHARED ${DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE}) 
+target_include_directories(device_conv2d_fwd_bias_relu_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+target_compile_features(device_conv2d_fwd_bias_relu_instance PUBLIC)
+set_target_properties(device_conv2d_fwd_bias_relu_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_conv2d_fwd_bias_relu_instance LIBRARY DESTINATION lib) 
+
+# device_conv2d_fwd_bias_relu_add_instance
+set(DEVICE_CONV2D_FWD_BIAS_RELU_ADD_INSTANCE_SOURCE 
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instance.cpp;
+) 
+
+add_library(device_conv2d_fwd_bias_relu_add_instance SHARED ${DEVICE_CONV2D_FWD_BIAS_RELU_ADD_INSTANCE_SOURCE}) 
+target_include_directories(device_conv2d_fwd_bias_relu_add_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+target_compile_features(device_conv2d_fwd_bias_relu_add_instance PUBLIC)
+set_target_properties(device_conv2d_fwd_bias_relu_add_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_conv2d_fwd_bias_relu_add_instance LIBRARY DESTINATION lib) 
+
+# device_conv2d_fwd_bias_relu_atomic_add_instance
+set(DEVICE_CONV2D_FWD_BIAS_RELU_ATOMIC_ADD_INSTANCE_SOURCE 
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_bias_relu_atomic_add_nhwc_kyxc_nhwk_f16_instance.cpp;
+) 
+
+add_library(device_conv2d_fwd_bias_relu_atomic_add_instance SHARED ${DEVICE_CONV2D_FWD_BIAS_RELU_ATOMIC_ADD_INSTANCE_SOURCE}) 
+target_include_directories(device_conv2d_fwd_bias_relu_atomic_add_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+target_compile_features(device_conv2d_fwd_bias_relu_atomic_add_instance PUBLIC)
+set_target_properties(device_conv2d_fwd_bias_relu_atomic_add_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_conv2d_fwd_bias_relu_atomic_add_instance LIBRARY DESTINATION lib) 
 
 # ck_profiler
-set(PROFILER_SOURCE profiler.cpp gemm_profiler.cpp conv_profiler.cpp)
+set(PROFILER_SOURCE 
+    profiler.cpp
+    profile_gemm.cpp
+    profile_conv_fwd.cpp
+    profile_conv_fwd_bias_relu.cpp
+    profile_conv_fwd_bias_relu_add.cpp
+    profile_conv_fwd_bias_relu_atomic_add.cpp)
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
-target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
+target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_instance)
+target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_instance)
+target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instance)
+target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_atomic_add_instance)

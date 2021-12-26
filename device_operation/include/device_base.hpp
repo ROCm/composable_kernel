@@ -1,6 +1,8 @@
 #ifndef DEVICE_BASE_HPP
 #define DEVICE_BASE_HPP
 
+#include <string>
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -32,6 +34,7 @@ struct BaseOperator
     BaseOperator& operator=(const BaseOperator&) = default;
 
     virtual bool IsSupportedArgument(const BaseArgument*) = 0;
+    virtual std::string GetTypeString() const             = 0;
 
     virtual ~BaseOperator() {}
 };
