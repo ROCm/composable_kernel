@@ -290,7 +290,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                         const DstDesc& dst_desc,
                         DstBuffer& dst_buf)
     {
-        constexpr index_t ntransform_dst = DstDesc::GetNumOfTransform();
+        constexpr index_t ntransform_dst = remove_cvref_t<DstDesc>::GetNumOfTransform();
 
         constexpr auto zeros = typename uniform_sequence_gen<ntransform_dst, 0>::type{};
 
@@ -326,7 +326,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_access_lengths[I0] - 1;
 
-                static_for<0, i, 1>{}([&](auto j) {
+                static_for<1, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
                 });
 
@@ -506,7 +506,7 @@ struct ThreadwiseTensorSliceTransfer_v2
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_access_idx[I0];
 
-                    static_for<0, i, 1>{}([&](auto j) {
+                    static_for<1, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_access_lengths[j] + ordered_access_idx[j];
                     });
 
@@ -638,7 +638,7 @@ struct ThreadwiseTensorSliceTransfer_v2
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_access_lengths[I0] - 1;
 
-                static_for<0, i, 1>{}([&](auto j) {
+                static_for<1, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
                 });
 
@@ -835,7 +835,7 @@ struct ThreadwiseTensorSliceTransfer_v3
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_src_access_idx[I0];
 
-                    static_for<0, i, 1>{}([&](auto j) {
+                    static_for<1, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_src_access_lengths[j] + ordered_src_access_idx[j];
                     });
 
@@ -992,7 +992,7 @@ struct ThreadwiseTensorSliceTransfer_v3
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_dst_access_idx[I0];
 
-                    static_for<0, i, 1>{}([&](auto j) {
+                    static_for<1, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_idx[j];
                     });
 
@@ -1136,7 +1136,7 @@ struct ThreadwiseTensorSliceTransfer_v3
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_src_access_lengths[I0] - 1;
 
-                static_for<0, i, 1>{}([&](auto j) {
+                static_for<1, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_src_access_lengths[j] + ordered_src_access_lengths[j] - 1;
                 });
 
@@ -1196,7 +1196,7 @@ struct ThreadwiseTensorSliceTransfer_v3
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_dst_access_lengths[I0] - 1;
 
-                static_for<0, i, 1>{}([&](auto j) {
+                static_for<1, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_lengths[j] - 1;
                 });
 
