@@ -35,8 +35,8 @@
 #include "dynamic_buffer.hpp"
 #include "is_known_at_compile_time.hpp"
 #include "transpose_vectors.hpp"
-
 #include "inner_product.hpp"
+#include "element_wise_operation.hpp"
 
 // TODO: remove this
 #if CK_USE_AMD_INLINE_ASM
