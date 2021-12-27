@@ -13,24 +13,7 @@
 #include "device_tensor.hpp"
 #include "device_base.hpp"
 #include "device_gemm_xdl.hpp"
-
-struct PassThrough
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        return v;
-    }
-};
-
-struct Relu
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        return v > 0 ? v : 0;
-    }
-};
+#include "element_wise_operation.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -44,18 +27,18 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AOp = PassThrough;
-using BOp = PassThrough;
-using COp = Relu;
+using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 // Compilation parameters for NT problem
 // clang-format off
 using DeviceGemmInstance =
-    //#########################################|     AData|     BData|     CData|     AccData| ALayout| BLayout| CLayout| AElementwise| BElementwise| CElementwise| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
-    //#########################################|      Type|      Type|      Type|        Type|        |        |        |    Operation|    Operation|    Operation|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
-    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_N_K1| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1| Lengths_K0_N_K1| Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|                |       PerVector|          |          |
-    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     |     |     |                |                |               |               |               |               |               |                |                |               |               |              |               |               |                |                |          |          |
-    ck::tensor_operation::device::DeviceGemmXdl< ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,          AOp,          BOp,          COp,   256,   256,   128,     4,  8,   32,   32,    4,    2,      S<1, 4, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      S<1, 2, 8>,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,               7,               1,      true,      true>;
+    //#########################################|     AData|     BData|     CData|     AccData| ALayout| BLayout| CLayout| AElementwise| BElementwise| CElementwise| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
+    //#########################################|      Type|      Type|      Type|        Type|        |        |        |    Operation|    Operation|    Operation|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
+    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1| Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|                |       PerVector|          |          |
+    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |                |               |               |              |               |               |                |                |          |          |
+    ck::tensor_operation::device::DeviceGemmXdl< ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,   AElementOp,   BElementOp,   CElementOp,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,               7,               1,      true,      true>;
 // clang-format on
 
 template <typename AType,
@@ -189,9 +172,9 @@ int main(int argc, char* argv[])
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      AOp{},
-                                      BOp{},
-                                      COp{});
+                                      AElementOp{},
+                                      BElementOp{},
+                                      CElementOp{});
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -217,7 +200,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(a_m_k, b_k_n, c_m_n_host_result, AOp{}, BOp{}, COp{});
+        host_verify(a_m_k, b_k_n, c_m_n_host_result, AElementOp{}, BElementOp{}, CElementOp{});
 
         check_error(c_m_n_host_result, c_m_n_device_result);
     }

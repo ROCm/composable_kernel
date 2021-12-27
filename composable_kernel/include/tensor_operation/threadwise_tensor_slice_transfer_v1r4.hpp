@@ -116,9 +116,6 @@ struct ThreadwiseTensorSliceTransfer_v1r4
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto dst_scalar_step_in_vector =
-            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
-
         constexpr auto access_lengths = SliceLengths{} / dst_scalar_per_access;
 
         constexpr auto dim_access_order = DimAccessOrder{};
@@ -141,7 +138,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make forward steps: dst0
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst0_forward_steps = generate_tuple(
             [&](auto i) {
@@ -157,7 +155,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make forward steps: dst1
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst1_forward_steps = generate_tuple(
             [&](auto i) {
@@ -187,7 +186,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make backward steps: dst0
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst0_backward_steps = generate_tuple(
             [&](auto i) {
@@ -203,7 +203,8 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             Number<nDim>{});
 
         // make backward steps: dst1
-        // WARNING!!!!!!: this logic is only correct if DstScalarPerVector=1
+        // WARNING!!!!!!: this logic is only correct if dst/dst0/dst1 can use the same
+        // DstScalarPerVector
         // TODO: fix this
         const auto dst1_backward_steps = generate_tuple(
             [&](auto i) {
@@ -229,7 +230,7 @@ struct ThreadwiseTensorSliceTransfer_v1r4
                 static_for<1, nDim, 1>{}([&](auto i) {
                     index_t tmp = ordered_access_idx[I0];
 
-                    static_for<0, i, 1>{}([&](auto j) {
+                    static_for<1, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_access_lengths[j] + ordered_access_idx[j];
                     });
 
@@ -397,14 +398,12 @@ struct ThreadwiseTensorSliceTransfer_v1r4
               typename SrcBuffer,
               typename DstBuffer,
               typename Dst0Buffer,
-              typename Dst1Buffer,
-              typename DstStepHacks>
+              typename Dst1Buffer>
     __device__ void Run(const SrcDesc&,
                         const SrcSliceOriginIdx&,
                         const SrcBuffer& src_buf,
                         const DstDesc& dst_desc,
                         DstBuffer& dst_buf,
-                        const DstStepHacks& dst_step_hacks,
                         const Dst0Desc& dst0_desc,
                         const Dst0Buffer& dst0_buf,
                         const Dst1Desc& dst1_desc,
@@ -427,7 +426,7 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             src_buf,
             dst_desc,
             dst_buf,
-            dst_step_hacks,
+            f_step_hacks(dst_desc),
             dst0_desc,
             dst0_buf,
             f_step_hacks(dst0_desc),
@@ -461,7 +460,7 @@ struct ThreadwiseTensorSliceTransfer_v1r4
             static_for<1, nDim, 1>{}([&](auto i) {
                 index_t tmp = ordered_access_lengths[I0] - 1;
 
-                static_for<0, i, 1>{}([&](auto j) {
+                static_for<1, i, 1>{}([&](auto j) {
                     tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
                 });
 
