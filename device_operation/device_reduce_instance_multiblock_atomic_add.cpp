@@ -1,4 +1,4 @@
-#include "device_reduce_instance_common.hpp"
+#include "device_reduce_instance_impl_common.hpp"
 #include "device_reduce_multiblock_atomic_add.hpp"
 
 namespace ck {

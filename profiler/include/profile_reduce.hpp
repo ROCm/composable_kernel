@@ -1,4 +1,5 @@
 #pragma once
+#include "device_reduce.hpp"
 #include "device_reduce_instance.hpp"
 #include "reduction_enums.hpp"
 
@@ -24,9 +25,9 @@ using reduce_description_instances = std::tuple<
     ReduceDescription<4, Sequence<0,1,2>, 1, 0, 0>,                        // for MUL
     ReduceDescription<4, Sequence<0>, 1, 0, 0>, 
     ReduceDescription<4, Sequence<0,1,2>, 5, 0, 0>,                        // for AVG
-    ReduceDescription<4, Sequence<0>, 0, 5, 0>, 
+    ReduceDescription<4, Sequence<0>, 5, 0, 0>, 
     ReduceDescription<4, Sequence<0,1,2>, 6, 0, 0>,                        // for NORM1
-    ReduceDescription<4, Sequence<0>, 0, 6, 0>, 
+    ReduceDescription<4, Sequence<0>, 6, 0, 0>, 
     ReduceDescription<4, Sequence<0,1,2>, 7, 0, 0>,                        // for NORM2
     ReduceDescription<4, Sequence<0>, 7, 0, 0>, 
 
@@ -134,18 +135,34 @@ static void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
 }
 
 template <typename inType, typename compType, typename outType, 
-         int rank_, typename toReduceDims_, ReduceTensorOp_t reduceOp, NanPropagation_t nanOpt, ReduceTensorIndices_t indicesOpt>
+         int rank, typename toReduceDims_, ReduceTensorOp_t reduceOp, NanPropagation_t nanOpt, ReduceTensorIndices_t indicesOpt>
 void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int nrepeat, const std::vector<size_t> & inLengths, float alpha, float beta)
 {
+    using namespace ck::tensor_operation::device;
+    using namespace ck::tensor_operation::device::device_reduce_instance;
+
+    constexpr bool op_support_indices = (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX || reduceOp == ReduceTensorOp_t::AMAX);
+
+    constexpr bool need_indices = (op_support_indices && (indicesOpt != ReduceTensorIndices_t::NO_INDICES)); 
+
+    constexpr bool out_support_atomic_add = (std::is_same<outType, float>::value || std::is_same<outType, double>::value);
+    constexpr bool op_support_atomic_add = !op_support_indices; 
+    constexpr bool use_atomic_add = (out_support_atomic_add && op_support_atomic_add);
+
+    constexpr bool invalid_reduce_1 = std::is_same<inType, half_t>::value &&
+	                            ((!op_support_indices && !std::is_same<compType, float>::value) || (op_support_indices && !std::is_same<compType, half_t>::value)); 
+
+    constexpr bool invalid_reduce_2 = std::is_same<inType, float>::value && (op_support_indices && !std::is_same<compType, float>::value); 
+    constexpr bool invalid_reduce_3 = (!op_support_indices && indicesOpt != ReduceTensorIndices_t::NO_INDICES); 
+
+    constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3); 
+
     Tensor<inType> in(inLengths);
 
-    std::vector<int> invariantDims;
-    std::vector<int> toReduceDims; 
+    const std::vector<int> invariantDims = get_invariant_dims<rank, toReduceDims_>();
+    const std::vector<int> toReduceDims = get_toReduce_dims<rank, toReduceDims_>();
 
     std::vector<size_t> outLengths;
-
-    toReduceDims = get_toReduce_dims<rank_, toReduceDims_>(); 
-    invariantDims = get_invariant_dims<rank_, toReduceDims_>();
 
     if (invariantDims.empty())
         outLengths.push_back(1);
@@ -162,18 +179,10 @@ void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int
 
     auto outStrides = out_dev.mDesc.GetStrides();
 
-    // used for mapping to a configuraton instance
-    int dim0_length = invariantDims.empty()? 1 : inLengths[invariantDims.back()]; 
-    int dim0_stride = invariantDims.empty()? 1 : inStrides[invariantDims.back()]; 
-    int dim1_length = inLengths[toReduceDims.back()]; 
-    int dim1_stride = inStrides[toReduceDims.back()]; 
     size_t dim0_total_length = out_dev.mDesc.GetElementSize();
     size_t dim1_total_length = in.mDesc.GetElementSize() / dim0_total_length;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
-
-    bool need_indices = ((indicesOpt != ReduceTensorIndices_t::NO_INDICES) &&
-		         (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX || reduceOp == ReduceTensorOp_t::AMAX));
 
     if(do_verification)
     {
@@ -223,19 +232,25 @@ void profile_reduce_impl(bool do_verification, int init_method, bool do_log, int
     float best_avg_time   = 0;
     float best_gb_per_sec = 0;
 
-    using DeviceReduceInstPtr = ck::tensor_operation::device::DeviceReducePtr<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>; 
-    using DeviceReduceInstPtr2 = ck::tensor_operation::device::DeviceReducePtr<compType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>; 
+    using DeviceReduceInstPtr = DeviceReducePtr<inType,compType,outType, rank,toReduceDims_, reduceOp,nanOpt,indicesOpt>; 
+    using DeviceReduceInstPtr2 = DeviceReducePtr<compType,compType,outType, rank,toReduceDims_, reduceOp,nanOpt,indicesOpt>; 
 
     std::vector<DeviceReduceInstPtr> reduce_ptrs;
     std::vector<DeviceReduceInstPtr2> reduce2_ptrs;
 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_threadwise<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_blockwise<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_multiblock_atomic_add<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_multiblock_two_call<inType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce_ptrs); 
+    if constexpr(!invalid_reduce) {
+        add_device_reduce_instance_threadwise<inType,compType,outType, rank,toReduceDims_, reduceOp,nanOpt,indicesOpt>(reduce_ptrs); 
+        add_device_reduce_instance_blockwise<inType,compType,outType, rank,toReduceDims_, reduceOp,nanOpt,indicesOpt>(reduce_ptrs); 
 
-    // used for secondary reduction
-    ck::tensor_operation::device::device_reduce_instance::add_device_reduce_instance_blockwise_second_call<compType, compType, outType, rank_, toReduceDims_, reduceOp, nanOpt, indicesOpt>(reduce2_ptrs); 
+        if constexpr(use_atomic_add)
+           add_device_reduce_instance_multiblock_atomic_add<inType,compType,outType, rank,toReduceDims_, reduceOp,nanOpt,indicesOpt>(reduce_ptrs); 
+        else
+           add_device_reduce_instance_multiblock_two_call<inType,compType,outType, rank,toReduceDims_, reduceOp,nanOpt,indicesOpt>(reduce_ptrs); 
+
+        // used for secondary reduction
+        if constexpr(!use_atomic_add)
+           add_device_reduce_instance_blockwise_second_call<compType,compType,outType, rank,toReduceDims_, reduceOp,nanOpt,indicesOpt>(reduce2_ptrs); 
+    }; 
 
     if(reduce_ptrs.empty())
     {

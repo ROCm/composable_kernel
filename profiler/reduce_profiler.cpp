@@ -22,9 +22,9 @@
 
 using namespace std;
 
-using ck::ReduceTensorOp_t;
 using ck::NanPropagation_t;
 using ck::ReduceTensorIndices_t;
+using ck::ReduceTensorOp_t;
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
                                        {"toReduceDims", required_argument, nullptr, 'R'},
@@ -41,7 +41,6 @@ static struct option long_options[] = {{"inLengths", required_argument, nullptr,
                                        {"log", required_argument, nullptr, 'l'},
                                        {"help", no_argument, nullptr, '?'},
                                        {nullptr, 0, nullptr, 0}};
-static int option_index             = 0;
 
 template <typename T>
 static T getSingleValueFromString(const string& valueStr);
@@ -105,34 +104,6 @@ typedef enum
     appDouble   = 6,
 } appDataType_t;
 
-static void show_usage(const char* cmd)
-{
-    std::cout << "Usage of " << cmd << std::endl;
-    std::cout << "--inLengths or -D, comma separated list of input tensor dimension lengths"
-              << std::endl;
-    std::cout << "--toReduceDims or -R, comma separated list of to-reduce dimensions" << std::endl;
-    std::cout << "--reduceOp or -O, enum value indicating the reduction operations" << std::endl;
-    std::cout << "--compType or -C, enum value indicating the type of accumulated values used "
-                 "during the reduction"
-              << std::endl;
-    std::cout << "--outType or -W, optional enum value indicating the type of the reduced output, "
-                 "which could be float when the input data is half"
-              << std::endl;
-    std::cout << "--nanOpt or -N, enum value indicates the selection for NanOpt" << std::endl;
-    std::cout << "--indicesOpt or -I, enum value indicates the selection for IndicesOpt"
-              << std::endl;
-    std::cout << "--scales or -S, comma separated two float values for alpha and beta" << std::endl;
-    std::cout << "--half, use fp16 for the input and output tensor data types" << std::endl;
-    std::cout << "--double, use fp64 for the input and output tensor data types" << std::endl;
-    std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
-                 "comparing with the host-based reduction"
-              << std::endl;
-    std::cout << "--dumpout or -o, 1/0 to indicate where to save the reduction result to files "
-                 "for further analysis"
-              << std::endl;
-    std::cout << "--log or -l, 1/0 to indicate whether to log some information" << std::endl;
-};
-
 static void check_reduce_dims(const int rank, const std::vector<int>& toReduceDims)
 {
     for(auto dim : toReduceDims)
@@ -143,208 +114,305 @@ static void check_reduce_dims(const int rank, const std::vector<int>& toReduceDi
 
     unsigned int flag = 0;
 
-    for(auto dim : toReduceDims) {
-        if ( flag & (0x1 << dim) ) 
-	     throw std::runtime_error("All toReduce dimensions should be different!"); 	
-        flag = flag | (0x1 << dim); 
-    }; 
+    for(auto dim : toReduceDims)
+    {
+        if(flag & (0x1 << dim))
+            throw std::runtime_error("All toReduce dimensions should be different!");
+        flag = flag | (0x1 << dim);
+    };
 };
 
-static bool use_half   = false;
-static bool use_double = false;
-
-static std::vector<size_t> inLengths;
-static std::vector<size_t> outLengths;
-static std::vector<int> toReduceDims;
-
-static std::vector<float> scales;
-
-static ReduceTensorOp_t reduceOp        = ReduceTensorOp_t::ADD;
-static appDataType_t compTypeId         = appFloat;
-static appDataType_t outTypeId          = appFloat;
-static bool compType_assigned           = false;
-static bool outType_assigned            = false;
-static NanPropagation_t nanOpt          = NanPropagation_t::NOT_PROPAGATE_NAN;
-static ReduceTensorIndices_t indicesOpt = ReduceTensorIndices_t::NO_INDICES;
-static bool do_log                  = false;
-static bool do_verification             = false;
-static bool do_dumpout                  = false;
-
-static int init_method;
-static int nrepeat;
-
-static bool need_indices = false;
-
-static void check_cmdline_arguments(int argc, char* argv[])
+class AppArgs
 {
-    unsigned int ch;
+    private:
+    int option_index = 0;
 
-    while(1)
+    public:
+    bool use_half   = false;
+    bool use_double = false;
+
+    std::vector<size_t> inLengths;
+    std::vector<size_t> outLengths;
+    std::vector<int> toReduceDims;
+
+    std::vector<float> scales;
+
+    ReduceTensorOp_t reduceOp = ReduceTensorOp_t::ADD;
+    appDataType_t compTypeId  = appFloat;
+    appDataType_t outTypeId   = appFloat;
+
+    bool compType_assigned = false;
+    bool outType_assigned  = false;
+
+    NanPropagation_t nanOpt          = NanPropagation_t::NOT_PROPAGATE_NAN;
+    ReduceTensorIndices_t indicesOpt = ReduceTensorIndices_t::NO_INDICES;
+    bool do_log                      = false;
+    bool do_verification             = false;
+    bool do_dumpout                  = false;
+
+    int init_method;
+    int nrepeat;
+
+    bool need_indices = false;
+
+    AppArgs()  = default;
+    ~AppArgs() = default;
+
+    void show_usage(const char* cmd)
     {
-        ch = getopt_long(argc, argv, "D:R:O:C:W:N:I:S:v:o:l:", long_options, &option_index);
-        if(ch == -1)
-            break;
-        switch(ch)
+        std::cout << "Usage of " << cmd << std::endl;
+        std::cout << "--inLengths or -D, comma separated list of input tensor dimension lengths"
+                  << std::endl;
+        std::cout << "--toReduceDims or -R, comma separated list of to-reduce dimensions"
+                  << std::endl;
+        std::cout << "--reduceOp or -O, enum value indicating the reduction operations"
+                  << std::endl;
+        std::cout << "--compType or -C, enum value indicating the type of accumulated values used "
+                     "during the reduction"
+                  << std::endl;
+        std::cout << "--outType or -W, optional enum value indicating the type of the reduced "
+                     "output, which could be float when the input data is half"
+                  << std::endl;
+        std::cout << "--nanOpt or -N, enum value indicates the selection for NanOpt" << std::endl;
+        std::cout << "--indicesOpt or -I, enum value indicates the selection for IndicesOpt"
+                  << std::endl;
+        std::cout << "--scales or -S, comma separated two float values for alpha and beta"
+                  << std::endl;
+        std::cout << "--half, use fp16 for the input and output tensor data types" << std::endl;
+        std::cout << "--double, use fp64 for the input and output tensor data types" << std::endl;
+        std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
+                     "comparing with the host-based reduction"
+                  << std::endl;
+        std::cout << "--dumpout or -o, 1/0 to indicate where to save the reduction result to files "
+                     "for further analysis"
+                  << std::endl;
+        std::cout << "--log or -l, 1/0 to indicate whether to log some information" << std::endl;
+    };
+
+    int processArgs(int argc, char* argv[])
+    {
+        unsigned int ch;
+
+        while(1)
         {
-        case 'D':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            inLengths = getTypeValuesFromString<size_t>(optarg);
-            break;
-        case 'R':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            toReduceDims = getTypeValuesFromString<int>(optarg);
-            break;
-        case 'O':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            reduceOp = static_cast<ReduceTensorOp_t>(std::atoi(optarg));
-            break;
-        case 'C':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            compTypeId        = static_cast<appDataType_t>(std::atoi(optarg));
-            compType_assigned = true;
-            break;
-        case 'W':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            outTypeId        = static_cast<appDataType_t>(std::atoi(optarg));
-            outType_assigned = true;
-            break;
-        case 'N':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            nanOpt = static_cast<NanPropagation_t>(std::atoi(optarg));
-            break;
-        case 'I':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            indicesOpt = static_cast<ReduceTensorIndices_t>(std::atoi(optarg));
-            break;
-        case 'S':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            scales = getTypeValuesFromString<float>(optarg);
-
-            if(scales.size() != 2)
-                throw std::runtime_error("Invalid option format!");
-
-            break;
-        case 'v':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            do_verification = static_cast<bool>(std::atoi(optarg));
-            break;
-        case 'o':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            do_dumpout = static_cast<bool>(std::atoi(optarg));
-            break;
-        case 'l':
-            if(!optarg)
-                throw std::runtime_error("Invalid option format!");
-
-            do_log = static_cast<bool>(std::atoi(optarg));
-            break;
-        case '?':
-            if(std::string(long_options[option_index].name) == "half")
-                use_half = true;
-            else if(std::string(long_options[option_index].name) == "double")
-                use_double = true;
-            else if(std::string(long_options[option_index].name) == "help")
+            ch = getopt_long(argc, argv, "D:R:O:C:W:N:I:S:v:o:l:", long_options, &option_index);
+            if(ch == -1)
+                break;
+            switch(ch)
             {
+            case 'D':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                inLengths = getTypeValuesFromString<size_t>(optarg);
+                break;
+            case 'R':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                toReduceDims = getTypeValuesFromString<int>(optarg);
+                break;
+            case 'O':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                reduceOp = static_cast<ReduceTensorOp_t>(std::atoi(optarg));
+                break;
+            case 'C':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                compTypeId        = static_cast<appDataType_t>(std::atoi(optarg));
+                compType_assigned = true;
+                break;
+            case 'W':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                outTypeId        = static_cast<appDataType_t>(std::atoi(optarg));
+                outType_assigned = true;
+                break;
+            case 'N':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                nanOpt = static_cast<NanPropagation_t>(std::atoi(optarg));
+                break;
+            case 'I':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                indicesOpt = static_cast<ReduceTensorIndices_t>(std::atoi(optarg));
+                break;
+            case 'S':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                scales = getTypeValuesFromString<float>(optarg);
+
+                if(scales.size() != 2)
+                    throw std::runtime_error("Invalid option format!");
+                break;
+            case 'v':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                do_verification = static_cast<bool>(std::atoi(optarg));
+                break;
+            case 'o':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                do_dumpout = static_cast<bool>(std::atoi(optarg));
+                break;
+            case 'l':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                do_log = static_cast<bool>(std::atoi(optarg));
+                break;
+            case '?':
+                if(std::string(long_options[option_index].name) == "half")
+                    use_half = true;
+                else if(std::string(long_options[option_index].name) == "double")
+                    use_double = true;
+                else if(std::string(long_options[option_index].name) == "help")
+                {
+                    show_usage(argv[0]);
+                    return (-1);
+                };
+                break;
+
+            default:
                 show_usage(argv[0]);
-                exit(0);
+                std::cerr << "Invalid cmd-line options!" << std::endl;
+                return (-1);
             };
-            break;
-
-        default: show_usage(argv[0]); throw std::runtime_error("Invalid cmd-line options!");
         };
+
+        if(optind + 2 > argc)
+            throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
+
+        init_method = std::atoi(argv[optind++]);
+        nrepeat     = std::atoi(argv[optind]);
+
+        if(scales.empty())
+        {
+            scales.push_back(1.0f);
+            scales.push_back(0.0f);
+        };
+
+        if(reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
+           reduceOp == ReduceTensorOp_t::AMAX)
+        {
+            if(indicesOpt != ReduceTensorIndices_t::NO_INDICES)
+                need_indices = true;
+
+            // for indexable operations, no need to assign compType and outType, just let them be
+            // same as inType
+            compType_assigned = false;
+            outType_assigned  = false;
+        };
+
+        return (0);
     };
 
-    if(optind + 2 > argc)
-        throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
-
-    init_method = std::atoi(argv[optind++]);
-    nrepeat     = std::atoi(argv[optind]);
-
-    if(scales.empty())
-    {
-        scales.push_back(1.0f);
-        scales.push_back(0.0f);
-    };
-
-    if(reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX || reduceOp == ReduceTensorOp_t::AMAX)
-    {
-
-        if(indicesOpt != ReduceTensorIndices_t::NO_INDICES)
-            need_indices = true;
-
-        // for indexable operations, no need to assign compType and outType, just let them be same
-        // as inType
-        compType_assigned = false;
-        outType_assigned  = false;
-    };
-};
-
-using namespace ck::profiler; 
+}; // end of class AppArgs
 
 int reduce_profiler(int argc, char* argv[])
 {
-    check_cmdline_arguments(argc, argv);
+    using namespace ck::profiler;
 
-    int rank = inLengths.size(); 
+    AppArgs args;
 
-    check_reduce_dims(rank, toReduceDims);
-    if(use_half)
+    if(args.processArgs(argc, argv) < 0)
+        return (-1);
+
+    int rank = args.inLengths.size();
+
+    check_reduce_dims(rank, args.toReduceDims);
+    if(args.use_half)
     {
-        if(!compType_assigned)
-            compTypeId = appHalf;
+        if(!args.compType_assigned)
+            args.compTypeId = appHalf;
 
-        if(outType_assigned && (outTypeId != appHalf && outTypeId != appFloat))
-            outTypeId = appFloat;
+        if(args.outType_assigned && (args.outTypeId != appHalf && args.outTypeId != appFloat))
+            args.outTypeId = appFloat;
 
-        if(!outType_assigned)
-            outTypeId = appHalf;
+        if(!args.outType_assigned)
+            args.outTypeId = appHalf;
 
-        if(compTypeId == appHalf) {
-           profile_reduce<ck::half_t, ck::half_t, ck::half_t>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+        if(args.compTypeId == appHalf)
+        {
+            profile_reduce<ck::half_t, ck::half_t, ck::half_t>(args.do_verification,
+                                                               args.init_method,
+                                                               args.do_log,
+                                                               args.nrepeat,
+                                                               args.inLengths,
+                                                               args.toReduceDims,
+                                                               args.reduceOp,
+                                                               args.nanOpt,
+                                                               args.indicesOpt,
+                                                               args.scales[0],
+                                                               args.scales[1]);
         }
-        else 
-	if(compTypeId == appFloat) {
-           profile_reduce<ck::half_t, float, ck::half_t>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+        else if(args.compTypeId == appFloat)
+        {
+            profile_reduce<ck::half_t, float, ck::half_t>(args.do_verification,
+                                                          args.init_method,
+                                                          args.do_log,
+                                                          args.nrepeat,
+                                                          args.inLengths,
+                                                          args.toReduceDims,
+                                                          args.reduceOp,
+                                                          args.nanOpt,
+                                                          args.indicesOpt,
+                                                          args.scales[0],
+                                                          args.scales[1]);
         }
         else
             throw std::runtime_error("Invalid compType assignment!");
     }
-    else 
-    if(use_double) {
-       profile_reduce<double, double, double>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
+    else if(args.use_double)
+    {
+        // profile_reduce<double, double, double>(args,do_verification, args.init_method,
+        // args.do_log, args.nrepeat,
+        //                   args.inLengths, args.toReduceDims, args.reduceOp, args.nanOpt,
+        //                   args.indicesOpt, args.scales[0], args.scales[1]);
     }
-    else {
-        if(compTypeId == appFloat) {
-            profile_reduce<float, float, float>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
-	}
-        else 
-	if(compTypeId == appDouble) {
-	    profile_reduce<float, double, float>(do_verification, init_method, do_log, nrepeat, inLengths, toReduceDims, reduceOp, nanOpt, indicesOpt, scales[0], scales[1]);
-	}
+    else
+    {
+        if(args.compTypeId == appFloat)
+        {
+            profile_reduce<float, float, float>(args.do_verification,
+                                                args.init_method,
+                                                args.do_log,
+                                                args.nrepeat,
+                                                args.inLengths,
+                                                args.toReduceDims,
+                                                args.reduceOp,
+                                                args.nanOpt,
+                                                args.indicesOpt,
+                                                args.scales[0],
+                                                args.scales[1]);
+        }
+        else if(args.compTypeId == appDouble)
+        {
+            profile_reduce<float, double, float>(args.do_verification,
+                                                 args.init_method,
+                                                 args.do_log,
+                                                 args.nrepeat,
+                                                 args.inLengths,
+                                                 args.toReduceDims,
+                                                 args.reduceOp,
+                                                 args.nanOpt,
+                                                 args.indicesOpt,
+                                                 args.scales[0],
+                                                 args.scales[1]);
+        }
         else
             throw std::runtime_error("Invalid compType assignment!");
     };
 
-    return(0); 
+    return (0);
 };
-

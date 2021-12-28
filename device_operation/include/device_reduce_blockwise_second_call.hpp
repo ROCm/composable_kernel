@@ -4,6 +4,7 @@
 #include <iostream>
 #include "device.hpp"
 #include "device_reduce.hpp"
+#include "device_reduce_common.hpp"
 #include "gridwise_2d_reduction_blockwise.hpp"
 
 namespace ck {

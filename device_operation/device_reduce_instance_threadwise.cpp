@@ -1,4 +1,4 @@
-#include "device_reduce_instance_common.hpp"
+#include "device_reduce_instance_impl_common.hpp"
 #include "device_reduce_threadwise.hpp"
 
 namespace ck {
@@ -36,6 +36,7 @@ ADD_INST_BY_ID(threadwise, half_t, half_t, half_t, 3, 0, 1, 4, 0, 1, 2);        
 ADD_INST_BY_ID(threadwise, half_t, half_t, half_t, 3, 0, 1, 4, 0);               // 
 ADD_INST_BY_ID(threadwise, half_t, half_t, half_t, 4, 0, 1, 4, 0, 1, 2);         // for AMAX
 ADD_INST_BY_ID(threadwise, half_t, half_t, half_t, 4, 0, 1, 4, 0);               // 
+
 
 // half, float, half
 ADD_INST_BY_ID(threadwise, half_t, float, half_t, 0, 0, 0, 4, 0, 1, 2);         // for ADD

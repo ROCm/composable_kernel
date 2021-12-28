@@ -212,7 +212,7 @@ __host__ static inline void binop_with_nan_check(NanPropagation_t nanOpt,
                                         compType& accuVal,
                                         compType currVal)
 {
-    // using std::isnan;
+    using std::isnan;
 
     if(nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN)
         opReduce(accuVal, currVal);
@@ -233,7 +233,7 @@ __host__ static inline void binop_with_nan_check2(NanPropagation_t nanOpt,
                                          int& accuIndex,
                                          int currIndex)
 {
-    // using std::isnan;
+    using std::isnan;
 
     if(nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN)
     {
