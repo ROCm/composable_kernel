@@ -35,15 +35,22 @@
 
 namespace ck {
 
-template<typename GridwiseReduction, typename inType, typename outType, typename src2dDescType, typename dst1dDescType>
-__global__ void kernel_reduce_multiblock_atocmi_add(const src2dDescType& src2dDesc, const dst1dDescType& dst1dDesc,
-                                         int origReduceLen, int BlkGroupSize,
-                                         inType alpha,
-                                         const inType* const __restrict__ p_src_global,
-                                         outType* const __restrict__ p_dst_global)
+template <typename GridwiseReduction,
+          typename inType,
+          typename outType,
+          typename src2dDescType,
+          typename dst1dDescType>
+__global__ void kernel_reduce_multiblock_atocmi_add(const src2dDescType& src2dDesc,
+                                                    const dst1dDescType& dst1dDesc,
+                                                    int origReduceLen,
+                                                    int BlkGroupSize,
+                                                    inType alpha,
+                                                    const inType* const __restrict__ p_src_global,
+                                                    outType* const __restrict__ p_dst_global)
 {
-     GridwiseReduction::Run(src2dDesc, dst1dDesc, origReduceLen, BlkGroupSize, alpha, p_src_global, p_dst_global); 
-}; 
+    GridwiseReduction::Run(
+        src2dDesc, dst1dDesc, origReduceLen, BlkGroupSize, alpha, p_src_global, p_dst_global);
+};
 
 template <typename srcDataType,
           typename dstDataType,
@@ -66,8 +73,9 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
     static constexpr index_t dim1_VectorSize =
         math::gcd(dim1_thread_slice_size, dim1_max_vector_size);
 
-    static constexpr bool dim0_is_fastest = ((dim1_max_vector_size == 1) && (dim0_max_vector_size > 1));
-    static constexpr bool reorder_thread_cluster = dim0_is_fastest; 
+    static constexpr bool dim0_is_fastest =
+        ((dim1_max_vector_size == 1) && (dim0_max_vector_size > 1));
+    static constexpr bool reorder_thread_cluster = dim0_is_fastest;
 
     using opReduce       = typename reduce_binary_operator<compType, op>::opType;
     using preUnaryOpType = typename reduce_unary_operator<compType, op, true, true>::preUnaryOp;
@@ -76,24 +84,21 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
 
-    using blockwise_reduce =
-        PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
-                                                      BlockSize,
-                                                      dim0_thread_cluster_size,
-                                                      dim1_thread_cluster_size,
-                                                      reorder_thread_cluster,
-                                                      opReduce,
-                                                      nanPropaOpt>;
+    using blockwise_reduce = PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
+                                                                           BlockSize,
+                                                                           dim0_thread_cluster_size,
+                                                                           dim1_thread_cluster_size,
+                                                                           reorder_thread_cluster,
+                                                                           opReduce,
+                                                                           nanPropaOpt>;
 
     template <typename T>
-    using PassThroughOp = reduce::unary_identic<T, false>; 
+    using PassThroughOp = reduce::unary_identic<T, false>;
 
     static constexpr auto I0 = Number<0>{};
 
-    static constexpr index_t dim0_BlockTileSize =
-        dim0_thread_cluster_size * dim0_thread_slice_size;
-    static constexpr index_t dim1_BlockTileSize =
-        dim1_thread_cluster_size * dim1_thread_slice_size;
+    static constexpr index_t dim0_BlockTileSize = dim0_thread_cluster_size * dim0_thread_slice_size;
+    static constexpr index_t dim1_BlockTileSize = dim1_thread_cluster_size * dim1_thread_slice_size;
 
     using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
 
@@ -153,7 +158,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
              dim1_BlockTileSize) *
             dim1_BlockTileSize;
 
-        using ThreadBufferLengths = Sequence<dim0_thread_slice_size, dim1_thread_slice_size>;
+        using ThreadBufferLengths       = Sequence<dim0_thread_slice_size, dim1_thread_slice_size>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<dim0_thread_slice_size>{}, Number<dim1_thread_slice_size>{}));
 
@@ -243,7 +248,8 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                                    true>(
                     dst1dDesc,
                     make_multi_index(blkgroup_id * dim0_BlockTileSize +
-                                     thread_dim0_cluster_id * dim0_thread_slice_size), PassThroughOp<dstDataType>{});
+                                     thread_dim0_cluster_id * dim0_thread_slice_size),
+                    PassThroughOp<dstDataType>{});
 
             threadwise_dst_store.Run(
                 ReducedDataDesc, make_tuple(I0), accuValue_buf, dst1dDesc, dst_global_buf);
@@ -252,10 +258,12 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
 };
 
 template <index_t BlockSize, typename dataType, typename global1dBufferDescType>
-__global__ void kernel_buffer_set_value(const global1dBufferDescType& global1dBufferDesc, dataType* const __restrict__ p_global, dataType value)
- 
+__global__ void kernel_buffer_set_value(const global1dBufferDescType& global1dBufferDesc,
+                                        dataType* const __restrict__ p_global,
+                                        dataType value)
+
 {
-    using PassThroughOp = reduce::unary_identic<dataType, false>; 
+    using PassThroughOp = reduce::unary_identic<dataType, false>;
 
     constexpr auto I0 = Number<0>{};
 
@@ -270,26 +278,27 @@ __global__ void kernel_buffer_set_value(const global1dBufferDescType& global1dBu
 
     constexpr auto valueBuffDesc = make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
-    auto global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(p_global, global1dBufferDesc.GetElementSpaceSize());
+    auto global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_global, global1dBufferDesc.GetElementSpaceSize());
 
     if(thread_global_id < global1dBufferDesc.GetElementSize())
     {
-        auto threadwise_store =
-                ThreadwiseTensorSliceTransfer_v1r3<dataType,
-                                                   dataType,
-                                                   decltype(valueBuffDesc),
-                                                   global1dBufferDescType,
-                                                   PassThroughOp,
-                                                   Sequence<1>,
-                                                   Sequence<0>,
-                                                   0,
-                                                   1,
-                                                   InMemoryDataOperationEnum_t::Set,
-                                                   1,
-                                                   true>(global1dBufferDesc,
-                                                         make_multi_index(thread_global_id), PassThroughOp{});
+        auto threadwise_store = ThreadwiseTensorSliceTransfer_v1r3<dataType,
+                                                                   dataType,
+                                                                   decltype(valueBuffDesc),
+                                                                   global1dBufferDescType,
+                                                                   PassThroughOp,
+                                                                   Sequence<1>,
+                                                                   Sequence<0>,
+                                                                   0,
+                                                                   1,
+                                                                   InMemoryDataOperationEnum_t::Set,
+                                                                   1,
+                                                                   true>(
+            global1dBufferDesc, make_multi_index(thread_global_id), PassThroughOp{});
 
-       threadwise_store.Run(valueBuffDesc, make_tuple(I0), value_buf, global1dBufferDesc, global_buf);
+        threadwise_store.Run(
+            valueBuffDesc, make_tuple(I0), value_buf, global1dBufferDesc, global_buf);
     }
 };
 
