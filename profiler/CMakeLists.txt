@@ -22,6 +22,10 @@ set(DEVICE_GEMM_INSTANCE_SOURCE
    ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_mk_nk_mn.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_km_kn_mn.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_instance_f16_f16_f16_km_nk_mn.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_splitk_instance_f32_f32_f32_mk_kn_mn.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_splitk_instance_f32_f32_f32_mk_nk_mn.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_splitk_instance_f32_f32_f32_km_kn_mn.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_gemm_xdl_splitk_instance_f32_f32_f32_km_nk_mn.cpp;
 ) 
 
 add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE}) 

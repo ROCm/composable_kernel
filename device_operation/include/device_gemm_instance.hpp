@@ -20,6 +20,17 @@ void add_device_gemm_instance(
                               ck::tensor_operation::element_wise::PassThrough,
                               ck::tensor_operation::element_wise::PassThrough>>&);
 
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+void add_device_splitk_gemm_instance(
+    std::vector<DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
+                              ck::tensor_operation::element_wise::PassThrough,
+                              ck::tensor_operation::element_wise::PassThrough>>&);
+
 } // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation

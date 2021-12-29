@@ -2,6 +2,7 @@
 #define DEVICE_GEMM_SPLITK_XDL_HPP
 
 #include <iostream>
+#include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
 #include "device_gemm.hpp"
@@ -577,6 +578,24 @@ struct DeviceGemmSplitKXdl
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
+    }
+
+    // polymorphic
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceGemmXdlSplitK"
+            << "<"
+            << BlockSize << ", "
+            << MPerBlock << ", "
+            << NPerBlock << ", "
+            << K0PerBlock
+            << ">";
+        // clang-format on
+
+        return str.str();
     }
 };
 

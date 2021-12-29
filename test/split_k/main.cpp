@@ -26,10 +26,14 @@ using DeviceGemmNoOpPtr =
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough>;
 using GEMM_PTR                               = std::vector<DeviceGemmNoOpPtr>;
-static std::vector<std::vector<bool>> LayOut = {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
+
+static std::vector<std::vector<bool>>& GetLayoutType(){
+    static std::vector<std::vector<bool>>  LayOut = {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
+    return LayOut;
+} 
 static void add_device_gemm_instance_mk_kn_mn(GEMM_PTR& gemm_ptrs)
 {
-    ck::tensor_operation::device::device_gemm_instance::add_device_gemm_instance<
+    ck::tensor_operation::device::device_gemm_instance::add_device_splitk_gemm_instance<
         float,
         float,
         float,
@@ -39,7 +43,7 @@ static void add_device_gemm_instance_mk_kn_mn(GEMM_PTR& gemm_ptrs)
 }
 static void add_device_gemm_instance_mk_nk_mn(GEMM_PTR& gemm_ptrs)
 {
-    ck::tensor_operation::device::device_gemm_instance::add_device_gemm_instance<
+    ck::tensor_operation::device::device_gemm_instance::add_device_splitk_gemm_instance<
         float,
         float,
         float,
@@ -49,7 +53,7 @@ static void add_device_gemm_instance_mk_nk_mn(GEMM_PTR& gemm_ptrs)
 }
 static void add_device_gemm_instance_km_kn_mn(GEMM_PTR& gemm_ptrs)
 {
-    ck::tensor_operation::device::device_gemm_instance::add_device_gemm_instance<
+    ck::tensor_operation::device::device_gemm_instance::add_device_splitk_gemm_instance<
         float,
         float,
         float,
@@ -59,7 +63,7 @@ static void add_device_gemm_instance_km_kn_mn(GEMM_PTR& gemm_ptrs)
 }
 static void add_device_gemm_instance_km_nk_mn(GEMM_PTR& gemm_ptrs)
 {
-    ck::tensor_operation::device::device_gemm_instance::add_device_gemm_instance<
+    ck::tensor_operation::device::device_gemm_instance::add_device_splitk_gemm_instance<
         float,
         float,
         float,
@@ -68,13 +72,19 @@ static void add_device_gemm_instance_km_nk_mn(GEMM_PTR& gemm_ptrs)
         ck::tensor_layout::gemm::RowMajor>(gemm_ptrs);
 }
 
-static std::vector<void (*)(GEMM_PTR&)> AddDeviceGemmInstance = {add_device_gemm_instance_mk_kn_mn,
+static auto& GetAddDeviceGemmInstance()
+{
+    static std::vector<void (*)(GEMM_PTR&)> AddDeviceGemmInstance = {add_device_gemm_instance_mk_kn_mn,
                                                                  add_device_gemm_instance_mk_nk_mn,
                                                                  add_device_gemm_instance_km_kn_mn,
                                                                  add_device_gemm_instance_km_nk_mn};
+    return AddDeviceGemmInstance;
+}
+
+
 static void add_device_gemm_instance(GEMM_PTR& gemm_ptrs, int layout)
 {
-    AddDeviceGemmInstance[layout](gemm_ptrs);
+    GetAddDeviceGemmInstance()[layout](gemm_ptrs);
 }
 
 template <typename T>
@@ -95,7 +105,6 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 }
 int main(int argc, char* argv[])
 {
-
     if(argc != 8)
     {
         printf("arg1: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
@@ -121,6 +130,8 @@ int main(int argc, char* argv[])
         printf("arg1 must be 0 ,1 ,2 or 3 \n");
         return 1;
     }
+    auto LayOut = GetLayoutType();
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, bool isRevert) {
             if(isRevert)
