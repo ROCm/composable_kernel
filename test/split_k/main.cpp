@@ -25,12 +25,13 @@ using DeviceGemmNoOpPtr =
     ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough>;
-using GEMM_PTR                               = std::vector<DeviceGemmNoOpPtr>;
+using GEMM_PTR = std::vector<DeviceGemmNoOpPtr>;
 
-static std::vector<std::vector<bool>>& GetLayoutType(){
-    static std::vector<std::vector<bool>>  LayOut = {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
+static std::vector<std::vector<bool>>& GetLayoutType()
+{
+    static std::vector<std::vector<bool>> LayOut = {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
     return LayOut;
-} 
+}
 static void add_device_gemm_instance_mk_kn_mn(GEMM_PTR& gemm_ptrs)
 {
     ck::tensor_operation::device::device_gemm_instance::add_device_splitk_gemm_instance<
@@ -74,13 +75,13 @@ static void add_device_gemm_instance_km_nk_mn(GEMM_PTR& gemm_ptrs)
 
 static auto& GetAddDeviceGemmInstance()
 {
-    static std::vector<void (*)(GEMM_PTR&)> AddDeviceGemmInstance = {add_device_gemm_instance_mk_kn_mn,
-                                                                 add_device_gemm_instance_mk_nk_mn,
-                                                                 add_device_gemm_instance_km_kn_mn,
-                                                                 add_device_gemm_instance_km_nk_mn};
+    static std::vector<void (*)(GEMM_PTR&)> AddDeviceGemmInstance = {
+        add_device_gemm_instance_mk_kn_mn,
+        add_device_gemm_instance_mk_nk_mn,
+        add_device_gemm_instance_km_kn_mn,
+        add_device_gemm_instance_km_nk_mn};
     return AddDeviceGemmInstance;
 }
-
 
 static void add_device_gemm_instance(GEMM_PTR& gemm_ptrs, int layout)
 {
@@ -105,13 +106,13 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 }
 int main(int argc, char* argv[])
 {
-    if(argc != 8)
+    if(argc != 9)
     {
         printf("arg1: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, n] * B[k, n] = C[m, n];\n");
         printf("                     3: A[k, n] * B[n, k] = C[m, n])\n");
-        printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC\n");
+        printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC DesiredGridSize\n");
         return 1;
     }
 
@@ -121,9 +122,10 @@ int main(int argc, char* argv[])
     const int N = std::stoi(argv[3]);
     const int K = std::stoi(argv[4]);
 
-    const int StrideA = std::stoi(argv[5]);
-    const int StrideB = std::stoi(argv[6]);
-    const int StrideC = std::stoi(argv[7]);
+    const int StrideA         = std::stoi(argv[5]);
+    const int StrideB         = std::stoi(argv[6]);
+    const int StrideC         = std::stoi(argv[7]);
+    const int DesiredGridSize = std::stoi(argv[8]);
 
     if(layout > 3 || layout < 0)
     {
@@ -191,7 +193,8 @@ int main(int argc, char* argv[])
                                           StrideC,
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
-                                          ck::tensor_operation::element_wise::PassThrough{});
+                                          ck::tensor_operation::element_wise::PassThrough{},
+                                          DesiredGridSize);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))

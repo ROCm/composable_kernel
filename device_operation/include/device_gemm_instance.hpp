@@ -12,7 +12,7 @@ namespace device_gemm_instance {
 using DeviceGemmNoOpPtr = DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
                                         ck::tensor_operation::element_wise::PassThrough,
                                         ck::tensor_operation::element_wise::PassThrough>;
-                                        
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,

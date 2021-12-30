@@ -25,7 +25,8 @@ struct DeviceGemm : public BaseOperator
                         ck::index_t StrideC,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CElementwiseOperation c_element_op) = 0;
+                        CElementwiseOperation c_element_op,
+                        ck::index_t desired_gride_size = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
