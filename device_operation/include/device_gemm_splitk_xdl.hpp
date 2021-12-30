@@ -39,24 +39,22 @@ template <typename ADataType,
           ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
-          typename ABlockTransferThreadSliceLengths_K0_M_K1,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
           ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
-          typename BBlockTransferThreadSliceLengths_K0_N_K1,
+          bool ABlockLdsAddExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
           ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
+          bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
-          bool ABlockLdsAddExtraM,
-          bool BBlockLdsAddExtraN>
+          ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceGemmSplitKXdl
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -264,7 +262,7 @@ struct DeviceGemmSplitKXdl
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
-                 index_t desired_grid_Size)
+                 index_t desired_grid_size)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -278,7 +276,7 @@ struct DeviceGemmSplitKXdl
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
-              desired_grid_size_{desired_grid_Size}
+              desired_grid_size_{desired_grid_size}
         {
             int KBatch = 1, KPad = K;
             std::tie(KBatch, KPad) =
