@@ -22,7 +22,7 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 // Compilation parameters for a[m, k] * b[n, k] = c[m, n]
-/*using device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn = std::tuple<
+using device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn = std::tuple<
     // clang-format off
         //##########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
         //##########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|     ThreadSlice|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
@@ -43,12 +43,12 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
         DeviceGemmSplitKXdl<  F32,   F32,   F32,     F32,     Row,     Col,     Row,  PassThrough, PassThrough, PassThrough,    64,    32,    64,     4,  4,   32,   32,    1,    2,      S<1, 1, 2, 4>,     S<1, 4, 16, 1>,     S<0, 2, 1, 3>,     S<0, 2, 1, 3>,              3,              4,              4,      S<1, 1, 4, 4>,     S<1, 4, 16, 1>,     S<0, 2, 1, 3>,     S<0, 2, 1, 3>,             3,              4,              4,               7,               1,      true,      true, 720>
     // clang-format on
     >;
-*/
+
 template <>
 void add_device_splitk_gemm_instance<F32, F32, F32, Row, Col, Row>(
-    std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& )
+    std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& device_op_instances)
 {
- /*   using DeviceGemms = device_gemm_instance::device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn;
+    using DeviceGemms = device_gemm_instance::device_gemm_xdl_instance_f32_f32_f32_mk_nk_mn;
 
     const auto device_gemms = DeviceGemms{};
 
@@ -58,7 +58,7 @@ void add_device_splitk_gemm_instance<F32, F32, F32, Row, Col, Row>(
         auto gemm = Gemm{};
 
         device_op_instances.push_back(std::make_unique<Gemm>(gemm));
-    });*/
+    });
 }
 
 } // namespace device_gemm_instance
