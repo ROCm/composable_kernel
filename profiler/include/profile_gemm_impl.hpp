@@ -1,5 +1,6 @@
 #pragma once
 #include "device_gemm_instance.hpp"
+#include "device_gemm_xdl_splitk_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -93,7 +94,8 @@ void profile_gemm_impl(int do_verification,
                        int K,
                        int StrideA,
                        int StrideB,
-                       int StrideC)
+                       int StrideC,
+                       int DesiredGridSize = 1)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -154,9 +156,18 @@ void profile_gemm_impl(int do_verification,
     // add device GEMM instances
     std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmNoOpPtr> gemm_ptrs;
 
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_instance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
-            gemm_ptrs);
+    if(DesiredGridSize > 1 && is_same<ADataType, float>::value)
+    {
+        ck::tensor_operation::device::device_gemm_instance::
+            add_device_splitk_gemm_instance<float, float, float, ALayout, BLayout, CLayout>(
+                gemm_ptrs);
+    }
+    else
+    {
+        ck::tensor_operation::device::device_gemm_instance::
+            add_device_gemm_instance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
+                gemm_ptrs);
+    }
 
     if(gemm_ptrs.size() <= 0)
     {
@@ -183,7 +194,8 @@ void profile_gemm_impl(int do_verification,
                                           StrideC,
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
-                                          ck::tensor_operation::element_wise::PassThrough{});
+                                          ck::tensor_operation::element_wise::PassThrough{},
+                                          DesiredGridSize);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
