@@ -173,13 +173,18 @@ void profile_reduce_impl(bool do_verification,
     constexpr bool op_support_atomic_add = !op_support_indices;
     constexpr bool use_atomic_add        = (out_support_atomic_add && op_support_atomic_add);
 
+    // if input is half type, no reason to use float for indiced reduction operation and must use
+    // float for non-indiced reduction operation for accuracy
     constexpr bool invalid_reduce_1 =
         std::is_same<inType, half_t>::value &&
         ((!op_support_indices && !std::is_same<compType, float>::value) ||
          (op_support_indices && !std::is_same<compType, half_t>::value));
 
+    // if input is float type, no reason to use double for indiced reduction operation
     constexpr bool invalid_reduce_2 = std::is_same<inType, float>::value &&
                                       (op_support_indices && !std::is_same<compType, float>::value);
+
+    // indices option can only be used when it is really needed
     constexpr bool invalid_reduce_3 =
         (!op_support_indices && indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
@@ -198,16 +203,15 @@ void profile_reduce_impl(bool do_verification,
         for(auto dim : invariantDims)
             outLengths.push_back(inLengths[dim]);
 
-    auto inStrides = in.mDesc.GetStrides();
+    Tensor<outType> out_ref(outLengths);
+    Tensor<outType> out(outLengths);
+    Tensor<int> out_indices_ref(outLengths);
+    Tensor<int> out_indices(outLengths);
 
-    Tensor<outType> out_host(outLengths);
-    Tensor<outType> out_dev(outLengths);
-    Tensor<int> out_indices_host(outLengths);
-    Tensor<int> out_indices_dev(outLengths);
+    auto inStrides  = in.mDesc.GetStrides();
+    auto outStrides = out.mDesc.GetStrides();
 
-    auto outStrides = out_dev.mDesc.GetStrides();
-
-    size_t dim0_total_length = out_dev.mDesc.GetElementSize();
+    size_t dim0_total_length = out.mDesc.GetElementSize();
     size_t dim1_total_length = in.mDesc.GetElementSize() / dim0_total_length;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
@@ -219,45 +223,45 @@ void profile_reduce_impl(bool do_verification,
         case 0:
             in.GenerateTensorValue(GeneratorTensor_1<inType>{}, num_thread);
             if(beta != 0.0f)
-                out_host.GenerateTensorValue(GeneratorTensor_1<inType>{}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_1<inType>{}, num_thread);
             break;
         case 1:
             in.GenerateTensorValue(GeneratorTensor_2<inType>{-99, 99}, num_thread);
             if(beta != 0.0f)
-                out_host.GenerateTensorValue(GeneratorTensor_2<inType>{-5, 5}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_2<inType>{-5, 5}, num_thread);
             break;
         default:
             in.GenerateTensorValue(GeneratorTensor_2<inType>{1, 5}, num_thread);
             if(beta != 0.0f)
-                out_host.GenerateTensorValue(GeneratorTensor_2<inType>{1, 5}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_2<inType>{1, 5}, num_thread);
         }
 
         if(beta != 0.0f)
-            for(size_t i = 0; i < out_host.mDesc.GetElementSpace(); i++)
-                out_dev.mData[i] = out_host.mData[i];
+            for(size_t i = 0; i < out_ref.mDesc.GetElementSpace(); i++)
+                out.mData[i] = out_ref.mData[i];
     };
 
     if(do_verification)
     {
         ReductionHost<inType, compType, outType> hostReduce(
-            reduceOp, nanOpt, indicesOpt, in.mDesc, out_host.mDesc, invariantDims, toReduceDims);
+            reduceOp, nanOpt, indicesOpt, in.mDesc, out_ref.mDesc, invariantDims, toReduceDims);
 
         hostReduce.Run(
-            alpha, in.mData.data(), beta, out_host.mData.data(), out_indices_host.mData.data());
+            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev_buf(sizeof(inType) * in.mDesc.GetElementSpace());
-    DeviceMem out_dev_buf(sizeof(outType) * out_host.mDesc.GetElementSpace());
+    DeviceMem in_dev(sizeof(inType) * in.mDesc.GetElementSpace());
+    DeviceMem out_dev(sizeof(outType) * out.mDesc.GetElementSpace());
 
-    in_dev_buf.ToDevice(in.mData.data());
+    in_dev.ToDevice(in.mData.data());
 
     if(beta != 0.0f)
-        out_dev_buf.ToDevice(out_host.mData.data());
+        out_dev.ToDevice(out.mData.data());
 
-    size_t indicesSizeInBytes = need_indices ? out_host.mDesc.GetElementSize() * sizeof(int) : 0;
+    size_t indicesSizeInBytes = need_indices ? out.mDesc.GetElementSize() * sizeof(int) : 0;
 
-    DeviceMem out_indices_dev_buf(indicesSizeInBytes);
+    DeviceMem out_indices_dev(indicesSizeInBytes);
 
     float best_avg_time   = 0;
     float best_gb_per_sec = 0;
@@ -346,7 +350,7 @@ void profile_reduce_impl(bool do_verification,
 
         auto wsSizeInBytes = reduce_ptr->getWorkspaceSize(i_inLengths);
 
-        DeviceMem ws_dev_buf(wsSizeInBytes);
+        DeviceMem ws_dev(wsSizeInBytes);
 
         auto argument_ptr = reduce_ptr->MakeArgumentPointer(i_inLengths,
                                                             i_inStrides,
@@ -354,10 +358,10 @@ void profile_reduce_impl(bool do_verification,
                                                             i_outStrides,
                                                             alpha,
                                                             beta,
-                                                            in_dev_buf.GetDeviceBuffer(),
-                                                            out_dev_buf.GetDeviceBuffer(),
-                                                            out_indices_dev_buf.GetDeviceBuffer(),
-                                                            ws_dev_buf.GetDeviceBuffer());
+                                                            in_dev.GetDeviceBuffer(),
+                                                            out_dev.GetDeviceBuffer(),
+                                                            out_indices_dev.GetDeviceBuffer(),
+                                                            ws_dev.GetDeviceBuffer());
 
         if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
             continue;
@@ -383,9 +387,9 @@ void profile_reduce_impl(bool do_verification,
                                                      i_outStrides,
                                                      alpha,
                                                      beta,
-                                                     ws_dev_buf.GetDeviceBuffer(),
-                                                     out_dev_buf.GetDeviceBuffer(),
-                                                     out_indices_dev_buf.GetDeviceBuffer(),
+                                                     ws_dev.GetDeviceBuffer(),
+                                                     out_dev.GetDeviceBuffer(),
+                                                     out_indices_dev.GetDeviceBuffer(),
                                                      nullptr);
 
                 auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
@@ -415,23 +419,23 @@ void profile_reduce_impl(bool do_verification,
                                                                         nanOpt,
                                                                         indicesOpt,
                                                                         in.mDesc,
-                                                                        out_host.mDesc,
+                                                                        out_ref.mDesc,
                                                                         invariantDims,
                                                                         toReduceDims);
 
                     hostReduce.Run(alpha,
                                    in.mData.data(),
                                    beta,
-                                   out_host.mData.data(),
-                                   out_indices_host.mData.data());
+                                   out_ref.mData.data(),
+                                   out_indices_ref.mData.data());
 
-                    out_dev_buf.FromDevice(out_dev.mData.data());
-                    check_error(out_host, out_dev);
+                    out_dev.FromDevice(out.mData.data());
+                    check_error(out_ref, out);
 
                     if(need_indices)
                     {
-                        out_indices_dev_buf.FromDevice(out_indices_dev.mData.data());
-                        check_indices(out_indices_host, out_indices_dev);
+                        out_indices_dev.FromDevice(out_indices.mData.data());
+                        check_indices(out_indices_ref, out_indices);
                     };
 
                     if(do_log)
@@ -462,23 +466,23 @@ void profile_reduce_impl(bool do_verification,
                                                                     nanOpt,
                                                                     indicesOpt,
                                                                     in.mDesc,
-                                                                    out_host.mDesc,
+                                                                    out_ref.mDesc,
                                                                     invariantDims,
                                                                     toReduceDims);
 
                 hostReduce.Run(alpha,
                                in.mData.data(),
                                beta,
-                               out_host.mData.data(),
-                               out_indices_host.mData.data());
+                               out_ref.mData.data(),
+                               out_indices_ref.mData.data());
 
-                out_dev_buf.FromDevice(out_dev.mData.data());
-                check_error(out_host, out_dev);
+                out_dev.FromDevice(out.mData.data());
+                check_error(out_ref, out);
 
                 if(need_indices)
                 {
-                    out_indices_dev_buf.FromDevice(out_indices_dev.mData.data());
-                    check_indices(out_indices_host, out_indices_dev);
+                    out_indices_dev.FromDevice(out_indices.mData.data());
+                    check_indices(out_indices_ref, out_indices);
                 };
 
                 if(do_log)
