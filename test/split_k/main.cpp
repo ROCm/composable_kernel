@@ -11,7 +11,7 @@
 #include "device_gemm_instance.hpp"
 #include "host_gemm.hpp"
 #include "tensor_layout.hpp"
-#include "device_gemm_xdl_instance.hpp"
+#include "device_gemm_splitk_xdl_instance.hpp"
 #include "device_gemm_splitk_xdl.hpp"
 
 enum GemmMatrixLayout
@@ -112,7 +112,7 @@ int main(int argc, char* argv[])
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, n] * B[k, n] = C[m, n];\n");
         printf("                     3: A[k, n] * B[n, k] = C[m, n])\n");
-        printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC DesiredGridSize\n");
+        printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC KBatch\n");
         return 1;
     }
 
@@ -122,10 +122,10 @@ int main(int argc, char* argv[])
     const int N = std::stoi(argv[3]);
     const int K = std::stoi(argv[4]);
 
-    const int StrideA         = std::stoi(argv[5]);
-    const int StrideB         = std::stoi(argv[6]);
-    const int StrideC         = std::stoi(argv[7]);
-    const int DesiredGridSize = std::stoi(argv[8]);
+    const int StrideA = std::stoi(argv[5]);
+    const int StrideB = std::stoi(argv[6]);
+    const int StrideC = std::stoi(argv[7]);
+    const int KBatch  = std::stoi(argv[8]);
 
     if(layout > 3 || layout < 0)
     {
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
-                                          DesiredGridSize);
+                                          KBatch);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))

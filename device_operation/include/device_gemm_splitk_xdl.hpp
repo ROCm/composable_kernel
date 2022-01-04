@@ -144,13 +144,11 @@ struct DeviceGemmSplitKXdl
         }
     }
 
-    static auto GetKBatchAndKPad(index_t M, index_t N, index_t K, index_t DesiredGridSize)
+    static auto GetKPad(index_t K, index_t KBatch)
     {
-        const auto GridMN    = M * N / (MPerBlock * NPerBlock);
-        const index_t KBatch = std::max(DesiredGridSize / GridMN, 1);
-        const index_t K0     = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
-        const index_t KPad   = KBatch * K0 * K1;
-        return std::make_tuple(KBatch, KPad);
+        const index_t K0   = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
+        const index_t KPad = KBatch * K0 * K1;
+        return KPad;
     }
 
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_KBatch_K0_M_K1(1, 1, 1, 1, 1));
@@ -262,7 +260,7 @@ struct DeviceGemmSplitKXdl
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
-                 index_t desired_grid_size)
+                 index_t k_batch)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -276,16 +274,14 @@ struct DeviceGemmSplitKXdl
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
-              desired_grid_size_{desired_grid_size}
+              k_batch_{k_batch}
         {
-            int KBatch = 1, KPad = K;
-            std::tie(KBatch, KPad) =
-                DeviceGemmSplitKXdl::GetKBatchAndKPad(M, N, K, desired_grid_size_);
+            int KPad = DeviceGemmSplitKXdl::GetKPad(K, k_batch_);
 
             a_grid_desc_kbatch_k0_m_k1_ = DeviceGemmSplitKXdl::MakeAGridDescriptor_KBatch_K0_M_K1(
-                M, K, StrideA, KBatch, KPad);
+                M, K, StrideA, k_batch_, KPad);
             b_grid_desc_kbatch_k0_n_k1_ = DeviceGemmSplitKXdl::MakeBGridDescriptor_KBatch_K0_N_K1(
-                K, N, StrideB, KBatch, KPad);
+                K, N, StrideB, k_batch_, KPad);
             c_grid_desc_m_n_ = DeviceGemmSplitKXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
@@ -298,7 +294,7 @@ struct DeviceGemmSplitKXdl
                     GridwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(c_grid_desc_m_n_);
 
                 block_2_ctile_map_ =
-                    GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, KBatch);
+                    GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
             }
         }
 
@@ -316,7 +312,7 @@ struct DeviceGemmSplitKXdl
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        index_t desired_grid_size_;
+        index_t k_batch_;
     };
 
     // Invoker
@@ -526,7 +522,7 @@ struct DeviceGemmSplitKXdl
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
-                             index_t desired_grid_Size)
+                             index_t KBatch)
     {
         return Argument{p_a,
                         p_b,
@@ -542,7 +538,7 @@ struct DeviceGemmSplitKXdl
                         a_element_op,
                         b_element_op,
                         c_element_op,
-                        desired_grid_Size};
+                        KBatch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -560,7 +556,7 @@ struct DeviceGemmSplitKXdl
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
-                                                      ck::index_t desired_gride_size = 1) override
+                                                      ck::index_t KBatch = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -576,7 +572,7 @@ struct DeviceGemmSplitKXdl
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
-                                          desired_gride_size);
+                                          KBatch);
     }
 
     // polymorphic
