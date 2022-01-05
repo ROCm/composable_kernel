@@ -40,8 +40,8 @@ template <typename GridwiseReduction,
           typename outType,
           typename src2dDescType,
           typename dst1dDescType>
-__global__ void kernel_reduce_multiblock_atocmi_add(const src2dDescType& src2dDesc,
-                                                    const dst1dDescType& dst1dDesc,
+__global__ void kernel_reduce_multiblock_atocmi_add(const src2dDescType src2dDesc,
+                                                    const dst1dDescType dst1dDesc,
                                                     int origReduceLen,
                                                     int BlkGroupSize,
                                                     inType alpha,
@@ -258,7 +258,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
 };
 
 template <index_t BlockSize, typename dataType, typename global1dBufferDescType>
-__global__ void kernel_buffer_set_value(const global1dBufferDescType& global1dBufferDesc,
+__global__ void kernel_buffer_set_value(const global1dBufferDescType global1dBufferDesc,
                                         dataType* const __restrict__ p_global,
                                         dataType value)
 

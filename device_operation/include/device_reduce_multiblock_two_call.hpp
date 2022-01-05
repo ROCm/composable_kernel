@@ -35,6 +35,10 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                                                            nanOpt,
                                                            indicesOpt>
 {
+    static_assert(rank <= 6, "Bigger rank size is not supported!");
+    static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
+                  "Invalid thread cluster size assignments!");
+
     using invariantDims = decltype(get_invariantDims<rank, toReduceDims>());
 
     static constexpr index_t srcDims    = rank;
@@ -57,19 +61,21 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
         std::tie(dim0_total_length, dim1_total_length) =
             get_2d_lengths<rank, toReduceDims>(inLengths);
 
-        int iteration = 1;
+        int iterations = 1;
         while(true)
         {
-            int test_blkGroupSize = (dim1_total_length + (dim1_tile_size * iteration) - 1) /
-                                    (dim1_tile_size * iteration);
+            int test_blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
+                                    (dim1_tile_size * iterations);
 
             // we want the blkGroupSize be not more than 128
             if(test_blkGroupSize <= 128)
                 break;
+
+            iterations++;
         };
 
         int blkGroupSize =
-            (dim1_total_length + (dim1_tile_size * iteration) - 1) / (dim1_tile_size * iteration);
+            (dim1_total_length + (dim1_tile_size * iterations) - 1) / (dim1_tile_size * iterations);
 
         size_t workspace_size = dim0_total_length * blkGroupSize;
 
@@ -78,6 +84,22 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                           : workspace_size * (sizeof(compType) + sizeof(int)) + 64 + sizeof(int);
 
         return (wsSizeInBytes);
+    };
+
+    void showConfiguration(std::ostream& os, const BaseArgument* p_arg) override
+    {
+        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
+
+        os << std::endl;
+
+        os << "MultiBlockTwoCall config: "
+           << "BlkGroup_" << pArg->blkGroupSize << "_B" << blockSize;
+        os << "_Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
+           << dim0_thread_slice_size;
+        os << "_Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
+           << dim1_thread_slice_size;
+
+        os << std::endl;
     };
 
     bool hasFurtherCall() override { return (true); };
@@ -184,21 +206,21 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
 
             dim1_lowest_length = inLengths[toReduceDims::At(toReduceDims::Size() - 1)];
 
-            int iteration = 1;
+            int iterations = 1;
             while(true)
             {
-                int test_blkGroupSize =
-                    (dim1_total_length +
-                     (dim1_thread_cluster_size * dim1_thread_slice_size * iteration) - 1) /
-                    (dim1_thread_cluster_size * dim1_thread_slice_size * iteration);
+                int test_blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
+                                        (dim1_tile_size * iterations);
 
                 // we want the blkGroupSize be not more than 128
                 if(test_blkGroupSize <= 128)
                     break;
+
+                iterations++;
             };
 
-            blkGroupSize = (dim1_total_length + (dim1_tile_size * iteration) - 1) /
-                           (dim1_tile_size * iteration);
+            blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
+                           (dim1_tile_size * iterations);
 
             gridSize = (dim0_total_length + dim0_tile_size - 1) / dim0_tile_size * blkGroupSize;
 

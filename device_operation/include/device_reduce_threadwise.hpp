@@ -56,6 +56,22 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
         return (0);
     };
 
+    void showConfiguration(std::ostream& os, const BaseArgument* p_arg) override
+    {
+        (void)p_arg;
+
+        os << std::endl;
+
+        os << "ThreadWise config: "
+           << "B" << blockSize;
+        os << "_Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
+           << dim0_thread_slice_size;
+        os << "_Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
+           << dim1_thread_slice_size;
+
+        os << std::endl;
+    };
+
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
                                     size_t gridSize)
@@ -154,11 +170,10 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
                  outType* out_dev,
                  int* out_indices_dev,
                  compType* workspace_dev)
-            : in_dev_{in_dev},
-              out_dev_{out_dev},
-              out_indices_dev_{out_indices_dev},
-              workspace_dev_{workspace_dev}
+            : in_dev_{in_dev}, out_dev_{out_dev}, out_indices_dev_{out_indices_dev}
         {
+            (void)workspace_dev;
+
             inLengths_  = inLengths;
             inStrides_  = inStrides;
             outLengths_ = outLengths;
@@ -191,7 +206,6 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
         const inType* in_dev_;
         outType* out_dev_;
         int* out_indices_dev_;
-        compType* workspace_dev_;
 
         int dim0_lowest_length;
         int dim1_lowest_length;
@@ -251,8 +265,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
                                               arg.in_dev_,
                                               arg.beta_,
                                               arg.out_dev_,
-                                              nullptr,
-                                              nullptr);
+                                              arg.out_indices_dev_);
 
             return (avg_time);
         };

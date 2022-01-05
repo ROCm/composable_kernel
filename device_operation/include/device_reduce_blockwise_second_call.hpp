@@ -35,6 +35,10 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                                              nanOpt,
                                                              indicesOpt>
 {
+    static_assert(rank <= 6, "Bigger rank size is not supported!");
+    static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
+                  "Invalid thread cluster size assignments!");
+
     static_assert(std::is_same<inType, compType>::value,
                   "inType and compType should be the same to use DEviceReduceBlockWiseSecondCall!");
 
@@ -54,6 +58,22 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     {
         (void)inLengths;
         return (0);
+    };
+
+    void showConfiguration(std::ostream& os, const BaseArgument* p_arg) override
+    {
+        (void)p_arg;
+
+        os << std::endl;
+
+        os << "  => BlockWise second call config: "
+           << "B" << blockSize;
+        os << "_Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
+           << dim0_thread_slice_size;
+        os << "_Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
+           << dim1_thread_slice_size;
+
+        os << std::endl;
     };
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
@@ -123,8 +143,6 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                  compType* workspace_dev)
             : in_dev_{in_dev}, out_dev_{out_dev}, out_indices_dev_{out_indices_dev}
         {
-            (void)workspace_dev;
-
             inLengths_  = inLengths;
             inStrides_  = inStrides;
             outLengths_ = outLengths;
@@ -142,6 +160,15 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                 (dim0_total_length + (dim0_thread_cluster_size * dim0_thread_slice_size - 1)) /
                 (dim0_thread_cluster_size * dim0_thread_slice_size) *
                 (dim0_thread_cluster_size * dim0_thread_slice_size);
+
+            size_t ws_buf2_bytes_offset =
+                ((dim0_total_length * dim1_total_length * sizeof(compType) + 63) / 64) * 64;
+
+            if constexpr(need_indices)
+                workspace_indices_dev_ = reinterpret_cast<int*>(
+                    reinterpret_cast<char*>(workspace_dev) + ws_buf2_bytes_offset);
+            else
+                workspace_indices_dev_ = nullptr;
         }
 
         std::vector<int> inLengths_;
@@ -155,6 +182,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
         const inType* in_dev_;
         outType* out_dev_;
         int* out_indices_dev_;
+        int* workspace_indices_dev_;
 
         int dim0_lowest_length;
         int dim1_lowest_length;
@@ -216,8 +244,8 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                               arg.in_dev_,
                                               arg.beta_,
                                               arg.out_dev_,
-                                              nullptr,
-                                              nullptr);
+                                              arg.workspace_indices_dev_,
+                                              arg.out_indices_dev_);
 
             return (avg_time);
         };

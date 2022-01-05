@@ -36,6 +36,10 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
                                                              nanOpt,
                                                              indicesOpt>
 {
+    static_assert(rank <= 6, "Bigger rank size is not supported!");
+    static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
+                  "Invalid thread cluster size assignments!");
+
     using invariantDims = decltype(get_invariantDims<rank, toReduceDims>());
 
     static constexpr index_t srcDims    = rank;
@@ -48,7 +52,11 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
         (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
     static constexpr bool support_AtomicAdd =
-        std::is_same<outType, float>::value && std::is_same<outType, double>::value;
+        std::is_same<outType, float>::value || std::is_same<outType, double>::value;
+
+    static_assert(!need_indices && support_AtomicAdd,
+                  "MultiBlockAtomicAdd method can only be used with non-indiced operation and when "
+                  "having float/double output type!");
 
     static constexpr int dim0_tile_size = dim0_thread_cluster_size * dim0_thread_slice_size;
     static constexpr int dim1_tile_size = dim1_thread_cluster_size * dim1_thread_slice_size;
@@ -57,6 +65,22 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
     {
         (void)inLengths;
         return (0);
+    };
+
+    void showConfiguration(std::ostream& os, const BaseArgument* p_arg) override
+    {
+        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
+
+        os << std::endl;
+
+        os << "MultiBlockAtomicAdd config: "
+           << "BlkGroupSize_" << pArg->blkGroupSize << "_B" << blockSize;
+        os << "_Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
+           << dim0_thread_slice_size;
+        os << "_Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
+           << dim1_thread_slice_size;
+
+        os << std::endl;
     };
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
@@ -160,11 +184,11 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
                  outType* out_dev,
                  int* out_indices_dev,
                  compType* workspace_dev)
-            : in_dev_{in_dev},
-              out_dev_{out_dev},
-              out_indices_dev_{out_indices_dev},
-              workspace_dev_{workspace_dev}
+            : in_dev_{in_dev}, out_dev_{out_dev}
         {
+            (void)out_indices_dev;
+            (void)workspace_dev;
+
             inLengths_  = inLengths;
             inStrides_  = inStrides;
             outLengths_ = outLengths;
@@ -183,21 +207,21 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
 
             dim1_lowest_length = inLengths[toReduceDims::At(toReduceDims::Size() - 1)];
 
-            int iteration = 1;
+            int iterations = 1;
             while(true)
             {
-                int test_blkGroupSize =
-                    (dim1_total_length +
-                     (dim1_thread_cluster_size * dim1_thread_slice_size * iteration) - 1) /
-                    (dim1_thread_cluster_size * dim1_thread_slice_size * iteration);
+                int test_blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
+                                        (dim1_tile_size * iterations);
 
                 // we want the blkGroupSize be not more than 128
                 if(test_blkGroupSize <= 128)
                     break;
+
+                iterations++;
             };
 
-            blkGroupSize = (dim1_total_length + (dim1_tile_size * iteration) - 1) /
-                           (dim1_tile_size * iteration);
+            blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
+                           (dim1_tile_size * iterations);
 
             gridSize = (dim0_total_length + dim0_tile_size - 1) / dim0_tile_size * blkGroupSize;
 
@@ -214,8 +238,6 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
 
         const inType* in_dev_;
         outType* out_dev_;
-        int* out_indices_dev_;
-        compType* workspace_dev_;
 
         int dim0_lowest_length;
         int dim1_lowest_length;
@@ -300,13 +322,7 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(need_indices)
-            return (false);
-
         if(static_cast<float>(pArg->beta_) != 0.0f)
-            return (false);
-
-        if(!support_AtomicAdd)
             return (false);
 
         if(pArg->dim0_lowest_length % dim0_thread_slice_size != 0)

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <iostream>
 
 #include "common_header.hpp"
 #include "device_base.hpp"
@@ -25,6 +26,8 @@ struct DeviceReduce : public BaseOperator
     virtual size_t getWorkspaceSize(const std::vector<int>& inLengths) = 0;
 
     virtual bool hasFurtherCall() { return (false); };
+
+    virtual void showConfiguration(std::ostream& os, const BaseArgument* p_arg) = 0;
 
     virtual std::vector<int> getWorkspace2dLengths(const BaseArgument* argPtr)
     {

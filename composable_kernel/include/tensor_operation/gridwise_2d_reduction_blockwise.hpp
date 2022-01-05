@@ -42,8 +42,8 @@ template <typename GridwiseReduction,
           typename outType,
           typename src2dDescType,
           typename dst1dDescType>
-__global__ void kernel_reduce_blockwise(const src2dDescType& src2dDesc,
-                                        const dst1dDescType& dst1dDesc,
+__global__ void kernel_reduce_blockwise(const src2dDescType src2dDesc,
+                                        const dst1dDescType dst1dDesc,
                                         int origReduceLen,
                                         inType alpha,
                                         const inType* const __restrict__ p_src_global,
@@ -253,7 +253,7 @@ struct GridwiseReduction_xy_to_x_blockwise
             }
         });
 
-        if(thread_dim0_cluster_id == 0)
+        if(thread_dim1_cluster_id == 0)
         {
             if(!float_equal_zero{}(beta))
             {
@@ -295,7 +295,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    1,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
-                                                   false>(
+                                                   true>(
                     dst1dDesc,
                     make_multi_index(block_global_1d_id * dim0_BlockTileSize +
                                      thread_dim0_cluster_id * dim0_thread_slice_size),

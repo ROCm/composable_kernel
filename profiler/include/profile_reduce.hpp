@@ -296,6 +296,7 @@ void profile_reduce_impl(bool do_verification,
                                               reduceOp,
                                               nanOpt,
                                               indicesOpt>(reduce_ptrs);
+
         add_device_reduce_instance_blockwise<inType,
                                              compType,
                                              outType,
@@ -341,6 +342,15 @@ void profile_reduce_impl(bool do_verification,
         throw std::runtime_error("Wrong! No device REDUCE instance found");
     };
 
+    if(do_verification)
+    {
+        ReductionHost<inType, compType, outType> hostReduce(
+            reduceOp, nanOpt, indicesOpt, in.mDesc, out_ref.mDesc, invariantDims, toReduceDims);
+
+        hostReduce.Run(
+            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
+    };
+
     for(auto& reduce_ptr : reduce_ptrs)
     {
         const auto i_inLengths  = to_int_vector(inLengths);
@@ -366,6 +376,8 @@ void profile_reduce_impl(bool do_verification,
         if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
             continue;
 
+        reduce_ptr->showConfiguration(std::cout, argument_ptr.get());
+
         auto invoker_ptr = reduce_ptr->MakeInvokerPointer();
 
         float avg_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
@@ -390,12 +402,14 @@ void profile_reduce_impl(bool do_verification,
                                                      ws_dev.GetDeviceBuffer(),
                                                      out_dev.GetDeviceBuffer(),
                                                      out_indices_dev.GetDeviceBuffer(),
-                                                     nullptr);
-
-                auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
+                                                     ws_dev.GetDeviceBuffer());
 
                 if(!reduce2_ptr->IsSupportedArgument(argument2_ptr.get()))
                     continue;
+
+                reduce2_ptr->showConfiguration(std::cout, argument2_ptr.get());
+
+                auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
 
                 float avg_time_2 = invoker2_ptr->Run(argument2_ptr.get(), nrepeat);
 
@@ -415,20 +429,6 @@ void profile_reduce_impl(bool do_verification,
 
                 if(do_verification)
                 {
-                    ReductionHost<inType, compType, outType> hostReduce(reduceOp,
-                                                                        nanOpt,
-                                                                        indicesOpt,
-                                                                        in.mDesc,
-                                                                        out_ref.mDesc,
-                                                                        invariantDims,
-                                                                        toReduceDims);
-
-                    hostReduce.Run(alpha,
-                                   in.mData.data(),
-                                   beta,
-                                   out_ref.mData.data(),
-                                   out_indices_ref.mData.data());
-
                     out_dev.FromDevice(out.mData.data());
                     check_error(out_ref, out);
 
@@ -440,10 +440,10 @@ void profile_reduce_impl(bool do_verification,
 
                     if(do_log)
                     {
-                        /*
-                        LogRange(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
-                        LogRange(std::cout << "out_device: ", out_dev.mData, ",") << std::endl;
-                        */
+                        LogRangeAsType<float>(std::cout << "out_host  : ", out_ref.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",")
+                            << std::endl;
                     }
                 }
             };
@@ -462,20 +462,6 @@ void profile_reduce_impl(bool do_verification,
 
             if(do_verification)
             {
-                ReductionHost<inType, compType, outType> hostReduce(reduceOp,
-                                                                    nanOpt,
-                                                                    indicesOpt,
-                                                                    in.mDesc,
-                                                                    out_ref.mDesc,
-                                                                    invariantDims,
-                                                                    toReduceDims);
-
-                hostReduce.Run(alpha,
-                               in.mData.data(),
-                               beta,
-                               out_ref.mData.data(),
-                               out_indices_ref.mData.data());
-
                 out_dev.FromDevice(out.mData.data());
                 check_error(out_ref, out);
 
@@ -487,11 +473,9 @@ void profile_reduce_impl(bool do_verification,
 
                 if(do_log)
                 {
-                    /*
-                                         LogRange(std::cout << "out_host  : ", out_host.mData, ",")
-                       << std::endl; LogRange(std::cout << "out_device: ", out_dev.mData, ",") <<
-                       std::endl;
-                    */
+                    LogRangeAsType<float>(std::cout << "out_host  : ", out_ref.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",") << std::endl;
                 };
             };
         }
