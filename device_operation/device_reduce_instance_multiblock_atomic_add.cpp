@@ -29,8 +29,7 @@ void add_device_reduce_instance_multiblock_atomic_add(
 
     constexpr bool op_acceptable =
         (reduceOp == ReduceTensorOp_t::ADD || reduceOp == ReduceTensorOp_t::MUL ||
-         reduceOp == ReduceTensorOp_t::AVG || reduceOp == ReduceTensorOp_t::NORM1 ||
-         reduceOp == ReduceTensorOp_t::NORM2);
+         reduceOp == ReduceTensorOp_t::AVG || reduceOp == ReduceTensorOp_t::NORM1);
 
     constexpr bool out_type_acceptable =
         (std::is_same<outType, float>::value || std::is_same<outType, double>::value);
@@ -81,8 +80,6 @@ ADD_INST_BY_ID(multiblock_atomic_add, half_t, float, float, 5, 0, 0, 4, 0, 1, 2)
 ADD_INST_BY_ID(multiblock_atomic_add, half_t, float, float, 5, 0, 0, 4, 0);       //
 ADD_INST_BY_ID(multiblock_atomic_add, half_t, float, float, 6, 0, 0, 4, 0, 1, 2); // for NORM1
 ADD_INST_BY_ID(multiblock_atomic_add, half_t, float, float, 6, 0, 0, 4, 0);       //
-ADD_INST_BY_ID(multiblock_atomic_add, half_t, float, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
-ADD_INST_BY_ID(multiblock_atomic_add, half_t, float, float, 7, 0, 0, 4, 0);       //
 
 // float, float, float
 ADD_INST_BY_ID(multiblock_atomic_add, float, float, float, 0, 0, 0, 4, 0, 1, 2); // for ADD
@@ -93,8 +90,6 @@ ADD_INST_BY_ID(multiblock_atomic_add, float, float, float, 5, 0, 0, 4, 0, 1, 2);
 ADD_INST_BY_ID(multiblock_atomic_add, float, float, float, 5, 0, 0, 4, 0);       //
 ADD_INST_BY_ID(multiblock_atomic_add, float, float, float, 6, 0, 0, 4, 0, 1, 2); // for NORM1
 ADD_INST_BY_ID(multiblock_atomic_add, float, float, float, 6, 0, 0, 4, 0);       //
-ADD_INST_BY_ID(multiblock_atomic_add, float, float, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
-ADD_INST_BY_ID(multiblock_atomic_add, float, float, float, 7, 0, 0, 4, 0);       //
 
 // float, double, float
 ADD_INST_BY_ID(multiblock_atomic_add, float, double, float, 0, 0, 0, 4, 0, 1, 2); // for ADD
@@ -105,8 +100,6 @@ ADD_INST_BY_ID(multiblock_atomic_add, float, double, float, 5, 0, 0, 4, 0, 1, 2)
 ADD_INST_BY_ID(multiblock_atomic_add, float, double, float, 5, 0, 0, 4, 0);       //
 ADD_INST_BY_ID(multiblock_atomic_add, float, double, float, 6, 0, 0, 4, 0, 1, 2); // for NORM1
 ADD_INST_BY_ID(multiblock_atomic_add, float, double, float, 6, 0, 0, 4, 0);       //
-ADD_INST_BY_ID(multiblock_atomic_add, float, double, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
-ADD_INST_BY_ID(multiblock_atomic_add, float, double, float, 7, 0, 0, 4, 0);       //
 
 } // namespace device_reduce_instance
 } // namespace device

@@ -35,6 +35,20 @@ struct DeviceReduce : public BaseOperator
         return (std::vector<int>{0, 0});
     };
 
+    // will only be overrided by the MultiblockTwoCall DeviceReduce
+    virtual int getOrigReduceLength(const BaseArgument* argPtr)
+    {
+        (void)argPtr;
+        return (0);
+    };
+
+    // will only be overrided by the BlockWiseSecondCall DeviceReduce
+    virtual void setOrigReduceLength(BaseArgument* argPtr, int len)
+    {
+        (void)argPtr;
+        (void)len;
+    };
+
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,
                                                               const std::vector<int>& inStrides,
                                                               const std::vector<int>& outLengths,

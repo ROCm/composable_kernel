@@ -14,8 +14,6 @@ ADD_INST_REF_BY_ID(multiblock_atomic_add, half_t, float, float, 5, 0, 0, 4, 0, 1
 ADD_INST_REF_BY_ID(multiblock_atomic_add, half_t, float, float, 5, 0, 0, 4, 0);       //
 ADD_INST_REF_BY_ID(multiblock_atomic_add, half_t, float, float, 6, 0, 0, 4, 0, 1, 2); // for NORM1
 ADD_INST_REF_BY_ID(multiblock_atomic_add, half_t, float, float, 6, 0, 0, 4, 0);       //
-ADD_INST_REF_BY_ID(multiblock_atomic_add, half_t, float, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
-ADD_INST_REF_BY_ID(multiblock_atomic_add, half_t, float, float, 7, 0, 0, 4, 0);       //
 
 // float, float, float
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, float, float, 0, 0, 0, 4, 0, 1, 2); // for ADD
@@ -26,8 +24,6 @@ ADD_INST_REF_BY_ID(multiblock_atomic_add, float, float, float, 5, 0, 0, 4, 0, 1,
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, float, float, 5, 0, 0, 4, 0);       //
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, float, float, 6, 0, 0, 4, 0, 1, 2); // for NORM1
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, float, float, 6, 0, 0, 4, 0);       //
-ADD_INST_REF_BY_ID(multiblock_atomic_add, float, float, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
-ADD_INST_REF_BY_ID(multiblock_atomic_add, float, float, float, 7, 0, 0, 4, 0);       //
 
 // float, double, float
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, double, float, 0, 0, 0, 4, 0, 1, 2); // for ADD
@@ -38,8 +34,6 @@ ADD_INST_REF_BY_ID(multiblock_atomic_add, float, double, float, 5, 0, 0, 4, 0, 1
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, double, float, 5, 0, 0, 4, 0);       //
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, double, float, 6, 0, 0, 4, 0, 1, 2); // for NORM1
 ADD_INST_REF_BY_ID(multiblock_atomic_add, float, double, float, 6, 0, 0, 4, 0);       //
-ADD_INST_REF_BY_ID(multiblock_atomic_add, float, double, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
-ADD_INST_REF_BY_ID(multiblock_atomic_add, float, double, float, 7, 0, 0, 4, 0);       //
 
 } // namespace device_reduce_instance
 } // namespace device

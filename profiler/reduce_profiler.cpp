@@ -193,6 +193,8 @@ class AppArgs
     {
         unsigned int ch;
 
+        optind++; // to skip the "reduce" module name
+
         while(1)
         {
             ch = getopt_long(argc, argv, "D:R:O:C:W:N:I:S:v:o:l:", long_options, &option_index);
@@ -302,6 +304,9 @@ class AppArgs
             scales.push_back(0.0f);
         };
 
+        std::cout << "init_method=" << init_method << ", nrepeat=" << nrepeat
+                  << ", alpha=" << scales[0] << ", beta=" << scales[1] << std::endl;
+
         if(reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
            reduceOp == ReduceTensorOp_t::AMAX)
         {
@@ -347,6 +352,7 @@ int reduce_profiler(int argc, char* argv[])
             profile_reduce<ck::half_t, ck::half_t, ck::half_t>(args.do_verification,
                                                                args.init_method,
                                                                args.do_log,
+                                                               args.do_dumpout,
                                                                args.nrepeat,
                                                                args.inLengths,
                                                                args.toReduceDims,
@@ -361,6 +367,7 @@ int reduce_profiler(int argc, char* argv[])
             profile_reduce<ck::half_t, float, ck::half_t>(args.do_verification,
                                                           args.init_method,
                                                           args.do_log,
+                                                          args.do_dumpout,
                                                           args.nrepeat,
                                                           args.inLengths,
                                                           args.toReduceDims,
@@ -387,6 +394,7 @@ int reduce_profiler(int argc, char* argv[])
             profile_reduce<float, float, float>(args.do_verification,
                                                 args.init_method,
                                                 args.do_log,
+                                                args.do_dumpout,
                                                 args.nrepeat,
                                                 args.inLengths,
                                                 args.toReduceDims,
@@ -401,6 +409,7 @@ int reduce_profiler(int argc, char* argv[])
             profile_reduce<float, double, float>(args.do_verification,
                                                  args.init_method,
                                                  args.do_log,
+                                                 args.do_dumpout,
                                                  args.nrepeat,
                                                  args.inLengths,
                                                  args.toReduceDims,

@@ -54,7 +54,7 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
     static constexpr bool support_AtomicAdd =
         std::is_same<outType, float>::value || std::is_same<outType, double>::value;
 
-    static_assert(!need_indices && support_AtomicAdd,
+    static_assert(!need_indices && support_AtomicAdd && reduceOp != ReduceTensorOp_t::NORM2,
                   "MultiBlockAtomicAdd method can only be used with non-indiced operation and when "
                   "having float/double output type!");
 
@@ -294,7 +294,7 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
                                                   0,
                                                   dst1dDesc,
                                                   arg.out_dev_,
-                                                  static_cast<outType>(0));
+                                                  static_cast<outType>(0.0f));
 
             avg_time_main = launch_and_time_kernel(kernel_main,
                                                    nrepeat,

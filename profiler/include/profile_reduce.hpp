@@ -140,7 +140,23 @@ static void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
 
     if(!has_error)
         std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
-}
+};
+
+template <typename T>
+static void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
+{
+    std::ofstream outFile(fileName, std::ios::binary);
+    if(outFile)
+    {
+        outFile.write(reinterpret_cast<char*>(data), dataNumItems * sizeof(T));
+        outFile.close();
+        std::cout << "Write output to file " << fileName << std::endl;
+    }
+    else
+    {
+        std::cout << "Could not open file " << fileName << " for writing" << std::endl;
+    }
+};
 
 template <typename inType,
           typename compType,
@@ -153,6 +169,7 @@ template <typename inType,
 void profile_reduce_impl(bool do_verification,
                          int init_method,
                          bool do_log,
+                         bool do_dumpout,
                          int nrepeat,
                          const std::vector<size_t>& inLengths,
                          float alpha,
@@ -170,8 +187,9 @@ void profile_reduce_impl(bool do_verification,
 
     constexpr bool out_support_atomic_add =
         (std::is_same<outType, float>::value || std::is_same<outType, double>::value);
-    constexpr bool op_support_atomic_add = !op_support_indices;
-    constexpr bool use_atomic_add        = (out_support_atomic_add && op_support_atomic_add);
+    constexpr bool op_support_atomic_add =
+        !op_support_indices && reduceOp != ReduceTensorOp_t::NORM2;
+    constexpr bool use_atomic_add = (out_support_atomic_add && op_support_atomic_add);
 
     // if input is half type, no reason to use float for indiced reduction operation and must use
     // float for non-indiced reduction operation for accuracy
@@ -389,6 +407,7 @@ void profile_reduce_impl(bool do_verification,
         {
             std::vector<int> inLengths2 = reduce_ptr->getWorkspace2dLengths(argument_ptr.get());
             std::vector<int> inStrides2{inLengths2[1], 1};
+            int origReduceLen = reduce_ptr->getOrigReduceLength(argument_ptr.get());
 
             for(auto& reduce2_ptr : reduce2_ptrs)
             {
@@ -408,6 +427,8 @@ void profile_reduce_impl(bool do_verification,
                     continue;
 
                 reduce2_ptr->showConfiguration(std::cout, argument2_ptr.get());
+
+                reduce2_ptr->setOrigReduceLength(argument2_ptr.get(), origReduceLen);
 
                 auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
 
@@ -446,6 +467,23 @@ void profile_reduce_impl(bool do_verification,
                             << std::endl;
                     }
                 }
+
+                if(do_dumpout)
+                {
+                    dumpBufferToFile("dump_in.bin", in.mData.data(), in.mDesc.GetElementSize());
+                    dumpBufferToFile("dump_out.bin", out.mData.data(), out.mDesc.GetElementSize());
+                    dumpBufferToFile(
+                        "dump_out_host.bin", out_ref.mData.data(), out_ref.mDesc.GetElementSize());
+                    if(need_indices)
+                    {
+                        dumpBufferToFile("dump_indices.bin",
+                                         out_indices.mData.data(),
+                                         out_indices.mDesc.GetElementSize());
+                        dumpBufferToFile("dump_indices_host.bin",
+                                         out_indices_ref.mData.data(),
+                                         out_indices_ref.mDesc.GetElementSize());
+                    };
+                };
             };
         }
         else
@@ -478,6 +516,23 @@ void profile_reduce_impl(bool do_verification,
                     LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",") << std::endl;
                 };
             };
+
+            if(do_dumpout)
+            {
+                dumpBufferToFile("dump_in.bin", in.mData.data(), in.mDesc.GetElementSize());
+                dumpBufferToFile("dump_out.bin", out.mData.data(), out.mDesc.GetElementSize());
+                dumpBufferToFile(
+                    "dump_out_host.bin", out_ref.mData.data(), out_ref.mDesc.GetElementSize());
+                if(need_indices)
+                {
+                    dumpBufferToFile("dump_indices.bin",
+                                     out_indices.mData.data(),
+                                     out_indices.mDesc.GetElementSize());
+                    dumpBufferToFile("dump_indices_host.bin",
+                                     out_indices_ref.mData.data(),
+                                     out_indices_ref.mDesc.GetElementSize());
+                };
+            };
         }
     };
 
@@ -489,6 +544,7 @@ template <typename inType, typename compType, typename outType>
 void profile_reduce(bool do_verification,
                     int init_method,
                     bool do_log,
+                    bool do_dumpout,
                     int nrepeat,
                     const std::vector<size_t>& inLengths,
                     const std::vector<int>& toReduceDims,
@@ -523,7 +579,7 @@ void profile_reduce(bool do_verification,
                             static_cast<ReduceTensorOp_t>(descType::reduceOp_),
                             static_cast<NanPropagation_t>(descType::nanOpt_),
                             static_cast<ReduceTensorIndices_t>(descType::indicesOpt_)>(
-            do_verification, init_method, do_log, nrepeat, inLengths, alpha, beta);
+            do_verification, init_method, do_log, do_dumpout, nrepeat, inLengths, alpha, beta);
 
         matched = true;
     });

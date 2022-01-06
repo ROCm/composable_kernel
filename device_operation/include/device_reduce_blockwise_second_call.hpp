@@ -190,6 +190,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
         size_t dim1_total_length;
 
         size_t gridSize;
+        int origReduceLen;
     };
 
     struct Invoker : public BaseInvoker
@@ -239,7 +240,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                               0,
                                               src2dDesc,
                                               dst1dDesc,
-                                              static_cast<int>(arg.dim1_total_length),
+                                              static_cast<int>(arg.origReduceLen),
                                               arg.alpha_,
                                               arg.in_dev_,
                                               arg.beta_,
@@ -271,6 +272,13 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
             return (false);
 
         return (true);
+    };
+
+    void setOrigReduceLength(BaseArgument* p_arg, int len) override
+    {
+        Argument* pArg = dynamic_cast<Argument*>(p_arg);
+
+        pArg->origReduceLen = len;
     };
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,

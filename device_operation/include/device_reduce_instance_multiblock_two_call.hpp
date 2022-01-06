@@ -45,6 +45,18 @@ ADD_INST_REF_BY_ID(multiblock_two_call, float, float, float, 3, 0, 1, 4, 0);    
 ADD_INST_REF_BY_ID(multiblock_two_call, float, float, float, 4, 0, 1, 4, 0, 1, 2); // for AMAX
 ADD_INST_REF_BY_ID(multiblock_two_call, float, float, float, 4, 0, 1, 4, 0);       //
 
+// half, float, float
+ADD_INST_REF_BY_ID(multiblock_two_call, half_t, float, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
+ADD_INST_REF_BY_ID(multiblock_two_call, half_t, float, float, 7, 0, 0, 4, 0);       //
+
+// float, float, float
+ADD_INST_REF_BY_ID(multiblock_two_call, float, float, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
+ADD_INST_REF_BY_ID(multiblock_two_call, float, float, float, 7, 0, 0, 4, 0);       //
+
+// float, double, float
+ADD_INST_REF_BY_ID(multiblock_two_call, float, double, float, 7, 0, 0, 4, 0, 1, 2); // for NORM2
+ADD_INST_REF_BY_ID(multiblock_two_call, float, double, float, 7, 0, 0, 4, 0);       //
+
 } // namespace device_reduce_instance
 } // namespace device
 } // namespace tensor_operation

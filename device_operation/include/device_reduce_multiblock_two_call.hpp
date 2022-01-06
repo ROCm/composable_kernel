@@ -313,6 +313,9 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                                                                   src2dDescType,
                                                                   ws2dDescType>;
 
+            std::cout << "multiblock two call, origReduceLen=" << arg.dim1_total_length
+                      << std::endl;
+
             avg_time = launch_and_time_kernel(kernel,
                                               nrepeat,
                                               dim3(arg.gridSize),
@@ -358,6 +361,13 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
         return (std::vector<int>{static_cast<int>(pArg->dim0_total_length), pArg->blkGroupSize});
+    };
+
+    int getOrigReduceLength(const BaseArgument* p_arg) override
+    {
+        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
+
+        return (static_cast<int>(pArg->dim1_total_length));
     };
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,

@@ -241,7 +241,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                                    PassThroughOp<dstDataType>,
                                                    Sequence<dim0_thread_slice_size>,
                                                    Sequence<0>,
-                                                   dim0_VectorSize,
+                                                   1, // dim0_VectorSize,
                                                    1,
                                                    InMemoryDataOperationEnum_t::AtomicAdd,
                                                    1,
