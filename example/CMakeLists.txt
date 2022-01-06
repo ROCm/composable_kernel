@@ -32,8 +32,7 @@ target_link_libraries(conv2d_fwd_xdl_bias_relu PRIVATE host_tensor)
 target_link_libraries(conv2d_fwd_xdl_bias_relu_add PRIVATE host_tensor)
 target_link_libraries(conv2d_fwd_xdl_bias_relu_atomic_add PRIVATE host_tensor)
 
-set(CONV3D_FWD_XDL_SOURCE 5_conv3d_fwd_xdl/conv3d_fwd_xdl.cpp)
+set(CONV3D_FWD_XDL_SOURCE 8_conv3d_fwd_xdl/conv3d_fwd_xdl.cpp)
 add_executable(conv3d_fwd_xdl ${CONV3D_FWD_XDL_SOURCE})
 target_include_directories(conv3d_fwd_xdl PUBLIC ${PROJECT_SOURCE_DIR}/device_operation_reference/include)
 target_link_libraries(conv3d_fwd_xdl PRIVATE host_tensor)
->>>>>>> cb62cec... add example conv3d_fwd_xdl

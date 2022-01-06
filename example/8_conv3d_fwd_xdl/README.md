@@ -44,15 +44,15 @@ cmake                                                                  \
 
 Result (MI200)
 ```
-in_n_c_hi_wi: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
-wei_k_c_y_x: dim 4, lengths {256, 192, 3, 3}, strides {1728, 1, 576, 192}
-out_n_k_ho_wo: dim 4, lengths {128, 256, 36, 36}, strides {331776, 1, 9216, 256}
-arg.a_grid_desc_k0_m_k1_{216, 165888, 8}
-arg.b_grid_desc_k0_n_k1_{216, 256, 8}
-arg.c_grid_desc_m_n_{ 165888, 256}
-launch_and_time_kernel: grid_dim {1296, 1, 1}, block_dim {256, 1, 1}
+in_n_di_hi_wi_c: dim 5, lengths {4, 71, 71, 71, 192}, strides {68718912, 967872, 13632, 192, 1}
+wei_k_z_y_x_c: dim 5, lengths {128, 3, 3, 3, 192}, strides {5184, 1728, 576, 192, 1}
+out_n_do_ho_wo_k: dim 5, lengths {4, 36, 36, 36, 128}, strides {5971968, 165888, 4608, 128, 1}
+a_grid_desc_b_k0_m_k1{1, 648, 186624, 8}
+b_grid_desc_k0_n_k1{648, 128, 8}
+c_grid_desc_b_m_n{ 1, 186624, 128}
+launch_and_time_kernel: grid_dim {729, 1, 1}, block_dim {256, 1, 1}
 Warm up
 Start running 5 times...
-Perf: 1.43206 ms, 102.486 TFlops, 232.947 GB/s
+Perf: 3.06193 ms, 80.8868 TFlops, 195.581 GB/s
 ```
 

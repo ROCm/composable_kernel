@@ -12,27 +12,8 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "device_conv_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp"
+#include "device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp"
 #include "naive_conv_fwd.hpp"
-
-struct PassThrough
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        return v;
-    }
-};
-
-struct Relu
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        T tmp = 0.1 * v;
-        return tmp > 0 ? tmp : 0;
-    }
-};
 
 // convolution data type
 using InDataType  = ck::half_t;
@@ -40,10 +21,9 @@ using WeiDataType = ck::half_t;
 using OutDataType = ck::half_t;
 using AccDataType = float;
 
-using InElementwiseOp  = PassThrough;
-using WeiElementwiseOp = PassThrough;
-// using OutElementwiseOp = Relu;
-using OutElementwiseOp = PassThrough;
+using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -55,51 +35,50 @@ using InLayout  = ck::tensor_layout::convolution::NDHWC;
 using WeiLayout = ck::tensor_layout::convolution::KZYXC;
 using OutLayout = ck::tensor_layout::convolution::NDHWK;
 
-using DeviceConv3dFwdInstance = ck::tensor_operation::device::DeviceConvFwdXdl<
-    3,
-    InDataType,       // InData
-    WeiDataType,      // WeiData
-    OutDataType,      // OutData
-    AccDataType,      // AccData
-    InLayout,         // InLayout
-    WeiLayout,        // WeiLayout
-    OutLayout,        // OutLayout
-    InElementwiseOp,  // InElementwise Operation
-    WeiElementwiseOp, // WeiElementwise Operation
-    OutElementwiseOp, // OutElementwise Operation
-    256,              // BlockSize
-    256,              // MPerBlock
-    128,              // NPerBlock
-    4,                // K0PerBlock
-    8,                // K1. K0PerBlock * K1 = KPerBlock
-    32,               // MPerXDL
-    32,               // NPerXDL. Each XDL computes a matrix of size (MPerXDL, NPerBlock)
-    4,                // MXdlPerWave
-    2,                // NXdlPerWave
-    S<1, 4, 8>,       // ABlockTransferThreadSliceLengths_K0_M_K1
-    S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_K0_M_K1
-    S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
-    2,                // ABlockTransferSrcVectorDim
-    8,                // ABlockTransferSrcScalarPerVector
-    8,                // ABlockTransferDstScalarPerVector_K1
-    S<1, 2, 8>,       // BBlockTransferThreadSliceLengths_K0_N_K1
-    S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_K0_N_K1
-    S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
-    2,                // BBlockTransferSrcVectorDim
-    8,                // BBlockTransferSrcScalarPerVector
-    8,                // BBlockTransferDstScalarPerVector_K1
-    7,                // CThreadTransferSrcDstVectorDim
-    1,                // CThreadTransferDstScalarPerVector
-    true,             // ABlockLdsAddExtraM
-    true>;            // BBlockLdsAddExtraN
+static constexpr auto ConvFwdDefault =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+
+using DeviceConv3dFwdInstance = ck::tensor_operation::device::
+    DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K<
+        InDataType,       // InData
+        WeiDataType,      // WeiData
+        OutDataType,      // OutData
+        AccDataType,      // AccData
+        InElementOp,  // InElementwise Operation
+        WeiElementOp, // WeiElementwise Operation
+        OutElementOp, // OutElementwise Operation
+        ConvFwdDefault,   // ConvForwardSpecialization
+        256,              // BlockSize
+        256,              // MPerBlock
+        128,              // NPerBlock
+        4,                // K0PerBlock
+        8,                // K1. K0PerBlock * K1 = KPerBlock
+        32,               // MPerXDL
+        32,               // NPerXDL. Each XDL computes a matrix of size (MPerXDL, NPerBlock)
+        4,                // MXdlPerWave
+        2,                // NXdlPerWave
+        S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
+        2,                // ABlockTransferSrcVectorDim
+        8,                // ABlockTransferSrcScalarPerVector
+        8,                // ABlockTransferDstScalarPerVector_K1
+        true,             // ABlockLdsAddExtraM
+        S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
+        2,                // BBlockTransferSrcVectorDim
+        8,                // BBlockTransferSrcScalarPerVector
+        8,                // BBlockTransferDstScalarPerVector_K1
+        true,             // BBlockLdsAddExtraN
+        7,                // CThreadTransferSrcDstVectorDim
+        1>;               // CThreadTransferDstScalarPerVector
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = std::stoi(argv[1]);
-    int init_method      = std::stoi(argv[2]);
-    int nrepeat          = std::stoi(argv[3]);
+    bool do_verification = false;
+    int init_method      = 0;
+    int nrepeat          = 5;
 
     // convolution shape
     ck::index_t N                                   = 4;
@@ -160,11 +139,11 @@ int main(int argc, char* argv[])
     auto conv3d = DeviceConv3dFwdInstance{};
 
     const auto out_spatial_lengths = conv3d.ComputeOutputSpatialLengths(in_spatial_lengths,
-                                                                 filter_spatial_lengths,
-                                                                 conv_filter_strides,
-                                                                 conv_filter_dilations,
-                                                                 in_left_pads,
-                                                                 in_right_pads);
+                                                                        filter_spatial_lengths,
+                                                                        conv_filter_strides,
+                                                                        conv_filter_dilations,
+                                                                        in_left_pads,
+                                                                        in_right_pads);
     Tensor<InDataType> in(
         {N, in_spatial_lengths[0], in_spatial_lengths[1], in_spatial_lengths[2], C});
     Tensor<WeiDataType> wei(
@@ -210,9 +189,9 @@ int main(int argc, char* argv[])
                                         conv_filter_dilations,
                                         in_left_pads,
                                         in_right_pads,
-                                        InElementwiseOp{},
-                                        WeiElementwiseOp{},
-                                        OutElementwiseOp{});
+                                        InElementOp{},
+                                        WeiElementOp{},
+                                        OutElementOp{});
 
     if(!conv3d.IsSupportedArgument(argument))
     {
