@@ -3,7 +3,7 @@ rm -f CMakeCache.txt
 rm -f *.cmake
 rm -rf CMakeFiles
 
-MY_PROJECT_SOURCE=../../..
+MY_PROJECT_SOURCE=../
 MY_PROJECT_INSTALL=../install.dir
 
 cmake                                                                                                                                          \
