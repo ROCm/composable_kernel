@@ -332,9 +332,9 @@ void device_gemm_xdlops_mk_kn_mn(const Tensor<ABType>& a_m_k,
     constexpr index_t CThreadTransferDstScalarPerVector = 1;
 #endif
 
-    const auto K = a_m_k.mDesc.GetLengths()[1];
-    const auto M = a_m_k.mDesc.GetLengths()[0];
-    const auto N = b_k_n.mDesc.GetLengths()[1];
+    const index_t K = a_m_k.mDesc.GetLengths()[1];
+    const index_t M = a_m_k.mDesc.GetLengths()[0];
+    const index_t N = b_k_n.mDesc.GetLengths()[1];
 
     constexpr auto K1Number = Number<K1>{};
     const auto K0           = K / K1Number;
