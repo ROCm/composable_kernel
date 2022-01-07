@@ -239,7 +239,7 @@ int main(int argc, char* argv[])
     using ab_data_t  = float;
     using acc_data_t = float;
     using c_data_t   = float;
-#elif 1
+#elif 0
     using ab_data_t  = half_t;
     using acc_data_t = float;
     using c_data_t   = half_t;
