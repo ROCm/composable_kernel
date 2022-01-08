@@ -23,8 +23,7 @@ template <typename inType,
           int blockSize,
           int dim0_thread_cluster_size,
           int dim1_thread_cluster_size,
-          int dim0_max_vector_size,
-          int dim1_max_vector_size,
+          bool dim0_is_fastest,
           int dim0_thread_slice_size,
           int dim1_thread_slice_size>
 struct DeviceReduceThreadWise : public DeviceReduce<inType,
@@ -52,6 +51,11 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
         (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
          reduceOp == ReduceTensorOp_t::AMAX) &&
         (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
+
+    static constexpr int dim0_vector_size =
+        dim0_is_fastest ? math::gcd(dim0_thread_slice_size, max_vector_size_for_type<inType>()) : 1;
+    static constexpr int dim1_vector_size =
+        dim0_is_fastest ? 1 : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
 
     size_t getWorkspaceSize(const std::vector<int>& inLengths) override
     {
@@ -226,8 +230,9 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
                                                                          dim1_thread_cluster_size,
                                                                          dim0_thread_slice_size,
                                                                          dim1_thread_slice_size,
-                                                                         dim0_max_vector_size,
-                                                                         dim1_max_vector_size>;
+                                                                         dim0_is_fastest,
+                                                                         dim0_vector_size,
+                                                                         dim1_vector_size>;
 
             constexpr int RunId = need_indices ? 2 : 1;
 
@@ -266,6 +271,20 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
+
+        if constexpr(dim0_is_fastest)
+        {
+            if constexpr(invariantDims::Size() == 0)
+                return (false);
+
+            if(pArg->inStrides_[invariantDims::At(invariantDims::Size() - 1)] != 1)
+                return (false);
+        }
+        else
+        {
+            if(pArg->inStrides_[toReduceDims::At(toReduceDims::Size() - 1)] != 1)
+                return (false);
+        };
 
         if(pArg->dim0_lowest_length % dim0_thread_slice_size != 0)
             return (false);
@@ -314,10 +333,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
         auto str = std::stringstream();
 
         str << "DeviceReducceThreadWise<" << blockSize << ",";
-        str << "Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
-            << dim0_thread_slice_size << ",";
-        str << "Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
-            << dim1_thread_slice_size << ">";
+        str << "Dim0_C" << dim0_thread_cluster_size << "_S" << dim0_thread_slice_size << ",";
+        str << "Dim1_C" << dim1_thread_cluster_size << "_S" << dim1_thread_slice_size << ">";
 
         return str.str();
     }

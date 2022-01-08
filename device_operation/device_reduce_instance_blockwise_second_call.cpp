@@ -36,24 +36,29 @@ void add_device_reduce_instance_blockwise_second_call(
             using cfg2 =
                 remove_cvref_t<decltype(std::get<j.value>(reduce_configuration_2_instances{}))>;
 
-            using ReduceOpInstance =
-                DeviceReduceBlockWiseSecondCall<inType,
-                                                compType,
-                                                outType,
-                                                rank,
-                                                toReduceDims,
-                                                reduceOp,
-                                                nanOpt,
-                                                indicesOpt,
-                                                cfg1::blockSize_,
-                                                cfg1::dim0_thread_cluster_size_,
-                                                cfg1::dim1_thread_cluster_size_,
-                                                cfg2::dim0_max_vector_size_,
-                                                cfg2::dim1_max_vector_size_,
-                                                cfg2::dim0_thread_slice_size_,
-                                                cfg2::dim1_thread_slice_size_>;
+            // BlockWiseSecondCall always has the workspace as input, with which the dim1 is always
+            // the fastest , so only device instances with dim0_is_fatest be "false" need by added
+            if constexpr(!cfg2::dim0_is_fastest_)
+            {
+                using ReduceOpInstance =
+                    DeviceReduceBlockWiseSecondCall<inType,
+                                                    compType,
+                                                    outType,
+                                                    rank,
+                                                    toReduceDims,
+                                                    reduceOp,
+                                                    nanOpt,
+                                                    indicesOpt,
+                                                    cfg1::blockSize_,
+                                                    cfg1::dim0_thread_cluster_size_,
+                                                    cfg1::dim1_thread_cluster_size_,
+                                                    cfg2::dim0_is_fastest_,
+                                                    cfg2::dim0_thread_slice_size_,
+                                                    cfg2::dim1_thread_slice_size_>;
 
-            device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
+                device_op_instances.push_back(
+                    std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
+            };
         });
     });
 };

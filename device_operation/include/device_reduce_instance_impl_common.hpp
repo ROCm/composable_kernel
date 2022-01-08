@@ -17,14 +17,10 @@ struct ReductionConfiguration_1
     static constexpr int dim1_thread_cluster_size_ = dim1_thread_cluster_size;
 };
 
-template <int dim0_max_vector_size,
-          int dim1_max_vector_size,
-          int dim0_thread_slice_size,
-          int dim1_thread_slice_size>
+template <bool dim0_is_fastest, int dim0_thread_slice_size, int dim1_thread_slice_size>
 struct ReductionConfiguration_2
 {
-    static constexpr int dim0_max_vector_size_   = dim0_max_vector_size;
-    static constexpr int dim1_max_vector_size_   = dim1_max_vector_size;
+    static constexpr bool dim0_is_fastest_       = dim0_is_fastest;
     static constexpr int dim0_thread_slice_size_ = dim0_thread_slice_size;
     static constexpr int dim1_thread_slice_size_ = dim1_thread_slice_size;
 };
@@ -41,45 +37,33 @@ using reduce_configuration_1_instances = std::tuple<ReductionConfiguration_1<256
 #define QUICK_REDUCE_TEST 1
 
 #ifdef QUICK_REDUCE_TEST
-using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<1, 1, 1, 1>,
+using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<true, 1, 1>,
+                                                    ReductionConfiguration_2<false, 1, 1>,
 
-                                                    ReductionConfiguration_2<1, 1, 3, 1>,
+                                                    ReductionConfiguration_2<true, 3, 1>,
 
-                                                    ReductionConfiguration_2<1, 1, 1, 3>>;
+                                                    ReductionConfiguration_2<false, 1, 3>>;
 #else
-using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<8, 1, 8, 1>,
-                                                    ReductionConfiguration_2<8, 1, 4, 1>,
-                                                    ReductionConfiguration_2<8, 1, 2, 1>,
-                                                    ReductionConfiguration_2<8, 1, 1, 1>,
+using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<true, 8, 1>,
+                                                    ReductionConfiguration_2<true, 4, 1>,
+                                                    ReductionConfiguration_2<true, 2, 1>,
+                                                    ReductionConfiguration_2<true, 1, 1>,
 
-                                                    ReductionConfiguration_2<4, 1, 4, 1>,
-                                                    ReductionConfiguration_2<4, 1, 2, 1>,
-                                                    ReductionConfiguration_2<4, 1, 1, 1>,
-
-                                                    ReductionConfiguration_2<2, 1, 2, 1>,
-                                                    ReductionConfiguration_2<2, 1, 1, 1>,
-                                                    ReductionConfiguration_2<1, 1, 1, 1>,
-                                                    ReductionConfiguration_2<1, 2, 1, 2>,
-                                                    ReductionConfiguration_2<1, 2, 1, 1>,
-                                                    ReductionConfiguration_2<1, 4, 1, 4>,
-                                                    ReductionConfiguration_2<1, 4, 1, 2>,
-                                                    ReductionConfiguration_2<1, 4, 1, 1>,
-
-                                                    ReductionConfiguration_2<1, 8, 1, 8>,
-                                                    ReductionConfiguration_2<1, 8, 1, 4>,
-                                                    ReductionConfiguration_2<1, 8, 1, 2>,
-                                                    ReductionConfiguration_2<1, 8, 1, 1>,
+                                                    ReductionConfiguration_2<false, 1, 8>,
+                                                    ReductionConfiguration_2<false, 1, 4>,
+                                                    ReductionConfiguration_2<false, 1, 2>,
+                                                    ReductionConfiguration_2<false, 1, 1>,
 
                                                     // special instances
-                                                    ReductionConfiguration_2<1, 1, 3, 1>,
-                                                    ReductionConfiguration_2<1, 1, 5, 1>,
-                                                    ReductionConfiguration_2<1, 1, 7, 1>,
-                                                    ReductionConfiguration_2<1, 1, 11, 1>,
+                                                    ReductionConfiguration_2<true, 3, 1>,
+                                                    ReductionConfiguration_2<true, 5, 1>,
+                                                    ReductionConfiguration_2<true, 7, 1>,
+                                                    ReductionConfiguration_2<true, 11, 1>,
 
-                                                    ReductionConfiguration_2<1, 1, 1, 3>,
-                                                    ReductionConfiguration_2<1, 1, 1, 5>,
-                                                    ReductionConfiguration_2<1, 1, 1, 7>,
-                                                    ReductionConfiguration_2<1, 1, 1, 11>>;
+                                                    ReductionConfiguration_2<false, 1, 3>,
+                                                    ReductionConfiguration_2<false, 1, 5>,
+                                                    ReductionConfiguration_2<false, 1, 7>,
+                                                    ReductionConfiguration_2<false, 1, 11>>;
 #endif
 
 #define ADD_INST_BY_TYPE(key, inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...) \

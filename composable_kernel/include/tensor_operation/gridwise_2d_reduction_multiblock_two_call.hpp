@@ -74,17 +74,11 @@ template <typename srcDataType,
           index_t dim1_thread_cluster_size,
           index_t dim0_thread_slice_size,
           index_t dim1_thread_slice_size,
-          index_t dim0_max_vector_size,
-          index_t dim1_max_vector_size>
+          bool dim0_is_fastest,
+          index_t dim0_vector_size,
+          index_t dim1_vector_size>
 struct GridwiseReduction_xy_to_x_multiblock_two_call
 {
-    static constexpr index_t dim0_VectorSize =
-        math::gcd(dim0_thread_slice_size, dim0_max_vector_size);
-    static constexpr index_t dim1_VectorSize =
-        math::gcd(dim1_thread_slice_size, dim1_max_vector_size);
-
-    static constexpr bool dim0_is_fastest =
-        ((dim1_max_vector_size == 1) && (dim0_max_vector_size > 1));
     static constexpr bool reorder_thread_cluster = dim0_is_fastest;
 
     using opReduce       = typename reduce_binary_operator<compType, op>::opType;
@@ -189,7 +183,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2 < srcDataType, compType,
              src2dDescType, decltype(ThreadBufferDesc), ThreadBufferLengths,
              typename conditional<dim0_is_fastest, Sequence<1, 0>, Sequence<0, 1>>::type,
-             dim0_is_fastest ? 0 : 1, dim0_is_fastest ? dim0_VectorSize : dim1_VectorSize, 1,
+             dim0_is_fastest ? 0 : 1, dim0_is_fastest ? dim0_vector_size : dim1_vector_size, 1,
              false > (src2dDesc,
                       make_multi_index(blkgroup_id * dim0_BlockTileSize +
                                            thread_dim0_cluster_id * dim0_thread_slice_size,
@@ -344,7 +338,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2 < srcDataType, compType,
              src2dDescType, decltype(ThreadBufferDesc), ThreadBufferLengths,
              typename conditional<dim0_is_fastest, Sequence<1, 0>, Sequence<0, 1>>::type,
-             dim0_is_fastest ? 0 : 1, dim0_is_fastest ? dim0_VectorSize : dim1_VectorSize, 1,
+             dim0_is_fastest ? 0 : 1, dim0_is_fastest ? dim0_vector_size : dim1_vector_size, 1,
              false > (src2dDesc,
                       make_multi_index(blkgroup_id * dim0_BlockTileSize +
                                            thread_dim0_cluster_id * dim0_thread_slice_size,

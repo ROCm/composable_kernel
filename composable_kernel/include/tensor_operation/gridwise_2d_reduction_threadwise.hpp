@@ -73,13 +73,11 @@ template <typename srcDataType,
           index_t dim1_thread_cluster_size,
           index_t dim0_thread_slice_size,
           index_t dim1_thread_slice_size,
-          index_t dim0_max_vector_size,
-          index_t dim1_max_vector_size>
+          bool dim0_is_fastest,
+          index_t dim0_vector_size,
+          index_t dim1_vector_size>
 struct GridwiseReduction_xy_to_x_threadwise
 {
-    static constexpr index_t dim1_VectorSize =
-        math::gcd(dim1_thread_slice_size, dim1_max_vector_size);
-
     using opReduce       = typename reduce_binary_operator<compType, op>::opType;
     using preUnaryOpType = typename reduce_unary_operator<compType, op, true, true>::preUnaryOp;
     using posUnaryOpType = typename reduce_unary_operator<compType, op, true, true>::posUnaryOp;
@@ -146,7 +144,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                                     ThreadBufferLengths,
                                                                     Sequence<0, 1>,
                                                                     1,
-                                                                    dim1_VectorSize,
+                                                                    dim1_vector_size,
                                                                     1,
                                                                     false>(
             src2dDesc, make_multi_index(thread_global_1d_id, 0));
@@ -265,7 +263,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                                     ThreadBufferLengths,
                                                                     Sequence<0, 1>,
                                                                     1,
-                                                                    dim1_VectorSize,
+                                                                    dim1_vector_size,
                                                                     1,
                                                                     false>(
             src2dDesc, make_multi_index(thread_global_1d_id, 0));

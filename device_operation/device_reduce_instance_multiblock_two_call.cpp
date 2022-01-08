@@ -43,8 +43,7 @@ void add_device_reduce_instance_multiblock_two_call(
                                                                    cfg1::blockSize_,
                                                                    cfg1::dim0_thread_cluster_size_,
                                                                    cfg1::dim1_thread_cluster_size_,
-                                                                   cfg2::dim0_max_vector_size_,
-                                                                   cfg2::dim1_max_vector_size_,
+                                                                   cfg2::dim0_is_fastest_,
                                                                    cfg2::dim0_thread_slice_size_,
                                                                    cfg2::dim1_thread_slice_size_>;
 

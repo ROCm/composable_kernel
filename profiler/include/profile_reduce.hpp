@@ -266,15 +266,6 @@ void profile_reduce_impl(bool do_verification,
                 out.mData[i] = out_ref.mData[i];
     };
 
-    if(do_verification)
-    {
-        ReductionHost<inType, compType, outType> hostReduce(
-            reduceOp, nanOpt, indicesOpt, in.mDesc, out_ref.mDesc, invariantDims, toReduceDims);
-
-        hostReduce.Run(
-            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
-    };
-
     // these buffers are usually provided by the user application
     DeviceMem in_dev(sizeof(inType) * in.mDesc.GetElementSpace());
     DeviceMem out_dev(sizeof(outType) * out.mDesc.GetElementSpace());
@@ -402,8 +393,6 @@ void profile_reduce_impl(bool do_verification,
             continue;
 
         std::string reduce_name = reduce_ptr->GetTypeString();
-
-        std::cout << "DeviceReduceName: " << reduce_name << std::endl;
 
         auto invoker_ptr = reduce_ptr->MakeInvokerPointer();
 
