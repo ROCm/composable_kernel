@@ -39,6 +39,8 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     static_assert(rank <= 6, "Bigger rank size is not supported!");
     static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
                   "Invalid thread cluster size assignments!");
+    static_assert(reduceOp != ReduceTensorOp_t::MUL && reduceOp != ReduceTensorOp_t::NORM1,
+                  "MUL and NORM1 are not supported in Composable Kernel!");
 
     static_assert(std::is_same<inType, compType>::value,
                   "inType and compType should be the same to use DEviceReduceBlockWiseSecondCall!");

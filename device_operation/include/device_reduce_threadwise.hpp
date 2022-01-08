@@ -39,6 +39,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
     static_assert(rank <= 6, "Bigger rank size is not supported!");
     static_assert((blockSize == dim0_thread_cluster_size) && (dim1_thread_cluster_size == 1),
                   "Threadwise can only be called with dim1_thread_cluster_size be 1 !");
+    static_assert(reduceOp != ReduceTensorOp_t::MUL && reduceOp != ReduceTensorOp_t::NORM1,
+                  "MUL and NORM1 are not supported in Composable Kernel!");
 
     using invariantDims = decltype(get_invariantDims<rank, toReduceDims>());
 

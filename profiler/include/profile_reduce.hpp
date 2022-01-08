@@ -24,17 +24,9 @@ using reduce_description_instances =
                ReduceDescription<4, Sequence<0>, 0, 0, 0>,
                ReduceDescription<2, Sequence<1>, 0, 0, 0>,
 
-               ReduceDescription<4, Sequence<0, 1, 2>, 1, 0, 0>, // for MUL
-               ReduceDescription<4, Sequence<0>, 1, 0, 0>,
-               ReduceDescription<2, Sequence<1>, 1, 0, 0>,
-
                ReduceDescription<4, Sequence<0, 1, 2>, 5, 0, 0>, // for AVG
                ReduceDescription<4, Sequence<0>, 5, 0, 0>,
                ReduceDescription<2, Sequence<1>, 5, 0, 0>,
-
-               ReduceDescription<4, Sequence<0, 1, 2>, 6, 0, 0>, // for NORM1
-               ReduceDescription<4, Sequence<0>, 6, 0, 0>,
-               ReduceDescription<2, Sequence<1>, 6, 0, 0>,
 
                ReduceDescription<4, Sequence<0, 1, 2>, 7, 0, 0>, // for NORM2
                ReduceDescription<4, Sequence<0>, 7, 0, 0>,

@@ -333,6 +333,10 @@ int reduce_profiler(int argc, char* argv[])
     int rank = args.inLengths.size();
 
     check_reduce_dims(rank, args.toReduceDims);
+
+    if(args.reduceOp == ReduceTensorOp_t::MUL || args.reduceOp == ReduceTensorOp_t::NORM1)
+        throw std::runtime_error("MUL and NORM1 are not supported by composable kernel!");
+
     if(args.use_half)
     {
         if(!args.compType_assigned)
