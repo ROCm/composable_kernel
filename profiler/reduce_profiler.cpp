@@ -304,9 +304,6 @@ class AppArgs
             scales.push_back(0.0f);
         };
 
-        std::cout << "init_method=" << init_method << ", nrepeat=" << nrepeat
-                  << ", alpha=" << scales[0] << ", beta=" << scales[1] << std::endl;
-
         if(reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
            reduceOp == ReduceTensorOp_t::AMAX)
         {

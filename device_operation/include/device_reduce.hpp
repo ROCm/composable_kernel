@@ -27,8 +27,6 @@ struct DeviceReduce : public BaseOperator
 
     virtual bool hasFurtherCall() { return (false); };
 
-    virtual void showConfiguration(std::ostream& os, const BaseArgument* p_arg) = 0;
-
     virtual std::vector<int> getWorkspace2dLengths(const BaseArgument* argPtr)
     {
         (void)argPtr;

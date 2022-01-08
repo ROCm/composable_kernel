@@ -2,6 +2,7 @@
 #define DEVICE_REDUCE_BLOCKWISE_SECOND_CALL_HPP
 
 #include <iostream>
+#include <sstream>
 #include "device.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_common.hpp"
@@ -58,22 +59,6 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     {
         (void)inLengths;
         return (0);
-    };
-
-    void showConfiguration(std::ostream& os, const BaseArgument* p_arg) override
-    {
-        (void)p_arg;
-
-        os << std::endl;
-
-        os << "  => BlockWise second call config: "
-           << "B" << blockSize;
-        os << "_Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
-           << dim0_thread_slice_size;
-        os << "_Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
-           << dim1_thread_slice_size;
-
-        os << std::endl;
     };
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
@@ -308,6 +293,19 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     {
         return std::make_unique<Invoker>();
     };
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        str << "DeviceReduceBlockWiseSecondCall<" << blockSize << ",";
+        str << "Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
+            << dim0_thread_slice_size << ",";
+        str << "Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
+            << dim1_thread_slice_size << ">";
+
+        return str.str();
+    }
 };
 
 } // namespace device

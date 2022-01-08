@@ -2,6 +2,7 @@
 #define DEVICE_REDUCE_MULTIBLOCK_TWO_CALL_HPP
 
 #include <iostream>
+#include <sstream>
 #include "device.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_common.hpp"
@@ -84,22 +85,6 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                           : workspace_size * (sizeof(compType) + sizeof(int)) + 64 + sizeof(int);
 
         return (wsSizeInBytes);
-    };
-
-    void showConfiguration(std::ostream& os, const BaseArgument* p_arg) override
-    {
-        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-
-        os << std::endl;
-
-        os << "MultiBlockTwoCall config: "
-           << "BlkGroup_" << pArg->blkGroupSize << "_B" << blockSize;
-        os << "_Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
-           << dim0_thread_slice_size;
-        os << "_Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
-           << dim1_thread_slice_size;
-
-        os << std::endl;
     };
 
     bool hasFurtherCall() override { return (true); };
@@ -397,6 +382,19 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
     {
         return std::make_unique<Invoker>();
     };
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        str << "DeviceReduceMultiBlockTwoCall<" << blockSize << ",";
+        str << "Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
+            << dim0_thread_slice_size << ",";
+        str << "Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
+            << dim1_thread_slice_size << ">";
+
+        return str.str();
+    }
 };
 
 } // namespace device

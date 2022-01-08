@@ -30,10 +30,11 @@ set(DEVICE_GEMM_INSTANCE_SOURCE
 ##set_target_properties(device_gemm_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
 ##install(TARGETS device_gemm_instance LIBRARY DESTINATION lib) 
 
-# device_conv_instance
-set(DEVICE_CONV_INSTANCE_SOURCE 
-   ${PROJECT_SOURCE_DIR}/device_operation/device_conv_xdl_instance_f32_f32_f32_nhwc_kyxc_nhwk.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/device_conv_xdl_instance_f16_f16_f16_nhwc_kyxc_nhwk.cpp;
+# device_conv2d_fwd_instance
+set(DEVICE_CONV2D_FWD_INSTANCE_SOURCE 
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instance.cpp;
 ) 
 
 ##add_library(device_conv_instance SHARED ${DEVICE_CONV_INSTANCE_SOURCE}) 

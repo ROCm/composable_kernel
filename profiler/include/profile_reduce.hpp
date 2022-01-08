@@ -22,28 +22,43 @@ struct ReduceDescription
 using reduce_description_instances =
     std::tuple<ReduceDescription<4, Sequence<0, 1, 2>, 0, 0, 0>, // for ADD
                ReduceDescription<4, Sequence<0>, 0, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 0, 0, 0>,
+
                ReduceDescription<4, Sequence<0, 1, 2>, 1, 0, 0>, // for MUL
                ReduceDescription<4, Sequence<0>, 1, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 1, 0, 0>,
+
                ReduceDescription<4, Sequence<0, 1, 2>, 5, 0, 0>, // for AVG
                ReduceDescription<4, Sequence<0>, 5, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 5, 0, 0>,
+
                ReduceDescription<4, Sequence<0, 1, 2>, 6, 0, 0>, // for NORM1
                ReduceDescription<4, Sequence<0>, 6, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 6, 0, 0>,
+
                ReduceDescription<4, Sequence<0, 1, 2>, 7, 0, 0>, // for NORM2
                ReduceDescription<4, Sequence<0>, 7, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 7, 0, 0>,
 
                ReduceDescription<4, Sequence<0, 1, 2>, 2, 0, 0>, // for MIN
                ReduceDescription<4, Sequence<0>, 2, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 2, 0, 0>,
                ReduceDescription<4, Sequence<0, 1, 2>, 3, 0, 0>, // for MAX
                ReduceDescription<4, Sequence<0>, 3, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 3, 0, 0>,
                ReduceDescription<4, Sequence<0, 1, 2>, 4, 0, 0>, // for AMAX
                ReduceDescription<4, Sequence<0>, 4, 0, 0>,
+               ReduceDescription<2, Sequence<1>, 4, 0, 0>,
 
                ReduceDescription<4, Sequence<0, 1, 2>, 2, 0, 1>, // for MIN
                ReduceDescription<4, Sequence<0>, 2, 0, 1>,
+               ReduceDescription<2, Sequence<1>, 2, 0, 1>,
                ReduceDescription<4, Sequence<0, 1, 2>, 3, 0, 1>, // for MAX
                ReduceDescription<4, Sequence<0>, 3, 0, 1>,
+               ReduceDescription<2, Sequence<1>, 3, 0, 1>,
                ReduceDescription<4, Sequence<0, 1, 2>, 4, 0, 1>, // for AMAX
-               ReduceDescription<4, Sequence<0>, 4, 0, 1>>;
+               ReduceDescription<4, Sequence<0>, 4, 0, 1>,
+               ReduceDescription<2, Sequence<1>, 4, 0, 1>>;
 
 template <typename DescriptionType>
 bool description_match(const DescriptionType& description,
@@ -394,7 +409,9 @@ void profile_reduce_impl(bool do_verification,
         if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
             continue;
 
-        reduce_ptr->showConfiguration(std::cout, argument_ptr.get());
+        std::string reduce_name = reduce_ptr->GetTypeString();
+
+        std::cout << "DeviceReduceName: " << reduce_name << std::endl;
 
         auto invoker_ptr = reduce_ptr->MakeInvokerPointer();
 
@@ -426,7 +443,7 @@ void profile_reduce_impl(bool do_verification,
                 if(!reduce2_ptr->IsSupportedArgument(argument2_ptr.get()))
                     continue;
 
-                reduce2_ptr->showConfiguration(std::cout, argument2_ptr.get());
+                std::string reduce2_name = reduce2_ptr->GetTypeString();
 
                 reduce2_ptr->setOrigReduceLength(argument2_ptr.get(), origReduceLen);
 
@@ -439,8 +456,8 @@ void profile_reduce_impl(bool do_verification,
 
                 float gb_per_sec = (num_bytes + num_bytes_2) / 1.E6 / (avg_time + avg_time_2);
 
-                std::cout << "Perf: " << (avg_time + avg_time_2) << " ms, " << gb_per_sec << " GB/s"
-                          << std::endl;
+                std::cout << "Perf: " << (avg_time + avg_time_2) << " ms, " << gb_per_sec
+                          << " GB/s, " << reduce_name << " => " << reduce2_name << std::endl;
 
                 if(gb_per_sec > best_gb_per_sec)
                 {
@@ -490,7 +507,8 @@ void profile_reduce_impl(bool do_verification,
         {
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-            std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+            std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
+                      << std::endl;
 
             if(gb_per_sec > best_gb_per_sec)
             {

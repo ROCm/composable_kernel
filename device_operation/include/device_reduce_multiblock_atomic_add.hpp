@@ -2,6 +2,7 @@
 #define DEVICE_REDUCE_MULTIBLOCK_ATOMIC_ADD_HPP
 
 #include <iostream>
+#include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
 #include "device_reduce.hpp"
@@ -65,22 +66,6 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
     {
         (void)inLengths;
         return (0);
-    };
-
-    void showConfiguration(std::ostream& os, const BaseArgument* p_arg) override
-    {
-        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-
-        os << std::endl;
-
-        os << "MultiBlockAtomicAdd config: "
-           << "BlkGroupSize_" << pArg->blkGroupSize << "_B" << blockSize;
-        os << "_Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
-           << dim0_thread_slice_size;
-        os << "_Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
-           << dim1_thread_slice_size;
-
-        os << std::endl;
     };
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
@@ -277,8 +262,9 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
                                                                 dim0_max_vector_size,
                                                                 dim1_max_vector_size>;
 
-            float avg_time_pre  = 0;
-            float avg_time_main = 0;
+            float avg_time = 0;
+
+            KernelTimer timer;
 
             const auto kernel_pre  = kernel_buffer_set_value<blockSize, outType, dst1dDescType>;
             const auto kernel_main = kernel_reduce_multiblock_atocmi_add<gridwise_reduce,
@@ -287,29 +273,42 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
                                                                          src2dDescType,
                                                                          dst1dDescType>;
 
-            avg_time_pre = launch_and_time_kernel(kernel_pre,
-                                                  nrepeat,
-                                                  dim3(arg.gridSize_pre),
-                                                  dim3(blockSize),
-                                                  0,
-                                                  dst1dDesc,
-                                                  arg.out_dev_,
-                                                  static_cast<outType>(0.0f));
+            printf("launch_and_time_kernel: grid_dim {%ld, 1, 1}, block_dim {%d, 1, 1} \n",
+                   arg.gridSize,
+                   blockSize);
+            printf("Warm up\n");
 
-            avg_time_main = launch_and_time_kernel(kernel_main,
-                                                   nrepeat,
-                                                   dim3(arg.gridSize),
-                                                   dim3(blockSize),
-                                                   0,
-                                                   src2dDesc,
-                                                   dst1dDesc,
-                                                   static_cast<int>(arg.dim1_total_length),
-                                                   arg.blkGroupSize,
-                                                   arg.alpha_,
-                                                   arg.in_dev_,
-                                                   arg.out_dev_);
+            for(int i = 0; i < nrepeat + 1; i++)
+            {
+                if(i == 1)
+                    timer.Start();
 
-            return (avg_time_pre + avg_time_main);
+                launch_kernel(kernel_pre,
+                              dim3(arg.gridSize_pre),
+                              dim3(blockSize),
+                              0,
+                              dst1dDesc,
+                              arg.out_dev_,
+                              static_cast<outType>(0.0f));
+
+                launch_kernel(kernel_main,
+                              dim3(arg.gridSize),
+                              dim3(blockSize),
+                              0,
+                              src2dDesc,
+                              dst1dDesc,
+                              static_cast<int>(arg.dim1_total_length),
+                              arg.blkGroupSize,
+                              arg.alpha_,
+                              arg.in_dev_,
+                              arg.out_dev_);
+            };
+
+            timer.End();
+
+            avg_time = timer.GetElapsedTime() / nrepeat;
+
+            return (avg_time);
         };
 
         float Run(const BaseArgument* p_arg, int nrepeat = 1) override
@@ -333,6 +332,10 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
 
         // cases with small dim1_total_length should be handled by the BlockWise method
         if(pArg->dim1_total_length <= blockSize * dim1_thread_slice_size)
+            return (false);
+
+        // This is very strong restriction, but needed to avoid some failure
+        if(pArg->dim0_lowest_length % dim0_tile_size != 0)
             return (false);
 
         return (true);
@@ -365,6 +368,19 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<inType,
     {
         return std::make_unique<Invoker>();
     };
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        str << "DeviceReduceMultiBlockAtomicAdd<" << blockSize << ",";
+        str << "Dim0_C" << dim0_thread_cluster_size << "_V" << dim0_max_vector_size << "_S"
+            << dim0_thread_slice_size << ",";
+        str << "Dim1_C" << dim1_thread_cluster_size << "_V" << dim1_max_vector_size << "_S"
+            << dim1_thread_slice_size << ">";
+
+        return str.str();
+    }
 };
 
 } // namespace device

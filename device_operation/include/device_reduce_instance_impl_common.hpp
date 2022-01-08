@@ -41,7 +41,11 @@ using reduce_configuration_1_instances = std::tuple<ReductionConfiguration_1<256
 #define QUICK_REDUCE_TEST 1
 
 #ifdef QUICK_REDUCE_TEST
-using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<1, 1, 1, 1>>;
+using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<1, 1, 1, 1>,
+
+                                                    ReductionConfiguration_2<1, 1, 3, 1>,
+
+                                                    ReductionConfiguration_2<1, 1, 1, 3>>;
 #else
 using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<8, 1, 8, 1>,
                                                     ReductionConfiguration_2<8, 1, 4, 1>,
