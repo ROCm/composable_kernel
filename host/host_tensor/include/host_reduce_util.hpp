@@ -37,8 +37,8 @@
 
 namespace reduce {
 
-using ck::ReduceTensorOp_t;
 using ck::NanPropagation_t;
+using ck::ReduceTensorOp_t;
 
 template <typename T>
 static inline bool float_equal_one(T);
@@ -65,7 +65,8 @@ static inline bool float_equal_zero(half_float::half x)
 };
 
 template <typename compType>
-__host__ static inline std::function<void(compType&)> PreUnaryOpFn(ReduceTensorOp_t op_, std::size_t)
+__host__ static inline std::function<void(compType&)> PreUnaryOpFn(ReduceTensorOp_t op_,
+                                                                   std::size_t)
 {
     using std::abs;
 
@@ -89,7 +90,8 @@ __host__ static inline std::function<void(compType&)> PreUnaryOpFn(ReduceTensorO
 };
 
 template <typename compType>
-__host__ static inline std::function<void(compType&)> PosUnaryOpFn(ReduceTensorOp_t op_, std::size_t divider)
+__host__ static inline std::function<void(compType&)> PosUnaryOpFn(ReduceTensorOp_t op_,
+                                                                   std::size_t divider)
 {
     using std::sqrt;
 
@@ -208,9 +210,9 @@ __host__ static inline compType ReduceOpZeroVal(ReduceTensorOp_t op_)
 
 template <typename compType>
 __host__ static inline void binop_with_nan_check(NanPropagation_t nanOpt,
-                                        std::function<void(compType&, compType)> opReduce,
-                                        compType& accuVal,
-                                        compType currVal)
+                                                 std::function<void(compType&, compType)> opReduce,
+                                                 compType& accuVal,
+                                                 compType currVal)
 {
     using std::isnan;
 
@@ -226,12 +228,13 @@ __host__ static inline void binop_with_nan_check(NanPropagation_t nanOpt,
 };
 
 template <typename compType>
-__host__ static inline void binop_with_nan_check2(NanPropagation_t nanOpt,
-                                         std::function<void(compType&, compType, bool&)> opReduce,
-                                         compType& accuVal,
-                                         compType currVal,
-                                         int& accuIndex,
-                                         int currIndex)
+__host__ static inline void
+binop_with_nan_check2(NanPropagation_t nanOpt,
+                      std::function<void(compType&, compType, bool&)> opReduce,
+                      compType& accuVal,
+                      compType currVal,
+                      int& accuIndex,
+                      int currIndex)
 {
     using std::isnan;
 

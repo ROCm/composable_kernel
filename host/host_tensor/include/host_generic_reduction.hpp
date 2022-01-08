@@ -52,9 +52,9 @@ class ReductionHost
                   const std::vector<int>& invariantDims_,
                   const std::vector<int>& toReduceDims_)
     {
-        this->reduceOp    = reduceOp_;
-        this->nanOpt      = nanOpt_;
-        this->indiceOpt   = indiceOpt_;
+        this->reduceOp  = reduceOp_;
+        this->nanOpt    = nanOpt_;
+        this->indiceOpt = indiceOpt_;
 
         this->inLengths  = inDesc.GetLengths();
         this->outLengths = outDesc.GetLengths();
@@ -94,7 +94,7 @@ class ReductionHost
             else
                 RunImpl<float16>(alpha, in_data, beta, out_data, indices);
         }
-        else if constexpr (std::is_same<TComp, double>::value)
+        else if constexpr(std::is_same<TComp, double>::value)
             RunImpl<double>(alpha, in_data, beta, out_data, indices);
         return;
     };
@@ -121,9 +121,10 @@ class ReductionHost
     template <typename compType>
     void RunImpl(float alpha, const TSrc* in_data, float beta, TDst* out_data, int* indices)
     {
-        bool need_indices = (indiceOpt == ck::ReduceTensorIndices_t::FLATTENED_INDICES) &&
-                            (reduceOp == ck::ReduceTensorOp_t::MIN || reduceOp == ck::ReduceTensorOp_t::MAX ||
-                             reduceOp == ck::ReduceTensorOp_t::AMAX);
+        bool need_indices =
+            (indiceOpt == ck::ReduceTensorIndices_t::FLATTENED_INDICES) &&
+            (reduceOp == ck::ReduceTensorOp_t::MIN || reduceOp == ck::ReduceTensorOp_t::MAX ||
+             reduceOp == ck::ReduceTensorOp_t::AMAX);
 
         if(need_indices)
             RunImpl_with_indices<compType>(alpha, in_data, beta, out_data, indices);
@@ -135,14 +136,14 @@ class ReductionHost
     void
     RunImpl_with_indices(float alpha, const TSrc* in_data, float beta, TDst* out_data, int* indices)
     {
-        using reduce::PosUnaryOpFn;
-        using reduce::PreUnaryOpFn;
-        using reduce::ReduceOpFn2;
-        using reduce::ReduceOpZeroVal;
         using reduce::binop_with_nan_check;
         using reduce::binop_with_nan_check2;
         using reduce::float_equal_one;
         using reduce::float_equal_zero;
+        using reduce::PosUnaryOpFn;
+        using reduce::PreUnaryOpFn;
+        using reduce::ReduceOpFn2;
+        using reduce::ReduceOpZeroVal;
 
         auto opReduce = ReduceOpFn2<compType>(this->reduceOp);
 
@@ -255,14 +256,14 @@ class ReductionHost
     template <typename compType>
     void RunImpl_no_indices(float alpha, const TSrc* in_data, float beta, TDst* out_data)
     {
-        using reduce::PosUnaryOpFn;
-        using reduce::PreUnaryOpFn;
-        using reduce::ReduceOpFn;
-        using reduce::ReduceOpZeroVal;
         using reduce::binop_with_nan_check;
         using reduce::binop_with_nan_check2;
         using reduce::float_equal_one;
         using reduce::float_equal_zero;
+        using reduce::PosUnaryOpFn;
+        using reduce::PreUnaryOpFn;
+        using reduce::ReduceOpFn;
+        using reduce::ReduceOpZeroVal;
 
         auto opReduce = ReduceOpFn<compType>(this->reduceOp);
 
