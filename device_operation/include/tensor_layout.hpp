@@ -47,6 +47,18 @@ struct NKHW : public BaseTensorLayout
 
 } // namespace convolution
 
+namespace pool {
+
+struct NHWC : public BaseTensorLayout
+{
+};
+
+} // namespace pool
+
+struct NHWC : public BaseTensorLayout
+{
+};
+
 } // namespace tensor_layout
 } // namespace ck
 #endif
