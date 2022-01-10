@@ -173,6 +173,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
+#if 0
             {
                 std::cout << "arg.a_grid_desc_m_k_{" << arg.a_grid_desc_m_k_.GetLength(I0) << ", "
                           << arg.a_grid_desc_m_k_.GetLength(I1) << "} " << std::endl;
@@ -180,6 +181,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                 std::cout << "arg.b_grid_desc_m_{" << arg.b_grid_desc_m_.GetLength(I0) << "} "
                           << std::endl;
             }
+#endif
 
             constexpr ck::index_t ThreadPerBlock_ReduceM = ReduceMPerBlock / ReduceMPerThread;
             constexpr ck::index_t ThreadPerBlock_ReduceK = ReduceKPerBlock / ReduceKPerThread;

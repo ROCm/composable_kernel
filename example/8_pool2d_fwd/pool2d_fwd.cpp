@@ -26,7 +26,7 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 // TODO: reimplement reduction as elementwise operator
 static constexpr auto ReduceOp = ck::ReduceTensorOp_t::MAX;
-//static constexpr auto ReduceOp = ck::ReduceTensorOp_t::AVG;
+// static constexpr auto ReduceOp = ck::ReduceTensorOp_t::AVG;
 
 using DevicePoolFwdInstance =
     ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<

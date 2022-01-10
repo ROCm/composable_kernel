@@ -637,6 +637,7 @@ struct
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
+#if 0
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
@@ -655,6 +656,7 @@ struct
                 std::cout << "arg.c1_grid_desc_m_n_{ " << arg.c1_grid_desc_m_n_.GetLength(I0)
                           << ", " << arg.c1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
+#endif
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
