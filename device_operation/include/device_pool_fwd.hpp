@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include "device_base.hpp"
+#include "reduction_enums.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -26,7 +27,6 @@ struct DevicePoolFwd : public BaseOperator
                         std::vector<ck::index_t> window_strides,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
-                        float pad_value,
                         InElementwiseOperation in_element_op,
                         OutElementwiseOperation out_element_op) = 0;
 

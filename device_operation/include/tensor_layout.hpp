@@ -53,6 +53,10 @@ struct NHWC : public BaseTensorLayout
 {
 };
 
+struct NCHW : public BaseTensorLayout
+{
+};
+
 } // namespace pool
 
 struct NHWC : public BaseTensorLayout

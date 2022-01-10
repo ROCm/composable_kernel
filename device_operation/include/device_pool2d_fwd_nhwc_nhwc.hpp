@@ -2,8 +2,11 @@
 #define DEVICE_POOL2D_FWD_NHWC_NHWC_HPP
 
 #include <iostream>
-#include "device_base.hpp"
+#include <sstream>
 #include "device_pool_fwd.hpp"
+#include "tensor_descriptor.hpp"
+#include "tensor_descriptor_helper.hpp"
+#include "gridwise_2d_reduction_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -97,9 +100,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
 
         const auto in_grid_desc_reducemraw_reducekraw =
             transform_tensor_descriptor(in_grid_desc_n_y_ho_x_wo_c,
-                                        make_tuple(make_merge_transform(make_tuple(Y, X)),
-                                                   make_merge_transform(make_tuple(N, Ho, Wo, C))),
-                                        make_tuple(Sequence<1, 3>{}, Sequence<0, 2, 4, 5>{}),
+                                        make_tuple(make_merge_transform(make_tuple(N, Ho, Wo, C)),
+                                                   make_merge_transform(make_tuple(Y, X))),
+                                        make_tuple(Sequence<0, 2, 4, 5>{}, Sequence<1, 3>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         const auto in_grid_desc_reducem_reducek = transform_tensor_descriptor(
@@ -110,11 +113,11 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         // B[ReduceM]
-        const auto out_reducemraw =
+        const auto out_grid_desc_reducemraw =
             make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo * C));
 
-        const auto out_reducem = transform_tensor_descriptor(
-            out_reducemraw,
+        const auto out_grid_desc_reducem = transform_tensor_descriptor(
+            out_grid_desc_reducemraw,
             make_tuple(make_right_pad_transform(ReduceMRaw, ReduceMPad)),
             make_tuple(Sequence<0>{}),
             make_tuple(Sequence<0>{}));
@@ -126,7 +129,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
         MakeABGridDescriptor_A_M_K_B_M(1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
 
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
-    using BGridDesc_K   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
+    using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
 
     // TODO
     struct Argument : public BaseArgument
@@ -143,7 +146,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                  std::vector<ck::index_t> input_right_pads,
                  InElementwiseOperation in_element_op,
                  OutElementwiseOperation out_element_op)
-            : p_in_grid_{p_in_grid}, p_out_grid_{p_out_grid}, a_grid_desc_m_k{}, b_grid_desc_m{}
+            : p_in_grid_{p_in_grid}, p_out_grid_{p_out_grid}, a_grid_desc_m_k_{}, b_grid_desc_m_{}
         {
             const auto descs = MakeABGridDescriptor_A_M_K_B_M(N,
                                                               C,
@@ -170,6 +173,14 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
+            {
+                std::cout << "arg.a_grid_desc_m_k_{" << arg.a_grid_desc_m_k_.GetLength(I0) << ", "
+                          << arg.a_grid_desc_m_k_.GetLength(I1) << "} " << std::endl;
+
+                std::cout << "arg.b_grid_desc_m_{" << arg.b_grid_desc_m_.GetLength(I0) << "} "
+                          << std::endl;
+            }
+
             constexpr ck::index_t ThreadPerBlock_ReduceM = ReduceMPerBlock / ReduceMPerThread;
             constexpr ck::index_t ThreadPerBlock_ReduceK = ReduceKPerBlock / ReduceKPerThread;
 
@@ -202,15 +213,18 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                                          AGridDesc_M_K,
                                                          BGridDesc_M>;
 
-            ck::index_t ReduceK = arg.a_grid_desc_m_k_[I1];
+            ck::index_t ReduceM = arg.a_grid_desc_m_k_.GetLength(I0);
+            ck::index_t ReduceK = arg.a_grid_desc_m_k_.GetLength(I1);
+
+            const index_t grid_size = (ReduceM / ReduceMPerBlock);
 
             return launch_and_time_kernel(kernel,
                                           nrepeat,
-                                          dim3(arg.gridSize),
+                                          dim3(grid_size),
                                           dim3(BlockSize),
                                           0,
-                                          AGridDesc_M_K,
-                                          BGridDesc_M,
+                                          arg.a_grid_desc_m_k_,
+                                          arg.b_grid_desc_m_,
                                           ReduceK,
                                           float(1),
                                           arg.p_in_grid_,
@@ -218,11 +232,11 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                           arg.p_out_grid_,
                                           nullptr);
         }
-    };
 
-    float Run(const BaseArgument* p_arg, int nrepeat = 1) override
-    {
-        return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        {
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+        }
     };
 
     static bool IsSupportedArgument(const Argument& arg) { return true; }
@@ -259,6 +273,34 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                         out_element_op};
     }
 
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const InDataType* p_in_grid,
+                        OutDataType* p_out_grid,
+                        ck::index_t N,
+                        ck::index_t C,
+                        std::vector<ck::index_t> input_spatial_lengths,
+                        std::vector<ck::index_t> window_spatial_lengths,
+                        std::vector<ck::index_t> output_spatial_lengths,
+                        std::vector<ck::index_t> window_strides,
+                        std::vector<ck::index_t> input_left_pads,
+                        std::vector<ck::index_t> input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        OutElementwiseOperation out_element_op) override
+    {
+        return std::make_unique<Argument>(MakeArgument(p_in_grid,
+                                                       p_out_grid,
+                                                       N,
+                                                       C,
+                                                       input_spatial_lengths,
+                                                       window_spatial_lengths,
+                                                       output_spatial_lengths,
+                                                       window_strides,
+                                                       input_left_pads,
+                                                       input_right_pads,
+                                                       in_element_op,
+                                                       out_element_op));
+    }
+
     static auto MakeInvoker() { return Invoker{}; }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
@@ -278,7 +320,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
 
         return str.str();
     }
-};
+}; // namespace device
 
 } // namespace device
 } // namespace tensor_operation
