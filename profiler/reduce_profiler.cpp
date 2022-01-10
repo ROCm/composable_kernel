@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <vector>
 #include <stdexcept>
+#include <sstream>
 #include <half.hpp>
 #include <getopt.h>
 
@@ -43,24 +44,15 @@ static struct option long_options[] = {{"inLengths", required_argument, nullptr,
                                        {nullptr, 0, nullptr, 0}};
 
 template <typename T>
-static T getSingleValueFromString(const string& valueStr);
-
-template <>
-int getSingleValueFromString<int>(const string& valueStr)
+static T getSingleValueFromString(const string& valueStr)
 {
-    return (std::stoi(valueStr));
-};
+    std::istringstream iss(valueStr);
 
-template <>
-size_t getSingleValueFromString<size_t>(const string& valueStr)
-{
-    return (std::stol(valueStr));
-};
+    T val;
 
-template <>
-float getSingleValueFromString<float>(const string& valueStr)
-{
-    return (std::stof(valueStr));
+    iss >> val;
+
+    return (val);
 };
 
 template <typename T>
