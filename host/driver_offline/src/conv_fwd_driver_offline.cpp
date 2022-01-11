@@ -12,9 +12,9 @@
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
 #include "device_tensor.hpp"
-#include "device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
-#include "device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk.hpp"
-#include "device_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw.hpp"
+//#include "device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
+//#include "device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk.hpp"
+//#include "device_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
@@ -250,15 +250,15 @@ int main(int argc, char* argv[])
     constexpr auto Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
 #endif
 
-#if 1
+#if 0
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;
-#elif 1
+#elif 0
     using in_data_t   = half_t;
     using acc_data_t  = float;
     using out_data_t  = half_t;
-#elif 0
+#elif 1
     using in_data_t  = ushort;
     using acc_data_t = float;
     using out_data_t = ushort;
