@@ -214,16 +214,14 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                                                         false,
                                                                         true>;
 
-            constexpr int RunId = need_indices ? 3 : 1;
-
             float avg_time = 0;
 
-            const auto kernel = kernel_reduce_blockwise<gridwise_reduce,
-                                                        RunId,
-                                                        inType,
-                                                        outType,
-                                                        src2dDescType,
-                                                        dst1dDescType>;
+            const auto kernel = kernel_reduce_blockwise_second_call<gridwise_reduce,
+                                                                    need_indices,
+                                                                    inType,
+                                                                    outType,
+                                                                    src2dDescType,
+                                                                    dst1dDescType>;
 
             avg_time = launch_and_time_kernel(kernel,
                                               nrepeat,

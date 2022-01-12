@@ -237,12 +237,10 @@ struct DeviceReduceBlockWise : public DeviceReduce<inType,
                                                                         true,
                                                                         true>;
 
-            constexpr int RunId = need_indices ? 2 : 1;
-
             float avg_time = 0;
 
             const auto kernel = kernel_reduce_blockwise<gridwise_reduce,
-                                                        RunId,
+                                                        need_indices,
                                                         inType,
                                                         outType,
                                                         src2dDescType,

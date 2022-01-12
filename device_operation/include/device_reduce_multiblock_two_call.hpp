@@ -294,12 +294,10 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                                                               dim0_vector_size,
                                                               dim1_vector_size>;
 
-            constexpr int RunId = need_indices ? 2 : 1;
-
             float avg_time = 0;
 
             const auto kernel = kernel_reduce_multiblock_two_call<gridwise_reduce,
-                                                                  RunId,
+                                                                  need_indices,
                                                                   inType,
                                                                   compType,
                                                                   src2dDescType,

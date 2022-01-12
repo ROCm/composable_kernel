@@ -36,7 +36,7 @@
 namespace ck {
 
 template <typename GridwiseReduction,
-          int RunId,
+          bool need_indices,
           typename inType,
           typename outType,
           typename src2dDescType,
@@ -50,14 +50,24 @@ __global__ void kernel_reduce_threadwise(const src2dDescType src2dDesc,
                                          outType* const __restrict__ p_dst_global,
                                          int* const __restrict__ indices_global)
 {
-    GridwiseReduction::template Run<RunId>(src2dDesc,
-                                           dst1dDesc,
-                                           origReduceLen,
-                                           alpha,
-                                           p_src_global,
-                                           beta,
-                                           p_dst_global,
-                                           indices_global);
+    if constexpr(!need_indices)
+        GridwiseReduction::Run(src2dDesc,
+                               dst1dDesc,
+                               origReduceLen,
+                               alpha,
+                               p_src_global,
+                               beta,
+                               p_dst_global,
+                               indices_global);
+    else
+        GridwiseReduction::RunWithIndices(src2dDesc,
+                                          dst1dDesc,
+                                          origReduceLen,
+                                          alpha,
+                                          p_src_global,
+                                          beta,
+                                          p_dst_global,
+                                          indices_global);
 };
 
 template <typename srcDataType,
@@ -87,7 +97,6 @@ struct GridwiseReduction_xy_to_x_threadwise
 
     static constexpr auto I0 = Number<0>{};
 
-    template <int RunId>
     __device__ static void Run(const src2dDescType& src2dDesc,
                                const dst1dDescType& dst1dDesc,
                                int origReduceLen,
@@ -95,17 +104,7 @@ struct GridwiseReduction_xy_to_x_threadwise
                                const srcDataType* const __restrict__ p_src_global,
                                dstDataType beta,
                                dstDataType* const __restrict__ p_dst_global,
-                               int* const __restrict__ indices_global);
-
-    template <>
-    __device__ static void Run<1>(const src2dDescType& src2dDesc,
-                                  const dst1dDescType& dst1dDesc,
-                                  int origReduceLen,
-                                  srcDataType alpha,
-                                  const srcDataType* const __restrict__ p_src_global,
-                                  dstDataType beta,
-                                  dstDataType* const __restrict__ p_dst_global,
-                                  int* const __restrict__ indices_global)
+                               int* const __restrict__ indices_global)
     {
         (void)indices_global;
 
@@ -151,8 +150,8 @@ struct GridwiseReduction_xy_to_x_threadwise
 
         constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
 
-        for(index_t reducedLength = 0; reducedLength < toReduceLength;
-            reducedLength += dim1_thread_slice_size)
+        index_t reducedLength = 0;
+        do
         {
             threadwise_src_load.Run(
                 src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
@@ -164,7 +163,9 @@ struct GridwiseReduction_xy_to_x_threadwise
             threadwise_reduce::Reduce(in_thread_buf, accuValue_buf(I0));
 
             threadwise_src_load.MoveSrcSliceWindow(src2dDesc, in_thread_copy_step);
-        }
+
+            reducedLength += dim1_thread_slice_size;
+        } while(reducedLength < toReduceLength);
 
         accuValue_buf(I0) = posUnaryOp(accuValue_buf[I0]);
 
@@ -215,15 +216,14 @@ struct GridwiseReduction_xy_to_x_threadwise
             ReducedDataDesc, make_tuple(I0), accuValue_buf, dst1dDesc, dst_global_buf);
     };
 
-    template <>
-    __device__ static void Run<2>(const src2dDescType& src2dDesc,
-                                  const dst1dDescType& dst1dDesc,
-                                  int origReduceLen,
-                                  srcDataType alpha,
-                                  const srcDataType* const __restrict__ p_src_global,
-                                  dstDataType beta,
-                                  dstDataType* const __restrict__ p_dst_global,
-                                  int* const __restrict__ indices_global)
+    __device__ static void RunWithIndices(const src2dDescType& src2dDesc,
+                                          const dst1dDescType& dst1dDesc,
+                                          int origReduceLen,
+                                          srcDataType alpha,
+                                          const srcDataType* const __restrict__ p_src_global,
+                                          dstDataType beta,
+                                          dstDataType* const __restrict__ p_dst_global,
+                                          int* const __restrict__ indices_global)
     {
         const auto zeroVal = opReduce::GetReductionZeroVal();
 
@@ -270,9 +270,9 @@ struct GridwiseReduction_xy_to_x_threadwise
 
         constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
 
-        index_t indexStart = 0;
-        for(index_t reducedLength = 0; reducedLength < toReduceLength;
-            reducedLength += dim1_thread_slice_size)
+        index_t indexStart    = 0;
+        index_t reducedLength = 0;
+        do
         {
             threadwise_src_load.Run(
                 src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
@@ -285,10 +285,11 @@ struct GridwiseReduction_xy_to_x_threadwise
             threadwise_reduce::Reduce2(
                 in_thread_buf, accuValue_buf(I0), accuIndex_buf(I0), indexStart);
 
-            indexStart += dim1_thread_slice_size;
-
             threadwise_src_load.MoveSrcSliceWindow(src2dDesc, in_thread_copy_step);
-        }
+
+            indexStart += dim1_thread_slice_size;
+            reducedLength += dim1_thread_slice_size;
+        } while(reducedLength < toReduceLength);
 
         constexpr auto ReducedDataDesc =
             make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));

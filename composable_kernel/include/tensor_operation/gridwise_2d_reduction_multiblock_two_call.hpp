@@ -36,7 +36,7 @@
 namespace ck {
 
 template <typename GridwiseReduction,
-          int RunId,
+          bool need_indices,
           typename inType,
           typename compType,
           typename src2dDescType,
@@ -51,14 +51,24 @@ __global__ void kernel_reduce_multiblock_two_call(const src2dDescType src2dDesc,
                                                   int* const __restrict__ ws_indices_global)
 
 {
-    GridwiseReduction::template Run<RunId>(src2dDesc,
-                                           ws2dDesc,
-                                           origReduceLen,
-                                           BlkGroupSize,
-                                           alpha,
-                                           p_src_global,
-                                           ws_values_global,
-                                           ws_indices_global);
+    if constexpr(!need_indices)
+        GridwiseReduction::Run(src2dDesc,
+                               ws2dDesc,
+                               origReduceLen,
+                               BlkGroupSize,
+                               alpha,
+                               p_src_global,
+                               ws_values_global,
+                               ws_indices_global);
+    else
+        GridwiseReduction::RunWithIndices(src2dDesc,
+                                          ws2dDesc,
+                                          origReduceLen,
+                                          BlkGroupSize,
+                                          alpha,
+                                          p_src_global,
+                                          ws_values_global,
+                                          ws_indices_global);
 };
 
 template <typename srcDataType,
@@ -105,7 +115,6 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
 
     using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
 
-    template <int RunId>
     __device__ static void Run(const src2dDescType& src2dDesc,
                                const ws2dDescType& ws2dDesc,
                                int origReduceLen,
@@ -113,17 +122,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                srcDataType alpha,
                                const srcDataType* const __restrict__ p_src_global,
                                compType* const __restrict__ ws_values_global,
-                               int* const __restrict__ ws_indices_global);
-
-    template <>
-    __device__ static void Run<1>(const src2dDescType& src2dDesc,
-                                  const ws2dDescType& ws2dDesc,
-                                  int origReduceLen,
-                                  int BlkGroupSize,
-                                  srcDataType alpha,
-                                  const srcDataType* const __restrict__ p_src_global,
-                                  compType* const __restrict__ ws_values_global,
-                                  int* const __restrict__ ws_indices_global)
+                               int* const __restrict__ ws_indices_global)
     {
         (void)ws_indices_global;
 
@@ -194,7 +193,8 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
 
         const index_t toReduceTiles = reduceSizePerBlock / dim1_BlockTileSize;
 
-        for(index_t reducedTiles = 0; reducedTiles < toReduceTiles; reducedTiles++)
+        index_t reducedTiles = 0;
+        do
         {
             threadwise_src_load.Run(
                 src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
@@ -214,7 +214,9 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             });
 
             threadwise_src_load.MoveSrcSliceWindow(src2dDesc, in_thread_copy_step);
-        }
+
+            reducedTiles++;
+        } while(reducedTiles < toReduceTiles);
 
         constexpr auto ReducedDataDesc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<dim0_thread_slice_size>{}, Number<1>{}));
@@ -263,15 +265,14 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         }
     };
 
-    template <>
-    __device__ static void Run<2>(const src2dDescType& src2dDesc,
-                                  const ws2dDescType& ws2dDesc,
-                                  int origReduceLen,
-                                  int BlkGroupSize,
-                                  srcDataType alpha,
-                                  const srcDataType* const __restrict__ p_src_global,
-                                  compType* const __restrict__ ws_values_global,
-                                  int* const __restrict__ ws_indices_global)
+    __device__ static void RunWithIndices(const src2dDescType& src2dDesc,
+                                          const ws2dDescType& ws2dDesc,
+                                          int origReduceLen,
+                                          int BlkGroupSize,
+                                          srcDataType alpha,
+                                          const srcDataType* const __restrict__ p_src_global,
+                                          compType* const __restrict__ ws_values_global,
+                                          int* const __restrict__ ws_indices_global)
     {
         (void)alpha; // unused
 

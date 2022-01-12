@@ -170,7 +170,8 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
 
         const index_t toReduceTiles = reduceSizePerBlock / dim1_BlockTileSize;
 
-        for(index_t reducedTiles = 0; reducedTiles < toReduceTiles; reducedTiles++)
+        index_t reducedTiles = 0;
+        do
         {
             threadwise_src_load.Run(
                 src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
@@ -190,7 +191,9 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
             });
 
             threadwise_src_load.MoveSrcSliceWindow(src2dDesc, in_thread_copy_step);
-        }
+
+            reducedTiles++;
+        } while(reducedTiles < toReduceTiles);
 
         constexpr auto ReducedDataDesc =
             make_naive_tensor_descriptor_packed(make_tuple(Number<dim0_thread_slice_size>{}));
