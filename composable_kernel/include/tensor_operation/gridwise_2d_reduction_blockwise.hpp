@@ -29,7 +29,6 @@
 #include "data_type.hpp"
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
-#include "reduction_functions_threadwise.hpp"
 #include "reduction_functions_blockwise.hpp"
 
 #include "threadwise_tensor_slice_transfer.hpp"
