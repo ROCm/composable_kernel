@@ -23,7 +23,7 @@ template <typename inType,
           int blockSize,
           int dim0_thread_cluster_size,
           int dim1_thread_cluster_size,
-          bool dim0_is_fastest,
+          int vectorDim,
           int dim0_thread_slice_size,
           int dim1_thread_slice_size>
 struct DeviceReduceBlockWise : public DeviceReduce<inType,
@@ -55,10 +55,9 @@ struct DeviceReduceBlockWise : public DeviceReduce<inType,
     static constexpr int dim0_tile_size = dim0_thread_cluster_size * dim0_thread_slice_size;
     static constexpr int dim1_tile_size = dim1_thread_cluster_size * dim1_thread_slice_size;
 
-    static constexpr int dim0_vector_size =
-        dim0_is_fastest ? math::gcd(dim0_thread_slice_size, max_vector_size_for_type<inType>()) : 1;
-    static constexpr int dim1_vector_size =
-        dim0_is_fastest ? 1 : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
+    static constexpr int vectorSize =
+        (vectorDim == 0) ? math::gcd(dim0_thread_slice_size, max_vector_size_for_type<inType>())
+                         : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
@@ -232,9 +231,8 @@ struct DeviceReduceBlockWise : public DeviceReduce<inType,
                                                                         dim1_thread_cluster_size,
                                                                         dim0_thread_slice_size,
                                                                         dim1_thread_slice_size,
-                                                                        dim0_is_fastest,
-                                                                        dim0_vector_size,
-                                                                        dim1_vector_size>;
+                                                                        vectorDim,
+                                                                        vectorSize>;
 
             float avg_time = 0;
 
@@ -277,7 +275,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<inType,
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(dim0_is_fastest)
+        if constexpr(vectorDim == 0)
         {
             if constexpr(invariantDims::Size() == 0)
                 return (false);

@@ -90,12 +90,11 @@ template <typename srcDataType,
           index_t dim1_thread_cluster_size,
           index_t dim0_thread_slice_size,
           index_t dim1_thread_slice_size,
-          bool dim0_is_fastest,
-          index_t dim0_vector_size,
-          index_t dim1_vector_size>
+          index_t vectorDim,
+          index_t vectorSize>
 struct GridwiseReduction_xy_to_x_multiblock_two_call
 {
-    static constexpr bool reorder_thread_cluster = dim0_is_fastest;
+    static constexpr bool reorder_thread_cluster = (vectorDim == 0);
 
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
@@ -179,15 +178,21 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<dim0_thread_slice_size>{}, Number<dim1_thread_slice_size>{}));
 
-        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2 < srcDataType, compType,
-             src2dDescType, decltype(ThreadBufferDesc), ThreadBufferLengths,
-             typename conditional<dim0_is_fastest, Sequence<1, 0>, Sequence<0, 1>>::type,
-             dim0_is_fastest ? 0 : 1, dim0_is_fastest ? dim0_vector_size : dim1_vector_size, 1,
-             false > (src2dDesc,
-                      make_multi_index(blkgroup_id * dim0_BlockTileSize +
-                                           thread_dim0_cluster_id * dim0_thread_slice_size,
-                                       block_local_id * reduceSizePerBlock +
-                                           thread_dim1_cluster_id * dim1_thread_slice_size));
+        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
+            srcDataType,
+            compType,
+            src2dDescType,
+            decltype(ThreadBufferDesc),
+            ThreadBufferLengths,
+            typename conditional<vectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            vectorDim,
+            vectorSize,
+            1,
+            false>(src2dDesc,
+                   make_multi_index(blkgroup_id * dim0_BlockTileSize +
+                                        thread_dim0_cluster_id * dim0_thread_slice_size,
+                                    block_local_id * reduceSizePerBlock +
+                                        thread_dim1_cluster_id * dim1_thread_slice_size));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, dim1_BlockTileSize);
 
@@ -335,15 +340,21 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<dim0_thread_slice_size>{}, Number<dim1_thread_slice_size>{}));
 
-        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2 < srcDataType, compType,
-             src2dDescType, decltype(ThreadBufferDesc), ThreadBufferLengths,
-             typename conditional<dim0_is_fastest, Sequence<1, 0>, Sequence<0, 1>>::type,
-             dim0_is_fastest ? 0 : 1, dim0_is_fastest ? dim0_vector_size : dim1_vector_size, 1,
-             false > (src2dDesc,
-                      make_multi_index(blkgroup_id * dim0_BlockTileSize +
-                                           thread_dim0_cluster_id * dim0_thread_slice_size,
-                                       block_local_id * reduceSizePerBlock +
-                                           thread_dim1_cluster_id * dim1_thread_slice_size));
+        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
+            srcDataType,
+            compType,
+            src2dDescType,
+            decltype(ThreadBufferDesc),
+            ThreadBufferLengths,
+            typename conditional<vectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            vectorDim,
+            vectorSize,
+            1,
+            false>(src2dDesc,
+                   make_multi_index(blkgroup_id * dim0_BlockTileSize +
+                                        thread_dim0_cluster_id * dim0_thread_slice_size,
+                                    block_local_id * reduceSizePerBlock +
+                                        thread_dim1_cluster_id * dim1_thread_slice_size));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, dim1_BlockTileSize);
 

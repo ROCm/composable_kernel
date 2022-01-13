@@ -37,8 +37,8 @@ void add_device_reduce_instance_blockwise_second_call(
                 remove_cvref_t<decltype(std::get<j.value>(reduce_configuration_2_instances{}))>;
 
             // BlockWiseSecondCall always has the workspace as input, with which the dim1 is always
-            // the fastest , so only device instances with dim0_is_fatest be "false" need by added
-            if constexpr(!cfg2::dim0_is_fastest_)
+            // the fastest , so only device instances with vectorDim==1 need by added
+            if constexpr(cfg2::vectorDim_ == 1)
             {
                 using ReduceOpInstance =
                     DeviceReduceBlockWiseSecondCall<inType,
@@ -52,7 +52,7 @@ void add_device_reduce_instance_blockwise_second_call(
                                                     cfg1::blockSize_,
                                                     cfg1::dim0_thread_cluster_size_,
                                                     cfg1::dim1_thread_cluster_size_,
-                                                    cfg2::dim0_is_fastest_,
+                                                    cfg2::vectorDim_,
                                                     cfg2::dim0_thread_slice_size_,
                                                     cfg2::dim1_thread_slice_size_>;
 

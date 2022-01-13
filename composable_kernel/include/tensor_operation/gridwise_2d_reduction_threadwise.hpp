@@ -89,9 +89,8 @@ template <typename srcDataType,
           index_t dim1_thread_cluster_size,
           index_t dim0_thread_slice_size,
           index_t dim1_thread_slice_size,
-          bool dim0_is_fastest,
-          index_t dim0_vector_size,
-          index_t dim1_vector_size>
+          index_t vectorDim,
+          index_t vectorSize>
 struct GridwiseReduction_xy_to_x_threadwise
 {
     template <typename T>
@@ -135,17 +134,17 @@ struct GridwiseReduction_xy_to_x_threadwise
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
 
-        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<srcDataType,
-                                                                    compType,
-                                                                    src2dDescType,
-                                                                    decltype(ThreadBufferDesc),
-                                                                    ThreadBufferLengths,
-                                                                    Sequence<0, 1>,
-                                                                    1,
-                                                                    dim1_vector_size,
-                                                                    1,
-                                                                    false>(
-            src2dDesc, make_multi_index(thread_global_1d_id, 0));
+        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
+            srcDataType,
+            compType,
+            src2dDescType,
+            decltype(ThreadBufferDesc),
+            ThreadBufferLengths,
+            typename conditional<vectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            vectorDim,
+            vectorSize,
+            1,
+            false>(src2dDesc, make_multi_index(thread_global_1d_id, 0));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
 
@@ -255,17 +254,17 @@ struct GridwiseReduction_xy_to_x_threadwise
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
 
-        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<srcDataType,
-                                                                    compType,
-                                                                    src2dDescType,
-                                                                    decltype(ThreadBufferDesc),
-                                                                    ThreadBufferLengths,
-                                                                    Sequence<0, 1>,
-                                                                    1,
-                                                                    dim1_vector_size,
-                                                                    1,
-                                                                    false>(
-            src2dDesc, make_multi_index(thread_global_1d_id, 0));
+        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
+            srcDataType,
+            compType,
+            src2dDescType,
+            decltype(ThreadBufferDesc),
+            ThreadBufferLengths,
+            typename conditional<vectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            vectorDim,
+            vectorSize,
+            1,
+            false>(src2dDesc, make_multi_index(thread_global_1d_id, 0));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
 
