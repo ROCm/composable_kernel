@@ -23,7 +23,12 @@ template <typename inType,
           ReduceTensorIndices_t indicesOpt>
 struct DeviceReduce : public BaseOperator
 {
-    virtual size_t getWorkspaceSize(const std::vector<int>& inLengths) = 0;
+    virtual size_t getWorkspaceSizeInBytes(const std::vector<int>& inLengths)
+    {
+        (void)inLengths;
+
+        return (0);
+    };
 
     virtual bool hasFurtherCall() { return (false); };
 
@@ -33,18 +38,16 @@ struct DeviceReduce : public BaseOperator
         return (std::vector<int>{0, 0});
     };
 
-    // will only be overrided by the MultiblockTwoCall DeviceReduce
-    virtual int getOrigReduceLength(const BaseArgument* argPtr)
+    virtual std::pair<size_t, size_t> getReduction2dLengths(const BaseArgument* argPtr)
     {
         (void)argPtr;
-        return (0);
+        return (std::make_pair<size_t, size_t>(0, 0));
     };
 
-    // will only be overrided by the BlockWiseSecondCall DeviceReduce
-    virtual void setOrigReduceLength(BaseArgument* argPtr, int len)
+    virtual void setPosElementWiseArgument(BaseArgument* argPtr, int origReduceLen)
     {
         (void)argPtr;
-        (void)len;
+        (void)origReduceLen;
     };
 
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,

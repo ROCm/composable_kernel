@@ -60,7 +60,7 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
     static constexpr int dim1_vector_size =
         dim0_is_fastest ? 1 : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
 
-    size_t getWorkspaceSize(const std::vector<int>& inLengths) override
+    size_t getWorkspaceSizeInBytes(const std::vector<int>& inLengths) override
     {
         size_t dim0_total_length;
         size_t dim1_total_length;
@@ -276,15 +276,22 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
             using src2dDescType = decltype(src2dDesc);
             using ws2dDescType  = decltype(ws2dDesc);
 
+            using opReduce = typename reduce_binary_operator<compType, reduceOp>::opType;
+            using preUnaryOpType =
+                typename reduce_unary_operator<compType, reduceOp, true, false>::preUnaryOp;
+            using posUnaryOpType =
+                typename reduce_unary_operator<compType, reduceOp, true, false>::posUnaryOp;
+
             using gridwise_reduce =
                 GridwiseReduction_xy_to_x_multiblock_two_call<inType,
                                                               outType,
                                                               compType,
                                                               src2dDescType,
                                                               ws2dDescType,
-                                                              reduceOp,
+                                                              opReduce,
+                                                              preUnaryOpType,
+                                                              posUnaryOpType,
                                                               nanOpt,
-                                                              indicesOpt,
                                                               blockSize,
                                                               dim0_thread_cluster_size,
                                                               dim1_thread_cluster_size,
@@ -301,21 +308,25 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                                                                   inType,
                                                                   compType,
                                                                   src2dDescType,
-                                                                  ws2dDescType>;
+                                                                  ws2dDescType,
+                                                                  preUnaryOpType,
+                                                                  posUnaryOpType>;
 
-            avg_time = launch_and_time_kernel(kernel,
-                                              nrepeat,
-                                              dim3(arg.gridSize),
-                                              dim3(blockSize),
-                                              0,
-                                              src2dDesc,
-                                              ws2dDesc,
-                                              static_cast<int>(arg.dim1_total_length),
-                                              arg.blkGroupSize,
-                                              arg.alpha_,
-                                              arg.in_dev_,
-                                              arg.workspace_dev_,
-                                              arg.workspace_indices_dev_);
+            avg_time =
+                launch_and_time_kernel(kernel,
+                                       nrepeat,
+                                       dim3(arg.gridSize),
+                                       dim3(blockSize),
+                                       0,
+                                       src2dDesc,
+                                       ws2dDesc,
+                                       preUnaryOpType{static_cast<int>(arg.dim1_total_length)},
+                                       posUnaryOpType{static_cast<int>(arg.dim1_total_length)},
+                                       arg.blkGroupSize,
+                                       arg.alpha_,
+                                       arg.in_dev_,
+                                       arg.workspace_dev_,
+                                       arg.workspace_indices_dev_);
 
             return (avg_time);
         };
@@ -364,11 +375,11 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
         return (std::vector<int>{static_cast<int>(pArg->dim0_total_length), pArg->blkGroupSize});
     };
 
-    int getOrigReduceLength(const BaseArgument* p_arg) override
+    std::pair<size_t, size_t> getReduction2dLengths(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        return (static_cast<int>(pArg->dim1_total_length));
+        return (std::make_pair(pArg->dim0_total_length, pArg->dim1_total_length));
     };
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,

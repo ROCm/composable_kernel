@@ -374,7 +374,7 @@ void profile_reduce_impl(bool do_verification,
         const auto i_outLengths = to_int_vector(outLengths);
         const auto i_outStrides = to_int_vector(outStrides);
 
-        auto wsSizeInBytes = reduce_ptr->getWorkspaceSize(i_inLengths);
+        auto wsSizeInBytes = reduce_ptr->getWorkspaceSizeInBytes(i_inLengths);
 
         DeviceMem ws_dev(wsSizeInBytes);
 
@@ -405,7 +405,9 @@ void profile_reduce_impl(bool do_verification,
         {
             std::vector<int> inLengths2 = reduce_ptr->getWorkspace2dLengths(argument_ptr.get());
             std::vector<int> inStrides2{inLengths2[1], 1};
-            int origReduceLen = reduce_ptr->getOrigReduceLength(argument_ptr.get());
+            size_t origReduceLen;
+            std::tie(std::ignore, origReduceLen) =
+                reduce_ptr->getReduction2dLengths(argument_ptr.get());
 
             for(auto& reduce2_ptr : reduce2_ptrs)
             {
@@ -426,7 +428,8 @@ void profile_reduce_impl(bool do_verification,
 
                 std::string reduce2_name = reduce2_ptr->GetTypeString();
 
-                reduce2_ptr->setOrigReduceLength(argument2_ptr.get(), origReduceLen);
+                reduce2_ptr->setPosElementWiseArgument(argument2_ptr.get(),
+                                                       static_cast<int>(origReduceLen));
 
                 auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
 

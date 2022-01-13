@@ -57,12 +57,6 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
     static constexpr int dim1_vector_size =
         dim0_is_fastest ? 1 : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
 
-    size_t getWorkspaceSize(const std::vector<int>& inLengths) override
-    {
-        (void)inLengths;
-        return (0);
-    };
-
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
                                     size_t gridSize)
@@ -217,14 +211,21 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
             using src2dDescType = decltype(src2dDesc);
             using dst1dDescType = decltype(dst1dDesc);
 
+            using opReduce = typename reduce_binary_operator<compType, reduceOp>::opType;
+            using preUnaryOpType =
+                typename reduce_unary_operator<compType, reduceOp, true, true>::preUnaryOp;
+            using posUnaryOpType =
+                typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp;
+
             using gridwise_reduce = GridwiseReduction_xy_to_x_threadwise<inType,
                                                                          outType,
                                                                          compType,
                                                                          src2dDescType,
                                                                          dst1dDescType,
-                                                                         reduceOp,
+                                                                         opReduce,
+                                                                         preUnaryOpType,
+                                                                         posUnaryOpType,
                                                                          nanOpt,
-                                                                         indicesOpt,
                                                                          blockSize,
                                                                          dim0_thread_cluster_size,
                                                                          dim1_thread_cluster_size,
@@ -241,21 +242,25 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
                                                          inType,
                                                          outType,
                                                          src2dDescType,
-                                                         dst1dDescType>;
+                                                         dst1dDescType,
+                                                         preUnaryOpType,
+                                                         posUnaryOpType>;
 
-            avg_time = launch_and_time_kernel(kernel,
-                                              nrepeat,
-                                              dim3(arg.gridSize),
-                                              dim3(blockSize),
-                                              0,
-                                              src2dDesc,
-                                              dst1dDesc,
-                                              static_cast<int>(arg.dim1_total_length),
-                                              arg.alpha_,
-                                              arg.in_dev_,
-                                              arg.beta_,
-                                              arg.out_dev_,
-                                              arg.out_indices_dev_);
+            avg_time =
+                launch_and_time_kernel(kernel,
+                                       nrepeat,
+                                       dim3(arg.gridSize),
+                                       dim3(blockSize),
+                                       0,
+                                       src2dDesc,
+                                       dst1dDesc,
+                                       preUnaryOpType{static_cast<int>(arg.dim1_total_length)},
+                                       posUnaryOpType{static_cast<int>(arg.dim1_total_length)},
+                                       arg.alpha_,
+                                       arg.in_dev_,
+                                       arg.beta_,
+                                       arg.out_dev_,
+                                       arg.out_indices_dev_);
 
             return (avg_time);
         };

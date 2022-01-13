@@ -61,12 +61,6 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     static constexpr int dim1_vector_size =
         dim0_is_fastest ? 1 : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
 
-    size_t getWorkspaceSize(const std::vector<int>& inLengths) override
-    {
-        (void)inLengths;
-        return (0);
-    };
-
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
                                     size_t gridSize)
@@ -181,7 +175,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
         size_t dim1_total_length;
 
         size_t gridSize;
-        int origReduceLen;
+        int origReduceLen_;
     };
 
     struct Invoker : public BaseInvoker
@@ -195,14 +189,21 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
             using src2dDescType = decltype(src2dDesc);
             using dst1dDescType = decltype(dst1dDesc);
 
+            using opReduce = typename reduce_binary_operator<compType, reduceOp>::opType;
+            using preUnaryOpType =
+                typename reduce_unary_operator<compType, reduceOp, false, true>::preUnaryOp;
+            using posUnaryOpType =
+                typename reduce_unary_operator<compType, reduceOp, false, true>::posUnaryOp;
+
             using gridwise_reduce = GridwiseReduction_xy_to_x_blockwise<inType,
                                                                         outType,
                                                                         compType,
                                                                         src2dDescType,
                                                                         dst1dDescType,
-                                                                        reduceOp,
+                                                                        opReduce,
+                                                                        preUnaryOpType,
+                                                                        posUnaryOpType,
                                                                         nanOpt,
-                                                                        indicesOpt,
                                                                         blockSize,
                                                                         dim0_thread_cluster_size,
                                                                         dim1_thread_cluster_size,
@@ -210,9 +211,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                                                         dim1_thread_slice_size,
                                                                         dim0_is_fastest,
                                                                         dim0_vector_size,
-                                                                        dim1_vector_size,
-                                                                        false,
-                                                                        true>;
+                                                                        dim1_vector_size>;
 
             float avg_time = 0;
 
@@ -221,7 +220,9 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                                                     inType,
                                                                     outType,
                                                                     src2dDescType,
-                                                                    dst1dDescType>;
+                                                                    dst1dDescType,
+                                                                    preUnaryOpType,
+                                                                    posUnaryOpType>;
 
             avg_time = launch_and_time_kernel(kernel,
                                               nrepeat,
@@ -230,7 +231,8 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                               0,
                                               src2dDesc,
                                               dst1dDesc,
-                                              static_cast<int>(arg.origReduceLen),
+                                              preUnaryOpType{arg.origReduceLen_},
+                                              posUnaryOpType{arg.origReduceLen_},
                                               arg.alpha_,
                                               arg.in_dev_,
                                               arg.beta_,
@@ -267,11 +269,11 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
         return (true);
     };
 
-    void setOrigReduceLength(BaseArgument* p_arg, int len) override
+    void setPosElementWiseArgument(BaseArgument* p_arg, int origReduceLen) override
     {
         Argument* pArg = dynamic_cast<Argument*>(p_arg);
 
-        pArg->origReduceLen = len;
+        pArg->origReduceLen_ = origReduceLen;
     };
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,

@@ -355,7 +355,7 @@ int main(int argc, char* argv[])
 
     auto reduce = DeviceReduceInstance{};
 
-    auto wsSizeInBytes = reduce.getWorkspaceSize(i_inLengths);
+    auto wsSizeInBytes = reduce.getWorkspaceSizeInBytes(i_inLengths);
 
     DeviceMem ws_dev(wsSizeInBytes);
 

@@ -41,10 +41,13 @@ template <typename GridwiseReduction,
           typename inType,
           typename outType,
           typename src2dDescType,
-          typename dst1dDescType>
+          typename dst1dDescType,
+          typename preUnaryOpType,
+          typename posUnaryOpType>
 __global__ void kernel_reduce_blockwise(const src2dDescType src2dDesc,
                                         const dst1dDescType dst1dDesc,
-                                        int origReduceLen,
+                                        const preUnaryOpType preUnaryOp,
+                                        const posUnaryOpType posUnaryOp,
                                         inType alpha,
                                         const inType* const __restrict__ p_src_global,
                                         outType beta,
@@ -55,7 +58,8 @@ __global__ void kernel_reduce_blockwise(const src2dDescType src2dDesc,
     if constexpr(!need_indices)
         GridwiseReduction::Run(src2dDesc,
                                dst1dDesc,
-                               origReduceLen,
+                               preUnaryOp,
+                               posUnaryOp,
                                alpha,
                                p_src_global,
                                beta,
@@ -65,7 +69,8 @@ __global__ void kernel_reduce_blockwise(const src2dDescType src2dDesc,
     else
         GridwiseReduction::RunWithIndices(src2dDesc,
                                           dst1dDesc,
-                                          origReduceLen,
+                                          preUnaryOp,
+                                          posUnaryOp,
                                           alpha,
                                           p_src_global,
                                           beta,
@@ -79,10 +84,13 @@ template <typename GridwiseReduction,
           typename inType,
           typename outType,
           typename src2dDescType,
-          typename dst1dDescType>
+          typename dst1dDescType,
+          typename preUnaryOpType,
+          typename posUnaryOpType>
 __global__ void kernel_reduce_blockwise_second_call(const src2dDescType src2dDesc,
                                                     const dst1dDescType dst1dDesc,
-                                                    int origReduceLen,
+                                                    const preUnaryOpType preUnaryOp,
+                                                    const posUnaryOpType posUnaryOp,
                                                     inType alpha,
                                                     const inType* const __restrict__ p_src_global,
                                                     outType beta,
@@ -93,7 +101,8 @@ __global__ void kernel_reduce_blockwise_second_call(const src2dDescType src2dDes
     if constexpr(!need_indices)
         GridwiseReduction::Run(src2dDesc,
                                dst1dDesc,
-                               origReduceLen,
+                               preUnaryOp,
+                               posUnaryOp,
                                alpha,
                                p_src_global,
                                beta,
@@ -103,7 +112,8 @@ __global__ void kernel_reduce_blockwise_second_call(const src2dDescType src2dDes
     else
         GridwiseReduction::RunSecondCallWithIndices(src2dDesc,
                                                     dst1dDesc,
-                                                    origReduceLen,
+                                                    preUnaryOp,
+                                                    posUnaryOp,
                                                     alpha,
                                                     p_src_global,
                                                     beta,
@@ -117,9 +127,10 @@ template <typename srcDataType,
           typename compType,
           typename src2dDescType,
           typename dst1dDescType,
-          ReduceTensorOp_t op,
+          typename opReduce,
+          typename preUnaryOpType,
+          typename posUnaryOpType,
           NanPropagation_t nanPropaOpt,
-          ReduceTensorIndices_t reduceIndicesOpt,
           index_t BlockSize,
           index_t dim0_thread_cluster_size,
           index_t dim1_thread_cluster_size,
@@ -127,18 +138,10 @@ template <typename srcDataType,
           index_t dim1_thread_slice_size,
           bool dim0_is_fastest,
           index_t dim0_vector_size,
-          index_t dim1_vector_size,
-          bool isFirstCall,
-          bool isLastCall>
+          index_t dim1_vector_size>
 struct GridwiseReduction_xy_to_x_blockwise
 {
     static constexpr bool reorder_thread_cluster = dim0_is_fastest;
-
-    using opReduce = typename reduce_binary_operator<compType, op>::opType;
-    using preUnaryOpType =
-        typename reduce_unary_operator<compType, op, isFirstCall, isLastCall>::preUnaryOp;
-    using posUnaryOpType =
-        typename reduce_unary_operator<compType, op, isFirstCall, isLastCall>::posUnaryOp;
 
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
@@ -163,7 +166,8 @@ struct GridwiseReduction_xy_to_x_blockwise
 
     __device__ static void Run(const src2dDescType& src2dDesc,
                                const dst1dDescType& dst1dDesc,
-                               int origReduceLen,
+                               const preUnaryOpType& preUnaryOp,
+                               const posUnaryOpType& posUnaryOp,
                                srcDataType alpha,
                                const srcDataType* const __restrict__ p_src_global,
                                dstDataType beta,
@@ -199,10 +203,6 @@ struct GridwiseReduction_xy_to_x_blockwise
         static_for<0, dim0_thread_slice_size, 1>{}([&](auto I) { accuValue_buf(I) = zeroVal; });
 
         const auto toReduceLength = src2dDesc.GetLength(Number<1>{});
-        const int divider         = origReduceLen;
-
-        const preUnaryOpType preUnaryOp(divider);
-        const posUnaryOpType posUnaryOp(divider);
 
         const index_t thread_local_id    = get_thread_local_1d_id();
         const index_t block_global_1d_id = get_block_1d_id();
@@ -342,7 +342,8 @@ struct GridwiseReduction_xy_to_x_blockwise
 
     __device__ static void RunWithIndices(const src2dDescType& src2dDesc,
                                           const dst1dDescType& dst1dDesc,
-                                          int origReduceLen,
+                                          const preUnaryOpType& preUnaryOp,
+                                          const posUnaryOpType& posUnaryOp,
                                           srcDataType alpha,
                                           const srcDataType* const __restrict__ p_src_global,
                                           dstDataType beta,
@@ -387,10 +388,6 @@ struct GridwiseReduction_xy_to_x_blockwise
         StaticBuffer<AddressSpaceEnum_t::Vgpr, int, dim0_thread_slice_size, true> accuIndex_buf;
 
         const auto toReduceLength = src2dDesc.GetLength(Number<1>{});
-        const int divider         = origReduceLen;
-
-        const preUnaryOpType preUnaryOp(divider);
-        const posUnaryOpType posUnaryOp(divider);
 
         const index_t thread_local_id    = get_thread_local_1d_id();
         const index_t block_global_1d_id = get_block_1d_id();
@@ -498,6 +495,7 @@ struct GridwiseReduction_xy_to_x_blockwise
         static_for<0, dim0_thread_slice_size, 1>{}([&](auto I) {
             if(thread_dim1_cluster_id == 0)
             {
+                // for indiced operation, posUnaryOp shoud do nothing
                 accuValue_buf(I) = posUnaryOp(accuValue_buf[I]);
 
                 if(!float_equal_one{}(alpha))
@@ -584,7 +582,8 @@ struct GridwiseReduction_xy_to_x_blockwise
     __device__ static void
     RunSecondCallWithIndices(const src2dDescType& src2dDesc,
                              const dst1dDescType& dst1dDesc,
-                             int origReduceLen,
+                             const preUnaryOpType preUnaryOp,
+                             const posUnaryOpType posUnaryOp,
                              srcDataType alpha,
                              const srcDataType* const __restrict__ ws_values_global,
                              dstDataType beta,
@@ -592,7 +591,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                              const int* const __restrict__ ws_indices_global,
                              int* const __restrict__ indices_global)
     {
-        (void)origReduceLen;
+        (void)preUnaryOp;
 
         // LDS
         __shared__ compType p_block_reduce_val_buffer[BlockSize];
@@ -631,9 +630,6 @@ struct GridwiseReduction_xy_to_x_blockwise
         StaticBuffer<AddressSpaceEnum_t::Vgpr, int, dim0_thread_slice_size, true> accuIndex_buf;
 
         const auto toReduceLength = src2dDesc.GetLength(Number<1>{});
-        const int divider         = origReduceLen;
-
-        const posUnaryOpType posUnaryOp(divider);
 
         const index_t thread_local_id    = get_thread_local_1d_id();
         const index_t block_global_1d_id = get_block_1d_id();
@@ -748,6 +744,7 @@ struct GridwiseReduction_xy_to_x_blockwise
         static_for<0, dim0_thread_slice_size, 1>{}([&](auto I) {
             if(thread_dim1_cluster_id == 0)
             {
+                // for indiced operation, posUnaryOp shoud do nothing
                 accuValue_buf(I) = posUnaryOp(accuValue_buf[I]);
 
                 if(!float_equal_one{}(alpha))
