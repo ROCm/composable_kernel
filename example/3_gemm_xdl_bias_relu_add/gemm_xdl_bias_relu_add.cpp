@@ -52,12 +52,12 @@ struct BiasReluAdd
     }
 };
 
-struct BiasAdd
+struct DoSomething
 {
 #if 1
     // correct result
     // no scratch memory, good VGPR allocation (59)
-    // good perf (101Tflops)
+    // good perf (101Tflops @ 1089Mhz)
     __host__ __device__ constexpr float operator()(float v0, ck::half_t v1, ck::half_t v2) const
     {
         constexpr float alpha = 0.1;
@@ -80,21 +80,20 @@ struct BiasAdd
     // wrong result
     // lots of scratch memory
     // huge perf drop
-    template <typename T1, typename T2>
-    __host__ __device__ constexpr float operator()(float v0, T1 v1, T2 v2) const
+    __host__ __device__ constexpr float operator()(float v0, ck::half_t v1, ck::half_t v2) const
     {
         return alpha * v0 + beta * v1 + gamma * v2;
     }
 #elif 0
     // correct result
     // some scratch memory (68 dword)
-    // some perf drop (94Tflops)
+    // some perf drop (94Tflops @ 1089MHz)
     // fp64 instructions are used
     __host__ __device__ constexpr auto operator()(float v0, ck::half_t v1, ck::half_t v2) const
     {
         return 0.1 * v0 + 0.2 * v1 + 0.3 * v2;
     }
-#elif 0
+#elif 1
     // wrong result
     // lots of scratch memory
     // huge perf drop
@@ -128,7 +127,11 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 
 using AOp = PassThrough;
 using BOp = PassThrough;
-using COp = BiasReluAdd;
+#if 1
+using COp = BiasReLuAdd
+#else
+using COp = DoSomething;
+#endif
 
 // Compilation parameters for NT problem
 // clang-format off
