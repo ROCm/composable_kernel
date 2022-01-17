@@ -49,14 +49,14 @@ using DeviceConv3dFwdInstance = ck::tensor_operation::device::
         OutElementOp, // OutElementwise Operation
         ConvFwdDefault,   // ConvForwardSpecialization
         256,              // BlockSize
-        256,              // MPerBlock
-        128,              // NPerBlock
+        128,              // MPerBlock
+        256,              // NPerBlock
         4,                // K0PerBlock
         8,                // K1. K0PerBlock * K1 = KPerBlock
         32,               // MPerXDL
         32,               // NPerXDL. Each XDL computes a matrix of size (MPerXDL, NPerBlock)
-        4,                // MXdlPerWave
-        2,                // NXdlPerWave
+        2,                // MXdlPerWave
+        4,                // NXdlPerWave
         S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
 
     // convolution shape
     ck::index_t N                                   = 4;
-    ck::index_t K                                   = 128;
+    ck::index_t K                                   = 256;
     ck::index_t C                                   = 192;
     std::vector<ck::index_t> in_spatial_lengths     = {71, 71, 71};
     std::vector<ck::index_t> filter_spatial_lengths = {3, 3, 3};

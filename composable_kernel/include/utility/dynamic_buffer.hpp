@@ -82,41 +82,29 @@ struct DynamicBuffer
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                if(is_valid_element)
-                {
-
 #if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
-                    X tmp;
+                X tmp;
 
-                    __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
-                    return tmp;
+                // TODO: may read from invalid address
+                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+
+                return is_valid_element ? tmp : X{0};
 #else
-                    return *c_style_pointer_cast<const X*>(&p_data_[i]);
+                return is_valid_element ? *c_style_pointer_cast<const X*>(&p_data_[i]) : X{0};
 #endif
-                }
-                else
-                {
-                    return X{0};
-                }
             }
             else
             {
-                if(is_valid_element)
-                {
-
 #if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
-                    X tmp;
+                X tmp;
 
-                    __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
-                    return tmp;
+                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+
+                return is_valid_element ? tmp : X{invalid_element_value_};
 #else
-                    return *c_style_pointer_cast<const X*>(&p_data_[i]);
+                return is_valid_element ? *c_style_pointer_cast<const X*>(&p_data_[i])
+                                        : X{invalid_element_value_};
 #endif
-                }
-                else
-                {
-                    return X{invalid_element_value_};
-                }
             }
         }
     }
