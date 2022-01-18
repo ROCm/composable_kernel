@@ -52,6 +52,9 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
          reduceOp == ReduceTensorOp_t::AMAX) &&
         (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
+    static constexpr int dim0_tile_size = dim0_thread_cluster_size * dim0_thread_slice_size;
+    static constexpr int dim1_tile_size = dim1_thread_cluster_size * dim1_thread_slice_size;
+
     static constexpr int vectorSize =
         (vectorDim == 0) ? math::gcd(dim0_thread_slice_size, max_vector_size_for_type<inType>())
                          : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
@@ -96,14 +99,12 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
             }
         }();
 
-        constexpr auto copySliceLen = dim1_thread_slice_size;
-
         const auto invariantLen = src2dDesc.GetLength(Number<0>{});
         const auto toReduceLen  = src2dDesc.GetLength(Number<1>{});
 
-        const auto srcPad1 = gridSize * blockSize * dim0_thread_slice_size - invariantLen;
+        const auto srcPad1 = gridSize * dim0_tile_size - invariantLen;
         const auto srcPad2 =
-            ((toReduceLen + copySliceLen - 1) / copySliceLen) * copySliceLen - toReduceLen;
+            ((toReduceLen + dim1_tile_size - 1) / dim1_tile_size) * dim1_tile_size - toReduceLen;
 
         auto src2dDesc_2 =
             transform_tensor_descriptor(src2dDesc,
@@ -132,7 +133,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
 
         const auto invariantLen = dst1dDesc.GetLength(Number<0>{});
 
-        const auto dstPad = gridSize * blockSize * dim0_thread_slice_size - invariantLen;
+        const auto dstPad = gridSize * dim0_tile_size - invariantLen;
 
         auto dst1dDesc_2 =
             transform_tensor_descriptor(dst1dDesc,
@@ -144,10 +145,10 @@ struct DeviceReduceThreadWise : public DeviceReduce<inType,
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int> inLengths,
-                 const std::vector<int> inStrides,
-                 const std::vector<int> outLengths,
-                 const std::vector<int> outStrides,
+        Argument(const std::vector<int>& inLengths,
+                 const std::vector<int>& inStrides,
+                 const std::vector<int>& outLengths,
+                 const std::vector<int>& outStrides,
                  float alpha,
                  float beta,
                  const inType* in_dev,

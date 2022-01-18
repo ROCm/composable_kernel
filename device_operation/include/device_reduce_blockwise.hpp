@@ -145,10 +145,10 @@ struct DeviceReduceBlockWise : public DeviceReduce<inType,
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int> inLengths,
-                 const std::vector<int> inStrides,
-                 const std::vector<int> outLengths,
-                 const std::vector<int> outStrides,
+        Argument(const std::vector<int>& inLengths,
+                 const std::vector<int>& inStrides,
+                 const std::vector<int>& outLengths,
+                 const std::vector<int>& outStrides,
                  float alpha,
                  float beta,
                  const inType* in_dev,
