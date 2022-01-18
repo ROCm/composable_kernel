@@ -128,7 +128,7 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AOp = PassThrough;
 using BOp = PassThrough;
 #if 1
-using COp = BiasReLuAdd
+using COp = BiasReluAdd;
 #else
 using COp = DoSomething;
 #endif
