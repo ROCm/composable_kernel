@@ -35,24 +35,22 @@ template <typename ADataType,
           ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
-          typename ABlockTransferThreadSliceLengths_K0_M_K1,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
           ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
-          typename BBlockTransferThreadSliceLengths_K0_N_K1,
+          bool ABlockLdsAddExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
           ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
+          bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
-          bool ABlockLdsAddExtraM,
-          bool BBlockLdsAddExtraN>
+          ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
@@ -137,45 +135,6 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
     using C1GridDesc_M_N =
         decltype(make_naive_tensor_descriptor(make_tuple(1, 1), make_tuple(I1, I0)));
 
-    // TODO remove these hacks
-    static constexpr auto a_k0_m_k1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
-                              Sequence<0, 0, 0>{},   // 1+: M
-                              Sequence<0, 0, 0>{}),  // 2+: K1
-                   make_tuple(Sequence<0, 0, 0>{},   // 0-: K0
-                              Sequence<0, 0, 0>{},   // 1-: M
-                              Sequence<0, 0, 0>{})); // 2-: K1
-
-    static constexpr auto b_k0_n_k1_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0>{},   // 0+: K0
-                              Sequence<0, 0, 0>{},   // 1+: N
-                              Sequence<0, 0, 0>{}),  // 2+: K1
-                   make_tuple(Sequence<0, 0, 0>{},   // 0-: K0
-                              Sequence<0, 0, 0>{},   // 1-: N
-                              Sequence<0, 0, 0>{})); // 2-: K1
-
-    static constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks =
-        make_tuple(make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0+: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1+: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2+: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3+: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4+: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5+: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6+: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{}),  // 7+: N2
-                   make_tuple(Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 0-: M0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 1-: N0
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 2-: M1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 3-: N1
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 4-: M2
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 5-: M3
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{},   // 6-: M4
-                              Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>{})); // 7-: N2
-
-    static constexpr auto a_k0_m_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
-
-    static constexpr auto b_k0_n_k1_grid_move_slice_window_step_hacks = Sequence<0, 0, 0>{};
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5<
         BlockSize,
@@ -199,7 +158,6 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
         K1,
         MXdlPerWave,
         NXdlPerWave,
-        ABlockTransferThreadSliceLengths_K0_M_K1,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -207,25 +165,18 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
-        BBlockTransferThreadSliceLengths_K0_N_K1,
+        ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
-        false,                            // BThreadTransferSrcResetCoordinateAfterRun,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockLdsAddExtraN,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector,
-        decltype(a_k0_m_k1_grid_step_hacks),                   //  AGridStepHacks,
-        decltype(b_k0_n_k1_grid_step_hacks),                   //  BGridStepHacks,
-        decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_step_hacks),   //  CGridStepHacks,
-        decltype(a_k0_m_k1_grid_move_slice_window_step_hacks), //  AGridMoveSliceWindowStepHacks,
-        decltype(b_k0_n_k1_grid_move_slice_window_step_hacks), //  BGridMoveSliceWindowStepHacks,
-        false,                                                 // CAccessOrderMRepeatNRepeat,
-        ABlockLdsAddExtraM,
-        BBlockLdsAddExtraN>;
+        CThreadTransferDstScalarPerVector>;
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
