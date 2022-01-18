@@ -35,7 +35,7 @@ struct BiasReluAdd
     template <typename T1, typename T2>
     __device__ constexpr float operator()(float v0, T1 v1, T2 v2) const
     {
-#if 1
+#if 0
         float a = v1 + v0;
         float b = a > 0 ? a : 0;
         float c = b + v2;
