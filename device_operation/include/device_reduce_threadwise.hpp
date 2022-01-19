@@ -284,8 +284,9 @@ struct DeviceReduceThreadWise : public DeviceReduce<preUnaryOpType, posUnaryOpTy
         if(pArg->dim1_lowest_length % dim1_thread_slice_size != 0)
             return (false);
 
-        // for bigger dim1_total_length size, we are supposed to use BlockWise method for better
-        // performance
+        // TODO: remove this. Should return true, as long as this DeviceOP instance support this
+        // case for bigger dim1_total_length size, we are supposed to use BlockWise method for
+        // better performance
         if(pArg->dim1_total_length / dim1_thread_slice_size >= 32)
             return (false);
 
