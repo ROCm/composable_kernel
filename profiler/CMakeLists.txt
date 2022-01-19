@@ -67,5 +67,3 @@ target_link_libraries(ckProfiler PRIVATE host_tensor)
 ##target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance device_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
 
-##add_dependencies(ckProfiler device_gemm_instance device_conv_instance device_reduce_instance)
-

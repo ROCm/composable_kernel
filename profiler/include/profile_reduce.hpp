@@ -282,24 +282,25 @@ void profile_reduce_impl(bool do_verification,
     float best_avg_time   = 0;
     float best_gb_per_sec = 0;
 
-    using DeviceReduceInstPtr  = DeviceReducePtr<inType,
-                                                compType,
-                                                outType,
-                                                rank,
-                                                toReduceDims_,
-                                                reduceOp,
-                                                nanOpt,
-                                                indicesOpt>;
-    using DeviceReduceInstPtr2 = DeviceReducePtr<compType,
-                                                 compType,
-                                                 outType,
-                                                 rank,
-                                                 toReduceDims_,
-                                                 reduceOp,
-                                                 nanOpt,
-                                                 indicesOpt>;
+    using preUnaryOpType_0 =
+        typename reduce_unary_operator<compType, reduceOp, true, true>::preUnaryOp;
+    using posUnaryOpType_0 =
+        typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp;
+    using preUnaryOpType_1 =
+        typename reduce_unary_operator<compType, reduceOp, true, false>::preUnaryOp;
+    using posUnaryOpType_1 =
+        typename reduce_unary_operator<compType, reduceOp, true, false>::posUnaryOp;
+    using preUnaryOpType_2 =
+        typename reduce_unary_operator<compType, reduceOp, false, true>::preUnaryOp;
+    using posUnaryOpType_2 =
+        typename reduce_unary_operator<compType, reduceOp, false, true>::posUnaryOp;
 
-    std::vector<DeviceReduceInstPtr> reduce_ptrs;
+    using DeviceReduceInstPtr0 = DeviceReducePtr<preUnaryOpType_0, posUnaryOpType_0>;
+    using DeviceReduceInstPtr1 = DeviceReducePtr<preUnaryOpType_1, posUnaryOpType_1>;
+    using DeviceReduceInstPtr2 = DeviceReducePtr<preUnaryOpType_2, posUnaryOpType_2>;
+
+    std::vector<DeviceReduceInstPtr0> reduce0_ptrs;
+    std::vector<DeviceReduceInstPtr1> reduce1_ptrs;
     std::vector<DeviceReduceInstPtr2> reduce2_ptrs;
 
     if constexpr(!invalid_reduce)
@@ -311,7 +312,7 @@ void profile_reduce_impl(bool do_verification,
                                               toReduceDims_,
                                               reduceOp,
                                               nanOpt,
-                                              indicesOpt>(reduce_ptrs);
+                                              indicesOpt>(reduce0_ptrs);
 
         add_device_reduce_instance_blockwise<inType,
                                              compType,
@@ -320,7 +321,7 @@ void profile_reduce_impl(bool do_verification,
                                              toReduceDims_,
                                              reduceOp,
                                              nanOpt,
-                                             indicesOpt>(reduce_ptrs);
+                                             indicesOpt>(reduce0_ptrs);
 
         if constexpr(use_atomic_add)
             add_device_reduce_instance_multiblock_atomic_add<inType,
@@ -330,7 +331,7 @@ void profile_reduce_impl(bool do_verification,
                                                              toReduceDims_,
                                                              reduceOp,
                                                              nanOpt,
-                                                             indicesOpt>(reduce_ptrs);
+                                                             indicesOpt>(reduce0_ptrs);
         else
             add_device_reduce_instance_multiblock_two_call<inType,
                                                            compType,
@@ -339,7 +340,7 @@ void profile_reduce_impl(bool do_verification,
                                                            toReduceDims_,
                                                            reduceOp,
                                                            nanOpt,
-                                                           indicesOpt>(reduce_ptrs);
+                                                           indicesOpt>(reduce1_ptrs);
 
         // used for secondary reduction
         if constexpr(!use_atomic_add)
@@ -353,7 +354,7 @@ void profile_reduce_impl(bool do_verification,
                                                              indicesOpt>(reduce2_ptrs);
     };
 
-    if(reduce_ptrs.empty())
+    if(reduce0_ptrs.empty() && reduce1_ptrs.empty())
     {
         throw std::runtime_error("Wrong! No device REDUCE instance found");
     };
@@ -367,27 +368,30 @@ void profile_reduce_impl(bool do_verification,
             alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
     };
 
-    for(auto& reduce_ptr : reduce_ptrs)
-    {
-        const auto i_inLengths  = to_int_vector(inLengths);
-        const auto i_inStrides  = to_int_vector(inStrides);
-        const auto i_outLengths = to_int_vector(outLengths);
-        const auto i_outStrides = to_int_vector(outStrides);
+    const auto i_inLengths  = to_int_vector(inLengths);
+    const auto i_inStrides  = to_int_vector(inStrides);
+    const auto i_outLengths = to_int_vector(outLengths);
+    const auto i_outStrides = to_int_vector(outStrides);
 
+    for(auto& reduce_ptr : reduce0_ptrs)
+    {
         auto wsSizeInBytes = reduce_ptr->getWorkspaceSizeInBytes(i_inLengths);
 
         DeviceMem ws_dev(wsSizeInBytes);
 
-        auto argument_ptr = reduce_ptr->MakeArgumentPointer(i_inLengths,
-                                                            i_inStrides,
-                                                            i_outLengths,
-                                                            i_outStrides,
-                                                            alpha,
-                                                            beta,
-                                                            in_dev.GetDeviceBuffer(),
-                                                            out_dev.GetDeviceBuffer(),
-                                                            out_indices_dev.GetDeviceBuffer(),
-                                                            ws_dev.GetDeviceBuffer());
+        auto argument_ptr =
+            reduce_ptr->MakeArgumentPointer(i_inLengths,
+                                            i_inStrides,
+                                            i_outLengths,
+                                            i_outStrides,
+                                            alpha,
+                                            beta,
+                                            in_dev.GetDeviceBuffer(),
+                                            out_dev.GetDeviceBuffer(),
+                                            out_indices_dev.GetDeviceBuffer(),
+                                            ws_dev.GetDeviceBuffer(),
+                                            preUnaryOpType_0{static_cast<int>(dim1_total_length)},
+                                            posUnaryOpType_0{static_cast<int>(dim1_total_length)});
 
         if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
             continue;
@@ -401,102 +405,124 @@ void profile_reduce_impl(bool do_verification,
         std::size_t num_bytes = dim0_total_length * dim1_total_length * sizeof(inType) +
                                 dim0_total_length * sizeof(outType);
 
-        if(reduce_ptr->hasFurtherCall())
+        float gb_per_sec = num_bytes / 1.E6 / avg_time;
+
+        std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
+                  << std::endl;
+
+        if(gb_per_sec > best_gb_per_sec)
         {
-            std::vector<int> inLengths2 = reduce_ptr->getWorkspace2dLengths(argument_ptr.get());
-            std::vector<int> inStrides2{inLengths2[1], 1};
-            size_t origReduceLen;
-            std::tie(std::ignore, origReduceLen) =
-                reduce_ptr->getReduction2dLengths(argument_ptr.get());
-
-            for(auto& reduce2_ptr : reduce2_ptrs)
-            {
-                auto argument2_ptr =
-                    reduce2_ptr->MakeArgumentPointer(inLengths2,
-                                                     inStrides2,
-                                                     i_outLengths,
-                                                     i_outStrides,
-                                                     alpha,
-                                                     beta,
-                                                     ws_dev.GetDeviceBuffer(),
-                                                     out_dev.GetDeviceBuffer(),
-                                                     out_indices_dev.GetDeviceBuffer(),
-                                                     ws_dev.GetDeviceBuffer());
-
-                if(!reduce2_ptr->IsSupportedArgument(argument2_ptr.get()))
-                    continue;
-
-                std::string reduce2_name = reduce2_ptr->GetTypeString();
-
-                reduce2_ptr->setPosElementWiseArgument(argument2_ptr.get(),
-                                                       static_cast<int>(origReduceLen));
-
-                auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
-
-                float avg_time_2 = invoker2_ptr->Run(argument2_ptr.get(), nrepeat);
-
-                std::size_t num_bytes_2 =
-                    static_cast<size_t>(inLengths2[0]) * inLengths2[1] * sizeof(compType);
-
-                float gb_per_sec = (num_bytes + num_bytes_2) / 1.E6 / (avg_time + avg_time_2);
-
-                std::cout << "Perf: " << (avg_time + avg_time_2) << " ms, " << gb_per_sec
-                          << " GB/s, " << reduce_name << " => " << reduce2_name << std::endl;
-
-                if(gb_per_sec > best_gb_per_sec)
-                {
-                    best_avg_time   = avg_time + avg_time_2;
-                    best_gb_per_sec = gb_per_sec;
-                }
-
-                if(do_verification)
-                {
-                    out_dev.FromDevice(out.mData.data());
-                    check_error(out_ref, out);
-
-                    if(need_indices)
-                    {
-                        out_indices_dev.FromDevice(out_indices.mData.data());
-                        check_indices(out_indices_ref, out_indices);
-                    };
-
-                    if(do_log)
-                    {
-                        LogRangeAsType<float>(std::cout << "out_host  : ", out_ref.mData, ",")
-                            << std::endl;
-                        LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",")
-                            << std::endl;
-                    }
-                }
-
-                if(do_dumpout)
-                {
-                    dumpBufferToFile("dump_in.bin", in.mData.data(), in.mDesc.GetElementSize());
-                    dumpBufferToFile("dump_out.bin", out.mData.data(), out.mDesc.GetElementSize());
-                    dumpBufferToFile(
-                        "dump_out_host.bin", out_ref.mData.data(), out_ref.mDesc.GetElementSize());
-                    if(need_indices)
-                    {
-                        dumpBufferToFile("dump_indices.bin",
-                                         out_indices.mData.data(),
-                                         out_indices.mDesc.GetElementSize());
-                        dumpBufferToFile("dump_indices_host.bin",
-                                         out_indices_ref.mData.data(),
-                                         out_indices_ref.mDesc.GetElementSize());
-                    };
-                };
-            };
+            best_avg_time   = avg_time;
+            best_gb_per_sec = gb_per_sec;
         }
-        else
-        {
-            float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-            std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
-                      << std::endl;
+        if(do_verification)
+        {
+            out_dev.FromDevice(out.mData.data());
+            check_error(out_ref, out);
+
+            if(need_indices)
+            {
+                out_indices_dev.FromDevice(out_indices.mData.data());
+                check_indices(out_indices_ref, out_indices);
+            };
+
+            if(do_log)
+            {
+                LogRangeAsType<float>(std::cout << "out_host  : ", out_ref.mData, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",") << std::endl;
+            };
+        };
+
+        if(do_dumpout)
+        {
+            dumpBufferToFile("dump_in.bin", in.mData.data(), in.mDesc.GetElementSize());
+            dumpBufferToFile("dump_out.bin", out.mData.data(), out.mDesc.GetElementSize());
+            dumpBufferToFile(
+                "dump_out_host.bin", out_ref.mData.data(), out_ref.mDesc.GetElementSize());
+            if(need_indices)
+            {
+                dumpBufferToFile("dump_indices.bin",
+                                 out_indices.mData.data(),
+                                 out_indices.mDesc.GetElementSize());
+                dumpBufferToFile("dump_indices_host.bin",
+                                 out_indices_ref.mData.data(),
+                                 out_indices_ref.mDesc.GetElementSize());
+            };
+        };
+    };
+
+    for(auto& reduce_ptr : reduce1_ptrs)
+    {
+        auto wsSizeInBytes = reduce_ptr->getWorkspaceSizeInBytes(i_inLengths);
+
+        DeviceMem ws_dev(wsSizeInBytes);
+
+        auto argument_ptr =
+            reduce_ptr->MakeArgumentPointer(i_inLengths,
+                                            i_inStrides,
+                                            i_outLengths,
+                                            i_outStrides,
+                                            alpha,
+                                            beta,
+                                            in_dev.GetDeviceBuffer(),
+                                            out_dev.GetDeviceBuffer(),
+                                            out_indices_dev.GetDeviceBuffer(),
+                                            ws_dev.GetDeviceBuffer(),
+                                            preUnaryOpType_1{static_cast<int>(dim1_total_length)},
+                                            posUnaryOpType_1{static_cast<int>(dim1_total_length)});
+
+        if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
+            continue;
+
+        std::string reduce_name = reduce_ptr->GetTypeString();
+
+        auto invoker_ptr = reduce_ptr->MakeInvokerPointer();
+
+        float avg_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+
+        std::size_t num_bytes = dim0_total_length * dim1_total_length * sizeof(inType) +
+                                dim0_total_length * sizeof(outType);
+
+        std::vector<int> inLengths2 = reduce_ptr->getWorkspace2dLengths(argument_ptr.get());
+        std::vector<int> inStrides2{inLengths2[1], 1};
+
+        for(auto& reduce2_ptr : reduce2_ptrs)
+        {
+            auto argument2_ptr = reduce2_ptr->MakeArgumentPointer(
+                inLengths2,
+                inStrides2,
+                i_outLengths,
+                i_outStrides,
+                alpha,
+                beta,
+                ws_dev.GetDeviceBuffer(),
+                out_dev.GetDeviceBuffer(),
+                out_indices_dev.GetDeviceBuffer(),
+                ws_dev.GetDeviceBuffer(),
+                preUnaryOpType_2{static_cast<int>(dim1_total_length)},
+                posUnaryOpType_2{static_cast<int>(dim1_total_length)});
+
+            if(!reduce2_ptr->IsSupportedArgument(argument2_ptr.get()))
+                continue;
+
+            std::string reduce2_name = reduce2_ptr->GetTypeString();
+
+            auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
+
+            float avg_time_2 = invoker2_ptr->Run(argument2_ptr.get(), nrepeat);
+
+            std::size_t num_bytes_2 =
+                static_cast<size_t>(inLengths2[0]) * inLengths2[1] * sizeof(compType);
+
+            float gb_per_sec = (num_bytes + num_bytes_2) / 1.E6 / (avg_time + avg_time_2);
+
+            std::cout << "Perf: " << (avg_time + avg_time_2) << " ms, " << gb_per_sec << " GB/s, "
+                      << reduce_name << " => " << reduce2_name << std::endl;
 
             if(gb_per_sec > best_gb_per_sec)
             {
-                best_avg_time   = avg_time;
+                best_avg_time   = avg_time + avg_time_2;
                 best_gb_per_sec = gb_per_sec;
             }
 
@@ -516,8 +542,8 @@ void profile_reduce_impl(bool do_verification,
                     LogRangeAsType<float>(std::cout << "out_host  : ", out_ref.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",") << std::endl;
-                };
-            };
+                }
+            }
 
             if(do_dumpout)
             {
@@ -535,7 +561,7 @@ void profile_reduce_impl(bool do_verification,
                                      out_indices_ref.mDesc.GetElementSize());
                 };
             };
-        }
+        };
     };
 
     std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s"

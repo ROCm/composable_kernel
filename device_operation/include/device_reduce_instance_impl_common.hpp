@@ -63,36 +63,6 @@ using reduce_configuration_2_instances = std::tuple<ReductionConfiguration_2<0, 
                                                     ReductionConfiguration_2<0, 1, 11>>;
 #endif
 
-#define ADD_INST_BY_TYPE(key, inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...) \
-    template void add_device_reduce_instance_##key<inT,                                  \
-                                                   compT,                                \
-                                                   outT,                                 \
-                                                   rank,                                 \
-                                                   Sequence<__VA_ARGS__>,                \
-                                                   reduceOp,                             \
-                                                   nanOpt,                               \
-                                                   indicesOpt>(                          \
-        std::vector<DeviceReducePtr<inT,                                                 \
-                                    compT,                                               \
-                                    outT,                                                \
-                                    rank,                                                \
-                                    Sequence<__VA_ARGS__>,                               \
-                                    reduceOp,                                            \
-                                    nanOpt,                                              \
-                                    indicesOpt>> &                                       \
-        device_op_instances)
-
-#define ADD_INST_BY_ID(key, inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...) \
-    ADD_INST_BY_TYPE(key,                                                              \
-                     inT,                                                              \
-                     compT,                                                            \
-                     outT,                                                             \
-                     static_cast<ReduceTensorOp_t>(reduceOp),                          \
-                     static_cast<NanPropagation_t>(nanOpt),                            \
-                     static_cast<ReduceTensorIndices_t>(indicesOpt),                   \
-                     rank,                                                             \
-                     __VA_ARGS__)
-
 } // namespace device_reduce_instance
 } // namespace device
 } // namespace tensor_operation

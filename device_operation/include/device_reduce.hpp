@@ -13,14 +13,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename reduceDims,
-          ReduceTensorOp_t reduceOp,
-          NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt>
+template <typename preUnaryOpType, typename posUnaryOpType>
 struct DeviceReduce : public BaseOperator
 {
     virtual size_t getWorkspaceSizeInBytes(const std::vector<int>& inLengths)
@@ -59,21 +52,15 @@ struct DeviceReduce : public BaseOperator
                                                               const void* in_dev,
                                                               void* out_dev,
                                                               void* out_indices_dev,
-                                                              void* workspace_dev) = 0;
+                                                              void* workspace_dev,
+                                                              const preUnaryOpType& preUnaryOp,
+                                                              const posUnaryOpType& posUnaryOp) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename reduceDims,
-          ReduceTensorOp_t reduceOp,
-          NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt>
-using DeviceReducePtr = std::unique_ptr<
-    DeviceReduce<inType, compType, outType, rank, reduceDims, reduceOp, nanOpt, indicesOpt>>;
+template <typename preUnaryOpType, typename posUnaryOpType>
+using DeviceReducePtr = std::unique_ptr<DeviceReduce<preUnaryOpType, posUnaryOpType>>;
 
 } // namespace device
 } // namespace tensor_operation

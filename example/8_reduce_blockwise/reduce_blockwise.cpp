@@ -29,18 +29,24 @@ constexpr ReduceTensorOp_t reduceOp        = ReduceTensorOp_t::AVG;
 constexpr NanPropagation_t nanOpt          = NanPropagation_t::NOT_PROPAGATE_NAN;
 constexpr ReduceTensorIndices_t indicesOpt = ReduceTensorIndices_t::NO_INDICES;
 
+using opReduce       = typename reduce_binary_operator<compType, reduceOp>::opType;
+using preUnaryOpType = typename reduce_unary_operator<compType, reduceOp, true, true>::preUnaryOp;
+using posUnaryOpType = typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp;
+
 using DeviceReduceInstance = DeviceReduceBlockWise<inType,
                                                    compType,
                                                    outType,
                                                    rank,
                                                    toReduceDims_,
-                                                   reduceOp,
+                                                   opReduce,
+                                                   preUnaryOpType,
+                                                   posUnaryOpType,
                                                    nanOpt,
-                                                   indicesOpt,
+                                                   false,
                                                    256,
                                                    4,
                                                    64,
-                                                   true,
+                                                   0,
                                                    1,
                                                    1>;
 
@@ -359,16 +365,19 @@ int main(int argc, char* argv[])
 
     DeviceMem ws_dev(wsSizeInBytes);
 
-    auto argument_ptr = reduce.MakeArgumentPointer(i_inLengths,
-                                                   i_inStrides,
-                                                   i_outLengths,
-                                                   i_outStrides,
-                                                   alpha,
-                                                   beta,
-                                                   in_dev.GetDeviceBuffer(),
-                                                   out_dev.GetDeviceBuffer(),
-                                                   out_indices_dev.GetDeviceBuffer(),
-                                                   ws_dev.GetDeviceBuffer());
+    auto argument_ptr =
+        reduce.MakeArgumentPointer(i_inLengths,
+                                   i_inStrides,
+                                   i_outLengths,
+                                   i_outStrides,
+                                   alpha,
+                                   beta,
+                                   in_dev.GetDeviceBuffer(),
+                                   out_dev.GetDeviceBuffer(),
+                                   out_indices_dev.GetDeviceBuffer(),
+                                   ws_dev.GetDeviceBuffer(),
+                                   preUnaryOpType{static_cast<int>(dim1_total_length)},
+                                   posUnaryOpType{static_cast<int>(dim1_total_length)});
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {

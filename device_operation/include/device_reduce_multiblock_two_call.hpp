@@ -17,40 +17,28 @@ template <typename inType,
           typename outType,
           int rank,
           typename toReduceDims,
-          ReduceTensorOp_t reduceOp,
+          typename opReduce,
+          typename preUnaryOpType,
+          typename posUnaryOpType,
           NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt,
+          bool need_indices,
           int blockSize,
           int dim0_thread_cluster_size,
           int dim1_thread_cluster_size,
           int vectorDim,
           int dim0_thread_slice_size,
           int dim1_thread_slice_size>
-struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
-                                                           compType,
-                                                           outType,
-                                                           rank,
-                                                           toReduceDims,
-                                                           reduceOp,
-                                                           nanOpt,
-                                                           indicesOpt>
+struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<preUnaryOpType, posUnaryOpType>
 {
     static_assert(rank <= 6, "Bigger rank size is not supported!");
     static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
                   "Invalid thread cluster size assignments!");
-    static_assert(reduceOp != ReduceTensorOp_t::MUL && reduceOp != ReduceTensorOp_t::NORM1,
-                  "MUL and NORM1 are not supported in Composable Kernel!");
 
     using invariantDims = decltype(get_invariantDims<rank, toReduceDims>());
 
     static constexpr index_t srcDims    = rank;
     static constexpr index_t dstDims    = (invariantDims::Size() == 0) ? 1 : invariantDims::Size();
     static constexpr bool reduceAllDims = (invariantDims::Size() == 0);
-
-    static constexpr bool need_indices =
-        (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX) &&
-        (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
     static constexpr int dim0_tile_size = dim0_thread_cluster_size * dim0_thread_slice_size;
     static constexpr int dim1_tile_size = dim1_thread_cluster_size * dim1_thread_slice_size;
@@ -173,7 +161,9 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                  const inType* in_dev,
                  outType* out_dev,
                  int* out_indices_dev,
-                 compType* workspace_dev)
+                 compType* workspace_dev,
+                 const preUnaryOpType& preUnaryOp,
+                 const posUnaryOpType& posUnaryOp)
             : in_dev_{in_dev},
               out_dev_{out_dev},
               out_indices_dev_{out_indices_dev},
@@ -183,8 +173,12 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
             inStrides_  = inStrides;
             outLengths_ = outLengths;
             outStrides_ = outStrides;
-            alpha_      = static_cast<inType>(alpha);
-            beta_       = static_cast<outType>(beta);
+
+            preUnaryOp_ = preUnaryOp;
+            posUnaryOp_ = posUnaryOp;
+
+            alpha_ = static_cast<inType>(alpha);
+            beta_  = static_cast<outType>(beta);
 
             std::tie(dim0_total_length, dim1_total_length) =
                 get_2d_lengths<rank, toReduceDims>(inLengths);
@@ -238,6 +232,9 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
         compType* workspace_dev_;
         int* workspace_indices_dev_;
 
+        preUnaryOpType preUnaryOp_;
+        posUnaryOpType posUnaryOp_;
+
         int dim0_lowest_length;
         int dim1_lowest_length;
         size_t dim0_total_length;
@@ -249,23 +246,6 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
 
     struct Invoker : public BaseInvoker
     {
-        template <int total_cluster_size, int dim0_cluster_size, int dim1_cluster_size>
-        struct ClusterAssign
-        {
-            static constexpr int total_cluster_size_ = total_cluster_size;
-            static constexpr int dim0_cluster_size_  = dim0_cluster_size;
-            static constexpr int dim1_cluster_size_  = dim1_cluster_size;
-        };
-
-        using cluster_assign_instances = std::tuple<ClusterAssign<256, 128, 2>,
-                                                    ClusterAssign<256, 64, 4>,
-                                                    ClusterAssign<256, 32, 8>,
-                                                    ClusterAssign<256, 16, 16>,
-                                                    ClusterAssign<256, 8, 32>,
-                                                    ClusterAssign<256, 4, 64>,
-                                                    ClusterAssign<256, 2, 128>,
-                                                    ClusterAssign<256, 1, 256>>;
-
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto src2dDesc = DeviceReduceMultiBlockTwoCall::MakeSrc2dDescriptor(
@@ -274,12 +254,6 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                 arg.dim0_total_length, arg.blkGroupSize);
             using src2dDescType = decltype(src2dDesc);
             using ws2dDescType  = decltype(ws2dDesc);
-
-            using opReduce = typename reduce_binary_operator<compType, reduceOp>::opType;
-            using preUnaryOpType =
-                typename reduce_unary_operator<compType, reduceOp, true, false>::preUnaryOp;
-            using posUnaryOpType =
-                typename reduce_unary_operator<compType, reduceOp, true, false>::posUnaryOp;
 
             using gridwise_reduce =
                 GridwiseReduction_xy_to_x_multiblock_two_call<inType,
@@ -310,21 +284,20 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                                                                   preUnaryOpType,
                                                                   posUnaryOpType>;
 
-            avg_time =
-                launch_and_time_kernel(kernel,
-                                       nrepeat,
-                                       dim3(arg.gridSize),
-                                       dim3(blockSize),
-                                       0,
-                                       src2dDesc,
-                                       ws2dDesc,
-                                       preUnaryOpType{static_cast<int>(arg.dim1_total_length)},
-                                       posUnaryOpType{static_cast<int>(arg.dim1_total_length)},
-                                       arg.blkGroupSize,
-                                       arg.alpha_,
-                                       arg.in_dev_,
-                                       arg.workspace_dev_,
-                                       arg.workspace_indices_dev_);
+            avg_time = launch_and_time_kernel(kernel,
+                                              nrepeat,
+                                              dim3(arg.gridSize),
+                                              dim3(blockSize),
+                                              0,
+                                              src2dDesc,
+                                              ws2dDesc,
+                                              arg.preUnaryOp_,
+                                              arg.posUnaryOp_,
+                                              arg.blkGroupSize,
+                                              arg.alpha_,
+                                              arg.in_dev_,
+                                              arg.workspace_dev_,
+                                              arg.workspace_indices_dev_);
 
             return (avg_time);
         };
@@ -389,7 +362,9 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                                                       const void* in_dev,
                                                       void* out_dev,
                                                       void* out_indices_dev,
-                                                      void* workspace_dev) override
+                                                      void* workspace_dev,
+                                                      const preUnaryOpType& preUnaryOp,
+                                                      const posUnaryOpType& posUnaryOp) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -400,7 +375,9 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<inType,
                                           static_cast<const inType*>(in_dev),
                                           static_cast<outType*>(out_dev),
                                           static_cast<int*>(out_indices_dev),
-                                          static_cast<compType*>(workspace_dev));
+                                          static_cast<compType*>(workspace_dev),
+                                          preUnaryOp,
+                                          posUnaryOp);
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

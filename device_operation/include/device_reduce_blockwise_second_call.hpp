@@ -17,29 +17,22 @@ template <typename inType,
           typename outType,
           int rank,
           typename toReduceDims,
-          ReduceTensorOp_t reduceOp,
+          typename opReduce,
+          typename preUnaryOpType,
+          typename posUnaryOpType,
           NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt,
+          bool need_indices,
           int blockSize,
           int dim0_thread_cluster_size,
           int dim1_thread_cluster_size,
           int vectorDim,
           int dim0_thread_slice_size,
           int dim1_thread_slice_size>
-struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
-                                                             compType,
-                                                             outType,
-                                                             rank,
-                                                             toReduceDims,
-                                                             reduceOp,
-                                                             nanOpt,
-                                                             indicesOpt>
+struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<preUnaryOpType, posUnaryOpType>
 {
     static_assert(rank <= 6, "Bigger rank size is not supported!");
     static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
                   "Invalid thread cluster size assignments!");
-    static_assert(reduceOp != ReduceTensorOp_t::MUL && reduceOp != ReduceTensorOp_t::NORM1,
-                  "MUL and NORM1 are not supported in Composable Kernel!");
 
     static_assert(std::is_same<inType, compType>::value,
                   "inType and compType should be the same to use DEviceReduceBlockWiseSecondCall!");
@@ -47,11 +40,6 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     using invariantDims = decltype(get_invariantDims<rank, toReduceDims>());
 
     static constexpr index_t dstDims = (invariantDims::Size() == 0) ? 1 : invariantDims::Size();
-
-    static constexpr bool need_indices =
-        (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX) &&
-        (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
     static constexpr int dim0_tile_size = dim0_thread_cluster_size * dim0_thread_slice_size;
     static constexpr int dim1_tile_size = dim1_thread_cluster_size * dim1_thread_slice_size;
@@ -124,15 +112,21 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                  const inType* in_dev,
                  outType* out_dev,
                  int* out_indices_dev,
-                 compType* workspace_dev)
+                 compType* workspace_dev,
+                 const preUnaryOpType& preUnaryOp,
+                 const posUnaryOpType& posUnaryOp)
             : in_dev_{in_dev}, out_dev_{out_dev}, out_indices_dev_{out_indices_dev}
         {
             inLengths_  = inLengths;
             inStrides_  = inStrides;
             outLengths_ = outLengths;
             outStrides_ = outStrides;
-            alpha_      = static_cast<inType>(alpha);
-            beta_       = static_cast<outType>(beta);
+
+            preUnaryOp_ = preUnaryOp;
+            posUnaryOp_ = posUnaryOp;
+
+            alpha_ = static_cast<inType>(alpha);
+            beta_  = static_cast<outType>(beta);
 
             dim0_total_length = inLengths[0];
             dim1_total_length = inLengths[1];
@@ -168,13 +162,15 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
         int* out_indices_dev_;
         int* workspace_indices_dev_;
 
+        preUnaryOpType preUnaryOp_;
+        posUnaryOpType posUnaryOp_;
+
         int dim0_lowest_length;
         int dim1_lowest_length;
         size_t dim0_total_length;
         size_t dim1_total_length;
 
         size_t gridSize;
-        int origReduceLen_;
     };
 
     struct Invoker : public BaseInvoker
@@ -187,12 +183,6 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                 arg.outLengths_, arg.outStrides_, arg.gridSize);
             using src2dDescType = decltype(src2dDesc);
             using dst1dDescType = decltype(dst1dDesc);
-
-            using opReduce = typename reduce_binary_operator<compType, reduceOp>::opType;
-            using preUnaryOpType =
-                typename reduce_unary_operator<compType, reduceOp, false, true>::preUnaryOp;
-            using posUnaryOpType =
-                typename reduce_unary_operator<compType, reduceOp, false, true>::posUnaryOp;
 
             using gridwise_reduce = GridwiseReduction_xy_to_x_blockwise<inType,
                                                                         outType,
@@ -229,8 +219,8 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                               0,
                                               src2dDesc,
                                               dst1dDesc,
-                                              preUnaryOpType{arg.origReduceLen_},
-                                              posUnaryOpType{arg.origReduceLen_},
+                                              arg.preUnaryOp_,
+                                              arg.posUnaryOp_,
                                               arg.alpha_,
                                               arg.in_dev_,
                                               arg.beta_,
@@ -267,13 +257,6 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
         return (true);
     };
 
-    void setPosElementWiseArgument(BaseArgument* p_arg, int origReduceLen) override
-    {
-        Argument* pArg = dynamic_cast<Argument*>(p_arg);
-
-        pArg->origReduceLen_ = origReduceLen;
-    };
-
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,
                                                       const std::vector<int>& inStrides,
                                                       const std::vector<int>& outLengths,
@@ -283,7 +266,9 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                                       const void* in_dev,
                                                       void* out_dev,
                                                       void* out_indices_dev,
-                                                      void* workspace_dev) override
+                                                      void* workspace_dev,
+                                                      const preUnaryOpType& preUnaryOp,
+                                                      const posUnaryOpType& posUnaryOp) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -294,7 +279,9 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                           static_cast<const inType*>(in_dev),
                                           static_cast<outType*>(out_dev),
                                           static_cast<int*>(out_indices_dev),
-                                          static_cast<compType*>(workspace_dev));
+                                          static_cast<compType*>(workspace_dev),
+                                          preUnaryOp,
+                                          posUnaryOp);
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
