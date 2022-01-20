@@ -11,36 +11,43 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
-#include "element_wise_operation.hpp"
+#include "reduction_operator.hpp"
 #include "device_operation/include/device_pool2d_fwd_nhwc_nhwc.hpp"
 
-using InDataType  = ck::half_t;
-using OutDataType = ck::half_t;
+using namespace ck;
+using namespace ck::tensor_operation::device;
+
+using InDataType  = float; // ck::half_t;
+using OutDataType = float; // ck::half_t;
 using AccDataType = float;
 
 using InLayout  = ck::tensor_layout::pool::NHWC;
 using OutLayout = ck::tensor_layout::pool::NHWC;
 
-using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-
 // TODO: reimplement reduction as elementwise operator
 static constexpr auto ReduceOp = ck::ReduceTensorOp_t::MAX;
 // static constexpr auto ReduceOp = ck::ReduceTensorOp_t::AVG;
+static constexpr bool need_indices = false;
+
+using opReduce = typename reduce_binary_operator<AccDataType, ReduceOp>::opType;
+using preUnaryOpType =
+    typename reduce_unary_operator<AccDataType, ReduceOp, true, true>::preUnaryOp;
+using posUnaryOpType =
+    typename reduce_unary_operator<AccDataType, ReduceOp, true, true>::posUnaryOp;
 
 using DevicePoolFwdInstance =
-    ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
-        InDataType,   // InDataType
-        OutDataType,  // OutDataType
-        AccDataType,  // AccDataType
-        ReduceOp,     // ReduceOp
-        InElementOp,  // InElementwiseOperation
-        OutElementOp, // OutElementwiseOperation
-        256,          // BlockSize
-        256,          // ReduceMPerBlock
-        1,            // ReduceKPerBlock
-        1,            // ReduceMPerThread
-        1>;           // ReduceKPerThread
+    DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType,  // InDataType
+                                                     OutDataType, // OutDataType
+                                                     AccDataType, // AccDataType
+                                                     opReduce,
+                                                     preUnaryOpType,
+                                                     posUnaryOpType,
+                                                     need_indices,
+                                                     256, // BlockSize
+                                                     256, // ReduceMPerBlock
+                                                     1,   // ReduceKPerBlock
+                                                     2,   // ReduceMPerThread
+                                                     1>;  // ReduceKPerThread
 
 template <typename TIn, typename TOut>
 void max_pool_host_verify(const Tensor<TIn>& in,
@@ -225,8 +232,8 @@ int main(int argc, char* argv[])
                                       window_strides,
                                       input_left_pads,
                                       input_right_pads,
-                                      InElementOp{},
-                                      OutElementOp{});
+                                      preUnaryOpType{},
+                                      posUnaryOpType{});
 
     if(!pool.IsSupportedArgument(argument))
     {

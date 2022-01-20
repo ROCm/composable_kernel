@@ -397,8 +397,7 @@ int main(int argc, char* argv[])
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
-              << std::endl;
+    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name << std::endl;
 
     if(args.do_verification)
     {

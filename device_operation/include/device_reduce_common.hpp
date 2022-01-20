@@ -10,8 +10,8 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename preUnaryOpType, typename posUnaryOpType>
-using DeviceReducePtr = std::unique_ptr<DeviceReduce<preUnaryOpType, posUnaryOpType>>;
+// template <typename preUnaryOpType, typename posUnaryOpType>
+// using DeviceReducePtr = std::unique_ptr<DeviceReduce<preUnaryOpType, posUnaryOpType>>;
 
 template <int rank, typename toReduceDims>
 std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
