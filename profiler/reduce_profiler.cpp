@@ -6,7 +6,6 @@
 #include <vector>
 #include <stdexcept>
 #include <sstream>
-#include <half.hpp>
 #include <getopt.h>
 
 #include "config.hpp"

@@ -2,8 +2,7 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
+#include <cstring>
 
 extern int profile_gemm(int, char*[]);
 extern int profile_conv_fwd(int, char*[]);
