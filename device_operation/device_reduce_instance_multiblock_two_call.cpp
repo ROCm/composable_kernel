@@ -29,10 +29,10 @@ void add_device_reduce_instance_multiblock_two_call(
     using posUnaryOpType =
         typename reduce_unary_operator<compType, reduceOp, true, false>::posUnaryOp;
 
-    constexpr bool need_indices =
+    constexpr bool is_indexable =
         (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX) &&
-        (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
+         reduceOp == ReduceTensorOp_t::AMAX);
+    constexpr bool need_indices = is_indexable && (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
     static_for<0, std::tuple_size<reduce_configuration_1_instances>::value, 1>{}([&](auto i) {
         using cfg1 =

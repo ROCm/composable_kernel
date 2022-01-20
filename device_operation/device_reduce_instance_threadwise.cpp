@@ -29,10 +29,10 @@ void add_device_reduce_instance_threadwise(
     using posUnaryOpType =
         typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp;
 
-    constexpr bool need_indices =
+    constexpr bool is_indexable =
         (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX) &&
-        (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
+         reduceOp == ReduceTensorOp_t::AMAX);
+    constexpr bool need_indices = is_indexable && (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
     using cfg1 = ReductionConfiguration_1<256, 256, 1>;
 

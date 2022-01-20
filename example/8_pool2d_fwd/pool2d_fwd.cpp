@@ -16,8 +16,8 @@
 using namespace ck;
 using namespace ck::tensor_operation::device;
 
-using InDataType  = float; // ck::half_t;
-using OutDataType = float; // ck::half_t;
+using InDataType  = ck::half_t;
+using OutDataType = ck::half_t;
 using AccDataType = float;
 
 using InLayout  = ck::tensor_layout::pool::NHWC;
@@ -43,7 +43,7 @@ using DevicePoolFwdInstance =
                                                      posUnaryOpType,
                                                      need_indices,
                                                      256, // BlockSize
-                                                     256, // ReduceMPerBlock
+                                                     512, // ReduceMPerBlock
                                                      1,   // ReduceKPerBlock
                                                      2,   // ReduceMPerThread
                                                      1>;  // ReduceKPerThread
