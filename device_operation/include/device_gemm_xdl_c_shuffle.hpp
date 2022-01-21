@@ -1,5 +1,5 @@
-#ifndef DEVICE_GEMM_SHUFFLE_XDL_HPP
-#define DEVICE_GEMM_SHUFFLE_XDL_HPP
+#ifndef DEVICE_GEMM_XDL_C_SHUFFLE_HPP
+#define DEVICE_GEMM_XDL_C_SHUFFLE_HPP
 
 #include <iostream>
 #include <sstream>
@@ -55,7 +55,7 @@ template <
     index_t CShuffleNXdlPerWavePerShuffle,
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
     index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
-struct DeviceGemmShuffleXdl
+struct DeviceGemmXdl_C_Shuffle
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
@@ -207,9 +207,11 @@ struct DeviceGemmShuffleXdl
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmShuffleXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmShuffleXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m_n_     = DeviceGemmShuffleXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_k0_m_k1_ =
+                DeviceGemmXdl_C_Shuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ =
+                DeviceGemmXdl_C_Shuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+            c_grid_desc_m_n_ = DeviceGemmXdl_C_Shuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
@@ -244,7 +246,7 @@ struct DeviceGemmShuffleXdl
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmShuffleXdl::Argument;
+        using Argument = DeviceGemmXdl_C_Shuffle::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -285,8 +287,8 @@ struct DeviceGemmShuffleXdl
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmShuffleXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmShuffleXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle::BGridDesc_K0_N_K1>,
                     remove_reference_t<
                         typename GridwiseGemm::
                             CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
@@ -319,8 +321,8 @@ struct DeviceGemmShuffleXdl
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmShuffleXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmShuffleXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle::BGridDesc_K0_N_K1>,
                     remove_reference_t<
                         typename GridwiseGemm::
                             CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,

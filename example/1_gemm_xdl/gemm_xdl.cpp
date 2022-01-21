@@ -12,7 +12,7 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "device_gemm_shuffle_xdl.hpp"
+#include "device_gemm_xdl_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
 
 template <ck::index_t... Is>
@@ -32,44 +32,44 @@ using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 // clang-format off
-using DeviceGemmShuffleInstance =
-    ck::tensor_operation::device::DeviceGemmShuffleXdl<ADataType,              // ADataType
-                                                       BDataType,              // BDataType
-                                                       CDataType,              // CDataType
-                                                       AccDataType,            // AccDataType
-                                                       ALayout,                // ALayout
-                                                       BLayout,                // BLayout
-                                                       CLayout,                // CLayout
-                                                       AElementOp,             // AElementwiseOperation
-                                                       BElementOp,             // BElementwiseOperation
-                                                       CElementOp,             // CElementwiseOperation
-                                                       256,                    // BlockSize
-                                                       256,                    // MPerBlock
-                                                       128,                    // NPerBlock
-                                                       4,                      // K0PerBlock
-                                                       8,                      // K1
-                                                       32,                     // MPerXDL
-                                                       32,                     // NPerXDL
-                                                       4,                      // MXdlPerWave
-                                                       2,                      // NXdlPerWave
-                                                       S<4, 64, 1>,            // ABlockTransferThreadClusterLengths_K0_M_K1
-                                                       S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
-                                                       S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
-                                                       2,                      // ABlockTransferSrcVectorDim
-                                                       8,                      // ABlockTransferSrcScalarPerVector
-                                                       8,                      // ABlockTransferDstScalarPerVector_K1
-                                                       true,                   // ABlockLdsAddExtraM
-                                                       S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
-                                                       S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
-                                                       S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
-                                                       2,                      // BBlockTransferSrcVectorDim
-                                                       8,                      // BBlockTransferSrcScalarPerVector
-                                                       8,                      // BBlockTransferDstScalarPerVector_K1
-                                                       true,                   // BBlockLdsAddExtraN
-                                                       1,                      // CShuffleMXdlPerWavePerShuffle
-                                                       1,                      // CShuffleNXdlPerWavePerShuffle
-                                                       S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
-                                                       8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle<
+    ADataType,              // ADataType
+    BDataType,              // BDataType
+    CDataType,              // CDataType
+    AccDataType,            // AccDataType
+    ALayout,                // ALayout
+    BLayout,                // BLayout
+    CLayout,                // CLayout
+    AElementOp,             // AElementwiseOperation
+    BElementOp,             // BElementwiseOperation
+    CElementOp,             // CElementwiseOperation
+    256,                    // BlockSize
+    256,                    // MPerBlock
+    128,                    // NPerBlock
+    4,                      // K0PerBlock
+    8,                      // K1
+    32,                     // MPerXDL
+    32,                     // NPerXDL
+    4,                      // MXdlPerWave
+    2,                      // NXdlPerWave
+    S<4, 64, 1>,            // ABlockTransferThreadClusterLengths_K0_M_K1
+    S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
+    2,                      // ABlockTransferSrcVectorDim
+    8,                      // ABlockTransferSrcScalarPerVector
+    8,                      // ABlockTransferDstScalarPerVector_K1
+    true,                   // ABlockLdsAddExtraM
+    S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
+    S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
+    2,                      // BBlockTransferSrcVectorDim
+    8,                      // BBlockTransferSrcScalarPerVector
+    8,                      // BBlockTransferDstScalarPerVector_K1
+    true,                   // BBlockLdsAddExtraN
+    1,                      // CShuffleMXdlPerWavePerShuffle
+    1,                      // CShuffleNXdlPerWavePerShuffle
+    S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+    8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
 template <typename AType,
@@ -192,7 +192,7 @@ int main(int argc, char* argv[])
     c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // do GEMM
-    auto gemm     = DeviceGemmShuffleInstance{};
+    auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
