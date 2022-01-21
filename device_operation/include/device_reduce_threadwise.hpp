@@ -48,8 +48,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<preUnaryOpType, posUnaryOpTy
                          : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
-                                    const std::vector<int>& inStrides,
-                                    size_t gridSize)
+                                    const std::vector<int>& inStrides)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
@@ -90,14 +89,15 @@ struct DeviceReduceThreadWise : public DeviceReduce<preUnaryOpType, posUnaryOpTy
         const auto invariantLen = src2dDesc.GetLength(Number<0>{});
         const auto toReduceLen  = src2dDesc.GetLength(Number<1>{});
 
-        const auto srcPad1 = gridSize * dim0_tile_size - invariantLen;
-        const auto srcPad2 =
-            ((toReduceLen + dim1_tile_size - 1) / dim1_tile_size) * dim1_tile_size - toReduceLen;
+        const auto srcPad0 =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
+        const auto srcPad1 =
+            math::integer_least_multiple(toReduceLen, dim1_tile_size) - toReduceLen;
 
         auto src2dDesc_2 =
             transform_tensor_descriptor(src2dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, srcPad1),
-                                                   make_pad_transform(toReduceLen, 0, srcPad2)),
+                                        make_tuple(make_right_pad_transform(invariantLen, srcPad0),
+                                                   make_right_pad_transform(toReduceLen, srcPad1)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -105,8 +105,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<preUnaryOpType, posUnaryOpTy
     };
 
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
-                                    const std::vector<int>& outStrides,
-                                    size_t gridSize)
+                                    const std::vector<int>& outStrides)
     {
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
@@ -121,11 +120,12 @@ struct DeviceReduceThreadWise : public DeviceReduce<preUnaryOpType, posUnaryOpTy
 
         const auto invariantLen = dst1dDesc.GetLength(Number<0>{});
 
-        const auto dstPad = gridSize * dim0_tile_size - invariantLen;
+        const auto dstPad =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
 
         auto dst1dDesc_2 =
             transform_tensor_descriptor(dst1dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, dstPad)),
+                                        make_tuple(make_right_pad_transform(invariantLen, dstPad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
         return (dst1dDesc_2);
@@ -170,8 +170,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<preUnaryOpType, posUnaryOpTy
 
             dim1_lowest_length = inLengths[toReduceDims::At(toReduceDims::Size() - 1)];
 
-            gridSize = (dim0_total_length + (blockSize * dim0_thread_slice_size - 1)) /
-                       (blockSize * dim0_thread_slice_size);
+            gridSize =
+                math::integer_least_multiple(dim0_total_length, dim0_tile_size) / dim0_tile_size;
         }
 
         std::vector<int> inLengths_;
@@ -201,10 +201,10 @@ struct DeviceReduceThreadWise : public DeviceReduce<preUnaryOpType, posUnaryOpTy
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto src2dDesc = DeviceReduceThreadWise::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.gridSize);
-            const auto dst1dDesc = DeviceReduceThreadWise::MakeDst1dDescriptor(
-                arg.outLengths_, arg.outStrides_, arg.gridSize);
+            const auto src2dDesc =
+                DeviceReduceThreadWise::MakeSrc2dDescriptor(arg.inLengths_, arg.inStrides_);
+            const auto dst1dDesc =
+                DeviceReduceThreadWise::MakeDst1dDescriptor(arg.outLengths_, arg.outStrides_);
             using src2dDescType = decltype(src2dDesc);
             using dst1dDescType = decltype(dst1dDesc);
 

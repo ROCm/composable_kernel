@@ -57,7 +57,6 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
-                                    size_t gridSize,
                                     int blkGroupSize)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
@@ -99,17 +98,16 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
         const auto invariantLen = src2dDesc.GetLength(Number<0>{});
         const auto toReduceLen  = src2dDesc.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock =
-            (((toReduceLen + blkGroupSize - 1) / blkGroupSize + dim1_tile_size - 1) /
-             dim1_tile_size) *
-            dim1_tile_size;
-        const auto srcPad1 = gridSize / blkGroupSize * dim0_tile_size - invariantLen;
-        const auto srcPad2 = reduceSizePerBlock * blkGroupSize - toReduceLen;
+        const int reduceSizePerBlock = math::integer_least_multiple(
+            (toReduceLen + blkGroupSize - 1) / blkGroupSize, dim1_tile_size);
+        const auto srcPad0 =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
+        const auto srcPad1 = reduceSizePerBlock * blkGroupSize - toReduceLen;
 
         auto src2dDesc_2 =
             transform_tensor_descriptor(src2dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, srcPad1),
-                                                   make_pad_transform(toReduceLen, 0, srcPad2)),
+                                        make_tuple(make_right_pad_transform(invariantLen, srcPad0),
+                                                   make_right_pad_transform(toReduceLen, srcPad1)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -117,9 +115,7 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
     };
 
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
-                                    const std::vector<int>& outStrides,
-                                    size_t gridSize,
-                                    int blkGroupSize)
+                                    const std::vector<int>& outStrides)
     {
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
@@ -134,11 +130,12 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
 
         const auto invariantLen = dst1dDesc.GetLength(Number<0>{});
 
-        const auto dstPad = gridSize / blkGroupSize * dim0_tile_size - invariantLen;
+        const auto dstPad =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
 
         auto dst1dDesc_2 =
             transform_tensor_descriptor(dst1dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, dstPad)),
+                                        make_tuple(make_right_pad_transform(invariantLen, dstPad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
         return (dst1dDesc_2);
@@ -200,9 +197,10 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
             blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
                            (dim1_tile_size * iterations);
 
-            gridSize = (dim0_total_length + dim0_tile_size - 1) / dim0_tile_size * blkGroupSize;
+            gridSize = math::integer_least_multiple(dim0_total_length, dim0_tile_size) /
+                       dim0_tile_size * blkGroupSize;
 
-            gridSize_pre = (dim0_total_length + blockSize - 1) / blockSize;
+            gridSize_pre = math::integer_least_multiple(dim0_total_length, blockSize) / blockSize;
         }
 
         std::vector<int> inLengths_;
@@ -235,9 +233,9 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto src2dDesc = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.gridSize, arg.blkGroupSize);
+                arg.inLengths_, arg.inStrides_, arg.blkGroupSize);
             const auto dst1dDesc = DeviceReduceMultiBlockAtomicAdd::MakeDst1dDescriptor(
-                arg.outLengths_, arg.outStrides_, arg.gridSize, arg.blkGroupSize);
+                arg.outLengths_, arg.outStrides_);
             using src2dDescType = decltype(src2dDesc);
             using dst1dDescType = decltype(dst1dDesc);
 

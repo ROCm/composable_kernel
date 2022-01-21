@@ -49,8 +49,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<preUnaryOpType, pos
                          : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
-                                    const std::vector<int>& inStrides,
-                                    size_t gridSize)
+                                    const std::vector<int>& inStrides)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<2>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<2>{});
@@ -60,14 +59,15 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<preUnaryOpType, pos
         const auto invariantLen = src2dDesc.GetLength(Number<0>{});
         const auto toReduceLen  = src2dDesc.GetLength(Number<1>{});
 
-        const auto srcPad1 = gridSize * dim0_tile_size - invariantLen;
-        const auto srcPad2 =
-            ((toReduceLen + dim1_tile_size - 1) / dim1_tile_size) * dim1_tile_size - toReduceLen;
+        const auto srcPad0 =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
+        const auto srcPad1 =
+            math::integer_least_multiple(toReduceLen, dim1_tile_size) - toReduceLen;
 
         auto src2dDesc_2 =
             transform_tensor_descriptor(src2dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, srcPad1),
-                                                   make_pad_transform(toReduceLen, 0, srcPad2)),
+                                        make_tuple(make_right_pad_transform(invariantLen, srcPad0),
+                                                   make_right_pad_transform(toReduceLen, srcPad1)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -75,8 +75,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<preUnaryOpType, pos
     };
 
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
-                                    const std::vector<int>& outStrides,
-                                    size_t gridSize)
+                                    const std::vector<int>& outStrides)
     {
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
@@ -91,11 +90,12 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<preUnaryOpType, pos
 
         const auto invariantLen = dst1dDesc.GetLength(Number<0>{});
 
-        const auto dstPad = gridSize * dim0_tile_size - invariantLen;
+        const auto dstPad =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
 
         auto dst1dDesc_2 =
             transform_tensor_descriptor(dst1dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, dstPad)),
+                                        make_tuple(make_right_pad_transform(invariantLen, dstPad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
         return (dst1dDesc_2);
@@ -135,9 +135,7 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<preUnaryOpType, pos
             dim1_lowest_length = inLengths[1];
 
             gridSize =
-                (dim0_total_length + (dim0_thread_cluster_size * dim0_thread_slice_size - 1)) /
-                (dim0_thread_cluster_size * dim0_thread_slice_size) *
-                (dim0_thread_cluster_size * dim0_thread_slice_size);
+                math::integer_least_multiple(dim0_total_length, dim0_tile_size) / dim0_tile_size;
 
             size_t ws_buf2_bytes_offset =
                 ((dim0_total_length * dim1_total_length * sizeof(compType) + 63) / 64) * 64;
@@ -178,9 +176,9 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<preUnaryOpType, pos
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto src2dDesc = DeviceReduceBlockWiseSecondCall::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.gridSize);
+                arg.inLengths_, arg.inStrides_);
             const auto dst1dDesc = DeviceReduceBlockWiseSecondCall::MakeDst1dDescriptor(
-                arg.outLengths_, arg.outStrides_, arg.gridSize);
+                arg.outLengths_, arg.outStrides_);
             using src2dDescType = decltype(src2dDesc);
             using dst1dDescType = decltype(dst1dDesc);
 

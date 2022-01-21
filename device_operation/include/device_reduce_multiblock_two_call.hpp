@@ -84,7 +84,6 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<preUnaryOpType, posUn
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
-                                    size_t gridSize,
                                     int blkGroupSize)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
@@ -126,17 +125,16 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<preUnaryOpType, posUn
         const auto invariantLen = src2dDesc.GetLength(Number<0>{});
         const auto toReduceLen  = src2dDesc.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock =
-            (((toReduceLen + blkGroupSize - 1) / blkGroupSize + dim1_tile_size - 1) /
-             dim1_tile_size) *
-            dim1_tile_size;
-        const auto srcPad1 = gridSize / blkGroupSize * dim0_tile_size - invariantLen;
-        const auto srcPad2 = reduceSizePerBlock * blkGroupSize - toReduceLen;
+        const int reduceSizePerBlock = math::integer_least_multiple(
+            (toReduceLen + blkGroupSize - 1) / blkGroupSize, dim1_tile_size);
+        const auto srcPad0 =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
+        const auto srcPad1 = reduceSizePerBlock * blkGroupSize - toReduceLen;
 
         auto src2dDesc_2 =
             transform_tensor_descriptor(src2dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, srcPad1),
-                                                   make_pad_transform(toReduceLen, 0, srcPad2)),
+                                        make_tuple(make_right_pad_transform(invariantLen, srcPad0),
+                                                   make_right_pad_transform(toReduceLen, srcPad1)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -147,7 +145,17 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<preUnaryOpType, posUn
     {
         auto ws2dDesc = make_naive_tensor_descriptor_packed(make_tuple(invariantLen, blkGroupSize));
 
-        return (ws2dDesc);
+        const auto wsPad =
+            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
+
+        auto ws2dDesc_2 =
+            transform_tensor_descriptor(ws2dDesc,
+                                        make_tuple(make_right_pad_transform(invariantLen, wsPad),
+                                                   make_pass_through_transform(blkGroupSize)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return (ws2dDesc_2);
     };
 
     struct Argument : public BaseArgument
@@ -206,7 +214,8 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<preUnaryOpType, posUn
             blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
                            (dim1_tile_size * iterations);
 
-            gridSize = (dim0_total_length + dim0_tile_size - 1) / dim0_tile_size * blkGroupSize;
+            gridSize = math::integer_least_multiple(dim0_total_length, dim0_tile_size) /
+                       dim0_tile_size * blkGroupSize;
 
             size_t ws_buf2_bytes_offset =
                 ((dim0_total_length * blkGroupSize * sizeof(compType) + 63) / 64) * 64;
@@ -249,7 +258,7 @@ struct DeviceReduceMultiBlockTwoCall : public DeviceReduce<preUnaryOpType, posUn
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto src2dDesc = DeviceReduceMultiBlockTwoCall::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.gridSize, arg.blkGroupSize);
+                arg.inLengths_, arg.inStrides_, arg.blkGroupSize);
             const auto ws2dDesc = DeviceReduceMultiBlockTwoCall::MakeWorkspace2dDescriptor(
                 arg.dim0_total_length, arg.blkGroupSize);
             using src2dDescType = decltype(src2dDesc);
