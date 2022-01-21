@@ -17,43 +17,44 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ADataType,
-          typename BDataType,
-          typename CDataType,
-          typename AccDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          ck::index_t BlockSize,
-          ck::index_t MPerBlock,
-          ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
-          ck::index_t K1,
-          ck::index_t MPerXDL,
-          ck::index_t NPerXDL,
-          ck::index_t MXdlPerWave,
-          ck::index_t NXdlPerWave,
-          typename ABlockTransferThreadClusterLengths_K0_M_K1,
-          typename ABlockTransferThreadClusterArrangeOrder,
-          typename ABlockTransferSrcAccessOrder,
-          ck::index_t ABlockTransferSrcVectorDim,
-          ck::index_t ABlockTransferSrcScalarPerVector,
-          ck::index_t ABlockTransferDstScalarPerVector_K1,
-          bool ABlockLdsAddExtraM,
-          typename BBlockTransferThreadClusterLengths_K0_N_K1,
-          typename BBlockTransferThreadClusterArrangeOrder,
-          typename BBlockTransferSrcAccessOrder,
-          ck::index_t BBlockTransferSrcVectorDim,
-          ck::index_t BBlockTransferSrcScalarPerVector,
-          ck::index_t BBlockTransferDstScalarPerVector_K1,
-          bool BBlockLdsAddExtraN,
-          index_t CShuffleMXdlPerWavePerShuffle,
-          index_t CShuffleNXdlPerWavePerShuffle,
-          typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-          index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
+template <
+    typename ADataType,
+    typename BDataType,
+    typename CDataType,
+    typename AccDataType,
+    typename ALayout,
+    typename BLayout,
+    typename CLayout,
+    typename AElementwiseOperation,
+    typename BElementwiseOperation,
+    typename CElementwiseOperation,
+    ck::index_t BlockSize,
+    ck::index_t MPerBlock,
+    ck::index_t NPerBlock,
+    ck::index_t K0PerBlock,
+    ck::index_t K1,
+    ck::index_t MPerXDL,
+    ck::index_t NPerXDL,
+    ck::index_t MXdlPerWave,
+    ck::index_t NXdlPerWave,
+    typename ABlockTransferThreadClusterLengths_K0_M_K1,
+    typename ABlockTransferThreadClusterArrangeOrder,
+    typename ABlockTransferSrcAccessOrder,
+    ck::index_t ABlockTransferSrcVectorDim,
+    ck::index_t ABlockTransferSrcScalarPerVector,
+    ck::index_t ABlockTransferDstScalarPerVector_K1,
+    bool ABlockLdsAddExtraM,
+    typename BBlockTransferThreadClusterLengths_K0_N_K1,
+    typename BBlockTransferThreadClusterArrangeOrder,
+    typename BBlockTransferSrcAccessOrder,
+    ck::index_t BBlockTransferSrcVectorDim,
+    ck::index_t BBlockTransferSrcScalarPerVector,
+    ck::index_t BBlockTransferDstScalarPerVector_K1,
+    bool BBlockLdsAddExtraN,
+    index_t CShuffleMXdlPerWavePerShuffle,
+    index_t CShuffleNXdlPerWavePerShuffle,
+    typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
+    index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
 struct DeviceGemmShuffleXdl
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -175,7 +176,6 @@ struct DeviceGemmShuffleXdl
         CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
         CBlockTransferScalarPerVector_NWaveNPerXdl>;
 
-
     // Argument
     struct Argument : public BaseArgument
     {
@@ -215,8 +215,9 @@ struct DeviceGemmShuffleXdl
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
             {
                 c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
-                        c_grid_desc_m_n_);
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                            c_grid_desc_m_n_);
 
                 block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
@@ -295,21 +296,22 @@ struct DeviceGemmShuffleXdl
                     remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     true>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    kernel,
+                    nrepeat,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.a_grid_desc_k0_m_k1_,
+                    arg.b_grid_desc_k0_n_k1_,
+                    arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_,
+                    arg.block_2_ctile_map_);
             }
             else
             {
@@ -328,21 +330,22 @@ struct DeviceGemmShuffleXdl
                     remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    kernel,
+                    nrepeat,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.a_grid_desc_k0_m_k1_,
+                    arg.b_grid_desc_k0_n_k1_,
+                    arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_,
+                    arg.block_2_ctile_map_);
             }
 
             return ave_time;
@@ -354,7 +357,6 @@ struct DeviceGemmShuffleXdl
             return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
         }
     };
-
 
     static constexpr bool IsValidCompilationParameter()
     {
@@ -437,7 +439,6 @@ struct DeviceGemmShuffleXdl
                                           b_element_op,
                                           c_element_op);
     }
-
 
     // polymorphic
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
