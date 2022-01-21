@@ -488,4 +488,3 @@ __global__ void naive_conv_fwd_ndhwc(const TIn* __restrict__ p_in,
         p_out[ii] = static_cast<TOut>(value);
     }
 }
-

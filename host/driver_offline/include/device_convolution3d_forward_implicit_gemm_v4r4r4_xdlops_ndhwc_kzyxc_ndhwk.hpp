@@ -459,15 +459,16 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
         }
     }
 #elif _jfy_ver_ == 1
-    const auto descs = transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
-        in_n_di_hi_wi_c_desc,
-        wei_k_z_y_x_c_desc,
-        out_n_do_ho_wo_k_desc,
-        conv_strides,
-        conv_dilations,
-        in_left_pads,
-        in_right_pads,
-        Number<GemmK1>{});
+    const auto descs =
+        transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
+            in_n_di_hi_wi_c_desc,
+            wei_k_z_y_x_c_desc,
+            out_n_do_ho_wo_k_desc,
+            conv_strides,
+            conv_dilations,
+            in_left_pads,
+            in_right_pads,
+            Number<GemmK1>{});
 
     const auto in_b_gemmk0_gemmm_gemmk1_grid_desc = descs[I0];
     const auto wei_gemmk0_gemmn_gemmk1_grid_desc  = descs[I1];
@@ -539,7 +540,7 @@ void device_convolution3d_forward_implicit_gemm_v4r4r4_xdlops_ndhwc_kzyxc_ndhwk(
     const auto Wo = out_n_do_ho_wo_k_lengths[I3];
     const auto K  = out_n_do_ho_wo_k_lengths[I4];
 
-    const auto N                 = out_n_do_ho_wo_k_lengths[I0];
+    const auto N = out_n_do_ho_wo_k_lengths[I0];
 
     for(index_t i = 0; i < 5; ++i)
     {

@@ -40,39 +40,39 @@ static constexpr auto ConvFwdDefault =
 
 using DeviceConv3dFwdInstance = ck::tensor_operation::device::
     DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K<
-        InDataType,       // InData
-        WeiDataType,      // WeiData
-        OutDataType,      // OutData
-        AccDataType,      // AccData
-        InElementOp,  // InElementwise Operation
-        WeiElementOp, // WeiElementwise Operation
-        OutElementOp, // OutElementwise Operation
-        ConvFwdDefault,   // ConvForwardSpecialization
-        256,              // BlockSize
-        128,              // MPerBlock
-        256,              // NPerBlock
-        4,                // K0PerBlock
-        8,                // K1. K0PerBlock * K1 = KPerBlock
-        32,               // MPerXDL
-        32,               // NPerXDL. Each XDL computes a matrix of size (MPerXDL, NPerBlock)
-        2,                // MXdlPerWave
-        4,                // NXdlPerWave
-        S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
-        2,                // ABlockTransferSrcVectorDim
-        8,                // ABlockTransferSrcScalarPerVector
-        8,                // ABlockTransferDstScalarPerVector_K1
-        true,             // ABlockLdsAddExtraM
-        S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
-        2,                // BBlockTransferSrcVectorDim
-        8,                // BBlockTransferSrcScalarPerVector
-        8,                // BBlockTransferDstScalarPerVector_K1
-        true,             // BBlockLdsAddExtraN
-        7,                // CThreadTransferSrcDstVectorDim
-        1>;               // CThreadTransferDstScalarPerVector
+        InDataType,     // InData
+        WeiDataType,    // WeiData
+        OutDataType,    // OutData
+        AccDataType,    // AccData
+        InElementOp,    // InElementwise Operation
+        WeiElementOp,   // WeiElementwise Operation
+        OutElementOp,   // OutElementwise Operation
+        ConvFwdDefault, // ConvForwardSpecialization
+        256,            // BlockSize
+        128,            // MPerBlock
+        256,            // NPerBlock
+        4,              // K0PerBlock
+        8,              // K1. K0PerBlock * K1 = KPerBlock
+        32,             // MPerXDL
+        32,             // NPerXDL. Each XDL computes a matrix of size (MPerXDL, NPerBlock)
+        2,              // MXdlPerWave
+        4,              // NXdlPerWave
+        S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
+        2,              // ABlockTransferSrcVectorDim
+        8,              // ABlockTransferSrcScalarPerVector
+        8,              // ABlockTransferDstScalarPerVector_K1
+        true,           // ABlockLdsAddExtraM
+        S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,     // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // BBlockTransferSrcAccessOrder
+        2,              // BBlockTransferSrcVectorDim
+        8,              // BBlockTransferSrcScalarPerVector
+        8,              // BBlockTransferDstScalarPerVector_K1
+        true,           // BBlockLdsAddExtraN
+        7,              // CThreadTransferSrcDstVectorDim
+        1>;             // CThreadTransferDstScalarPerVector
 
 int main(int argc, char* argv[])
 {
@@ -271,4 +271,3 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-

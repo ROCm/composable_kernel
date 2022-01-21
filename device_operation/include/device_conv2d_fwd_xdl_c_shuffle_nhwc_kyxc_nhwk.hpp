@@ -102,8 +102,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                                                                         conv_filter_dilations,
                                                                         input_left_pads,
                                                                         input_right_pads);
-        const index_t Ho = output_spatial_lengths[0];
-        const index_t Wo = output_spatial_lengths[1];
+        const index_t Ho                  = output_spatial_lengths[0];
+        const index_t Wo                  = output_spatial_lengths[1];
 
         const index_t Y = filter_spatial_lengths[0];
         const index_t X = filter_spatial_lengths[1];

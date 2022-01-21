@@ -90,7 +90,6 @@ struct DeviceConvFwd : public BaseOperator
             return {};
         }
     }
-
 };
 
 template <typename InElementwiseOperation,

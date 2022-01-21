@@ -101,6 +101,6 @@ __global__ void naive_conv_fwd_ndhwc(const TIn* __restrict__ p_in,
     }
 }
 } // namespace ref
-} // ck
+} // namespace ck
 
 #endif
