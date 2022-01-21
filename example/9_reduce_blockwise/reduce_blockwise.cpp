@@ -25,8 +25,9 @@ using compType = float;
 constexpr int rank  = 4;
 using toReduceDims_ = ck::Sequence<0, 1, 2>;
 
-constexpr ReduceTensorOp_t reduceOp        = ReduceTensorOp_t::AVG;
-constexpr NanPropagation_t nanOpt          = NanPropagation_t::NOT_PROPAGATE_NAN;
+constexpr ReduceTensorOp_t reduceOp = ReduceTensorOp_t::AVG;
+constexpr NanPropagation_t nanOpt   = NanPropagation_t::NOT_PROPAGATE_NAN;
+constexpr bool propagate_nan = (nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
 constexpr ReduceTensorIndices_t indicesOpt = ReduceTensorIndices_t::NO_INDICES;
 
 using opReduce       = typename reduce_binary_operator<compType, reduceOp>::opType;
@@ -41,7 +42,7 @@ using DeviceReduceInstance = DeviceReduceBlockWise<inType,
                                                    opReduce,
                                                    preUnaryOpType,
                                                    posUnaryOpType,
-                                                   nanOpt,
+                                                   propagate_nan,
                                                    false,
                                                    256,
                                                    4,
@@ -397,7 +398,8 @@ int main(int argc, char* argv[])
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name << std::endl;
+    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
+              << std::endl;
 
     if(args.do_verification)
     {

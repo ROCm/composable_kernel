@@ -82,7 +82,7 @@ template <typename srcDataType,
           typename opReduce,
           typename preUnaryOpType,
           typename posUnaryOpType,
-          NanPropagation_t nanPropaOpt,
+          bool propagate_nan,
           index_t BlockSize,
           index_t dim0_thread_cluster_size,
           index_t dim1_thread_cluster_size,
@@ -97,7 +97,7 @@ struct GridwiseReduction_xy_to_x_threadwise
 
     static constexpr auto I0 = Number<0>{};
 
-    using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
+    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
 
     __device__ static void Run(const src2dDescType& src2dDesc,
                                const dst1dDescType& dst1dDesc,

@@ -69,7 +69,7 @@ template <typename srcDataType,
           typename opReduce,
           typename preUnaryOpType,
           typename posUnaryOpType,
-          NanPropagation_t nanPropaOpt,
+          bool propagate_nan,
           index_t BlockSize,
           index_t dim0_thread_cluster_size,
           index_t dim1_thread_cluster_size,
@@ -90,7 +90,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                                                            dim1_thread_cluster_size,
                                                                            reorder_thread_cluster,
                                                                            opReduce,
-                                                                           nanPropaOpt>;
+                                                                           propagate_nan>;
 
     template <typename T>
     using PassThroughOp = reduce::unary_identic<T, false>;
@@ -100,7 +100,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
     static constexpr index_t dim0_BlockTileSize = dim0_thread_cluster_size * dim0_thread_slice_size;
     static constexpr index_t dim1_BlockTileSize = dim1_thread_cluster_size * dim1_thread_slice_size;
 
-    using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
+    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
 
     __device__ static void Run(const src2dDescType& src2dDesc,
                                const dst1dDescType& dst1dDesc,

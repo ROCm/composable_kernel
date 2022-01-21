@@ -34,6 +34,8 @@ void add_device_reduce_instance_threadwise(
          reduceOp == ReduceTensorOp_t::AMAX);
     constexpr bool need_indices = is_indexable && (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
+    constexpr bool propagate_nan = (nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
+
     using cfg1 = ReductionConfiguration_1<256, 256, 1>;
 
     static_for<0, std::tuple_size<reduce_configuration_2_instances>::value, 1>{}([&](auto j) {
@@ -48,7 +50,7 @@ void add_device_reduce_instance_threadwise(
                                                         opReduce,
                                                         preUnaryOpType,
                                                         posUnaryOpType,
-                                                        nanOpt,
+                                                        propagate_nan,
                                                         need_indices,
                                                         cfg1::blockSize_,
                                                         cfg1::dim0_thread_cluster_size_,

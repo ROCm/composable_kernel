@@ -34,6 +34,8 @@ void add_device_reduce_instance_multiblock_atomic_add(
          reduceOp == ReduceTensorOp_t::AMAX);
     constexpr bool need_indices = is_indexable && (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
+    constexpr bool propagate_nan = (nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
+
     static_assert(indicesOpt == ReduceTensorIndices_t::NO_INDICES,
                   "AtomicAdd can only be used with reduction operations without indices!");
 
@@ -66,7 +68,7 @@ void add_device_reduce_instance_multiblock_atomic_add(
                                                         opReduce,
                                                         preUnaryOpType,
                                                         posUnaryOpType,
-                                                        nanOpt,
+                                                        propagate_nan,
                                                         need_indices,
                                                         cfg1::blockSize_,
                                                         cfg1::dim0_thread_cluster_size_,

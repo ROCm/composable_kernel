@@ -36,11 +36,11 @@ namespace detail {
 
 static inline __device__ bool isnan(half_t x) { return __hisnan(x); };
 
-template <NanPropagation_t nanPropaOpt, typename opReduce, typename compType>
+template <bool propagate_nan, typename opReduce, typename compType>
 struct binop_with_nan_check;
 
 template <typename opReduce, typename compType>
-struct binop_with_nan_check<NanPropagation_t::NOT_PROPAGATE_NAN, opReduce, compType>
+struct binop_with_nan_check<false, opReduce, compType>
 {
     // cppcheck-suppress constParameter
     __device__ static inline void calculate(compType& accuVal, compType currVal)
@@ -63,7 +63,7 @@ struct binop_with_nan_check<NanPropagation_t::NOT_PROPAGATE_NAN, opReduce, compT
 };
 
 template <typename opReduce, typename compType>
-struct binop_with_nan_check<NanPropagation_t::PROPAGATE_NAN, opReduce, compType>
+struct binop_with_nan_check<true, opReduce, compType>
 {
     __device__ static inline void calculate(compType& accuVal, compType currVal)
     {

@@ -60,9 +60,9 @@ struct Add
 {
     using dataType = T;
 
-    __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
+    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
 
-    __device__ inline constexpr void operator()(T& a, T b) const { a = a + b; }
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const { a = a + b; }
 };
 
 template <class T>
@@ -70,9 +70,9 @@ struct Mul
 {
     using dataType = T;
 
-    __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(1.0f); };
+    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(1.0f); };
 
-    __device__ inline constexpr void operator()(T& a, T b) const { a = a * b; }
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const { a = a * b; }
 };
 
 template <class T>
@@ -80,15 +80,18 @@ struct Max
 {
     using dataType = T;
 
-    __device__ static constexpr T GetReductionZeroVal() { return NumericLimits<T>::Lowest(); };
+    __host__ __device__ static constexpr T GetReductionZeroVal()
+    {
+        return NumericLimits<T>::Lowest();
+    };
 
-    __device__ inline constexpr void operator()(T& a, T b) const
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         if(a < b)
             a = b;
     }
 
-    __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
+    __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         if(a < b)
         {
@@ -103,15 +106,18 @@ struct Min
 {
     using dataType = T;
 
-    __device__ static constexpr T GetReductionZeroVal() { return NumericLimits<T>::Max(); };
+    __host__ __device__ static constexpr T GetReductionZeroVal()
+    {
+        return NumericLimits<T>::Max();
+    };
 
-    __device__ inline constexpr void operator()(T& a, T b) const
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         if(a > b)
             a = b;
     }
 
-    __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
+    __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         if(a > b)
         {
@@ -126,15 +132,15 @@ struct AMax
 {
     using dataType = T;
 
-    __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
+    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
 
-    __device__ inline constexpr void operator()(T& a, T b) const
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         if(a < b)
             a = b;
     }
 
-    __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
+    __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         if(a < b)
         {

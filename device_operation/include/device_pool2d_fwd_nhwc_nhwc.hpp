@@ -199,23 +199,22 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
             constexpr int vectorSize =
                 math::gcd(ReduceMPerThread, max_vector_size_for_type<InDataType>());
 
-            using gridwise_reduce =
-                GridwiseReduction_xy_to_x_threadwise<InDataType,
-                                                     OutDataType,
-                                                     AccDataType,
-                                                     AGridDesc_M_K,
-                                                     BGridDesc_M,
-                                                     opReduce,
-                                                     preUnaryOpType,
-                                                     posUnaryOpType,
-                                                     NanPropagation_t::NOT_PROPAGATE_NAN,
-                                                     BlockSize,
-                                                     ThreadPerBlock_ReduceM,
-                                                     ThreadPerBlock_ReduceK,
-                                                     ReduceMPerThread,
-                                                     ReduceKPerThread,
-                                                     0,
-                                                     vectorSize>;
+            using gridwise_reduce = GridwiseReduction_xy_to_x_threadwise<InDataType,
+                                                                         OutDataType,
+                                                                         AccDataType,
+                                                                         AGridDesc_M_K,
+                                                                         BGridDesc_M,
+                                                                         opReduce,
+                                                                         preUnaryOpType,
+                                                                         posUnaryOpType,
+                                                                         false, // propagate_nan
+                                                                         BlockSize,
+                                                                         ThreadPerBlock_ReduceM,
+                                                                         ThreadPerBlock_ReduceK,
+                                                                         ReduceMPerThread,
+                                                                         ReduceKPerThread,
+                                                                         0,
+                                                                         vectorSize>;
 
             const auto kernel = kernel_reduce_threadwise<gridwise_reduce,
                                                          need_indices,
