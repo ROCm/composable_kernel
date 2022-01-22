@@ -95,7 +95,8 @@ using device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_bf16_instances = std::tuple
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
-    add_device_operation_instances(instances, device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances{});
+    add_device_operation_instances(instances,
+                                   device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances{});
     add_device_operation_instances(instances,
                                    device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_p0_bf16_instances{});
     add_device_operation_instances(instances,
