@@ -30,43 +30,14 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
+// clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
-    DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<int8_t,
-                                                                       int8_t,
-                                                                       int8_t,
-                                                                       int32_t,
-                                                                       InElementOp,
-                                                                       WeiElementOp,
-                                                                       OutElementOp,
-                                                                       ConvFwdDefault,
-                                                                       256,
-                                                                       128,
-                                                                       128,
-                                                                       4,
-                                                                       8,
-                                                                       32,
-                                                                       32,
-                                                                       2,
-                                                                       2,
-                                                                       S<4, 64, 1>,
-                                                                       S<1, 0, 2>,
-                                                                       S<1, 0, 2>,
-                                                                       2,
-                                                                       8,
-                                                                       8,
-                                                                       true,
-                                                                       S<4, 64, 1>,
-                                                                       S<1, 0, 2>,
-                                                                       S<1, 0, 2>,
-                                                                       2,
-                                                                       8,
-                                                                       8,
-                                                                       true,
-                                                                       7,
-                                                                       1>;
+    DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<  int8_t,  int8_t,  int8_t,     int32_t, PassThrough, PassThrough, PassThrough, ConvFwdDefault,   128,   128,   128,     4,  16,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              16,              16,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              16,              16,      true,               7,               1>;
 // clang-format on
 
 template <typename TIn,
