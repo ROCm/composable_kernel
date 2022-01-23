@@ -58,7 +58,6 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     2,                      // ABlockTransferSrcVectorDim
     8,                      // ABlockTransferSrcScalarPerVector
     8,                      // ABlockTransferDstScalarPerVector_K1
-    false,                  // AThreadTransferSrcResetCoordinateAfterRun,
     true,                   // ABlockLdsAddExtraM
     S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
     S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
@@ -66,7 +65,6 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     2,                      // BBlockTransferSrcVectorDim
     8,                      // BBlockTransferSrcScalarPerVector
     8,                      // BBlockTransferDstScalarPerVector_K1
-    false,                  // BThreadTransferSrcResetCoordinateAfterRun,
     true,                   // BBlockLdsAddExtraN
     1,                      // CShuffleMXdlPerWavePerShuffle
     1,                      // CShuffleNXdlPerWavePerShuffle
