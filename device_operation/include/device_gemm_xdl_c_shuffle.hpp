@@ -317,7 +317,7 @@ struct DeviceGemmXdl_C_Shuffle
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v3r1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
