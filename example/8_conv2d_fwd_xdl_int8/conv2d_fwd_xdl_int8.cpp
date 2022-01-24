@@ -202,12 +202,12 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-1, 1});
+        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-1, 1});
         break;
     default:
-        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0, 1});
+        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-1, 1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
