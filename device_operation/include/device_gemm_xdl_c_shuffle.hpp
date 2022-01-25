@@ -156,20 +156,20 @@ struct DeviceGemmXdl_C_Shuffle
         MXdlPerWave,
         NXdlPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
-        Sequence<1, 0, 2>, // ABlockTransferThreadClusterArrangeOrder,
-        Sequence<1, 0, 2>, // ABlockTransferSrcAccessOrder,
-        2,                 // ABlockTransferSrcVectorDim,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
-        false, // AThreadTransferSrcResetCoordinateAfterRun,
+        false,
         ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
-        Sequence<1, 0, 2>, // BBlockTransferThreadClusterArrangeOrder,
-        Sequence<1, 0, 2>, // BBlockTransferSrcAccessOrder,
-        2,                 // BBlockTransferSrcVectorDim,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
-        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        false,
         BBlockLdsAddExtraN,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
@@ -317,7 +317,7 @@ struct DeviceGemmXdl_C_Shuffle
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v3r1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
