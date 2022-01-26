@@ -2,6 +2,7 @@
 #include "device_reduce.hpp"
 #include "device_reduce_instance.hpp"
 #include "reduction_enums.hpp"
+#include "host_generic_reduction.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -163,6 +164,19 @@ static void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
     {
         std::cout << "Could not open file " << fileName << " for writing" << std::endl;
     }
+};
+
+// map the data type used by the GPU kernels to the corresponding type used by the host codes
+template <typename inDataType>
+struct type_mapping
+{
+    using outDataType = inDataType;
+};
+
+template <>
+struct type_mapping<ck::half_t>
+{
+    using outDataType = half_float::half;
 };
 
 template <typename inType,
@@ -361,11 +375,18 @@ void profile_reduce_impl(bool do_verification,
 
     if(do_verification)
     {
-        ReductionHost<inType, compType, outType> hostReduce(
+        using hInType   = typename type_mapping<inType>::outDataType;
+        using hOutType  = typename type_mapping<outType>::outDataType;
+        using hCompType = typename type_mapping<compType>::outDataType;
+
+        ReductionHost<hInType, hCompType, hOutType> hostReduce(
             reduceOp, nanOpt, indicesOpt, in.mDesc, out_ref.mDesc, invariantDims, toReduceDims);
 
-        hostReduce.Run(
-            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
+        hostReduce.Run(alpha,
+                       reinterpret_cast<const hInType*>(in.mData.data()),
+                       beta,
+                       reinterpret_cast<hOutType*>(out_ref.mData.data()),
+                       out_indices_ref.mData.data());
     };
 
     const auto i_inLengths  = to_int_vector(inLengths);

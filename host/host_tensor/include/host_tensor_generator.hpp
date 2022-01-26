@@ -60,7 +60,7 @@ struct GeneratorTensor_2
     template <typename... Is>
     T operator()(Is...)
     {
-        return (std::rand() % (max_value - min_value)) + min_value;
+        return static_cast<T>((std::rand() % (max_value - min_value)) + min_value);
     }
 };
 
@@ -102,7 +102,7 @@ struct GeneratorTensor_3
     {
         float tmp = float(std::rand()) / float(RAND_MAX);
 
-        return min_value + tmp * (max_value - min_value);
+        return static_cast<T>(min_value + tmp * (max_value - min_value));
     }
 };
 

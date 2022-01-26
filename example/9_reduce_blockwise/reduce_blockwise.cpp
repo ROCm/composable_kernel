@@ -3,6 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <getopt.h>
+#include <half.hpp>
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -18,15 +19,19 @@
 using namespace ck;
 using namespace ck::tensor_operation::device;
 
-using inType   = ck::half_t;
-using outType  = ck::half_t;
+using inType   = half_float::half;
+using outType  = half_float::half;
 using compType = float;
+
+using kInType   = ck::half_t;
+using kOutType  = ck::half_t;
+using kCompType = float;
 
 constexpr int rank  = 4;
 using toReduceDims_ = ck::Sequence<0, 1, 2>;
 
 constexpr ReduceTensorOp_t reduceOp = ReduceTensorOp_t::AVG;
-constexpr NanPropagation_t nanOpt   = NanPropagation_t::NOT_PROPAGATE_NAN;
+constexpr NanPropagation_t nanOpt   = NanPropagation_t::PROPAGATE_NAN;
 constexpr bool propagate_nan = (nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
 constexpr ReduceTensorIndices_t indicesOpt = ReduceTensorIndices_t::NO_INDICES;
 
@@ -34,9 +39,9 @@ using opReduce       = typename reduce_binary_operator<compType, reduceOp>::opTy
 using preUnaryOpType = typename reduce_unary_operator<compType, reduceOp, true, true>::preUnaryOp;
 using posUnaryOpType = typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp;
 
-using DeviceReduceInstance = DeviceReduceBlockWise<inType,
-                                                   compType,
-                                                   outType,
+using DeviceReduceInstance = DeviceReduceBlockWise<kInType,
+                                                   kCompType,
+                                                   kOutType,
                                                    rank,
                                                    toReduceDims_,
                                                    opReduce,

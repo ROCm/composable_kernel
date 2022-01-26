@@ -8,14 +8,11 @@
 #include <sstream>
 #include <getopt.h>
 
-#include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
-#include "host_generic_reduction.hpp"
-
 #include "reduction_enums.hpp"
 
 #include "profile_reduce.hpp"
