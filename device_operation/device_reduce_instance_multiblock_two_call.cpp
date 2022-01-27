@@ -7,34 +7,36 @@ namespace tensor_operation {
 namespace device {
 namespace device_reduce_instance {
 
-template <typename compType, ReduceTensorOp_t reduceOp>
-using deviceReducePtrType =
-    DeviceReducePtr<typename reduce_unary_operator<compType, reduceOp, true, false>::preUnaryOp,
-                    typename reduce_unary_operator<compType, reduceOp, true, false>::posUnaryOp>;
+template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
+using deviceReducePtrType = DeviceReducePtr<
+    typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::InElementwiseOperation,
+    typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::AccElementwiseOperation>;
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename toReduceDims,
-          ReduceTensorOp_t reduceOp,
-          NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt>
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          int Rank,
+          typename InnerDims,
+          ReduceTensorOp_t ReduceOpId,
+          NanPropagation_t NanOpt,
+          ReduceTensorIndices_t IndicesOpt>
 void add_device_reduce_instance_multiblock_two_call(
-    std::vector<deviceReducePtrType<compType, reduceOp>>& device_op_instances)
+    std::vector<deviceReducePtrType<AccDataType, ReduceOpId>>& device_op_instances)
 {
-    using opReduce = typename reduce_binary_operator<compType, reduceOp>::opType;
-    using preUnaryOpType =
-        typename reduce_unary_operator<compType, reduceOp, true, false>::preUnaryOp;
-    using posUnaryOpType =
-        typename reduce_unary_operator<compType, reduceOp, true, false>::posUnaryOp;
+    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using InElementwiseOperation =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::
+            InElementwiseOperation;
+    using AccElementwiseOperation =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::
+            AccElementwiseOperation;
 
-    constexpr bool is_indexable =
-        (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX);
-    constexpr bool need_indices = is_indexable && (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
+    constexpr bool Indexable =
+        (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||
+         ReduceOpId == ReduceTensorOp_t::AMAX);
+    constexpr bool NeedIndices = Indexable && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
-    constexpr bool propagate_nan = (nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
+    constexpr bool PropagateNan = (NanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
 
     static_for<0, std::tuple_size<reduce_configuration_1_instances>::value, 1>{}([&](auto i) {
         using cfg1 =
@@ -44,16 +46,16 @@ void add_device_reduce_instance_multiblock_two_call(
             using cfg2 =
                 remove_cvref_t<decltype(std::get<j.value>(reduce_configuration_2_instances{}))>;
 
-            using ReduceOpInstance = DeviceReduceMultiBlockTwoCall<inType,
-                                                                   compType,
-                                                                   outType,
-                                                                   rank,
-                                                                   toReduceDims,
-                                                                   opReduce,
-                                                                   preUnaryOpType,
-                                                                   posUnaryOpType,
-                                                                   propagate_nan,
-                                                                   need_indices,
+            using ReduceOpInstance = DeviceReduceMultiBlockTwoCall<InDataType,
+                                                                   AccDataType,
+                                                                   OutDataType,
+                                                                   Rank,
+                                                                   InnerDims,
+                                                                   ReduceOperation,
+                                                                   InElementwiseOperation,
+                                                                   AccElementwiseOperation,
+                                                                   PropagateNan,
+                                                                   NeedIndices,
                                                                    cfg1::blockSize_,
                                                                    cfg1::dim0_thread_cluster_size_,
                                                                    cfg1::dim1_thread_cluster_size_,
@@ -67,26 +69,26 @@ void add_device_reduce_instance_multiblock_two_call(
 };
 
 #define ADD_MULTIBLOCK_TWO_CALL_INST_BY_TYPE(                                           \
-    inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...)                          \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                        \
     template void add_device_reduce_instance_multiblock_two_call<inT,                   \
                                                                  compT,                 \
                                                                  outT,                  \
-                                                                 rank,                  \
+                                                                 Rank,                  \
                                                                  Sequence<__VA_ARGS__>, \
-                                                                 reduceOp,              \
-                                                                 nanOpt,                \
-                                                                 indicesOpt>(           \
-        std::vector<deviceReducePtrType<compT, reduceOp>> & device_op_instances)
+                                                                 ReduceOpId,            \
+                                                                 NanOpt,                \
+                                                                 IndicesOpt>(           \
+        std::vector<deviceReducePtrType<compT, ReduceOpId>> & device_op_instances)
 
 #define ADD_MULTIBLOCK_TWO_CALL_INST_BY_ID(                                              \
-    inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...)                           \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                         \
     ADD_MULTIBLOCK_TWO_CALL_INST_BY_TYPE(inT,                                            \
                                          compT,                                          \
                                          outT,                                           \
-                                         static_cast<ReduceTensorOp_t>(reduceOp),        \
-                                         static_cast<NanPropagation_t>(nanOpt),          \
-                                         static_cast<ReduceTensorIndices_t>(indicesOpt), \
-                                         rank,                                           \
+                                         static_cast<ReduceTensorOp_t>(ReduceOpId),      \
+                                         static_cast<NanPropagation_t>(NanOpt),          \
+                                         static_cast<ReduceTensorIndices_t>(IndicesOpt), \
+                                         Rank,                                           \
                                          __VA_ARGS__)
 
 // half, half, half

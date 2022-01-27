@@ -366,50 +366,50 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::NORM2>
 template <typename T, ReduceTensorOp_t op, bool isFirsReduce, bool isLastReduce>
 struct reduce_unary_operator
 {
-    using preUnaryOp = reduce::unary_identic<T, false>;
-    using posUnaryOp = reduce::unary_identic<T, false>;
+    using InElementwiseOperation  = reduce::unary_identic<T, false>;
+    using AccElementwiseOperation = reduce::unary_identic<T, false>;
 };
 
 template <typename T, bool isFirstReduce>
 struct reduce_unary_operator<T, ReduceTensorOp_t::AVG, isFirstReduce, true>
 {
-    using preUnaryOp = reduce::unary_identic<T, false>;
-    using posUnaryOp = reduce::unary_identic<T, true>;
+    using InElementwiseOperation  = reduce::unary_identic<T, false>;
+    using AccElementwiseOperation = reduce::unary_identic<T, true>;
 };
 
 template <typename T, bool isLastReduce>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM1, true, isLastReduce>
 {
-    using preUnaryOp = reduce::unary_abs<T, false>;
-    using posUnaryOp = reduce::unary_identic<T, false>;
+    using InElementwiseOperation  = reduce::unary_abs<T, false>;
+    using AccElementwiseOperation = reduce::unary_identic<T, false>;
 };
 
 template <typename T, bool isLastReduce>
 struct reduce_unary_operator<T, ReduceTensorOp_t::AMAX, true, isLastReduce>
 {
-    using preUnaryOp = reduce::unary_abs<T, false>;
-    using posUnaryOp = reduce::unary_identic<T, false>;
+    using InElementwiseOperation  = reduce::unary_abs<T, false>;
+    using AccElementwiseOperation = reduce::unary_identic<T, false>;
 };
 
 template <typename T>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, true, false>
 {
-    using preUnaryOp = reduce::unary_square<T, false>;
-    using posUnaryOp = reduce::unary_identic<T, false>;
+    using InElementwiseOperation  = reduce::unary_square<T, false>;
+    using AccElementwiseOperation = reduce::unary_identic<T, false>;
 };
 
 template <typename T>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, true, true>
 {
-    using preUnaryOp = reduce::unary_square<T, false>;
-    using posUnaryOp = reduce::unary_sqrt<T>;
+    using InElementwiseOperation  = reduce::unary_square<T, false>;
+    using AccElementwiseOperation = reduce::unary_sqrt<T>;
 };
 
 template <typename T>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, false, true>
 {
-    using preUnaryOp = reduce::unary_identic<T, false>;
-    using posUnaryOp = reduce::unary_sqrt<T>;
+    using InElementwiseOperation  = reduce::unary_identic<T, false>;
+    using AccElementwiseOperation = reduce::unary_sqrt<T>;
 };
 
 } // end of namespace ck

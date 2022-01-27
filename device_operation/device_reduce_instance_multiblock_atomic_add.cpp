@@ -7,44 +7,47 @@ namespace tensor_operation {
 namespace device {
 namespace device_reduce_instance {
 
-template <typename compType, ReduceTensorOp_t reduceOp>
+template <typename AccDataType, ReduceTensorOp_t ReduceOperation>
 using deviceReducePtrType =
-    DeviceReducePtr<typename reduce_unary_operator<compType, reduceOp, true, true>::preUnaryOp,
-                    typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp>;
+    DeviceReducePtr<typename reduce_unary_operator<AccDataType, ReduceOperation, true, true>::
+                        InElementwiseOperation,
+                    typename reduce_unary_operator<AccDataType, ReduceOperation, true, true>::
+                        AccElementwiseOperation>;
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename toReduceDims,
-          ReduceTensorOp_t reduceOp,
-          NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt>
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          int Rank,
+          typename InnerDims,
+          ReduceTensorOp_t ReduceOpId,
+          NanPropagation_t NanOpt,
+          ReduceTensorIndices_t IndicesOpt>
 void add_device_reduce_instance_multiblock_atomic_add(
-    std::vector<deviceReducePtrType<compType, reduceOp>>& device_op_instances)
+    std::vector<deviceReducePtrType<AccDataType, ReduceOpId>>& device_op_instances)
 {
-    using opReduce = typename reduce_binary_operator<compType, reduceOp>::opType;
-    using preUnaryOpType =
-        typename reduce_unary_operator<compType, reduceOp, true, true>::preUnaryOp;
-    using posUnaryOpType =
-        typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp;
+    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using InElementwiseOperation =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+    using AccElementwiseOperation =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
+            AccElementwiseOperation;
 
-    constexpr bool is_indexable =
-        (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX);
-    constexpr bool need_indices = is_indexable && (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
+    constexpr bool Indexable =
+        (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||
+         ReduceOpId == ReduceTensorOp_t::AMAX);
+    constexpr bool NeedIndices = Indexable && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
-    constexpr bool propagate_nan = (nanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
+    constexpr bool PropagateNan = (NanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
 
-    static_assert(indicesOpt == ReduceTensorIndices_t::NO_INDICES,
+    static_assert(IndicesOpt == ReduceTensorIndices_t::NO_INDICES,
                   "AtomicAdd can only be used with reduction operations without indices!");
 
     constexpr bool op_acceptable =
-        (reduceOp == ReduceTensorOp_t::ADD || reduceOp == ReduceTensorOp_t::MUL ||
-         reduceOp == ReduceTensorOp_t::AVG || reduceOp == ReduceTensorOp_t::NORM1);
+        (ReduceOpId == ReduceTensorOp_t::ADD || ReduceOpId == ReduceTensorOp_t::MUL ||
+         ReduceOpId == ReduceTensorOp_t::AVG || ReduceOpId == ReduceTensorOp_t::NORM1);
 
     constexpr bool out_type_acceptable =
-        (std::is_same<outType, float>::value || std::is_same<outType, double>::value);
+        (std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value);
 
     if constexpr(!op_acceptable || !out_type_acceptable)
         return;
@@ -60,16 +63,16 @@ void add_device_reduce_instance_multiblock_atomic_add(
                         std::get<j.value>(reduce_configuration_2_instances{}))>;
 
                     using ReduceOpInstance =
-                        DeviceReduceMultiBlockAtomicAdd<inType,
-                                                        compType,
-                                                        outType,
-                                                        rank,
-                                                        toReduceDims,
-                                                        opReduce,
-                                                        preUnaryOpType,
-                                                        posUnaryOpType,
-                                                        propagate_nan,
-                                                        need_indices,
+                        DeviceReduceMultiBlockAtomicAdd<InDataType,
+                                                        AccDataType,
+                                                        OutDataType,
+                                                        Rank,
+                                                        InnerDims,
+                                                        ReduceOperation,
+                                                        InElementwiseOperation,
+                                                        AccElementwiseOperation,
+                                                        PropagateNan,
+                                                        NeedIndices,
                                                         cfg1::blockSize_,
                                                         cfg1::dim0_thread_cluster_size_,
                                                         cfg1::dim1_thread_cluster_size_,
@@ -85,26 +88,26 @@ void add_device_reduce_instance_multiblock_atomic_add(
 };
 
 #define ADD_MULTIBLOCK_ATOMIC_ADD_INST_BY_TYPE(                                           \
-    inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...)                            \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                          \
     template void add_device_reduce_instance_multiblock_atomic_add<inT,                   \
                                                                    compT,                 \
                                                                    outT,                  \
-                                                                   rank,                  \
+                                                                   Rank,                  \
                                                                    Sequence<__VA_ARGS__>, \
-                                                                   reduceOp,              \
-                                                                   nanOpt,                \
-                                                                   indicesOpt>(           \
-        std::vector<deviceReducePtrType<compT, reduceOp>> & device_op_instances)
+                                                                   ReduceOpId,            \
+                                                                   NanOpt,                \
+                                                                   IndicesOpt>(           \
+        std::vector<deviceReducePtrType<compT, ReduceOpId>> & device_op_instances)
 
 #define ADD_MULTIBLOCK_ATOMIC_ADD_INST_BY_ID(                                              \
-    inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...)                             \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                           \
     ADD_MULTIBLOCK_ATOMIC_ADD_INST_BY_TYPE(inT,                                            \
                                            compT,                                          \
                                            outT,                                           \
-                                           static_cast<ReduceTensorOp_t>(reduceOp),        \
-                                           static_cast<NanPropagation_t>(nanOpt),          \
-                                           static_cast<ReduceTensorIndices_t>(indicesOpt), \
-                                           rank,                                           \
+                                           static_cast<ReduceTensorOp_t>(ReduceOpId),      \
+                                           static_cast<NanPropagation_t>(NanOpt),          \
+                                           static_cast<ReduceTensorIndices_t>(IndicesOpt), \
+                                           Rank,                                           \
                                            __VA_ARGS__)
 
 // half, float, float

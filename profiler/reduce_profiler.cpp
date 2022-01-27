@@ -8,6 +8,7 @@
 #include <sstream>
 #include <getopt.h>
 
+#include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"

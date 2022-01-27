@@ -9,15 +9,15 @@ namespace tensor_operation {
 namespace device {
 namespace device_reduce_instance {
 
-template <int rank, typename toReduceDims, int reduceOp, int nanOpt, int indicesOpt>
+template <int Rank, typename InnerDims, int ReduceOpId, int NanOpt, int IndicesOpt>
 struct ReduceDescription
 {
-    static constexpr int rank_       = rank;
-    static constexpr int reduceOp_   = reduceOp;
-    static constexpr int nanOpt_     = nanOpt;
-    static constexpr int indicesOpt_ = indicesOpt;
+    static constexpr int Rank_       = Rank;
+    static constexpr int ReduceOpId_ = ReduceOpId;
+    static constexpr int NanOpt_     = NanOpt;
+    static constexpr int IndicesOpt_ = IndicesOpt;
 
-    using toReduceDims_ = toReduceDims;
+    using InnerDims_ = InnerDims;
 };
 
 using reduce_description_instances =
@@ -55,24 +55,24 @@ using reduce_description_instances =
 
 template <typename DescriptionType>
 bool description_match(const DescriptionType& description,
-                       int rank,
-                       const std::vector<int>& toReduceDims,
-                       ReduceTensorOp_t reduceOp,
-                       NanPropagation_t nanOpt,
-                       ReduceTensorIndices_t indicesOpt)
+                       int Rank,
+                       const std::vector<int>& InnerDims,
+                       ReduceTensorOp_t ReduceOpId,
+                       NanPropagation_t NanOpt,
+                       ReduceTensorIndices_t IndicesOpt)
 {
-    if(description.rank_ != rank || description.reduceOp_ != static_cast<int>(reduceOp) ||
-       description.nanOpt_ != static_cast<int>(nanOpt) ||
-       description.indicesOpt_ != static_cast<int>(indicesOpt))
+    if(description.Rank_ != Rank || description.ReduceOpId_ != static_cast<int>(ReduceOpId) ||
+       description.NanOpt_ != static_cast<int>(NanOpt) ||
+       description.IndicesOpt_ != static_cast<int>(IndicesOpt))
         return (false);
 
-    if(DescriptionType::toReduceDims_::Size() != toReduceDims.size())
+    if(DescriptionType::InnerDims_::Size() != InnerDims.size())
         return (false);
 
     bool result = true;
 
-    static_for<0, DescriptionType::toReduceDims_::Size(), 1>{}([&](auto i) {
-        if(DescriptionType::toReduceDims_::At(i) != toReduceDims[i])
+    static_for<0, DescriptionType::InnerDims_::Size(), 1>{}([&](auto i) {
+        if(DescriptionType::InnerDims_::At(i) != InnerDims[i])
             result = false;
     });
 
@@ -87,27 +87,26 @@ bool description_match(const DescriptionType& description,
 namespace ck {
 namespace profiler {
 
-template <int rank, typename toReduceDims>
-static std::vector<int> get_toReduce_dims()
+template <int Rank, typename InnerDims>
+static std::vector<int> get_inner_dims()
 {
     std::vector<int> resDims;
 
-    static_for<0, toReduceDims::Size(), 1>{}(
-        [&](auto i) { resDims.push_back(toReduceDims::At(i)); });
+    static_for<0, InnerDims::Size(), 1>{}([&](auto i) { resDims.push_back(InnerDims::At(i)); });
 
     return (resDims);
 };
 
-template <int rank, typename toReduceDims>
-static std::vector<int> get_invariant_dims()
+template <int Rank, typename InnerDims>
+static std::vector<int> get_outer_dims()
 {
     std::vector<int> resDims;
     unsigned int incFlag = 0;
 
-    static_for<0, toReduceDims::Size(), 1>{}(
-        [&](auto i) { incFlag = incFlag | (0x1 << toReduceDims::At(i)); });
+    static_for<0, InnerDims::Size(), 1>{}(
+        [&](auto i) { incFlag = incFlag | (0x1 << InnerDims::At(i)); });
 
-    for(int dim = 0; dim < rank; dim++)
+    for(int dim = 0; dim < Rank; dim++)
     {
         if(incFlag & (0x1 << dim))
             continue;
@@ -179,14 +178,14 @@ struct type_mapping<ck::half_t>
     using outDataType = half_float::half;
 };
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename toReduceDims_,
-          ReduceTensorOp_t reduceOp,
-          NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt>
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          int Rank,
+          typename InnerDims_,
+          ReduceTensorOp_t ReduceOpId,
+          NanPropagation_t NanOpt,
+          ReduceTensorIndices_t IndicesOpt>
 void profile_reduce_impl(bool do_verification,
                          int init_method,
                          bool do_log,
@@ -200,58 +199,59 @@ void profile_reduce_impl(bool do_verification,
     using namespace ck::tensor_operation::device::device_reduce_instance;
 
     constexpr bool op_support_indices =
-        (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX);
+        (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||
+         ReduceOpId == ReduceTensorOp_t::AMAX);
 
-    constexpr bool need_indices =
-        (op_support_indices && (indicesOpt != ReduceTensorIndices_t::NO_INDICES));
+    constexpr bool NeedIndices =
+        (op_support_indices && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES));
 
     constexpr bool out_support_atomic_add =
-        (std::is_same<outType, float>::value || std::is_same<outType, double>::value);
+        (std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value);
     constexpr bool op_support_atomic_add =
-        !op_support_indices && reduceOp != ReduceTensorOp_t::NORM2;
+        !op_support_indices && ReduceOpId != ReduceTensorOp_t::NORM2;
     constexpr bool use_atomic_add = (out_support_atomic_add && op_support_atomic_add);
 
     // if input is half type, no reason to use float for indiced reduction operation and must use
     // float for non-indiced reduction operation for accuracy
     constexpr bool invalid_reduce_1 =
-        std::is_same<inType, half_t>::value &&
-        ((!op_support_indices && !std::is_same<compType, float>::value) ||
-         (op_support_indices && !std::is_same<compType, half_t>::value));
+        std::is_same<InDataType, half_t>::value &&
+        ((!op_support_indices && !std::is_same<AccDataType, float>::value) ||
+         (op_support_indices && !std::is_same<AccDataType, half_t>::value));
 
     // if input is float type, no reason to use double for indiced reduction operation
-    constexpr bool invalid_reduce_2 = std::is_same<inType, float>::value &&
-                                      (op_support_indices && !std::is_same<compType, float>::value);
+    constexpr bool invalid_reduce_2 =
+        std::is_same<InDataType, float>::value &&
+        (op_support_indices && !std::is_same<AccDataType, float>::value);
 
     // indices option can only be used when it is really needed
     constexpr bool invalid_reduce_3 =
-        (!op_support_indices && indicesOpt != ReduceTensorIndices_t::NO_INDICES);
+        (!op_support_indices && IndicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3);
 
-    Tensor<inType> in(inLengths);
+    Tensor<InDataType> in(inLengths);
 
-    const std::vector<int> invariantDims = get_invariant_dims<rank, toReduceDims_>();
-    const std::vector<int> toReduceDims  = get_toReduce_dims<rank, toReduceDims_>();
+    const std::vector<int> OuterDims = get_outer_dims<Rank, InnerDims_>();
+    const std::vector<int> InnerDims = get_inner_dims<Rank, InnerDims_>();
 
     std::vector<size_t> outLengths;
 
-    if(invariantDims.empty())
+    if(OuterDims.empty())
         outLengths.push_back(1);
     else
-        for(auto dim : invariantDims)
+        for(auto dim : OuterDims)
             outLengths.push_back(inLengths[dim]);
 
-    Tensor<outType> out_ref(outLengths);
-    Tensor<outType> out(outLengths);
+    Tensor<OutDataType> out_ref(outLengths);
+    Tensor<OutDataType> out(outLengths);
     Tensor<int> out_indices_ref(outLengths);
     Tensor<int> out_indices(outLengths);
 
     auto inStrides  = in.mDesc.GetStrides();
     auto outStrides = out.mDesc.GetStrides();
 
-    size_t dim0_total_length = out.mDesc.GetElementSize();
-    size_t dim1_total_length = in.mDesc.GetElementSize() / dim0_total_length;
+    size_t outer_total_length = out.mDesc.GetElementSize();
+    size_t inner_total_length = in.mDesc.GetElementSize() / outer_total_length;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
@@ -260,19 +260,19 @@ void profile_reduce_impl(bool do_verification,
         switch(init_method)
         {
         case 0:
-            in.GenerateTensorValue(GeneratorTensor_1<inType>{}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
             if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_1<inType>{}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
             break;
         case 1:
-            in.GenerateTensorValue(GeneratorTensor_2<inType>{-99, 99}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-99, 99}, num_thread);
             if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_2<inType>{-5, 5}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             break;
         default:
-            in.GenerateTensorValue(GeneratorTensor_2<inType>{1, 5}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 5}, num_thread);
             if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_2<inType>{1, 5}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 5}, num_thread);
         }
 
         if(beta != 0.0f)
@@ -281,37 +281,45 @@ void profile_reduce_impl(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(inType) * in.mDesc.GetElementSpace());
-    DeviceMem out_dev(sizeof(outType) * out.mDesc.GetElementSpace());
+    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
+    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpace());
 
     in_dev.ToDevice(in.mData.data());
 
     if(beta != 0.0f)
         out_dev.ToDevice(out.mData.data());
 
-    size_t indicesSizeInBytes = need_indices ? out.mDesc.GetElementSize() * sizeof(int) : 0;
+    size_t indicesSizeInBytes = NeedIndices ? out.mDesc.GetElementSize() * sizeof(int) : 0;
 
     DeviceMem out_indices_dev(indicesSizeInBytes);
 
     float best_avg_time   = 0;
     float best_gb_per_sec = 0;
 
-    using preUnaryOpType_0 =
-        typename reduce_unary_operator<compType, reduceOp, true, true>::preUnaryOp;
-    using posUnaryOpType_0 =
-        typename reduce_unary_operator<compType, reduceOp, true, true>::posUnaryOp;
-    using preUnaryOpType_1 =
-        typename reduce_unary_operator<compType, reduceOp, true, false>::preUnaryOp;
-    using posUnaryOpType_1 =
-        typename reduce_unary_operator<compType, reduceOp, true, false>::posUnaryOp;
-    using preUnaryOpType_2 =
-        typename reduce_unary_operator<compType, reduceOp, false, true>::preUnaryOp;
-    using posUnaryOpType_2 =
-        typename reduce_unary_operator<compType, reduceOp, false, true>::posUnaryOp;
+    using InElementwiseOperation_0 =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+    using AccElementwiseOperation_0 =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
+            AccElementwiseOperation;
+    using InElementwiseOperation_1 =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::
+            InElementwiseOperation;
+    using AccElementwiseOperation_1 =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::
+            AccElementwiseOperation;
+    using InElementwiseOperation_2 =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, false, true>::
+            InElementwiseOperation;
+    using AccElementwiseOperation_2 =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, false, true>::
+            AccElementwiseOperation;
 
-    using DeviceReduceInstPtr0 = DeviceReducePtr<preUnaryOpType_0, posUnaryOpType_0>;
-    using DeviceReduceInstPtr1 = DeviceReducePtr<preUnaryOpType_1, posUnaryOpType_1>;
-    using DeviceReduceInstPtr2 = DeviceReducePtr<preUnaryOpType_2, posUnaryOpType_2>;
+    using DeviceReduceInstPtr0 =
+        DeviceReducePtr<InElementwiseOperation_0, AccElementwiseOperation_0>;
+    using DeviceReduceInstPtr1 =
+        DeviceReducePtr<InElementwiseOperation_1, AccElementwiseOperation_1>;
+    using DeviceReduceInstPtr2 =
+        DeviceReducePtr<InElementwiseOperation_2, AccElementwiseOperation_2>;
 
     std::vector<DeviceReduceInstPtr0> reduce0_ptrs;
     std::vector<DeviceReduceInstPtr1> reduce1_ptrs;
@@ -319,53 +327,53 @@ void profile_reduce_impl(bool do_verification,
 
     if constexpr(!invalid_reduce)
     {
-        add_device_reduce_instance_threadwise<inType,
-                                              compType,
-                                              outType,
-                                              rank,
-                                              toReduceDims_,
-                                              reduceOp,
-                                              nanOpt,
-                                              indicesOpt>(reduce0_ptrs);
+        add_device_reduce_instance_threadwise<InDataType,
+                                              AccDataType,
+                                              OutDataType,
+                                              Rank,
+                                              InnerDims_,
+                                              ReduceOpId,
+                                              NanOpt,
+                                              IndicesOpt>(reduce0_ptrs);
 
-        add_device_reduce_instance_blockwise<inType,
-                                             compType,
-                                             outType,
-                                             rank,
-                                             toReduceDims_,
-                                             reduceOp,
-                                             nanOpt,
-                                             indicesOpt>(reduce0_ptrs);
+        add_device_reduce_instance_blockwise<InDataType,
+                                             AccDataType,
+                                             OutDataType,
+                                             Rank,
+                                             InnerDims_,
+                                             ReduceOpId,
+                                             NanOpt,
+                                             IndicesOpt>(reduce0_ptrs);
 
         if constexpr(use_atomic_add)
-            add_device_reduce_instance_multiblock_atomic_add<inType,
-                                                             compType,
-                                                             outType,
-                                                             rank,
-                                                             toReduceDims_,
-                                                             reduceOp,
-                                                             nanOpt,
-                                                             indicesOpt>(reduce0_ptrs);
+            add_device_reduce_instance_multiblock_atomic_add<InDataType,
+                                                             AccDataType,
+                                                             OutDataType,
+                                                             Rank,
+                                                             InnerDims_,
+                                                             ReduceOpId,
+                                                             NanOpt,
+                                                             IndicesOpt>(reduce0_ptrs);
         else
-            add_device_reduce_instance_multiblock_two_call<inType,
-                                                           compType,
-                                                           outType,
-                                                           rank,
-                                                           toReduceDims_,
-                                                           reduceOp,
-                                                           nanOpt,
-                                                           indicesOpt>(reduce1_ptrs);
+            add_device_reduce_instance_multiblock_two_call<InDataType,
+                                                           AccDataType,
+                                                           OutDataType,
+                                                           Rank,
+                                                           InnerDims_,
+                                                           ReduceOpId,
+                                                           NanOpt,
+                                                           IndicesOpt>(reduce1_ptrs);
 
         // used for secondary reduction
         if constexpr(!use_atomic_add)
-            add_device_reduce_instance_blockwise_second_call<compType,
-                                                             compType,
-                                                             outType,
-                                                             rank,
-                                                             toReduceDims_,
-                                                             reduceOp,
-                                                             nanOpt,
-                                                             indicesOpt>(reduce2_ptrs);
+            add_device_reduce_instance_blockwise_second_call<AccDataType,
+                                                             AccDataType,
+                                                             OutDataType,
+                                                             Rank,
+                                                             InnerDims_,
+                                                             ReduceOpId,
+                                                             NanOpt,
+                                                             IndicesOpt>(reduce2_ptrs);
     };
 
     if(reduce0_ptrs.empty() && reduce1_ptrs.empty())
@@ -375,12 +383,12 @@ void profile_reduce_impl(bool do_verification,
 
     if(do_verification)
     {
-        using hInType   = typename type_mapping<inType>::outDataType;
-        using hOutType  = typename type_mapping<outType>::outDataType;
-        using hCompType = typename type_mapping<compType>::outDataType;
+        using hInType   = typename type_mapping<InDataType>::outDataType;
+        using hOutType  = typename type_mapping<OutDataType>::outDataType;
+        using hCompType = typename type_mapping<AccDataType>::outDataType;
 
         ReductionHost<hInType, hCompType, hOutType> hostReduce(
-            reduceOp, nanOpt, indicesOpt, in.mDesc, out_ref.mDesc, invariantDims, toReduceDims);
+            ReduceOpId, NanOpt, IndicesOpt, in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
 
         hostReduce.Run(alpha,
                        reinterpret_cast<const hInType*>(in.mData.data()),
@@ -400,19 +408,19 @@ void profile_reduce_impl(bool do_verification,
 
         DeviceMem ws_dev(wsSizeInBytes);
 
-        auto argument_ptr =
-            reduce_ptr->MakeArgumentPointer(i_inLengths,
-                                            i_inStrides,
-                                            i_outLengths,
-                                            i_outStrides,
-                                            alpha,
-                                            beta,
-                                            in_dev.GetDeviceBuffer(),
-                                            out_dev.GetDeviceBuffer(),
-                                            out_indices_dev.GetDeviceBuffer(),
-                                            ws_dev.GetDeviceBuffer(),
-                                            preUnaryOpType_0{static_cast<int>(dim1_total_length)},
-                                            posUnaryOpType_0{static_cast<int>(dim1_total_length)});
+        auto argument_ptr = reduce_ptr->MakeArgumentPointer(
+            i_inLengths,
+            i_inStrides,
+            i_outLengths,
+            i_outStrides,
+            alpha,
+            beta,
+            in_dev.GetDeviceBuffer(),
+            out_dev.GetDeviceBuffer(),
+            out_indices_dev.GetDeviceBuffer(),
+            ws_dev.GetDeviceBuffer(),
+            InElementwiseOperation_0{static_cast<int>(inner_total_length)},
+            AccElementwiseOperation_0{static_cast<int>(inner_total_length)});
 
         if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
             continue;
@@ -423,8 +431,8 @@ void profile_reduce_impl(bool do_verification,
 
         float avg_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
-        std::size_t num_bytes = dim0_total_length * dim1_total_length * sizeof(inType) +
-                                dim0_total_length * sizeof(outType);
+        std::size_t num_bytes = outer_total_length * inner_total_length * sizeof(InDataType) +
+                                outer_total_length * sizeof(OutDataType);
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
@@ -442,7 +450,7 @@ void profile_reduce_impl(bool do_verification,
             out_dev.FromDevice(out.mData.data());
             check_error(out_ref, out);
 
-            if(need_indices)
+            if(NeedIndices)
             {
                 out_indices_dev.FromDevice(out_indices.mData.data());
                 check_indices(out_indices_ref, out_indices);
@@ -461,7 +469,7 @@ void profile_reduce_impl(bool do_verification,
             dumpBufferToFile("dump_out.bin", out.mData.data(), out.mDesc.GetElementSize());
             dumpBufferToFile(
                 "dump_out_host.bin", out_ref.mData.data(), out_ref.mDesc.GetElementSize());
-            if(need_indices)
+            if(NeedIndices)
             {
                 dumpBufferToFile("dump_indices.bin",
                                  out_indices.mData.data(),
@@ -479,19 +487,19 @@ void profile_reduce_impl(bool do_verification,
 
         DeviceMem ws_dev(wsSizeInBytes);
 
-        auto argument_ptr =
-            reduce_ptr->MakeArgumentPointer(i_inLengths,
-                                            i_inStrides,
-                                            i_outLengths,
-                                            i_outStrides,
-                                            alpha,
-                                            beta,
-                                            in_dev.GetDeviceBuffer(),
-                                            out_dev.GetDeviceBuffer(),
-                                            out_indices_dev.GetDeviceBuffer(),
-                                            ws_dev.GetDeviceBuffer(),
-                                            preUnaryOpType_1{static_cast<int>(dim1_total_length)},
-                                            posUnaryOpType_1{static_cast<int>(dim1_total_length)});
+        auto argument_ptr = reduce_ptr->MakeArgumentPointer(
+            i_inLengths,
+            i_inStrides,
+            i_outLengths,
+            i_outStrides,
+            alpha,
+            beta,
+            in_dev.GetDeviceBuffer(),
+            out_dev.GetDeviceBuffer(),
+            out_indices_dev.GetDeviceBuffer(),
+            ws_dev.GetDeviceBuffer(),
+            InElementwiseOperation_1{static_cast<int>(inner_total_length)},
+            AccElementwiseOperation_1{static_cast<int>(inner_total_length)});
 
         if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
             continue;
@@ -502,8 +510,8 @@ void profile_reduce_impl(bool do_verification,
 
         float avg_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
-        std::size_t num_bytes = dim0_total_length * dim1_total_length * sizeof(inType) +
-                                dim0_total_length * sizeof(outType);
+        std::size_t num_bytes = outer_total_length * inner_total_length * sizeof(InDataType) +
+                                outer_total_length * sizeof(OutDataType);
 
         std::vector<int> inLengths2 = reduce_ptr->getWorkspace2dLengths(argument_ptr.get());
         std::vector<int> inStrides2{inLengths2[1], 1};
@@ -521,8 +529,8 @@ void profile_reduce_impl(bool do_verification,
                 out_dev.GetDeviceBuffer(),
                 out_indices_dev.GetDeviceBuffer(),
                 ws_dev.GetDeviceBuffer(),
-                preUnaryOpType_2{static_cast<int>(dim1_total_length)},
-                posUnaryOpType_2{static_cast<int>(dim1_total_length)});
+                InElementwiseOperation_2{static_cast<int>(inner_total_length)},
+                AccElementwiseOperation_2{static_cast<int>(inner_total_length)});
 
             if(!reduce2_ptr->IsSupportedArgument(argument2_ptr.get()))
                 continue;
@@ -534,7 +542,7 @@ void profile_reduce_impl(bool do_verification,
             float avg_time_2 = invoker2_ptr->Run(argument2_ptr.get(), nrepeat);
 
             std::size_t num_bytes_2 =
-                static_cast<size_t>(inLengths2[0]) * inLengths2[1] * sizeof(compType);
+                static_cast<size_t>(inLengths2[0]) * inLengths2[1] * sizeof(AccDataType);
 
             float gb_per_sec = (num_bytes + num_bytes_2) / 1.E6 / (avg_time + avg_time_2);
 
@@ -552,7 +560,7 @@ void profile_reduce_impl(bool do_verification,
                 out_dev.FromDevice(out.mData.data());
                 check_error(out_ref, out);
 
-                if(need_indices)
+                if(NeedIndices)
                 {
                     out_indices_dev.FromDevice(out_indices.mData.data());
                     check_indices(out_indices_ref, out_indices);
@@ -572,7 +580,7 @@ void profile_reduce_impl(bool do_verification,
                 dumpBufferToFile("dump_out.bin", out.mData.data(), out.mDesc.GetElementSize());
                 dumpBufferToFile(
                     "dump_out_host.bin", out_ref.mData.data(), out_ref.mDesc.GetElementSize());
-                if(need_indices)
+                if(NeedIndices)
                 {
                     dumpBufferToFile("dump_indices.bin",
                                      out_indices.mData.data(),
@@ -589,17 +597,17 @@ void profile_reduce_impl(bool do_verification,
               << std::endl;
 };
 
-template <typename inType, typename compType, typename outType>
+template <typename InDataType, typename AccDataType, typename OutDataType>
 void profile_reduce(bool do_verification,
                     int init_method,
                     bool do_log,
                     bool do_dumpout,
                     int nrepeat,
                     const std::vector<size_t>& inLengths,
-                    const std::vector<int>& toReduceDims,
-                    ReduceTensorOp_t reduceOp,
-                    NanPropagation_t nanOpt,
-                    ReduceTensorIndices_t indicesOpt,
+                    const std::vector<int>& InnerDims,
+                    ReduceTensorOp_t ReduceOpId,
+                    NanPropagation_t NanOpt,
+                    ReduceTensorIndices_t IndicesOpt,
                     float alpha,
                     float beta)
 {
@@ -617,17 +625,17 @@ void profile_reduce(bool do_verification,
         using descType = remove_cvref_t<decltype(std::get<i>(tuple_object))>;
 
         if(!description_match(
-               descType{}, inLengths.size(), toReduceDims, reduceOp, nanOpt, indicesOpt))
+               descType{}, inLengths.size(), InnerDims, ReduceOpId, NanOpt, IndicesOpt))
             return;
 
-        profile_reduce_impl<inType,
-                            compType,
-                            outType,
-                            descType::rank_,
-                            typename descType::toReduceDims_,
-                            static_cast<ReduceTensorOp_t>(descType::reduceOp_),
-                            static_cast<NanPropagation_t>(descType::nanOpt_),
-                            static_cast<ReduceTensorIndices_t>(descType::indicesOpt_)>(
+        profile_reduce_impl<InDataType,
+                            AccDataType,
+                            OutDataType,
+                            descType::Rank_,
+                            typename descType::InnerDims_,
+                            static_cast<ReduceTensorOp_t>(descType::ReduceOpId_),
+                            static_cast<NanPropagation_t>(descType::NanOpt_),
+                            static_cast<ReduceTensorIndices_t>(descType::IndicesOpt_)>(
             do_verification, init_method, do_log, do_dumpout, nrepeat, inLengths, alpha, beta);
 
         matched = true;

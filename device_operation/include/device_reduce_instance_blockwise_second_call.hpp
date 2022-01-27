@@ -8,44 +8,47 @@ namespace tensor_operation {
 namespace device {
 namespace device_reduce_instance {
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename toReduceDims,
-          ReduceTensorOp_t reduceOp,
-          NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt>
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          int Rank,
+          typename InnerDims,
+          ReduceTensorOp_t ReduceOpId,
+          NanPropagation_t NanOpt,
+          ReduceTensorIndices_t IndicesOpt>
 extern void add_device_reduce_instance_blockwise_second_call(
-    std::vector<DeviceReducePtr<
-        typename reduce_unary_operator<compType, reduceOp, false, true>::preUnaryOp,
-        typename reduce_unary_operator<compType, reduceOp, false, true>::posUnaryOp>>&
-        device_op_instances);
+    std::vector<
+        DeviceReducePtr<typename reduce_unary_operator<AccDataType, ReduceOpId, false, true>::
+                            InElementwiseOperation,
+                        typename reduce_unary_operator<AccDataType, ReduceOpId, false, true>::
+                            AccElementwiseOperation>>& device_op_instances);
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(                                              \
-    inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...)                                   \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                                 \
     extern template void add_device_reduce_instance_blockwise_second_call<inT,                   \
                                                                           compT,                 \
                                                                           outT,                  \
-                                                                          rank,                  \
+                                                                          Rank,                  \
                                                                           Sequence<__VA_ARGS__>, \
-                                                                          reduceOp,              \
-                                                                          nanOpt,                \
-                                                                          indicesOpt>(           \
-        std::vector<DeviceReducePtr<                                                             \
-            typename reduce_unary_operator<compT, reduceOp, false, true>::preUnaryOp,            \
-            typename reduce_unary_operator<compT, reduceOp, false, true>::posUnaryOp>> &         \
+                                                                          ReduceOpId,            \
+                                                                          NanOpt,                \
+                                                                          IndicesOpt>(           \
+        std::vector<                                                                             \
+            DeviceReducePtr<typename reduce_unary_operator<compT, ReduceOpId, false, true>::     \
+                                InElementwiseOperation,                                          \
+                            typename reduce_unary_operator<compT, ReduceOpId, false, true>::     \
+                                AccElementwiseOperation>> &                                      \
         device_op_instances)
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_ID(                                              \
-    inT, compT, outT, reduceOp, nanOpt, indicesOpt, rank, ...)                                 \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                               \
     ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(inT,                                            \
                                                compT,                                          \
                                                outT,                                           \
-                                               static_cast<ReduceTensorOp_t>(reduceOp),        \
-                                               static_cast<NanPropagation_t>(nanOpt),          \
-                                               static_cast<ReduceTensorIndices_t>(indicesOpt), \
-                                               rank,                                           \
+                                               static_cast<ReduceTensorOp_t>(ReduceOpId),      \
+                                               static_cast<NanPropagation_t>(NanOpt),          \
+                                               static_cast<ReduceTensorIndices_t>(IndicesOpt), \
+                                               Rank,                                           \
                                                __VA_ARGS__)
 
 // half, half, half

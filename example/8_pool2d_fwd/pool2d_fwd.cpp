@@ -24,24 +24,24 @@ using InLayout  = ck::tensor_layout::pool::NHWC;
 using OutLayout = ck::tensor_layout::pool::NHWC;
 
 // TODO: reimplement reduction as elementwise operator
-static constexpr auto ReduceOp = ck::ReduceTensorOp_t::MAX;
-// static constexpr auto ReduceOp = ck::ReduceTensorOp_t::AVG;
-static constexpr bool need_indices = false;
+static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::MAX;
+// static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::AVG;
+static constexpr bool NeedIndices = false;
 
-using opReduce = typename reduce_binary_operator<AccDataType, ReduceOp>::opType;
-using preUnaryOpType =
-    typename reduce_unary_operator<AccDataType, ReduceOp, true, true>::preUnaryOp;
-using posUnaryOpType =
-    typename reduce_unary_operator<AccDataType, ReduceOp, true, true>::posUnaryOp;
+using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+using InElementwiseOperation =
+    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+using AccElementwiseOperation =
+    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
 
 using DevicePoolFwdInstance =
     DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType,  // InDataType
                                                      OutDataType, // OutDataType
                                                      AccDataType, // AccDataType
-                                                     opReduce,
-                                                     preUnaryOpType,
-                                                     posUnaryOpType,
-                                                     need_indices,
+                                                     ReduceOperation,
+                                                     InElementwiseOperation,
+                                                     AccElementwiseOperation,
+                                                     NeedIndices,
                                                      256, // BlockSize
                                                      512, // ReduceMPerBlock
                                                      1,   // ReduceKPerBlock
@@ -231,8 +231,8 @@ int main(int argc, char* argv[])
                                       window_strides,
                                       input_left_pads,
                                       input_right_pads,
-                                      preUnaryOpType{},
-                                      posUnaryOpType{});
+                                      InElementwiseOperation{},
+                                      AccElementwiseOperation{});
 
     if(!pool.IsSupportedArgument(argument))
     {

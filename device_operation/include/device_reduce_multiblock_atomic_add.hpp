@@ -13,47 +13,48 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename toReduceDims,
-          typename opReduce,
-          typename preUnaryOpType,
-          typename posUnaryOpType,
-          bool propagate_nan,
-          bool need_indices,
-          int blockSize,
-          int dim0_thread_cluster_size,
-          int dim1_thread_cluster_size,
-          int vectorDim,
-          int dim0_thread_slice_size,
-          int dim1_thread_slice_size>
-struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, posUnaryOpType>
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          int Rank,
+          typename InnerDims,
+          typename ReduceOperation,
+          typename InElementwiseOperation,
+          typename AccElementwiseOperation,
+          bool PropagateNan,
+          bool NeedIndices,
+          int BlockSize,
+          int MThreadClusterSize,
+          int KThreadClusterSize,
+          int VectorDim,
+          int MThreadSliceSize,
+          int KThreadSliceSize>
+struct DeviceReduceMultiBlockAtomicAdd
+    : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
-    static_assert(rank <= 6, "Bigger rank size is not supported!");
-    static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
+    static_assert(Rank <= 6, "Bigger Rank size is not supported!");
+    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
-    using invariantDims = decltype(get_invariantDims<rank, toReduceDims>());
+    using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
 
-    static constexpr index_t srcDims    = rank;
-    static constexpr index_t dstDims    = (invariantDims::Size() == 0) ? 1 : invariantDims::Size();
-    static constexpr bool reduceAllDims = (invariantDims::Size() == 0);
+    static constexpr index_t srcDims    = Rank;
+    static constexpr index_t dstDims    = (OuterDims::Size() == 0) ? 1 : OuterDims::Size();
+    static constexpr bool reduceAllDims = (OuterDims::Size() == 0);
 
     static constexpr bool support_AtomicAdd =
-        std::is_same<outType, float>::value || std::is_same<outType, double>::value;
+        std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value;
 
-    static_assert(!need_indices && support_AtomicAdd,
+    static_assert(!NeedIndices && support_AtomicAdd,
                   "MultiBlockAtomicAdd method can only be used with non-indiced operation and when "
                   "having float/double output type!");
 
-    static constexpr int dim0_tile_size = dim0_thread_cluster_size * dim0_thread_slice_size;
-    static constexpr int dim1_tile_size = dim1_thread_cluster_size * dim1_thread_slice_size;
+    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static constexpr int vectorSize =
-        (vectorDim == 0) ? math::gcd(dim0_thread_slice_size, max_vector_size_for_type<inType>())
-                         : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
+    static constexpr int VectorSize =
+        (VectorDim == 0) ? math::gcd(MThreadSliceSize, max_vector_size_for_type<InDataType>())
+                         : math::gcd(KThreadSliceSize, max_vector_size_for_type<InDataType>());
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
@@ -62,56 +63,55 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
 
-        const auto srcDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
+        const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
-        const auto src2dDesc = [&]() {
+        const auto in2dDesc = [&]() {
             if constexpr(reduceAllDims)
             {
-                const auto one_dim_srcDesc = transform_tensor_descriptor(
-                    srcDesc,
+                const auto one_dim_inDesc = transform_tensor_descriptor(
+                    inDesc,
                     make_tuple(make_merge_transform(tupleSrcLengths)),
                     make_tuple(typename arithmetic_sequence_gen<0, srcDims, 1>::type{}),
                     make_tuple(Sequence<0>{}));
 
-                return transform_tensor_descriptor(one_dim_srcDesc,
+                return transform_tensor_descriptor(one_dim_inDesc,
                                                    make_tuple(make_unmerge_transform(make_tuple(
-                                                       1, one_dim_srcDesc.GetLength(Number<0>{})))),
+                                                       1, one_dim_inDesc.GetLength(Number<0>{})))),
                                                    make_tuple(Sequence<0>{}),
                                                    make_tuple(Sequence<0, 1>{}));
             }
             else
             {
                 const auto toReduceDimLengths =
-                    make_tuple_from_array_and_index_seq(inLengths, toReduceDims{});
+                    make_tuple_from_array_and_index_seq(inLengths, InnerDims{});
                 const auto invariantDimLengths =
-                    make_tuple_from_array_and_index_seq(inLengths, invariantDims{});
+                    make_tuple_from_array_and_index_seq(inLengths, OuterDims{});
 
                 return transform_tensor_descriptor(
-                    srcDesc,
+                    inDesc,
                     make_tuple(make_merge_transform(invariantDimLengths),
                                make_merge_transform(toReduceDimLengths)),
-                    make_tuple(invariantDims{}, toReduceDims{}),
+                    make_tuple(OuterDims{}, InnerDims{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
             }
         }();
 
-        const auto invariantLen = src2dDesc.GetLength(Number<0>{});
-        const auto toReduceLen  = src2dDesc.GetLength(Number<1>{});
+        const auto outerLen = in2dDesc.GetLength(Number<0>{});
+        const auto innerLen = in2dDesc.GetLength(Number<1>{});
 
         const int reduceSizePerBlock = math::integer_least_multiple(
-            (toReduceLen + blkGroupSize - 1) / blkGroupSize, dim1_tile_size);
-        const auto srcPad0 =
-            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
-        const auto srcPad1 = reduceSizePerBlock * blkGroupSize - toReduceLen;
+            (innerLen + blkGroupSize - 1) / blkGroupSize, K_BlockTileSize);
+        const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
+        const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
 
-        auto src2dDesc_2 =
-            transform_tensor_descriptor(src2dDesc,
-                                        make_tuple(make_right_pad_transform(invariantLen, srcPad0),
-                                                   make_right_pad_transform(toReduceLen, srcPad1)),
+        auto in2dDesc_M_K =
+            transform_tensor_descriptor(in2dDesc,
+                                        make_tuple(make_right_pad_transform(outerLen, inPad_M),
+                                                   make_right_pad_transform(innerLen, inPad_K)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return (src2dDesc_2);
+        return (in2dDesc_M_K);
     };
 
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
@@ -120,25 +120,24 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
 
-        auto dstDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
+        auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
-        auto dst1dDesc = transform_tensor_descriptor(
-            dstDesc,
+        auto out1dDesc = transform_tensor_descriptor(
+            outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
             make_tuple(typename arithmetic_sequence_gen<0, dstDims, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
-        const auto invariantLen = dst1dDesc.GetLength(Number<0>{});
+        const auto outerLen = out1dDesc.GetLength(Number<0>{});
 
-        const auto dstPad =
-            math::integer_least_multiple(invariantLen, dim0_tile_size) - invariantLen;
+        const auto outPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
 
-        auto dst1dDesc_2 =
-            transform_tensor_descriptor(dst1dDesc,
-                                        make_tuple(make_right_pad_transform(invariantLen, dstPad)),
+        auto out1dDesc_M =
+            transform_tensor_descriptor(out1dDesc,
+                                        make_tuple(make_right_pad_transform(outerLen, outPad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
-        return (dst1dDesc_2);
+        return (out1dDesc_M);
     };
 
     struct Argument : public BaseArgument
@@ -149,12 +148,12 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
                  const std::vector<int>& outStrides,
                  float alpha,
                  float beta,
-                 const inType* in_dev,
-                 outType* out_dev,
+                 const InDataType* in_dev,
+                 OutDataType* out_dev,
                  int* out_indices_dev,
-                 compType* workspace_dev,
-                 const preUnaryOpType& preUnaryOp,
-                 const posUnaryOpType& posUnaryOp)
+                 AccDataType* workspace_dev,
+                 const InElementwiseOperation& inElementwiseOp,
+                 const AccElementwiseOperation& accElementwiseOp)
             : in_dev_{in_dev}, out_dev_{out_dev}
         {
             (void)out_indices_dev;
@@ -165,27 +164,27 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
             outLengths_ = outLengths;
             outStrides_ = outStrides;
 
-            preUnaryOp_ = preUnaryOp;
-            posUnaryOp_ = posUnaryOp;
+            inElementwiseOp_  = inElementwiseOp;
+            accElementwiseOp_ = accElementwiseOp;
 
-            alpha_ = static_cast<inType>(alpha);
-            beta_  = static_cast<outType>(beta);
+            alpha_ = static_cast<InDataType>(alpha);
+            beta_  = static_cast<OutDataType>(beta);
 
-            std::tie(dim0_total_length, dim1_total_length) =
-                get_2d_lengths<rank, toReduceDims>(inLengths);
+            std::tie(outer_total_length, inner_total_length) =
+                get_2d_lengths<Rank, InnerDims>(inLengths);
 
-            if constexpr(invariantDims::Size() == 0)
-                dim0_lowest_length = 1;
+            if constexpr(OuterDims::Size() == 0)
+                outer_lowest_length = 1;
             else
-                dim0_lowest_length = inLengths[invariantDims::At(invariantDims::Size() - 1)];
+                outer_lowest_length = inLengths[OuterDims::At(OuterDims::Size() - 1)];
 
-            dim1_lowest_length = inLengths[toReduceDims::At(toReduceDims::Size() - 1)];
+            inner_lowest_length = inLengths[InnerDims::At(InnerDims::Size() - 1)];
 
             int iterations = 1;
             while(true)
             {
-                int test_blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
-                                        (dim1_tile_size * iterations);
+                int test_blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
+                                        (K_BlockTileSize * iterations);
 
                 // we want the blkGroupSize be not more than 128
                 if(test_blkGroupSize <= 128)
@@ -194,13 +193,13 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
                 iterations++;
             };
 
-            blkGroupSize = (dim1_total_length + (dim1_tile_size * iterations) - 1) /
-                           (dim1_tile_size * iterations);
+            blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
+                           (K_BlockTileSize * iterations);
 
-            gridSize = math::integer_least_multiple(dim0_total_length, dim0_tile_size) /
-                       dim0_tile_size * blkGroupSize;
+            gridSize = math::integer_least_multiple(outer_total_length, M_BlockTileSize) /
+                       M_BlockTileSize * blkGroupSize;
 
-            gridSize_pre = math::integer_least_multiple(dim0_total_length, blockSize) / blockSize;
+            gridSize_pre = math::integer_least_multiple(outer_total_length, BlockSize) / BlockSize;
         }
 
         std::vector<int> inLengths_;
@@ -208,19 +207,19 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
         std::vector<int> outLengths_;
         std::vector<int> outStrides_;
 
-        inType alpha_;
-        outType beta_;
+        InDataType alpha_;
+        OutDataType beta_;
 
-        const inType* in_dev_;
-        outType* out_dev_;
+        const InDataType* in_dev_;
+        OutDataType* out_dev_;
 
-        preUnaryOpType preUnaryOp_;
-        posUnaryOpType posUnaryOp_;
+        InElementwiseOperation inElementwiseOp_;
+        AccElementwiseOperation accElementwiseOp_;
 
-        int dim0_lowest_length;
-        int dim1_lowest_length;
-        size_t dim0_total_length;
-        size_t dim1_total_length;
+        int outer_lowest_length;
+        int inner_lowest_length;
+        size_t outer_total_length;
+        size_t inner_total_length;
 
         int blkGroupSize;
         size_t gridSize;
@@ -232,47 +231,47 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto src2dDesc = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
+            const auto in2dDesc = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize);
-            const auto dst1dDesc = DeviceReduceMultiBlockAtomicAdd::MakeDst1dDescriptor(
+            const auto out1dDesc = DeviceReduceMultiBlockAtomicAdd::MakeDst1dDescriptor(
                 arg.outLengths_, arg.outStrides_);
-            using src2dDescType = decltype(src2dDesc);
-            using dst1dDescType = decltype(dst1dDesc);
+            using In2dDescType  = decltype(in2dDesc);
+            using Out1dDescType = decltype(out1dDesc);
 
-            using gridwise_reduce =
-                GridwiseReduction_xy_to_x_multiblock_atomic_add<inType,
-                                                                outType,
-                                                                compType,
-                                                                src2dDescType,
-                                                                dst1dDescType,
-                                                                opReduce,
-                                                                preUnaryOpType,
-                                                                posUnaryOpType,
-                                                                propagate_nan,
-                                                                blockSize,
-                                                                dim0_thread_cluster_size,
-                                                                dim1_thread_cluster_size,
-                                                                dim0_thread_slice_size,
-                                                                dim1_thread_slice_size,
-                                                                vectorDim,
-                                                                vectorSize>;
+            using GridwiseReduce =
+                GridwiseReduction_xy_to_x_multiblock_atomic_add<InDataType,
+                                                                OutDataType,
+                                                                AccDataType,
+                                                                In2dDescType,
+                                                                Out1dDescType,
+                                                                ReduceOperation,
+                                                                InElementwiseOperation,
+                                                                AccElementwiseOperation,
+                                                                PropagateNan,
+                                                                BlockSize,
+                                                                MThreadClusterSize,
+                                                                KThreadClusterSize,
+                                                                MThreadSliceSize,
+                                                                KThreadSliceSize,
+                                                                VectorDim,
+                                                                VectorSize>;
 
             float avg_time = 0;
 
             KernelTimer timer;
 
-            const auto kernel_pre  = kernel_buffer_set_value<blockSize, outType, dst1dDescType>;
-            const auto kernel_main = kernel_reduce_multiblock_atocmi_add<gridwise_reduce,
-                                                                         inType,
-                                                                         outType,
-                                                                         src2dDescType,
-                                                                         dst1dDescType,
-                                                                         preUnaryOpType,
-                                                                         posUnaryOpType>;
+            const auto kernel_pre  = kernel_buffer_set_value<BlockSize, OutDataType, Out1dDescType>;
+            const auto kernel_main = kernel_reduce_multiblock_atocmi_add<GridwiseReduce,
+                                                                         InDataType,
+                                                                         OutDataType,
+                                                                         In2dDescType,
+                                                                         Out1dDescType,
+                                                                         InElementwiseOperation,
+                                                                         AccElementwiseOperation>;
 
             printf("launch_and_time_kernel: grid_dim {%ld, 1, 1}, block_dim {%d, 1, 1} \n",
                    arg.gridSize,
-                   blockSize);
+                   BlockSize);
             printf("Warm up\n");
 
             for(int i = 0; i < nrepeat + 1; i++)
@@ -282,20 +281,20 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
 
                 launch_kernel(kernel_pre,
                               dim3(arg.gridSize_pre),
-                              dim3(blockSize),
+                              dim3(BlockSize),
                               0,
-                              dst1dDesc,
+                              out1dDesc,
                               arg.out_dev_,
-                              static_cast<outType>(0.0f));
+                              static_cast<OutDataType>(0.0f));
 
                 launch_kernel(kernel_main,
                               dim3(arg.gridSize),
-                              dim3(blockSize),
+                              dim3(BlockSize),
                               0,
-                              src2dDesc,
-                              dst1dDesc,
-                              arg.preUnaryOp_,
-                              arg.posUnaryOp_,
+                              in2dDesc,
+                              out1dDesc,
+                              arg.inElementwiseOp_,
+                              arg.accElementwiseOp_,
                               arg.blkGroupSize,
                               arg.alpha_,
                               arg.in_dev_,
@@ -319,52 +318,53 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(vectorDim == 0)
+        if constexpr(VectorDim == 0)
         {
-            if constexpr(invariantDims::Size() == 0)
+            if constexpr(OuterDims::Size() == 0)
                 return (false);
 
-            if(pArg->inStrides_[invariantDims::At(invariantDims::Size() - 1)] != 1)
+            if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
                 return (false);
         }
         else
         {
-            if(pArg->inStrides_[toReduceDims::At(toReduceDims::Size() - 1)] != 1)
+            if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
                 return (false);
         };
 
         if(static_cast<float>(pArg->beta_) != 0.0f)
             return (false);
 
-        if(pArg->dim0_lowest_length % dim0_thread_slice_size != 0)
+        if(pArg->outer_lowest_length % MThreadSliceSize != 0)
             return (false);
 
-        if(pArg->dim1_lowest_length % dim1_thread_slice_size != 0)
+        if(pArg->inner_lowest_length % KThreadSliceSize != 0)
             return (false);
 
-        // cases with small dim1_total_length should be handled by the BlockWise method
-        if(pArg->dim1_total_length <= blockSize * dim1_thread_slice_size)
+        // cases with small inner_total_length should be handled by the BlockWise method
+        if(pArg->inner_total_length <= BlockSize * KThreadSliceSize)
             return (false);
 
         // This is very strong restriction, but needed to avoid some failure
-        if(pArg->dim0_lowest_length % dim0_tile_size != 0)
+        if(pArg->outer_lowest_length % M_BlockTileSize != 0)
             return (false);
 
         return (true);
     };
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,
-                                                      const std::vector<int>& inStrides,
-                                                      const std::vector<int>& outLengths,
-                                                      const std::vector<int>& outStrides,
-                                                      float alpha,
-                                                      float beta,
-                                                      const void* in_dev,
-                                                      void* out_dev,
-                                                      void* out_indices_dev,
-                                                      void* workspace_dev,
-                                                      const preUnaryOpType& preUnaryOp,
-                                                      const posUnaryOpType& posUnaryOp) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const std::vector<int>& inLengths,
+                        const std::vector<int>& inStrides,
+                        const std::vector<int>& outLengths,
+                        const std::vector<int>& outStrides,
+                        float alpha,
+                        float beta,
+                        const void* in_dev,
+                        void* out_dev,
+                        void* out_indices_dev,
+                        void* workspace_dev,
+                        const InElementwiseOperation& inElementwiseOp,
+                        const AccElementwiseOperation& accElementwiseOp) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -372,12 +372,12 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
                                           outStrides,
                                           alpha,
                                           beta,
-                                          static_cast<const inType*>(in_dev),
-                                          static_cast<outType*>(out_dev),
+                                          static_cast<const InDataType*>(in_dev),
+                                          static_cast<OutDataType*>(out_dev),
                                           static_cast<int*>(out_indices_dev),
-                                          static_cast<compType*>(workspace_dev),
-                                          preUnaryOp,
-                                          posUnaryOp);
+                                          static_cast<AccDataType*>(workspace_dev),
+                                          inElementwiseOp,
+                                          accElementwiseOp);
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
@@ -389,9 +389,9 @@ struct DeviceReduceMultiBlockAtomicAdd : public DeviceReduce<preUnaryOpType, pos
     {
         auto str = std::stringstream();
 
-        str << "DeviceReduceMultiBlockAtomicAdd<" << blockSize << ",";
-        str << "Dim0_C" << dim0_thread_cluster_size << "_S" << dim0_thread_slice_size << ",";
-        str << "Dim1_C" << dim1_thread_cluster_size << "_S" << dim1_thread_slice_size << ">";
+        str << "DeviceReduceMultiBlockAtomicAdd<" << BlockSize << ",";
+        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ">";
 
         return str.str();
     }

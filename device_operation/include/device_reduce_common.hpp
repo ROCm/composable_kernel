@@ -13,7 +13,7 @@ namespace device {
 // template <typename preUnaryOpType, typename posUnaryOpType>
 // using DeviceReducePtr = std::unique_ptr<DeviceReduce<preUnaryOpType, posUnaryOpType>>;
 
-template <int rank, typename toReduceDims>
+template <int rank, typename InnerDims>
 std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
 {
     static_assert(rank <= 6, "bigger rank size not supported!");
@@ -21,13 +21,12 @@ std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
     size_t dim0_total_length = 1;
     size_t dim1_total_length = 1;
 
-    static_for<0, toReduceDims::Size(), 1>{}(
-        [&](auto i) { dim1_total_length *= inLengths[toReduceDims::At(i)]; });
+    static_for<0, InnerDims::Size(), 1>{}(
+        [&](auto i) { dim1_total_length *= inLengths[InnerDims::At(i)]; });
 
     unsigned int flag = 0;
 
-    static_for<0, toReduceDims::Size(), 1>{}(
-        [&](auto i) { flag = flag | (0x1 << toReduceDims::At(i)); });
+    static_for<0, InnerDims::Size(), 1>{}([&](auto i) { flag = flag | (0x1 << InnerDims::At(i)); });
 
     static_for<0, rank, 1>{}([&](auto i) {
         if(!(flag & (0x1 << i.value)))
@@ -47,8 +46,8 @@ constexpr bool belong()
     return (inside);
 };
 
-template <int rank, typename toReduceDims, int start = 0>
-constexpr auto get_invariantDims()
+template <int rank, typename InnerDims, int start = 0>
+constexpr auto get_outer_dims()
 {
     static_assert(rank <= 6, "bigger rank size not supported!");
 
@@ -56,11 +55,10 @@ constexpr auto get_invariantDims()
         return Sequence<>{};
     else
     {
-        if constexpr(!belong<start, toReduceDims>())
-            return merge_sequences(Sequence<start>{},
-                                   get_invariantDims<rank, toReduceDims, start + 1>());
+        if constexpr(!belong<start, InnerDims>())
+            return merge_sequences(Sequence<start>{}, get_outer_dims<rank, InnerDims, start + 1>());
         else
-            return get_invariantDims<rank, toReduceDims, start + 1>();
+            return get_outer_dims<rank, InnerDims, start + 1>();
     };
 };
 
