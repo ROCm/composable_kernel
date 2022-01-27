@@ -63,10 +63,10 @@ int profile_gemm(int argc, char* argv[])
     const int N = std::stoi(argv[9]);
     const int K = std::stoi(argv[10]);
 
-    const int StrideA   = std::stoi(argv[11]);
-    const int StrideB   = std::stoi(argv[12]);
-    const int StrideC   = std::stoi(argv[13]);
-    int KBatch = 1;
+    const int StrideA = std::stoi(argv[11]);
+    const int StrideB = std::stoi(argv[12]);
+    const int StrideC = std::stoi(argv[13]);
+    int KBatch        = 1;
     if(argc == 15)
         KBatch = std::stoi(argv[14]);
 
