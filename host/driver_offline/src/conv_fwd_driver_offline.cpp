@@ -12,10 +12,10 @@
 #include "host_tensor_generator.hpp"
 #include "conv_common.hpp"
 #include "device_tensor.hpp"
-//#include "device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
-//#include "device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk.hpp"
-//#include "device_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw.hpp"
-//#include "device_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_forward_implicit_gemm_v4r4r2_dlops_nhwc_kyxc_nhwk.hpp"
+#include "device_convolution_forward_implicit_gemm_v6r1_dlops_nchw_kcyx_nkhw.hpp"
+#include "device_convolution_forward_implicit_gemm_v4r4r2_xdlops_nchw_kcyx_nkhw.hpp"
 #include "device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk.hpp"
 
 #define USE_DYNAMIC_MODE 1
@@ -65,7 +65,7 @@ void host_convolution_forward(const Tensor<TIn>& in,
     constexpr auto I1 = Number<1>{};
 
     auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-        float v = 0;
+        double v = 0;
         for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
         {
             for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
@@ -77,18 +77,33 @@ void host_convolution_forward(const Tensor<TIn>& in,
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[3])
                     {
-                        v += ck::type_convert<float>(in(n, c, hi, wi)) *
-                             ck::type_convert<float>(wei(k, c, y, x));
+                        if constexpr(is_same<TIn, ushort>::value)
+                        {
+                            v += ck::type_convert<float>(in(n, c, hi, wi)) *
+                                 ck::type_convert<float>(wei(k, c, y, x));
+                        }
+                        else
+                        {
+                            v += static_cast<const double>(in(n, c, hi, wi)) *
+                                 static_cast<const double>(wei(k, c, y, x));
+                        }
                     }
                 }
             }
         }
 
-        out(n, k, ho, wo) = ck::type_convert<TOut>(v);
+        if constexpr(is_same<TOut, ushort>::value)
+        {
+            out(n, k, ho, wo) = ck::type_convert<ushort>(static_cast<float>(v));
+        }
+        else
+        {
+            out(n, k, ho, wo) = v;
+        }
     };
 
     auto f_nhwc = [&](auto n, auto ho, auto wo, auto k) {
-        float v = 0;
+        double v = 0;
         for(int c = 0; c < wei.mDesc.GetLengths()[3]; ++c)
         {
             for(int y = 0; y < wei.mDesc.GetLengths()[1]; ++y)
@@ -100,14 +115,28 @@ void host_convolution_forward(const Tensor<TIn>& in,
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[1] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[2])
                     {
-                        v += ck::type_convert<float>(in(n, hi, wi, c)) *
-                             ck::type_convert<float>(wei(k, y, x, c));
+                        if constexpr(is_same<TIn, ushort>::value)
+                        {
+                            v += ck::type_convert<float>(in(n, hi, wi, c)) *
+                                 ck::type_convert<float>(wei(k, y, x, c));
+                        }
+                        else
+                        {
+                            v += static_cast<const double>(in(n, hi, wi, c)) *
+                                 static_cast<const double>(wei(k, y, x, c));
+                        }
                     }
                 }
             }
         }
-
-        out(n, ho, wo, k) = ck::type_convert<TOut>(v);
+        if constexpr(is_same<TOut, ushort>::value)
+        {
+            out(n, ho, wo, k) = ck::type_convert<ushort>(static_cast<float>(v));
+        }
+        else
+        {
+            out(n, ho, wo, k) = v;
+        }
     };
 
     if(layout == ConvTensorLayout::NCHW)
@@ -225,11 +254,11 @@ int main(int argc, char* argv[])
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;
-#elif 0
+#elif 1
     using in_data_t   = half_t;
     using acc_data_t  = float;
     using out_data_t  = half_t;
-#elif 1
+#elif 0
     using in_data_t  = ushort;
     using acc_data_t = float;
     using out_data_t = ushort;
