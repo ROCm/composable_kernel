@@ -12,7 +12,7 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "device_gemm_xdl.hpp"
+#include "device_gemm_xdl_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
 
 template <ck::index_t... Is>
@@ -31,14 +31,45 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-// Compilation parameters for NT problem
 // clang-format off
-using DeviceGemmInstance =
-    //#########################################|     AData|     BData|     CData|     AccData| ALayout| BLayout| CLayout| AElementwise| BElementwise| CElementwise| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| CThreadTransfer| CThreadTransfer| ABlockLds| BBlockLds|
-    //#########################################|      Type|      Type|      Type|        Type|        |        |        |    Operation|    Operation|    Operation|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| SrcDstVectorDim|       DstScalar| AddExtraM| AddExtraN|
-    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1| Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|                |       PerVector|          |          |
-    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |                |               |               |              |               |               |                |                |          |          |
-    ck::tensor_operation::device::DeviceGemmXdl< ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,   AElementOp,   BElementOp,   CElementOp,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,               7,               1,      true,      true>;
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle<
+    ADataType,              // ADataType
+    BDataType,              // BDataType
+    CDataType,              // CDataType
+    AccDataType,            // AccDataType
+    ALayout,                // ALayout
+    BLayout,                // BLayout
+    CLayout,                // CLayout
+    AElementOp,             // AElementwiseOperation
+    BElementOp,             // BElementwiseOperation
+    CElementOp,             // CElementwiseOperation
+    256,                    // BlockSize
+    256,                    // MPerBlock
+    128,                    // NPerBlock
+    4,                      // K0PerBlock
+    8,                      // K1
+    32,                     // MPerXDL
+    32,                     // NPerXDL
+    4,                      // MXdlPerWave
+    2,                      // NXdlPerWave
+    S<4, 64, 1>,            // ABlockTransferThreadClusterLengths_K0_M_K1
+    S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
+    2,                      // ABlockTransferSrcVectorDim
+    8,                      // ABlockTransferSrcScalarPerVector
+    8,                      // ABlockTransferDstScalarPerVector_K1
+    true,                   // ABlockLdsAddExtraM
+    S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
+    S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
+    2,                      // BBlockTransferSrcVectorDim
+    8,                      // BBlockTransferSrcScalarPerVector
+    8,                      // BBlockTransferDstScalarPerVector_K1
+    true,                   // BBlockLdsAddExtraN
+    1,                      // CShuffleMXdlPerWavePerShuffle
+    1,                      // CShuffleNXdlPerWavePerShuffle
+    S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+    8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
 template <typename AType,
@@ -90,9 +121,9 @@ int main(int argc, char* argv[])
 
     if(argc == 4)
     {
-        M = std::stoi(argv[4]);
-        N = std::stoi(argv[5]);
-        K = std::stoi(argv[6]);
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
