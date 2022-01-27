@@ -55,12 +55,13 @@ void add_device_reduce_instance_blockwise(
                                                            AccElementwiseOperation,
                                                            PropagateNan,
                                                            NeedIndices,
-                                                           cfg1::blockSize_,
-                                                           cfg1::dim0_thread_cluster_size_,
-                                                           cfg1::dim1_thread_cluster_size_,
-                                                           cfg2::vectorDim_,
-                                                           cfg2::dim0_thread_slice_size_,
-                                                           cfg2::dim1_thread_slice_size_>;
+                                                           cfg1::BlockSize_,
+                                                           cfg1::MThreadClusterSize_,
+                                                           cfg1::KThreadClusterSize_,
+                                                           cfg2::MThreadSliceSize_,
+                                                           cfg2::KThreadSliceSize_,
+                                                           cfg2::VectorDim_,
+                                                           cfg2::VectorSize_>;
 
             device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
         });

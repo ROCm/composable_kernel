@@ -25,9 +25,10 @@ template <typename InDataType,
           int BlockSize,
           int MThreadClusterSize,
           int KThreadClusterSize,
-          int VectorDim,
           int MThreadSliceSize,
-          int KThreadSliceSize>
+          int KThreadSliceSize,
+          int VectorDim,
+          int VectorSize>
 struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
@@ -42,10 +43,6 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
     static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
-
-    static constexpr int VectorSize =
-        (VectorDim == 0) ? math::gcd(MThreadSliceSize, max_vector_size_for_type<InDataType>())
-                         : math::gcd(KThreadSliceSize, max_vector_size_for_type<InDataType>());
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides)
@@ -269,18 +266,18 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
             if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
                 return (false);
+
+            if(pArg->outer_lowest_length % VectorSize != 0)
+                return (false);
         }
         else
         {
             if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
                 return (false);
+
+            if(pArg->inner_lowest_length % VectorSize != 0)
+                return (false);
         };
-
-        if(pArg->outer_lowest_length % MThreadSliceSize != 0)
-            return (false);
-
-        if(pArg->inner_lowest_length % KThreadSliceSize != 0)
-            return (false);
 
         // cases with very small inner_total_length should be handled by the ThreadWise method
         if(pArg->inner_total_length / KThreadSliceSize < 2)

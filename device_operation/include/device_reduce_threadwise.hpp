@@ -25,9 +25,10 @@ template <typename InDataType,
           int BlockSize,
           int MThreadClusterSize,
           int KThreadClusterSize,
-          int VectorDim,
           int MThreadSliceSize,
-          int KThreadSliceSize>
+          int KThreadSliceSize,
+          int VectorDim,
+          int VectorSize>
 struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
@@ -42,10 +43,6 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
 
     static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
-
-    static constexpr int VectorSize =
-        (VectorDim == 0) ? math::gcd(MThreadSliceSize, max_vector_size_for_type<InDataType>())
-                         : math::gcd(KThreadSliceSize, max_vector_size_for_type<InDataType>());
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides)
@@ -268,18 +265,18 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
 
             if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
                 return (false);
+
+            if(pArg->outer_lowest_length % VectorSize != 0)
+                return (false);
         }
         else
         {
             if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
                 return (false);
+
+            if(pArg->inner_lowest_length % VectorSize != 0)
+                return (false);
         };
-
-        if(pArg->outer_lowest_length % MThreadSliceSize != 0)
-            return (false);
-
-        if(pArg->inner_lowest_length % KThreadSliceSize != 0)
-            return (false);
 
         // TODO: remove this. Should return true, as long as this DeviceOP instance support this
         // case for bigger inner_total_length size, we are supposed to use BlockWise method for
