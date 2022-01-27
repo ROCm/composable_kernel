@@ -42,17 +42,22 @@ cmake                                                                  \
 ./example/conv3d_fwd_xdl 0 1 5
 ```
 
-Result (MI200)
+Result (MI100 dynamic frequency)
 ```
-in_n_di_hi_wi_c: dim 5, lengths {4, 71, 71, 71, 192}, strides {68718912, 967872, 13632, 192, 1}
-wei_k_z_y_x_c: dim 5, lengths {128, 3, 3, 3, 192}, strides {5184, 1728, 576, 192, 1}
-out_n_do_ho_wo_k: dim 5, lengths {4, 36, 36, 36, 128}, strides {5971968, 165888, 4608, 128, 1}
+in: dim 5, lengths {4, 71, 71, 71, 192}, strides {68718912, 967872, 13632, 192, 1}
+wei: dim 5, lengths {256, 3, 3, 3, 192}, strides {5184, 1728, 576, 192, 1}
+out: dim 5, lengths {4, 36, 36, 36, 256}, strides {11943936, 331776, 9216, 256, 1}
 a_grid_desc_b_k0_m_k1{1, 648, 186624, 8}
-b_grid_desc_k0_n_k1{648, 128, 8}
-c_grid_desc_b_m_n{ 1, 186624, 128}
-launch_and_time_kernel: grid_dim {729, 1, 1}, block_dim {256, 1, 1}
+b_grid_desc_k0_n_k1{648, 256, 8}
+c_grid_desc_b_m_n{ 1, 186624, 256}
+launch_and_time_kernel: grid_dim {1458, 1, 1}, block_dim {256, 1, 1}
 Warm up
 Start running 5 times...
-Perf: 3.06193 ms, 80.8868 TFlops, 195.581 GB/s
+Perf: 4.32957 ms, 114.408 TFlops, 149.659 GB/s
+launch_and_time_kernel: grid_dim {256, 1, 1}, block_dim {256, 1, 1}
+Warm up
+Start running 1 times...
+error: 0
+max_diff: 0, -140, -140
 ```
 

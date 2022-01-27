@@ -173,7 +173,6 @@ int main(int argc, char* argv[])
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
-    // out_device_buf.ToDevice(out.mData.data());
 
     // do Convolution
     auto invoker  = conv3d.MakeInvoker();
@@ -232,6 +231,7 @@ int main(int argc, char* argv[])
 
         const auto naive_conv_fwd_kernel =
             ck::ref::naive_conv_fwd_ndhwc<InDataType, WeiDataType, OutDataType>;
+
         launch_and_time_kernel(naive_conv_fwd_kernel,
                                1,
                                dim3(256),
@@ -264,6 +264,7 @@ int main(int argc, char* argv[])
 
         Tensor<OutDataType> out_ref(
             {N, out_spatial_lengths[0], out_spatial_lengths[1], out_spatial_lengths[2], K});
+
         out_ref_device_buf.FromDevice(out_ref.mData.data());
 
         check_error(out_ref, out);
