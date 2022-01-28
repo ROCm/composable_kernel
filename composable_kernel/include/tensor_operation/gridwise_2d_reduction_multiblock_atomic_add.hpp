@@ -38,6 +38,7 @@ namespace ck {
 template <typename GridwiseReduction,
           typename InDataType,
           typename OutDataType,
+          typename AccDataType,
           typename In2dDescType,
           typename Out1dDescType,
           typename InElementwiseOperation,
@@ -48,7 +49,7 @@ kernel_reduce_multiblock_atocmi_add(const In2dDescType in2dDesc,
                                     const InElementwiseOperation inElementwiseOp,
                                     const AccElementwiseOperation accElementwiseOp,
                                     int BlkGroupSize,
-                                    InDataType alpha,
+                                    AccDataType alpha,
                                     const InDataType* const __restrict__ p_src_global,
                                     OutDataType* const __restrict__ p_dst_global)
 {
@@ -109,7 +110,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                const InElementwiseOperation& inElementwiseOp,
                                const AccElementwiseOperation& accElementwiseOp,
                                int BlkGroupSize,
-                               InDataType alpha,
+                               AccDataType alpha,
                                const InDataType* const __restrict__ p_src_global,
                                OutDataType* const __restrict__ p_dst_global)
     {
@@ -231,8 +232,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
             {
                 accuValue_buf(I) = accElementwiseOp(accuValue_buf[I]);
 
-                if(!float_equal_one{}(alpha))
-                    accuValue_buf(I) *= type_convert<AccDataType>(alpha);
+                accuValue_buf(I) *= alpha;
             }
         });
 

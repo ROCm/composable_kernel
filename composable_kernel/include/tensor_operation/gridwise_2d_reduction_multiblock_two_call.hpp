@@ -48,7 +48,6 @@ __global__ void kernel_reduce_multiblock_two_call(const In2dDescType in2dDesc,
                                                   const InElementwiseOperation inElementwiseOp,
                                                   const AccElementwiseOperation accElementwiseOp,
                                                   int BlkGroupSize,
-                                                  InDataType alpha,
                                                   const InDataType* const __restrict__ p_src_global,
                                                   AccDataType* const __restrict__ ws_values_global,
                                                   int* const __restrict__ ws_indices_global)
@@ -60,7 +59,6 @@ __global__ void kernel_reduce_multiblock_two_call(const In2dDescType in2dDesc,
                                inElementwiseOp,
                                accElementwiseOp,
                                BlkGroupSize,
-                               alpha,
                                p_src_global,
                                ws_values_global,
                                ws_indices_global);
@@ -70,7 +68,6 @@ __global__ void kernel_reduce_multiblock_two_call(const In2dDescType in2dDesc,
                                           inElementwiseOp,
                                           accElementwiseOp,
                                           BlkGroupSize,
-                                          alpha,
                                           p_src_global,
                                           ws_values_global,
                                           ws_indices_global);
@@ -122,13 +119,11 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                const InElementwiseOperation& inElementwiseOp,
                                const AccElementwiseOperation& accElementwiseOp,
                                int BlkGroupSize,
-                               InDataType alpha,
                                const InDataType* const __restrict__ p_src_global,
                                AccDataType* const __restrict__ ws_values_global,
                                int* const __restrict__ ws_indices_global)
     {
         (void)ws_indices_global;
-        (void)alpha; // unused
         (void)accElementwiseOp;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
@@ -273,12 +268,10 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                           const InElementwiseOperation& inElementwiseOp,
                                           const AccElementwiseOperation& accElementwiseOp,
                                           int BlkGroupSize,
-                                          InDataType alpha,
                                           const InDataType* const __restrict__ p_src_global,
                                           AccDataType* const __restrict__ ws_values_global,
                                           int* const __restrict__ ws_indices_global)
     {
-        (void)alpha; // unused
         (void)accElementwiseOp;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();

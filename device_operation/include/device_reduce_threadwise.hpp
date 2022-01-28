@@ -35,6 +35,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
     static_assert((BlockSize == MThreadClusterSize) && (KThreadClusterSize == 1),
                   "Threadwise can only be called with KThreadClusterSize be 1 !");
 
+    static constexpr bool BetaIsZero = NeedIndices;
+
     using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
 
     static constexpr index_t srcDims    = Rank;
@@ -151,7 +153,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
             inElementwiseOp_  = inElementwiseOp;
             accElementwiseOp_ = accElementwiseOp;
 
-            alpha_ = static_cast<InDataType>(alpha);
+            alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
 
             std::tie(outer_total_length, inner_total_length) =
@@ -173,7 +175,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
         std::vector<int> outLengths_;
         std::vector<int> outStrides_;
 
-        InDataType alpha_;
+        AccDataType alpha_;
         OutDataType beta_;
 
         const InDataType* in_dev_;
@@ -211,6 +213,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
                                                                         InElementwiseOperation,
                                                                         OutElementwiseOperation,
                                                                         PropagateNan,
+                                                                        BetaIsZero,
                                                                         BlockSize,
                                                                         MThreadClusterSize,
                                                                         KThreadClusterSize,
@@ -225,6 +228,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
                                                          NeedIndices,
                                                          InDataType,
                                                          OutDataType,
+                                                         AccDataType,
                                                          In2dDescType,
                                                          Out1dDescType,
                                                          InElementwiseOperation,

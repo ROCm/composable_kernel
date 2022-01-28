@@ -181,7 +181,7 @@ struct DeviceReduceMultiBlockTwoCall
             inElementwiseOp_  = inElementwiseOp;
             accElementwiseOp_ = accElementwiseOp;
 
-            alpha_ = static_cast<InDataType>(alpha);
+            alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
 
             std::tie(outer_total_length, inner_total_length) =
@@ -228,7 +228,7 @@ struct DeviceReduceMultiBlockTwoCall
         std::vector<int> outLengths_;
         std::vector<int> outStrides_;
 
-        InDataType alpha_;
+        AccDataType alpha_;
         OutDataType beta_;
 
         const InDataType* in_dev_;
@@ -299,7 +299,6 @@ struct DeviceReduceMultiBlockTwoCall
                                               arg.inElementwiseOp_,
                                               arg.accElementwiseOp_,
                                               arg.blkGroupSize,
-                                              arg.alpha_,
                                               arg.in_dev_,
                                               arg.workspace_dev_,
                                               arg.workspace_indices_dev_);

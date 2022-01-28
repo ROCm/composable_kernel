@@ -36,6 +36,8 @@ struct DeviceReduceBlockWiseSecondCall
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    static constexpr bool BetaIsZero = NeedIndices;
+
     static_assert(
         std::is_same<InDataType, AccDataType>::value,
         "InDataType and AccDataType should be the same to use DEviceReduceBlockWiseSecondCall!");
@@ -121,7 +123,7 @@ struct DeviceReduceBlockWiseSecondCall
             inElementwiseOp_  = inElementwiseOp;
             accElementwiseOp_ = accElementwiseOp;
 
-            alpha_ = static_cast<InDataType>(alpha);
+            alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
 
             outer_total_length = inLengths[0];
@@ -148,7 +150,7 @@ struct DeviceReduceBlockWiseSecondCall
         std::vector<int> outLengths_;
         std::vector<int> outStrides_;
 
-        InDataType alpha_;
+        AccDataType alpha_;
         OutDataType beta_;
 
         const InDataType* in_dev_;
@@ -187,6 +189,7 @@ struct DeviceReduceBlockWiseSecondCall
                                                                        InElementwiseOperation,
                                                                        AccElementwiseOperation,
                                                                        PropagateNan,
+                                                                       BetaIsZero,
                                                                        BlockSize,
                                                                        MThreadClusterSize,
                                                                        KThreadClusterSize,
@@ -201,6 +204,7 @@ struct DeviceReduceBlockWiseSecondCall
                                                                     NeedIndices,
                                                                     InDataType,
                                                                     OutDataType,
+                                                                    AccDataType,
                                                                     In2dDescType,
                                                                     Out1dDescType,
                                                                     InElementwiseOperation,

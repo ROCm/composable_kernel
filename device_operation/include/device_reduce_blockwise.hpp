@@ -35,6 +35,8 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    static constexpr bool BetaIsZero = NeedIndices;
+
     using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
 
     static constexpr index_t srcDims    = Rank;
@@ -151,7 +153,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
             inElementwiseOp_  = inElementwiseOp;
             accElementwiseOp_ = accElementwiseOp;
 
-            alpha_ = static_cast<InDataType>(alpha);
+            alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
 
             std::tie(outer_total_length, inner_total_length) =
@@ -173,7 +175,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
         std::vector<int> outLengths_;
         std::vector<int> outStrides_;
 
-        InDataType alpha_;
+        AccDataType alpha_;
         OutDataType beta_;
 
         const InDataType* in_dev_;
@@ -211,6 +213,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
                                                                        InElementwiseOperation,
                                                                        AccElementwiseOperation,
                                                                        PropagateNan,
+                                                                       BetaIsZero,
                                                                        BlockSize,
                                                                        MThreadClusterSize,
                                                                        KThreadClusterSize,
@@ -225,6 +228,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
                                                         NeedIndices,
                                                         InDataType,
                                                         OutDataType,
+                                                        AccDataType,
                                                         In2dDescType,
                                                         Out1dDescType,
                                                         InElementwiseOperation,

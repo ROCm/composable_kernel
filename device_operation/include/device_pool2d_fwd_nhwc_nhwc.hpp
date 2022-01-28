@@ -19,7 +19,7 @@ template <typename InDataType,
           typename opReduce,
           typename preUnaryOpType,
           typename posUnaryOpType,
-          bool need_indices,
+          bool NeedIndices,
           ck::index_t BlockSize,
           ck::index_t ReduceMPerBlock,
           ck::index_t ReduceKPerBlock,
@@ -37,7 +37,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
-    static constexpr int vectorDim =
+    static constexpr bool BetaIsZero = NeedIndices;
+
+    static constexpr int VectorDim =
         0; // for NHWC, the dim C is the vector Dim, which is not reduced.
 
     static auto MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
@@ -196,7 +198,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
             constexpr ck::index_t ThreadPerBlock_ReduceM = ReduceMPerBlock / ReduceMPerThread;
             constexpr ck::index_t ThreadPerBlock_ReduceK = ReduceKPerBlock / ReduceKPerThread;
 
-            constexpr int vectorSize =
+            constexpr int VectorSize =
                 math::gcd(ReduceMPerThread, max_vector_size_for_type<InDataType>());
 
             using gridwise_reduce = GridwiseReduction_xy_to_x_threadwise<InDataType,
@@ -208,18 +210,20 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                                                          preUnaryOpType,
                                                                          posUnaryOpType,
                                                                          false, // propagate_nan
+                                                                         BetaIsZero,
                                                                          BlockSize,
                                                                          ThreadPerBlock_ReduceM,
                                                                          ThreadPerBlock_ReduceK,
                                                                          ReduceMPerThread,
                                                                          ReduceKPerThread,
                                                                          0,
-                                                                         vectorSize>;
+                                                                         VectorSize>;
 
             const auto kernel = kernel_reduce_threadwise<gridwise_reduce,
-                                                         need_indices,
+                                                         NeedIndices,
                                                          InDataType,
                                                          OutDataType,
+                                                         AccDataType,
                                                          AGridDesc_M_K,
                                                          BGridDesc_M,
                                                          preUnaryOpType,
