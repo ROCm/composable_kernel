@@ -1,12 +1,13 @@
 #pragma once
-#include "device_gemm_instance.hpp"
-#include "device_gemm_splitk_xdl_instance.hpp"
+//#include "device_gemm_instance.hpp"
+//#include "device_gemm_splitk_xdl_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
+#if 0
 template <>
 void add_device_gemm_instance<float,
                               float,
@@ -70,6 +71,22 @@ void add_device_gemm_instance<ck::half_t,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
+#else
+void add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
+void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+#endif
 
 } // namespace device_gemm_instance
 } // namespace device

@@ -55,7 +55,7 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceGemmSplitKXdl
+struct DeviceGemmXdlSplitK
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
@@ -276,13 +276,13 @@ struct DeviceGemmSplitKXdl
               c_element_op_{c_element_op},
               k_batch_{k_batch}
         {
-            int KPad = DeviceGemmSplitKXdl::GetKPad(K, k_batch_);
+            int KPad = DeviceGemmXdlSplitK::GetKPad(K, k_batch_);
 
-            a_grid_desc_kbatch_k0_m_k1_ = DeviceGemmSplitKXdl::MakeAGridDescriptor_KBatch_K0_M_K1(
+            a_grid_desc_kbatch_k0_m_k1_ = DeviceGemmXdlSplitK::MakeAGridDescriptor_KBatch_K0_M_K1(
                 M, K, StrideA, k_batch_, KPad);
-            b_grid_desc_kbatch_k0_n_k1_ = DeviceGemmSplitKXdl::MakeBGridDescriptor_KBatch_K0_N_K1(
+            b_grid_desc_kbatch_k0_n_k1_ = DeviceGemmXdlSplitK::MakeBGridDescriptor_KBatch_K0_N_K1(
                 K, N, StrideB, k_batch_, KPad);
-            c_grid_desc_m_n_ = DeviceGemmSplitKXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+            c_grid_desc_m_n_ = DeviceGemmXdlSplitK::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
                                            b_grid_desc_kbatch_k0_n_k1_,
@@ -318,7 +318,7 @@ struct DeviceGemmSplitKXdl
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmSplitKXdl::Argument;
+        using Argument = DeviceGemmXdlSplitK::Argument;
 
         void ShowInfo(const Argument& arg)
         {
@@ -412,13 +412,13 @@ struct DeviceGemmSplitKXdl
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
-                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
-                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        remove_reference_t<DeviceGemmXdlSplitK::Block2CTileMap>,
                         true>;
 
                     Run(kernel);
@@ -429,13 +429,13 @@ struct DeviceGemmSplitKXdl
                         GridwiseGemmAtomicAdd,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
-                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
-                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        remove_reference_t<DeviceGemmXdlSplitK::Block2CTileMap>,
                         true>;
 
                     Run(kernel);
@@ -449,13 +449,13 @@ struct DeviceGemmSplitKXdl
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
-                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
-                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        remove_reference_t<DeviceGemmXdlSplitK::Block2CTileMap>,
                         false>;
 
                     Run(kernel);
@@ -466,13 +466,13 @@ struct DeviceGemmSplitKXdl
                         GridwiseGemmAtomicAdd,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
-                        remove_reference_t<DeviceGemmSplitKXdl::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmSplitKXdl::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceGemmXdlSplitK::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
-                        remove_reference_t<DeviceGemmSplitKXdl::Block2CTileMap>,
+                        remove_reference_t<DeviceGemmXdlSplitK::Block2CTileMap>,
                         false>;
 
                     Run(kernel);

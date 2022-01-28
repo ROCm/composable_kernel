@@ -8,11 +8,9 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_instance.hpp"
 #include "host_gemm.hpp"
 #include "tensor_layout.hpp"
-#include "device_gemm_splitk_xdl_instance.hpp"
-#include "device_gemm_splitk_xdl.hpp"
+#include "device_gemm_xdl_splitk.hpp"
 
 enum GemmMatrixLayout
 {
@@ -33,6 +31,7 @@ static std::vector<std::vector<bool>>& GetLayoutType()
     return LayOut;
 }
 
+#if 0
 static void add_device_gemm_instance_mk_kn_mn(std::vector<DeviceGemmNoOpPtr>& gemm_ptrs)
 {
     ck::tensor_operation::device::device_gemm_instance::add_device_splitk_gemm_instance<
@@ -84,10 +83,23 @@ static auto& GetAddDeviceGemmInstance()
         add_device_gemm_instance_km_nk_mn};
     return AddDeviceGemmInstance;
 }
+#else
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+#endif
 
 static void add_device_gemm_instance(std::vector<DeviceGemmNoOpPtr>& gemm_ptrs, int layout)
 {
+#if 0
     GetAddDeviceGemmInstance()[layout](gemm_ptrs);
+#else
+    if(layout == 2)
+    {
+        add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
+    }
+#endif
 }
 
 template <typename T>
@@ -150,6 +162,7 @@ int main(int argc, char* argv[])
                                             std::vector<std::size_t>({stride, 1}));
             }
         };
+
     Tensor<float> a_m_k(f_host_tensor_descriptor(M, K, StrideA, LayOut[layout][0]));
     Tensor<float> b_k_n(f_host_tensor_descriptor(K, N, StrideB, LayOut[layout][1]));
     Tensor<float> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, LayOut[layout][2]));
@@ -213,6 +226,7 @@ int main(int argc, char* argv[])
             success = true;
         }
     }
+
     if(success)
     {
         std::cout << "test split k : Pass" << std::endl;
