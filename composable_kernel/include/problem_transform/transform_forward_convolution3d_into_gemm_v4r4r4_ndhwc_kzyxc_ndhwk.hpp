@@ -252,12 +252,14 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
         make_tuple(Sequence<0>{}, Sequence<1>{}),
         make_tuple(Sequence<1>{}, Sequence<0>{}));
 
-    const auto wei_grid_desc_gemmk0_gemmn_gemmk1 =
+    const auto wei_grid_desc_gemmb_gemmk0_gemmn_gemmk1 =
         transform_tensor_descriptor(wei_grid_desc_gemmk_gemmn,
-                                    make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1)),
+                                    make_tuple(make_insert_transform(B),
+                                               make_unmerge_transform(make_tuple(GemmK0, GemmK1)),
                                                make_pass_through_transform(GemmN)),
-                                    make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                                    make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
+                                    // make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                    make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
 
     // C: output tensor
     const auto out_grid_desc_gemmb_gemmm_gemmn = transform_tensor_descriptor(
@@ -269,7 +271,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
     return make_tuple(in_grid_desc_gemmb_gemmk0_gemmm_gemmk1,
-                      wei_grid_desc_gemmk0_gemmn_gemmk1,
+                      wei_grid_desc_gemmb_gemmk0_gemmn_gemmk1,
                       out_grid_desc_gemmb_gemmm_gemmn);
 }
 

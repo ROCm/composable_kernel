@@ -116,16 +116,17 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         return N1;
     }
 
-    static auto
-    MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(const index_t N,
-                                                    const index_t K,
-                                                    const index_t C,
-                                                    std::vector<ck::index_t> input_spatial_lengths,
-                                                    std::vector<ck::index_t> filter_spatial_lengths,
-                                                    std::vector<ck::index_t> conv_filter_strides,
-                                                    std::vector<ck::index_t> conv_filter_dilations,
-                                                    std::vector<ck::index_t> input_left_pads,
-                                                    std::vector<ck::index_t> input_right_pads)
+    static auto MakeABCGridDescriptor_A_B_K0_M_K1_B_B_K0_N_K1_C_B_M_N(
+        const index_t N,
+        const index_t K,
+        const index_t C,
+        std::vector<ck::index_t> input_spatial_lengths,
+        std::vector<ck::index_t> filter_spatial_lengths,
+        std::vector<ck::index_t> output_spatial_lengths,
+        std::vector<ck::index_t> conv_filter_strides,
+        std::vector<ck::index_t> conv_filter_dilations,
+        std::vector<ck::index_t> input_left_pads,
+        std::vector<ck::index_t> input_right_pads)
     {
         assert(input_spatial_lengths.size() > 2);
         assert(filter_spatial_lengths.size() > 2);
@@ -133,14 +134,6 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         assert(conv_filter_dilations.size() > 2);
         assert(input_left_pads.size() > 2);
         assert(input_right_pads.size() > 2);
-
-        const auto output_spatial_lengths =
-            ck::tensor_operation::ComputeOutputSpatialLengthsOfConvFwd(input_spatial_lengths,
-                                                                       filter_spatial_lengths,
-                                                                       conv_filter_strides,
-                                                                       conv_filter_dilations,
-                                                                       input_left_pads,
-                                                                       input_right_pads);
 
         const index_t Di = input_spatial_lengths[0];
         const index_t Hi = input_spatial_lengths[1];
@@ -194,10 +187,11 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         }
     }
 
-    using ABCGridDescs = remove_cvref_t<decltype(MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        1, 1, 1, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}))>;
+    using ABCGridDescs =
+        remove_cvref_t<decltype(MakeABCGridDescriptor_A_B_K0_M_K1_B_B_K0_N_K1_C_B_M_N(
+            1, 1, 1, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}))>;
     using AGridDesc_B_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
-    using BGridDesc_K0_N_K1   = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
+    using BGridDesc_B_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_B_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     using GridwiseBatchedGemm = GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3<
@@ -207,7 +201,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         OutDataType,
         InMemoryDataOperationEnum_t::Set,
         AGridDesc_B_K0_M_K1,
-        BGridDesc_K0_N_K1,
+        BGridDesc_B_K0_N_K1,
         CGridDesc_B_M_N,
         InElementwiseOperation,
         WeiElementwiseOperation,
@@ -256,6 +250,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                  const index_t C,
                  std::vector<ck::index_t> input_spatial_lengths,
                  std::vector<ck::index_t> filter_spatial_lengths,
+                 std::vector<ck::index_t> output_spatial_lengths,
                  std::vector<ck::index_t> conv_filter_strides,
                  std::vector<ck::index_t> conv_filter_dilations,
                  std::vector<ck::index_t> input_left_pads,
@@ -275,27 +270,30 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
               out_element_op_{out_element_op}
         {
             const auto descs =
-                MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(N,
-                                                                K,
-                                                                C,
-                                                                input_spatial_lengths,
-                                                                filter_spatial_lengths,
-                                                                conv_filter_strides,
-                                                                conv_filter_dilations,
-                                                                input_left_pads,
-                                                                input_right_pads);
+                MakeABCGridDescriptor_A_B_K0_M_K1_B_B_K0_N_K1_C_B_M_N(N,
+                                                                      K,
+                                                                      C,
+                                                                      input_spatial_lengths,
+                                                                      filter_spatial_lengths,
+                                                                      output_spatial_lengths,
+                                                                      conv_filter_strides,
+                                                                      conv_filter_dilations,
+                                                                      input_left_pads,
+                                                                      input_right_pads);
 
             a_grid_desc_b_k0_m_k1_ = descs[I0];
-            b_grid_desc_k0_n_k1_   = descs[I1];
+            b_grid_desc_b_k0_n_k1_ = descs[I1];
             c_grid_desc_b_m_n_     = descs[I2];
 
             a_batch_stride_ = a_grid_desc_b_k0_m_k1_.CalculateOffset(make_multi_index(1, 0, 0, 0)) -
                               a_grid_desc_b_k0_m_k1_.CalculateOffset(make_multi_index(0, 0, 0, 0));
+            b_batch_stride_ = b_grid_desc_b_k0_n_k1_.CalculateOffset(make_multi_index(1, 0, 0, 0)) -
+                              b_grid_desc_b_k0_n_k1_.CalculateOffset(make_multi_index(0, 0, 0, 0));
             c_batch_stride_ = c_grid_desc_b_m_n_.CalculateOffset(make_multi_index(1, 0, 0)) -
                               c_grid_desc_b_m_n_.CalculateOffset(make_multi_index(0, 0, 0));
 
             if(GridwiseBatchedGemm::CheckValidity(
-                   a_grid_desc_b_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_b_m_n_, M01_, N01_))
+                   a_grid_desc_b_k0_m_k1_, b_grid_desc_b_k0_n_k1_, c_grid_desc_b_m_n_, M01_, N01_))
             {
                 c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseBatchedGemm::MakeCGridDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(
@@ -311,9 +309,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         const WeiDataType* p_b_grid_;
         OutDataType* p_c_grid_;
         index_t a_batch_stride_;
+        index_t b_batch_stride_;
         index_t c_batch_stride_;
         AGridDesc_B_K0_M_K1 a_grid_desc_b_k0_m_k1_;
-        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
+        BGridDesc_B_K0_N_K1 b_grid_desc_b_k0_n_k1_;
         CGridDesc_B_M_N c_grid_desc_b_m_n_;
         CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_;
         Block2CTileMap block_2_ctile_map_;
@@ -337,9 +336,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                           << arg.a_grid_desc_b_k0_m_k1_.GetLength(I2) << ", "
                           << arg.a_grid_desc_b_k0_m_k1_.GetLength(I3) << "}" << std::endl;
 
-                std::cout << "b_grid_desc_k0_n_k1{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
+                std::cout << "b_grid_desc_b_k0_n_k1{" << arg.b_grid_desc_b_k0_n_k1_.GetLength(I0)
+                          << ", " << arg.b_grid_desc_b_k0_n_k1_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_b_k0_n_k1_.GetLength(I2) << ", "
+                          << arg.b_grid_desc_b_k0_n_k1_.GetLength(I3) << "}" << std::endl;
 
                 std::cout << "c_grid_desc_b_m_n{ " << arg.c_grid_desc_b_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_b_m_n_.GetLength(I1) << ", "
@@ -347,7 +347,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             }
 
             if(!GridwiseBatchedGemm::CheckValidity(arg.a_grid_desc_b_k0_m_k1_,
-                                                   arg.b_grid_desc_k0_n_k1_,
+                                                   arg.b_grid_desc_b_k0_n_k1_,
                                                    arg.c_grid_desc_b_m_n_,
                                                    arg.M01_,
                                                    arg.N01_))
@@ -373,7 +373,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     InDataType,
                     OutDataType,
                     remove_reference_t<AGridDesc_B_K0_M_K1>,
-                    remove_reference_t<BGridDesc_K0_N_K1>,
+                    remove_reference_t<BGridDesc_B_K0_N_K1>,
                     remove_reference_t<CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
@@ -389,9 +389,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_batch_stride_,
+                                                  arg.b_batch_stride_,
                                                   arg.c_batch_stride_,
                                                   arg.a_grid_desc_b_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.b_grid_desc_b_k0_n_k1_,
                                                   arg.c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
@@ -405,7 +406,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     InDataType,
                     OutDataType,
                     remove_reference_t<AGridDesc_B_K0_M_K1>,
-                    remove_reference_t<BGridDesc_K0_N_K1>,
+                    remove_reference_t<BGridDesc_B_K0_N_K1>,
                     remove_reference_t<CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
@@ -422,9 +423,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_batch_stride_,
+                                                  arg.b_batch_stride_,
                                                   arg.c_batch_stride_,
                                                   arg.a_grid_desc_b_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.b_grid_desc_b_k0_n_k1_,
                                                   arg.c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
@@ -451,7 +453,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     static bool IsSupportedArgument(const Argument& arg)
     {
         return GridwiseBatchedGemm::CheckValidity(arg.a_grid_desc_b_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.b_grid_desc_b_k0_n_k1_,
                                                   arg.c_grid_desc_b_m_n_,
                                                   arg.M01_,
                                                   arg.N01_);
@@ -471,6 +473,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                              const index_t C,
                              std::vector<ck::index_t> input_spatial_lengths,
                              std::vector<ck::index_t> filter_spatial_lengths,
+                             std::vector<ck::index_t> output_spatial_lengths,
                              std::vector<ck::index_t> conv_filter_strides,
                              std::vector<ck::index_t> conv_filter_dilations,
                              std::vector<ck::index_t> input_left_pads,
@@ -487,6 +490,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                         C,
                         input_spatial_lengths,
                         filter_spatial_lengths,
+                        output_spatial_lengths,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -510,6 +514,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                         const index_t C,
                         std::vector<ck::index_t> input_spatial_lengths,
                         std::vector<ck::index_t> filter_spatial_lengths,
+                        std::vector<ck::index_t> output_spatial_lengths,
                         std::vector<ck::index_t> conv_filter_strides,
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
@@ -527,6 +532,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                           C,
                                           input_spatial_lengths,
                                           filter_spatial_lengths,
+                                          output_spatial_lengths,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,

@@ -21,6 +21,7 @@ struct DeviceConvFwd : public BaseOperator
                         ck::index_t C,
                         std::vector<ck::index_t> input_spatial_lengths,
                         std::vector<ck::index_t> filter_spatial_lengths,
+                        std::vector<ck::index_t> output_spatial_lengths,
                         std::vector<ck::index_t> conv_filter_strides,
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,

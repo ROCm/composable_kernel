@@ -33,7 +33,7 @@ struct DynamicBuffer
     {
     }
 
-    __host__ __device__ constexpr AddAddressOffset(T* offset)
+    __host__ __device__ constexpr void AddAddressOffset(index_t offset)
     {
         p_data_ += offset;
         element_space_size_ -= offset;
