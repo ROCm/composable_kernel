@@ -103,7 +103,7 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
     if constexpr(Use64bit)
     {
         const auto element_space_size =
-            container_reduce(lengths, math::multiplies{}, Number64<1>{});
+            container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
 
         return TensorDescriptor<remove_cv_t<decltype(transforms)>,
                                 remove_cv_t<decltype(low_dim_hidden_idss)>,
@@ -126,7 +126,7 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
     }
 }
 
-template <typename... Lengths, typename Align>
+template <bool Use64bit = false, typename... Lengths, typename Align>
 __host__ __device__ constexpr auto
 make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align align)
 {
@@ -136,29 +136,55 @@ make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align ali
 
     const auto stride_n_minus_2 = math::integer_least_multiple(lengths[Number<N - 1>{}], align);
 
-    auto strides = generate_tuple(
-        [&](auto i) {
-            if constexpr(i.value == N - 1)
-            {
-                return I1;
-            }
-            else if constexpr(i.value == N - 2)
-            {
-                return Number<stride_n_minus_2>{};
-            }
-            else
-            {
-                return container_reduce(lengths,
-                                        math::multiplies{},
-                                        Number64<stride_n_minus_2>{},
-                                        i + I1,
-                                        Number<N - 1>{},
-                                        I1);
-            }
-        },
-        Number<N>{});
+    if(Use64bit)
+    {
+        auto strides = generate_tuple(
+            [&](auto i) {
+                if(Use64bit)
+                {
+                    if constexpr(i.value == N - 1)
+                    {
+                        return I1;
+                    }
+                    else if constexpr(i.value == N - 2)
+                    {
+                        return Number<stride_n_minus_2>{};
+                    }
+                    else
+                    {
+                        return container_reduce(lengths,
+                                                math::multiplies{},
+                                                LongNumber<stride_n_minus_2>{},
+                                                i + I1,
+                                                Number<N - 1>{},
+                                                I1);
+                    }
+                }
+                else
+                {
+                    if constexpr(i.value == N - 1)
+                    {
+                        return I1;
+                    }
+                    else if constexpr(i.value == N - 2)
+                    {
+                        return Number<stride_n_minus_2>{};
+                    }
+                    else
+                    {
+                        return container_reduce(lengths,
+                                                math::multiplies{},
+                                                Number<stride_n_minus_2>{},
+                                                i + I1,
+                                                Number<N - 1>{},
+                                                I1);
+                    }
+                }
+            },
+            Number<N>{});
 
-    return make_naive_tensor_descriptor(lengths, strides);
+        return make_naive_tensor_descriptor(lengths, strides);
+    }
 }
 
 } // namespace ck

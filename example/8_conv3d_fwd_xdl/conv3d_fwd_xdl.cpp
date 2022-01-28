@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 
     auto conv3d = DeviceConv3dFwdInstance{};
 
-    const auto out_spatial_lengths = conv3d.ComputeOutputSpatialLengths(in_spatial_lengths,
+    const auto out_spatial_lengths = ck::tensor_operation::ComputeOutputSpatialLengthsOfConvFwd(in_spatial_lengths,
                                                                         filter_spatial_lengths,
                                                                         conv_filter_strides,
                                                                         conv_filter_dilations,

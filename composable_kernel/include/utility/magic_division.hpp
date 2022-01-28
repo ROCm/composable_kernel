@@ -121,7 +121,7 @@ struct MagicDivision
     __host__ static constexpr uint32_t
     DoMagicDivision(uint32_t dividend, uint32_t multiplier, uint32_t shift)
     {
-        uint32_t tmp = static_cast<unsigned long long>(dividend) * multiplier >> 32;
+        uint32_t tmp = static_cast<uint64_t>(dividend) * multiplier >> 32;
         return (tmp + dividend) >> shift;
     }
 
@@ -141,7 +141,7 @@ struct MagicDivision
     DoMagicDivision(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
     {
         uint32_t dividend_u32 = bit_cast<uint32_t>(dividend_i32);
-        uint32_t tmp = static_cast<unsigned long long>(dividend_u32) * multiplier >> 32;
+        uint32_t tmp = static_cast<uint64_t>(dividend_u32) * multiplier >> 32;
         return (tmp + dividend_u32) >> shift;
     }
 };

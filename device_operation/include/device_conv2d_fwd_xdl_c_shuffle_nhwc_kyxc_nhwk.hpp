@@ -12,6 +12,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v3r1.hpp"
+#include "../conv_utility/conv_utility.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -58,8 +59,6 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
     using DeviceOp = DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
-    using DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>::
-        ComputeOutputSpatialLengths;
 
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -96,12 +95,13 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         const index_t Hi = input_spatial_lengths[0];
         const index_t Wi = input_spatial_lengths[1];
 
-        const auto output_spatial_lengths = ComputeOutputSpatialLengths(input_spatial_lengths,
-                                                                        filter_spatial_lengths,
-                                                                        conv_filter_strides,
-                                                                        conv_filter_dilations,
-                                                                        input_left_pads,
-                                                                        input_right_pads);
+        const auto output_spatial_lengths =
+            ck::tensor_operation::ComputeOutputSpatialLengthsOfConvFwd(input_spatial_lengths,
+                                                                       filter_spatial_lengths,
+                                                                       conv_filter_strides,
+                                                                       conv_filter_dilations,
+                                                                       input_left_pads,
+                                                                       input_right_pads);
         const index_t Ho = output_spatial_lengths[0];
         const index_t Wo = output_spatial_lengths[1];
 

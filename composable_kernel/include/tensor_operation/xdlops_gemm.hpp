@@ -618,7 +618,7 @@ struct XdlopsGemm
     __host__ __device__ static constexpr auto
     MakeCDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(const CDesc_B_M0_N0_M1_N1_M2_N2& c_desc_b_m0_n0_m1_n1_m2_n2)
     {
-        const auto S  = c_desc_b_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto B  = c_desc_b_m0_n0_m1_n1_m2_n2.GetLength(I0);
         const auto M0 = c_desc_b_m0_n0_m1_n1_m2_n2.GetLength(I1);
         const auto N0 = c_desc_b_m0_n0_m1_n1_m2_n2.GetLength(I2);
         const auto M1 = c_desc_b_m0_n0_m1_n1_m2_n2.GetLength(I3);
@@ -626,7 +626,7 @@ struct XdlopsGemm
 
         return transform_tensor_descriptor(
             c_desc_b_m0_n0_m1_n1_m2_n2,
-            make_tuple(make_pass_through_transform(S),
+            make_tuple(make_pass_through_transform(B),
                        make_pass_through_transform(M0),
                        make_pass_through_transform(N0),
                        make_pass_through_transform(M1),

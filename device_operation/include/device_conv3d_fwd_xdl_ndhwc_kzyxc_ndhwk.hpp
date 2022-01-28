@@ -13,6 +13,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "transform_forward_convolution3d_into_gemm_v4r4r4_ndhwc_kzyxc_ndhwk.hpp"
 #include "gridwise_batched_gemm_xdlops_v2r3.hpp"
+#include "../conv_utility/conv_utility.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -57,8 +58,6 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
 
 {
     using DeviceOp = DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K;
-    using DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>::
-        ComputeOutputSpatialLengths;
 
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -70,6 +69,52 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
+
+    static index_t GetMaxAllowableSubBatchSize(const index_t N,
+                                               const index_t K,
+                                               const index_t C,
+                                               std::vector<ck::index_t> input_spatial_lengths,
+                                               std::vector<ck::index_t> output_spatial_lengths)
+    {
+        const index_t Di = input_spatial_lengths[0];
+        const index_t Hi = input_spatial_lengths[1];
+        const index_t Wi = input_spatial_lengths[2];
+
+        const index_t Do = output_spatial_lengths[0];
+        const index_t Ho = output_spatial_lengths[1];
+        const index_t Wo = output_spatial_lengths[2];
+
+        // N1 should satisfy that
+        //   1) N % N1 = 0;
+        //   2) N1 * (Do * Ho * Wo * K) < (2^31 - 1)
+        //   3) N1 * (Di * Hi * Wi * C) < (2^31 - 1)
+        //
+        // Do NOT confuse (B, N1) in this function with (B, N1) in gridewise GEMM.
+        auto N1 = N + 1;
+
+        const auto stride =
+            math::max(long_index_t(Do) * Ho * Wo * K, long_index_t(Di) * Hi * Wi * C);
+        const index_t max_stride = NumericLimits<index_t>::Max();
+
+        for(index_t n0 = 1; n0 <= N; ++n0)
+        {
+            index_t n1 = N / n0;
+            if(n0 * n1 == N && long_index_t(n1) * long_index_t(stride) < max_stride)
+            {
+                N1 = n1;
+                break;
+            }
+        }
+
+        const auto B = N / N1;
+        if(B * N1 != N)
+        {
+            throw std::runtime_error(__func__ +
+                                     std::string(": failed to find num_subbatches for conv3d.\n"));
+        }
+
+        return N1;
+    }
 
     static auto
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(const index_t N,
@@ -89,12 +134,13 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         assert(input_left_pads.size() > 2);
         assert(input_right_pads.size() > 2);
 
-        const auto output_spatial_lengths = ComputeOutputSpatialLengths(input_spatial_lengths,
-                                                                        filter_spatial_lengths,
-                                                                        conv_filter_strides,
-                                                                        conv_filter_dilations,
-                                                                        input_left_pads,
-                                                                        input_right_pads);
+        const auto output_spatial_lengths =
+            ck::tensor_operation::ComputeOutputSpatialLengthsOfConvFwd(input_spatial_lengths,
+                                                                       filter_spatial_lengths,
+                                                                       conv_filter_strides,
+                                                                       conv_filter_dilations,
+                                                                       input_left_pads,
+                                                                       input_right_pads);
 
         const index_t Di = input_spatial_lengths[0];
         const index_t Hi = input_spatial_lengths[1];
@@ -120,7 +166,6 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         }
         else
         {
-
             const auto in_desc_n_di_hi_wi_c =
                 make_naive_tensor_descriptor_packed<true>(make_tuple(N, Di, Hi, Wi, C));
             const auto wei_desc_k_z_y_x_c =
@@ -128,6 +173,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             const auto out_desc_n_do_ho_wo_k =
                 make_naive_tensor_descriptor_packed<true>(make_tuple(N, Do, Ho, Wo, K));
 
+            const index_t subbatch_size =
+                GetMaxAllowableSubBatchSize(N, K, C, input_spatial_lengths, output_spatial_lengths);
             const auto descs =
                 transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
                     in_desc_n_di_hi_wi_c,
@@ -140,7 +187,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                conv_filter_dilations[2]),
                     make_tuple(input_left_pads[0], input_left_pads[1], input_left_pads[2]),
                     make_tuple(input_right_pads[0], input_right_pads[1], input_right_pads[2]),
-                    Number<K1>{});
+                    Number<K1>{},
+                    subbatch_size);
 
             return descs;
         }
@@ -262,8 +310,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         const InDataType* p_a_grid_;
         const WeiDataType* p_b_grid_;
         OutDataType* p_c_grid_;
-        int a_batch_stride_;
-        int c_batch_stride_;
+        index_t a_batch_stride_;
+        index_t c_batch_stride_;
         AGridDesc_B_K0_M_K1 a_grid_desc_b_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_B_M_N c_grid_desc_b_m_n_;

@@ -13,9 +13,9 @@ template <typename TIn,
 void host_conv_nchw_kcyx_nkhw(const Tensor<TIn>& in,
                               const Tensor<TWei>& wei,
                               Tensor<TOut>& out,
-                              const ConvStrides& strides,
-                              const ConvDilations& dilations,
-                              const InLeftPads& left_pads,
+                              const ConvStrides& conv_strides,
+                              const ConvDilations& conv_dilations,
+                              const InLeftPads& in_left_pads,
                               const InRightPads&)
 {
     constexpr auto I0 = ck::Number<0>{};
@@ -27,10 +27,10 @@ void host_conv_nchw_kcyx_nkhw(const Tensor<TIn>& in,
         {
             for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
-                int hi = ho * strides[I0] + y * dilations[I0] - left_pads[I0];
+                int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
                 for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
-                    int wi = wo * strides[I1] + x * dilations[I1] - left_pads[I1];
+                    int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[3])
                     {
@@ -60,9 +60,9 @@ template <typename TIn,
 void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
                                    const Tensor<TWei>& wei,
                                    Tensor<TOut>& out,
-                                   const ConvStrides& strides,
-                                   const ConvDilations& dilations,
-                                   const InLeftPads& left_pads,
+                                   const ConvStrides& conv_strides,
+                                   const ConvDilations& conv_dilations,
+                                   const InLeftPads& in_left_pads,
                                    const InRightPads&)
 {
     using namespace ck;
@@ -85,17 +85,17 @@ void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
         const int ho  = static_cast<int>(ho_);
         const int wo  = static_cast<int>(wo_);
         const int zmin =
-            std::max(0, (left_pads[I0] - do_ * strides[I0] + dilations[I0] - 1) / dilations[I0]);
+            std::max(0, (in_left_pads[I0] - do_ * conv_strides[I0] + conv_dilations[I0] - 1) / conv_dilations[I0]);
         const int ymin =
-            std::max(0, (left_pads[I1] - ho * strides[I1] + dilations[I1] - 1) / dilations[I1]);
+            std::max(0, (in_left_pads[I1] - ho * conv_strides[I1] + conv_dilations[I1] - 1) / conv_dilations[I1]);
         const int xmin =
-            std::max(0, (left_pads[I2] - wo * strides[I2] + dilations[I2] - 1) / dilations[I2]);
-        const int zmax   = std::min(Z, (left_pads[I0] - do_ * strides[I0] + Di) / dilations[I0]);
-        const int ymax   = std::min(Y, (left_pads[I1] - ho * strides[I1] + Hi) / dilations[I1]);
-        const int xmax   = std::min(X, (left_pads[I2] - wo * strides[I2] + Wi) / dilations[I2]);
-        const int di_min = do_ * strides[I0] + zmin * dilations[I0] - left_pads[I0];
-        const int hi_min = ho * strides[I1] + ymin * dilations[I1] - left_pads[I1];
-        const int wi_min = wo * strides[I2] + xmin * dilations[I2] - left_pads[I2];
+            std::max(0, (in_left_pads[I2] - wo * conv_strides[I2] + conv_dilations[I2] - 1) / conv_dilations[I2]);
+        const int zmax   = std::min(Z, (in_left_pads[I0] - do_ * conv_strides[I0] + Di) / conv_dilations[I0]);
+        const int ymax   = std::min(Y, (in_left_pads[I1] - ho * conv_strides[I1] + Hi) / conv_dilations[I1]);
+        const int xmax   = std::min(X, (in_left_pads[I2] - wo * conv_strides[I2] + Wi) / conv_dilations[I2]);
+        const int di_min = do_ * conv_strides[I0] + zmin * conv_dilations[I0] - in_left_pads[I0];
+        const int hi_min = ho * conv_strides[I1] + ymin * conv_dilations[I1] - in_left_pads[I1];
+        const int wi_min = wo * conv_strides[I2] + xmin * conv_dilations[I2] - in_left_pads[I2];
 
         double v = 0;
 
@@ -103,19 +103,19 @@ void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
         const TWei* wei_k = wei.mData.data() + k * Z * Y * X * C;
 
         int di = di_min;
-        for(int z = zmin; z < zmax; ++z, di += dilations[I0])
+        for(int z = zmin; z < zmax; ++z, di += conv_dilations[I0])
         {
             const TIn* in_n_di  = in_n + di * Hi * Wi * C;
             const TWei* wei_k_z = wei_k + z * Y * X * C;
             int hi              = hi_min;
 
-            for(int y = ymin; y < ymax; ++y, hi += dilations[I1])
+            for(int y = ymin; y < ymax; ++y, hi += conv_dilations[I1])
             {
                 const TIn* in_n_di_hi = in_n_di + hi * Wi * C;
                 const TWei* wei_k_z_y = wei_k_z + y * X * C;
                 int wi                = wi_min;
 
-                for(int x = xmin; x < xmax; ++x, wi += dilations[I2])
+                for(int x = xmin; x < xmax; ++x, wi += conv_dilations[I2])
                 {
                     const TIn* in_n_di_hi_wi = in_n_di_hi + wi * C;
                     const TWei* wei_k_z_y_x  = wei_k_z_y + x * C;

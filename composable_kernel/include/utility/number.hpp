@@ -2,7 +2,6 @@
 #define CK_NUMBER_HPP
 
 #include "integral_constant.hpp"
-#include <type_traits>
 
 namespace ck {
 
@@ -43,74 +42,69 @@ __host__ __device__ constexpr auto operator%(Number<X>, Number<Y>)
 }
 
 template <long_index_t N>
-using Number64 = integral_constant<long_index_t, N>;
+using LongNumber = integral_constant<long_index_t, N>;
 
 template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          std::enable_if_t<std::is_same<Index0, long_index_t>::value ||
-                               std::is_same<Index1, long_index_t>::value,
-                           bool> = true>
+          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
+                      bool> = true>
 __host__ __device__ constexpr auto operator+(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
-    return Number64<X + Y>{};
+    return LongNumber<X + Y>{};
 }
 
 template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          std::enable_if_t<std::is_same<Index0, long_index_t>::value ||
-                               std::is_same<Index1, long_index_t>::value,
-                           bool> = true>
+          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
+                      bool> = true>
 __host__ __device__ constexpr auto operator-(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
     static_assert(Y <= X, "wrong!");
-    return Number64<X - Y>{};
+    return LongNumber<X - Y>{};
 }
 
 template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          std::enable_if_t<std::is_same<Index0, long_index_t>::value ||
-                               std::is_same<Index1, long_index_t>::value,
-                           bool> = true>
+          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
+                      bool> = true>
 __host__ __device__ constexpr auto operator*(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
-    return Number64<X * Y>{};
+    return LongNumber<X * Y>{};
 }
 
 template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          std::enable_if_t<std::is_same<Index0, long_index_t>::value ||
-                               std::is_same<Index1, long_index_t>::value,
-                           bool> = true>
+          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
+                      bool> = true>
 __host__ __device__ constexpr auto operator/(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
     static_assert(Y > 0, "wrong!");
-    return Number64<X / Y>{};
+    return LongNumber<X / Y>{};
 }
 
 template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          std::enable_if_t<std::is_same<Index0, long_index_t>::value ||
-                               std::is_same<Index1, long_index_t>::value,
-                           bool> = true>
+          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
+                      bool> = true>
 __host__ __device__ constexpr auto operator%(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
     static_assert(Y > 0, "wrong!");
-    return Number64<X % Y>{};
+    return LongNumber<X % Y>{};
 }
 
 } // namespace ck

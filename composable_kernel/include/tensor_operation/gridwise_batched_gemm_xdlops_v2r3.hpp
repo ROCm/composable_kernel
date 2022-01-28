@@ -449,8 +449,8 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
         const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map)
     {
-        const auto NumBatches = a_grid_desc_b_k0_m_k1.GetLength(I0);
-        const auto K0         = a_grid_desc_b_k0_m_k1.GetLength(I1);
+        const auto B  = a_grid_desc_b_k0_m_k1.GetLength(I0);
+        const auto K0 = a_grid_desc_b_k0_m_k1.GetLength(I1);
 
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_b_grid, b_grid_desc_k0_n_k1.GetElementSpaceSize());
@@ -709,15 +709,15 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
                                   c_grid_buf);
             }
 
-            a_grid_buf.p_data_ += a_batch_stride;
-            c_grid_buf.p_data_ += c_batch_stride;
+            a_grid_buf.AddAddressOffset(a_batch_stride);
+            c_grid_buf.AddAddressOffset(a_batch_stride);
 
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
                                                 make_multi_index(K0PerBlock - K0, 0, 0));
             b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
                                                 make_multi_index(K0PerBlock - K0, 0, 0));
             ++bb;
-        } while(bb < NumBatches);
+        } while(bb < B);
     }
 }; // struct GridwiseBatchedGemm_sk0mk1_k0nk1_smn_xdlops_v2r3
 

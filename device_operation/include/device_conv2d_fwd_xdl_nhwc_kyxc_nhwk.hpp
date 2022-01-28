@@ -89,7 +89,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const index_t Hi = input_spatial_lengths[0];
         const index_t Wi = input_spatial_lengths[1];
 
-        const auto output_spatial_lengths = ComputeOutputSpatialLengths(input_spatial_lengths,
+        const auto output_spatial_lengths = ComputeOutputSpatialLengthsOfConvFwd(input_spatial_lengths,
                                                                         filter_spatial_lengths,
                                                                         conv_filter_strides,
                                                                         conv_filter_dilations,

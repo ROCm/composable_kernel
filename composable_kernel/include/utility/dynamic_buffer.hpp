@@ -33,6 +33,12 @@ struct DynamicBuffer
     {
     }
 
+    __host__ __device__ constexpr AddAddressOffset(T* offset)
+    {
+        p_data_ += offset;
+        element_space_size_ -= offset;
+    }
+
     __host__ __device__ static constexpr AddressSpaceEnum_t GetAddressSpace()
     {
         return BufferAddressSpace;

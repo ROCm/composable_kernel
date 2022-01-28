@@ -71,7 +71,7 @@ struct TensorDescriptor
             Number<ndim_visible_>{});
 
         // TODO: make container_reduce support tuple of Number and index_t
-        return container_reduce(lengths, math::multiplies{}, Number64<1>{});
+        return container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
     }
 
     template <index_t IDim>
