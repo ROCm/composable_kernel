@@ -200,7 +200,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
     const auto InRightPadH = in_right_pads[I1];
     const auto InRightPadW = in_right_pads[I2];
 
-    const index_t N1 = subbatch_size;
+    const index_t N1  = subbatch_size;
     const auto B      = N / N1;
     const auto GemmM  = N1 * Do * Ho * Wo;
     const auto GemmN  = K;

@@ -85,14 +85,23 @@ void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
         const int ho  = static_cast<int>(ho_);
         const int wo  = static_cast<int>(wo_);
         const int zmin =
-            std::max(0, (in_left_pads[I0] - do_ * conv_strides[I0] + conv_dilations[I0] - 1) / conv_dilations[I0]);
+            std::max(0,
+                     (in_left_pads[I0] - do_ * conv_strides[I0] + conv_dilations[I0] - 1) /
+                         conv_dilations[I0]);
         const int ymin =
-            std::max(0, (in_left_pads[I1] - ho * conv_strides[I1] + conv_dilations[I1] - 1) / conv_dilations[I1]);
+            std::max(0,
+                     (in_left_pads[I1] - ho * conv_strides[I1] + conv_dilations[I1] - 1) /
+                         conv_dilations[I1]);
         const int xmin =
-            std::max(0, (in_left_pads[I2] - wo * conv_strides[I2] + conv_dilations[I2] - 1) / conv_dilations[I2]);
-        const int zmax   = std::min(Z, (in_left_pads[I0] - do_ * conv_strides[I0] + Di) / conv_dilations[I0]);
-        const int ymax   = std::min(Y, (in_left_pads[I1] - ho * conv_strides[I1] + Hi) / conv_dilations[I1]);
-        const int xmax   = std::min(X, (in_left_pads[I2] - wo * conv_strides[I2] + Wi) / conv_dilations[I2]);
+            std::max(0,
+                     (in_left_pads[I2] - wo * conv_strides[I2] + conv_dilations[I2] - 1) /
+                         conv_dilations[I2]);
+        const int zmax =
+            std::min(Z, (in_left_pads[I0] - do_ * conv_strides[I0] + Di) / conv_dilations[I0]);
+        const int ymax =
+            std::min(Y, (in_left_pads[I1] - ho * conv_strides[I1] + Hi) / conv_dilations[I1]);
+        const int xmax =
+            std::min(X, (in_left_pads[I2] - wo * conv_strides[I2] + Wi) / conv_dilations[I2]);
         const int di_min = do_ * conv_strides[I0] + zmin * conv_dilations[I0] - in_left_pads[I0];
         const int hi_min = ho * conv_strides[I1] + ymin * conv_dilations[I1] - in_left_pads[I1];
         const int wi_min = wo * conv_strides[I2] + xmin * conv_dilations[I2] - in_left_pads[I2];
