@@ -615,8 +615,8 @@ struct XdlopsGemm
     }
 
     template <typename CDesc_B_M0_N0_M1_N1_M2_N2>
-    __host__ __device__ static constexpr auto
-    MakeCDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(const CDesc_B_M0_N0_M1_N1_M2_N2& c_desc_b_m0_n0_m1_n1_m2_n2)
+    __host__ __device__ static constexpr auto MakeCDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(
+        const CDesc_B_M0_N0_M1_N1_M2_N2& c_desc_b_m0_n0_m1_n1_m2_n2)
     {
         const auto B  = c_desc_b_m0_n0_m1_n1_m2_n2.GetLength(I0);
         const auto M0 = c_desc_b_m0_n0_m1_n1_m2_n2.GetLength(I1);

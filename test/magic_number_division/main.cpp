@@ -78,7 +78,7 @@ T check_error(const std::vector<T>& ref, const std::vector<T>& result)
     return max_diff;
 }
 
-int main(int, char* [])
+int main(int, char*[])
 {
     uint64_t num_divisor  = 4096;
     uint64_t num_dividend = 1L << 16;

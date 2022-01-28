@@ -42,14 +42,13 @@ cmake                                                                  \
 ./example/conv3d_fwd_xdl 0 1 5
 ```
 
-Result (MI200)
+Result (MI100 dynamic frequency)
 ```
 in: dim 5, lengths {4, 71, 71, 71, 192}, strides {68718912, 967872, 13632, 192, 1}
 wei: dim 5, lengths {256, 3, 3, 3, 192}, strides {5184, 1728, 576, 192, 1}
 out: dim 5, lengths {4, 36, 36, 36, 256}, strides {11943936, 331776, 9216, 256, 1}
 a_grid_desc_b_k0_m_k1{1, 648, 186624, 8}
 b_grid_desc_b_k0_n_k1{1, 648, 256, 8}
-c_grid_desc_b_m_n{ 1, 186624, 256}
 launch_and_time_kernel: grid_dim {1458, 1, 1}, block_dim {256, 1, 1}
 Warm up
 Start running 5 times...

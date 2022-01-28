@@ -59,7 +59,7 @@
 #define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
 #endif
 
-// AMD buffer_load. TODO: conv3d does NOT work with buffer load 
+// AMD buffer_load. TODO: conv3d does NOT work with buffer load
 #ifndef CK_USE_AMD_BUFFER_LOAD
 #define CK_USE_AMD_BUFFER_LOAD 0
 #endif
