@@ -381,7 +381,7 @@ struct GridwiseContractionDlops_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_GN
                       "wrong!");
 
         // A matrix blockwise copy
-        auto a_blockwise_copy = BlockwiseTensorSliceTransfer_v4r1<
+        auto a_blockwise_copy = BlockwiseTensorSliceTransfer_v5r1<
             BlockSize,
             InMemoryDataOperationEnum_t::Set,
             Sequence<GK0PerBlock, GM0, 1, GM1PerBlockGM11, GK1.value>,
@@ -405,7 +405,7 @@ struct GridwiseContractionDlops_A_GK0_GM0_GM1_GK1_B_GK0_GN0_GN1_GK1_C_GM0_GM1_GN
                   make_multi_index(0, 0, 0, 0, 0));
 
         // B matrix blockwise copy
-        auto b_blockwise_copy = BlockwiseTensorSliceTransfer_v4r1<
+        auto b_blockwise_copy = BlockwiseTensorSliceTransfer_v5r1<
             BlockSize,
             InMemoryDataOperationEnum_t::Set,
             Sequence<GK0PerBlock, GN0, 1, GN1PerBlockGN11, GK1.value>,

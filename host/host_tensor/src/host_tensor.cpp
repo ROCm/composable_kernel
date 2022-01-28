@@ -1,4 +1,3 @@
-#include <boost/range/adaptor/transformed.hpp>
 #include <cassert>
 
 #include "host_tensor.hpp"
@@ -26,8 +25,12 @@ std::size_t HostTensorDescriptor::GetElementSize() const
 
 std::size_t HostTensorDescriptor::GetElementSpace() const
 {
-    auto ls = mLens | boost::adaptors::transformed([](std::size_t v) { return v - 1; });
-    return std::inner_product(ls.begin(), ls.end(), mStrides.begin(), std::size_t{0}) + 1;
+    std::size_t space = 1;
+    for(int i = 0; i < mLens.size(); ++i)
+    {
+        space += (mLens[i] - 1) * mStrides[i];
+    }
+    return space;
 }
 
 const std::vector<std::size_t>& HostTensorDescriptor::GetLengths() const { return mLens; }
