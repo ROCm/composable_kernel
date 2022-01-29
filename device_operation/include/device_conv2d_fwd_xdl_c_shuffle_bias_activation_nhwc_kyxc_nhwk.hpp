@@ -526,8 +526,11 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
               Conv_N_{N},
               Conv_K_{K},
               Conv_C_{C},
+              input_spatial_lengths_{input_spatial_lengths},
               filter_spatial_lengths_{filter_spatial_lengths},
+              output_spatial_lengths_{output_spatial_lengths},
               conv_filter_strides_{conv_filter_strides},
+              conv_filter_dilations_{conv_filter_dilations},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
@@ -589,8 +592,11 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
         index_t Conv_N_;
         index_t Conv_K_;
         index_t Conv_C_;
+        std::vector<index_t> input_spatial_lengths_;
         std::vector<index_t> filter_spatial_lengths_;
+        std::vector<index_t> output_spatial_lengths_;
         std::vector<index_t> conv_filter_strides_;
+        std::vector<index_t> conv_filter_dilations_;
         std::vector<index_t> input_left_pads_;
         std::vector<index_t> input_right_pads_;
     };
@@ -617,6 +623,27 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
 
                 std::cout << "arg.c0_grid_desc_m_n_{ " << arg.c0_grid_desc_m_n_.GetLength(I0)
                           << ", " << arg.c0_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+            }
+#elif 1
+            {
+                std::cout << DeviceOp{}.GetTypeString() << std::endl;
+                std::cout << "N " << arg.Conv_N_ << ", "
+                          << "K " << arg.Conv_K_ << ", "
+                          << "C " << arg.Conv_C_ << ", " << std::endl;
+                std::cout << "Y X " << arg.filter_spatial_lengths_[0] << ", "
+                          << arg.filter_spatial_lengths_[1] << ", " << std::endl;
+                std::cout << "Hi Wi " << arg.input_spatial_lengths_[0] << ", "
+                          << arg.input_spatial_lengths_[1] << ", " << std::endl;
+                std::cout << "Ho Wo " << arg.output_spatial_lengths_[0] << ", "
+                          << arg.output_spatial_lengths_[1] << ", " << std::endl;
+                std::cout << "Strides " << arg.conv_filter_strides_[0] << ", "
+                          << arg.conv_filter_strides_[1] << ", " << std::endl;
+                std::cout << "Dilations " << arg.conv_filter_dilations_[0] << ", "
+                          << arg.conv_filter_dilations_[1] << ", " << std::endl;
+                std::cout << "InLeftPads " << arg.input_left_pads_[0] << ", "
+                          << arg.input_left_pads_[1] << ", " << std::endl;
+                std::cout << "InLeftPads " << arg.input_right_pads_[0] << ", "
+                          << arg.input_right_pads_[1] << ", " << std::endl;
             }
 #endif
 

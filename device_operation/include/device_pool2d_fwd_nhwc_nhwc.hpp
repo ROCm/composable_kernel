@@ -146,7 +146,18 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                  std::vector<ck::index_t> input_right_pads,
                  InElementwiseOperation in_element_op,
                  OutElementwiseOperation out_element_op)
-            : p_in_grid_{p_in_grid}, p_out_grid_{p_out_grid}, a_grid_desc_m_k_{}, b_grid_desc_m_{}
+            : p_in_grid_{p_in_grid},
+              p_out_grid_{p_out_grid},
+              a_grid_desc_m_k_{},
+              b_grid_desc_m_{},
+              Pool_N_{N},
+              Pool_C_{C},
+              input_spatial_lengths_{input_spatial_lengths},
+              window_spatial_lengths_{window_spatial_lengths},
+              output_spatial_lengths_{output_spatial_lengths},
+              window_strides_{window_strides},
+              input_left_pads_{input_left_pads},
+              input_right_pads_{input_right_pads}
         {
             const auto descs = MakeABGridDescriptor_A_M_K_B_M(N,
                                                               C,
@@ -167,6 +178,15 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
         BGridDesc_M b_grid_desc_m_;
         InElementwiseOperation in_element_op_;
         OutElementwiseOperation out_element_op_;
+        //
+        index_t Pool_N_;
+        index_t Pool_C_;
+        std::vector<ck::index_t> input_spatial_lengths_;
+        std::vector<ck::index_t> window_spatial_lengths_;
+        std::vector<ck::index_t> output_spatial_lengths_;
+        std::vector<ck::index_t> window_strides_;
+        std::vector<ck::index_t> input_left_pads_;
+        std::vector<ck::index_t> input_right_pads_;
     };
 
     struct Invoker : public BaseInvoker
@@ -180,6 +200,24 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
 
                 std::cout << "arg.b_grid_desc_m_{" << arg.b_grid_desc_m_.GetLength(I0) << "} "
                           << std::endl;
+            }
+#elif 1
+            {
+                std::cout << DeviceOp{}.GetTypeString() << std::endl;
+                std::cout << "N " << arg.Pool_N_ << ", "
+                          << "C " << arg.Pool_C_ << ", " << std::endl;
+                std::cout << "Y X " << arg.window_spatial_lengths_[0] << ", "
+                          << arg.window_spatial_lengths_[1] << ", " << std::endl;
+                std::cout << "Hi Wi " << arg.input_spatial_lengths_[0] << ", "
+                          << arg.input_spatial_lengths_[1] << ", " << std::endl;
+                std::cout << "Ho Wo " << arg.output_spatial_lengths_[0] << ", "
+                          << arg.output_spatial_lengths_[1] << ", " << std::endl;
+                std::cout << "Strides " << arg.window_strides_[0] << ", " << arg.window_strides_[1]
+                          << ", " << std::endl;
+                std::cout << "InLeftPads " << arg.input_left_pads_[0] << ", "
+                          << arg.input_left_pads_[1] << ", " << std::endl;
+                std::cout << "InLeftPads " << arg.input_right_pads_[0] << ", "
+                          << arg.input_right_pads_[1] << ", " << std::endl;
             }
 #endif
 
