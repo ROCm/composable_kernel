@@ -84,10 +84,11 @@ install(TARGETS device_conv2d_fwd_bias_relu_atomic_add_instance LIBRARY DESTINAT
 set(PROFILER_SOURCE 
     profiler.cpp
     profile_gemm.cpp
-    profile_conv_fwd.cpp
-    profile_conv_fwd_bias_relu.cpp
-    profile_conv_fwd_bias_relu_add.cpp
-    profile_conv_fwd_bias_relu_atomic_add.cpp)
+    #profile_conv_fwd.cpp
+    #profile_conv_fwd_bias_relu.cpp
+    #profile_conv_fwd_bias_relu_add.cpp
+    #profile_conv_fwd_bias_relu_atomic_add.cpp
+    )
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)

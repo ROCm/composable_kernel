@@ -7,6 +7,11 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
+using DeviceGemmNoOpPtr =
+    ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                ck::tensor_operation::element_wise::PassThrough>;
+
 #if 0
 template <>
 void add_device_gemm_instance<float,
@@ -175,15 +180,77 @@ void profile_gemm_impl(int do_verification,
 
     if(KBatch > 1 && is_same<ADataType, float>::value)
     {
-        ck::tensor_operation::device::device_gemm_instance::
-            add_device_splitk_gemm_instance<float, float, float, ALayout, BLayout, CLayout>(
-                gemm_ptrs);
+        // ck::tensor_operation::device::device_gemm_instance::
+        // add_device_splitk_gemm_instance<float, float, float, ALayout, BLayout, CLayout>(
+        // gemm_ptrs);
     }
     else
     {
-        ck::tensor_operation::device::device_gemm_instance::
-            add_device_gemm_instance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
-                gemm_ptrs);
+
+        if(is_same<ADataType, float>::value && is_same<BDataType, float>::value &&
+           is_same<CDataType, float>::value)
+        {
+            if(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+               is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+               is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
+            }
+            else if(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                    is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
+            }
+            else if(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                    is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
+            }
+            else if(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
+            }
+        }
+        else if(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
+                is_same<CDataType, half_t>::value)
+        {
+            if(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+               is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+               is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
+            }
+            else if(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                    is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
+            }
+            else if(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                    is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
+            }
+            else if(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                    is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
+            }
+        }
     }
 
     if(gemm_ptrs.size() <= 0)
