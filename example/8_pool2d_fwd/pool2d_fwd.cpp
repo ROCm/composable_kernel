@@ -27,10 +27,10 @@ using OutLayout = ck::tensor_layout::pool::NHWC;
 // TODO: reimplement reduction as elementwise operator
 #if 1
 static constexpr auto ReduceOpId  = ck::ReduceTensorOp_t::MAX;
-static constexpr bool NeedIndices = true;
+static constexpr bool NeedIndices = false;
 #else
 static constexpr auto ReduceOpId  = ck::ReduceTensorOp_t::AVG;
-static constexpr bool NeedIndices = true;
+static constexpr bool NeedIndices = false;
 #endif
 
 static constexpr bool PropagateNan = false;
@@ -52,9 +52,9 @@ using DevicePoolFwdInstance =
                                                      256, // BlockSize
                                                      256, // ReduceMThreadClusterSize
                                                      1,   // ReduceKThreadClusterSize
-                                                     2,   // ReduceMThreadSliceSize
+                                                     4,   // ReduceMThreadSliceSize
                                                      1,   // ReduceKThreadSliceSize
-                                                     2>;  // VectorSize
+                                                     4>;  // InSrcOutDstVectorSize
 
 template <typename InDataType,
           typename OutDataType,

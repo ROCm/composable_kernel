@@ -24,7 +24,7 @@ template <typename InDataType,
           ck::index_t ReduceKThreadClusterSize,
           ck::index_t ReduceMThreadSliceSize,
           ck::index_t ReduceKThreadSliceSize,
-          ck::index_t VectorSize>
+          ck::index_t InSrcOutDstVectorSize>
 struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     : public DevicePoolFwd<InElementwiseOperation, AccElementwiseOperation>
 {
@@ -37,8 +37,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
 
     static constexpr bool BetaIsZero = true;
 
-    static constexpr int VectorDim =
-        0; // for NHWC, the dim C is the vector Dim, which is not reduced.
+    static constexpr int InSrcOutDstVectorDim =
+        0; // for NHWC, the dim C is the vector Dim for both input and output in memory, which is
+           // not reduced.
 
     static constexpr ck::index_t ReduceM_BlockTileSize =
         ReduceMThreadClusterSize * ReduceMThreadSliceSize;
@@ -208,8 +209,10 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                                                          ReduceKThreadClusterSize,
                                                                          ReduceMThreadSliceSize,
                                                                          ReduceKThreadSliceSize,
-                                                                         VectorDim,
-                                                                         VectorSize>;
+                                                                         InSrcOutDstVectorDim,
+                                                                         InSrcOutDstVectorSize,
+                                                                         InSrcOutDstVectorDim,
+                                                                         InSrcOutDstVectorSize>;
 
             const auto kernel = kernel_reduce_threadwise<gridwise_reduce,
                                                          NeedIndices,
@@ -251,7 +254,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if(pArg->outer_lowest_length % VectorSize != 0)
+        if(pArg->outer_lowest_length % InSrcOutDstVectorSize != 0)
             return (false);
 
         return (true);

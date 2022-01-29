@@ -94,8 +94,10 @@ template <typename InDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t VectorDim,
-          index_t VectorSize>
+          index_t InSrcVectorDim,
+          index_t InSrcVectorSize,
+          index_t OutDstVectorDim,
+          index_t OutDstVectorSize>
 struct GridwiseReduction_xy_to_x_threadwise
 {
     template <typename T>
@@ -149,9 +151,9 @@ struct GridwiseReduction_xy_to_x_threadwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InSrcVectorDim,
+            InSrcVectorSize,
             1,
             false>(in2dDesc, make_multi_index(thread_global_1d_id * MThreadSliceSize, 0));
 
@@ -228,11 +230,11 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                PassThroughOp<OutDataType>,
                                                Sequence<MThreadSliceSize>,
                                                Sequence<0>,
-                                               0,
-                                               1,
+                                               OutDstVectorDim,
+                                               OutDstVectorSize,
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
-                                               true>(
+                                               false>(
                 out1dDesc,
                 make_multi_index(thread_global_1d_id * MThreadSliceSize),
                 PassThroughOp<OutDataType>{});
@@ -290,9 +292,9 @@ struct GridwiseReduction_xy_to_x_threadwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InSrcVectorDim,
+            InSrcVectorSize,
             1,
             false>(in2dDesc, make_multi_index(thread_global_1d_id * MThreadSliceSize, 0));
 
@@ -377,8 +379,8 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                PassThroughOp<OutDataType>,
                                                Sequence<MThreadSliceSize>,
                                                Sequence<0>,
-                                               0,
-                                               1,
+                                               OutDstVectorDim,
+                                               OutDstVectorSize,
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(
@@ -394,8 +396,8 @@ struct GridwiseReduction_xy_to_x_threadwise
                                                PassThroughOp<int>,
                                                Sequence<MThreadSliceSize>,
                                                Sequence<0>,
-                                               0,
-                                               1,
+                                               OutDstVectorDim,
+                                               OutDstVectorSize,
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(
@@ -405,6 +407,7 @@ struct GridwiseReduction_xy_to_x_threadwise
 
         threadwise_dst_val_store.Run(
             ReducedDataDesc, make_tuple(I0), accuValue_buf, out1dDesc, dst_global_val_buf);
+
         threadwise_dst_idx_store.Run(
             ReducedDataDesc, make_tuple(I0), accuIndex_buf, out1dDesc, dst_global_idx_buf);
     };
