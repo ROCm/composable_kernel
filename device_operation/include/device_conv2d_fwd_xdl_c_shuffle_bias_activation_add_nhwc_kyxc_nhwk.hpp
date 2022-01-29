@@ -645,25 +645,6 @@ struct
         {
 #if 0
             {
-                std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
-                          << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
-                          << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-
-                std::cout << "arg.c0_grid_desc_m_n_{ " << arg.c0_grid_desc_m_n_.GetLength(I0)
-                          << ", " << arg.c0_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-
-                std::cout << "arg.c1_grid_desc_m_n_{ " << arg.c1_grid_desc_m_n_.GetLength(I0)
-                          << ", " << arg.c1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-            }
-#elif 1
-            {
                 std::cout << DeviceOp{}.GetTypeString() << std::endl;
                 std::cout << "N " << arg.Conv_N_ << ", "
                           << "K " << arg.Conv_K_ << ", "
@@ -682,6 +663,25 @@ struct
                           << arg.input_left_pads_[1] << ", " << std::endl;
                 std::cout << "InLeftPads " << arg.input_right_pads_[0] << ", "
                           << arg.input_right_pads_[1] << ", " << std::endl;
+            }
+
+            {
+                std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
+                          << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
+                          << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
+
+                std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
+                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
+
+                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
+                          << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.c0_grid_desc_m_n_{ " << arg.c0_grid_desc_m_n_.GetLength(I0)
+                          << ", " << arg.c0_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.c1_grid_desc_m_n_{ " << arg.c1_grid_desc_m_n_.GetLength(I0)
+                          << ", " << arg.c1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
 #endif
 

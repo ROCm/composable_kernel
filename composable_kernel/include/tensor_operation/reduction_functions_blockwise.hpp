@@ -40,7 +40,7 @@ template <typename buffer1dDescType,
           index_t dim1_thread_cluster_length,
           bool reorder_thread_clusters,
           typename opReduce,
-          NanPropagation_t nanPropaOpt>
+          bool propagate_nan>
 struct PartitionedBlockwiseReduction_1d_block_buffer
 {
     using compType = typename opReduce::dataType;
@@ -55,7 +55,7 @@ struct PartitionedBlockwiseReduction_1d_block_buffer
     static_assert(buffer1dDesc.GetElementSize() == BlockSize,
                   "The buffer size should be the same as BlockSize!");
 
-    using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
+    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
 
     template <typename BufferType>
     __device__ static void Reduce(BufferType& block_buffer,

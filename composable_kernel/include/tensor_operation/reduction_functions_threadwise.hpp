@@ -34,7 +34,7 @@
 
 namespace ck {
 
-template <typename BufferType, typename opReduce, NanPropagation_t nanPropaOpt>
+template <typename BufferType, typename opReduce, bool propagate_nan>
 struct ThreadReduce
 {
     using compType = typename opReduce::dataType;
@@ -47,7 +47,7 @@ struct ThreadReduce
 
     static constexpr index_t ThreadBufferLen = BufferType::Size();
 
-    using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
+    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
 
     // This interface does not accumulate on indices
     __device__ static void Reduce(const BufferType& thread_buffer, compType& accuData)
@@ -106,7 +106,7 @@ struct ThreadReduceWithIndicesInput
 
     static constexpr index_t ThreadBufferLen = BufferType::Size();
 
-    using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
+    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
 
     // This interface accumulates on both data values and indices and
     // is called by Direct_ThreadWise reduction method at second-time reduction

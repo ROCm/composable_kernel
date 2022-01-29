@@ -29,329 +29,384 @@
 #include "data_type.hpp"
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
-#include "reduction_functions_threadwise.hpp"
-
+#include "reduction_functions_binop.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
 
 template <typename GridwiseReduction,
-          int RunId,
-          typename inType,
-          typename outType,
-          typename src2dDescType,
-          typename dst1dDescType>
-__global__ void kernel_reduce_threadwise(const src2dDescType src2dDesc,
-                                         const dst1dDescType dst1dDesc,
-                                         int origReduceLen,
-                                         inType alpha,
-                                         const inType* const __restrict__ p_src_global,
-                                         outType beta,
-                                         outType* const __restrict__ p_dst_global,
+          bool NeedIndices,
+          typename InDataType,
+          typename OutDataType,
+          typename AccDataType,
+          typename In2dDescType,
+          typename Out1dDescType,
+          typename InElementwiseOperation,
+          typename AccElementwiseOperation>
+__global__ void kernel_reduce_threadwise(const In2dDescType in2dDesc,
+                                         const Out1dDescType out1dDesc,
+                                         const InElementwiseOperation inElementwiseOp,
+                                         const AccElementwiseOperation accElementwiseOp,
+                                         AccDataType alpha,
+                                         const InDataType* const __restrict__ p_src_global,
+                                         OutDataType beta,
+                                         OutDataType* const __restrict__ p_dst_global,
                                          int* const __restrict__ indices_global)
 {
-    GridwiseReduction::template Run<RunId>(src2dDesc,
-                                           dst1dDesc,
-                                           origReduceLen,
-                                           alpha,
-                                           p_src_global,
-                                           beta,
-                                           p_dst_global,
-                                           indices_global);
+    if constexpr(!NeedIndices)
+    {
+        GridwiseReduction::Run(in2dDesc,
+                               out1dDesc,
+                               inElementwiseOp,
+                               accElementwiseOp,
+                               alpha,
+                               p_src_global,
+                               beta,
+                               p_dst_global,
+                               indices_global);
+    }
+    else
+    {
+        GridwiseReduction::RunWithIndices(in2dDesc,
+                                          out1dDesc,
+                                          inElementwiseOp,
+                                          accElementwiseOp,
+                                          alpha,
+                                          p_src_global,
+                                          beta,
+                                          p_dst_global,
+                                          indices_global);
+    };
 };
 
-template <typename srcDataType,
-          typename dstDataType,
-          typename compType,
-          typename src2dDescType,
-          typename dst1dDescType,
-          ReduceTensorOp_t op,
-          NanPropagation_t nanPropaOpt,
-          ReduceTensorIndices_t reduceIndicesOpt,
+template <typename InDataType,
+          typename OutDataType,
+          typename AccDataType,
+          typename In2dDescType,
+          typename Out1dDescType,
+          typename ReduceOperation,
+          typename InElementwiseOperation,
+          typename AccElementwiseOperation,
+          bool PropagateNan,
+          bool BetaIsZero,
           index_t BlockSize,
-          index_t dim0_thread_cluster_size,
-          index_t dim1_thread_cluster_size,
-          index_t dim0_thread_slice_size,
-          index_t dim1_thread_slice_size,
-          bool dim0_is_fastest,
-          index_t dim0_vector_size,
-          index_t dim1_vector_size>
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          index_t MThreadSliceSize,
+          index_t KThreadSliceSize,
+          index_t VectorDim,
+          index_t VectorSize>
 struct GridwiseReduction_xy_to_x_threadwise
 {
-    using opReduce       = typename reduce_binary_operator<compType, op>::opType;
-    using preUnaryOpType = typename reduce_unary_operator<compType, op, true, true>::preUnaryOp;
-    using posUnaryOpType = typename reduce_unary_operator<compType, op, true, true>::posUnaryOp;
-
     template <typename T>
     using PassThroughOp = reduce::unary_identic<T, false>;
 
     static constexpr auto I0 = Number<0>{};
 
-    template <int RunId>
-    __device__ static void Run(const src2dDescType& src2dDesc,
-                               const dst1dDescType& dst1dDesc,
-                               int origReduceLen,
-                               srcDataType alpha,
-                               const srcDataType* const __restrict__ p_src_global,
-                               dstDataType beta,
-                               dstDataType* const __restrict__ p_dst_global,
-                               int* const __restrict__ indices_global);
+    using BinaryOperation =
+        detail::binop_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
 
-    template <>
-    __device__ static void Run<1>(const src2dDescType& src2dDesc,
-                                  const dst1dDescType& dst1dDesc,
-                                  int origReduceLen,
-                                  srcDataType alpha,
-                                  const srcDataType* const __restrict__ p_src_global,
-                                  dstDataType beta,
-                                  dstDataType* const __restrict__ p_dst_global,
-                                  int* const __restrict__ indices_global)
+    __device__ static void Run(const In2dDescType& in2dDesc,
+                               const Out1dDescType& out1dDesc,
+                               const InElementwiseOperation& inElementwiseOp,
+                               const AccElementwiseOperation& accElementwiseOp,
+                               AccDataType alpha,
+                               const InDataType* const __restrict__ p_src_global,
+                               OutDataType beta,
+                               OutDataType* const __restrict__ p_dst_global,
+                               int* const __restrict__ indices_global)
     {
         (void)indices_global;
 
-        const auto zeroVal = opReduce::GetReductionZeroVal();
+        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
+            p_src_global, in2dDesc.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
         auto dst_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_dst_global, dst1dDesc.GetElementSpaceSize());
+            p_dst_global, out1dDesc.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_size, true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     AccDataType,
+                     MThreadSliceSize * KThreadSliceSize,
+                     true>
             in_thread_buf;
 
-        using threadwise_reduce = ThreadReduce<decltype(in_thread_buf), opReduce, nanPropaOpt>;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, 1, true> accuValue_buf;
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accuValue_buf(I) = zeroVal; });
 
-        accuValue_buf(I0) = zeroVal;
+        const auto toReduceLength = in2dDesc.GetLength(Number<1>{});
 
-        const auto toReduceLength = src2dDesc.GetLength(Number<1>{});
-        const int divider         = origReduceLen;
-
-        const preUnaryOpType preUnaryOp(divider);
-        const posUnaryOpType posUnaryOp(divider);
-
-        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_size>;
+        using ThreadBufferLengths       = Sequence<MThreadSliceSize, KThreadSliceSize>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<1>{}, Number<dim1_thread_slice_size>{}));
+            make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
 
-        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<srcDataType,
-                                                                    compType,
-                                                                    src2dDescType,
-                                                                    decltype(ThreadBufferDesc),
-                                                                    ThreadBufferLengths,
-                                                                    Sequence<0, 1>,
-                                                                    1,
-                                                                    dim1_vector_size,
-                                                                    1,
-                                                                    false>(
-            src2dDesc, make_multi_index(thread_global_1d_id, 0));
+        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
+            InDataType,
+            AccDataType,
+            In2dDescType,
+            decltype(ThreadBufferDesc),
+            ThreadBufferLengths,
+            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            VectorDim,
+            VectorSize,
+            1,
+            false>(in2dDesc, make_multi_index(thread_global_1d_id * MThreadSliceSize, 0));
 
-        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
+        constexpr auto in_thread_copy_step = make_multi_index(0, KThreadSliceSize);
 
-        for(index_t reducedLength = 0; reducedLength < toReduceLength;
-            reducedLength += dim1_thread_slice_size)
+        index_t reducedLength = 0;
+        do
         {
             threadwise_src_load.Run(
-                src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
+                in2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
 
-            // do element-wise pre-reduction operation
-            threadwise_reduce::operate_on_elements(preUnaryOp, in_thread_buf);
+            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                // do element-wise pre-reduction operation
+                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
+                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
+                    in_thread_buf(offset) = inElementwiseOp(in_thread_buf[offset]);
+                });
 
-            // do the reduction on the Thread Buffer
-            threadwise_reduce::Reduce(in_thread_buf, accuValue_buf(I0));
+                // reduce on each thread-local slice
+                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
+                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
+                    BinaryOperation::calculate(accuValue_buf(I), in_thread_buf[offset]);
+                });
+            });
 
-            threadwise_src_load.MoveSrcSliceWindow(src2dDesc, in_thread_copy_step);
-        }
+            threadwise_src_load.MoveSrcSliceWindow(in2dDesc, in_thread_copy_step);
 
-        accuValue_buf(I0) = posUnaryOp(accuValue_buf[I0]);
+            reducedLength += KThreadSliceSize;
+        } while(reducedLength < toReduceLength);
+
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            accuValue_buf(I) = accElementwiseOp(accuValue_buf[I]);
+
+            accuValue_buf(I) *= alpha;
+        });
 
         constexpr auto ReducedDataDesc =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
 
-        if(!float_equal_one{}(alpha))
-            accuValue_buf(I0) *= type_convert<compType>(alpha);
-
-        if(!float_equal_zero{}(beta))
+        if constexpr(!BetaIsZero)
         {
-            auto threadwise_dst_load = ThreadwiseTensorSliceTransfer_v2<dstDataType,
-                                                                        dstDataType,
-                                                                        dst1dDescType,
-                                                                        decltype(ReducedDataDesc),
-                                                                        Sequence<1>,
-                                                                        Sequence<0>,
-                                                                        0,
-                                                                        1,
-                                                                        1,
-                                                                        true>(
-                dst1dDesc, make_multi_index(thread_global_1d_id));
+            if(!float_equal_zero{}(beta))
+            {
+                auto threadwise_dst_load =
+                    ThreadwiseTensorSliceTransfer_v2<OutDataType,
+                                                     OutDataType,
+                                                     Out1dDescType,
+                                                     decltype(ReducedDataDesc),
+                                                     Sequence<MThreadSliceSize>,
+                                                     Sequence<0>,
+                                                     0,
+                                                     1,
+                                                     1,
+                                                     true>(
+                        out1dDesc, make_multi_index(thread_global_1d_id * MThreadSliceSize));
 
-            StaticBuffer<AddressSpaceEnum_t::Vgpr, dstDataType, 1, true> priorDstValue_buf;
+                StaticBuffer<AddressSpaceEnum_t::Vgpr, OutDataType, MThreadSliceSize, true>
+                    priorDstValue_buf;
 
-            threadwise_dst_load.Run(
-                dst1dDesc, dst_global_buf, ReducedDataDesc, make_tuple(I0), priorDstValue_buf);
+                threadwise_dst_load.Run(
+                    out1dDesc, dst_global_buf, ReducedDataDesc, make_tuple(I0), priorDstValue_buf);
 
-            accuValue_buf(I0) += priorDstValue_buf[I0] * beta;
-        }
+                static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                    accuValue_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
+                });
+            };
+        };
 
         auto threadwise_dst_store =
-            ThreadwiseTensorSliceTransfer_v1r3<compType,
-                                               dstDataType,
+            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                               OutDataType,
                                                decltype(ReducedDataDesc),
-                                               dst1dDescType,
-                                               PassThroughOp<dstDataType>,
-                                               Sequence<1>,
+                                               Out1dDescType,
+                                               PassThroughOp<OutDataType>,
+                                               Sequence<MThreadSliceSize>,
                                                Sequence<0>,
                                                0,
                                                1,
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                true>(
-                dst1dDesc, make_multi_index(thread_global_1d_id), PassThroughOp<dstDataType>{});
+                out1dDesc,
+                make_multi_index(thread_global_1d_id * MThreadSliceSize),
+                PassThroughOp<OutDataType>{});
 
         threadwise_dst_store.Run(
-            ReducedDataDesc, make_tuple(I0), accuValue_buf, dst1dDesc, dst_global_buf);
+            ReducedDataDesc, make_tuple(I0), accuValue_buf, out1dDesc, dst_global_buf);
     };
 
-    template <>
-    __device__ static void Run<2>(const src2dDescType& src2dDesc,
-                                  const dst1dDescType& dst1dDesc,
-                                  int origReduceLen,
-                                  srcDataType alpha,
-                                  const srcDataType* const __restrict__ p_src_global,
-                                  dstDataType beta,
-                                  dstDataType* const __restrict__ p_dst_global,
-                                  int* const __restrict__ indices_global)
+    __device__ static void RunWithIndices(const In2dDescType& in2dDesc,
+                                          const Out1dDescType& out1dDesc,
+                                          const InElementwiseOperation& inElementwiseOp,
+                                          const AccElementwiseOperation& accElementwiseOp,
+                                          AccDataType alpha,
+                                          const InDataType* const __restrict__ p_src_global,
+                                          OutDataType beta,
+                                          OutDataType* const __restrict__ p_dst_global,
+                                          int* const __restrict__ indices_global)
     {
-        const auto zeroVal = opReduce::GetReductionZeroVal();
+        (void)accElementwiseOp;
+
+        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
 
         const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, src2dDesc.GetElementSpaceSize(), type_convert<srcDataType>(zeroVal));
+            p_src_global, in2dDesc.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
         auto dst_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_dst_global, dst1dDesc.GetElementSpaceSize());
+            p_dst_global, out1dDesc.GetElementSpaceSize());
         auto dst_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            indices_global, dst1dDesc.GetElementSpaceSize());
+            indices_global, out1dDesc.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, dim1_thread_slice_size, true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     AccDataType,
+                     MThreadSliceSize * KThreadSliceSize,
+                     true>
             in_thread_buf;
 
-        using threadwise_reduce = ThreadReduce<decltype(in_thread_buf), opReduce, nanPropaOpt>;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, int, MThreadSliceSize, true> accuIndex_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, compType, 1, true> accuValue_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, int, 1, true> accuIndex_buf;
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            accuValue_buf(I) = zeroVal;
+            accuIndex_buf(I) = 0;
+        });
 
-        accuValue_buf(I0) = zeroVal;
-        accuIndex_buf(I0) = 0;
+        const auto toReduceLength = in2dDesc.GetLength(Number<1>{});
 
-        const auto toReduceLength = src2dDesc.GetLength(Number<1>{});
-        const int divider         = origReduceLen;
-
-        const preUnaryOpType preUnaryOp(divider);
-
-        using ThreadBufferLengths       = Sequence<1, dim1_thread_slice_size>;
+        using ThreadBufferLengths       = Sequence<MThreadSliceSize, KThreadSliceSize>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<1>{}, Number<dim1_thread_slice_size>{}));
+            make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
 
-        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<srcDataType,
-                                                                    compType,
-                                                                    src2dDescType,
-                                                                    decltype(ThreadBufferDesc),
-                                                                    ThreadBufferLengths,
-                                                                    Sequence<0, 1>,
-                                                                    1,
-                                                                    dim1_vector_size,
-                                                                    1,
-                                                                    false>(
-            src2dDesc, make_multi_index(thread_global_1d_id, 0));
+        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
+            InDataType,
+            AccDataType,
+            In2dDescType,
+            decltype(ThreadBufferDesc),
+            ThreadBufferLengths,
+            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            VectorDim,
+            VectorSize,
+            1,
+            false>(in2dDesc, make_multi_index(thread_global_1d_id * MThreadSliceSize, 0));
 
-        constexpr auto in_thread_copy_step = make_multi_index(0, dim1_thread_slice_size);
+        constexpr auto in_thread_copy_step = make_multi_index(0, KThreadSliceSize);
 
-        index_t indexStart = 0;
-        for(index_t reducedLength = 0; reducedLength < toReduceLength;
-            reducedLength += dim1_thread_slice_size)
+        index_t indexStart    = 0;
+        index_t reducedLength = 0;
+        do
         {
             threadwise_src_load.Run(
-                src2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
+                in2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
 
-            // unary operation before reducing, needed by AMAX; For MIN/MAX, nothing is actually
-            // done here
-            threadwise_reduce::operate_on_elements(preUnaryOp, in_thread_buf);
+            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                // do element-wise pre-reduction operation
+                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
+                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
 
-            // do the reduction on the Thread Buffer
-            threadwise_reduce::Reduce2(
-                in_thread_buf, accuValue_buf(I0), accuIndex_buf(I0), indexStart);
+                    in_thread_buf(offset) = inElementwiseOp(in_thread_buf[offset]);
+                });
 
-            indexStart += dim1_thread_slice_size;
+                // reduce on each thread-local slice
+                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
+                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
+                    BinaryOperation::calculate(
+                        accuValue_buf(I), in_thread_buf[offset], accuIndex_buf(I), indexStart + J);
+                });
+            });
 
-            threadwise_src_load.MoveSrcSliceWindow(src2dDesc, in_thread_copy_step);
-        }
+            threadwise_src_load.MoveSrcSliceWindow(in2dDesc, in_thread_copy_step);
+
+            indexStart += KThreadSliceSize;
+            reducedLength += KThreadSliceSize;
+        } while(reducedLength < toReduceLength);
+
+        // for indiced operation, accElementwiseOp shoud do nothing
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            accuValue_buf(I) = accElementwiseOp(accuValue_buf[I]);
+
+            accuValue_buf(I) *= alpha;
+        });
 
         constexpr auto ReducedDataDesc =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
 
-        if(!float_equal_one{}(alpha))
-            accuValue_buf(I0) *= type_convert<compType>(alpha);
-
-        if(!float_equal_zero{}(beta))
+        if constexpr(!BetaIsZero)
         {
-            auto threadwise_dst_load = ThreadwiseTensorSliceTransfer_v2<dstDataType,
-                                                                        dstDataType,
-                                                                        dst1dDescType,
-                                                                        decltype(ReducedDataDesc),
-                                                                        Sequence<1>,
-                                                                        Sequence<0>,
-                                                                        0,
-                                                                        1,
-                                                                        1,
-                                                                        false>(
-                dst1dDesc, make_multi_index(thread_global_1d_id));
+            if(!float_equal_zero{}(beta))
+            {
+                auto threadwise_dst_load =
+                    ThreadwiseTensorSliceTransfer_v2<OutDataType,
+                                                     OutDataType,
+                                                     Out1dDescType,
+                                                     decltype(ReducedDataDesc),
+                                                     Sequence<MThreadSliceSize>,
+                                                     Sequence<0>,
+                                                     0,
+                                                     1,
+                                                     1,
+                                                     false>(
+                        out1dDesc, make_multi_index(thread_global_1d_id * MThreadSliceSize));
 
-            StaticBuffer<AddressSpaceEnum_t::Vgpr, dstDataType, 1, true> priorDstValue_buf;
+                StaticBuffer<AddressSpaceEnum_t::Vgpr, OutDataType, MThreadSliceSize, true>
+                    priorDstValue_buf;
 
-            threadwise_dst_load.Run(
-                dst1dDesc, dst_global_val_buf, ReducedDataDesc, make_tuple(I0), priorDstValue_buf);
+                threadwise_dst_load.Run(out1dDesc,
+                                        dst_global_val_buf,
+                                        ReducedDataDesc,
+                                        make_tuple(I0),
+                                        priorDstValue_buf);
 
-            accuValue_buf(I0) += type_convert<compType>(priorDstValue_buf[I0] * beta);
-        }
+                static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                    accuValue_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
+                });
+            };
+        };
 
         auto threadwise_dst_val_store =
-            ThreadwiseTensorSliceTransfer_v1r3<compType,
-                                               dstDataType,
+            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                               OutDataType,
                                                decltype(ReducedDataDesc),
-                                               dst1dDescType,
-                                               PassThroughOp<dstDataType>,
-                                               Sequence<1>,
+                                               Out1dDescType,
+                                               PassThroughOp<OutDataType>,
+                                               Sequence<MThreadSliceSize>,
                                                Sequence<0>,
                                                0,
                                                1,
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(
-                dst1dDesc, make_multi_index(thread_global_1d_id), PassThroughOp<dstDataType>{});
+                out1dDesc,
+                make_multi_index(thread_global_1d_id * MThreadSliceSize),
+                PassThroughOp<OutDataType>{});
 
         auto threadwise_dst_idx_store =
             ThreadwiseTensorSliceTransfer_v1r3<int,
                                                int,
                                                decltype(ReducedDataDesc),
-                                               dst1dDescType,
+                                               Out1dDescType,
                                                PassThroughOp<int>,
-                                               Sequence<1>,
+                                               Sequence<MThreadSliceSize>,
                                                Sequence<0>,
                                                0,
                                                1,
                                                InMemoryDataOperationEnum_t::Set,
                                                1,
                                                false>(
-                dst1dDesc, make_multi_index(thread_global_1d_id), PassThroughOp<int>{});
+                out1dDesc,
+                make_multi_index(thread_global_1d_id * MThreadSliceSize),
+                PassThroughOp<int>{});
 
         threadwise_dst_val_store.Run(
-            ReducedDataDesc, make_tuple(I0), accuValue_buf, dst1dDesc, dst_global_val_buf);
+            ReducedDataDesc, make_tuple(I0), accuValue_buf, out1dDesc, dst_global_val_buf);
         threadwise_dst_idx_store.Run(
-            ReducedDataDesc, make_tuple(I0), accuIndex_buf, dst1dDesc, dst_global_idx_buf);
+            ReducedDataDesc, make_tuple(I0), accuIndex_buf, out1dDesc, dst_global_idx_buf);
     };
 };
 

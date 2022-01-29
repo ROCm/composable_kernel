@@ -76,6 +76,29 @@ target_compile_features(device_conv2d_fwd_bias_relu_atomic_add_instance PUBLIC)
 set_target_properties(device_conv2d_fwd_bias_relu_atomic_add_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
 install(TARGETS device_conv2d_fwd_bias_relu_atomic_add_instance LIBRARY DESTINATION lib) 
 
+# device_reduce_instance
+set(DEVICE_REDUCE_INSTANCE_SOURCE_1
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_threadwise.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_blockwise.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_multiblock_atomic_add.cpp;
+)
+
+set(DEVICE_REDUCE_INSTANCE_SOURCE_2
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_blockwise_second_call.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/device_reduce_instance_multiblock_two_call.cpp;
+)
+
+
+add_library(device_reduce_instance_1 SHARED ${DEVICE_REDUCE_INSTANCE_SOURCE_1})
+add_library(device_reduce_instance_2 SHARED ${DEVICE_REDUCE_INSTANCE_SOURCE_2})
+##target_include_directories(device_reduce_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+target_compile_features(device_reduce_instance_1 PUBLIC)
+target_compile_features(device_reduce_instance_2 PUBLIC)
+set_target_properties(device_reduce_instance_1 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(device_reduce_instance_2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_reduce_instance_1 LIBRARY DESTINATION lib)
+install(TARGETS device_reduce_instance_2 LIBRARY DESTINATION lib)
+
 # ck_profiler
 set(PROFILER_SOURCE 
     profiler.cpp
@@ -92,3 +115,5 @@ target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_atomic_add_instance)
+##target_link_libraries(ckProfiler PRIVATE device_gemm_instance device_conv_instance device_reduce_instance)
+target_link_libraries(ckProfiler PRIVATE device_reduce_instance_1 device_reduce_instance_2)

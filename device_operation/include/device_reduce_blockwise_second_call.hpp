@@ -12,150 +12,133 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename inType,
-          typename compType,
-          typename outType,
-          int rank,
-          typename toReduceDims,
-          ReduceTensorOp_t reduceOp,
-          NanPropagation_t nanOpt,
-          ReduceTensorIndices_t indicesOpt,
-          int blockSize,
-          int dim0_thread_cluster_size,
-          int dim1_thread_cluster_size,
-          bool dim0_is_fastest,
-          int dim0_thread_slice_size,
-          int dim1_thread_slice_size>
-struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
-                                                             compType,
-                                                             outType,
-                                                             rank,
-                                                             toReduceDims,
-                                                             reduceOp,
-                                                             nanOpt,
-                                                             indicesOpt>
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          int Rank,
+          typename InnerDims,
+          typename ReduceOperation,
+          typename InElementwiseOperation,
+          typename AccElementwiseOperation,
+          bool PropagateNan,
+          bool NeedIndices,
+          int BlockSize,
+          int MThreadClusterSize,
+          int KThreadClusterSize,
+          int MThreadSliceSize,
+          int KThreadSliceSize,
+          int VectorDim,
+          int VectorSize>
+struct DeviceReduceBlockWiseSecondCall
+    : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
-    static_assert(rank <= 6, "Bigger rank size is not supported!");
-    static_assert(blockSize == dim0_thread_cluster_size * dim1_thread_cluster_size,
+    static_assert(Rank <= 6, "Bigger Rank size is not supported!");
+    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
-    static_assert(reduceOp != ReduceTensorOp_t::MUL && reduceOp != ReduceTensorOp_t::NORM1,
-                  "MUL and NORM1 are not supported in Composable Kernel!");
 
-    static_assert(std::is_same<inType, compType>::value,
-                  "inType and compType should be the same to use DEviceReduceBlockWiseSecondCall!");
+    static constexpr bool BetaIsZero = NeedIndices;
 
-    using invariantDims = decltype(get_invariantDims<rank, toReduceDims>());
+    static_assert(
+        std::is_same<InDataType, AccDataType>::value,
+        "InDataType and AccDataType should be the same to use DEviceReduceBlockWiseSecondCall!");
 
-    static constexpr index_t dstDims = (invariantDims::Size() == 0) ? 1 : invariantDims::Size();
+    using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
 
-    static constexpr bool need_indices =
-        (reduceOp == ReduceTensorOp_t::MIN || reduceOp == ReduceTensorOp_t::MAX ||
-         reduceOp == ReduceTensorOp_t::AMAX) &&
-        (indicesOpt != ReduceTensorIndices_t::NO_INDICES);
+    static constexpr index_t dstDims = (OuterDims::Size() == 0) ? 1 : OuterDims::Size();
 
-    static constexpr int dim0_tile_size = dim0_thread_cluster_size * dim0_thread_slice_size;
-    static constexpr int dim1_tile_size = dim1_thread_cluster_size * dim1_thread_slice_size;
-
-    static constexpr int dim0_vector_size =
-        dim0_is_fastest ? math::gcd(dim0_thread_slice_size, max_vector_size_for_type<inType>()) : 1;
-    static constexpr int dim1_vector_size =
-        dim0_is_fastest ? 1 : math::gcd(dim1_thread_slice_size, max_vector_size_for_type<inType>());
-
-    size_t getWorkspaceSize(const std::vector<int>& inLengths) override
-    {
-        (void)inLengths;
-        return (0);
-    };
+    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
-                                    const std::vector<int>& inStrides,
-                                    size_t gridSize)
+                                    const std::vector<int>& inStrides)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<2>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<2>{});
 
-        const auto src2dDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
+        const auto in2dDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
-        const auto invariantLen = src2dDesc.GetLength(Number<0>{});
-        const auto toReduceLen  = src2dDesc.GetLength(Number<1>{});
+        const auto outerLen = in2dDesc.GetLength(Number<0>{});
+        const auto innerLen = in2dDesc.GetLength(Number<1>{});
 
-        const auto srcPad1 = gridSize * dim0_tile_size - invariantLen;
-        const auto srcPad2 =
-            ((toReduceLen + dim1_tile_size - 1) / dim1_tile_size) * dim1_tile_size - toReduceLen;
+        const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
+        const auto inPad_K = math::integer_least_multiple(innerLen, K_BlockTileSize) - innerLen;
 
-        auto src2dDesc_2 =
-            transform_tensor_descriptor(src2dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, srcPad1),
-                                                   make_pad_transform(toReduceLen, 0, srcPad2)),
+        auto in2dDesc_M_K =
+            transform_tensor_descriptor(in2dDesc,
+                                        make_tuple(make_right_pad_transform(outerLen, inPad_M),
+                                                   make_right_pad_transform(innerLen, inPad_K)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return (src2dDesc_2);
+        return (in2dDesc_M_K);
     };
 
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
-                                    const std::vector<int>& outStrides,
-                                    size_t gridSize)
+                                    const std::vector<int>& outStrides)
     {
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
 
-        auto dstDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
+        auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
-        auto dst1dDesc = transform_tensor_descriptor(
-            dstDesc,
+        auto out1dDesc = transform_tensor_descriptor(
+            outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
             make_tuple(typename arithmetic_sequence_gen<0, dstDims, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
-        const auto invariantLen = dst1dDesc.GetLength(Number<0>{});
+        const auto outerLen = out1dDesc.GetLength(Number<0>{});
 
-        const auto dstPad = gridSize * dim0_tile_size - invariantLen;
+        const auto outPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
 
-        auto dst1dDesc_2 =
-            transform_tensor_descriptor(dst1dDesc,
-                                        make_tuple(make_pad_transform(invariantLen, 0, dstPad)),
+        auto out1dDesc_M =
+            transform_tensor_descriptor(out1dDesc,
+                                        make_tuple(make_right_pad_transform(outerLen, outPad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
-        return (dst1dDesc_2);
+        return (out1dDesc_M);
     };
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int> inLengths,
-                 const std::vector<int> inStrides,
-                 const std::vector<int> outLengths,
-                 const std::vector<int> outStrides,
+        Argument(const std::vector<int>& inLengths,
+                 const std::vector<int>& inStrides,
+                 const std::vector<int>& outLengths,
+                 const std::vector<int>& outStrides,
                  float alpha,
                  float beta,
-                 const inType* in_dev,
-                 outType* out_dev,
+                 const InDataType* in_dev,
+                 OutDataType* out_dev,
                  int* out_indices_dev,
-                 compType* workspace_dev)
+                 AccDataType* workspace_dev,
+                 const InElementwiseOperation& inElementwiseOp,
+                 const AccElementwiseOperation& accElementwiseOp)
             : in_dev_{in_dev}, out_dev_{out_dev}, out_indices_dev_{out_indices_dev}
         {
             inLengths_  = inLengths;
             inStrides_  = inStrides;
             outLengths_ = outLengths;
             outStrides_ = outStrides;
-            alpha_      = static_cast<inType>(alpha);
-            beta_       = static_cast<outType>(beta);
 
-            dim0_total_length = inLengths[0];
-            dim1_total_length = inLengths[1];
+            inElementwiseOp_  = inElementwiseOp;
+            accElementwiseOp_ = accElementwiseOp;
 
-            dim0_lowest_length = inLengths[0];
-            dim1_lowest_length = inLengths[1];
+            alpha_ = static_cast<AccDataType>(alpha);
+            beta_  = static_cast<OutDataType>(beta);
+
+            outer_total_length = inLengths[0];
+            inner_total_length = inLengths[1];
+
+            outer_lowest_length = inLengths[0];
+            inner_lowest_length = inLengths[1];
 
             gridSize =
-                (dim0_total_length + (dim0_thread_cluster_size * dim0_thread_slice_size - 1)) /
-                (dim0_thread_cluster_size * dim0_thread_slice_size) *
-                (dim0_thread_cluster_size * dim0_thread_slice_size);
+                math::integer_least_multiple(outer_total_length, M_BlockTileSize) / M_BlockTileSize;
 
             size_t ws_buf2_bytes_offset =
-                ((dim0_total_length * dim1_total_length * sizeof(compType) + 63) / 64) * 64;
+                ((outer_total_length * inner_total_length * sizeof(AccDataType) + 63) / 64) * 64;
 
-            if constexpr(need_indices)
+            if constexpr(NeedIndices)
                 workspace_indices_dev_ = reinterpret_cast<int*>(
                     reinterpret_cast<char*>(workspace_dev) + ws_buf2_bytes_offset);
             else
@@ -167,72 +150,75 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
         std::vector<int> outLengths_;
         std::vector<int> outStrides_;
 
-        inType alpha_;
-        outType beta_;
+        AccDataType alpha_;
+        OutDataType beta_;
 
-        const inType* in_dev_;
-        outType* out_dev_;
+        const InDataType* in_dev_;
+        OutDataType* out_dev_;
         int* out_indices_dev_;
         int* workspace_indices_dev_;
 
-        int dim0_lowest_length;
-        int dim1_lowest_length;
-        size_t dim0_total_length;
-        size_t dim1_total_length;
+        InElementwiseOperation inElementwiseOp_;
+        AccElementwiseOperation accElementwiseOp_;
+
+        int outer_lowest_length;
+        int inner_lowest_length;
+        size_t outer_total_length;
+        size_t inner_total_length;
 
         size_t gridSize;
-        int origReduceLen;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto src2dDesc = DeviceReduceBlockWiseSecondCall::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.gridSize);
-            const auto dst1dDesc = DeviceReduceBlockWiseSecondCall::MakeDst1dDescriptor(
-                arg.outLengths_, arg.outStrides_, arg.gridSize);
-            using src2dDescType = decltype(src2dDesc);
-            using dst1dDescType = decltype(dst1dDesc);
+            const auto in2dDesc = DeviceReduceBlockWiseSecondCall::MakeSrc2dDescriptor(
+                arg.inLengths_, arg.inStrides_);
+            const auto out1dDesc = DeviceReduceBlockWiseSecondCall::MakeDst1dDescriptor(
+                arg.outLengths_, arg.outStrides_);
+            using In2dDescType  = decltype(in2dDesc);
+            using Out1dDescType = decltype(out1dDesc);
 
-            using gridwise_reduce = GridwiseReduction_xy_to_x_blockwise<inType,
-                                                                        outType,
-                                                                        compType,
-                                                                        src2dDescType,
-                                                                        dst1dDescType,
-                                                                        reduceOp,
-                                                                        nanOpt,
-                                                                        indicesOpt,
-                                                                        blockSize,
-                                                                        dim0_thread_cluster_size,
-                                                                        dim1_thread_cluster_size,
-                                                                        dim0_thread_slice_size,
-                                                                        dim1_thread_slice_size,
-                                                                        dim0_is_fastest,
-                                                                        dim0_vector_size,
-                                                                        dim1_vector_size,
-                                                                        false,
-                                                                        true>;
-
-            constexpr int RunId = need_indices ? 3 : 1;
+            using GridwiseReduce = GridwiseReduction_xy_to_x_blockwise<InDataType,
+                                                                       OutDataType,
+                                                                       AccDataType,
+                                                                       In2dDescType,
+                                                                       Out1dDescType,
+                                                                       ReduceOperation,
+                                                                       InElementwiseOperation,
+                                                                       AccElementwiseOperation,
+                                                                       PropagateNan,
+                                                                       BetaIsZero,
+                                                                       BlockSize,
+                                                                       MThreadClusterSize,
+                                                                       KThreadClusterSize,
+                                                                       MThreadSliceSize,
+                                                                       KThreadSliceSize,
+                                                                       VectorDim,
+                                                                       VectorSize>;
 
             float avg_time = 0;
 
-            const auto kernel = kernel_reduce_blockwise<gridwise_reduce,
-                                                        RunId,
-                                                        inType,
-                                                        outType,
-                                                        src2dDescType,
-                                                        dst1dDescType>;
+            const auto kernel = kernel_reduce_blockwise_second_call<GridwiseReduce,
+                                                                    NeedIndices,
+                                                                    InDataType,
+                                                                    OutDataType,
+                                                                    AccDataType,
+                                                                    In2dDescType,
+                                                                    Out1dDescType,
+                                                                    InElementwiseOperation,
+                                                                    AccElementwiseOperation>;
 
             avg_time = launch_and_time_kernel(kernel,
                                               nrepeat,
                                               dim3(arg.gridSize),
-                                              dim3(blockSize),
+                                              dim3(BlockSize),
                                               0,
-                                              src2dDesc,
-                                              dst1dDesc,
-                                              static_cast<int>(arg.origReduceLen),
+                                              in2dDesc,
+                                              out1dDesc,
+                                              arg.inElementwiseOp_,
+                                              arg.accElementwiseOp_,
                                               arg.alpha_,
                                               arg.in_dev_,
                                               arg.beta_,
@@ -253,39 +239,32 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(dim0_is_fastest)
+        if constexpr(VectorDim == 0)
             return (false);
 
-        if(pArg->dim0_lowest_length % dim0_thread_slice_size != 0)
+        if(pArg->inner_lowest_length % VectorSize != 0)
             return (false);
 
-        if(pArg->dim1_lowest_length % dim1_thread_slice_size != 0)
-            return (false);
-
-        // cases with very small dim1_total_length should be handled by the ThreadWise method
-        if(pArg->dim1_total_length / dim1_thread_slice_size < 2)
+        // cases with very small inner_total_length should be handled by the ThreadWise method
+        if(pArg->inner_total_length / KThreadSliceSize < 2)
             return (false);
 
         return (true);
     };
 
-    void setOrigReduceLength(BaseArgument* p_arg, int len) override
-    {
-        Argument* pArg = dynamic_cast<Argument*>(p_arg);
-
-        pArg->origReduceLen = len;
-    };
-
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<int>& inLengths,
-                                                      const std::vector<int>& inStrides,
-                                                      const std::vector<int>& outLengths,
-                                                      const std::vector<int>& outStrides,
-                                                      float alpha,
-                                                      float beta,
-                                                      const void* in_dev,
-                                                      void* out_dev,
-                                                      void* out_indices_dev,
-                                                      void* workspace_dev) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const std::vector<int>& inLengths,
+                        const std::vector<int>& inStrides,
+                        const std::vector<int>& outLengths,
+                        const std::vector<int>& outStrides,
+                        float alpha,
+                        float beta,
+                        const void* in_dev,
+                        void* out_dev,
+                        void* out_indices_dev,
+                        void* workspace_dev,
+                        const InElementwiseOperation& inElementwiseOp,
+                        const AccElementwiseOperation& accElementwiseOp) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -293,10 +272,12 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
                                           outStrides,
                                           alpha,
                                           beta,
-                                          static_cast<const inType*>(in_dev),
-                                          static_cast<outType*>(out_dev),
+                                          static_cast<const InDataType*>(in_dev),
+                                          static_cast<OutDataType*>(out_dev),
                                           static_cast<int*>(out_indices_dev),
-                                          static_cast<compType*>(workspace_dev));
+                                          static_cast<AccDataType*>(workspace_dev),
+                                          inElementwiseOp,
+                                          accElementwiseOp);
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
@@ -308,9 +289,9 @@ struct DeviceReduceBlockWiseSecondCall : public DeviceReduce<inType,
     {
         auto str = std::stringstream();
 
-        str << "DeviceReduceBlockWiseSecondCall<" << blockSize << ",";
-        str << "Dim0_C" << dim0_thread_cluster_size << "_S" << dim0_thread_slice_size << ",";
-        str << "Dim1_C" << dim1_thread_cluster_size << "_S" << dim1_thread_slice_size << ">";
+        str << "DeviceReduceBlockWiseSecondCall<" << BlockSize << ",";
+        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ">";
 
         return str.str();
     }
