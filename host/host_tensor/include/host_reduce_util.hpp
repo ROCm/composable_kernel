@@ -274,9 +274,9 @@ binop_with_nan_check2(std::function<void(compType&, compType, bool&)> opReduce,
     };
 };
 
-}; // end of namespace hostReduce
+}; // namespace host_reduce
 
-}; // end of ck
+}; // namespace ck
 
 static std::vector<int> to_int_vector(const std::vector<size_t>& inData)
 {

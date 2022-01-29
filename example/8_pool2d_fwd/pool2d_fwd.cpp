@@ -25,9 +25,14 @@ using InLayout  = ck::tensor_layout::pool::NHWC;
 using OutLayout = ck::tensor_layout::pool::NHWC;
 
 // TODO: reimplement reduction as elementwise operator
-static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::MAX;
-// static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::AVG;
-static constexpr bool NeedIndices  = true;
+#if 1
+static constexpr auto ReduceOpId  = ck::ReduceTensorOp_t::MAX;
+static constexpr bool NeedIndices = true;
+#else
+static constexpr auto ReduceOpId  = ck::ReduceTensorOp_t::AVG;
+static constexpr bool NeedIndices = true;
+#endif
+
 static constexpr bool PropagateNan = false;
 
 using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;

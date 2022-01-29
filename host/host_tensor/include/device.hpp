@@ -48,7 +48,7 @@ template <typename... Args, typename F>
 float launch_and_time_kernel(
     F kernel, int nrepeat, dim3 grid_dim, dim3 block_dim, std::size_t lds_byte, Args... args)
 {
-#if 1
+#if 0
     KernelTimer timer;
 
     printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
