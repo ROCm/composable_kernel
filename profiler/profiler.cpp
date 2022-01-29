@@ -6,10 +6,10 @@
 #include <half.hpp>
 
 int profile_gemm(int, char*[]);
-// int profile_conv_fwd(int, char*[]);
-// int profile_conv_fwd_bias_relu(int, char*[]);
-// int profile_conv_fwd_bias_relu_add(int, char*[]);
-// int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
+int profile_conv_fwd(int, char*[]);
+int profile_conv_fwd_bias_relu(int, char*[]);
+int profile_conv_fwd_bias_relu_add(int, char*[]);
+int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
 
 int main(int argc, char* argv[])
 {
@@ -17,7 +17,6 @@ int main(int argc, char* argv[])
     {
         return profile_gemm(argc, argv);
     }
-#if 0
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
         return profile_conv_fwd(argc, argv);
@@ -34,7 +33,6 @@ int main(int argc, char* argv[])
     {
         return profile_conv_fwd_bias_relu_atomic_add(argc, argv);
     }
-#endif
     else
     {
         printf("arg1: tensor operation (gemm: GEMM;\n"
