@@ -39,27 +39,101 @@
 
 using float16 = half_float::half;
 
-template <typename TSrc, typename TComp, typename TDst>
+template <typename T>
+static void
+get_all_indexes(const std::vector<T>& dimLengths, int dim, std::vector<std::vector<T>>& indexes)
+{
+    if(dim < dimLengths.size())
+    {
+        std::vector<std::vector<T>> updated_indexes;
+
+        if(dim == 0)
+        {
+            assert(indexes.size() == 0);
+            assert(dimLengths[dim] > 0);
+            for(T i = 0; i < dimLengths[dim]; i++)
+            {
+                std::vector<T> index = {i};
+
+                updated_indexes.push_back(index);
+            };
+        }
+        else
+        {
+            // go through all the current indexes
+            for(const auto& index : indexes)
+                for(T i = 0; i < dimLengths[dim]; i++)
+                {
+                    auto index_new = index;
+                    index_new.push_back(i);
+
+                    updated_indexes.push_back(index_new);
+                };
+        };
+
+        // update to the indexes (output)
+        indexes = updated_indexes;
+
+        // further to construct the indexes from the updated status
+        get_all_indexes(dimLengths, dim + 1, indexes);
+    };
+};
+
+template <typename T>
+static T get_offset_from_index(const std::vector<T>& strides, const std::vector<T>& index)
+{
+    T offset = 0;
+
+    assert(strides.size() == index.size());
+
+    for(int i = 0; i < index.size(); i++)
+        offset += strides[i] * static_cast<T>(index[i]);
+
+    return (offset);
+};
+
+template <typename T>
+static T get_flatten_offset(const std::vector<T>& lengths, const std::vector<T>& index)
+{
+    T offset = 0;
+
+    assert(lengths.size() == index.size() && lengths.size() > 0);
+
+    int len  = lengths.size();
+    T stride = 1;
+
+    // for len==1, the loop is not executed
+    for(int i = len - 1; i > 0; i--)
+    {
+        offset += stride * static_cast<T>(index[i]);
+
+        stride *= lengths[i];
+    };
+
+    offset += stride * static_cast<T>(index[0]);
+
+    return (offset);
+};
+
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          ck::ReduceTensorOp_t ReduceOpId,
+          bool PropagateNan,
+          bool NeedIndices>
 class ReductionHost
 {
     public:
     ReductionHost() = default;
-    ReductionHost(const ck::ReduceTensorOp_t reduceOp_,
-                  ck::NanPropagation_t nanOpt_,
-                  ck::ReduceTensorIndices_t indiceOpt_,
-                  HostTensorDescriptor& inDesc,
+    ReductionHost(HostTensorDescriptor& inDesc,
                   HostTensorDescriptor& outDesc,
                   const std::vector<int>& invariantDims_,
                   const std::vector<int>& toReduceDims_)
     {
-        this->reduceOp  = reduceOp_;
-        this->nanOpt    = nanOpt_;
-        this->indiceOpt = indiceOpt_;
-
-        this->inLengths  = inDesc.GetLengths();
-        this->outLengths = outDesc.GetLengths();
-        this->inStrides  = inDesc.GetStrides();
-        this->outStrides = outDesc.GetStrides();
+        this->inLengths  = to_int_vector(inDesc.GetLengths());
+        this->outLengths = to_int_vector(outDesc.GetLengths());
+        this->inStrides  = to_int_vector(inDesc.GetStrides());
+        this->outStrides = to_int_vector(outDesc.GetStrides());
 
         this->invariantDims = invariantDims_;
         this->toReduceDims  = toReduceDims_;
@@ -78,63 +152,31 @@ class ReductionHost
 
     ~ReductionHost(){};
 
-    void Run(float alpha, const TSrc* in_data, float beta, TDst* out_data, int* indices)
+    void
+    Run(float alpha, const InDataType* in_data, float beta, OutDataType* out_data, int* indices)
     {
-        if constexpr(std::is_same<TComp, float>::value)
-        {
-            if constexpr(std::is_same<TDst, double>::value)
-                RunImpl<double>(alpha, in_data, beta, out_data, indices);
-            else
-                RunImpl<float>(alpha, in_data, beta, out_data, indices);
-        }
-        else if constexpr(std::is_same<TComp, float16>::value)
-        {
-            if constexpr(std::is_same<TDst, double>::value || std::is_same<TDst, float>::value)
-                RunImpl<TDst>(alpha, in_data, beta, out_data, indices);
-            else
-                RunImpl<float16>(alpha, in_data, beta, out_data, indices);
-        }
-        else if constexpr(std::is_same<TComp, double>::value)
-            RunImpl<double>(alpha, in_data, beta, out_data, indices);
-        return;
+        if constexpr(NeedIndices)
+            RunImpl_with_indices(alpha, in_data, beta, out_data, indices);
+        else
+            RunImpl_no_indices(alpha, in_data, beta, out_data);
     };
 
     private:
-    ck::ReduceTensorOp_t reduceOp;
+    std::vector<int> inLengths;
+    std::vector<int> outLengths;
+    std::vector<int> inStrides;
+    std::vector<int> outStrides;
 
-    ck::NanPropagation_t nanOpt;
-    ck::ReduceTensorIndices_t indiceOpt;
-
-    std::vector<size_t> inLengths;
-    std::vector<size_t> outLengths;
-    std::vector<size_t> inStrides;
-    std::vector<size_t> outStrides;
-
-    std::vector<size_t> invariantLengths;
-    std::vector<size_t> toReduceLengths;
+    std::vector<int> invariantLengths;
+    std::vector<int> toReduceLengths;
 
     std::vector<int> invariantDims;
     std::vector<int> toReduceDims;
 
     bool reduceAllDims;
 
-    template <typename compType>
-    void RunImpl(float alpha, const TSrc* in_data, float beta, TDst* out_data, int* indices)
-    {
-        bool need_indices =
-            (indiceOpt == ck::ReduceTensorIndices_t::FLATTENED_INDICES) &&
-            (reduceOp == ck::ReduceTensorOp_t::MIN || reduceOp == ck::ReduceTensorOp_t::MAX ||
-             reduceOp == ck::ReduceTensorOp_t::AMAX);
-
-        if(need_indices)
-            RunImpl_with_indices<compType>(alpha, in_data, beta, out_data, indices);
-        else
-            RunImpl_no_indices<compType>(alpha, in_data, beta, out_data);
-    };
-
-    template <typename compType>
-    void
-    RunImpl_with_indices(float alpha, const TSrc* in_data, float beta, TDst* out_data, int* indices)
+    void RunImpl_with_indices(
+        float alpha, const InDataType* in_data, float beta, OutDataType* out_data, int* indices)
     {
         using reduce::binop_with_nan_check;
         using reduce::binop_with_nan_check2;
@@ -145,22 +187,22 @@ class ReductionHost
         using reduce::ReduceOpFn2;
         using reduce::ReduceOpZeroVal;
 
-        auto opReduce = ReduceOpFn2<compType>(this->reduceOp);
+        auto opReduce = ReduceOpFn2<AccDataType, ReduceOpId>();
 
         int divider = 1;
         for(int i = 0; i < toReduceLengths.size(); i++)
             divider *= toReduceLengths[i];
 
-        auto PreUnaryOp = PreUnaryOpFn<compType>(reduceOp, divider);
-        auto PosUnaryOp = PosUnaryOpFn<compType>(reduceOp, divider);
+        auto PreUnaryOp = PreUnaryOpFn<AccDataType, ReduceOpId>(divider);
+        auto PosUnaryOp = PosUnaryOpFn<AccDataType, ReduceOpId>(divider);
 
         if(reduceAllDims)
         {
-            std::vector<std::vector<size_t>> indexes_1;
+            std::vector<std::vector<int>> indexes_1;
 
             get_all_indexes(inLengths, 0, indexes_1); // generate the input indexes space
 
-            auto accuVal  = ReduceOpZeroVal<compType>(this->reduceOp);
+            auto accuVal  = ReduceOpZeroVal<AccDataType, ReduceOpId>();
             int accuIndex = 0;
 
             // go through indexes of the invariant dimensions
@@ -168,31 +210,32 @@ class ReductionHost
             {
                 auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                auto currVal = static_cast<compType>(in_data[src_offset]);
+                auto currVal = static_cast<AccDataType>(in_data[src_offset]);
 
                 // unary operation before reducing, needed by AMAX. For MIN/MAX, nothing is actually
                 // done
                 PreUnaryOp(currVal);
 
                 auto currIndex = get_flatten_offset(inLengths, src_index);
-                binop_with_nan_check2(nanOpt, opReduce, accuVal, currVal, accuIndex, currIndex);
+                binop_with_nan_check2<AccDataType, PropagateNan>(
+                    opReduce, accuVal, currVal, accuIndex, currIndex);
             };
 
             // scale the accumulated value
             if(!float_equal_one(alpha))
-                accuVal *= static_cast<compType>(alpha);
+                accuVal *= static_cast<AccDataType>(alpha);
 
             // scale the prior dst value and add it to the accumulated value
             if(!float_equal_zero(beta))
-                accuVal += static_cast<compType>(out_data[0]) * static_cast<compType>(beta);
+                accuVal += static_cast<AccDataType>(out_data[0]) * static_cast<AccDataType>(beta);
 
             // store the reduced value to dst location
-            out_data[0] = static_cast<TDst>(accuVal);
+            out_data[0] = static_cast<OutDataType>(accuVal);
             indices[0]  = accuIndex;
         }
         else
         {
-            std::vector<std::vector<size_t>> indexes_1, indexes_2;
+            std::vector<std::vector<int>> indexes_1, indexes_2;
 
             get_all_indexes(
                 this->invariantLengths, 0, indexes_1); // generate the invariant indexes space
@@ -216,8 +259,8 @@ class ReductionHost
 
                 int dst_offset = get_offset_from_index(this->outStrides, dst_index);
 
-                compType accuVal = ReduceOpZeroVal<compType>(this->reduceOp);
-                int accuIndex    = 0;
+                AccDataType accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+                int accuIndex       = 0;
 
                 // go through indexes of the toReduce dimensions
                 for(const auto& index_2 : indexes_2)
@@ -228,33 +271,34 @@ class ReductionHost
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                    auto currVal = static_cast<compType>(in_data[src_offset]);
+                    auto currVal = static_cast<AccDataType>(in_data[src_offset]);
                     // unary operation before reducing, needed by AMAX. For MIN/MAX, nothing is
                     // actually done
                     PreUnaryOp(currVal);
 
                     auto currIndex = get_flatten_offset(toReduceLengths, index_2);
-                    binop_with_nan_check2(nanOpt, opReduce, accuVal, currVal, accuIndex, currIndex);
+                    binop_with_nan_check2<AccDataType, PropagateNan>(
+                        opReduce, accuVal, currVal, accuIndex, currIndex);
                 };
 
                 // scale the accumulated value
                 if(!float_equal_one(alpha))
-                    accuVal *= static_cast<compType>(alpha);
+                    accuVal *= static_cast<AccDataType>(alpha);
 
                 // scale the prior dst value and add it to the accumulated value
                 if(!float_equal_zero(beta))
-                    accuVal +=
-                        static_cast<compType>(out_data[dst_offset]) * static_cast<compType>(beta);
+                    accuVal += static_cast<AccDataType>(out_data[dst_offset]) *
+                               static_cast<AccDataType>(beta);
 
                 // store the reduced value to dst location
-                out_data[dst_offset] = static_cast<TDst>(accuVal);
+                out_data[dst_offset] = static_cast<OutDataType>(accuVal);
                 indices[dst_offset]  = accuIndex;
             };
         };
     }; // end of RunImpl_with_indices()
 
-    template <typename compType>
-    void RunImpl_no_indices(float alpha, const TSrc* in_data, float beta, TDst* out_data)
+    void
+    RunImpl_no_indices(float alpha, const InDataType* in_data, float beta, OutDataType* out_data)
     {
         using reduce::binop_with_nan_check;
         using reduce::binop_with_nan_check2;
@@ -265,51 +309,51 @@ class ReductionHost
         using reduce::ReduceOpFn;
         using reduce::ReduceOpZeroVal;
 
-        auto opReduce = ReduceOpFn<compType>(this->reduceOp);
+        auto opReduce = ReduceOpFn<AccDataType, ReduceOpId>();
 
         int divider = 1;
         for(int i = 0; i < toReduceLengths.size(); i++)
             divider *= toReduceLengths[i];
 
-        auto PreUnaryOp = PreUnaryOpFn<compType>(reduceOp, divider);
-        auto PosUnaryOp = PosUnaryOpFn<compType>(reduceOp, divider);
+        auto PreUnaryOp = PreUnaryOpFn<AccDataType, ReduceOpId>(divider);
+        auto PosUnaryOp = PosUnaryOpFn<AccDataType, ReduceOpId>(divider);
 
         if(reduceAllDims)
         {
-            std::vector<std::vector<size_t>> indexes_1;
+            std::vector<std::vector<int>> indexes_1;
 
             get_all_indexes(inLengths, 0, indexes_1); // generate the input indexes space
 
-            auto accuVal = ReduceOpZeroVal<compType>(this->reduceOp);
+            auto accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
 
             // go through indexes of the invariant dimensions
             for(const auto& src_index : indexes_1)
             {
                 auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                auto currVal = static_cast<compType>(in_data[src_offset]);
+                auto currVal = static_cast<AccDataType>(in_data[src_offset]);
 
                 PreUnaryOp(currVal);
 
-                binop_with_nan_check(nanOpt, opReduce, accuVal, currVal);
+                binop_with_nan_check<AccDataType, PropagateNan>(opReduce, accuVal, currVal);
             };
 
             PosUnaryOp(accuVal);
 
             // scale the accumulated value
             if(!float_equal_one(alpha))
-                accuVal *= static_cast<compType>(alpha);
+                accuVal *= static_cast<AccDataType>(alpha);
 
             // scale the prior dst value and add it to the accumulated value
             if(!float_equal_zero(beta))
-                accuVal += static_cast<compType>(out_data[0]) * static_cast<compType>(beta);
+                accuVal += static_cast<AccDataType>(out_data[0]) * static_cast<AccDataType>(beta);
 
             // store the reduced value to dst location
-            out_data[0] = static_cast<TDst>(accuVal);
+            out_data[0] = static_cast<OutDataType>(accuVal);
         }
         else
         {
-            std::vector<std::vector<size_t>> indexes_1, indexes_2;
+            std::vector<std::vector<int>> indexes_1, indexes_2;
 
             get_all_indexes(
                 this->invariantLengths, 0, indexes_1); // generate the invariant indexes space
@@ -333,7 +377,7 @@ class ReductionHost
                 for(int k = 0; k < invariantDims.size(); k++)
                     src_index[invariantDims[k]] = index_1[k];
 
-                compType accuVal = ReduceOpZeroVal<compType>(this->reduceOp);
+                AccDataType accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
 
                 // go through indexes of the toReduce dimensions
                 for(const auto& index_2 : indexes_2)
@@ -344,26 +388,26 @@ class ReductionHost
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                    auto currVal = static_cast<compType>(in_data[src_offset]);
+                    auto currVal = static_cast<AccDataType>(in_data[src_offset]);
 
                     PreUnaryOp(currVal);
 
-                    binop_with_nan_check(nanOpt, opReduce, accuVal, currVal);
+                    binop_with_nan_check<AccDataType, PropagateNan>(opReduce, accuVal, currVal);
                 };
 
                 PosUnaryOp(accuVal);
 
                 // scale the accumulated value
                 if(!float_equal_one(alpha))
-                    accuVal *= static_cast<compType>(alpha);
+                    accuVal *= static_cast<AccDataType>(alpha);
 
                 // scale the prior dst value and add it to the accumulated value
                 if(!float_equal_zero(beta))
-                    accuVal +=
-                        static_cast<compType>(out_data[dst_offset]) * static_cast<compType>(beta);
+                    accuVal += static_cast<AccDataType>(out_data[dst_offset]) *
+                               static_cast<AccDataType>(beta);
 
                 // store the reduced value to dst location
-                out_data[dst_offset] = static_cast<TDst>(accuVal);
+                out_data[dst_offset] = static_cast<OutDataType>(accuVal);
             };
         };
     }; // end of RunImpl_no_indices()

@@ -205,6 +205,8 @@ void profile_reduce_impl(bool do_verification,
     constexpr bool NeedIndices =
         (op_support_indices && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES));
 
+    constexpr bool PropagateNan = (NanOpt == NanPropagation_t::PROPAGATE_NAN); 
+
     constexpr bool out_support_atomic_add =
         (std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value);
     constexpr bool op_support_atomic_add =
@@ -387,8 +389,8 @@ void profile_reduce_impl(bool do_verification,
         using hOutType  = typename type_mapping<OutDataType>::outDataType;
         using hCompType = typename type_mapping<AccDataType>::outDataType;
 
-        ReductionHost<hInType, hCompType, hOutType> hostReduce(
-            ReduceOpId, NanOpt, IndicesOpt, in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
+        ReductionHost<hInType, hCompType, hOutType, ReduceOpId, PropagateNan, NeedIndices> hostReduce(
+            in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
 
         hostReduce.Run(alpha,
                        reinterpret_cast<const hInType*>(in.mData.data()),

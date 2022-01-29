@@ -12,6 +12,7 @@
 #include "device_tensor.hpp"
 #include "device_base.hpp"
 #include "device_reduce_blockwise.hpp"
+#include "host_reduce_util.hpp"
 #include "host_generic_reduction.hpp"
 
 #include "reduction_enums.hpp"
@@ -219,16 +220,6 @@ static std::vector<int> get_outer_dims()
     return (resDims);
 };
 
-static std::vector<int> to_int_vector(const std::vector<size_t>& inData)
-{
-    std::vector<int> outData;
-
-    for(auto elem : inData)
-        outData.push_back(static_cast<int>(elem));
-
-    return (outData);
-};
-
 static void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
 {
     bool has_error  = false;
@@ -356,8 +347,7 @@ int main(int argc, char* argv[])
 
     if(args.do_verification)
     {
-        ReductionHost<InDataType, AccDataType, OutDataType> hostReduce(
-            ReduceOpId, NanOpt, IndicesOpt, in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
+        ReductionHost<InDataType, AccDataType, OutDataType, ReduceOpId, PropagateNan, NeedIndices> hostReduce(in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
 
         hostReduce.Run(
             alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
