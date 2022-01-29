@@ -20,19 +20,19 @@ int main(int argc, char* argv[])
     }
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
-        // return conv_profiler(argc, argv);
+        return profile_conv_fwd(argc, argv);
     }
-    else if(strcmp(argv[1], "reduce") == 0)
-    {
-        return reduce_profiler(argc, argv);
-    }
+    // else if(strcmp(argv[1], "reduce") == 0)
+    //{
+    //    return reduce_profiler(argc, argv);
+    //}
     else if(strcmp(argv[1], "conv_fwd_bias_relu") == 0)
     {
-        // return profile_conv_fwd_bias_relu(argc, argv);
+        return profile_conv_fwd_bias_relu(argc, argv);
     }
     else if(strcmp(argv[1], "conv_fwd_bias_relu_add") == 0)
     {
-        // return profile_conv_fwd_bias_relu_add(argc, argv);
+        return profile_conv_fwd_bias_relu_add(argc, argv);
     }
     else if(strcmp(argv[1], "conv_fwd_bias_relu_atomic_add") == 0)
     {
