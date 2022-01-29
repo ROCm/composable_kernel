@@ -126,29 +126,6 @@ static std::vector<int> to_int_vector(const std::vector<size_t>& inData)
     return (outData);
 };
 
-static void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
-{
-    bool has_error  = false;
-    int error_count = 0;
-
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        if(ref.mData[i] != result.mData[i])
-        {
-            std::cerr << std::endl
-                      << "Indices different at position " << i << " (ref: " << ref.mData[i]
-                      << ", result: " << result.mData[i] << ")" << std::endl;
-            has_error = true;
-            error_count++;
-            if(error_count == 20)
-                break;
-        };
-    }
-
-    if(!has_error)
-        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
-};
-
 template <typename T>
 static void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
 {
@@ -197,6 +174,7 @@ void profile_reduce_impl(bool do_verification,
 {
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::device_reduce_instance;
+    using namespace ck::host_reduce;
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||
@@ -204,6 +182,8 @@ void profile_reduce_impl(bool do_verification,
 
     constexpr bool NeedIndices =
         (op_support_indices && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES));
+
+    constexpr bool PropagateNan = (NanOpt == NanPropagation_t::PROPAGATE_NAN);
 
     constexpr bool out_support_atomic_add =
         (std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value);
@@ -387,8 +367,8 @@ void profile_reduce_impl(bool do_verification,
         using hOutType  = typename type_mapping<OutDataType>::outDataType;
         using hCompType = typename type_mapping<AccDataType>::outDataType;
 
-        ReductionHost<hInType, hCompType, hOutType> hostReduce(
-            ReduceOpId, NanOpt, IndicesOpt, in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
+        ReductionHost<hInType, hCompType, hOutType, ReduceOpId, PropagateNan, NeedIndices>
+            hostReduce(in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
 
         hostReduce.Run(alpha,
                        reinterpret_cast<const hInType*>(in.mData.data()),
