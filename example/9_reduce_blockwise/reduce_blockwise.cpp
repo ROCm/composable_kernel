@@ -220,32 +220,9 @@ static std::vector<int> get_outer_dims()
     return (resDims);
 };
 
-static void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
-{
-    bool has_error  = false;
-    int error_count = 0;
-
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        if(ref.mData[i] != result.mData[i])
-        {
-            std::cerr << std::endl
-                      << "Indices different at position " << i << " (ref: " << ref.mData[i]
-                      << ", result: " << result.mData[i] << ")" << std::endl;
-            has_error = true;
-            error_count++;
-            if(error_count == 20)
-                break;
-        };
-    }
-
-    if(!has_error)
-        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
-};
-
 int main(int argc, char* argv[])
 {
-    using namespace ck::host_reduce; 
+    using namespace ck::host_reduce;
 
     SimpleAppArgs args;
 
@@ -349,7 +326,8 @@ int main(int argc, char* argv[])
 
     if(args.do_verification)
     {
-        ReductionHost<InDataType, AccDataType, OutDataType, ReduceOpId, PropagateNan, NeedIndices> hostReduce(in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
+        ReductionHost<InDataType, AccDataType, OutDataType, ReduceOpId, PropagateNan, NeedIndices>
+            hostReduce(in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
 
         hostReduce.Run(
             alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());

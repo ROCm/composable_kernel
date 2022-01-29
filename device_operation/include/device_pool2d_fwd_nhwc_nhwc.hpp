@@ -238,7 +238,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                           arg.in_dev_,
                                           float(0),
                                           arg.out_dev_,
-                                          nullptr);
+                                          arg.out_indices_dev_);
         }
 
         float Run(const BaseArgument* p_arg, int nrepeat = 1) override
