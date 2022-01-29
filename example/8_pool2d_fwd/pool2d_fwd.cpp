@@ -49,8 +49,8 @@ using DevicePoolFwdInstance =
                                                      InElementwiseOperation,
                                                      AccElementwiseOperation,
                                                      NeedIndices,
-                                                     256, // BlockSize
-                                                     256, // ReduceMThreadClusterSize
+                                                     64,  // BlockSize
+                                                     64,  // ReduceMThreadClusterSize
                                                      1,   // ReduceKThreadClusterSize
                                                      4,   // ReduceMThreadSliceSize
                                                      1,   // ReduceKThreadSliceSize
