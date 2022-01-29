@@ -35,7 +35,9 @@
 
 #include "reduction_enums.hpp"
 
-namespace reduce {
+namespace ck {
+
+namespace host_reduce {
 
 using ck::NanPropagation_t;
 using ck::ReduceTensorOp_t;
@@ -65,7 +67,7 @@ static inline bool float_equal_zero(half_float::half x)
 };
 
 template <typename compType, ReduceTensorOp_t ReduceOpId>
-__host__ static inline std::function<void(compType&)> PreUnaryOpFn(std::size_t)
+__host__ static inline std::function<void(compType&)> PreUnaryOpFn(int)
 {
     using std::abs;
 
@@ -93,7 +95,7 @@ __host__ static inline std::function<void(compType&)> PreUnaryOpFn(std::size_t)
 };
 
 template <typename compType, ReduceTensorOp_t ReduceOpId>
-__host__ static inline std::function<void(compType&)> PosUnaryOpFn(std::size_t divider)
+__host__ static inline std::function<void(compType&)> PosUnaryOpFn(int divider)
 {
     using std::sqrt;
 
@@ -272,7 +274,9 @@ binop_with_nan_check2(std::function<void(compType&, compType, bool&)> opReduce,
     };
 };
 
-}; // end of namespace reduce
+}; // end of namespace hostReduce
+
+}; // end of ck
 
 static std::vector<int> to_int_vector(const std::vector<size_t>& inData)
 {

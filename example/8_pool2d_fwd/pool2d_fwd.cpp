@@ -8,6 +8,7 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
+#include "host_reduce_util.hpp"
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "reduction_operator.hpp"
@@ -24,9 +25,10 @@ using InLayout  = ck::tensor_layout::pool::NHWC;
 using OutLayout = ck::tensor_layout::pool::NHWC;
 
 // TODO: reimplement reduction as elementwise operator
-static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::MAX;
-// static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::AVG;
+//static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::MAX;
+static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::AVG;
 static constexpr bool NeedIndices = false;
+static constexpr bool PropagateNan = false; 
 
 using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 using InElementwiseOperation =
@@ -49,19 +51,33 @@ using DevicePoolFwdInstance =
                                                      1,   // ReduceKThreadSliceSize
                                                      2>;  // VectorSize
 
-template <typename TIn, typename TOut>
-void max_pool_host_verify(const Tensor<TIn>& in,
-                          Tensor<TOut>& out,
+template <typename InDataType,
+          typename OutDataType,
+          typename AccDataType,
+          ck::ReduceTensorOp_t ReduceOpId,
+          bool PropagateNan,
+          bool NeedIndices>
+static void pool_host_verify(const Tensor<InDataType>& in,
+                          Tensor<OutDataType>& out,
                           const std::array<ck::index_t, 2>& window_spatial_lengths,
                           const std::array<ck::index_t, 2>& window_strides,
                           const std::array<ck::index_t, 2>& in_left_pads,
                           const std::array<ck::index_t, 2>& in_right_pads)
 {
+    using namespace ck::host_reduce; 
+
     (void)in_left_pads;
     (void)in_right_pads;
 
+    auto opReduce = ReduceOpFn<AccDataType, ReduceOpId>();
+
+    const int divider = window_spatial_lengths[0] * window_spatial_lengths[1]; 
+
+    const auto PreUnaryOp = PreUnaryOpFn<AccDataType, ReduceOpId>(divider);
+    const auto PosUnaryOp = PosUnaryOpFn<AccDataType, ReduceOpId>(divider);
+    
     auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-        TIn v = std::numeric_limits<int>::min();
+	auto accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
 
         for(int y = 0; y < window_spatial_lengths[0]; ++y)
         {
@@ -72,51 +88,18 @@ void max_pool_host_verify(const Tensor<TIn>& in,
                 if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
                    wi < in.mDesc.GetLengths()[3])
                 {
-                    TIn in_v = in(n, c, hi, wi);
-                    v        = v > in_v ? v : in_v;
+                    AccDataType currVal = static_cast<AccDataType>(in(n, c, hi, wi));
+
+                    PreUnaryOp(currVal); 
+
+                    binop_with_nan_check<AccDataType, PropagateNan>(opReduce, accuVal, currVal);
                 }
             }
         }
 
-        out(n, c, ho, wo) = v;
-    };
+        PosUnaryOp(accuVal); 
 
-    make_ParallelTensorFunctor(f_nchw,
-                               out.mDesc.GetLengths()[0],
-                               out.mDesc.GetLengths()[1],
-                               out.mDesc.GetLengths()[2],
-                               out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
-}
-
-template <typename TIn, typename TOut>
-void average_pool_host_verify(const Tensor<TIn>& in,
-                              Tensor<TOut>& out,
-                              const std::array<ck::index_t, 2>& window_spatial_lengths,
-                              const std::array<ck::index_t, 2>& window_strides,
-                              const std::array<ck::index_t, 2>& in_left_pads,
-                              const std::array<ck::index_t, 2>& in_right_pads)
-{
-    (void)in_left_pads;
-    (void)in_right_pads;
-
-    auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-        TIn v = std::numeric_limits<int>::min();
-
-        for(int y = 0; y < window_spatial_lengths[0]; ++y)
-        {
-            int hi = ho * window_strides[0] + y - in_left_pads[0];
-            for(int x = 0; x < window_spatial_lengths[1]; ++x)
-            {
-                int wi = wo * window_strides[1] + x - in_left_pads[1];
-                if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                   wi < in.mDesc.GetLengths()[3])
-                {
-                    v += in(n, c, hi, wi);
-                }
-            }
-        }
-
-        out(n, c, ho, wo) = v / (window_spatial_lengths[0] * window_spatial_lengths[1]);
+        out(n, c, ho, wo) = accuVal;
     };
 
     make_ParallelTensorFunctor(f_nchw,
@@ -128,6 +111,8 @@ void average_pool_host_verify(const Tensor<TIn>& in,
 
 int main(int argc, char* argv[])
 {
+    using namespace ck::host_reduce; 
+
     bool do_verification = 0;
     int init_method      = 0;
     int nrepeat          = 5;
@@ -189,6 +174,8 @@ int main(int argc, char* argv[])
     const std::array<ck::index_t, 2> input_left_pads{{in_left_pad_h, in_left_pad_w}};
     const std::array<ck::index_t, 2> input_right_pads{{in_right_pad_h, in_right_pad_w}};
 
+    const int divider = window_spatial_lengths[0] * window_spatial_lengths[1]; 
+
     // tensor layout
     auto f_host_tensor_descriptor =
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
@@ -240,8 +227,8 @@ int main(int argc, char* argv[])
                                  window_strides,
                                  input_left_pads,
                                  input_right_pads,
-                                 InElementwiseOperation{},
-                                 AccElementwiseOperation{});
+                                 InElementwiseOperation{divider},
+                                 AccElementwiseOperation{divider});
 
     if(!pool.IsSupportedArgument(argument_ptr.get()))
     {
@@ -265,7 +252,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        max_pool_host_verify(in_n_c_hi_wi,
+        pool_host_verify<InDataType, OutDataType, AccDataType, ReduceOpId, PropagateNan, NeedIndices>(in_n_c_hi_wi,
                              out_n_c_ho_wo_host_result,
                              window_spatial_lengths,
                              window_strides,

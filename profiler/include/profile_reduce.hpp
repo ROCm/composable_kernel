@@ -197,6 +197,7 @@ void profile_reduce_impl(bool do_verification,
 {
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::device_reduce_instance;
+    using namespace ck::host_reduce; 
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||

@@ -39,6 +39,10 @@
 
 using float16 = half_float::half;
 
+namespace ck {
+
+namespace host_reduce {
+
 template <typename T>
 static void
 get_all_indexes(const std::vector<T>& dimLengths, int dim, std::vector<std::vector<T>>& indexes)
@@ -178,14 +182,14 @@ class ReductionHost
     void RunImpl_with_indices(
         float alpha, const InDataType* in_data, float beta, OutDataType* out_data, int* indices)
     {
-        using reduce::binop_with_nan_check;
-        using reduce::binop_with_nan_check2;
-        using reduce::float_equal_one;
-        using reduce::float_equal_zero;
-        using reduce::PosUnaryOpFn;
-        using reduce::PreUnaryOpFn;
-        using reduce::ReduceOpFn2;
-        using reduce::ReduceOpZeroVal;
+        using ck::host_reduce::binop_with_nan_check;
+        using ck::host_reduce::binop_with_nan_check2;
+        using ck::host_reduce::float_equal_one;
+        using ck::host_reduce::float_equal_zero;
+        using ck::host_reduce::PosUnaryOpFn;
+        using ck::host_reduce::PreUnaryOpFn;
+        using ck::host_reduce::ReduceOpFn2;
+        using ck::host_reduce::ReduceOpZeroVal;
 
         auto opReduce = ReduceOpFn2<AccDataType, ReduceOpId>();
 
@@ -300,14 +304,14 @@ class ReductionHost
     void
     RunImpl_no_indices(float alpha, const InDataType* in_data, float beta, OutDataType* out_data)
     {
-        using reduce::binop_with_nan_check;
-        using reduce::binop_with_nan_check2;
-        using reduce::float_equal_one;
-        using reduce::float_equal_zero;
-        using reduce::PosUnaryOpFn;
-        using reduce::PreUnaryOpFn;
-        using reduce::ReduceOpFn;
-        using reduce::ReduceOpZeroVal;
+        using ck::host_reduce::binop_with_nan_check;
+        using ck::host_reduce::binop_with_nan_check2;
+        using ck::host_reduce::float_equal_one;
+        using ck::host_reduce::float_equal_zero;
+        using ck::host_reduce::PosUnaryOpFn;
+        using ck::host_reduce::PreUnaryOpFn;
+        using ck::host_reduce::ReduceOpFn;
+        using ck::host_reduce::ReduceOpZeroVal;
 
         auto opReduce = ReduceOpFn<AccDataType, ReduceOpId>();
 
@@ -412,5 +416,9 @@ class ReductionHost
         };
     }; // end of RunImpl_no_indices()
 };
+
+}; // end of namespace host_reduce
+
+}; // end of namespace ck
 
 #endif

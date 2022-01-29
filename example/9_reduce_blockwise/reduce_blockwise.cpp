@@ -245,6 +245,8 @@ static void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
 
 int main(int argc, char* argv[])
 {
+    using namespace ck::host_reduce; 
+
     SimpleAppArgs args;
 
     if(args.processArgs(argc, argv) < 0)
