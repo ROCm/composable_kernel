@@ -43,19 +43,23 @@ using DevicePoolFwdInstance =
                                                      AccElementwiseOperation,
                                                      NeedIndices,
                                                      256, // BlockSize
-                                                     512, // ReduceMPerBlock
-                                                     1,   // ReduceKPerBlock
-                                                     2,   // ReduceMPerThread
-                                                     1>;  // ReduceKPerThread
+                                                     256, // ReduceMThreadClusterSize
+                                                     1,   // ReduceKThreadClusterSize
+                                                     2,   // ReduceMThreadSliceSize
+                                                     1,   // ReduceKThreadSliceSize
+                                                     2>;  // VectorSize
 
 template <typename TIn, typename TOut>
 void max_pool_host_verify(const Tensor<TIn>& in,
                           Tensor<TOut>& out,
-                          const std::vector<ck::index_t>& window_spatial_lengths,
-                          const std::vector<ck::index_t>& window_strides,
-                          const std::vector<ck::index_t>& in_left_pads,
-                          const std::vector<ck::index_t>& in_right_pads)
+                          const std::array<ck::index_t, 2>& window_spatial_lengths,
+                          const std::array<ck::index_t, 2>& window_strides,
+                          const std::array<ck::index_t, 2>& in_left_pads,
+                          const std::array<ck::index_t, 2>& in_right_pads)
 {
+    (void)in_left_pads;
+    (void)in_right_pads;
+
     auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
         TIn v = std::numeric_limits<int>::min();
 
@@ -87,11 +91,14 @@ void max_pool_host_verify(const Tensor<TIn>& in,
 template <typename TIn, typename TOut>
 void average_pool_host_verify(const Tensor<TIn>& in,
                               Tensor<TOut>& out,
-                              const std::vector<ck::index_t>& window_spatial_lengths,
-                              const std::vector<ck::index_t>& window_strides,
-                              const std::vector<ck::index_t>& in_left_pads,
-                              const std::vector<ck::index_t>& in_right_pads)
+                              const std::array<ck::index_t, 2>& window_spatial_lengths,
+                              const std::array<ck::index_t, 2>& window_strides,
+                              const std::array<ck::index_t, 2>& in_left_pads,
+                              const std::array<ck::index_t, 2>& in_right_pads)
 {
+    (void)in_left_pads;
+    (void)in_right_pads;
+
     auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
         TIn v = std::numeric_limits<int>::min();
 
@@ -177,10 +184,10 @@ int main(int argc, char* argv[])
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
 
-    const std::vector<ck::index_t> window_spatial_lengths{{Y, X}};
-    const std::vector<ck::index_t> window_strides{{window_stride_h, window_stride_w}};
-    const std::vector<ck::index_t> input_left_pads{{in_left_pad_h, in_left_pad_w}};
-    const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
+    const std::array<ck::index_t, 2> window_spatial_lengths{{Y, X}};
+    const std::array<ck::index_t, 2> window_strides{{window_stride_h, window_stride_w}};
+    const std::array<ck::index_t, 2> input_left_pads{{in_left_pad_h, in_left_pad_w}};
+    const std::array<ck::index_t, 2> input_right_pads{{in_right_pad_h, in_right_pad_w}};
 
     // tensor layout
     auto f_host_tensor_descriptor =
@@ -219,28 +226,30 @@ int main(int argc, char* argv[])
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
 
-    auto pool     = DevicePoolFwdInstance{};
-    auto invoker  = pool.MakeInvoker();
-    auto argument = pool.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                      N,
-                                      C,
-                                      std::vector<ck::index_t>{{Hi, Wi}},
-                                      std::vector<ck::index_t>{{Y, X}},
-                                      std::vector<ck::index_t>{{Ho, Wo}},
-                                      window_strides,
-                                      input_left_pads,
-                                      input_right_pads,
-                                      InElementwiseOperation{},
-                                      AccElementwiseOperation{});
+    auto pool        = DevicePoolFwdInstance{};
+    auto invoker_ptr = pool.MakeInvokerPointer();
+    auto argument_ptr =
+        pool.MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                 static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                 nullptr,
+                                 N,
+                                 C,
+                                 std::array<ck::index_t, 2>{{Hi, Wi}},
+                                 std::array<ck::index_t, 2>{{Y, X}},
+                                 std::array<ck::index_t, 2>{{Ho, Wo}},
+                                 window_strides,
+                                 input_left_pads,
+                                 input_right_pads,
+                                 InElementwiseOperation{},
+                                 AccElementwiseOperation{});
 
-    if(!pool.IsSupportedArgument(argument))
+    if(!pool.IsSupportedArgument(argument_ptr.get()))
     {
         throw std::runtime_error("wrong! device_op with the specified compilation parameters does "
                                  "not support this problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
     std::size_t flop = std::size_t(2) * N * C * Ho * Wo * Y * X;
 

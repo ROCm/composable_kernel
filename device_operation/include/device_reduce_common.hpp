@@ -79,24 +79,6 @@ static auto make_tuple_from_array(const std::vector<int>& lengths, Number<arrayS
     return make_tuple_from_array_and_index_seq(lengths, index_seq);
 };
 
-template <typename T>
-static constexpr int max_vector_size_for_type()
-{
-    return (8);
-};
-
-template <>
-constexpr int max_vector_size_for_type<float>()
-{
-    return (4);
-};
-
-template <>
-constexpr int max_vector_size_for_type<double>()
-{
-    return (2);
-};
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
