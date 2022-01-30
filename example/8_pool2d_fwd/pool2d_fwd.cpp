@@ -14,9 +14,6 @@
 #include "reduction_operator.hpp"
 #include "device_operation/include/device_pool2d_fwd_nhwc_nhwc.hpp"
 
-using namespace ck;
-using namespace ck::tensor_operation::device;
-
 using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 using AccDataType = float;
@@ -34,17 +31,18 @@ static constexpr bool NeedIndices  = false;
 static constexpr bool PropagateNan = false;
 
 using DevicePoolFwdInstance =
-    DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType,  // InDataType
-                                                     OutDataType, // OutDataType
-                                                     AccDataType, // AccDataType
-                                                     ReduceOpId,
-                                                     NeedIndices,
-                                                     64, // BlockSize
-                                                     64, // ReduceMThreadClusterSize
-                                                     1,  // ReduceKThreadClusterSize
-                                                     4,  // ReduceMThreadSliceSize
-                                                     1,  // ReduceKThreadSliceSize
-                                                     4>; // InSrcOutDstVectorSize
+    ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
+        InDataType,  // InDataType
+        OutDataType, // OutDataType
+        AccDataType, // AccDataType
+        ReduceOpId,
+        NeedIndices,
+        64, // BlockSize
+        64, // ReduceMThreadClusterSize
+        1,  // ReduceKThreadClusterSize
+        4,  // ReduceMThreadSliceSize
+        1,  // ReduceKThreadSliceSize
+        4>; // InSrcOutDstVectorSize
 
 template <typename InDataType,
           typename OutDataType,
