@@ -15,9 +15,7 @@ namespace device {
 template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          typename opReduce,
-          typename InElementwiseOperation,
-          typename AccElementwiseOperation,
+          ck::ReduceTensorOp_t ReduceOpId,
           bool NeedIndices,
           ck::index_t BlockSize,
           ck::index_t ReduceMThreadClusterSize,
@@ -25,8 +23,7 @@ template <typename InDataType,
           ck::index_t ReduceMThreadSliceSize,
           ck::index_t ReduceKThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
-    : public DevicePoolFwd<InElementwiseOperation, AccElementwiseOperation>
+struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePoolFwd<ReduceOpId>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -34,6 +31,15 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
+
+    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+
+    using InElementwiseOperation =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+
+    using AccElementwiseOperation =
+        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
+            AccElementwiseOperation;
 
     static constexpr bool BetaIsZero = true;
 
@@ -139,9 +145,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     // TODO
     struct Argument : public BaseArgument
     {
-        Argument(const InDataType* in_dev,
-                 OutDataType* out_dev,
-                 int* out_indices_dev,
+        Argument(const InDataType* p_in_dev,
+                 OutDataType* p_out_dev,
+                 int* p_out_indices_dev,
                  ck::index_t N,
                  ck::index_t C,
                  std::array<ck::index_t, 2>& input_spatial_lengths,
@@ -149,12 +155,10 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                  std::array<ck::index_t, 2>& output_spatial_lengths,
                  std::array<ck::index_t, 2>& window_strides,
                  std::array<ck::index_t, 2>& input_left_pads,
-                 std::array<ck::index_t, 2>& input_right_pads,
-                 const InElementwiseOperation& inElementwiseOp,
-                 const AccElementwiseOperation& accElementwiseOp)
-            : in_dev_{in_dev},
-              out_dev_{out_dev},
-              out_indices_dev_{out_indices_dev},
+                 std::array<ck::index_t, 2>& input_right_pads)
+            : p_in_dev_{p_in_dev},
+              p_out_dev_{p_out_dev},
+              p_out_indices_dev_{p_out_indices_dev},
               a_grid_desc_m_k_{},
               b_grid_desc_m_{}
         {
@@ -170,24 +174,29 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
             a_grid_desc_m_k_ = descs[I0];
             b_grid_desc_m_   = descs[I1];
 
-            outer_lowest_length = C;
-            inner_lowest_length = window_spatial_lengths[1];
+            outer_lowest_length_ = C;
+            inner_lowest_length_ = window_spatial_lengths[1];
 
-            inElementwiseOp_  = inElementwiseOp;
-            accElementwiseOp_ = accElementwiseOp;
+            // TODO: is this correct?
+            if constexpr(ReduceOpId == ck::ReduceTensorOp_t::AVG)
+            {
+                ck::index_t divider = window_spatial_lengths[0] * window_spatial_lengths[1];
+                in_element_op_      = InElementwiseOperation{divider};
+                acc_element_op_     = AccElementwiseOperation{divider};
+            }
         }
 
-        int outer_lowest_length;
-        int inner_lowest_length;
-
-        const InDataType* in_dev_;
-        OutDataType* out_dev_;
-        int* out_indices_dev_;
-
+        const InDataType* p_in_dev_;
+        OutDataType* p_out_dev_;
+        int* p_out_indices_dev_;
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_M b_grid_desc_m_;
-        InElementwiseOperation inElementwiseOp_;
-        AccElementwiseOperation accElementwiseOp_;
+        InElementwiseOperation in_element_op_;
+        AccElementwiseOperation acc_element_op_;
+
+        // for checking vector load/store
+        ck::index_t outer_lowest_length_;
+        ck::index_t inner_lowest_length_;
     };
 
     struct Invoker : public BaseInvoker
@@ -199,7 +208,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                                                          AccDataType,
                                                                          AGridDesc_M_K,
                                                                          BGridDesc_M,
-                                                                         opReduce,
+                                                                         ReduceOperation,
                                                                          InElementwiseOperation,
                                                                          AccElementwiseOperation,
                                                                          false, // propagate_nan
@@ -235,13 +244,13 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                           0,
                                           arg.a_grid_desc_m_k_,
                                           arg.b_grid_desc_m_,
-                                          arg.inElementwiseOp_,
-                                          arg.accElementwiseOp_,
+                                          arg.in_element_op_,
+                                          arg.acc_element_op_,
                                           float(1),
-                                          arg.in_dev_,
+                                          arg.p_in_dev_,
                                           float(0),
-                                          arg.out_dev_,
-                                          arg.out_indices_dev_);
+                                          arg.p_out_dev_,
+                                          arg.p_out_indices_dev_);
         }
 
         float Run(const BaseArgument* p_arg, int nrepeat = 1) override
@@ -254,16 +263,18 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if(pArg->outer_lowest_length % InSrcOutDstVectorSize != 0)
+        if(pArg->outer_lowest_length_ % InSrcOutDstVectorSize != 0)
+        {
             return (false);
+        }
 
         return (true);
     }
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* in_dev,
-                        void* out_dev,
-                        void* out_indices_dev,
+    MakeArgumentPointer(const void* p_in_dev,
+                        void* p_out_dev,
+                        void* p_out_indices_dev,
                         ck::index_t N,
                         ck::index_t C,
                         std::array<ck::index_t, 2> input_spatial_lengths,
@@ -271,13 +282,11 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                         std::array<ck::index_t, 2> output_spatial_lengths,
                         std::array<ck::index_t, 2> window_strides,
                         std::array<ck::index_t, 2> input_left_pads,
-                        std::array<ck::index_t, 2> input_right_pads,
-                        const InElementwiseOperation inElementwiseOp,
-                        const AccElementwiseOperation accElementwiseOp) override
+                        std::array<ck::index_t, 2> input_right_pads) override
     {
-        return std::make_unique<Argument>(static_cast<const InDataType*>(in_dev),
-                                          static_cast<OutDataType*>(out_dev),
-                                          static_cast<int*>(out_indices_dev),
+        return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_dev),
+                                          static_cast<OutDataType*>(p_out_dev),
+                                          static_cast<int*>(p_out_indices_dev),
                                           N,
                                           C,
                                           input_spatial_lengths,
@@ -285,9 +294,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C
                                           output_spatial_lengths,
                                           window_strides,
                                           input_left_pads,
-                                          input_right_pads,
-                                          inElementwiseOp,
-                                          accElementwiseOp);
+                                          input_right_pads);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

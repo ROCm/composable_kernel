@@ -10,7 +10,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename InElementwiseOperation, typename AccElementwiseOperation>
+template <ck::ReduceTensorOp_t ReduceOpId>
 struct DevicePoolFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -24,16 +24,13 @@ struct DevicePoolFwd : public BaseOperator
                         std::array<ck::index_t, 2> output_spatial_lengths,
                         std::array<ck::index_t, 2> window_strides,
                         std::array<ck::index_t, 2> input_left_pads,
-                        std::array<ck::index_t, 2> input_right_pads,
-                        const InElementwiseOperation inElementwiseOp,
-                        const AccElementwiseOperation accElementwiseOp) = 0;
+                        std::array<ck::index_t, 2> input_right_pads) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename InElementwiseOperation, typename AccElementwiseOperation>
-using DevicePoolFwdPtr =
-    std::unique_ptr<DevicePoolFwd<InElementwiseOperation, AccElementwiseOperation>>;
+template <ck::ReduceTensorOp_t ReduceOpId>
+using DevicePoolFwdPtr = std::unique_ptr<DevicePoolFwd<ReduceOpId>>;
 
 } // namespace device
 } // namespace tensor_operation

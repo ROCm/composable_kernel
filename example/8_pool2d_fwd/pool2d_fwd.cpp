@@ -24,37 +24,27 @@ using AccDataType = float;
 using InLayout  = ck::tensor_layout::pool::NHWC;
 using OutLayout = ck::tensor_layout::pool::NHWC;
 
-// TODO: reimplement reduction as elementwise operator
 #if 1
-static constexpr auto ReduceOpId  = ck::ReduceTensorOp_t::MAX;
-static constexpr bool NeedIndices = false;
+static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::MAX;
 #else
-static constexpr auto ReduceOpId  = ck::ReduceTensorOp_t::AVG;
-static constexpr bool NeedIndices = false;
+static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::AVG;
 #endif
 
+static constexpr bool NeedIndices  = false;
 static constexpr bool PropagateNan = false;
-
-using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
-using InElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
-using AccElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
 
 using DevicePoolFwdInstance =
     DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<InDataType,  // InDataType
                                                      OutDataType, // OutDataType
                                                      AccDataType, // AccDataType
-                                                     ReduceOperation,
-                                                     InElementwiseOperation,
-                                                     AccElementwiseOperation,
+                                                     ReduceOpId,
                                                      NeedIndices,
-                                                     64,  // BlockSize
-                                                     64,  // ReduceMThreadClusterSize
-                                                     1,   // ReduceKThreadClusterSize
-                                                     4,   // ReduceMThreadSliceSize
-                                                     1,   // ReduceKThreadSliceSize
-                                                     4>;  // InSrcOutDstVectorSize
+                                                     64, // BlockSize
+                                                     64, // ReduceMThreadClusterSize
+                                                     1,  // ReduceKThreadClusterSize
+                                                     4,  // ReduceMThreadSliceSize
+                                                     1,  // ReduceKThreadSliceSize
+                                                     4>; // InSrcOutDstVectorSize
 
 template <typename InDataType,
           typename OutDataType,
@@ -68,12 +58,9 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                              const std::array<ck::index_t, 2>& window_spatial_lengths,
                              const std::array<ck::index_t, 2>& window_strides,
                              const std::array<ck::index_t, 2>& in_left_pads,
-                             const std::array<ck::index_t, 2>& in_right_pads)
+                             const std::array<ck::index_t, 2>& /*in_right_pads*/)
 {
     using namespace ck::host_reduce;
-
-    (void)in_left_pads;
-    (void)in_right_pads;
 
     const int divider = window_spatial_lengths[0] * window_spatial_lengths[1];
 
@@ -223,8 +210,6 @@ int main(int argc, char* argv[])
     const std::array<ck::index_t, 2> input_left_pads{{in_left_pad_h, in_left_pad_w}};
     const std::array<ck::index_t, 2> input_right_pads{{in_right_pad_h, in_right_pad_w}};
 
-    const int divider = window_spatial_lengths[0] * window_spatial_lengths[1];
-
     // tensor layout
     auto f_host_tensor_descriptor =
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
@@ -276,9 +261,7 @@ int main(int argc, char* argv[])
                                  std::array<ck::index_t, 2>{{Ho, Wo}},
                                  window_strides,
                                  input_left_pads,
-                                 input_right_pads,
-                                 InElementwiseOperation{divider},
-                                 AccElementwiseOperation{divider});
+                                 input_right_pads);
 
     if(!pool.IsSupportedArgument(argument_ptr.get()))
     {
