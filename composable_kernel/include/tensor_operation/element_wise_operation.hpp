@@ -19,7 +19,7 @@ struct AddRelu
     template <typename T>
     __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const
     {
-#if 1
+#if 0
         T a = x0 + x1;
         y   = a > 0 ? a : 0;
 #else
@@ -37,7 +37,7 @@ struct AddReluAdd
     template <typename T>
     __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1, const T& x2) const
     {
-#if 1
+#if 0
         T a = x0 + x1;
         T b = a > 0 ? a : 0;
         y   = b + x2;

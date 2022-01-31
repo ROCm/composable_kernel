@@ -175,6 +175,9 @@ struct unary_identic<T, false>
     __host__ __device__ unary_identic(const int divider = 1) { (void)divider; };
 
     __host__ __device__ inline constexpr T operator()(T a) const { return a; };
+
+    // TODO this is a hacky
+    __host__ __device__ void operator()(float& y, const float& x) const { y = x; };
 };
 
 template <class T, bool hasDividing>
