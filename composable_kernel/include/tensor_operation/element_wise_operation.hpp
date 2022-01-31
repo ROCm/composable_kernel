@@ -101,10 +101,11 @@ struct AddReluAdd
 struct AlphaBeta
 {
     template <typename T1, typename T2, typename T3>
-    __host__ __device__ constexpr void operator()(T1& dst, const T2& src_y, const T3& bias) const
+    __host__ __device__ constexpr void
+    operator()(T1& dst, const T2& src_y, const T3& bias, float alpha, float beta) const
     {
-        // TODO - alpha beta
-        dst = static_cast<T1>(src_y + static_cast<T2>(bias));
+        // TODO - Let src_y be acc type
+        dst = static_cast<T1>(alpha * static_cast<float> (src_y) + beta * static_cast<float>(bias));
     }
 };
 

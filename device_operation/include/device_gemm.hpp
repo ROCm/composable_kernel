@@ -24,6 +24,8 @@ struct DeviceGemmAlphaBeta : public BaseOperator
                         ck::index_t StrideA,
                         ck::index_t StrideB,
                         ck::index_t StrideC,
+                        float alpha,
+                        float beta,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op) = 0;

@@ -11,7 +11,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v3r2.hpp"
+#include "gridwise_gemm_xdlops_v3r4.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -55,8 +55,9 @@ template <
     index_t CShuffleNXdlPerWavePerShuffle,
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
     index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
-struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
-    : public DeviceGemmAlphaBeta<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmXdl_C_Shuffle_Alpha_Beta : public DeviceGemmAlphaBeta<AElementwiseOperation,
+                                                                       BElementwiseOperation,
+                                                                       CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -136,7 +137,7 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r4<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -193,6 +194,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                  index_t StrideC,
                  index_t M01,
                  index_t N01,
+                 float alpha,
+                 float beta,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
@@ -209,6 +212,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
+              alpha_(alpha),
+              beta_(beta),
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
@@ -217,8 +222,10 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                 DeviceGemmXdl_C_Shuffle_Alpha_Beta::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ =
                 DeviceGemmXdl_C_Shuffle_Alpha_Beta::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c0_grid_desc_m_n_ = DeviceGemmXdl_C_Shuffle_Alpha_Beta::MakeCGridDescriptor_M_N(M, N, StrideC);
-            c_grid_desc_m_n_ = DeviceGemmXdl_C_Shuffle_Alpha_Beta::MakeCGridDescriptor_M_N(M, N, StrideC);
+            c0_grid_desc_m_n_ =
+                DeviceGemmXdl_C_Shuffle_Alpha_Beta::MakeCGridDescriptor_M_N(M, N, StrideC);
+            c_grid_desc_m_n_ =
+                DeviceGemmXdl_C_Shuffle_Alpha_Beta::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
@@ -255,6 +262,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
         typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
+        float alpha_;
+        float beta_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -303,7 +312,7 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v3r2<
+                const auto kernel = kernel_gemm_xdlops_v3r4<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -335,6 +344,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                     arg.b_grid_desc_k0_n_k1_,
                     arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
                     arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.alpha_,
+                    arg.beta_,
                     arg.a_element_op_,
                     arg.b_element_op_,
                     arg.c_element_op_,
@@ -342,7 +353,7 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v3r2<
+                const auto kernel = kernel_gemm_xdlops_v3r4<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -374,6 +385,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                     arg.b_grid_desc_k0_n_k1_,
                     arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
                     arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.alpha_,
+                    arg.beta_,
                     arg.a_element_op_,
                     arg.b_element_op_,
                     arg.c_element_op_,
@@ -421,6 +434,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
+                             float alpha,
+                             float beta,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
@@ -437,6 +452,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                         StrideC,
                         1,
                         1,
+                        alpha,
+                        beta,
                         a_element_op,
                         b_element_op,
                         c_element_op};
@@ -455,6 +472,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
+                                                      float alpha,
+                                                      float beta,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
@@ -471,6 +490,8 @@ struct DeviceGemmXdl_C_Shuffle_Alpha_Beta
                                           StrideC,
                                           1,
                                           1,
+                                          alpha,
+                                          beta,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);
