@@ -61,7 +61,8 @@ void host_verify(const Tensor<TIn>& in,
                  const OutElementOp& out_element_op)
 {
     auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-        double v = 0;
+        float v_acc = 0;
+
         for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
         {
             for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
@@ -73,17 +74,23 @@ void host_verify(const Tensor<TIn>& in,
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[3])
                     {
-                        v += in_element_op(static_cast<const double>(in(n, c, hi, wi))) *
-                             wei_element_op(static_cast<const double>(wei(k, c, y, x)));
+                        float v_in;
+                        float v_wei;
+
+                        in_element_op(v_in, static_cast<const float>(in(n, c, hi, wi)));
+                        wei_element_op(v_wei, static_cast<const float>(wei(k, c, y, x)));
+
+                        v_acc += v_in * v_wei;
                     }
                 }
             }
         }
-        double v2 = out(n, k, ho, wo);
 
-        out_element_op(v2, v);
+        float v_out;
 
-        out(n, k, ho, wo) = v2;
+        out_element_op(v_out, v_acc);
+
+        out(n, k, ho, wo) = v_out;
     };
 
     make_ParallelTensorFunctor(f_nchw,

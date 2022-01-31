@@ -88,15 +88,24 @@ static void host_verify(const Tensor<AType>& a_m_k,
     auto f_mk_kn_mn = [&](auto m, auto n) {
         const int K = a_m_k.mDesc.GetLengths()[1];
 
-        double v = 0;
+        float v_acc = 0;
 
         for(int k = 0; k < K; ++k)
         {
-            v += static_cast<const double>(a_element_op(a_m_k(m, k))) *
-                 static_cast<const double>(b_element_op(b_k_n(k, n)));
+            float v_a;
+            float v_b;
+
+            a_element_op(v_a, static_cast<const float>(a_m_k(m, k)));
+            b_element_op(v_b, static_cast<const float>(b_k_n(k, n)));
+
+            v_acc += v_a * v_b;
         }
 
-        c_m_n(m, n) = c_element_op(v);
+        float v_c;
+
+        c_element_op(v_c, v_acc);
+
+        c_m_n(m, n) = v_c;
     };
 
     make_ParallelTensorFunctor(f_mk_kn_mn,
