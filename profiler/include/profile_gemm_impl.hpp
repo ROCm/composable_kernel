@@ -1,15 +1,18 @@
 #pragma once
-#include "device_gemm_instance.hpp"
+//#include "device_gemm_instance.hpp"
+//#include "device_gemm_splitk_xdl_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-using DeviceGemmNoOpPtr = DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
-                                        ck::tensor_operation::element_wise::PassThrough,
-                                        ck::tensor_operation::element_wise::PassThrough>;
+using DeviceGemmNoOpPtr =
+    ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                ck::tensor_operation::element_wise::PassThrough>;
 
+#if 0
 template <>
 void add_device_gemm_instance<float,
                               float,
@@ -73,6 +76,22 @@ void add_device_gemm_instance<ck::half_t,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::ColumnMajor,
                               ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
+#else
+void add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
+void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+#endif
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -97,7 +116,8 @@ void profile_gemm_impl(int do_verification,
                        int K,
                        int StrideA,
                        int StrideB,
-                       int StrideC)
+                       int StrideC,
+                       int KBatch = 1)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -122,17 +142,20 @@ void profile_gemm_impl(int do_verification,
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
+    std::size_t num_thread = std::thread::hardware_concurrency();
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
+    // set zero to c_device_buf
+    c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
 
     if(do_verification)
     {
@@ -155,9 +178,103 @@ void profile_gemm_impl(int do_verification,
     // add device GEMM instances
     std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmNoOpPtr> gemm_ptrs;
 
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_instance<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
-            gemm_ptrs);
+    if constexpr(is_same<ADataType, float>::value && is_same<BDataType, float>::value &&
+                 is_same<CDataType, float>::value)
+    {
+        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            if(KBatch > 1)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
+            }
+            else
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
+            }
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            if(KBatch > 1)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
+            }
+            else
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
+            }
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            if(KBatch > 1)
+            {
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
+            }
+            else
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
+            }
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            if(KBatch > 1)
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
+            }
+            else
+            {
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
+            }
+        }
+    }
+    else if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
+                      is_same<CDataType, half_t>::value)
+    {
+        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
+        }
+    }
 
     if(gemm_ptrs.size() <= 0)
     {
@@ -184,7 +301,8 @@ void profile_gemm_impl(int do_verification,
                                           StrideC,
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
-                                          ck::tensor_operation::element_wise::PassThrough{});
+                                          ck::tensor_operation::element_wise::PassThrough{},
+                                          KBatch);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
