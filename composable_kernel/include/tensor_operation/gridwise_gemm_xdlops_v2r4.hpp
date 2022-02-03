@@ -62,7 +62,10 @@ template <typename GridwiseGemm,
           typename ABK0MK1GridDesc,
           typename BBK0NK1GridDesc,
           typename CM0N0M1N1M2M3M4N2GridDesc,
-          typename CBlockClusterAdaptor,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename Block2CTileMap,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -74,7 +77,10 @@ __global__ void
                                 const void CONSTANT* p_a_b_k0_m_k1_grid_desc,
                                 const void CONSTANT* p_b_b_k0_n_k1_grid_desc,
                                 const void CONSTANT* p_c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                const void CONSTANT* p_c_block_cluster_adaptor)
+                                const void CONSTANT* p_a_element_op,
+                                const void CONSTANT* p_b_element_op,
+                                const void CONSTANT* p_c_element_op,
+                                const void CONSTANT* p_block_2_ctile_map)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -86,8 +92,14 @@ __global__ void
     const auto c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc =
         *reinterpret_cast<const CM0N0M1N1M2M3M4N2GridDesc*>(
             cast_pointer_to_generic_address_space(p_c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc));
-    const auto c_block_cluster_adaptor = *reinterpret_cast<const CBlockClusterAdaptor*>(
-        cast_pointer_to_generic_address_space(p_c_block_cluster_adaptor));
+    const auto block_2_ctile_map = *reinterpret_cast<const Block2CTileMap*>(
+        cast_pointer_to_generic_address_space(p_block_2_ctile_map));
+    const auto a_element_op = *reinterpret_cast<const AElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_a_element_op));
+    const auto b_element_op = *reinterpret_cast<const BElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_b_element_op));
+    const auto c_element_op = *reinterpret_cast<const CElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_c_element_op));
 
     __shared__ FloatAB p_shared_block[shared_block_size];
 
@@ -98,7 +110,10 @@ __global__ void
                                                   a_b_k0_m_k1_grid_desc,
                                                   b_b_k0_n_k1_grid_desc,
                                                   c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
-                                                  c_block_cluster_adaptor);
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  block_2_ctile_map);
 }
 #endif
 
@@ -110,6 +125,9 @@ template <index_t BlockSize,
           typename ABK0MK1GridDesc,
           typename BBK0NK1GridDesc,
           typename CMNGridDesc,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
@@ -118,7 +136,6 @@ template <index_t BlockSize,
           index_t K1Value,
           index_t MRepeat,
           index_t NRepeat,
-          typename ABlockTransferThreadSliceLengths_K0_M_K1,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -126,7 +143,7 @@ template <index_t BlockSize,
           index_t ABlockTransferSrcScalarPerVector,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
-          typename BBlockTransferThreadSliceLengths_K0_N_K1,
+          bool ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
@@ -134,12 +151,10 @@ template <index_t BlockSize,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
+          bool BBlockLdsExtraN,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector,
-          bool CAccessOrderMRepeatNRepeat,
-          bool ABlockLdsExtraM,
-          bool BBlockLdsExtraN>
+          index_t CThreadTransferDstScalarPerVector>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
 {
     static constexpr auto I0 = Number<0>{};
@@ -358,6 +373,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                const ABK0MK1GridDesc& a_b_k0_m_k1_grid_desc,
                                const BBK0NK1GridDesc& b_b_k0_n_k1_grid_desc,
                                const CM0N0M1N1M2M3M4N2GridDesc& c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CElementwiseOperation& c_element_op,
                                const CBlockClusterAdaptor& c_block_cluster_adaptor)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
@@ -456,7 +474,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
                                               Sequence<1, K0PerBlock, MPerBlock, K1>,
-                                              ABlockTransferThreadSliceLengths_K0_M_K1,
                                               ABlockTransferThreadClusterLengths_K0_M_K1,
                                               ABlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
@@ -487,7 +504,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
                                               Sequence<1, K0PerBlock, NPerBlock, K1>,
-                                              BBlockTransferThreadSliceLengths_K0_N_K1,
                                               BBlockTransferThreadClusterLengths_K0_N_K1,
                                               BBlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
@@ -583,8 +599,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                 a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
 
-                k_block_data_begin += K0PerBlock;
-            } while(k_block_data_begin < (K0 - K0PerBlock));
+                k0_block_data_begin += K0PerBlock;
+            } while(k0_block_data_begin < (K0 - K0PerBlock));
         }
 
         // tail
