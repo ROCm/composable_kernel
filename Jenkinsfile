@@ -222,10 +222,12 @@ pipeline {
             when {
                 expression { params.BUILD_PACKAGES && params.TARGET_NOGPU && params.DATATYPE_NA }
             }
-            stage("Package /opt/rocm") {
-                agent{ label rocmnode("nogpu") }
-                steps{
-                buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
+            parallel {
+                stage("Package /opt/rocm") {
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                    buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
+                    }
                 }
             }
         }
