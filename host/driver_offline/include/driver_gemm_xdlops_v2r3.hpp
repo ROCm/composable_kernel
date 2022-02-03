@@ -5,6 +5,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
+#include "element_wise_operation.hpp"
 
 template <ck::index_t BlockSize,
           typename FloatAB,
@@ -70,6 +71,8 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
 
+    using ElementwiseOperation = ck::tensor_operation::element_wise::PassThrough;
+
     using GridwiseGemm =
         GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<BlockSize,
                                                 FloatAB,
@@ -79,6 +82,9 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                 AGridDesc_K0_M_K1,
                                                 BGridDesc_K0_N_K,
                                                 CMNGridDesc,
+                                                ElementwiseOperation,
+                                                ElementwiseOperation,
+                                                ElementwiseOperation,
                                                 MPerBlock,
                                                 NPerBlock,
                                                 KPerBlock,
@@ -87,7 +93,6 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                 K1,
                                                 MRepeat,
                                                 NRepeat,
-                                                ABlockTransferThreadSliceLengths_K0_M_K1,
                                                 ABlockTransferThreadClusterLengths_K0_M_K1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 ABlockTransferSrcAccessOrder,
@@ -95,7 +100,7 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                 ABlockTransferSrcScalarPerVector,
                                                 ABlockTransferDstScalarPerVector_K1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
-                                                BBlockTransferThreadSliceLengths_K0_N_K1,
+                                                ABlockLdsAddExtraM,
                                                 BBlockTransferThreadClusterLengths_K0_N_K1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 BBlockTransferSrcAccessOrder,
@@ -103,17 +108,10 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                                 BBlockTransferSrcScalarPerVector,
                                                 BBlockTransferDstScalarPerVector_K1,
                                                 BThreadTransferSrcResetCoordinateAfterRun,
+                                                BBlockLdsAddExtraN,
                                                 CThreadTransferSrcDstAccessOrder,
                                                 CThreadTransferSrcDstVectorDim,
-                                                CThreadTransferDstScalarPerVector,
-                                                AGridStepHacks,
-                                                BGridStepHacks,
-                                                CGridStepHacks,
-                                                AGridMoveSliceWindowStepHacks,
-                                                BGridMoveSliceWindowStepHacks,
-                                                CAccessOrderMRepeatNRepeat,
-                                                ABlockLdsAddExtraM,
-                                                BBlockLdsAddExtraN>;
+                                                CThreadTransferDstScalarPerVector>;
 
     {
         std::cout << "a_grid_desc_k0_m_k1{" << a_grid_desc_k0_m_k1.GetLength(I0) << ", "
@@ -152,6 +150,8 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
 
     float ave_time = 0;
 
+    auto element_op_ = ElementwiseOperation{};
+
 #if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
     if(has_main_k0_block_loop)
     {
@@ -162,6 +162,9 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                     remove_reference_t<AGridDesc_K0_M_K1>,
                                     remove_reference_t<BGridDesc_K0_N_K>,
                                     remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                                    ElementwiseOperation,
+                                    ElementwiseOperation,
+                                    ElementwiseOperation,
                                     remove_reference_t<Block2CTileMap>,
                                     true>;
 
@@ -176,6 +179,9 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                           a_grid_desc_k0_m_k1,
                                           b_grid_desc_k0_n_k1,
                                           c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                                          element_op_,
+                                          element_op_,
+                                          element_op_,
                                           block_2_ctile_map);
     }
     else
@@ -187,6 +193,9 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                     remove_reference_t<AGridDesc_K0_M_K1>,
                                     remove_reference_t<BGridDesc_K0_N_K>,
                                     remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                                    ElementwiseOperation,
+                                    ElementwiseOperation,
+                                    ElementwiseOperation,
                                     remove_reference_t<Block2CTileMap>,
                                     false>;
 
@@ -201,6 +210,9 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
                                           a_grid_desc_k0_m_k1,
                                           b_grid_desc_k0_n_k1,
                                           c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc,
+                                          element_op_,
+                                          element_op_,
+                                          element_op_,
                                           block_2_ctile_map);
     }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
