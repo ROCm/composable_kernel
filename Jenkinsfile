@@ -183,9 +183,9 @@ pipeline {
     options {
         parallelsAlwaysFailFast()
     }
-    environment{
-	// variable = value
-    }
+    // environment{
+	//  variable = value
+    // }
     stages{
         stage("Static checks") {
             parallel{
@@ -218,114 +218,11 @@ pipeline {
                 }
             }
         }
-        // stage("Full Tests") {
-        //     when {
-        //         expression { params.BUILD_FULL_TESTS }
-        //     }
-        //     environment{
-        //         WORKAROUND_iGemm_936 = " MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_HIP_FWD_V4R1=0"
-        //         // WORKAROUND_ISSUE_1148:
-        //         Navi21_build_cmd = "CTEST_PARALLEL_LEVEL=2 MIOPEN_CONV_PRECISE_ROCBLAS_TIMING=0 MIOPEN_LOG_LEVEL=5 make -j\$(nproc) check"
-        //     }
-        //     parallel{
-        //         stage('Fp32 Hip All gfx908') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_GFX908 && params.DATATYPE_FP32 }
-        //             }
-        //             agent{ label rocmnode("gfx908") }
-        //             steps{
-        //                 buildHipClangJobAndReboot(setup_flags: Full_test, gpu_arch: "gfx908")
-        //             }
-        //         }
-        //         stage('Fp32 Hip All gfx90a') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_GFX90A && params.DATATYPE_FP32 }
-        //             }
-        //             agent{ label rocmnode("gfx90a") }
-        //             steps{
-        //                 buildHipClangJobAndReboot(setup_flags: Full_test, gpu_arch: "gfx90a:xnack-")
-        //             }
-        //         }
-        //         stage('Fp32 Hip All gfx90a Xnack+') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_GFX90A && params.DATATYPE_FP32 }
-        //             }
-        //             agent{ label rocmnode("gfx90a") }
-        //             steps{
-        //                 buildHipClangJobAndReboot(setup_flags: Full_test, gpu_arch: "gfx90a:xnack+", enforce_xnack_on: true)
-        //             }
-        //         }
-        //         stage('Fp16 Hip Install All Vega20') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_VEGA20 && params.DATATYPE_FP16 }
-        //             }
-        //             agent{ label rocmnode("vega20") }
-        //             steps{
-        //                 buildHipClangJobAndReboot( setup_flags: Full_test + Fp16_flags, build_env: WORKAROUND_iGemm_936, build_install: "true")
-        //             }
-        //         }
-        //         stage('Fp32 Hip All Vega20') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_VEGA20 && params.DATATYPE_FP32 }
-        //             }
-        //             agent{ label rocmnode("vega20") }
-        //             steps{
-        //                 buildHipClangJobAndReboot( setup_flags: Full_test)
-        //             }
-        //         }
-        //         stage('Fp32 OpenCL All gfx1030') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_NAVI21 && params.DATATYPE_FP32 }
-        //             }
-        //             agent{ label rocmnode("navi21") }
-        //             steps{
-        //                 buildHipClangJobAndReboot(compiler: 'g++', setup_flags: Full_test, build_cmd: Navi21_build_cmd, gpu_arch: "gfx1030")
-        //             }
-        //         }
-        //         stage('Fp32 Hip All Install gfx1030') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_NAVI21 && params.DATATYPE_FP32 }
-        //             }
-        //             agent{ label rocmnode("navi21") }
-        //             steps{
-        //                 buildHipClangJobAndReboot(setup_flags: Full_test, build_cmd: Navi21_build_cmd, build_install: "true", gpu_arch: "gfx1030")
-        //             }
-        //         }
-        //         stage('Fp16 Hip All Install gfx908') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_GFX908 && params.DATATYPE_FP16 }
-        //             }
-        //             agent{ label rocmnode("gfx908") }
-        //             steps{
-        //                 buildHipClangJobAndReboot(setup_flags: Full_test + Fp16_flags, build_env: WORKAROUND_iGemm_936, build_install: "true", gpu_arch: "gfx908")
-        //             }
-        //         }
-        //         stage('Fp16 Hip All Install gfx90a') {
-        //             when {
-        //                 beforeAgent true
-        //                 expression { params.TARGET_GFX90A && params.DATATYPE_FP16 }
-        //             }
-        //             agent{ label rocmnode("gfx90a") }
-        //             steps{
-        //                 buildHipClangJobAndReboot(setup_flags: Full_test + Fp16_flags, build_env: WORKAROUND_iGemm_936, build_install: "true", gpu_arch: "gfx90a:xnack-")
-        //             }
-        //         }
-        //     }
-        // }
-
         stage("Packages") {
             when {
                 expression { params.BUILD_PACKAGES && params.TARGET_NOGPU && params.DATATYPE_NA }
             }
-            stage("HIP Package /opt/rocm") {
+            stage("Package /opt/rocm") {
                 agent{ label rocmnode("nogpu") }
                 steps{
                 buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
