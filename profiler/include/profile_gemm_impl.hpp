@@ -1,6 +1,4 @@
 #pragma once
-//#include "device_gemm_instance.hpp"
-//#include "device_gemm_splitk_xdl_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -12,71 +10,6 @@ using DeviceGemmNoOpPtr =
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough>;
 
-#if 0
-template <>
-void add_device_gemm_instance<float,
-                              float,
-                              float,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-
-template <>
-void add_device_gemm_instance<float,
-                              float,
-                              float,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-
-template <>
-void add_device_gemm_instance<float,
-                              float,
-                              float,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-
-template <>
-void add_device_gemm_instance<float,
-                              float,
-                              float,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-
-template <>
-void add_device_gemm_instance<ck::half_t,
-                              ck::half_t,
-                              ck::half_t,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-
-template <>
-void add_device_gemm_instance<ck::half_t,
-                              ck::half_t,
-                              ck::half_t,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-
-template <>
-void add_device_gemm_instance<ck::half_t,
-                              ck::half_t,
-                              ck::half_t,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-
-template <>
-void add_device_gemm_instance<ck::half_t,
-                              ck::half_t,
-                              ck::half_t,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::ColumnMajor,
-                              ck::tensor_layout::gemm::RowMajor>(std::vector<DeviceGemmNoOpPtr>&);
-#else
 void add_device_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -91,7 +24,6 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<Devic
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-#endif
 
 } // namespace device_gemm_instance
 } // namespace device
