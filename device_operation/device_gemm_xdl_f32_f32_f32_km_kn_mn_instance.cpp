@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include "config.hpp"
 #include "device_gemm_xdl.hpp"
-#include "device_gemm_instance.hpp"
 #include "element_wise_operation.hpp"
+#include "device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -21,7 +21,7 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 // Compilation parameters for a[k, m] * b[k, n] = c[m, n]
-using device_gemm_xdl_instance_f32_f32_f32_km_kn_mn =
+using device_gemm_xdl_f32_f32_f32_km_kn_mn_instances =
     std::tuple<
         // clang-format off
         //##########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
@@ -39,21 +39,10 @@ using device_gemm_xdl_instance_f32_f32_f32_km_kn_mn =
         // clang-format on
         >;
 
-template <>
-void add_device_gemm_instance<F32, F32, F32, Col, Row, Row>(
-    std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& device_op_instances)
+void add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(
+    std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
-    using DeviceGemms = device_gemm_instance::device_gemm_xdl_instance_f32_f32_f32_km_kn_mn;
-
-    const auto device_gemms = DeviceGemms{};
-
-    ck::static_for<0, std::tuple_size_v<DeviceGemms>, 1>{}([&](auto i) {
-        using Gemm = remove_cvref_t<decltype(std::get<i>(device_gemms))>;
-
-        auto gemm = Gemm{};
-
-        device_op_instances.push_back(std::make_unique<Gemm>(gemm));
-    });
+    add_device_operation_instances(instances, device_gemm_xdl_f32_f32_f32_km_kn_mn_instances{});
 }
 
 } // namespace device_gemm_instance
