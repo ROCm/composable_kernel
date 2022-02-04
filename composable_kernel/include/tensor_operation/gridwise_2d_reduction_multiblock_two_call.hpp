@@ -105,7 +105,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                                            ReduceOperation,
                                                                            PropagateNan>;
     template <typename T>
-    using PassThroughOp = reduce::unary_identic<T, false>;
+    using PassThroughOp = reduce::unary_identic<T, T>;
 
     static constexpr auto I0 = Number<0>{};
 
