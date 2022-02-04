@@ -27,8 +27,9 @@ template <typename InDataType,
           int KThreadClusterSize,
           int MThreadSliceSize,
           int KThreadSliceSize,
-          int VectorDim,
-          int VectorSize>
+          int InVectorDim,
+          int InVectorSize,
+          int OutVectorSize>
 struct DeviceReduceBlockWiseSecondCall
     : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
@@ -195,8 +196,9 @@ struct DeviceReduceBlockWiseSecondCall
                                                                        KThreadClusterSize,
                                                                        MThreadSliceSize,
                                                                        KThreadSliceSize,
-                                                                       VectorDim,
-                                                                       VectorSize>;
+                                                                       InVectorDim,
+                                                                       InVectorSize,
+                                                                       OutVectorSize>;
 
             float avg_time = 0;
 
@@ -239,10 +241,14 @@ struct DeviceReduceBlockWiseSecondCall
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(VectorDim == 0)
+        if constexpr(InVectorDim == 0)
             return (false);
 
-        if(pArg->inner_lowest_length % VectorSize != 0)
+        if(pArg->inner_lowest_length % InVectorSize != 0)
+            return (false);
+
+        // To improve
+        if(pArg->outer_lowest_length % OutVectorSize != 0)
             return (false);
 
         // cases with very small inner_total_length should be handled by the ThreadWise method

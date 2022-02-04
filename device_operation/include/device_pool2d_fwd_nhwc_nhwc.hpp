@@ -220,7 +220,6 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePoolFwd<R
                                                                          ReduceKThreadSliceSize,
                                                                          InSrcOutDstVectorDim,
                                                                          InSrcOutDstVectorSize,
-                                                                         InSrcOutDstVectorDim,
                                                                          InSrcOutDstVectorSize>;
 
             const auto kernel = kernel_reduce_threadwise<gridwise_reduce,

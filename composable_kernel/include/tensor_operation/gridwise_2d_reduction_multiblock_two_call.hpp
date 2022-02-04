@@ -87,11 +87,12 @@ template <typename InDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t VectorDim,
-          index_t VectorSize>
+          index_t InVectorDim,
+          index_t InVectorSize,
+          index_t OutVectorSize>
 struct GridwiseReduction_xy_to_x_multiblock_two_call
 {
-    static constexpr bool reorder_thread_cluster = (VectorDim == 0);
+    static constexpr bool reorder_thread_cluster = (InVectorDim == 0);
 
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
@@ -177,9 +178,9 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InVectorDim,
+            InVectorSize,
             1,
             false>(
             in2dDesc,
@@ -201,7 +202,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                 // do element-wise pre-reduction operation
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    in_thread_buf(offset) = inElementwiseOp(in_thread_buf[offset]);
+                    inElementwiseOp(in_thread_buf(offset), in_thread_buf(offset));
                 });
 
                 // reduce on each thread-local slice
@@ -248,7 +249,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
@@ -331,9 +332,9 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InVectorDim,
+            InVectorSize,
             1,
             false>(
             in2dDesc,
@@ -367,7 +368,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                         indexOffset + thread_dim1_cluster_id * KThreadSliceSize + J();
 
                     // do element-wise pre-reduction operation
-                    in_thread_val_buf(offset) = inElementwiseOp(in_thread_val_buf[offset]);
+                    inElementwiseOp(in_thread_val_buf(offset), in_thread_val_buf(offset));
                 });
 
                 AccDataType tmpValue = zeroVal;
@@ -428,7 +429,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
@@ -447,7 +448,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(

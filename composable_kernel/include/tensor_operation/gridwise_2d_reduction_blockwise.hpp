@@ -147,11 +147,12 @@ template <typename InDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t VectorDim,
-          index_t VectorSize>
+          index_t InVectorDim,
+          index_t InVectorSize,
+          index_t OutVectorSize>
 struct GridwiseReduction_xy_to_x_blockwise
 {
-    static constexpr bool reorder_thread_cluster = (VectorDim == 0);
+    static constexpr bool reorder_thread_cluster = (InVectorDim == 0);
 
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
@@ -233,9 +234,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InVectorDim,
+            InVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -256,7 +257,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                 // do element-wise pre-reduction operation
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    in_thread_buf(offset) = inElementwiseOp(in_thread_buf[offset]);
+                    inElementwiseOp(in_thread_buf(offset), in_thread_buf(offset));
                 });
 
                 // reduce on each thread-local slice
@@ -293,7 +294,7 @@ struct GridwiseReduction_xy_to_x_blockwise
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             if(thread_dim1_cluster_id == 0)
             {
-                accuValue_buf(I) = accElementwiseOp(accuValue_buf[I]);
+                accElementwiseOp(accuValue_buf(I), accuValue_buf(I));
 
                 accuValue_buf(I) *= alpha;
             }
@@ -316,7 +317,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                          Sequence<MThreadSliceSize>,
                                                          Sequence<0>,
                                                          0,
-                                                         1,
+                                                         OutVectorSize,
                                                          1,
                                                          false>(
                             out1dDesc,
@@ -340,18 +341,18 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    OutDataType,
                                                    decltype(ReducedDataDesc),
                                                    Out1dDescType,
-                                                   PassThroughOp<OutDataType>,
+                                                   PassThroughOp<AccDataType>,
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
                     out1dDesc,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
                                      thread_dim0_cluster_id * MThreadSliceSize),
-                    PassThroughOp<OutDataType>{});
+                    PassThroughOp<AccDataType>{});
 
             threadwise_dst_store.Run(
                 ReducedDataDesc, make_tuple(I0), accuValue_buf, out1dDesc, dst_global_buf);
@@ -422,9 +423,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InVectorDim,
+            InVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -458,7 +459,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                         indexOffset + thread_dim1_cluster_id * KThreadSliceSize + J();
 
                     // do element-wise pre-reduction operation
-                    in_thread_val_buf(offset) = inElementwiseOp(in_thread_val_buf[offset]);
+                    inElementwiseOp(in_thread_val_buf(offset), in_thread_val_buf(offset));
                 });
 
                 AccDataType tmpValue = zeroVal;
@@ -513,7 +514,7 @@ struct GridwiseReduction_xy_to_x_blockwise
             if(thread_dim1_cluster_id == 0)
             {
                 // for indiced operation, accElementwiseOp shoud do nothing
-                accuValue_buf(I) = accElementwiseOp(accuValue_buf[I]);
+                accElementwiseOp(accuValue_buf(I), accuValue_buf(I));
 
                 accuValue_buf(I) *= alpha;
             }
@@ -536,7 +537,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                          Sequence<MThreadSliceSize>,
                                                          Sequence<0>,
                                                          0,
-                                                         1,
+                                                         OutVectorSize,
                                                          1,
                                                          false>(
                             out1dDesc,
@@ -560,18 +561,18 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    OutDataType,
                                                    decltype(ReducedDataDesc),
                                                    Out1dDescType,
-                                                   PassThroughOp<OutDataType>,
+                                                   PassThroughOp<AccDataType>,
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    false>(
                     out1dDesc,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
                                      thread_dim0_cluster_id * MThreadSliceSize),
-                    PassThroughOp<OutDataType>{});
+                    PassThroughOp<AccDataType>{});
 
             auto threadwise_dst_idx_store =
                 ThreadwiseTensorSliceTransfer_v1r3<int,
@@ -582,7 +583,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    false>(
@@ -665,9 +666,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InVectorDim,
+            InVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -680,9 +681,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<VectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            VectorDim,
-            VectorSize,
+            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InVectorDim,
+            InVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -769,7 +770,7 @@ struct GridwiseReduction_xy_to_x_blockwise
             if(thread_dim1_cluster_id == 0)
             {
                 // for indiced operation, accElementwiseOp shoud do nothing
-                accuValue_buf(I) = accElementwiseOp(accuValue_buf[I]);
+                accElementwiseOp(accuValue_buf(I), accuValue_buf(I));
 
                 accuValue_buf(I) *= alpha;
             }
@@ -792,7 +793,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                          Sequence<MThreadSliceSize>,
                                                          Sequence<0>,
                                                          0,
-                                                         1,
+                                                         OutVectorSize,
                                                          1,
                                                          true>(
                             out1dDesc,
@@ -816,18 +817,18 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    OutDataType,
                                                    decltype(ReducedDataDesc),
                                                    Out1dDescType,
-                                                   PassThroughOp<OutDataType>,
+                                                   PassThroughOp<AccDataType>,
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
                     out1dDesc,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
                                      thread_dim0_cluster_id * MThreadSliceSize),
-                    PassThroughOp<OutDataType>{});
+                    PassThroughOp<AccDataType>{});
 
             auto threadwise_dst_idx_store =
                 ThreadwiseTensorSliceTransfer_v1r3<int,
@@ -838,7 +839,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   1,
+                                                   OutVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(

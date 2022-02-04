@@ -52,7 +52,7 @@ void add_device_reduce_instance_blockwise_second_call(
 
             // BlockWiseSecondCall always has the workspace as input, with which the dim1 is always
             // the fastest , so only device instances with VectorDim==1 need by added
-            if constexpr(cfg2::VectorDim_ == 1)
+            if constexpr(cfg2::InVectorDim_ == 1)
             {
                 using ReduceOpInstance = DeviceReduceBlockWiseSecondCall<InDataType,
                                                                          AccDataType,
@@ -69,8 +69,9 @@ void add_device_reduce_instance_blockwise_second_call(
                                                                          cfg1::KThreadClusterSize_,
                                                                          cfg2::MThreadSliceSize_,
                                                                          cfg2::KThreadSliceSize_,
-                                                                         cfg2::VectorDim_,
-                                                                         cfg2::VectorSize_>;
+                                                                         cfg2::InVectorDim_,
+                                                                         cfg2::InVectorSize_,
+                                                                         cfg2::OutVectorSize_>;
 
                 device_op_instances.push_back(
                     std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));

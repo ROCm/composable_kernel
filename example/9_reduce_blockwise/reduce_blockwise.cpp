@@ -58,6 +58,7 @@ using DeviceReduceInstance = DeviceReduceBlockWise<kInDataType,
                                                    1,
                                                    1,
                                                    0,
+                                                   1,
                                                    1>;
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},

@@ -27,8 +27,9 @@ template <typename InDataType,
           int KThreadClusterSize,
           int MThreadSliceSize,
           int KThreadSliceSize,
-          int VectorDim,
-          int VectorSize>
+          int InVectorDim,
+          int InVectorSize,
+          int OutVectorSize>
 struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
@@ -219,8 +220,9 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
                                                                         KThreadClusterSize,
                                                                         MThreadSliceSize,
                                                                         KThreadSliceSize,
-                                                                        VectorDim,
-                                                                        VectorSize>;
+                                                                        InVectorDim,
+                                                                        InVectorSize,
+                                                                        OutVectorSize>;
 
             float avg_time = 0;
 
@@ -262,7 +264,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(VectorDim == 0)
+        if constexpr(InVectorDim == 0)
         {
             if constexpr(OuterDims::Size() == 0)
                 return (false);
@@ -270,7 +272,7 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
             if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->outer_lowest_length % VectorSize != 0)
+            if(pArg->outer_lowest_length % InVectorSize != 0)
                 return (false);
         }
         else
@@ -278,9 +280,13 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
             if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->inner_lowest_length % VectorSize != 0)
+            if(pArg->inner_lowest_length % InVectorSize != 0)
                 return (false);
         };
+
+        // To improve
+        if(pArg->outer_lowest_length % OutVectorSize != 0)
+            return (false);
 
         // TODO: remove this. Should return true, as long as this DeviceOP instance support this
         // case for bigger inner_total_length size, we are supposed to use BlockWise method for

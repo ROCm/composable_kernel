@@ -161,9 +161,9 @@ struct unary_identic
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __host__ __device__ inline constexpr T operator()(T a) const
+    __host__ __device__ inline constexpr void operator()(T& y, const T& x) const
     {
-        return a * type_convert<T>(scaler);
+        y = x * type_convert<T>(scaler);
     };
 
     float scaler = 1.0f;
@@ -174,10 +174,7 @@ struct unary_identic<T, false>
 {
     __host__ __device__ unary_identic(const int divider = 1) { (void)divider; };
 
-    __host__ __device__ inline constexpr T operator()(T a) const { return a; };
-
-    // TODO this is a hacky
-    __host__ __device__ void operator()(float& y, const float& x) const { y = x; };
+    __host__ __device__ inline constexpr void operator()(T& y, const T& x) const { y = x; };
 };
 
 template <class T, bool hasDividing>
@@ -188,11 +185,11 @@ struct unary_square
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __host__ __device__ inline constexpr T operator()(T a) const
+    __host__ __device__ inline constexpr void operator()(T& y, const T& x) const
     {
-        a = a * a;
+        y = x * x;
 
-        return a * type_convert<T>(scaler);
+        y = y * type_convert<T>(scaler);
     };
 
     float scaler = 1.0f;
@@ -203,7 +200,7 @@ struct unary_square<T, false>
 {
     __host__ __device__ unary_square(const int divider = 1) { (void)divider; };
 
-    __host__ __device__ inline constexpr T operator()(T a) const { return a * a; };
+    __host__ __device__ inline constexpr void operator()(T& y, const T& x) const { y = x * x; };
 };
 
 template <class T, bool hasDividing>
@@ -214,11 +211,11 @@ struct unary_abs
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __host__ __device__ inline constexpr T operator()(T a) const
+    __host__ __device__ inline constexpr void operator()(T& y, const T& x) const
     {
-        a = abs(a);
+        y = abs(x);
 
-        return a * type_convert<T>(scaler);
+        y = y * type_convert<T>(scaler);
     };
 
     float scaler = 1.0f;
@@ -229,7 +226,7 @@ struct unary_abs<T, false>
 {
     __host__ __device__ unary_abs(const int divider = 1) { (void)divider; };
 
-    __host__ __device__ inline constexpr T operator()(T a) const { return abs(a); };
+    __host__ __device__ inline constexpr void operator()(T& y, const T& x) const { y = abs(x); };
 };
 
 template <bool hasDividing>
@@ -240,11 +237,11 @@ struct unary_abs<half_t, hasDividing>
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __host__ __device__ inline half_t operator()(half_t a) const
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const
     {
-        a = static_cast<half_t>(__habs(a));
+        y = static_cast<half_t>(__habs(x));
 
-        return a * type_convert<half_t>(scaler);
+        y = y * type_convert<half_t>(scaler);
     };
 
     float scaler = 1.0f;
@@ -255,9 +252,9 @@ struct unary_abs<half_t, false>
 {
     __host__ __device__ unary_abs(const int divider = 1) { (void)divider; };
 
-    __host__ __device__ inline half_t operator()(half_t a) const
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const
     {
-        return static_cast<half_t>(__habs(a));
+        y = static_cast<half_t>(__habs(x));
     };
 };
 
@@ -266,7 +263,7 @@ struct unary_sqrt
 {
     __host__ __device__ unary_sqrt(const int divider = 1) { (void)divider; };
 
-    __host__ __device__ inline T operator()(T a) const { return sqrtf(a); };
+    __host__ __device__ inline void operator()(T& y, const T& x) const { y = sqrtf(x); };
 };
 
 template <>
@@ -274,9 +271,9 @@ struct unary_sqrt<half_t>
 {
     __host__ __device__ unary_sqrt(const int divider = 1) { (void)divider; };
 
-    __host__ __device__ inline half_t operator()(half_t a) const
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const
     {
-        return static_cast<half_t>(hsqrt(a));
+        y = static_cast<half_t>(hsqrt(x));
     };
 };
 

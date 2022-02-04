@@ -116,16 +116,6 @@ static std::vector<int> get_outer_dims()
     return (resDims);
 };
 
-static std::vector<int> to_int_vector(const std::vector<size_t>& inData)
-{
-    std::vector<int> outData;
-
-    for(auto elem : inData)
-        outData.push_back(static_cast<int>(elem));
-
-    return (outData);
-};
-
 template <typename T>
 static void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
 {

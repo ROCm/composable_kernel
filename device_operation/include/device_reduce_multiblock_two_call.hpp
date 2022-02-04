@@ -27,8 +27,9 @@ template <typename InDataType,
           int KThreadClusterSize,
           int MThreadSliceSize,
           int KThreadSliceSize,
-          int VectorDim,
-          int VectorSize>
+          int InVectorDim,
+          int InVectorSize,
+          int OutVectorSize>
 struct DeviceReduceMultiBlockTwoCall
     : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
@@ -275,8 +276,9 @@ struct DeviceReduceMultiBlockTwoCall
                                                               KThreadClusterSize,
                                                               MThreadSliceSize,
                                                               KThreadSliceSize,
-                                                              VectorDim,
-                                                              VectorSize>;
+                                                              InVectorDim,
+                                                              InVectorSize,
+                                                              OutVectorSize>;
 
             float avg_time = 0;
 
@@ -316,7 +318,7 @@ struct DeviceReduceMultiBlockTwoCall
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(VectorDim == 0)
+        if constexpr(InVectorDim == 0)
         {
             if constexpr(OuterDims::Size() == 0)
                 return (false);
@@ -324,7 +326,7 @@ struct DeviceReduceMultiBlockTwoCall
             if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->outer_lowest_length % VectorSize != 0)
+            if(pArg->outer_lowest_length % InVectorSize != 0)
                 return (false);
         }
         else
@@ -332,9 +334,13 @@ struct DeviceReduceMultiBlockTwoCall
             if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->inner_lowest_length % VectorSize != 0)
+            if(pArg->inner_lowest_length % InVectorSize != 0)
                 return (false);
         };
+
+        // To improve
+        if(pArg->blkGroupSize % OutVectorSize != 0)
+            return (false);
 
         // cases with small inner_total_length should be handled by the BlockWise method
         if(pArg->inner_total_length <= BlockSize * KThreadSliceSize)
