@@ -16,6 +16,7 @@
 #include "host_generic_reduction.hpp"
 
 #include "reduction_enums.hpp"
+#include "reduction_operator_mapping.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;

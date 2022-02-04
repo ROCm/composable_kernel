@@ -1,7 +1,8 @@
 #ifndef DEVICE_REDUCE_INSTANCE_THREADWISE_HPP
 #define DEVICE_REDUCE_INSTANCE_THREADWISE_HPP
 
-#include "reduction_operator.hpp"
+#include "reduction_enums.hpp"
+#include "reduction_operator_mapping.hpp"
 
 namespace ck {
 namespace tensor_operation {

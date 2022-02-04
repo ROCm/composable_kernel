@@ -6,6 +6,7 @@
 #include "device_pool_fwd.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
+#include "reduction_operator_mapping.hpp"
 #include "gridwise_2d_reduction_threadwise.hpp"
 
 namespace ck {

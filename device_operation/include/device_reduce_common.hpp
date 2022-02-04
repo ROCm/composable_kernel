@@ -5,6 +5,7 @@
 
 #include "common_header.hpp"
 #include "reduction_enums.hpp"
+#include "reduction_operator.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -81,5 +82,6 @@ static auto make_tuple_from_array(const std::vector<int>& lengths, Number<arrayS
 
 } // namespace device
 } // namespace tensor_operation
+
 } // namespace ck
 #endif

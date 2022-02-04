@@ -1,6 +1,6 @@
+#include "reduction_operator_mapping.hpp"
 #include "device_reduce_instance_impl_common.hpp"
 #include "device_reduce_multiblock_two_call.hpp"
-#include "reduction_operator.hpp"
 
 namespace ck {
 namespace tensor_operation {
