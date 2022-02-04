@@ -13,7 +13,7 @@
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
 #include "device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
-#include "reference_conv2d_fwd_nhwc_kyxc_nhwk.hpp"
+#include "reference_conv_fwd.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -34,26 +34,53 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
+// clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
-    DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    // clang-format off
-//      |    InData|     WeiData|     OutData|     AccData|          In|         Wei|           Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
-//      |      Type|        Type|        Type|        Type| Elementwise| Elementwise|   Elementwise| Specialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
-//      |          |            |            |            |   Operation|   Operation|     Operation|               |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
-//      |          |            |            |            |            |            |              |               |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
-        <InDataType, WeiDataType, OutDataType, AccDataType, InElementOp, WeiElementOp, OutElementOp, ConvFwdDefault,   256,   128,   256,     4,  8,   32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,           1,           1,             S<1, 1, 32, 1, 1, 8>,               8>;
+    DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+        InDataType,                       // InDataType
+        WeiDataType,                      // WeiDataType
+        OutDataType,                      // OutDataType
+        AccDataType,                      // AccDataType
+        InElementOp,                      // InElementwiseOperation
+        WeiElementOp,                     // WeiElementwiseOperation
+        OutElementOp,                     // OutElementwiseOperation
+        ConvFwdDefault,                   // ConvForwardSpecialization
+        256,                              // BlockSize
+        128,                              // MPerBlock
+        256,                              // NPerBlock
+        4,                                // K0PerBlock
+        8,                                // K1
+        32,                               // MPerXdl
+        32,                               // NPerXdl
+        2,                                // MXdlPerWave
+        4,                                // NXdlPerWave
+        S<4, 64, 1>,                      // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,                       // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,                       // ABlockTransferSrcAccessOrder
+        2,                                // ABlockTransferSrcVectorDim
+        8,                                // ABlockTransferSrcScalarPerVector
+        8,                                // ABlockTransferDstScalarPerVector_K1
+        true,                             // ABlockLdsAddExtraM
+        S<4, 64, 1>,                      // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,                       // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,                       // BBlockTransferSrcAccessOrder
+        2,                                // BBlockTransferSrcVectorDim
+        8,                                // BBlockTransferSrcScalarPerVector
+        8,                                // BBlockTransferDstScalarPerVector_K1
+        true,                             // BBlockLdsAddExtraN
+        1,                                // CShuffleMXdlPerWavePerShuffle
+        1,                                // CShuffleNXdlPerWavePerShuffle
+        S<1, 1, 32, 1, 1, 8>,             // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+        8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-using ReferenceConvFwdInstance =
-    ck::tensor_operation::host::ReferenceConv2dFwd_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
-        InDataType,
-        WeiDataType,
-        OutDataType,
-        AccDataType,
-        InElementOp,
-        WeiElementOp,
-        OutElementOp>;
-
+using ReferenceConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
+                                                                              WeiDataType,
+                                                                              OutDataType,
+                                                                              AccDataType,
+                                                                              InElementOp,
+                                                                              WeiElementOp,
+                                                                              OutElementOp>;
 
 int main(int argc, char* argv[])
 {

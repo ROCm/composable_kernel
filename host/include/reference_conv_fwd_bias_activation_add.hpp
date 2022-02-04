@@ -1,13 +1,9 @@
-#ifndef REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
-#define REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
+#ifndef REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_HPP
+#define REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_HPP
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
 #include "device_base.hpp"
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
 #include "host_tensor.hpp"
 
 namespace ck {
@@ -23,8 +19,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct ReferenceConv2dFwd_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public device::BaseOperator
+struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -75,9 +70,7 @@ struct ReferenceConv2dFwd_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Out
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument =
-            ReferenceConv2dFwd_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K::
-                Argument;
+        using Argument = ReferenceConvFwd_Bias_Activation_Add::Argument;
 
         float Run(const Argument& arg)
         {
@@ -177,7 +170,7 @@ struct ReferenceConv2dFwd_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Out
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceConv2dFwd_Bias_Activation_Add_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
+        str << "ReferenceConvFwd_Bias_Activation_Add"
             << std::endl;
         // clang-format on
 

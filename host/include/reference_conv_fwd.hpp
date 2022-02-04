@@ -1,21 +1,16 @@
-#ifndef REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_NHWC_KYXC_NHWK_HPP
-#define REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_NHWC_KYXC_NHWK_HPP
+#ifndef REFERENCE_CONV_FWD_HPP
+#define REFERENCE_CONV_FWD_HPP
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
 #include "device_base.hpp"
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
 #include "host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace host {
 
-// out[N, Ho, Wo, K] =
-//     activate(in[N, Hi, Wi, C] * wei[K, Y, X, C] + bias[K])
+// out[N, K, Ho, Wo] = in[N, C, Hi, Wi] * wei[K, C, Y, X]
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -23,8 +18,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public device::BaseOperator
+struct ReferenceConvFwd : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -32,7 +26,6 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         Argument(const Tensor<InDataType>& in_n_c_hi_wi,
                  const Tensor<WeiDataType>& wei_k_c_y_x,
                  Tensor<OutDataType>& out_n_k_ho_wo,
-                 const Tensor<OutDataType>& bias_k,
                  std::vector<ck::index_t> conv_filter_strides,
                  std::vector<ck::index_t> conv_filter_dilations,
                  std::vector<ck::index_t> input_left_pads,
@@ -43,7 +36,6 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             : in_n_c_hi_wi_{in_n_c_hi_wi},
               wei_k_c_y_x_{wei_k_c_y_x},
               out_n_k_ho_wo_{out_n_k_ho_wo},
-              bias_k_{bias_k},
               conv_strides_{conv_filter_strides},
               conv_dilations_{conv_filter_dilations},
               in_left_pads_{input_left_pads},
@@ -57,7 +49,6 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         const Tensor<InDataType>& in_n_c_hi_wi_;
         const Tensor<WeiDataType>& wei_k_c_y_x_;
         Tensor<OutDataType>& out_n_k_ho_wo_;
-        const Tensor<OutDataType>& bias_k_;
 
         std::vector<index_t> conv_strides_;
         std::vector<index_t> conv_dilations_;
@@ -72,9 +63,7 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument =
-            ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K::
-                Argument;
+        using Argument = ReferenceConvFwd::Argument;
 
         float Run(const Argument& arg)
         {
@@ -103,7 +92,7 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 }
 
                 arg.out_n_k_ho_wo_(n, k, ho, wo) =
-                    ck::type_convert<OutDataType>(arg.out_element_op_(v, arg.bias_k_(k)));
+                    ck::type_convert<OutDataType>(arg.out_element_op_(v));
             };
 
             make_ParallelTensorFunctor(f_nchw,
@@ -132,7 +121,6 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static auto MakeArgument(const Tensor<InDataType>& in_n_c_hi_wi,
                              const Tensor<WeiDataType>& wei_k_c_y_x,
                              Tensor<OutDataType>& out_n_k_ho_wo,
-                             const Tensor<OutDataType>& bias_k,
                              std::vector<ck::index_t> conv_filter_strides,
                              std::vector<ck::index_t> conv_filter_dilations,
                              std::vector<ck::index_t> input_left_pads,
@@ -144,7 +132,6 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         return Argument{in_n_c_hi_wi,
                         wei_k_c_y_x,
                         out_n_k_ho_wo,
-                        bias_k,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -166,7 +153,7 @@ struct ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceConv2dFwd_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
+        str << "ReferenceConvFwd"
             << std::endl;
         // clang-format on
 
