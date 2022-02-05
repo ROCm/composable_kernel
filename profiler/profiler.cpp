@@ -6,6 +6,7 @@
 #include <half.hpp>
 
 int profile_gemm(int, char*[]);
+int profile_batched_gemm(int, char*[]);
 int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
@@ -13,9 +14,14 @@ int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
 
 int main(int argc, char* argv[])
 {
+#if 0
     if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
+    }
+    else if(strcmp(argv[1], "batched_gemm") == 0)
+    {
+        return profile_batched_gemm(argc, argv);
     }
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
@@ -43,4 +49,9 @@ int main(int argc, char* argv[])
                "ForwardConvolution+Bias+ReLU+AtomicAdd)\n");
         return 0;
     }
+#else
+    {
+        return profile_batched_gemm(argc, argv);
+    }
+#endif
 }
