@@ -35,7 +35,7 @@ enum GemmDataType
 
 int profile_batched_gemm(int argc, char* argv[])
 {
-    if(!(argc == 14 || argc == 15))
+    if(!(argc == 15))
     {
         printf("arg1: tensor operation (batched_gemm: Batched GEMM)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");

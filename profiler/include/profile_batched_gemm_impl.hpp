@@ -73,7 +73,7 @@ void profile_batched_gemm_impl(int do_verification,
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
+    std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
     switch(init_method)
@@ -92,12 +92,12 @@ void profile_batched_gemm_impl(int do_verification,
 
     if(do_verification)
     {
-        // host_gemm_gmk_gkn_gmn(a_g_m_k,
-        // b_g_k_n,
-        // c_g_m_n_host_result,
-        // ck::tensor_operation::element_wise::PassThrough{},
-        // ck::tensor_operation::element_wise::PassThrough{},
-        // ck::tensor_operation::element_wise::PassThrough{});
+        host_gemm_gmk_gkn_gmn(a_g_m_k,
+                              b_g_k_n,
+                              c_g_m_n_host_result,
+                              ck::tensor_operation::element_wise::PassThrough{},
+                              ck::tensor_operation::element_wise::PassThrough{},
+                              ck::tensor_operation::element_wise::PassThrough{});
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
@@ -214,7 +214,7 @@ void profile_batched_gemm_impl(int do_verification,
                 {
                     LogRangeAsType<float>(std::cout << "a : ", a_g_m_k.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "b: ", b_g_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host  : ", c_g_m_n_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "c_host: ", c_g_m_n_host_result.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(
                         std::cout << "c_device: ", c_g_m_n_device_result.mData, ",")
