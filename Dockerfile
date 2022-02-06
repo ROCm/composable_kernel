@@ -86,5 +86,16 @@ RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 ARG PREFIX=/opt/rocm
 # Install dependencies
 RUN cget install pfultz2/rocm-recipes
+# Install rbuild
+RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/6d78a0553babdaea8d2da5de15cbda7e869594b8.tar.gz
+# Setup ubsan environment to printstacktrace
+ENV UBSAN_OPTIONS=print_stacktrace=1
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ADD rbuild.ini /rbuild.ini
+ADD dev-requirements.txt dev-requirements.txt
+RUN rbuild prepare -s develop -d $PREFIX
+RUN groupadd -f render
 # RUN cget install -f min-requirements.txt
 # RUN CXXFLAGS='-isystem $PREFIX/include' cget install -f ./mlir-requirements.txt
