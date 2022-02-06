@@ -4,8 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
-#include "device_base.hpp"
-#include "device_gemm.hpp"
+#include "device_gemm_bias_activation.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -55,7 +54,10 @@ template <
     index_t CShuffleNXdlPerWavePerShuffle,
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
     index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
-struct DeviceGemmXdl_C_Shuffle_Bias_Activation : public BaseOperator
+struct DeviceGemmXdl_C_Shuffle_Bias_Activation
+    : public DeviceGemmBiasActivation<AElementwiseOperation,
+                                      BElementwiseOperation,
+                                      CElementwiseOperation>
 {
     using DeviceOp = DeviceGemmXdl_C_Shuffle_Bias_Activation;
 
@@ -462,7 +464,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation : public BaseOperator
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op)
+                                                      CElementwiseOperation c_element_op,
+                                                      index_t KBatch = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -482,7 +485,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation : public BaseOperator
     }
 
     // polymorphic
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer()
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
     }

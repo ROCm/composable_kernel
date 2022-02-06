@@ -13,6 +13,7 @@
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
 #include "device_gemm_xdl_c_shuffle_bias_activation_add.hpp"
+#include "reference_gemm_bias_activation_add.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -71,50 +72,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     8>;                    // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-template <typename AType,
-          typename BType,
-          typename CType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-static void host_verify(const Tensor<AType>& a_m_k,
-                        const Tensor<BType>& b_k_n,
-                        Tensor<CType>& c_m_n,
-                        const Tensor<CType>& c0_n,
-                        const Tensor<CType>& c1_m_n,
-                        const AElementwiseOperation& a_element_op,
-                        const BElementwiseOperation& b_element_op,
-                        const CElementwiseOperation& c_element_op)
-{
-    auto f_mk_kn_mn = [&](auto m, auto n) {
-        const int K = a_m_k.mDesc.GetLengths()[1];
-
-        float v_acc = 0;
-
-        for(int k = 0; k < K; ++k)
-        {
-            float v_a;
-            float v_b;
-
-            a_element_op(v_a, static_cast<const float>(a_m_k(m, k)));
-            b_element_op(v_b, static_cast<const float>(b_k_n(k, n)));
-
-            v_acc += v_a * v_b;
-        }
-
-        float v_c;
-
-        c_element_op(
-            v_c, v_acc, static_cast<const float>(c0_n(n)), static_cast<const float>(c1_m_n(m, n)));
-
-        c_m_n(m, n) = static_cast<CType>(v_c);
-    };
-
-    make_ParallelTensorFunctor(f_mk_kn_mn,
-                               c_m_n.mDesc.GetLengths()[0],
-                               c_m_n.mDesc.GetLengths()[1])(std::thread::hardware_concurrency());
-}
-
+using ReferenceGemmInstance =
+    ck::tensor_operation::host::ReferenceGemmBiasActivationAdd<ADataType,
+                                                               BDataType,
+                                                               CDataType,
+                                                               AElementOp,
+                                                               BElementOp,
+                                                               CElementOp>;
 int main(int argc, char* argv[])
 {
     bool do_verification = 0;
@@ -270,14 +234,19 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(a_m_k,
-                    b_k_n,
-                    c_m_n_host_result,
-                    c0_n,
-                    c1_m_n,
-                    a_element_op,
-                    b_element_op,
-                    c_element_op);
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(a_m_k,
+                                                  b_k_n,
+                                                  c_m_n_host_result,
+                                                  c0_n,
+                                                  c1_m_n,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op);
+
+        ref_invoker.Run(ref_argument);
 
         check_error(c_m_n_host_result, c_m_n_device_result);
     }

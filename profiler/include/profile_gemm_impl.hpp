@@ -1,4 +1,14 @@
 #pragma once
+#include "config.hpp"
+#include "device.hpp"
+#include "host_tensor.hpp"
+#include "host_tensor_generator.hpp"
+#include "host_conv.hpp"
+#include "tensor_layout.hpp"
+#include "device_tensor.hpp"
+#include "element_wise_operation.hpp"
+#include "device_gemm.hpp"
+#include "reference_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -95,14 +105,26 @@ void profile_gemm_impl(int do_verification,
     // set zero to c_device_buf
     c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
 
+    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
+
+    const auto a_element_op = AElementOp{};
+    const auto b_element_op = BElementOp{};
+    const auto c_element_op = CElementOp{};
+
     if(do_verification)
     {
-        host_gemm_mk_kn_mn(a_m_k,
-                           b_k_n,
-                           c_m_n_host_result,
-                           ck::tensor_operation::element_wise::PassThrough{},
-                           ck::tensor_operation::element_wise::PassThrough{},
-                           ck::tensor_operation::element_wise::PassThrough{});
+        using ReferenceGemmInstance = ck::tensor_operation::host::
+            ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+        ref_invoker.Run(ref_argument);
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
@@ -301,8 +323,7 @@ void profile_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << "this device GEMM instance does not support this GEMM problem"
-                      << std::endl;
+            std::cout << "does not support this GEMM problem" << std::endl;
         }
     }
 
