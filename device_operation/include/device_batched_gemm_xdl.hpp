@@ -270,7 +270,7 @@ struct DeviceBatchedGemmXdl
                           << arg.b_grid_desc_g_k0_n_k1_.GetLength(I2) << ", "
                           << arg.b_grid_desc_g_k0_n_k1_.GetLength(I3) << "}" << std::endl;
 
-                std::cout << "arg.c_grid_desc_g_m_n_{ " << arg.c_grid_desc_g_m_n_.GetLength(I0)
+                std::cout << "arg.c_grid_desc_g_m_n_{" << arg.c_grid_desc_g_m_n_.GetLength(I0)
                           << ", " << arg.c_grid_desc_g_m_n_.GetLength(I1) << ", "
                           << arg.c_grid_desc_g_m_n_.GetLength(I2) << "}" << std::endl;
             }
@@ -288,7 +288,7 @@ struct DeviceBatchedGemmXdl
             const index_t grid_size =
                 GridwiseBatchedGemm::CalculateGridSize(arg.c_grid_desc_g_m_n_);
 
-            const auto K0 = arg.a_grid_desc_g_k0_m_k1_.GetLength(I0);
+            const auto K0 = arg.a_grid_desc_g_k0_m_k1_.GetLength(I1);
 
             const bool has_main_k0_block_loop =
                 GridwiseBatchedGemm::CalculateHasMainK0BlockLoop(K0);

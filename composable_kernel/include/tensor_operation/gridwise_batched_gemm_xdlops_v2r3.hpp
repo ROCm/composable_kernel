@@ -688,7 +688,7 @@ struct GridwiseBatchedGemm_gk0mk1_gk0nk1_gmn_xdlops_v2r3
                 CGlobalMemoryDataOperation,
                 1,
                 true>{c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2,
-                      make_multi_index(0,
+                      make_multi_index(g_idx_on_grid,
                                        m_thread_data_on_grid_idx[I0],
                                        n_thread_data_on_grid_idx[I0],
                                        m_thread_data_on_grid_idx[I1],
