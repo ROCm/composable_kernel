@@ -10,61 +10,76 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r5.hpp"
+#include "gridwise_gemm_xdlops_v3r3.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ADataType,
-          typename BDataType,
-          typename CDataType,
-          typename AccDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          ck::index_t BlockSize,
-          ck::index_t MPerBlock,
-          ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
-          ck::index_t K1,
-          ck::index_t MPerXDL,
-          ck::index_t NPerXDL,
-          ck::index_t MXdlPerWave,
-          ck::index_t NXdlPerWave,
-          typename ABlockTransferThreadClusterLengths_K0_M_K1,
-          typename ABlockTransferThreadClusterArrangeOrder,
-          typename ABlockTransferSrcAccessOrder,
-          ck::index_t ABlockTransferSrcVectorDim,
-          ck::index_t ABlockTransferSrcScalarPerVector,
-          ck::index_t ABlockTransferDstScalarPerVector_K1,
-          bool ABlockLdsAddExtraM,
-          typename BBlockTransferThreadClusterLengths_K0_N_K1,
-          typename BBlockTransferThreadClusterArrangeOrder,
-          typename BBlockTransferSrcAccessOrder,
-          ck::index_t BBlockTransferSrcVectorDim,
-          ck::index_t BBlockTransferSrcScalarPerVector,
-          ck::index_t BBlockTransferDstScalarPerVector_K1,
-          bool BBlockLdsAddExtraN,
-          ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+// C[M, N] = activate(A[M, K] * B[K, N] + C0[N]) + C1[M, N]
+template <
+    typename ADataType,
+    typename BDataType,
+    typename CDataType,
+    typename AccDataType,
+    typename ALayout,
+    typename BLayout,
+    typename CLayout,
+    typename AElementwiseOperation,
+    typename BElementwiseOperation,
+    typename CElementwiseOperation,
+    ck::index_t BlockSize,
+    ck::index_t MPerBlock,
+    ck::index_t NPerBlock,
+    ck::index_t K0PerBlock,
+    ck::index_t K1,
+    ck::index_t MPerXDL,
+    ck::index_t NPerXDL,
+    ck::index_t MXdlPerWave,
+    ck::index_t NXdlPerWave,
+    typename ABlockTransferThreadClusterLengths_K0_M_K1,
+    typename ABlockTransferThreadClusterArrangeOrder,
+    typename ABlockTransferSrcAccessOrder,
+    ck::index_t ABlockTransferSrcVectorDim,
+    ck::index_t ABlockTransferSrcScalarPerVector,
+    ck::index_t ABlockTransferDstScalarPerVector_K1,
+    bool ABlockLdsAddExtraM,
+    typename BBlockTransferThreadClusterLengths_K0_N_K1,
+    typename BBlockTransferThreadClusterArrangeOrder,
+    typename BBlockTransferSrcAccessOrder,
+    ck::index_t BBlockTransferSrcVectorDim,
+    ck::index_t BBlockTransferSrcScalarPerVector,
+    ck::index_t BBlockTransferDstScalarPerVector_K1,
+    bool BBlockLdsAddExtraN,
+    index_t CShuffleMXdlPerWavePerShuffle,
+    index_t CShuffleNXdlPerWavePerShuffle,
+    typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
+    index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
 struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
 {
+    using DeviceOp = DeviceGemmXdl_C_Shuffle_Bias_Activation_Add;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
 
     static constexpr auto K1Number = Number<K1>{};
 
-    static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
+    static auto MakeGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N_C0_M_N_C1_M_N(index_t M,
+                                                                           index_t N,
+                                                                           index_t K,
+                                                                           index_t StrideA,
+                                                                           index_t StrideB,
+                                                                           index_t StrideC,
+                                                                           index_t StrideC1)
     {
         assert(K % K1 == 0);
 
         const index_t K0 = K / K1;
 
+        // A[K0, M, K1]
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
             {
@@ -83,15 +98,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
                                         make_tuple(Sequence<1>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-        return a_grid_desc_k0_m_k1;
-    }
-
-    static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
-    {
-        assert(K % K1 == 0);
-
-        const index_t K0 = K / K1;
-
+        // B[K0, N, K1]
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
@@ -110,33 +117,52 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-        return b_grid_desc_k0_n_k1;
+        // C[M, N]
+        const auto c_grid_desc_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+            }
+        }();
+
+        // C0[N]: assume a contiguous vector
+        const auto c0_grid_desc_m_n =
+            make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I0, I1));
+
+        // C1[M, N]: residual tensor: assume same layout as C
+        const auto c1_grid_desc_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC1, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC1));
+            }
+        }();
+
+        return make_tuple(a_grid_desc_k0_m_k1,
+                          b_grid_desc_k0_n_k1,
+                          c_grid_desc_m_n,
+                          c0_grid_desc_m_n,
+                          c1_grid_desc_m_n);
     }
 
-    static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
-    {
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
-        {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
-        }
-        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
-        {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
-        }
-    }
+    using GridDescs =
+        decltype(MakeGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N_C0_M_N_C1_M_N(1, 1, 1, 1, 1, 1, 1));
 
-    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-    using C0GridDesc_M_N    = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-
-    // hardcoding
-    // TODO: fix this
-    using C1GridDesc_M_N =
-        decltype(make_naive_tensor_descriptor(make_tuple(1, 1), make_tuple(I1, I0)));
+    using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(GridDescs{}[I0])>;
+    using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(GridDescs{}[I1])>;
+    using CGridDesc_M_N     = remove_cvref_t<decltype(GridDescs{}[I2])>;
+    using C0GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I3])>;
+    using C1GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I4])>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r5<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -174,20 +200,10 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
-        Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
-        CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector>;
-
-    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-
-    using C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C0GridDesc_M_N{}));
-
-    using C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(C1GridDesc_M_N{}));
-
-    using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
+        CBlockTransferScalarPerVector_NWaveNPerXdl>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -203,6 +219,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideC,
+                 index_t StrideC1,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
@@ -218,9 +235,9 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
               c_grid_desc_m_n_{},
               c0_grid_desc_m_n_{},
               c1_grid_desc_m_n_{},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
+              c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
+              c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -228,35 +245,32 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            a_grid_desc_k0_m_k1_ =
-                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeAGridDescriptor_K0_M_K1(
-                    M, K, StrideA);
-            b_grid_desc_k0_n_k1_ =
-                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeBGridDescriptor_K0_N_K1(
-                    K, N, StrideB);
-            c_grid_desc_m_n_ =
-                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeCGridDescriptor_M_N(M, N, StrideC);
+            const auto descs = DeviceOp::MakeGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N_C0_M_N_C1_M_N(
+                M, N, K, StrideA, StrideB, StrideC, StrideC1);
 
-            // assume C0 has same layout as C
-            // TODO: fix this
-            c0_grid_desc_m_n_ =
-                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeCGridDescriptor_M_N(M, N, StrideC);
-
-            // hardcoding C1 layout
-            // TODO: fix this
-            c1_grid_desc_m_n_ = make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, I0));
+            a_grid_desc_k0_m_k1_ = descs[I0];
+            b_grid_desc_k0_n_k1_ = descs[I1];
+            c_grid_desc_m_n_     = descs[I2];
+            c0_grid_desc_m_n_    = descs[I3];
+            c1_grid_desc_m_n_    = descs[I4];
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
             {
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+                c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                            c_grid_desc_m_n_);
 
-                c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c0_grid_desc_m_n_);
+                c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                            c0_grid_desc_m_n_);
 
-                c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c1_grid_desc_m_n_);
+                c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
+                    GridwiseGemm::
+                        MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                            c1_grid_desc_m_n_);
 
                 block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
@@ -273,10 +287,16 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
         CGridDesc_M_N c_grid_desc_m_n_;
         C0GridDesc_M_N c0_grid_desc_m_n_;
         C1GridDesc_M_N c1_grid_desc_m_n_;
-        CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::
+            CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+                c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
+        typename GridwiseGemm::
+            C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+                c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
+        typename GridwiseGemm::
+            C1GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+                c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
+        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -287,7 +307,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::Argument;
+        using Argument = DeviceOp::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -330,87 +350,91 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v2r5<
+                const auto kernel = kernel_gemm_xdlops_v3r3<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
+                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                     remove_reference_t<
-                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::AGridDesc_K0_M_K1>,
+                        typename GridwiseGemm::
+                            CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
                     remove_reference_t<
-                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
-                                           CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
-                                           C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
-                                           C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        typename GridwiseGemm::
+                            C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            C1GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     true>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.p_c0_grid_,
-                                                  arg.p_c1_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    kernel,
+                    nrepeat,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.p_c0_grid_,
+                    arg.p_c1_grid_,
+                    arg.a_grid_desc_k0_m_k1_,
+                    arg.b_grid_desc_k0_n_k1_,
+                    arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_,
+                    arg.block_2_ctile_map_);
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r5<
+                const auto kernel = kernel_gemm_xdlops_v3r3<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
+                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                     remove_reference_t<
-                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::AGridDesc_K0_M_K1>,
+                        typename GridwiseGemm::
+                            CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
                     remove_reference_t<
-                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
-                                           CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
-                                           C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
-                                           C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        typename GridwiseGemm::
+                            C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
+                    remove_reference_t<
+                        typename GridwiseGemm::
+                            C1GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.p_c0_grid_,
-                                                  arg.p_c1_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c0_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.c1_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    kernel,
+                    nrepeat,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.p_c0_grid_,
+                    arg.p_c1_grid_,
+                    arg.a_grid_desc_k0_m_k1_,
+                    arg.b_grid_desc_k0_n_k1_,
+                    arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_,
+                    arg.block_2_ctile_map_);
             }
 
             return ave_time;
@@ -455,6 +479,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
+                             index_t StrideC1,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
@@ -470,6 +495,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
                         StrideA,
                         StrideB,
                         StrideC,
+                        StrideC1,
                         1,
                         1,
                         a_element_op,
