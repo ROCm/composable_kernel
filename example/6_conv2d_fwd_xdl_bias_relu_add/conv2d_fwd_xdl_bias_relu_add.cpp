@@ -228,6 +228,10 @@ int main(int argc, char* argv[])
     bias_device_buf.ToDevice(bias_k.mData.data());
     resi_device_buf.ToDevice(resi_n_k_ho_wo.mData.data());
 
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
     auto conv    = DeviceConvFwdInstance{};
     auto invoker = conv.MakeInvoker();
     auto argument =
@@ -246,9 +250,9 @@ int main(int argc, char* argv[])
                           conv_filter_dilations,
                           input_left_pads,
                           input_right_pads,
-                          InElementOp{},
-                          WeiElementOp{},
-                          OutElementOp{});
+                          in_element_op,
+                          wei_element_op,
+                          out_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -275,22 +279,23 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        auto refConv    = ReferenceConvFwdInstance{};
-        auto refInvoker = refConv.MakeInvoker();
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
 
-        auto refArgument = refConv.MakeArgument(in_n_c_hi_wi,
-                                                wei_k_c_y_x,
-                                                out_n_k_ho_wo_host_result,
-                                                bias_k,
-                                                resi_n_k_ho_wo,
-                                                conv_filter_strides,
-                                                conv_filter_dilations,
-                                                input_left_pads,
-                                                input_right_pads,
-                                                InElementOp{},
-                                                WeiElementOp{},
-                                                OutElementOp{});
-        refInvoker.Run(refArgument);
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  bias_k,
+                                                  resi_n_k_ho_wo,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
+
+        ref_invoker.Run(ref_argument);
 
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 

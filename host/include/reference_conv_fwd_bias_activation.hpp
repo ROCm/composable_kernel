@@ -15,7 +15,6 @@ namespace host {
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
-          typename AccDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
@@ -176,6 +175,7 @@ struct ReferenceConvFwd_Bias_Activation : public device::BaseOperator
         return str.str();
     }
 };
+
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck

@@ -455,7 +455,7 @@ struct DeviceGemmXdl_C_Shuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmXdl"
+        str << "DeviceGemmXdl_C_Shuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

@@ -6,8 +6,9 @@
 #include "host_conv.hpp"
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
-#include "device_conv_fwd_bias_activation_add.hpp"
 #include "element_wise_operation.hpp"
+#include "device_conv_fwd_bias_activation_add.hpp"
+#include "reference_conv_fwd_bias_activation_add.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -30,6 +31,7 @@ void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instan
 namespace ck {
 namespace profiler {
 
+#if 0
 template <typename TIn,
           typename TWei,
           typename TOut,
@@ -79,6 +81,7 @@ void host_reference_calculation(const Tensor<TIn>& in_n_c_hi_wi,
                                out_n_k_ho_wo.mDesc.GetLengths()[3])(
         std::thread::hardware_concurrency());
 }
+#endif
 
 template <int NDimSpatial,
           typename InDataType,
@@ -169,20 +172,36 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
     using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd;
 
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
     if(do_verification)
     {
-        host_reference_calculation(in_n_c_hi_wi,
-                                   wei_k_c_y_x,
-                                   out_n_k_ho_wo_host_result,
-                                   bias_k,
-                                   resi_n_k_ho_wo,
-                                   conv_filter_strides,
-                                   conv_filter_dilations,
-                                   input_left_pads,
-                                   input_right_pads,
-                                   InElementOp{},
-                                   WeiElementOp{},
-                                   OutElementOp{});
+        using ReferenceConvFwdInstance =
+            ck::tensor_operation::host::ReferenceConvFwd_Bias_Activation_Add<InDataType,
+                                                                             WeiDataType,
+                                                                             OutDataType,
+                                                                             InElementOp,
+                                                                             WeiElementOp,
+                                                                             OutElementOp>;
+
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  bias_k,
+                                                  resi_n_k_ho_wo,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
+        ref_invoker.Run(ref_argument);
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
