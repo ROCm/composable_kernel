@@ -11,107 +11,8 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_base.hpp"
-#include "example/3_gemm_xdl_bias_relu_add/include/device_gemm_xdl_two_extra_source_reduce.hpp"
-
-// C[m, n] = Relu(A[m, k] * B[k, n] + C0[m]) + C1[m, n]
-// assume C0 is contiguous in memory
-//     C0 resides in memory as 1d vector [m], but is represented as 2D matrix [m, n], with stride =
-//     0 in the "n" dimension
-// assume C1 and C have same layout C
-
-struct BiasReluAdd
-{
-    template <typename T1, typename T2>
-    __host__ constexpr float operator()(float v0, T1 v1, T2 v2) const
-    {
-        float b = v0 + v1;
-        float c = b > 0 ? b : 0;
-        float d = c + v2;
-
-        return d;
-    }
-
-    template <typename T1, typename T2>
-    __device__ constexpr float operator()(float v0, T1 v1, T2 v2) const
-    {
-#if 0
-        float a = v1 + v0;
-        float b = a > 0 ? a : 0;
-        float c = b + v2;
-
-        return c;
-#else
-        float a = v1 + v2;
-        float b = v2;
-
-        float c = (v0 > -v1) ? a + v0 : v2;
-
-        return c;
-#endif
-    }
-};
-
-struct DoSomething
-{
-#if 1
-    // correct result
-    // no scratch memory, good VGPR allocation (59)
-    // good perf (101Tflops @ 1089Mhz)
-    __host__ __device__ constexpr float operator()(float v0, ck::half_t v1, ck::half_t v2) const
-    {
-        constexpr float alpha = 0.1;
-        constexpr float beta  = 0.2;
-        constexpr float gamma = 0.3;
-
-        // compiler seems very volatile to the order of these calculation:
-        // compiler is very eager to read AccVgpr (v0) out prematurely, resulting in register
-        // over-allocation. Therefore, move v0 calculation to the very end
-        float a = ck::half_t(beta) * v1 + ck::half_t(gamma) * v2;
-        float b = a + float(alpha) * v0;
-
-        return b;
-    }
-#elif 0
-    float alpha = 0.1;
-    float beta = 0.2;
-    float gamma = 0.3;
-
-    // wrong result
-    // lots of scratch memory
-    // huge perf drop
-    __host__ __device__ constexpr float operator()(float v0, ck::half_t v1, ck::half_t v2) const
-    {
-        return alpha * v0 + beta * v1 + gamma * v2;
-    }
-#elif 0
-    // correct result
-    // some scratch memory (68 dword)
-    // some perf drop (94Tflops @ 1089MHz)
-    // fp64 instructions are used
-    __host__ __device__ constexpr auto operator()(float v0, ck::half_t v1, ck::half_t v2) const
-    {
-        return 0.1 * v0 + 0.2 * v1 + 0.3 * v2;
-    }
-#elif 1
-    // wrong result
-    // lots of scratch memory
-    // huge perf drop
-    __host__ __device__ constexpr auto operator()(float v0, ck::half_t v1, ck::half_t v2) const
-    {
-        return float(0.1) * v0 + float(0.2) * v1 + float(0.3) * v2;
-    }
-#endif
-};
-
-struct PassThrough
-{
-    template <typename T>
-    __host__ __device__ constexpr T operator()(T v) const
-    {
-        return v;
-    }
-};
+#include "element_wise_operation.hpp"
+#include "device_gemm_xdl_c_shuffle_bias_activation_add.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -125,23 +26,46 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AOp = PassThrough;
-using BOp = PassThrough;
-#if 1
-using COp = BiasReluAdd;
-#else
-using COp = DoSomething;
-#endif
+using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp = ck::tensor_operation::element_wise::AddReluAdd;
 
-// Compilation parameters for NT problem
-// clang-format off
 using DeviceGemmInstance =
-    //#################################################################|     AData|     BData|     CData|     AccData| ALayout| BLayout| CLayout| AElementwise| BElementwise| CElementwise| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
-    //#################################################################|      Type|      Type|      Type|        Type|        |        |        |    Operation|    Operation|    Operation|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
-    //#################################################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
-    //#################################################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
-    ck::tensor_operation::device::DeviceGemmXdl_two_extra_source_reduce< ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,          AOp,          BOp,          COp,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1>;
-// clang-format on
+    ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle_Bias_Activation_Add<ADataType,
+                                                                              BDataType,
+                                                                              CDataType,
+                                                                              AccDataType,
+                                                                              ALayout,
+                                                                              BLayout,
+                                                                              CLayout,
+                                                                              AElementOp,
+                                                                              BElementOp,
+                                                                              CElementOp,
+                                                                              256,
+                                                                              256,
+                                                                              128,
+                                                                              4,
+                                                                              8,
+                                                                              32,
+                                                                              32,
+                                                                              4,
+                                                                              2,
+                                                                              S<4, 64, 1>,
+                                                                              S<1, 0, 2>,
+                                                                              S<1, 0, 2>,
+                                                                              2,
+                                                                              8,
+                                                                              8,
+                                                                              true,
+                                                                              S<4, 64, 1>,
+                                                                              S<1, 0, 2>,
+                                                                              S<1, 0, 2>,
+                                                                              2,
+                                                                              8,
+                                                                              8,
+                                                                              true,
+                                                                              7,
+                                                                              1>;
 
 template <typename AType,
           typename BType,
@@ -161,15 +85,27 @@ static void host_verify(const Tensor<AType>& a_m_k,
     auto f_mk_kn_mn = [&](auto m, auto n) {
         const int K = a_m_k.mDesc.GetLengths()[1];
 
-        float acc = 0;
+        float v_acc = 0;
 
         for(int k = 0; k < K; ++k)
         {
-            acc += static_cast<const double>(a_element_op(a_m_k(m, k))) *
-                   static_cast<const double>(b_element_op(b_k_n(k, n)));
+            float v_a;
+            float v_b;
+
+            a_element_op(v_a, static_cast<const float>(a_m_k(m, k)));
+            b_element_op(v_b, static_cast<const float>(b_k_n(k, n)));
+
+            v_acc += v_a * v_b;
         }
 
-        c_m_n(m, n) = c_element_op(acc, c0_m_n(m, n), c1_m_n(m, n));
+        float v_c;
+
+        c_element_op(v_c,
+                     v_acc,
+                     static_cast<const float>(c0_m_n(m, n)),
+                     static_cast<const float>(c1_m_n(m, n)));
+
+        c_m_n(m, n) = static_cast<CType>(v_c);
     };
 
     make_ParallelTensorFunctor(f_mk_kn_mn,
@@ -282,9 +218,9 @@ int main(int argc, char* argv[])
     c0_m_n_device_buf.ToDevice(c0_m_n.mData.data());
     c1_m_n_device_buf.ToDevice(c1_m_n.mData.data());
 
-    auto a_element_op = AOp{};
-    auto b_element_op = BOp{};
-    auto c_element_op = COp{};
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
+    auto c_element_op = CElementOp{};
 
     // do GEMM
     auto gemm = DeviceGemmInstance{};
@@ -334,8 +270,8 @@ int main(int argc, char* argv[])
                     c_m_n_host_result,
                     c0_m_n,
                     c1_m_n,
-                    PassThrough{},
-                    PassThrough{},
+                    a_element_op,
+                    b_element_op,
                     c_element_op);
 
         check_error(c_m_n_host_result, c_m_n_device_result);

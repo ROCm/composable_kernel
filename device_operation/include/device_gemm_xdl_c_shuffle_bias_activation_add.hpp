@@ -1,5 +1,5 @@
-#ifndef DEVICE_GEMM_XDL_TWO_EXTRA_SOURCE_REDUCE_HPP
-#define DEVICE_GEMM_XDL_TWO_EXTRA_SOURCE_REDUCE_HPP
+#ifndef DEVICE_GEMM_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_HPP
+#define DEVICE_GEMM_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_HPP
 
 #include <iostream>
 #include <sstream>
@@ -51,7 +51,7 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
+struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -229,16 +229,18 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
               c_element_op_{c_element_op}
         {
             a_grid_desc_k0_m_k1_ =
-                DeviceGemmXdl_two_extra_source_reduce::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeAGridDescriptor_K0_M_K1(
+                    M, K, StrideA);
             b_grid_desc_k0_n_k1_ =
-                DeviceGemmXdl_two_extra_source_reduce::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeBGridDescriptor_K0_N_K1(
+                    K, N, StrideB);
             c_grid_desc_m_n_ =
-                DeviceGemmXdl_two_extra_source_reduce::MakeCGridDescriptor_M_N(M, N, StrideC);
+                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             // assume C0 has same layout as C
             // TODO: fix this
             c0_grid_desc_m_n_ =
-                DeviceGemmXdl_two_extra_source_reduce::MakeCGridDescriptor_M_N(M, N, StrideC);
+                DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             // hardcoding C1 layout
             // TODO: fix this
@@ -285,7 +287,7 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdl_two_extra_source_reduce::Argument;
+        using Argument = DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -332,18 +334,20 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::BGridDesc_K0_N_K1>,
                     remove_reference_t<
-                        DeviceGemmXdl_two_extra_source_reduce::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::AGridDesc_K0_M_K1>,
                     remove_reference_t<
-                        DeviceGemmXdl_two_extra_source_reduce::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<
-                        DeviceGemmXdl_two_extra_source_reduce::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
+                                           CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
+                                           C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
+                                           C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::Block2CTileMap>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::Block2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -372,18 +376,20 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::BGridDesc_K0_N_K1>,
                     remove_reference_t<
-                        DeviceGemmXdl_two_extra_source_reduce::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::AGridDesc_K0_M_K1>,
                     remove_reference_t<
-                        DeviceGemmXdl_two_extra_source_reduce::C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<
-                        DeviceGemmXdl_two_extra_source_reduce::C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
+                                           CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
+                                           C0GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::
+                                           C1GridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<DeviceGemmXdl_two_extra_source_reduce::Block2CTileMap>,
+                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Bias_Activation_Add::Block2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -518,7 +524,7 @@ struct DeviceGemmXdl_two_extra_source_reduce : public BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmXdl_two_extra_source_reduce"
+        str << "DeviceGemmXdl_C_Shuffle_Bias_Activation_Add"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
