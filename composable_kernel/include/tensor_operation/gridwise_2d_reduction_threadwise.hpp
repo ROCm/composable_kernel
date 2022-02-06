@@ -100,7 +100,7 @@ template <typename InDataType,
 struct GridwiseReduction_xy_to_x_threadwise
 {
     template <typename T>
-    using PassThroughOp = reduce::unary_identic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::unary_identic<T, T>;
 
     static constexpr auto I0 = Number<0>{};
 

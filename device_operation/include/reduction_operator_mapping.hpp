@@ -28,6 +28,7 @@
 
 #include "reduction_operator.hpp"
 #include "reduction_enums.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 
@@ -118,50 +119,50 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::NORM2>
 template <typename T, ReduceTensorOp_t op, bool isFirsReduce, bool isLastReduce>
 struct reduce_unary_operator
 {
-    using InElementwiseOperation  = reduce::unary_identic<T, T>;
-    using AccElementwiseOperation = reduce::unary_identic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::unary_identic<T, T>;
+    using AccElementwiseOperation = tensor_operation::element_wise::unary_identic<T, T>;
 };
 
 template <typename T, bool isFirstReduce>
 struct reduce_unary_operator<T, ReduceTensorOp_t::AVG, isFirstReduce, true>
 {
-    using InElementwiseOperation  = reduce::unary_identic<T, T>;
-    using AccElementwiseOperation = reduce::unary_identic<T, T, true>;
+    using InElementwiseOperation  = tensor_operation::element_wise::unary_identic<T, T>;
+    using AccElementwiseOperation = tensor_operation::element_wise::unary_identic<T, T, true>;
 };
 
 template <typename T, bool isLastReduce>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM1, true, isLastReduce>
 {
-    using InElementwiseOperation  = reduce::unary_abs<T, T>;
-    using AccElementwiseOperation = reduce::unary_identic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::unary_abs<T, T>;
+    using AccElementwiseOperation = tensor_operation::element_wise::unary_identic<T, T>;
 };
 
 template <typename T, bool isLastReduce>
 struct reduce_unary_operator<T, ReduceTensorOp_t::AMAX, true, isLastReduce>
 {
-    using InElementwiseOperation  = reduce::unary_abs<T, T>;
-    using AccElementwiseOperation = reduce::unary_identic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::unary_abs<T, T>;
+    using AccElementwiseOperation = tensor_operation::element_wise::unary_identic<T, T>;
 };
 
 template <typename T>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, true, false>
 {
-    using InElementwiseOperation  = reduce::unary_square<T, T>;
-    using AccElementwiseOperation = reduce::unary_identic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::unary_square<T, T>;
+    using AccElementwiseOperation = tensor_operation::element_wise::unary_identic<T, T>;
 };
 
 template <typename T>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, true, true>
 {
-    using InElementwiseOperation  = reduce::unary_square<T, T>;
-    using AccElementwiseOperation = reduce::unary_sqrt<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::unary_square<T, T>;
+    using AccElementwiseOperation = tensor_operation::element_wise::unary_sqrt<T, T>;
 };
 
 template <typename T>
 struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, false, true>
 {
-    using InElementwiseOperation  = reduce::unary_identic<T, T>;
-    using AccElementwiseOperation = reduce::unary_sqrt<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::unary_identic<T, T>;
+    using AccElementwiseOperation = tensor_operation::element_wise::unary_sqrt<T, T>;
 };
 
 } // end of namespace ck

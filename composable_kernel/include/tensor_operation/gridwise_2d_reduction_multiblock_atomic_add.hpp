@@ -96,7 +96,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                                                            PropagateNan>;
 
     template <typename T>
-    using PassThroughOp = reduce::unary_identic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::unary_identic<T, T>;
 
     static constexpr auto I0 = Number<0>{};
 
@@ -269,7 +269,7 @@ __global__ void kernel_buffer_set_value(const Global1dBufferDescType global1dBuf
                                         DataType value)
 
 {
-    using PassThroughOp = reduce::unary_identic<DataType, DataType>;
+    using PassThroughOp = tensor_operation::element_wise::unary_identic<DataType, DataType>;
 
     constexpr auto I0 = Number<0>{};
 
