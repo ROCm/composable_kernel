@@ -14,13 +14,12 @@ def show_node_info() {
 
 def cmake_build(Map conf=[:]){
 
-    def compiler = conf.get("compiler","/opt/rocm/llvm/bin/clang++")
+    def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 MIOPEN_CONV_PRECISE_ROCBLAS_TIMING=0 " + conf.get("build_env","")
-    def prefixpath = conf.get("prefixpath","/usr/local")
-    def mlir_args = " -DMIOPEN_USE_MLIR=" + conf.get("mlir_build", "ON")
-    def setup_args = mlir_args + " -DMIOPEN_GPU_SYNC=Off " + conf.get("setup_flags","")
+    def prefixpath = conf.get("prefixpath","/opt/rocm")
+    def setup_args = " -DMIOPEN_GPU_SYNC=Off " + conf.get("setup_flags","")
 
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
@@ -45,32 +44,10 @@ def cmake_build(Map conf=[:]){
         setup_args = ' -DBUILD_DEV=On' + setup_args
     }
 
-    // test_flags = ctest -> MIopen flags
-    def test_flags = conf.get("test_flags","")
-
-    if (conf.get("vcache_enable","") == "true"){
-        def vcache = conf.get(vcache_path,"/var/jenkins/.cache/miopen/vcache")
-        build_envs = " MIOPEN_VERIFY_CACHE_PATH='${vcache}' " + build_envs
-    } else{
-        test_flags = " --disable-verification-cache " + test_flags
-    }
-
-    if(conf.get("codecov", false)){ //Need
-        setup_args = " -DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags} -fprofile-arcs -ftest-coverage' -DCODECOV_TEST=On " + setup_args
-    }else if(build_type_debug){
+    if(build_type_debug){
         setup_args = " -DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'" + setup_args
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
-    }
-
-    if(test_flags != ""){
-       setup_args = "-DMIOPEN_TEST_FLAGS='${test_flags}'" + setup_args
-    }
-
-    if(conf.containsKey("find_mode"))
-    {
-        def fmode = conf.get("find_mode", "")
-        setup_args = " -DMIOPEN_DEFAULT_FIND_MODE=${fmode} " + setup_args
     }
 
     def pre_setup_cmd = """
@@ -80,8 +57,6 @@ def cmake_build(Map conf=[:]){
             mkdir build
             rm -rf install
             mkdir install
-            rm -f src/kernels/*.ufdb.txt
-            rm -f src/kernels/miopen*.udb
             cd build
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
@@ -194,11 +169,11 @@ pipeline {
                 stage('Tidy') {
                     agent{ label rocmnode("nogpu") }
                     environment{
-                        setup_cmd = "CXX='/opt/rocm/llvm/bin/clang++' cmake -DMIOPEN_BACKEND=HIP -DBUILD_DEV=On .. "
+                        // setup_cmd = "CXX='/opt/rocm/bin/hipcc' cmake -DBUILD_DEV=On .. "
                         build_cmd = "make -j\$(nproc) -k analyze"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: setup_cmd, build_cmd: build_cmd, no_reboot:true)
+                        buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
                     }
                 }
                 stage('Clang Format') {
