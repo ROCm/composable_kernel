@@ -293,7 +293,9 @@ struct ThreadwiseTensorSliceTransfer_v1r4
                 dst_vector.template AsType<DstData>()(Number<0>{}) = type_convert<DstData>(dst_v);
 #else
                 // apply element-wise operation in DstData type
-                const DstData dst_v = dst_element_op_(src_v, dst0_v, dst1_v);
+                DstData dst_v;
+
+                dst_element_op_(dst_v, src_v, dst0_v, dst1_v);
 
                 dst_vector.template AsType<DstData>()(Number<0>{}) = dst_v;
 #endif

@@ -19,11 +19,89 @@ REPEAT=$9
 
 # test
 ########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads  Desired_grid_size__
- $DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128  256  192 3 3   71   71     2 2       1 1      1 1       1 1   $DESIRED_GRID_SIZE
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128  256  192 3 3   71   71     2 2       1 1      1 1       1 1   $DESIRED_GRID_SIZE
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128  256  256 3 3   30   30    2  2      1  1     0  0      0  0   $DESIRED_GRID_SIZE
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128  256  256 3 3   28   28    2  2      1  1     1  1      1  1   $DESIRED_GRID_SIZE
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128 1024  256 1 1   14   14    1  1      1  1     0  0      0  0   $DESIRED_GRID_SIZE
+
+ N=${10}
+
+# Resnet50 from Bing
+########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14   14     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512 1024 1 1   14   14     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  128 3 3   28   28     1 1       1 1      1 1       1 1
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  128 1 1   28   28     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  128 3 3   56   56     2 2       1 1      1 1       1 1
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512 2048 1 1    7    7     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 1024  256 1 1   14   14     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   14   14     1 1       1 1      1 1       1 1
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   28   28     2 2       1 1      1 1       1 1
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  256 1 1   56   56     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64  256 1 1   56   56     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  512 3 3   14   14     2 2       1 1      1 1       1 1
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  512 1 1   28   28     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  512 1 1   28   28     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 2048  512 1 1    7    7     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  512 3 3    7    7     1 1       1 1      1 1       1 1
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256   64 1 1   56   56     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 1 1   56   56     1 1       1 1      0 0       0 0
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 3 3   56   56     1 1       1 1      1 1       1 1
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64    8 7 7  224  224     2 2       1 1      3 3       3 3
 
 
+# Resnet50 from Bing
+#################### op____________________  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64    3 7 7  224 224    2   2     1   1    3   3     3   3
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 1 1   56  56    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 3 3   56  56    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256   64 1 1   56  56    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64  256 1 1   56  56    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 3 3   56  56    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256   64 1 1   56  56    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64  256 1 1   56  56    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 3 3   56  56    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256   64 1 1   56  56    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  256 1 1   56  56    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  128 3 3   56  56    2   2     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  128 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  512 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  128 3 3   28  28    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  128 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  512 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  128 3 3   28  28    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  128 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  512 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  128  128 3 3   28  28    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  128 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  512 1 1   28  28    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   28  28    2   2     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 1024  256 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   14  14    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 1024  256 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   14  14    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 1024  256 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   14  14    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 1024  256 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   14  14    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 1024  256 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256  256 3 3   14  14    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 1024  256 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512 1024 1 1   14  14    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  512 3 3   14  14    2   2     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 2048  512 1 1    7   7    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512 2048 1 1    7   7    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  512 3 3    7   7    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 2048  512 1 1    7   7    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512 2048 1 1    7   7    1   1     1   1    0   0     0   0
+#profiler/ckProfiler conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512  512 3 3    7   7    1   1     1   1    1   1     1   1
+#profiler/ckProfiler conv_fwd_bias_relu_add $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N 2048  512 1 1    7   7    1   1     1   1    0   0     0   0
 
-#N=${10}
 
 # Resnet50
 ########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads  Desired_grid_size__
@@ -49,6 +127,7 @@ REPEAT=$9
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256   64 1 1   56   56    1  1      1  1     0  0      0  0   $DESIRED_GRID_SIZE
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 1 1   56   56    1  1      1  1     0  0      0  0   $DESIRED_GRID_SIZE
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 3 3   56   56    1  1      1  1     1  1      1  1   $DESIRED_GRID_SIZE
+#$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64    3 7 7  230  230    2  2      1  1     0  0      0  0   $DESIRED_GRID_SIZE
 
 # SSD
 ########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads  Desired_grid_size__
@@ -96,5 +175,3 @@ REPEAT=$9
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  120  510  512 3 3   10   10   1   1     1   1    1   1     1   1
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  120  510  256 3 3    5    5   1   1     1   1    1   1     1   1
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  120  340  256 3 3    3    3   1   1     1   1    1   1     1   1
-
-

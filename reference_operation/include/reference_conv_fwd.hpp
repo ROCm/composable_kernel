@@ -1,5 +1,5 @@
-#ifndef REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_HPP
-#define REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_HPP
+#ifndef REFERENCE_CONV_FWD_HPP
+#define REFERENCE_CONV_FWD_HPP
 
 #include <iostream>
 #include <sstream>
@@ -10,16 +10,14 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-// out[N, Ho, Wo, K] =
-//     activate(in[N, Hi, Wi, C] * wei[K, Y, X, C] + bias[K]) + residual[N, Ho, Wo, K]
+// out[N, K, Ho, Wo] = in[N, C, Hi, Wi] * wei[K, C, Y, X]
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
-          typename AccDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
+struct ReferenceConvFwd : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -27,8 +25,6 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
         Argument(const Tensor<InDataType>& in_n_c_hi_wi,
                  const Tensor<WeiDataType>& wei_k_c_y_x,
                  Tensor<OutDataType>& out_n_k_ho_wo,
-                 const Tensor<OutDataType>& bias_k,
-                 const Tensor<OutDataType>& resi_n_k_ho_wo,
                  std::vector<ck::index_t> conv_filter_strides,
                  std::vector<ck::index_t> conv_filter_dilations,
                  std::vector<ck::index_t> input_left_pads,
@@ -39,8 +35,6 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
             : in_n_c_hi_wi_{in_n_c_hi_wi},
               wei_k_c_y_x_{wei_k_c_y_x},
               out_n_k_ho_wo_{out_n_k_ho_wo},
-              bias_k_{bias_k},
-              resi_n_k_ho_wo_{resi_n_k_ho_wo},
               conv_strides_{conv_filter_strides},
               conv_dilations_{conv_filter_dilations},
               in_left_pads_{input_left_pads},
@@ -54,8 +48,6 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
         const Tensor<InDataType>& in_n_c_hi_wi_;
         const Tensor<WeiDataType>& wei_k_c_y_x_;
         Tensor<OutDataType>& out_n_k_ho_wo_;
-        const Tensor<OutDataType>& bias_k_;
-        const Tensor<OutDataType>& resi_n_k_ho_wo_;
 
         std::vector<index_t> conv_strides_;
         std::vector<index_t> conv_dilations_;
@@ -70,12 +62,13 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceConvFwd_Bias_Activation_Add::Argument;
+        using Argument = ReferenceConvFwd::Argument;
 
         float Run(const Argument& arg)
         {
             auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-                float v = 0;
+                float v_acc = 0;
+
                 for(int c = 0; c < arg.wei_k_c_y_x_.mDesc.GetLengths()[1]; ++c)
                 {
                     for(int y = 0; y < arg.wei_k_c_y_x_.mDesc.GetLengths()[2]; ++y)
@@ -89,23 +82,26 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
                             if(hi >= 0 && hi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] && wi >= 0 &&
                                wi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
                             {
-                                v += arg.in_element_op_(
-                                         ck::type_convert<float>(arg.in_n_c_hi_wi_(n, c, hi, wi))) *
-                                     arg.wei_element_op_(
-                                         ck::type_convert<float>(arg.wei_k_c_y_x_(k, c, y, x)));
+                                float v_in;
+                                float v_wei;
+
+                                arg.in_element_op_(
+                                    v_in,
+                                    static_cast<const float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
+                                arg.wei_element_op_(
+                                    v_wei, static_cast<const float>(arg.wei_k_c_y_x_(k, c, y, x)));
+
+                                v_acc += v_in * v_wei;
                             }
                         }
                     }
                 }
 
-                float v2 = ck::type_convert<float>(arg.out_n_k_ho_wo_(n, k, ho, wo));
+                float v_out;
 
-                arg.out_element_op_(v2,
-                                    v,
-                                    ck::type_convert<float>(arg.bias_k_(k)),
-                                    ck::type_convert<float>(arg.resi_n_k_ho_wo_(n, k, ho, wo)));
+                arg.out_element_op_(v_out, v_acc);
 
-                arg.out_n_k_ho_wo_(n, k, ho, wo) = ck::type_convert<OutDataType>(v2);
+                arg.out_n_k_ho_wo_(n, k, ho, wo) = v_out;
             };
 
             make_ParallelTensorFunctor(f_nchw,
@@ -114,6 +110,7 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
                                        arg.out_n_k_ho_wo_.mDesc.GetLengths()[2],
                                        arg.out_n_k_ho_wo_.mDesc.GetLengths()[3])(
                 std::thread::hardware_concurrency());
+
             return 0;
         }
 
@@ -134,8 +131,6 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
     static auto MakeArgument(const Tensor<InDataType>& in_n_c_hi_wi,
                              const Tensor<WeiDataType>& wei_k_c_y_x,
                              Tensor<OutDataType>& out_n_k_ho_wo,
-                             const Tensor<OutDataType>& bias_k,
-                             const Tensor<OutDataType>& resi_n_k_ho_wo,
                              std::vector<ck::index_t> conv_filter_strides,
                              std::vector<ck::index_t> conv_filter_dilations,
                              std::vector<ck::index_t> input_left_pads,
@@ -147,8 +142,6 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
         return Argument{in_n_c_hi_wi,
                         wei_k_c_y_x,
                         out_n_k_ho_wo,
-                        bias_k,
-                        resi_n_k_ho_wo,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -170,13 +163,14 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceConvFwd_Bias_Activation_Add"
+        str << "ReferenceConvFwd"
             << std::endl;
         // clang-format on
 
         return str.str();
     }
 };
+
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
