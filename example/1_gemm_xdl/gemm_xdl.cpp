@@ -11,9 +11,9 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_base.hpp"
-#include "device_gemm_xdl.hpp"
+#include "device_gemm_xdl_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
+#include "reference_gemm.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -31,47 +31,49 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-// Compilation parameters for NT problem
 // clang-format off
-using DeviceGemmInstance =
-    //#########################################|     AData|     BData|     CData|     AccData| ALayout| BLayout| CLayout| AElementwise| BElementwise| CElementwise| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
-    //#########################################|      Type|      Type|      Type|        Type|        |        |        |    Operation|    Operation|    Operation|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
-    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
-    //#########################################|          |          |          |            |        |        |        |             |             |             |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
-    ck::tensor_operation::device::DeviceGemmXdl< ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,   AElementOp,   BElementOp,   CElementOp,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1>;
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle<
+    ADataType,              // ADataType
+    BDataType,              // BDataType
+    CDataType,              // CDataType
+    AccDataType,            // AccDataType
+    ALayout,                // ALayout
+    BLayout,                // BLayout
+    CLayout,                // CLayout
+    AElementOp,             // AElementwiseOperation
+    BElementOp,             // BElementwiseOperation
+    CElementOp,             // CElementwiseOperation
+    256,                    // BlockSize
+    256,                    // MPerBlock
+    128,                    // NPerBlock
+    4,                      // K0PerBlock
+    8,                      // K1
+    32,                     // MPerXDL
+    32,                     // NPerXDL
+    4,                      // MXdlPerWave
+    2,                      // NXdlPerWave
+    S<4, 64, 1>,            // ABlockTransferThreadClusterLengths_K0_M_K1
+    S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
+    2,                      // ABlockTransferSrcVectorDim
+    8,                      // ABlockTransferSrcScalarPerVector
+    8,                      // ABlockTransferDstScalarPerVector_K1
+    true,                   // ABlockLdsAddExtraM
+    S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
+    S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
+    2,                      // BBlockTransferSrcVectorDim
+    8,                      // BBlockTransferSrcScalarPerVector
+    8,                      // BBlockTransferDstScalarPerVector_K1
+    true,                   // BBlockLdsAddExtraN
+    1,                      // CShuffleMXdlPerWavePerShuffle
+    1,                      // CShuffleNXdlPerWavePerShuffle
+    S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+    8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-template <typename AType,
-          typename BType,
-          typename CType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-static void host_verify(const Tensor<AType>& a_m_k,
-                        const Tensor<BType>& b_k_n,
-                        Tensor<CType>& c_m_n,
-                        const AElementwiseOperation& a_element_op,
-                        const BElementwiseOperation& b_element_op,
-                        const CElementwiseOperation& c_element_op)
-{
-    auto f_mk_kn_mn = [&](auto m, auto n) {
-        const int K = a_m_k.mDesc.GetLengths()[1];
-
-        double v = 0;
-
-        for(int k = 0; k < K; ++k)
-        {
-            v += static_cast<const double>(a_element_op(a_m_k(m, k))) *
-                 static_cast<const double>(b_element_op(b_k_n(k, n)));
-        }
-
-        c_m_n(m, n) = c_element_op(v);
-    };
-
-    make_ParallelTensorFunctor(f_mk_kn_mn,
-                               c_m_n.mDesc.GetLengths()[0],
-                               c_m_n.mDesc.GetLengths()[1])(std::thread::hardware_concurrency());
-}
+using ReferenceGemmInstance = ck::tensor_operation::host::
+    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -160,6 +162,10 @@ int main(int argc, char* argv[])
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
+    auto c_element_op = CElementOp{};
+
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
@@ -172,9 +178,9 @@ int main(int argc, char* argv[])
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      AElementOp{},
-                                      BElementOp{},
-                                      CElementOp{});
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -200,7 +206,13 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(a_m_k, b_k_n, c_m_n_host_result, AElementOp{}, BElementOp{}, CElementOp{});
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+        ref_invoker.Run(ref_argument);
 
         check_error(c_m_n_host_result, c_m_n_device_result);
     }
