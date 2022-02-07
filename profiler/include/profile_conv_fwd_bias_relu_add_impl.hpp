@@ -3,7 +3,6 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_conv.hpp"
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
