@@ -81,15 +81,17 @@ struct DeviceBatchedGemmXdl
             }
         }();
 
-        const auto a_grid_desc_g_k0_m_k1 =
+        const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+
+        const auto a_grid_desc_g_k0_mp_k1 =
             transform_tensor_descriptor(a_grid_desc_g_m_k,
                                         make_tuple(make_pass_through_transform(BatchCount),
                                                    make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(M)),
+                                                   make_right_pad_transform(M, PadM)),
                                         make_tuple(Sequence<0>{}, Sequence<2>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
 
-        return a_grid_desc_g_k0_m_k1;
+        return a_grid_desc_g_k0_mp_k1;
     }
 
     static auto
@@ -112,29 +114,46 @@ struct DeviceBatchedGemmXdl
             }
         }();
 
-        const auto b_grid_desc_g_k0_n_k1 =
+        const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+        const auto b_grid_desc_g_k0_np_k1 =
             transform_tensor_descriptor(b_grid_desc_g_k_n,
                                         make_tuple(make_pass_through_transform(BatchCount),
                                                    make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(N)),
+                                                   make_right_pad_transform(N, PadN)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
 
-        return b_grid_desc_g_k0_n_k1;
+        return b_grid_desc_g_k0_np_k1;
     }
 
     static auto MakeCGridDescriptor_G_M_N(index_t BatchCount, index_t M, index_t N, index_t StrideC)
     {
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
-        {
-            return make_naive_tensor_descriptor(make_tuple(BatchCount, M, N),
-                                                make_tuple(M * StrideC, StrideC, I1));
-        }
-        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
-        {
-            return make_naive_tensor_descriptor(make_tuple(BatchCount, M, N),
-                                                make_tuple(N * StrideC, I1, StrideC));
-        }
+        const auto c_grid_desc_g_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(BatchCount, M, N),
+                                                    make_tuple(M * StrideC, StrideC, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(BatchCount, M, N),
+                                                    make_tuple(N * StrideC, I1, StrideC));
+            }
+        }();
+
+        const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+        const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+        const auto c_grid_desc_g_mp_np =
+            transform_tensor_descriptor(c_grid_desc_g_m_n,
+                                        make_tuple(make_pass_through_transform(BatchCount),
+                                                   make_right_pad_transform(M, PadM),
+                                                   make_right_pad_transform(N, PadN)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        return c_grid_desc_g_mp_np;
     }
 
     using AGridDesc_G_K0_M_K1 = decltype(MakeAGridDescriptor_G_K0_M_K1(1, 1, 1, 1));
