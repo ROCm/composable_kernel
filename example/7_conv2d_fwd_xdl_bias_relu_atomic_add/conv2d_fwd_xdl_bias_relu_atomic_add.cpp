@@ -65,7 +65,8 @@ void host_reference_calculation(const Tensor<TIn>& in_n_c_hi_wi,
                                 const OutElementOp& out_element_op)
 {
     auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-        double v = 0;
+        float v_acc = 0;
+
         for(int c = 0; c < wei_k_c_y_x.mDesc.GetLengths()[1]; ++c)
         {
             for(int y = 0; y < wei_k_c_y_x.mDesc.GetLengths()[2]; ++y)
@@ -77,14 +78,23 @@ void host_reference_calculation(const Tensor<TIn>& in_n_c_hi_wi,
                     if(hi >= 0 && hi < in_n_c_hi_wi.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in_n_c_hi_wi.mDesc.GetLengths()[3])
                     {
-                        v += in_element_op(static_cast<const double>(in_n_c_hi_wi(n, c, hi, wi))) *
-                             wei_element_op(static_cast<const double>(wei_k_c_y_x(k, c, y, x)));
+                        float v_in;
+                        float v_wei;
+
+                        in_element_op(v_in, static_cast<const float>(in_n_c_hi_wi(n, c, hi, wi)));
+                        wei_element_op(v_wei, static_cast<const float>(wei_k_c_y_x(k, c, y, x)));
+
+                        v_acc += v_in * v_wei;
                     }
                 }
             }
         }
 
-        out_n_k_ho_wo(n, k, ho, wo) += out_element_op(v, bias_k(k));
+        float v_out;
+
+        out_element_op(v_out, v_acc, static_cast<float>(bias_k(k)));
+
+        out_n_k_ho_wo(n, k, ho, wo) += v_out;
     };
 
     make_ParallelTensorFunctor(f_nchw,

@@ -207,8 +207,11 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
             // apply SrcElementwiseOperation on src_vector_container
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                src_vector_container.template AsType<SrcData>()(i) =
-                    src_element_op_(src_vector_container.template AsType<SrcData>()[i]);
+                SrcData src_v;
+
+                src_element_op_(src_v, src_vector_container.template AsType<SrcData>()[i]);
+
+                src_vector_container.template AsType<SrcData>()(i) = src_v;
             });
 
             // copy data from src_vector_container into src_thread_scratch_
@@ -452,10 +455,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             auto dst_vector_container = dst_vector_type{
                 dst_thread_scratch_.template GetAsType<dst_vector_t>(dst_data_idx_seq)};
 
-            // apply DstElementwiseOperation on dst_vector_container
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                dst_vector_container.template AsType<DstData>()(i) =
-                    dst_element_op_(dst_vector_container.template AsType<DstData>()[i]);
+                DstData dst_v;
+
+                // apply DstElementwiseOperation
+                dst_element_op_(dst_v, dst_vector_container.template AsType<DstData>()[i]);
+
+                dst_vector_container.template AsType<DstData>()(i) = dst_v;
             });
 
             // copy data from dst_vector_container to dst_buf

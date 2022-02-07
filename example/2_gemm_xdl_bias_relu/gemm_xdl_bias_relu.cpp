@@ -12,8 +12,8 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
-#include "device_gemm_xdl_c_shuffle_bias_activation_add.hpp"
-#include "reference_gemm_bias_activation_add.hpp"
+#include "device_gemm_xdl_c_shuffle_bias_activation.hpp"
+#include "reference_gemm_bias_activation.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -29,10 +29,10 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 
 using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp = ck::tensor_operation::element_wise::AddReluAdd;
+using CElementOp = ck::tensor_operation::element_wise::AddRelu;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle_Bias_Activation_Add<
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle_Bias_Activation<
     ADataType,              // ADataType
     BDataType,              // BDataType
     CDataType,              // CDataType
@@ -72,13 +72,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-using ReferenceGemmInstance =
-    ck::tensor_operation::host::ReferenceGemmBiasActivationAdd<ADataType,
-                                                               BDataType,
-                                                               CDataType,
-                                                               AElementOp,
-                                                               BElementOp,
-                                                               CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemmBiasActivation<ADataType,
+                                                                                      BDataType,
+                                                                                      CDataType,
+                                                                                      AElementOp,
+                                                                                      BElementOp,
+                                                                                      CElementOp>;
+
 int main(int argc, char* argv[])
 {
     bool do_verification = 0;
@@ -90,10 +90,9 @@ int main(int argc, char* argv[])
     ck::index_t N = 4096;
     ck::index_t K = 4096;
 
-    ck::index_t StrideA  = 4096;
-    ck::index_t StrideB  = 4096;
-    ck::index_t StrideC  = 4096;
-    ck::index_t StrideC1 = 4096;
+    ck::index_t StrideA = 4096;
+    ck::index_t StrideB = 4096;
+    ck::index_t StrideC = 4096;
 
     if(argc == 4)
     {
@@ -101,7 +100,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
     }
-    else if(argc == 11)
+    else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -111,17 +110,16 @@ int main(int argc, char* argv[])
         N = std::stoi(argv[5]);
         K = std::stoi(argv[6]);
 
-        StrideA  = std::stoi(argv[7]);
-        StrideB  = std::stoi(argv[8]);
-        StrideC  = std::stoi(argv[9]);
-        StrideC1 = std::stoi(argv[10]);
+        StrideA = std::stoi(argv[7]);
+        StrideB = std::stoi(argv[8]);
+        StrideC = std::stoi(argv[9]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: run kernel # of times (>1)\n");
-        printf("arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC, StrideC1\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
 
@@ -148,14 +146,10 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c0_n(HostTensorDescriptor(
         std::vector<std::size_t>({static_cast<std::size_t>(N)}), std::vector<std::size_t>({1})));
 
-    // c1_m_n[m ,n]
-    Tensor<BDataType> c1_m_n(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
     std::cout << "c0_n: " << c0_n.mDesc << std::endl;
-    std::cout << "c1_m_n: " << c1_m_n.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -164,26 +158,22 @@ int main(int argc, char* argv[])
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         c0_n.GenerateTensorValue(GeneratorTensor_2<CDataType>{-5, 5});
-        c1_m_n.GenerateTensorValue(GeneratorTensor_2<CDataType>{-5, 5});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         c0_n.GenerateTensorValue(GeneratorTensor_3<CDataType>{0.0, 1.0});
-        c1_m_n.GenerateTensorValue(GeneratorTensor_3<CDataType>{0.0, 1.0});
     }
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
     DeviceMem c0_n_device_buf(sizeof(CDataType) * c0_n.mDesc.GetElementSpace());
-    DeviceMem c1_m_n_device_buf(sizeof(CDataType) * c1_m_n.mDesc.GetElementSpace());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
     c0_n_device_buf.ToDevice(c0_n.mData.data());
-    c1_m_n_device_buf.ToDevice(c1_m_n.mData.data());
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
@@ -197,14 +187,12 @@ int main(int argc, char* argv[])
                                       static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
                                       static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
                                       static_cast<CDataType*>(c0_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c1_m_n_device_buf.GetDeviceBuffer()),
                                       M,
                                       N,
                                       K,
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      StrideC1,
                                       a_element_op,
                                       b_element_op,
                                       c_element_op);
@@ -218,10 +206,10 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, nrepeat);
 
-    std::size_t flop      = std::size_t(2) * M * N * K;
+    std::size_t flop = std::size_t(2) * M * N * K;
+
     std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * M +
-                            sizeof(CDataType) * M * N + sizeof(CDataType) * N +
-                            sizeof(CDataType) * M * N;
+                            sizeof(CDataType) * M * N + sizeof(CDataType) * N;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -237,14 +225,8 @@ int main(int argc, char* argv[])
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(a_m_k,
-                                                  b_k_n,
-                                                  c_m_n_host_result,
-                                                  c0_n,
-                                                  c1_m_n,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op);
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host_result, c0_n, a_element_op, b_element_op, c_element_op);
 
         ref_invoker.Run(ref_argument);
 

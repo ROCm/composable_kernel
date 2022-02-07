@@ -451,14 +451,14 @@ struct
         }
     }
 
-    using ABCGridDescs = decltype(MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
+    using GridDescs = decltype(MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
         1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}));
 
-    using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
-    using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
-    using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
-    using C0GridDesc_M_N    = remove_cvref_t<decltype(ABCGridDescs{}[I3])>;
-    using C1GridDesc_M_N    = remove_cvref_t<decltype(ABCGridDescs{}[I4])>;
+    using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(GridDescs{}[I0])>;
+    using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(GridDescs{}[I1])>;
+    using CGridDesc_M_N     = remove_cvref_t<decltype(GridDescs{}[I2])>;
+    using C0GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I3])>;
+    using C1GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I4])>;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3<
