@@ -17,9 +17,24 @@ struct Add
     template <typename T1, typename T2, typename T3>
     __host__ __device__ constexpr void operator()(T1& dst, const T2& src_y, const T3& bias) const
     {
-        // TODO - alpha beta
         dst = static_cast<T1>(src_y + static_cast<T2>(bias));
     }
+};
+
+struct AlphaBetaAdd
+{
+    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta) {}
+
+    template <typename T1, typename T2, typename T3>
+    __host__ __device__ constexpr void operator()(T1& dst, const T2& src_y, const T3& bias) const
+    {
+        // TODO - Let src_y be acc type
+        dst =
+            static_cast<T1>(alpha_ * static_cast<float>(src_y) + beta_ * static_cast<float>(bias));
+    }
+
+    float alpha_;
+    float beta_;
 };
 
 struct AddRelu

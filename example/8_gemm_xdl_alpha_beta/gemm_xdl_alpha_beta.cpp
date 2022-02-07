@@ -29,7 +29,7 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 
 using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp = ck::tensor_operation::element_wise::Add;
+using CElementOp = ck::tensor_operation::element_wise::AlphaBetaAdd;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle_Bias_2d<
@@ -125,13 +125,16 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
+    float alpha = 1.0f;
+    float beta  = 1.0f;
+
     if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
     }
-    else if(argc == 10)
+    else if(argc == 12)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -144,13 +147,16 @@ int main(int argc, char* argv[])
         StrideA = std::stoi(argv[7]);
         StrideB = std::stoi(argv[8]);
         StrideC = std::stoi(argv[9]);
+
+        alpha = std::stof(argv[10]);
+        beta  = std::stof(argv[11]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: run kernel # of times (>1)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC, alpha, beta\n");
         exit(0);
     }
 
@@ -218,7 +224,7 @@ int main(int argc, char* argv[])
                                       StrideC,
                                       AElementOp{},
                                       BElementOp{},
-                                      CElementOp{});
+                                      CElementOp{alpha, beta});
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -244,8 +250,13 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(
-            a_m_k, b_k_n, c0_m_n, c_m_n_host_result, AElementOp{}, BElementOp{}, CElementOp{});
+        host_verify(a_m_k,
+                    b_k_n,
+                    c0_m_n,
+                    c_m_n_host_result,
+                    AElementOp{},
+                    BElementOp{},
+                    CElementOp{alpha, beta});
 
         check_error(c_m_n_host_result, c_m_n_device_result);
     }
