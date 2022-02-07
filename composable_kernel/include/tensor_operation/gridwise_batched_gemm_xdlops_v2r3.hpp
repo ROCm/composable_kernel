@@ -240,7 +240,7 @@ struct GridwiseBatchedGemm_gk0mk1_gk0nk1_gmn_xdlops_v2r3
     __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
     {
         constexpr auto b_block_desc_g_k0_n_k1 =
-            GetABlockDescriptor_BatchCount_K0PerBlock_MPerBlock_K1();
+            GetBBlockDescriptor_BatchCount_K0PerBlock_NPerBlock_K1();
 
         constexpr auto K0 = b_block_desc_g_k0_n_k1.GetLength(I1);
         constexpr auto N  = b_block_desc_g_k0_n_k1.GetLength(I2);
