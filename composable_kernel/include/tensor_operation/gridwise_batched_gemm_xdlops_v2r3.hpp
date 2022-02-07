@@ -165,50 +165,6 @@ struct GridwiseBatchedGemm_gk0mk1_gk0nk1_gmn_xdlops_v2r3
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
-    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
-    {
-        constexpr auto max_lds_align = K1;
-
-        // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_m_k1 = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
-            }
-        }();
-
-        return a_block_desc_k0_m_k1;
-    }
-
-    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
-    {
-        constexpr auto max_lds_align = K1;
-
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-            }
-        }();
-
-        return b_block_desc_k0_n_k1;
-    }
-
     __host__ __device__ static constexpr auto
     GetABlockDescriptor_BatchCount_K0PerBlock_MPerBlock_K1()
     {
@@ -259,6 +215,46 @@ struct GridwiseBatchedGemm_gk0mk1_gk0nk1_gmn_xdlops_v2r3
         }();
 
         return b_block_desc_g_k0_n_k1;
+    }
+
+    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
+    {
+        constexpr auto a_block_desc_g_k0_m_k1 =
+            GetABlockDescriptor_BatchCount_K0PerBlock_MPerBlock_K1();
+
+        constexpr auto K0 = a_block_desc_g_k0_m_k1.GetLength(I1);
+        constexpr auto M  = a_block_desc_g_k0_m_k1.GetLength(I2);
+
+        constexpr auto a_block_desc_k0_m_k1 = transform_tensor_descriptor(
+            a_block_desc_g_k0_m_k1,
+            make_tuple(make_freeze_transform(I0),
+                       make_pass_through_transform(K0),
+                       make_pass_through_transform(M),
+                       make_pass_through_transform(K1)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        return a_block_desc_k0_m_k1;
+    }
+
+    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
+    {
+        constexpr auto b_block_desc_g_k0_n_k1 =
+            GetABlockDescriptor_BatchCount_K0PerBlock_MPerBlock_K1();
+
+        constexpr auto K0 = b_block_desc_g_k0_n_k1.GetLength(I1);
+        constexpr auto N  = b_block_desc_g_k0_n_k1.GetLength(I2);
+
+        constexpr auto b_block_desc_k0_n_k1 = transform_tensor_descriptor(
+            b_block_desc_g_k0_n_k1,
+            make_tuple(make_freeze_transform(I0),
+                       make_pass_through_transform(K0),
+                       make_pass_through_transform(N),
+                       make_pass_through_transform(K1)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        return b_block_desc_k0_n_k1;
     }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
