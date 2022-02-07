@@ -12,6 +12,16 @@ struct PassThrough
     __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = x; }
 };
 
+struct Add
+{
+    template <typename T1, typename T2, typename T3>
+    __host__ __device__ constexpr void operator()(T1& dst, const T2& src_y, const T3& bias) const
+    {
+        // TODO - alpha beta
+        dst = static_cast<T1>(src_y + static_cast<T2>(bias));
+    }
+};
+
 struct AddRelu
 {
     __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
