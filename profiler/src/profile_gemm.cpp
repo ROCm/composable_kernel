@@ -4,15 +4,6 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
-#include "device_tensor.hpp"
-#include "device_base.hpp"
-#include "device_gemm_xdl.hpp"
 #include "profile_gemm_impl.hpp"
 
 enum GemmMatrixLayout
@@ -35,19 +26,20 @@ enum GemmDataType
 
 int profile_gemm(int argc, char* argv[])
 {
-    if(argc != 14)
+    if(!(argc == 14 || argc == 15))
     {
         printf("arg1: tensor operation (gemm: GEMM)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
-        printf("                     2: A[k, n] * B[k, n] = C[m, n];\n");
-        printf("                     3: A[k, n] * B[n, k] = C[m, n])\n");
+        printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
+        printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");
         printf("arg7: run kernel # of times (>1)\n");
         printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
+        printf("arg14: split k into  mulitiple batch\n");
         exit(1);
     }
 
@@ -65,6 +57,9 @@ int profile_gemm(int argc, char* argv[])
     const int StrideA = std::stoi(argv[11]);
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
+    int KBatch        = 1;
+    if(argc == 15)
+        KBatch = std::stoi(argv[14]);
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -159,7 +154,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? K : StrideA,
             (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
     {
@@ -178,7 +174,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? K : StrideA,
             (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
     {
@@ -197,7 +194,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? M : StrideA,
             (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_NK_MN)
     {
@@ -216,7 +214,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? M : StrideA,
             (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else
     {

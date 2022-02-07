@@ -304,7 +304,7 @@ int main(int argc, char* argv[])
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            check_indices(out_indices_n_c_ho_wo_host, out_indices_n_c_ho_wo_device);
+//          check_indices(out_indices_n_c_ho_wo_host, out_indices_n_c_ho_wo_device);
         };
     }
 }
