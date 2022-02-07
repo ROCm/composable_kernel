@@ -74,13 +74,8 @@ using DeviceConvFwdInstance = ck::tensor_operation::device::
         8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-using ReferenceConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
-                                                                              WeiDataType,
-                                                                              OutDataType,
-                                                                              AccDataType,
-                                                                              InElementOp,
-                                                                              WeiElementOp,
-                                                                              OutElementOp>;
+using ReferenceConvFwdInstance = ck::tensor_operation::host::
+    ReferenceConvFwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
 
 int main(int argc, char* argv[])
 {

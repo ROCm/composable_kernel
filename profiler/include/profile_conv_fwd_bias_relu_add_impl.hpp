@@ -207,9 +207,9 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
             conv_filter_dilations,
             input_left_pads,
             input_right_pads,
-            InElementOp{},
-            WeiElementOp{},
-            OutElementOp{});
+            in_element_op,
+            wei_element_op,
+            out_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

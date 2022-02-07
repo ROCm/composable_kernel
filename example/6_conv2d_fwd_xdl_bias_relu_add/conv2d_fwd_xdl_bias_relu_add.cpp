@@ -78,7 +78,6 @@ using ReferenceConvFwdInstance =
     ck::tensor_operation::host::ReferenceConvFwd_Bias_Activation_Add<InDataType,
                                                                      WeiDataType,
                                                                      OutDataType,
-                                                                     AccDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
                                                                      OutElementOp>;

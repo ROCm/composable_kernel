@@ -113,13 +113,16 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
     using OutElementOp = ck::tensor_operation::element_wise::AddRelu;
 
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
     if(do_verification)
     {
         using ReferenceConvFwdInstance =
             ck::tensor_operation::host::ReferenceConvFwd_Bias_Activation<InDataType,
                                                                          WeiDataType,
                                                                          OutDataType,
-                                                                         AccDataType,
                                                                          InElementOp,
                                                                          WeiElementOp,
                                                                          OutElementOp>;
@@ -135,9 +138,9 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
                                                   conv_filter_dilations,
                                                   input_left_pads,
                                                   input_right_pads,
-                                                  InElementOp{},
-                                                  WeiElementOp{},
-                                                  OutElementOp{});
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
         ref_invoker.Run(ref_argument);
     }
 
@@ -193,9 +196,9 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
             conv_filter_dilations,
             input_left_pads,
             input_right_pads,
-            InElementOp{},
-            WeiElementOp{},
-            OutElementOp{});
+            in_element_op,
+            wei_element_op,
+            out_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
