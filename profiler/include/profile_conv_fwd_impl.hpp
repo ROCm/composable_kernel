@@ -3,11 +3,11 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_conv.hpp"
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
 #include "device_conv_fwd.hpp"
 #include "element_wise_operation.hpp"
+#include "reference_conv_fwd.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -105,15 +105,37 @@ void profile_conv_fwd_impl(int do_verification,
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
+    using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
     if(do_verification)
     {
-        host_conv_nchw_kcyx_nkhw(in_n_c_hi_wi,
-                                 wei_k_c_y_x,
-                                 out_n_k_ho_wo_host_result,
-                                 conv_filter_strides,
-                                 conv_filter_dilations,
-                                 input_left_pads,
-                                 input_right_pads);
+        using ReferenceConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
+                                                                                      WeiDataType,
+                                                                                      OutDataType,
+                                                                                      InElementOp,
+                                                                                      WeiElementOp,
+                                                                                      OutElementOp>;
+
+        auto ref_conv     = ReferenceConvFwdInstance{};
+        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
+
+        ref_invoker.Run(ref_argument);
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
@@ -177,9 +199,9 @@ void profile_conv_fwd_impl(int do_verification,
             conv_filter_dilations,
             input_left_pads,
             input_right_pads,
-            PassThrough{},
-            PassThrough{},
-            PassThrough{});
+            in_element_op,
+            wei_element_op,
+            out_element_op);
 
         auto invoker_ptr = conv_ptr->MakeInvokerPointer();
 

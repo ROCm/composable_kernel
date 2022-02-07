@@ -81,7 +81,6 @@ using ReferenceConvFwdInstance =
     ck::tensor_operation::host::ReferenceConvFwd_Bias_Activation<InDataType,
                                                                  WeiDataType,
                                                                  OutDataType,
-                                                                 AccDataType,
                                                                  InElementOp,
                                                                  WeiElementOp,
                                                                  OutElementOp>;
@@ -268,21 +267,21 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        auto refConv    = ReferenceConvFwdInstance{};
-        auto refInvoker = refConv.MakeInvoker();
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
 
-        auto refArgument = refConv.MakeArgument(in_n_c_hi_wi,
-                                                wei_k_c_y_x,
-                                                out_n_k_ho_wo_host_result,
-                                                bias_k,
-                                                conv_filter_strides,
-                                                conv_filter_dilations,
-                                                input_left_pads,
-                                                input_right_pads,
-                                                InElementOp{},
-                                                WeiElementOp{},
-                                                OutElementOp{});
-        refInvoker.Run(refArgument);
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  bias_k,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+        ref_invoker.Run(ref_argument);
 
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
