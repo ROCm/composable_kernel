@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
         StrideC = std::stoi(argv[9]);
 
         alpha = std::stof(argv[10]);
-        beta = std::stof(argv[11]);
+        beta  = std::stof(argv[11]);
     }
     else
     {

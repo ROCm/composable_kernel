@@ -105,7 +105,7 @@ struct AlphaBeta
     operator()(T1& dst, const T2& src_y, const T3& bias, float alpha, float beta) const
     {
         // TODO - Let src_y be acc type
-        dst = static_cast<T1>(alpha * static_cast<float> (src_y) + beta * static_cast<float>(bias));
+        dst = static_cast<T1>(alpha * static_cast<float>(src_y) + beta * static_cast<float>(bias));
     }
 };
 
