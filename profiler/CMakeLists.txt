@@ -48,9 +48,9 @@ set_target_properties(device_conv2d_fwd_instance PROPERTIES POSITION_INDEPENDENT
 install(TARGETS device_conv2d_fwd_instance LIBRARY DESTINATION lib) 
 
 # device_batched_gemm_instance
-set(DEVICE_BATCHED_GEMM_INSTANCE_SOURCE 
+set(DEVICE_BATCHED_GEMM_INSTANCE_SOURCE
    ${PROJECT_SOURCE_DIR}/device_operation/device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmm_instance.cpp;
-) 
+)
 
 add_library(device_batched_gemm_instance SHARED ${DEVICE_BATCHED_GEMM_INSTANCE_SOURCE})
 target_include_directories(device_batched_gemm_instance SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
