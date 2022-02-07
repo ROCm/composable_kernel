@@ -107,13 +107,29 @@ void profile_conv_fwd_impl(int do_verification,
 
     if(do_verification)
     {
-        host_conv_nchw_kcyx_nkhw(in_n_c_hi_wi,
-                                 wei_k_c_y_x,
-                                 out_n_k_ho_wo_host_result,
-                                 conv_filter_strides,
-                                 conv_filter_dilations,
-                                 input_left_pads,
-                                 input_right_pads);
+        using ReferenceConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
+                                                                                      WeiDataType,
+                                                                                      OutDataType,
+                                                                                      AccDataType,
+                                                                                      InElementOp,
+                                                                                      WeiElementOp,
+                                                                                      OutElementOp>;
+
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+
+        ref_invoker.Run(ref_argument);
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());

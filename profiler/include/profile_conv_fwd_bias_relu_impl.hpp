@@ -30,84 +30,6 @@ void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_nhwc_kyxc_nhwk_f16_instances(
 namespace ck {
 namespace profiler {
 
-void cpu_conv_bias_relu(ck::half_t* in_ptr,
-                        ck::half_t* weight_ptr,
-                        ck::half_t* output_ptr,
-                        ck::half_t* bias_ptr,
-                        const ck::index_t N,
-                        const ck::index_t K,
-                        const ck::index_t C,
-                        const ck::index_t Y,
-                        const ck::index_t X,
-                        const ck::index_t Hi,
-                        const ck::index_t Wi,
-                        const ck::index_t Ho,
-                        const ck::index_t Wo,
-                        const ck::index_t Stride,
-                        const ck::index_t Dilation,
-                        const ck::index_t Pad)
-{
-
-    const auto in_desc =
-        HostTensorDescriptor(std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                                      static_cast<std::size_t>(Hi),
-                                                      static_cast<std::size_t>(Wi),
-                                                      static_cast<std::size_t>(C)});
-    const auto wei_desc =
-        HostTensorDescriptor(std::vector<std::size_t>{static_cast<std::size_t>(K),
-                                                      static_cast<std::size_t>(Y),
-                                                      static_cast<std::size_t>(X),
-                                                      static_cast<std::size_t>(C)});
-    const auto out_desc =
-        HostTensorDescriptor(std::vector<std::size_t>{static_cast<std::size_t>(N),
-                                                      static_cast<std::size_t>(Ho),
-                                                      static_cast<std::size_t>(Wo),
-                                                      static_cast<std::size_t>(K)});
-    const auto bias_desc =
-        HostTensorDescriptor(std::vector<std::size_t>{static_cast<std::size_t>(K)});
-
-    auto f_k = [&](auto k) {
-        for(int n = 0; n < N; ++n)
-        {
-            for(int ho = 0; ho < Ho; ++ho)
-            {
-                for(int wo = 0; wo < Wo; ++wo)
-                {
-                    double v = 0;
-                    for(int c = 0; c < C; ++c)
-                    {
-                        for(int y = 0; y < Y; ++y)
-                        {
-                            int hi = ho * Stride + y * Dilation - Pad;
-                            for(int x = 0; x < X; ++x)
-                            {
-                                int wi = wo * Stride + x * Dilation - Pad;
-                                if(hi >= 0 && hi < Hi && wi >= 0 && wi < Wi)
-                                {
-                                    double in =
-                                        in_ptr[in_desc.GetOffsetFromMultiIndex(n, hi, wi, c)];
-                                    double wei =
-                                        weight_ptr[wei_desc.GetOffsetFromMultiIndex(k, y, x, c)];
-
-                                    v += in * wei;
-                                }
-                            }
-                        }
-                    }
-
-                    v += bias_ptr[bias_desc.GetOffsetFromMultiIndex(k)];
-
-                    v = v > 0 ? v : 0;
-
-                    output_ptr[out_desc.GetOffsetFromMultiIndex(n, ho, wo, k)] = v;
-                }
-            }
-        }
-    };
-
-    make_ParallelTensorFunctor(f_k, K)(std::thread::hardware_concurrency());
-}
-
 template <int NDimSpatial,
           typename InDataType,
           typename WeiDataType,
@@ -193,22 +115,30 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
 
     if(do_verification)
     {
-        cpu_conv_bias_relu(in_n_c_hi_wi.mData.data(),
-                           wei_k_c_y_x.mData.data(),
-                           out_n_k_ho_wo_host_result.mData.data(),
-                           bias_k.mData.data(),
-                           N,
-                           K,
-                           C,
-                           Y,
-                           X,
-                           Hi,
-                           Wi,
-                           Ho,
-                           Wo,
-                           conv_filter_strides[0],
-                           conv_filter_dilations[0],
-                           input_left_pads[0]);
+        using ReferenceConvFwdInstance =
+            ck::tensor_operation::host::ReferenceConvFwd_Bias_Activation<InDataType,
+                                                                         WeiDataType,
+                                                                         OutDataType,
+                                                                         AccDataType,
+                                                                         InElementOp,
+                                                                         WeiElementOp,
+                                                                         OutElementOp>;
+
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  bias_k,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+        ref_invoker.Run(ref_argument);
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
