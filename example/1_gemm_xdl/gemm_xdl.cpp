@@ -11,7 +11,6 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_base.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"

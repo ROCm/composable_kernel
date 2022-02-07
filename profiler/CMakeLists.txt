@@ -1,9 +1,9 @@
 include_directories(BEFORE
     include
     ${PROJECT_SOURCE_DIR}/host/host_tensor/include
-    ${PROJECT_SOURCE_DIR}/host/include
     ${PROJECT_SOURCE_DIR}/device/include
     ${PROJECT_SOURCE_DIR}/device_operation/include
+    ${PROJECT_SOURCE_DIR}/reference_operation/include
     ${PROJECT_SOURCE_DIR}/profiler/include
     ${PROJECT_SOURCE_DIR}/composable_kernel/include
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/utility

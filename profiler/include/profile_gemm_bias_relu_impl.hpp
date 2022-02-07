@@ -13,7 +13,7 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_operation_instance {
+namespace device_gemm_instance {
 
 using DeviceGemmBiasReluPtr = ck::tensor_operation::device::DeviceGemmBiasActivationPtr<
     ck::tensor_operation::element_wise::PassThrough,
@@ -29,7 +29,7 @@ void add_device_gemm_xdl_c_shuffle_bias_relu_f16_f16_f16_km_kn_mn_instances(
 void add_device_gemm_xdl_c_shuffle_bias_relu_f16_f16_f16_km_nk_mn_instances(
     std::vector<DeviceGemmBiasReluPtr>&);
 
-} // namespace device_operation_instance
+} // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -139,7 +139,7 @@ void profile_gemm_bias_relu_impl(int do_verification,
     c0_n_device_buf.ToDevice(c0_n.mData.data());
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_operation_instance::DeviceGemmBiasReluPtr>
+    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmBiasReluPtr>
         gemm_ptrs;
 
     if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
@@ -149,28 +149,28 @@ void profile_gemm_bias_relu_impl(int do_verification,
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_operation_instance::
+            ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_xdl_c_shuffle_bias_relu_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_operation_instance::
+            ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_xdl_c_shuffle_bias_relu_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_operation_instance::
+            ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_xdl_c_shuffle_bias_relu_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_operation_instance::
+            ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_xdl_c_shuffle_bias_relu_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
         }
     }

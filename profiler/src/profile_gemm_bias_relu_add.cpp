@@ -66,12 +66,12 @@ int profile_gemm_bias_relu_add(int argc, char* argv[])
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_gemm_bias_activation_impl<ck::half_t,
-                                                        ck::half_t,
-                                                        ck::half_t,
-                                                        ck::tensor_layout::gemm::RowMajor,
-                                                        ck::tensor_layout::gemm::RowMajor,
-                                                        ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_gemm_bias_relu_add_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -86,12 +86,12 @@ int profile_gemm_bias_relu_add(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_gemm_bias_activation_impl<ck::half_t,
-                                                        ck::half_t,
-                                                        ck::half_t,
-                                                        ck::tensor_layout::gemm::RowMajor,
-                                                        ck::tensor_layout::gemm::ColumnMajor,
-                                                        ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_gemm_bias_relu_add_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -106,12 +106,12 @@ int profile_gemm_bias_relu_add(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_gemm_bias_activation_impl<ck::half_t,
-                                                        ck::half_t,
-                                                        ck::half_t,
-                                                        ck::tensor_layout::gemm::ColumnMajor,
-                                                        ck::tensor_layout::gemm::RowMajor,
-                                                        ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_gemm_bias_relu_add_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -126,12 +126,12 @@ int profile_gemm_bias_relu_add(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_gemm_bias_activation_impl<ck::half_t,
-                                                        ck::half_t,
-                                                        ck::half_t,
-                                                        ck::tensor_layout::gemm::ColumnMajor,
-                                                        ck::tensor_layout::gemm::ColumnMajor,
-                                                        ck::tensor_layout::gemm::RowMajor>(
+        ck::profiler::profile_gemm_bias_relu_add_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
