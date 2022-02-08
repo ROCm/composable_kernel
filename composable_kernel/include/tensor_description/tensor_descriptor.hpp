@@ -12,6 +12,94 @@ struct TensorCoordinate;
 template <index_t NTransform, index_t NDimVisible, typename UpdateLowerIndexHack>
 struct TensorCoordinateStep;
 
+struct TensorDescriptorUtility
+{
+    template <index_t NTransform,
+              typename UpperDimensionIdss,
+              typename VisibleDimensionIds,
+              index_t IDim>
+    __host__ __device__ static constexpr auto
+        GetTransformAndItsUpperDimension(UpperDimensionIdss, VisibleDimensionIds, Number<IDim>)
+    {
+        constexpr auto idim_visible = Number<IDim>{};
+
+        constexpr index_t idim_hidden = VisibleDimensionIds::At(idim_visible);
+
+        index_t itran_found   = 0;
+        index_t idim_up_found = 0;
+        bool found            = false;
+
+        static_for<0, NTransform, 1>{}([&](auto itran) {
+            constexpr auto up_dim_ids = UpperDimensionIdss{}[itran];
+
+            static_for<0, up_dim_ids.Size(), 1>{}([&](auto idim_up) {
+                if constexpr(up_dim_ids[idim_up] == idim_hidden)
+                {
+                    itran_found   = itran;
+                    idim_up_found = idim_up;
+                    found         = true;
+                }
+            });
+        });
+
+        return make_tuple(itran_found, idim_up_found, found);
+    }
+
+    template <typename Transforms, typename UpperDimensionIdss, typename VisibleDimensionIds>
+    __host__ __device__ static constexpr auto
+    InitializeElementSize(const Transforms& transforms, UpperDimensionIdss, VisibleDimensionIds)
+    {
+        const auto lengths = generate_tuple(
+            [&](auto idim_visible) {
+                constexpr auto tmp = GetTransformAndItsUpperDimension<Transforms::Size()>(
+                    UpperDimensionIdss{}, VisibleDimensionIds{}, idim_visible);
+
+                constexpr index_t itran   = tmp[Number<0>{}];
+                constexpr index_t idim_up = tmp[Number<1>{}];
+                constexpr bool found      = tmp[Number<2>{}];
+
+                static_assert(found == true,
+                              "wrong! not found matching transformation and upper-dimension");
+
+                const auto length =
+                    transforms[Number<itran>{}].GetUpperLengths()[Number<idim_up>{}];
+
+                return length;
+            },
+            Number<VisibleDimensionIds::Size()>{});
+
+        // TODO: make container_reduce support tuple of Number and index_t
+        return container_reduce(lengths, math::multiplies{}, Number<1>{});
+    }
+
+    template <typename Transforms, typename UpperDimensionIdss, typename VisibleDimensionIds>
+    __host__ __device__ static constexpr auto InitializeElementSize_64bit(
+        const Transforms& transforms, UpperDimensionIdss, VisibleDimensionIds)
+    {
+        const auto lengths = generate_tuple(
+            [&](auto idim_visible) {
+                constexpr auto tmp = GetTransformAndItsUpperDimension<Transforms::Size()>(
+                    UpperDimensionIdss{}, VisibleDimensionIds{}, idim_visible);
+
+                constexpr index_t itran   = tmp[Number<0>{}];
+                constexpr index_t idim_up = tmp[Number<1>{}];
+                constexpr bool found      = tmp[Number<2>{}];
+
+                static_assert(found == true,
+                              "wrong! not found matching transformation and upper-dimension");
+
+                const auto length =
+                    transforms[Number<itran>{}].GetUpperLengths()[Number<idim_up>{}];
+
+                return length;
+            },
+            Number<VisibleDimensionIds::Size()>{});
+
+        // TODO: make container_reduce support tuple of Number and index_t
+        return container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
+    }
+};
+
 // Transforms: Tuple<transforms...>
 // LowerDimensionIdss : Tuple<Sequence<...>, ...>
 // UpperDimensionIdss : Tuple<Sequence<...>, ...>
@@ -20,6 +108,7 @@ template <typename Transforms,
           typename LowerDimensionIdss,
           typename UpperDimensionIdss,
           typename VisibleDimensionIds,
+          typename ElementSize,
           typename ElementSpaceSize>
 struct TensorDescriptor
 {
@@ -48,57 +137,6 @@ struct TensorDescriptor
         return unique_sort_all_dim_ids::Size();
     }
 
-    __host__ __device__ static constexpr auto InitializeElementSize(const Transforms& transforms)
-    {
-        const auto lengths = generate_tuple(
-            [&](auto idim_visible) {
-                constexpr auto tmp = GetTransformAndItsUpperDimension(idim_visible);
-
-                constexpr index_t itran   = tmp[Number<0>{}];
-                constexpr index_t idim_up = tmp[Number<1>{}];
-                constexpr bool found      = tmp[Number<2>{}];
-
-                static_assert(found == true,
-                              "wrong! not found matching transformation and upper-dimension");
-
-                const auto length =
-                    transforms[Number<itran>{}].GetUpperLengths()[Number<idim_up>{}];
-
-                return length;
-            },
-            Number<ndim_visible_>{});
-
-        // TODO: make container_reduce support tuple of Number and index_t
-        return container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
-    }
-
-    template <index_t IDim>
-    __host__ __device__ static constexpr auto GetTransformAndItsUpperDimension(Number<IDim>)
-    {
-        constexpr auto idim_visible = Number<IDim>{};
-
-        constexpr index_t idim_hidden = VisibleDimensionIds::At(idim_visible);
-
-        index_t itran_found   = 0;
-        index_t idim_up_found = 0;
-        bool found            = false;
-
-        static_for<0, ntransform_, 1>{}([&](auto itran) {
-            constexpr auto up_dim_ids = UpperDimensionIdss{}[itran];
-
-            static_for<0, up_dim_ids.Size(), 1>{}([&](auto idim_up) {
-                if constexpr(up_dim_ids[idim_up] == idim_hidden)
-                {
-                    itran_found   = itran;
-                    idim_up_found = idim_up;
-                    found         = true;
-                }
-            });
-        });
-
-        return make_tuple(itran_found, idim_up_found, found);
-    }
-
     constexpr static index_t ntransform_   = GetNumOfTransform();
     constexpr static index_t ndim_visible_ = GetNumOfVisibleDimension();
     constexpr static index_t ndim_hidden_  = GetNumOfHiddenDimension();
@@ -108,15 +146,17 @@ struct TensorDescriptor
     using Coordinate   = TensorCoordinate<ndim_hidden_, VisibleDimensionIds>;
 
     // may be index_t or Number<>
-    using ElementSize = remove_cv_t<decltype(InitializeElementSize(Transforms{}))>;
+    // using ElementSize = remove_cv_t<decltype(InitializeElementSize(Transforms{}))>;
 
     public:
     __host__ __device__ constexpr TensorDescriptor() = default;
 
     __host__ __device__ constexpr TensorDescriptor(const Transforms& transforms,
+                                                   ElementSize element_size,
                                                    ElementSpaceSize element_space_size)
         : transforms_{transforms},
-          element_size_{InitializeElementSize(transforms)},
+          // element_size_{InitializeElementSize(transforms)},
+          element_size_{element_size},
           element_space_size_{element_space_size}
 
     {
@@ -138,7 +178,8 @@ struct TensorDescriptor
     {
         static_assert(IDim >= 0 && IDim < ndim_visible_, "wrong! out of range");
 
-        constexpr auto tmp = GetTransformAndItsUpperDimension(Number<IDim>{});
+        constexpr auto tmp = TensorDescriptorUtility::GetTransformAndItsUpperDimension<ntransform_>(
+            UpperDimensionIdss{}, VisibleDimensionIds{}, Number<IDim>{});
 
         constexpr index_t itran   = tmp[Number<0>{}];
         constexpr index_t idim_up = tmp[Number<1>{}];
@@ -374,13 +415,16 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
         container_concat(OldTensorDescriptor::GetUpperDimensionIdss(), up_dim_hidden_idss);
 
     const auto element_space_size = old_tensor_desc.GetElementSpaceSize();
+    const auto element_size       = TensorDescriptorUtility::InitializeElementSize(
+        all_transforms, all_up_dim_hidden_idss, new_visible_dim_hidden_ids);
 
     return TensorDescriptor<remove_cv_t<decltype(all_transforms)>,
                             remove_cv_t<decltype(all_low_dim_hidden_idss)>,
                             remove_cv_t<decltype(all_up_dim_hidden_idss)>,
                             remove_cv_t<decltype(new_visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_space_size)>>{all_transforms,
-                                                                       element_space_size};
+                            remove_cv_t<decltype(element_size)>,
+                            remove_cv_t<decltype(element_space_size)>>{
+        all_transforms, element_size, element_space_size};
 }
 
 template <typename TensorDesc, typename VisibleIndex>

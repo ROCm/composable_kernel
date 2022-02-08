@@ -74,18 +74,22 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
         calculate_element_space_size_impl(lengths, strides, Number<0>{}, Number<1>{});
 #endif
 
+    const auto element_size = TensorDescriptorUtility::InitializeElementSize(
+        transforms, up_dim_hidden_idss, visible_dim_hidden_ids);
+
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_space_size)>>{transforms,
-                                                                       element_space_size};
+                            remove_cv_t<decltype(element_size)>,
+                            remove_cv_t<decltype(element_space_size)>>{
+        transforms, element_size, element_space_size};
 }
 
 // Lengths... can be:
 //   1) index_t, which is known at run-time
 //   2) Number<>, which is known at compile-time
-template <bool Use64bit = false, typename... Lengths>
+template <typename... Lengths>
 __host__ __device__ constexpr auto
 make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
 {
@@ -100,33 +104,49 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
 
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
-    if constexpr(Use64bit)
-    {
-        const auto element_space_size =
-            container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
+    const auto element_space_size = container_reduce(lengths, math::multiplies{}, Number<1>{});
+    const auto element_size       = TensorDescriptorUtility::InitializeElementSize(
+        transforms, up_dim_hidden_idss, visible_dim_hidden_ids);
 
-        return TensorDescriptor<remove_cv_t<decltype(transforms)>,
-                                remove_cv_t<decltype(low_dim_hidden_idss)>,
-                                remove_cv_t<decltype(up_dim_hidden_idss)>,
-                                remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                                remove_cv_t<decltype(element_space_size)>>{transforms,
-                                                                           element_space_size};
-    }
-    else
-    {
-
-        const auto element_space_size = container_reduce(lengths, math::multiplies{}, Number<1>{});
-
-        return TensorDescriptor<remove_cv_t<decltype(transforms)>,
-                                remove_cv_t<decltype(low_dim_hidden_idss)>,
-                                remove_cv_t<decltype(up_dim_hidden_idss)>,
-                                remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                                remove_cv_t<decltype(element_space_size)>>{transforms,
-                                                                           element_space_size};
-    }
+    return TensorDescriptor<remove_cv_t<decltype(transforms)>,
+                            remove_cv_t<decltype(low_dim_hidden_idss)>,
+                            remove_cv_t<decltype(up_dim_hidden_idss)>,
+                            remove_cv_t<decltype(visible_dim_hidden_ids)>,
+                            remove_cv_t<decltype(element_size)>,
+                            remove_cv_t<decltype(element_space_size)>>{
+        transforms, element_size, element_space_size};
 }
 
-template <bool Use64bit = false, typename... Lengths, typename Align>
+template <typename... Lengths>
+__host__ __device__ constexpr auto
+make_naive_tensor_descriptor_packed_64bit(const Tuple<Lengths...>& lengths)
+{
+    constexpr index_t N = sizeof...(Lengths);
+
+    const auto transforms = make_tuple(make_unmerge_transform(lengths));
+
+    constexpr auto low_dim_hidden_idss = make_tuple(Sequence<0>{});
+
+    constexpr auto up_dim_hidden_idss =
+        make_tuple(typename arithmetic_sequence_gen<1, N + 1, 1>::type{});
+
+    constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
+
+    const auto element_space_size = container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
+
+    const auto element_size = TensorDescriptorUtility::InitializeElementSize_64bit(
+        transforms, up_dim_hidden_idss, visible_dim_hidden_ids);
+
+    return TensorDescriptor<remove_cv_t<decltype(transforms)>,
+                            remove_cv_t<decltype(low_dim_hidden_idss)>,
+                            remove_cv_t<decltype(up_dim_hidden_idss)>,
+                            remove_cv_t<decltype(visible_dim_hidden_ids)>,
+                            remove_cv_t<decltype(element_size)>,
+                            remove_cv_t<decltype(element_space_size)>>{
+        transforms, element_size, element_space_size};
+}
+
+template <typename... Lengths, typename Align>
 __host__ __device__ constexpr auto
 make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align align)
 {
@@ -136,55 +156,29 @@ make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align ali
 
     const auto stride_n_minus_2 = math::integer_least_multiple(lengths[Number<N - 1>{}], align);
 
-    if(Use64bit)
-    {
-        auto strides = generate_tuple(
-            [&](auto i) {
-                if(Use64bit)
-                {
-                    if constexpr(i.value == N - 1)
-                    {
-                        return I1;
-                    }
-                    else if constexpr(i.value == N - 2)
-                    {
-                        return Number<stride_n_minus_2>{};
-                    }
-                    else
-                    {
-                        return container_reduce(lengths,
-                                                math::multiplies{},
-                                                LongNumber<stride_n_minus_2>{},
-                                                i + I1,
-                                                Number<N - 1>{},
-                                                I1);
-                    }
-                }
-                else
-                {
-                    if constexpr(i.value == N - 1)
-                    {
-                        return I1;
-                    }
-                    else if constexpr(i.value == N - 2)
-                    {
-                        return Number<stride_n_minus_2>{};
-                    }
-                    else
-                    {
-                        return container_reduce(lengths,
-                                                math::multiplies{},
-                                                Number<stride_n_minus_2>{},
-                                                i + I1,
-                                                Number<N - 1>{},
-                                                I1);
-                    }
-                }
-            },
-            Number<N>{});
+    auto strides = generate_tuple(
+        [&](auto i) {
+            if constexpr(i.value == N - 1)
+            {
+                return I1;
+            }
+            else if constexpr(i.value == N - 2)
+            {
+                return Number<stride_n_minus_2>{};
+            }
+            else
+            {
+                return container_reduce(lengths,
+                                        math::multiplies{},
+                                        Number<stride_n_minus_2>{},
+                                        i + I1,
+                                        Number<N - 1>{},
+                                        I1);
+            }
+        },
+        Number<N>{});
 
-        return make_naive_tensor_descriptor(lengths, strides);
-    }
+    return make_naive_tensor_descriptor(lengths, strides);
 }
 
 } // namespace ck

@@ -263,7 +263,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
 
     // C: output tensor
     const auto out_grid_desc_gemmb_gemmm_gemmn = transform_tensor_descriptor(
-        make_naive_tensor_descriptor_packed<true>(make_tuple(B, N1 * Do * Ho * Wo, K)),
+        make_naive_tensor_descriptor_packed_64bit(make_tuple(B, N1 * Do * Ho * Wo, K)),
         make_tuple(make_pass_through_transform(B),
                    make_pass_through_transform(N1 * Do * Ho * Wo),
                    make_pass_through_transform(K)),

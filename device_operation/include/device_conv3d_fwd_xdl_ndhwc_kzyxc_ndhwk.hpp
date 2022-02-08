@@ -160,11 +160,11 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         else
         {
             const auto in_desc_n_di_hi_wi_c =
-                make_naive_tensor_descriptor_packed<true>(make_tuple(N, Di, Hi, Wi, C));
+                make_naive_tensor_descriptor_packed_64bit(make_tuple(N, Di, Hi, Wi, C));
             const auto wei_desc_k_z_y_x_c =
-                make_naive_tensor_descriptor_packed<true>(make_tuple(K, Z, Y, X, C));
+                make_naive_tensor_descriptor_packed(make_tuple(K, Z, Y, X, C));
             const auto out_desc_n_do_ho_wo_k =
-                make_naive_tensor_descriptor_packed<true>(make_tuple(N, Do, Ho, Wo, K));
+                make_naive_tensor_descriptor_packed_64bit(make_tuple(N, Do, Ho, Wo, K));
 
             const index_t subbatch_size =
                 GetMaxAllowableSubBatchSize(N, K, C, input_spatial_lengths, output_spatial_lengths);
