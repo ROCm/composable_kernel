@@ -7,6 +7,7 @@
 #include "device_tensor.hpp"
 #include "device_conv_fwd.hpp"
 #include "element_wise_operation.hpp"
+#include "reference_conv_fwd.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -31,6 +32,10 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceC
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 template <typename T>
 static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
@@ -111,6 +116,13 @@ int main(int argc, char* argv[])
         using InDataType  = decltype(input_type);
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
+
+        using ReferenceConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
+                                                                                      WeiDataType,
+                                                                                      OutDataType,
+                                                                                      InElementOp,
+                                                                                      WeiElementOp,
+                                                                                      OutElementOp>;
 
         const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
         const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -206,13 +218,21 @@ int main(int argc, char* argv[])
             throw std::runtime_error("wrong! no device Conv instance found");
         }
 
-        host_conv_nchw_kcyx_nkhw(in_n_c_hi_wi,
-                                 wei_k_c_y_x,
-                                 out_n_k_ho_wo_host_result,
-                                 conv_filter_strides,
-                                 conv_filter_dilations,
-                                 input_left_pads,
-                                 input_right_pads);
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+
+        ref_invoker.Run(ref_argument);
 
         // profile device Conv instances
         bool success = false;

@@ -9,6 +9,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/problem_transform
     ${PROJECT_SOURCE_DIR}/external/rocm/include
+    ${PROJECT_SOURCE_DIR}/reference_operation/include
 )
 
 # test_magic_number_division
