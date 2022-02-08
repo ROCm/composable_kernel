@@ -10,6 +10,12 @@ struct PassThrough
     __host__ __device__ void operator()(float& y, const float& x) const { y = x; }
 
     __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = x; }
+
+    __host__ __device__ void operator()(ushort& y, const ushort& x) const { y = x; }
+
+    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x; }
+
+    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; }
 };
 
 struct AddRelu

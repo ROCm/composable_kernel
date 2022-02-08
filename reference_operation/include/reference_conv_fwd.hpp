@@ -87,9 +87,9 @@ struct ReferenceConvFwd : public device::BaseOperator
 
                                 arg.in_element_op_(
                                     v_in,
-                                    static_cast<const float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
+                                    ck::type_convert<const float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
                                 arg.wei_element_op_(
-                                    v_wei, static_cast<const float>(arg.wei_k_c_y_x_(k, c, y, x)));
+                                    v_wei, ck::type_convert<const float>(arg.wei_k_c_y_x_(k, c, y, x)));
 
                                 v_acc += v_in * v_wei;
                             }

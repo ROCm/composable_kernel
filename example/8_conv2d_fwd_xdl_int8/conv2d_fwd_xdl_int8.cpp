@@ -13,6 +13,7 @@
 #include "tensor_layout.hpp"
 #include "device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation.hpp"
+#include "reference_conv_fwd.hpp"
 
 using InDataType  = int8_t;
 using WeiDataType = int8_t;
@@ -39,56 +40,8 @@ static constexpr auto ConvFwdDefault =
 using DeviceConvFwdInstance = ck::tensor_operation::device::
     DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<  int8_t,  int8_t,  int8_t,     int32_t, PassThrough, PassThrough, PassThrough, ConvFwdDefault,   128,   128,   128,     4,  16,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              16,              16,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              16,              16,      true,               7,               1>;
 // clang-format on
-
-template <typename TIn,
-          typename TWei,
-          typename TOut,
-          typename InElementOp,
-          typename WeiElementOp,
-          typename OutElementOp>
-void host_verify(const Tensor<TIn>& in,
-                 const Tensor<TWei>& wei,
-                 Tensor<TOut>& out,
-                 const std::vector<ck::index_t>& conv_strides,
-                 const std::vector<ck::index_t>& conv_dilations,
-                 const std::vector<ck::index_t>& in_left_pads,
-                 const std::vector<ck::index_t>&,
-                 const InElementOp& in_element_op,
-                 const WeiElementOp& wei_element_op,
-                 const OutElementOp& out_element_op)
-{
-    auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-        int32_t v = 0;
-        for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
-        {
-            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
-            {
-                int hi = ho * conv_strides[0] + y * conv_dilations[0] - in_left_pads[0];
-                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
-                {
-                    int wi = wo * conv_strides[1] + x * conv_dilations[1] - in_left_pads[1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
-                    {
-                        v += in_element_op(static_cast<const int32_t>(in(n, c, hi, wi))) *
-                             wei_element_op(static_cast<const int32_t>(wei(k, c, y, x)));
-                    }
-                }
-            }
-        }
-        int32_t v2 = out(n, k, ho, wo);
-
-        out_element_op(v2, v);
-
-        out(n, k, ho, wo) = v2;
-    };
-
-    make_ParallelTensorFunctor(f_nchw,
-                               out.mDesc.GetLengths()[0],
-                               out.mDesc.GetLengths()[1],
-                               out.mDesc.GetLengths()[2],
-                               out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
-}
+using ReferenceConvFwdInstance = ck::tensor_operation::host::
+    ReferenceConvFwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -262,16 +215,21 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(in_n_c_hi_wi,
-                    wei_k_c_y_x,
-                    out_n_k_ho_wo_host_result,
-                    conv_filter_strides,
-                    conv_filter_dilations,
-                    input_left_pads,
-                    input_right_pads,
-                    InElementOp{},
-                    WeiElementOp{},
-                    OutElementOp{});
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+
+        ref_invoker.Run(ref_argument);
 
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
