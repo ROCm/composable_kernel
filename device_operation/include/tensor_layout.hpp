@@ -21,6 +21,32 @@ struct ColumnMajor : public BaseTensorLayout
 
 namespace convolution {
 
+// 1D Conv
+struct NWC : public BaseTensorLayout
+{
+};
+
+struct KXC : public BaseTensorLayout
+{
+};
+
+struct NWK : public BaseTensorLayout
+{
+};
+
+struct NCW : public BaseTensorLayout
+{
+};
+
+struct KCX : public BaseTensorLayout
+{
+};
+
+struct NKW : public BaseTensorLayout
+{
+};
+
+// 2D Conv
 struct NHWC : public BaseTensorLayout
 {
 };
