@@ -235,7 +235,7 @@ int main(int argc, char* argv[])
     debug::debug_driver_gemm_xdlops_v2r3::M01 = std::stoi(argv[10]);
     debug::debug_driver_gemm_xdlops_v2r3::N01 = std::stoi(argv[11]);
 
-#if 1
+#if 0
     using ab_data_t  = float;
     using acc_data_t = float;
     using c_data_t   = float;
