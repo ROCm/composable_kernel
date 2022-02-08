@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -11,8 +12,9 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
-#include "device_operation/include/device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation.hpp"
+#include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "reference_conv_fwd.hpp"
 
 using InDataType  = float;
 using WeiDataType = float;
@@ -33,65 +35,46 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
-using DeviceConvFwdInstance =
-    ck::tensor_operation::device::DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
+using DeviceConvFwdInstance = ck::tensor_operation::device::
+    DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
     // clang-format off
-//      |    InData|     WeiData|     OutData|     AccData|          In|         Wei|           Out|    ConvForward|Sptial| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
-//      |      Type|        Type|        Type|        Type| Elementwise| Elementwise|   Elementwise| Specialization|  Dims|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
-//      |          |            |            |            |   Operation|   Operation|     Operation|               |      |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
-//      |          |            |            |            |            |            |              |               |      |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
-        <InDataType, WeiDataType, OutDataType, AccDataType, InElementOp, WeiElementOp, OutElementOp, ConvFwdDefault,     2,   256,   256,   128,     4,  4,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,               1>;
+        InDataType,         // 
+        OutDataType,        // 
+        AccDataType,        // 
+        InElementOp,        // Input Elementwise Operation
+        WeiElementOp,       // Weights Elementwise Operation
+        OutElementOp,       // Output Elementwise Operation
+        ConvFwdDefault,     // ConvForwardSpecialization
+        2,                  // SptialDims
+        256,                // BlockSize
+        256,                // MPerBlock
+        128,                // NPerBlock
+        4,                  // K0PerBlock
+        4,                  // K1
+        32,                 // MPerXDL
+        32,                 // NPerXDL
+        4,                  // MXdlPerWave
+        2,                  // NXdlPerWave
+        S<4, 64, 1>,        // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,         // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,         // ABlockTransferSrcAccessOrder
+        2,                  // ABlockTransferSrcVectorDim
+        4,                  // ABlockTransferSrcScalarPerVector
+        4,                  // ABlockTransferDstScalarPerVector_K1
+        true,               // ABlockLdsAddExtraM
+        S<4, 64, 1>,        // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,         // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,         // BBlockTransferSrcAccessOrder
+        2,                  // BBlockTransferSrcVectorDim
+        4,                  // BBlockTransferSrcScalarPerVector
+        4,                  // BBlockTransferDstScalarPerVector_K1
+        true,               // BBlockTransferAddExtraN
+        7,                  // CThreadTransferSrcDstVectorDim
+        1>;                 // CThreadTransferDstScalarPerVector
 // clang-format on
 
-template <typename TIn,
-          typename TWei,
-          typename TOut,
-          typename InElementOp,
-          typename WeiElementOp,
-          typename OutElementOp>
-void host_verify(const Tensor<TIn>& in,
-                 const Tensor<TWei>& wei,
-                 Tensor<TOut>& out,
-                 const std::vector<ck::index_t>& conv_strides,
-                 const std::vector<ck::index_t>& conv_dilations,
-                 const std::vector<ck::index_t>& in_left_pads,
-                 const std::vector<ck::index_t>&,
-                 const InElementOp& in_element_op,
-                 const WeiElementOp& wei_element_op,
-                 const OutElementOp& out_element_op)
-{
-    auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-        double v = 0;
-        for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
-        {
-            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
-            {
-                int hi = ho * conv_strides[0] + y * conv_dilations[0] - in_left_pads[0];
-                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
-                {
-                    int wi = wo * conv_strides[1] + x * conv_dilations[1] - in_left_pads[1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
-                    {
-                        v += in_element_op(static_cast<const double>(in(n, c, hi, wi))) *
-                             wei_element_op(static_cast<const double>(wei(k, c, y, x)));
-                    }
-                }
-            }
-        }
-        double v2 = out(n, k, ho, wo);
-
-        out_element_op(v2, v);
-
-        out(n, k, ho, wo) = v2;
-    };
-
-    make_ParallelTensorFunctor(f_nchw,
-                               out.mDesc.GetLengths()[0],
-                               out.mDesc.GetLengths()[1],
-                               out.mDesc.GetLengths()[2],
-                               out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
-}
+using ReferenceConvFwdInstance = ck::tensor_operation::host::
+    ReferenceConvFwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -265,16 +248,21 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(in_n_c_hi_wi,
-                    wei_k_c_y_x,
-                    out_n_k_ho_wo_host_result,
-                    conv_filter_strides,
-                    conv_filter_dilations,
-                    input_left_pads,
-                    input_right_pads,
-                    InElementOp{},
-                    WeiElementOp{},
-                    OutElementOp{});
+        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                  wei_k_c_y_x,
+                                                  out_n_k_ho_wo_host_result,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+
+        ref_invoker.Run(ref_argument);
 
         out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
