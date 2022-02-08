@@ -134,6 +134,15 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
     }
+    else if(argc == 6)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+
+        alpha = std::stof(argv[4]);
+        beta  = std::stof(argv[5]);
+    }
     else if(argc == 12)
     {
         do_verification = std::stoi(argv[1]);
