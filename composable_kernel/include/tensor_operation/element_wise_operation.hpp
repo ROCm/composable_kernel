@@ -14,10 +14,18 @@ struct PassThrough
 
 struct Add
 {
-    template <typename T1, typename T2, typename T3>
-    __host__ __device__ constexpr void operator()(T1& dst, const T2& src_y, const T3& bias) const
+    __host__ __device__ constexpr void
+    operator()(float& dst, const float& src_y, const float& bias) const
     {
-        dst = static_cast<T1>(src_y + static_cast<T2>(bias));
+        // FIXME - Use float (acc type) bias in the future.
+        dst = src_y + bias;
+    }
+
+    __host__ __device__ constexpr void
+    operator()(half_t& dst, const half_t& src_y, const half_t& bias) const
+    {
+        // FIXME - Use float (acc type) bias in the future.
+        dst = src_y + bias;
     }
 };
 
@@ -25,12 +33,18 @@ struct AlphaBetaAdd
 {
     AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta) {}
 
-    template <typename T1, typename T2, typename T3>
-    __host__ __device__ constexpr void operator()(T1& dst, const T2& src_y, const T3& bias) const
+    __host__ __device__ constexpr void
+    operator()(float& dst, const float& src_y, const float& bias) const
     {
-        // TODO - Let src_y be acc type
-        dst =
-            static_cast<T1>(alpha_ * static_cast<float>(src_y) + beta_ * static_cast<float>(bias));
+        dst = alpha_ * src_y + beta_ * bias;
+    }
+
+    __host__ __device__ constexpr void
+    operator()(half_t& dst, const half_t& src_y, const half_t& bias) const
+    {
+        // FIXME - Let src_y be acc type
+        dst = static_cast<half_t>(alpha_ * static_cast<float>(src_y) +
+                                  beta_ * static_cast<float>(bias));
     }
 
     float alpha_;
