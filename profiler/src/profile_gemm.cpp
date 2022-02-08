@@ -4,15 +4,6 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
-#include "device_tensor.hpp"
-#include "device_base.hpp"
-#include "device_gemm_xdl.hpp"
 #include "profile_gemm_impl.hpp"
 
 enum GemmMatrixLayout
@@ -41,8 +32,8 @@ int profile_gemm(int argc, char* argv[])
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
-        printf("                     2: A[k, n] * B[k, n] = C[m, n];\n");
-        printf("                     3: A[k, n] * B[n, k] = C[m, n])\n");
+        printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
+        printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");

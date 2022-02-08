@@ -11,9 +11,9 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_base.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
+#include "reference_gemm.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -72,37 +72,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-template <typename AType,
-          typename BType,
-          typename CType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-static void host_verify(const Tensor<AType>& a_m_k,
-                        const Tensor<BType>& b_k_n,
-                        Tensor<CType>& c_m_n,
-                        const AElementwiseOperation& a_element_op,
-                        const BElementwiseOperation& b_element_op,
-                        const CElementwiseOperation& c_element_op)
-{
-    auto f_mk_kn_mn = [&](auto m, auto n) {
-        const int K = a_m_k.mDesc.GetLengths()[1];
-
-        double v = 0;
-
-        for(int k = 0; k < K; ++k)
-        {
-            v += static_cast<const double>(a_element_op(a_m_k(m, k))) *
-                 static_cast<const double>(b_element_op(b_k_n(k, n)));
-        }
-
-        c_m_n(m, n) = c_element_op(v);
-    };
-
-    make_ParallelTensorFunctor(f_mk_kn_mn,
-                               c_m_n.mDesc.GetLengths()[0],
-                               c_m_n.mDesc.GetLengths()[1])(std::thread::hardware_concurrency());
-}
+using ReferenceGemmInstance = ck::tensor_operation::host::
+    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -191,6 +162,10 @@ int main(int argc, char* argv[])
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
+    auto c_element_op = CElementOp{};
+
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
@@ -203,9 +178,9 @@ int main(int argc, char* argv[])
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      AElementOp{},
-                                      BElementOp{},
-                                      CElementOp{});
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -231,7 +206,13 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_verify(a_m_k, b_k_n, c_m_n_host_result, AElementOp{}, BElementOp{}, CElementOp{});
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+        ref_invoker.Run(ref_argument);
 
         check_error(c_m_n_host_result, c_m_n_device_result);
     }
