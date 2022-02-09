@@ -353,7 +353,8 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
     std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
 }
 
-void check_indices(const Tensor<int>& ref, const Tensor<int>& result)
+template <typename T>
+void check_indices(const Tensor<T>& ref, const Tensor<T>& result)
 {
     bool has_error  = false;
     int error_count = 0;
