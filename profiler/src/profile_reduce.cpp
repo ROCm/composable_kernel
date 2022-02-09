@@ -310,7 +310,7 @@ class AppArgs
 
 }; // end of class AppArgs
 
-int reduce_profiler(int argc, char* argv[])
+int profile_reduce(int argc, char* argv[])
 {
     using namespace ck::profiler;
 
@@ -339,7 +339,22 @@ int reduce_profiler(int argc, char* argv[])
 
         if(args.compTypeId == appHalf)
         {
-            profile_reduce<ck::half_t, ck::half_t, ck::half_t>(args.do_verification,
+            profile_reduce_impl<ck::half_t, ck::half_t, ck::half_t>(args.do_verification,
+                                                                    args.init_method,
+                                                                    args.do_log,
+                                                                    args.do_dumpout,
+                                                                    args.nrepeat,
+                                                                    args.inLengths,
+                                                                    args.toReduceDims,
+                                                                    args.reduceOp,
+                                                                    args.nanOpt,
+                                                                    args.indicesOpt,
+                                                                    args.scales[0],
+                                                                    args.scales[1]);
+        }
+        else if(args.compTypeId == appFloat)
+        {
+            profile_reduce_impl<ck::half_t, float, ck::half_t>(args.do_verification,
                                                                args.init_method,
                                                                args.do_log,
                                                                args.do_dumpout,
@@ -351,21 +366,6 @@ int reduce_profiler(int argc, char* argv[])
                                                                args.indicesOpt,
                                                                args.scales[0],
                                                                args.scales[1]);
-        }
-        else if(args.compTypeId == appFloat)
-        {
-            profile_reduce<ck::half_t, float, ck::half_t>(args.do_verification,
-                                                          args.init_method,
-                                                          args.do_log,
-                                                          args.do_dumpout,
-                                                          args.nrepeat,
-                                                          args.inLengths,
-                                                          args.toReduceDims,
-                                                          args.reduceOp,
-                                                          args.nanOpt,
-                                                          args.indicesOpt,
-                                                          args.scales[0],
-                                                          args.scales[1]);
         }
         else
             throw std::runtime_error("Invalid compType assignment!");
@@ -381,33 +381,33 @@ int reduce_profiler(int argc, char* argv[])
     {
         if(args.compTypeId == appFloat)
         {
-            profile_reduce<float, float, float>(args.do_verification,
-                                                args.init_method,
-                                                args.do_log,
-                                                args.do_dumpout,
-                                                args.nrepeat,
-                                                args.inLengths,
-                                                args.toReduceDims,
-                                                args.reduceOp,
-                                                args.nanOpt,
-                                                args.indicesOpt,
-                                                args.scales[0],
-                                                args.scales[1]);
+            profile_reduce_impl<float, float, float>(args.do_verification,
+                                                     args.init_method,
+                                                     args.do_log,
+                                                     args.do_dumpout,
+                                                     args.nrepeat,
+                                                     args.inLengths,
+                                                     args.toReduceDims,
+                                                     args.reduceOp,
+                                                     args.nanOpt,
+                                                     args.indicesOpt,
+                                                     args.scales[0],
+                                                     args.scales[1]);
         }
         else if(args.compTypeId == appDouble)
         {
-            profile_reduce<float, double, float>(args.do_verification,
-                                                 args.init_method,
-                                                 args.do_log,
-                                                 args.do_dumpout,
-                                                 args.nrepeat,
-                                                 args.inLengths,
-                                                 args.toReduceDims,
-                                                 args.reduceOp,
-                                                 args.nanOpt,
-                                                 args.indicesOpt,
-                                                 args.scales[0],
-                                                 args.scales[1]);
+            profile_reduce_impl<float, double, float>(args.do_verification,
+                                                      args.init_method,
+                                                      args.do_log,
+                                                      args.do_dumpout,
+                                                      args.nrepeat,
+                                                      args.inLengths,
+                                                      args.toReduceDims,
+                                                      args.reduceOp,
+                                                      args.nanOpt,
+                                                      args.indicesOpt,
+                                                      args.scales[0],
+                                                      args.scales[1]);
         }
         else
             throw std::runtime_error("Invalid compType assignment!");

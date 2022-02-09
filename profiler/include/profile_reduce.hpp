@@ -153,14 +153,14 @@ template <typename InDataType,
           ReduceTensorOp_t ReduceOpId,
           NanPropagation_t NanOpt,
           ReduceTensorIndices_t IndicesOpt>
-void profile_reduce_impl(bool do_verification,
-                         int init_method,
-                         bool do_log,
-                         bool do_dumpout,
-                         int nrepeat,
-                         const std::vector<size_t>& inLengths,
-                         float alpha,
-                         float beta)
+void profile_reduce_impl_impl(bool do_verification,
+                              int init_method,
+                              bool do_log,
+                              bool do_dumpout,
+                              int nrepeat,
+                              const std::vector<size_t>& inLengths,
+                              float alpha,
+                              float beta)
 {
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::device_reduce_instance;
@@ -568,18 +568,18 @@ void profile_reduce_impl(bool do_verification,
 };
 
 template <typename InDataType, typename AccDataType, typename OutDataType>
-void profile_reduce(bool do_verification,
-                    int init_method,
-                    bool do_log,
-                    bool do_dumpout,
-                    int nrepeat,
-                    const std::vector<size_t>& inLengths,
-                    const std::vector<int>& InnerDims,
-                    ReduceTensorOp_t ReduceOpId,
-                    NanPropagation_t NanOpt,
-                    ReduceTensorIndices_t IndicesOpt,
-                    float alpha,
-                    float beta)
+void profile_reduce_impl(bool do_verification,
+                         int init_method,
+                         bool do_log,
+                         bool do_dumpout,
+                         int nrepeat,
+                         const std::vector<size_t>& inLengths,
+                         const std::vector<int>& InnerDims,
+                         ReduceTensorOp_t ReduceOpId,
+                         NanPropagation_t NanOpt,
+                         ReduceTensorIndices_t IndicesOpt,
+                         float alpha,
+                         float beta)
 {
     bool matched = false;
 
@@ -598,14 +598,14 @@ void profile_reduce(bool do_verification,
                descType{}, inLengths.size(), InnerDims, ReduceOpId, NanOpt, IndicesOpt))
             return;
 
-        profile_reduce_impl<InDataType,
-                            AccDataType,
-                            OutDataType,
-                            descType::Rank_,
-                            typename descType::InnerDims_,
-                            static_cast<ReduceTensorOp_t>(descType::ReduceOpId_),
-                            static_cast<NanPropagation_t>(descType::NanOpt_),
-                            static_cast<ReduceTensorIndices_t>(descType::IndicesOpt_)>(
+        profile_reduce_impl_impl<InDataType,
+                                 AccDataType,
+                                 OutDataType,
+                                 descType::Rank_,
+                                 typename descType::InnerDims_,
+                                 static_cast<ReduceTensorOp_t>(descType::ReduceOpId_),
+                                 static_cast<NanPropagation_t>(descType::NanOpt_),
+                                 static_cast<ReduceTensorIndices_t>(descType::IndicesOpt_)>(
             do_verification, init_method, do_log, do_dumpout, nrepeat, inLengths, alpha, beta);
 
         matched = true;
