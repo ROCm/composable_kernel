@@ -1,4 +1,5 @@
 #pragma once
+#include "reference_batched_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -84,14 +85,31 @@ void profile_batched_gemm_impl(int do_verification,
     // set zero to c_device_buf
     c_g_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
 
+    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
+
+    const auto a_element_op = AElementOp{};
+    const auto b_element_op = BElementOp{};
+    const auto c_element_op = CElementOp{};
+
     if(do_verification)
     {
-        host_gemm_gmk_gkn_gmn(a_g_m_k,
-                              b_g_k_n,
-                              c_g_m_n_host_result,
-                              ck::tensor_operation::element_wise::PassThrough{},
-                              ck::tensor_operation::element_wise::PassThrough{},
-                              ck::tensor_operation::element_wise::PassThrough{});
+        using ReferenceBatchedGemmInstance =
+            ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                             BDataType,
+                                                             CDataType,
+                                                             AElementOp,
+                                                             BElementOp,
+                                                             CElementOp>;
+
+        auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
+        auto ref_invoker      = ref_batched_gemm.MakeInvoker();
+
+        auto ref_argument = ref_batched_gemm.MakeArgument(
+            a_g_m_k, b_g_k_n, c_g_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+        ref_invoker.Run(ref_argument);
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
