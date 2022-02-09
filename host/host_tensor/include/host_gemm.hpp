@@ -58,15 +58,24 @@ void host_gemm_gmk_gkn_gmn(const Tensor<AType>& a_g_m_k,
     auto f_gmk_gkn_gmn = [&](auto g, auto m, auto n) {
         const int K = a_g_m_k.mDesc.GetLengths()[2];
 
-        double v = 0;
+        float v_acc = 0;
 
         for(int k = 0; k < K; ++k)
         {
-            v += static_cast<const double>(a_element_op(a_g_m_k(g, m, k))) *
-                 static_cast<const double>(b_element_op(b_g_k_n(g, k, n)));
+            float v_a;
+            float v_b;
+
+            a_element_op(v_a, static_cast<const float>(a_g_m_k(g, m, k)));
+            b_element_op(v_b, static_cast<const float>(b_g_k_n(g, k, n)));
+
+            v_acc += v_a * v_b;
         }
 
-        c_g_m_n(g, m, n) = c_element_op(v);
+        float v_c;
+
+        c_element_op(v_c, v_acc);
+
+        c_g_m_n(g, m, n) = v_c;
     };
 
     make_ParallelTensorFunctor(f_gmk_gkn_gmn,

@@ -49,7 +49,10 @@ set(DEVICE_GEMM_BIAS_RELU_ADD_INSTANCE_SOURCE
 ) 
 
 set(DEVICE_BATCHED_GEMM_INSTANCE_SOURCE
-   ${PROJECT_SOURCE_DIR}/device_operation/device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmm_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instance.cpp;
 )
 
 # device_conv2d_fwd_instance
