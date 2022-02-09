@@ -307,9 +307,10 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePoolFwd<R
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C"
-            << "<"
-            << ">";
+        str << "DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<" << BlockSize << ",";
+        str << "M_C" << ReduceMThreadClusterSize << "_S" << ReduceMThreadSliceSize << ",";
+        str << "K_C" << ReduceKThreadClusterSize << "_S" << ReduceKThreadSliceSize << ",";
+        str <<"InSrcOutDstVectorSize_" << InSrcOutDstVectorSize << ">";
         // clang-format on
 
         return str.str();
