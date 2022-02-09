@@ -1,5 +1,5 @@
-#ifndef REFERENCE_GEMM_HPP
-#define REFERENCE_GEMM_HPP
+#ifndef REFERENCE_BATCHED_GEMM_HPP
+#define REFERENCE_BATCHED_GEMM_HPP
 
 #include <iostream>
 #include <sstream>
