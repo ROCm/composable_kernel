@@ -335,7 +335,9 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
         str << "DeviceReduceBlockWise<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ">";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
+        str << "InVectorDim_" << InVectorDim << "_InVectorSize_" << InVectorSize
+            << "_OutVectorSize_" << OutVectorSize << ">";
 
         return str.str();
     }

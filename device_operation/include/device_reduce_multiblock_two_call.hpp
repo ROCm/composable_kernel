@@ -37,6 +37,8 @@ struct DeviceReduceMultiBlockTwoCall
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    static_assert(OutVectorSize == 1, "OutVectorSize must be 1 for MultiBlockTwoCall!"); 
+
     using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
 
     static constexpr index_t srcDims    = Rank;
@@ -83,7 +85,7 @@ struct DeviceReduceMultiBlockTwoCall
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
-                                    int blkGroupSize)
+                                    int blkGroupSize, int kBlockTileIterations)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
@@ -124,8 +126,7 @@ struct DeviceReduceMultiBlockTwoCall
         const auto outerLen = in2dDesc.GetLength(Number<0>{});
         const auto innerLen = in2dDesc.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock = math::integer_least_multiple(
-            (innerLen + blkGroupSize - 1) / blkGroupSize, K_BlockTileSize);
+        const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;  
         const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
         const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
 
@@ -211,11 +212,12 @@ struct DeviceReduceMultiBlockTwoCall
             blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
+            kBlockTileIterations = iterations; 
+
             gridSize = math::integer_least_multiple(outer_total_length, M_BlockTileSize) /
                        M_BlockTileSize * blkGroupSize;
 
-            size_t ws_buf2_bytes_offset =
-                ((outer_total_length * blkGroupSize * sizeof(AccDataType) + 63) / 64) * 64;
+            size_t ws_buf2_bytes_offset = math::integer_least_multiple(outer_total_length * blkGroupSize * sizeof(AccDataType), 64);
 
             if constexpr(NeedIndices)
                 workspace_indices_dev_ = reinterpret_cast<int*>(
@@ -247,6 +249,7 @@ struct DeviceReduceMultiBlockTwoCall
         size_t inner_total_length;
 
         int blkGroupSize;
+        int kBlockTileIterations; 
         size_t gridSize;
     };
 
@@ -255,7 +258,7 @@ struct DeviceReduceMultiBlockTwoCall
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto in2dDesc = DeviceReduceMultiBlockTwoCall::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.blkGroupSize);
+                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
             const auto ws2dDesc = DeviceReduceMultiBlockTwoCall::MakeWorkspace2dDescriptor(
                 arg.outer_total_length, arg.blkGroupSize);
             using In2dDescType        = decltype(in2dDesc);
@@ -301,6 +304,7 @@ struct DeviceReduceMultiBlockTwoCall
                                               arg.inElementwiseOp_,
                                               arg.accElementwiseOp_,
                                               arg.blkGroupSize,
+                                              arg.kBlockTileIterations,
                                               arg.in_dev_,
                                               arg.workspace_dev_,
                                               arg.workspace_indices_dev_);
@@ -317,6 +321,9 @@ struct DeviceReduceMultiBlockTwoCall
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
+
+        if constexpr(OutVectorSize !=1) 
+	    return (false); 
 
         if constexpr(InVectorDim == 0)
         {
@@ -338,10 +345,6 @@ struct DeviceReduceMultiBlockTwoCall
                 return (false);
         };
 
-        // To improve
-        if(pArg->blkGroupSize % OutVectorSize != 0)
-            return (false);
-
         // cases with small inner_total_length should be handled by the BlockWise method
         if(pArg->inner_total_length <= BlockSize * KThreadSliceSize)
             return (false);
@@ -354,13 +357,6 @@ struct DeviceReduceMultiBlockTwoCall
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
         return (std::vector<int>{static_cast<int>(pArg->outer_total_length), pArg->blkGroupSize});
-    };
-
-    std::pair<size_t, size_t> getReduction2dLengths(const BaseArgument* p_arg) override
-    {
-        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-
-        return (std::make_pair(pArg->outer_total_length, pArg->inner_total_length));
     };
 
     std::unique_ptr<BaseArgument>
@@ -400,9 +396,10 @@ struct DeviceReduceMultiBlockTwoCall
     {
         auto str = std::stringstream();
 
-        str << "DeviceReduceMultiBlockTwoCall<" << BlockSize << ",";
+        str << "DeviceReduceBlockWise<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ">";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
+        str << "InVectorDim_" << InVectorDim << "_InVectorSize_" << InVectorSize << "_OutVectorSize_" << OutVectorSize << ">";
 
         return str.str();
     }

@@ -136,8 +136,8 @@ struct DeviceReduceBlockWiseSecondCall
             gridSize =
                 math::integer_least_multiple(outer_total_length, M_BlockTileSize) / M_BlockTileSize;
 
-            size_t ws_buf2_bytes_offset =
-                ((outer_total_length * inner_total_length * sizeof(AccDataType) + 63) / 64) * 64;
+            size_t ws_buf2_bytes_offset = math::integer_least_multiple(
+                outer_total_length * inner_total_length * sizeof(AccDataType), 64);
 
             if constexpr(NeedIndices)
                 workspace_indices_dev_ = reinterpret_cast<int*>(
@@ -297,7 +297,9 @@ struct DeviceReduceBlockWiseSecondCall
 
         str << "DeviceReduceBlockWiseSecondCall<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ">";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
+        str << "InVectorDim_" << InVectorDim << "_InVectorSize_" << InVectorSize
+            << "_OutVectorSize_" << OutVectorSize << ">";
 
         return str.str();
     }

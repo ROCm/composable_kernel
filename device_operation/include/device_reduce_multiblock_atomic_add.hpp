@@ -56,7 +56,7 @@ struct DeviceReduceMultiBlockAtomicAdd
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
-                                    int blkGroupSize)
+                                    int blkGroupSize, int kBlockTileIterations)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
@@ -97,8 +97,7 @@ struct DeviceReduceMultiBlockAtomicAdd
         const auto outerLen = in2dDesc.GetLength(Number<0>{});
         const auto innerLen = in2dDesc.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock = math::integer_least_multiple(
-            (innerLen + blkGroupSize - 1) / blkGroupSize, K_BlockTileSize);
+        const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;  
         const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
         const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
 
@@ -194,6 +193,8 @@ struct DeviceReduceMultiBlockAtomicAdd
             blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
+            kBlockTileIterations = iterations; 
+
             gridSize = math::integer_least_multiple(outer_total_length, M_BlockTileSize) /
                        M_BlockTileSize * blkGroupSize;
 
@@ -220,6 +221,7 @@ struct DeviceReduceMultiBlockAtomicAdd
         size_t inner_total_length;
 
         int blkGroupSize;
+        int kBlockTileIterations; 
         size_t gridSize;
 
         size_t gridSize_pre;
@@ -230,7 +232,7 @@ struct DeviceReduceMultiBlockAtomicAdd
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto in2dDesc = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.blkGroupSize);
+                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
             const auto out1dDesc = DeviceReduceMultiBlockAtomicAdd::MakeDst1dDescriptor(
                 arg.outLengths_, arg.outStrides_);
             using In2dDescType  = decltype(in2dDesc);
@@ -296,6 +298,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                               arg.inElementwiseOp_,
                               arg.accElementwiseOp_,
                               arg.blkGroupSize,
+                              arg.kBlockTileIterations,
                               arg.alpha_,
                               arg.in_dev_,
                               arg.out_dev_);
@@ -395,7 +398,8 @@ struct DeviceReduceMultiBlockAtomicAdd
 
         str << "DeviceReduceMultiBlockAtomicAdd<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ">";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
+        str << "InVectorDim_" << InVectorDim << "_InVectorSize_" << InVectorSize << "_OutVectorSize_" << OutVectorSize << ">";
 
         return str.str();
     }

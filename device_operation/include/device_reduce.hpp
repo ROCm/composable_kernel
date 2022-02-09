@@ -31,12 +31,6 @@ struct DeviceReduce : public BaseOperator
         return (std::vector<int>{0, 0});
     };
 
-    virtual std::pair<size_t, size_t> getReduction2dLengths(const BaseArgument* argPtr)
-    {
-        (void)argPtr;
-        return (std::make_pair<size_t, size_t>(0, 0));
-    };
-
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const std::vector<int>& inLengths,
                         const std::vector<int>& inStrides,

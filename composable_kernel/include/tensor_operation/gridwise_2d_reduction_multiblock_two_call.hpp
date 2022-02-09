@@ -48,6 +48,7 @@ __global__ void kernel_reduce_multiblock_two_call(const In2dDescType in2dDesc,
                                                   const InElementwiseOperation inElementwiseOp,
                                                   const AccElementwiseOperation accElementwiseOp,
                                                   int BlkGroupSize,
+                                                  int kBlockTileIterations,
                                                   const InDataType* const __restrict__ p_src_global,
                                                   AccDataType* const __restrict__ ws_values_global,
                                                   int* const __restrict__ ws_indices_global)
@@ -59,6 +60,7 @@ __global__ void kernel_reduce_multiblock_two_call(const In2dDescType in2dDesc,
                                inElementwiseOp,
                                accElementwiseOp,
                                BlkGroupSize,
+                               kBlockTileIterations,
                                p_src_global,
                                ws_values_global,
                                ws_indices_global);
@@ -68,6 +70,7 @@ __global__ void kernel_reduce_multiblock_two_call(const In2dDescType in2dDesc,
                                           inElementwiseOp,
                                           accElementwiseOp,
                                           BlkGroupSize,
+                                          kBlockTileIterations,
                                           p_src_global,
                                           ws_values_global,
                                           ws_indices_global);
@@ -120,6 +123,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                const InElementwiseOperation& inElementwiseOp,
                                const AccElementwiseOperation& accElementwiseOp,
                                int BlkGroupSize,
+                               int kBlockTileIterations,
                                const InDataType* const __restrict__ p_src_global,
                                AccDataType* const __restrict__ ws_values_global,
                                int* const __restrict__ ws_indices_global)
@@ -150,8 +154,6 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accuValue_buf(I) = zeroVal; });
 
-        const auto toReduceLength = in2dDesc.GetLength(Number<1>{});
-
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
         const index_t blkgroup_id     = block_global_id / BlkGroupSize;
@@ -163,10 +165,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
                                    : thread_local_id % KThreadClusterSize;
 
-        const index_t reduceSizePerBlock =
-            (((toReduceLength + BlkGroupSize - 1) / BlkGroupSize + K_BlockTileSize - 1) /
-             K_BlockTileSize) *
-            K_BlockTileSize;
+        const index_t reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
 
         using ThreadBufferLengths       = Sequence<MThreadSliceSize, KThreadSliceSize>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
@@ -189,8 +188,6 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                 block_local_id * reduceSizePerBlock + thread_dim1_cluster_id * KThreadSliceSize));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, K_BlockTileSize);
-
-        const index_t toReduceTiles = reduceSizePerBlock / K_BlockTileSize;
 
         index_t reducedTiles = 0;
         do
@@ -215,7 +212,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             threadwise_src_load.MoveSrcSliceWindow(in2dDesc, in_thread_copy_step);
 
             reducedTiles++;
-        } while(reducedTiles < toReduceTiles);
+        } while(reducedTiles < kBlockTileIterations);
 
         constexpr auto ReducedDataDesc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
@@ -249,7 +246,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
-                                                   OutVectorSize,
+                                                   1,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
@@ -269,6 +266,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                           const InElementwiseOperation& inElementwiseOp,
                                           const AccElementwiseOperation& accElementwiseOp,
                                           int BlkGroupSize,
+                                          int kBlockTileIterations,
                                           const InDataType* const __restrict__ p_src_global,
                                           AccDataType* const __restrict__ ws_values_global,
                                           int* const __restrict__ ws_indices_global)
@@ -304,8 +302,6 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
         StaticBuffer<AddressSpaceEnum_t::Vgpr, int, MThreadSliceSize, true> accuIndex_buf;
 
-        const auto toReduceLength = in2dDesc.GetLength(Number<1>{});
-
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
         const index_t blkgroup_id     = block_global_id / BlkGroupSize;
@@ -317,10 +313,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
                                    : thread_local_id % KThreadClusterSize;
 
-        const index_t reduceSizePerBlock =
-            (((toReduceLength + BlkGroupSize - 1) / BlkGroupSize + K_BlockTileSize - 1) /
-             K_BlockTileSize) *
-            K_BlockTileSize;
+        const index_t reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
 
         using ThreadBufferLengths       = Sequence<MThreadSliceSize, KThreadSliceSize>;
         constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
@@ -351,9 +344,8 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             accuIndex_buf(I) = 0;
         });
 
-        const index_t toReduceTiles = reduceSizePerBlock / K_BlockTileSize;
-
-        for(index_t reducedTiles = 0; reducedTiles < toReduceTiles; reducedTiles++)
+        index_t reducedTiles = 0;
+        do
         {
             // load the thread slice
             threadwise_src_load.Run(
@@ -413,7 +405,9 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             threadwise_src_load.MoveSrcSliceWindow(in2dDesc, in_thread_copy_step);
 
             indexOffset += K_BlockTileSize;
-        }
+
+            reducedTiles++;
+        } while(reducedTiles < kBlockTileIterations);
 
         constexpr auto ReducedDataDesc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
@@ -429,7 +423,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
-                                                   OutVectorSize,
+                                                   1,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
@@ -448,7 +442,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
-                                                   OutVectorSize,
+                                                   1,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
