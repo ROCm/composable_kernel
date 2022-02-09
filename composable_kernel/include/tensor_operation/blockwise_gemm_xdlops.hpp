@@ -37,10 +37,11 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    StaticBufferOfVectorTypeV2<AddressSpaceEnum_t::Vgpr,
-                               vector_type<FloatAcc, xdlops_gemm.GetRegSizePerXdlops()>,
-                               MRepeat * NRepeat,
-                               true>
+    StaticBufferTupleOfVector<AddressSpaceEnum_t::Vgpr,
+                              FloatAcc,
+                              MRepeat * NRepeat,
+                              xdlops_gemm.GetRegSizePerXdlops(),
+                              true>
         c_thread_buf_;
 
     __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
@@ -287,11 +288,13 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     using mfma_input_type =
                         typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
 
-                    constexpr index_t c_offset = c_thread_desc_.CalculateOffset(make_tuple(m0, n0));
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    xdlops_gemm.template Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                             b_thread_vec.template AsType<mfma_input_type>(),
-                                             c_thread_buf.GetVector(Number<c_offset>{}));
+                    xdlops_gemm.template Run(
+                        a_thread_vec.template AsType<mfma_input_type>(),
+                        b_thread_vec.template AsType<mfma_input_type>(),
+                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
         });
@@ -306,9 +309,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr auto b_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<K0>{}, I1, I1, I1, Number<K1>{}));
 
-    // C[M, N]
-    static constexpr auto c_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, Number<NRepeat>{}));
+    // C[M, N, NumRegXdlops]
+    static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
