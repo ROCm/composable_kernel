@@ -7,6 +7,36 @@ namespace tensor_operation {
 namespace device {
 namespace device_reduce_instance {
 
+#ifdef QUICK_REDUCE_TEST
+using reduce_configuration_2_instances_blockwise =
+    std::tuple<ReductionConfiguration_2<0, 2, 2, 2, 1>,
+               ReductionConfiguration_2<0, 1, 1, 2, 1>,
+               ReductionConfiguration_2<1, 2, 1, 1, 2>,
+               ReductionConfiguration_2<1, 2, 2, 1, 2>,
+               ReductionConfiguration_2<0, 1, 1, 3, 1>,
+               ReductionConfiguration_2<1, 1, 1, 1, 3>>;
+#else
+using reduce_configuration_2_instances_blockwise =
+    std::tuple<ReductionConfiguration_2<0, 4, 4, 8, 1>,
+               ReductionConfiguration_2<0, 4, 4, 4, 1>,
+               ReductionConfiguration_2<0, 2, 2, 2, 1>,
+
+               ReductionConfiguration_2<1, 4, 1, 1, 8>,
+               ReductionConfiguration_2<1, 4, 1, 1, 4>,
+               ReductionConfiguration_2<1, 2, 1, 1, 2>,
+
+               // special instances
+               ReductionConfiguration_2<0, 1, 1, 3, 1>,
+               ReductionConfiguration_2<0, 1, 1, 5, 1>,
+               ReductionConfiguration_2<0, 1, 1, 7, 1>,
+               ReductionConfiguration_2<0, 1, 1, 11, 1>,
+
+               ReductionConfiguration_2<1, 1, 1, 1, 3>,
+               ReductionConfiguration_2<1, 1, 1, 1, 5>,
+               ReductionConfiguration_2<1, 1, 1, 1, 7>,
+               ReductionConfiguration_2<1, 1, 1, 1, 11>>;
+#endif
+
 template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
 using deviceReducePtrType = DeviceReducePtr<
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation,
@@ -41,31 +71,33 @@ void add_device_reduce_instance_blockwise(
         using cfg1 =
             remove_cvref_t<decltype(std::get<i.value>(reduce_configuration_1_instances{}))>;
 
-        static_for<0, std::tuple_size<reduce_configuration_2_instances>::value, 1>{}([&](auto j) {
-            using cfg2 =
-                remove_cvref_t<decltype(std::get<j.value>(reduce_configuration_2_instances{}))>;
+        static_for<0, std::tuple_size<reduce_configuration_2_instances_blockwise>::value, 1>{}(
+            [&](auto j) {
+                using cfg2 = remove_cvref_t<decltype(
+                    std::get<j.value>(reduce_configuration_2_instances_blockwise{}))>;
 
-            using ReduceOpInstance = DeviceReduceBlockWise<InDataType,
-                                                           AccDataType,
-                                                           OutDataType,
-                                                           Rank,
-                                                           InnerDims,
-                                                           ReduceOperation,
-                                                           InElementwiseOperation,
-                                                           AccElementwiseOperation,
-                                                           PropagateNan,
-                                                           NeedIndices,
-                                                           cfg1::BlockSize_,
-                                                           cfg1::MThreadClusterSize_,
-                                                           cfg1::KThreadClusterSize_,
-                                                           cfg2::MThreadSliceSize_,
-                                                           cfg2::KThreadSliceSize_,
-                                                           cfg2::InVectorDim_,
-                                                           cfg2::InVectorSize_,
-                                                           cfg2::OutVectorSize_>;
+                using ReduceOpInstance = DeviceReduceBlockWise<InDataType,
+                                                               AccDataType,
+                                                               OutDataType,
+                                                               Rank,
+                                                               InnerDims,
+                                                               ReduceOperation,
+                                                               InElementwiseOperation,
+                                                               AccElementwiseOperation,
+                                                               PropagateNan,
+                                                               NeedIndices,
+                                                               cfg1::BlockSize_,
+                                                               cfg1::MThreadClusterSize_,
+                                                               cfg1::KThreadClusterSize_,
+                                                               cfg2::MThreadSliceSize_,
+                                                               cfg2::KThreadSliceSize_,
+                                                               cfg2::InVectorDim_,
+                                                               cfg2::InVectorSize_,
+                                                               cfg2::OutVectorSize_>;
 
-            device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
-        });
+                device_op_instances.push_back(
+                    std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
+            });
     });
 };
 
