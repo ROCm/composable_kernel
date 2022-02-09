@@ -85,9 +85,9 @@ void add_device_reduce_instance_blockwise_second_call(
                                                                      cfg1::KThreadClusterSize_,
                                                                      cfg2::MThreadSliceSize_,
                                                                      cfg2::KThreadSliceSize_,
-                                                                     cfg2::InVectorDim_,
-                                                                     cfg2::InVectorSize_,
-                                                                     cfg2::OutVectorSize_>;
+                                                                     cfg2::InSrcVectorDim_,
+                                                                     cfg2::InSrcVectorSize_,
+                                                                     cfg2::OutDstVectorSize_>;
 
             device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
         });

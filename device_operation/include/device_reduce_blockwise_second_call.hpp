@@ -27,9 +27,9 @@ template <typename InDataType,
           int KThreadClusterSize,
           int MThreadSliceSize,
           int KThreadSliceSize,
-          int InVectorDim,
-          int InVectorSize,
-          int OutVectorSize>
+          int InSrcVectorDim,
+          int InSrcVectorSize,
+          int OutDstVectorSize>
 struct DeviceReduceBlockWiseSecondCall
     : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
@@ -196,9 +196,9 @@ struct DeviceReduceBlockWiseSecondCall
                                                                        KThreadClusterSize,
                                                                        MThreadSliceSize,
                                                                        KThreadSliceSize,
-                                                                       InVectorDim,
-                                                                       InVectorSize,
-                                                                       OutVectorSize>;
+                                                                       InSrcVectorDim,
+                                                                       InSrcVectorSize,
+                                                                       OutDstVectorSize>;
 
             float avg_time = 0;
 
@@ -241,14 +241,14 @@ struct DeviceReduceBlockWiseSecondCall
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(InVectorDim == 0)
+        if constexpr(InSrcVectorDim == 0)
             return (false);
 
-        if(pArg->inner_lowest_length % InVectorSize != 0)
+        if(pArg->inner_lowest_length % InSrcVectorSize != 0)
             return (false);
 
         // To improve
-        if(pArg->outer_lowest_length % OutVectorSize != 0)
+        if(pArg->outer_lowest_length % OutDstVectorSize != 0)
             return (false);
 
         // cases with very small inner_total_length should be handled by the ThreadWise method
@@ -295,11 +295,12 @@ struct DeviceReduceBlockWiseSecondCall
     {
         auto str = std::stringstream();
 
+        // clang-format off
         str << "DeviceReduceBlockWiseSecondCall<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "InVectorDim_" << InVectorDim << "_InVectorSize_" << InVectorSize
-            << "_OutVectorSize_" << OutVectorSize << ">";
+        str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
+        // clang-format on
 
         return str.str();
     }

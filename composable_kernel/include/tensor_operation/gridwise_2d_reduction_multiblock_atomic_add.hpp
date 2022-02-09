@@ -79,12 +79,12 @@ template <typename InDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t InVectorDim,
-          index_t InVectorSize,
-          index_t OutVectorSize>
+          index_t InSrcVectorDim,
+          index_t InSrcVectorSize,
+          index_t OutDstVectorSize>
 struct GridwiseReduction_xy_to_x_multiblock_atomic_add
 {
-    static constexpr bool reorder_thread_cluster = (InVectorDim == 0);
+    static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
@@ -164,9 +164,9 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            InVectorDim,
-            InVectorSize,
+            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InSrcVectorDim,
+            InSrcVectorSize,
             1,
             false>(
             in2dDesc,
@@ -244,7 +244,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   OutVectorSize,
+                                                   OutDstVectorSize,
                                                    InMemoryDataOperationEnum_t::AtomicAdd,
                                                    1,
                                                    true>(

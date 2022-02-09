@@ -16,16 +16,16 @@ struct ReductionConfiguration_1
     static constexpr int KThreadClusterSize_ = KThreadClusterSize;
 };
 
-template <int InVectorDim,
-          int InVectorSize,
-          int OutVectorSize,
+template <int InSrcVectorDim,
+          int InSrcVectorSize,
+          int OutDstVectorSize,
           int MThreadSliceSize,
           int KThreadSliceSize>
 struct ReductionConfiguration_2
 {
-    static constexpr int InVectorDim_      = InVectorDim;
-    static constexpr int InVectorSize_     = InVectorSize;
-    static constexpr int OutVectorSize_    = OutVectorSize;
+    static constexpr int InSrcVectorDim_      = InSrcVectorDim;
+    static constexpr int InSrcVectorSize_     = InSrcVectorSize;
+    static constexpr int OutDstVectorSize_    = OutDstVectorSize;
     static constexpr int MThreadSliceSize_ = MThreadSliceSize;
     static constexpr int KThreadSliceSize_ = KThreadSliceSize;
 };

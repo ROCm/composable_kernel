@@ -27,9 +27,9 @@ template <typename InDataType,
           int KThreadClusterSize,
           int MThreadSliceSize,
           int KThreadSliceSize,
-          int InVectorDim,
-          int InVectorSize,
-          int OutVectorSize>
+          int InSrcVectorDim,
+          int InSrcVectorSize,
+          int OutDstVectorSize>
 struct DeviceReduceMultiBlockTwoCall
     : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
@@ -37,7 +37,7 @@ struct DeviceReduceMultiBlockTwoCall
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
-    static_assert(OutVectorSize == 1, "OutVectorSize must be 1 for MultiBlockTwoCall!"); 
+    static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockTwoCall!");
 
     using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
 
@@ -85,7 +85,8 @@ struct DeviceReduceMultiBlockTwoCall
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
-                                    int blkGroupSize, int kBlockTileIterations)
+                                    int blkGroupSize,
+                                    int kBlockTileIterations)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
@@ -126,7 +127,7 @@ struct DeviceReduceMultiBlockTwoCall
         const auto outerLen = in2dDesc.GetLength(Number<0>{});
         const auto innerLen = in2dDesc.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;  
+        const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
         const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
         const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
 
@@ -212,12 +213,13 @@ struct DeviceReduceMultiBlockTwoCall
             blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
-            kBlockTileIterations = iterations; 
+            kBlockTileIterations = iterations;
 
             gridSize = math::integer_least_multiple(outer_total_length, M_BlockTileSize) /
                        M_BlockTileSize * blkGroupSize;
 
-            size_t ws_buf2_bytes_offset = math::integer_least_multiple(outer_total_length * blkGroupSize * sizeof(AccDataType), 64);
+            size_t ws_buf2_bytes_offset = math::integer_least_multiple(
+                outer_total_length * blkGroupSize * sizeof(AccDataType), 64);
 
             if constexpr(NeedIndices)
                 workspace_indices_dev_ = reinterpret_cast<int*>(
@@ -249,7 +251,7 @@ struct DeviceReduceMultiBlockTwoCall
         size_t inner_total_length;
 
         int blkGroupSize;
-        int kBlockTileIterations; 
+        int kBlockTileIterations;
         size_t gridSize;
     };
 
@@ -279,9 +281,9 @@ struct DeviceReduceMultiBlockTwoCall
                                                               KThreadClusterSize,
                                                               MThreadSliceSize,
                                                               KThreadSliceSize,
-                                                              InVectorDim,
-                                                              InVectorSize,
-                                                              OutVectorSize>;
+                                                              InSrcVectorDim,
+                                                              InSrcVectorSize,
+                                                              OutDstVectorSize>;
 
             float avg_time = 0;
 
@@ -322,10 +324,10 @@ struct DeviceReduceMultiBlockTwoCall
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(OutVectorSize !=1) 
-	    return (false); 
+        if constexpr(OutDstVectorSize != 1)
+            return (false);
 
-        if constexpr(InVectorDim == 0)
+        if constexpr(InSrcVectorDim == 0)
         {
             if constexpr(OuterDims::Size() == 0)
                 return (false);
@@ -333,7 +335,7 @@ struct DeviceReduceMultiBlockTwoCall
             if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->outer_lowest_length % InVectorSize != 0)
+            if(pArg->outer_lowest_length % InSrcVectorSize != 0)
                 return (false);
         }
         else
@@ -341,7 +343,7 @@ struct DeviceReduceMultiBlockTwoCall
             if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->inner_lowest_length % InVectorSize != 0)
+            if(pArg->inner_lowest_length % InSrcVectorSize != 0)
                 return (false);
         };
 
@@ -396,10 +398,12 @@ struct DeviceReduceMultiBlockTwoCall
     {
         auto str = std::stringstream();
 
+        // clang-format off
         str << "DeviceReduceBlockWise<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "InVectorDim_" << InVectorDim << "_InVectorSize_" << InVectorSize << "_OutVectorSize_" << OutVectorSize << ">";
+        str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
+        // clang-format on
 
         return str.str();
     }

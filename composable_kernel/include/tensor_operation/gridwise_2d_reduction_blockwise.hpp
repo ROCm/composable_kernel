@@ -147,12 +147,12 @@ template <typename InDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t InVectorDim,
-          index_t InVectorSize,
-          index_t OutVectorSize>
+          index_t InSrcVectorDim,
+          index_t InSrcVectorSize,
+          index_t OutDstVectorSize>
 struct GridwiseReduction_xy_to_x_blockwise
 {
-    static constexpr bool reorder_thread_cluster = (InVectorDim == 0);
+    static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
@@ -234,9 +234,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            InVectorDim,
-            InVectorSize,
+            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InSrcVectorDim,
+            InSrcVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -317,7 +317,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                          Sequence<MThreadSliceSize>,
                                                          Sequence<0>,
                                                          0,
-                                                         OutVectorSize,
+                                                         OutDstVectorSize,
                                                          1,
                                                          false>(
                             out1dDesc,
@@ -345,7 +345,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   OutVectorSize,
+                                                   OutDstVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
@@ -423,9 +423,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            InVectorDim,
-            InVectorSize,
+            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InSrcVectorDim,
+            InSrcVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -537,7 +537,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                          Sequence<MThreadSliceSize>,
                                                          Sequence<0>,
                                                          0,
-                                                         OutVectorSize,
+                                                         OutDstVectorSize,
                                                          1,
                                                          false>(
                             out1dDesc,
@@ -565,7 +565,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   OutVectorSize,
+                                                   OutDstVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    false>(
@@ -583,7 +583,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   OutVectorSize,
+                                                   OutDstVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    false>(
@@ -666,9 +666,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            InVectorDim,
-            InVectorSize,
+            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InSrcVectorDim,
+            InSrcVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -681,9 +681,9 @@ struct GridwiseReduction_xy_to_x_blockwise
             In2dDescType,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
-            typename conditional<InVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            InVectorDim,
-            InVectorSize,
+            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
+            InSrcVectorDim,
+            InSrcVectorSize,
             1,
             false>(in2dDesc,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
@@ -793,7 +793,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                          Sequence<MThreadSliceSize>,
                                                          Sequence<0>,
                                                          0,
-                                                         OutVectorSize,
+                                                         OutDstVectorSize,
                                                          1,
                                                          true>(
                             out1dDesc,
@@ -821,7 +821,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   OutVectorSize,
+                                                   OutDstVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
@@ -839,7 +839,7 @@ struct GridwiseReduction_xy_to_x_blockwise
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
-                                                   OutVectorSize,
+                                                   OutDstVectorSize,
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(

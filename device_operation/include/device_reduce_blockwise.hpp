@@ -27,9 +27,9 @@ template <typename InDataType,
           int KThreadClusterSize,
           int MThreadSliceSize,
           int KThreadSliceSize,
-          int InVectorDim,
-          int InVectorSize,
-          int OutVectorSize>
+          int InSrcVectorDim,
+          int InSrcVectorSize,
+          int OutDstVectorSize>
 struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
@@ -220,9 +220,9 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
                                                                        KThreadClusterSize,
                                                                        MThreadSliceSize,
                                                                        KThreadSliceSize,
-                                                                       InVectorDim,
-                                                                       InVectorSize,
-                                                                       OutVectorSize>;
+                                                                       InSrcVectorDim,
+                                                                       InSrcVectorSize,
+                                                                       OutDstVectorSize>;
 
             float avg_time = 0;
 
@@ -265,7 +265,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if constexpr(InVectorDim == 0)
+        if constexpr(InSrcVectorDim == 0)
         {
             if constexpr(OuterDims::Size() == 0)
                 return (false);
@@ -273,7 +273,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
             if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->outer_lowest_length % InVectorSize != 0)
+            if(pArg->outer_lowest_length % InSrcVectorSize != 0)
                 return (false);
         }
         else
@@ -281,12 +281,12 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
             if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->inner_lowest_length % InVectorSize != 0)
+            if(pArg->inner_lowest_length % InSrcVectorSize != 0)
                 return (false);
         };
 
         // To improve
-        if(pArg->outer_lowest_length % OutVectorSize != 0)
+        if(pArg->outer_lowest_length % OutDstVectorSize != 0)
             return (false);
 
         // cases with very small inner_total_length should be handled by the ThreadWise method
@@ -333,11 +333,12 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
     {
         auto str = std::stringstream();
 
+        // clang-format off
         str << "DeviceReduceBlockWise<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "InVectorDim_" << InVectorDim << "_InVectorSize_" << InVectorSize
-            << "_OutVectorSize_" << OutVectorSize << ">";
+        str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
+        // clang-format on
 
         return str.str();
     }
