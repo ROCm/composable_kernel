@@ -399,7 +399,7 @@ struct DeviceReduceMultiBlockTwoCall
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceBlockWise<" << BlockSize << ",";
+        str << "DeviceReduceMultiBlockTwoCall<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
