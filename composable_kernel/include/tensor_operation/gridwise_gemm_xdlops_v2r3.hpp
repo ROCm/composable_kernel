@@ -419,7 +419,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
+            BlockwiseTensorSliceTransfer_v4r1<1,
+                                              BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
@@ -449,7 +450,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
+            BlockwiseTensorSliceTransfer_v4r1<1,
+                                              BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
@@ -515,11 +517,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         // preload data into LDS
         {
-            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I0);
+            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I0);
 
-            a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-            b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+            a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I0);
+            b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I0);
         }
 
         // Initialize C
@@ -535,18 +537,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
 
-                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I0);
 
                 block_sync_lds();
 
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I0);
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
                 block_sync_lds();
 
-                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I0);
+                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I0);
 
                 k0_block_data_begin += K0PerBlock;
             } while(k0_block_data_begin < (K0 - K0PerBlock));
