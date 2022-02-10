@@ -18,6 +18,7 @@
 #include "integral_constant.hpp"
 #include "math.hpp"
 #include "number.hpp"
+#include "is_64bit.hpp"
 #include "sequence.hpp"
 #include "sequence_helper.hpp"
 #include "synchronization.hpp"

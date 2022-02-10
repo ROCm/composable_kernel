@@ -48,8 +48,7 @@ template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
-                      bool> = true>
+          enable_if_t<is_same<decltype(X + Y), long_index_t>::value, bool> = true>
 __host__ __device__ constexpr auto operator+(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
@@ -60,8 +59,7 @@ template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
-                      bool> = true>
+          enable_if_t<is_same<decltype(X - Y), long_index_t>::value, bool> = true>
 __host__ __device__ constexpr auto operator-(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
@@ -73,8 +71,7 @@ template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
-                      bool> = true>
+          enable_if_t<is_same<decltype(X * Y), long_index_t>::value, bool> = true>
 __host__ __device__ constexpr auto operator*(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
@@ -85,8 +82,7 @@ template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
-                      bool> = true>
+          enable_if_t<is_same<decltype(X / Y), long_index_t>::value, bool> = true>
 __host__ __device__ constexpr auto operator/(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {
@@ -98,8 +94,7 @@ template <typename Index0,
           Index0 X,
           typename Index1,
           Index1 Y,
-          enable_if_t<is_same<Index0, long_index_t>::value || is_same<Index1, long_index_t>::value,
-                      bool> = true>
+          enable_if_t<is_same<decltype(X % Y), long_index_t>::value, bool> = true>
 __host__ __device__ constexpr auto operator%(integral_constant<Index0, X>,
                                              integral_constant<Index1, Y>)
 {

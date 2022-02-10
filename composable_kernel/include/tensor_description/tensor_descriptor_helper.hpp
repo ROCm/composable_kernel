@@ -74,16 +74,12 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
         calculate_element_space_size_impl(lengths, strides, Number<0>{}, Number<1>{});
 #endif
 
-    const auto element_size = TensorDescriptorUtility::InitializeElementSize(
-        transforms, up_dim_hidden_idss, visible_dim_hidden_ids);
-
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_size)>,
-                            remove_cv_t<decltype(element_space_size)>>{
-        transforms, element_size, element_space_size};
+                            remove_cv_t<decltype(element_space_size)>>{transforms,
+                                                                       element_space_size};
 }
 
 // Lengths... can be:
@@ -105,16 +101,13 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
     const auto element_space_size = container_reduce(lengths, math::multiplies{}, Number<1>{});
-    const auto element_size       = TensorDescriptorUtility::InitializeElementSize(
-        transforms, up_dim_hidden_idss, visible_dim_hidden_ids);
 
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_size)>,
-                            remove_cv_t<decltype(element_space_size)>>{
-        transforms, element_size, element_space_size};
+                            remove_cv_t<decltype(element_space_size)>>{transforms,
+                                                                       element_space_size};
 }
 
 template <typename... Lengths>
@@ -134,16 +127,13 @@ make_naive_tensor_descriptor_packed_64bit(const Tuple<Lengths...>& lengths)
 
     const auto element_space_size = container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
 
-    const auto element_size = TensorDescriptorUtility::InitializeElementSize_64bit(
-        transforms, up_dim_hidden_idss, visible_dim_hidden_ids);
-
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_size)>,
-                            remove_cv_t<decltype(element_space_size)>>{
-        transforms, element_size, element_space_size};
+                            remove_cv_t<decltype(element_space_size)>,
+                            true,
+                            true>{transforms, element_space_size};
 }
 
 template <typename... Lengths, typename Align>

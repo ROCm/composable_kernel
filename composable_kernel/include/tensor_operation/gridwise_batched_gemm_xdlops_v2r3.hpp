@@ -70,6 +70,9 @@ template <typename GridwiseGemm,
           typename AGridDesc_B_K0_M_K1,
           typename BGridDesc_B_K0_N_K1,
           typename CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
           typename Block2CTileMap>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -146,7 +149,6 @@ template <index_t BlockSize,
           index_t K1Value,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
-          // typename ABlockTransferThreadSliceLengths_K0_M_K1,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -155,7 +157,6 @@ template <index_t BlockSize,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
           bool ABlockLdsExtraM,
-          // typename BBlockTransferThreadSliceLengths_K0_N_K1,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
@@ -183,7 +184,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
     static constexpr auto K1 = Number<K1Value>{};
 
     // A matrix in LDS memory, dst of blockwise copy
-    __host__ __device__ static constexpr auto MakeABlockDesc_K0_M_K1()
+    __host__ __device__ static constexpr auto MakeABlockDesc_B_K0PerBlock_MPerBlock_K1()
     {
         constexpr auto max_lds_align = K1;
         if constexpr(ABlockLdsExtraM)
@@ -200,7 +201,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
     }
 
     // B matrix in LDS memory, dst of blockwise copy
-    __host__ __device__ static constexpr auto MakeBBlockDesc_K0_N_K1()
+    __host__ __device__ static constexpr auto MakeBBlockDesc_B_K0PerBlock_NPerBlock_K1()
     {
         constexpr auto max_lds_align = K1;
 
@@ -219,8 +220,8 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
-        constexpr auto a_block_desc_k0_m_k1 = MakeABlockDesc_K0_M_K1();
-        constexpr auto b_block_desc_k0_n_k1 = MakeBBlockDesc_K0_N_K1();
+        constexpr auto a_block_desc_k0_m_k1 = MakeABlockDesc_B_K0PerBlock_MPerBlock_K1();
+        constexpr auto b_block_desc_k0_n_k1 = MakeBBlockDesc_B_K0PerBlock_NPerBlock_K1();
 
         constexpr auto max_lds_align = K1;
         // LDS allocation for A and B: be careful of alignment
@@ -301,17 +302,17 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(const CGridDesc_B_M_N& c_grid_desc_b_m_n)
     {
-        using BlockwiseGemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
-                                                                FloatAcc,
-                                                                decltype(MakeABlockDesc_K0_M_K1()),
-                                                                decltype(MakeBBlockDesc_K0_N_K1()),
-                                                                MPerXDL,
-                                                                NPerXDL,
-                                                                MXdlPerWave,
-                                                                NXdlPerWave,
-                                                                K1>;
+        using BlockwiseGemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
+            BlockSize,
+            FloatAB,
+            FloatAcc,
+            decltype(MakeABlockDesc_B_K0PerBlock_MPerBlock_K1()),
+            decltype(MakeBBlockDesc_B_K0PerBlock_NPerBlock_K1()),
+            MPerXDL,
+            NPerXDL,
+            MXdlPerWave,
+            NXdlPerWave,
+            K1>;
 
         return BlockwiseGemm::MakeCGridDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_b_m_n);
     }
@@ -491,8 +492,8 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
 
         // lds max alignment
         constexpr auto max_lds_align        = K1;
-        constexpr auto a_block_desc_k0_m_k1 = MakeABlockDesc_K0_M_K1();
-        constexpr auto b_block_desc_k0_n_k1 = MakeBBlockDesc_K0_N_K1();
+        constexpr auto a_block_desc_k0_m_k1 = MakeABlockDesc_B_K0PerBlock_MPerBlock_K1();
+        constexpr auto b_block_desc_k0_n_k1 = MakeBBlockDesc_B_K0PerBlock_NPerBlock_K1();
 
         // these 2 descriptors are reused inside the loop over batches
         const auto a_grid_desc_k0_m_k1 = MakeAGridDescriptor_K0_M_K1(a_grid_desc_b_k0_m_k1, 0);

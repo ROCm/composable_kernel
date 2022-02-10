@@ -23,9 +23,9 @@ template <typename... In,
           index_t GemmK1Value>
 __host__ __device__ constexpr auto
 transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
-    const TensorDescriptor<In...>& in_grid_desc_n_hi_hi_wi_c,
-    const TensorDescriptor<Wei...>& wei_k_z_y_x_c_grid_desc,
-    const TensorDescriptor<Out...>& out_n_do_ho_wo_k_grid_desc,
+    const TensorDescriptor<In...>& in_grid_desc_n_di_hi_wi_c,
+    const TensorDescriptor<Wei...>& wei_grid_desc_k_z_y_x_c,
+    const TensorDescriptor<Out...>& out_grid_desc_n_do_ho_wo_k,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
@@ -40,21 +40,21 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
 
     constexpr auto GemmK1 = Number<GemmK1Value>{};
 
-    const auto N = in_grid_desc_n_hi_hi_wi_c.GetLength(I0);
-    const auto C = in_grid_desc_n_hi_hi_wi_c.GetLength(I4);
-    const auto K = out_n_do_ho_wo_k_grid_desc.GetLength(I4);
+    const auto N = in_grid_desc_n_di_hi_wi_c.GetLength(I0);
+    const auto C = in_grid_desc_n_di_hi_wi_c.GetLength(I4);
+    const auto K = out_grid_desc_n_do_ho_wo_k.GetLength(I4);
 
-    const auto Di = in_grid_desc_n_hi_hi_wi_c.GetLength(I1);
-    const auto Hi = in_grid_desc_n_hi_hi_wi_c.GetLength(I2);
-    const auto Wi = in_grid_desc_n_hi_hi_wi_c.GetLength(I3);
+    const auto Di = in_grid_desc_n_di_hi_wi_c.GetLength(I1);
+    const auto Hi = in_grid_desc_n_di_hi_wi_c.GetLength(I2);
+    const auto Wi = in_grid_desc_n_di_hi_wi_c.GetLength(I3);
 
-    const auto Do = out_n_do_ho_wo_k_grid_desc.GetLength(I1);
-    const auto Ho = out_n_do_ho_wo_k_grid_desc.GetLength(I2);
-    const auto Wo = out_n_do_ho_wo_k_grid_desc.GetLength(I3);
+    const auto Do = out_grid_desc_n_do_ho_wo_k.GetLength(I1);
+    const auto Ho = out_grid_desc_n_do_ho_wo_k.GetLength(I2);
+    const auto Wo = out_grid_desc_n_do_ho_wo_k.GetLength(I3);
 
-    const auto Z = wei_k_z_y_x_c_grid_desc.GetLength(I1);
-    const auto Y = wei_k_z_y_x_c_grid_desc.GetLength(I2);
-    const auto X = wei_k_z_y_x_c_grid_desc.GetLength(I3);
+    const auto Z = wei_grid_desc_k_z_y_x_c.GetLength(I1);
+    const auto Y = wei_grid_desc_k_z_y_x_c.GetLength(I2);
+    const auto X = wei_grid_desc_k_z_y_x_c.GetLength(I3);
 
     const auto ConvStrideD = conv_strides[I0];
     const auto ConvStrideH = conv_strides[I1];
@@ -79,7 +79,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
 
     // A: input tensor
     const auto in_grid_desc_n_dip_hip_wip_c = transform_tensor_descriptor(
-        in_grid_desc_n_hi_hi_wi_c,
+        in_grid_desc_n_di_hi_wi_c,
         make_tuple(make_pass_through_transform(N),
                    make_pad_transform(Di, InLeftPadD, InRightPadD),
                    make_pad_transform(Hi, InLeftPadH, InRightPadH),
@@ -140,9 +140,12 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
     // n0_gemmk0_gemmn_gemmk1, gemmk0_gemmn_gemmk1, n0_gemmm_gemmn
 }
 
-template <typename... In,
-          typename... Wei,
-          typename... Out,
+// template <typename... In,
+//           typename... Wei,
+//           typename... Out,
+template <typename InDesc,
+          typename WeiDesc,
+          typename OutDesc,
           typename ConvStrides,
           typename ConvDilations,
           typename InLeftPads,
@@ -150,9 +153,12 @@ template <typename... In,
           index_t GemmK1Value>
 __host__ __device__ constexpr auto
 transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
-    const TensorDescriptor<In...>& in_grid_desc_n_hi_hi_wi_c,
-    const TensorDescriptor<Wei...>& wei_k_z_y_x_c_grid_desc,
-    const TensorDescriptor<Out...>& out_n_do_ho_wo_k_grid_desc,
+    // const TensorDescriptor<In...>& in_grid_desc_n_di_hi_wi_c,
+    // const TensorDescriptor<Wei...>& wei_grid_desc_k_z_y_x_c,
+    // const TensorDescriptor<Out...>& out_grid_desc_n_do_ho_wo_k,
+    const InDesc& in_grid_desc_n_di_hi_wi_c,
+    const WeiDesc& wei_grid_desc_k_z_y_x_c,
+    const OutDesc& out_grid_desc_n_do_ho_wo_k,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
@@ -168,21 +174,21 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
 
     constexpr auto GemmK1 = Number<GemmK1Value>{};
 
-    const auto N = in_grid_desc_n_hi_hi_wi_c.GetLength(I0);
-    const auto C = in_grid_desc_n_hi_hi_wi_c.GetLength(I4);
-    const auto K = out_n_do_ho_wo_k_grid_desc.GetLength(I4);
+    const auto N = in_grid_desc_n_di_hi_wi_c.GetLength(I0);
+    const auto C = in_grid_desc_n_di_hi_wi_c.GetLength(I4);
+    const auto K = out_grid_desc_n_do_ho_wo_k.GetLength(I4);
 
-    const auto Di = in_grid_desc_n_hi_hi_wi_c.GetLength(I1);
-    const auto Hi = in_grid_desc_n_hi_hi_wi_c.GetLength(I2);
-    const auto Wi = in_grid_desc_n_hi_hi_wi_c.GetLength(I3);
+    const auto Di = in_grid_desc_n_di_hi_wi_c.GetLength(I1);
+    const auto Hi = in_grid_desc_n_di_hi_wi_c.GetLength(I2);
+    const auto Wi = in_grid_desc_n_di_hi_wi_c.GetLength(I3);
 
-    const auto Do = out_n_do_ho_wo_k_grid_desc.GetLength(I1);
-    const auto Ho = out_n_do_ho_wo_k_grid_desc.GetLength(I2);
-    const auto Wo = out_n_do_ho_wo_k_grid_desc.GetLength(I3);
+    const auto Do = out_grid_desc_n_do_ho_wo_k.GetLength(I1);
+    const auto Ho = out_grid_desc_n_do_ho_wo_k.GetLength(I2);
+    const auto Wo = out_grid_desc_n_do_ho_wo_k.GetLength(I3);
 
-    const auto Z = wei_k_z_y_x_c_grid_desc.GetLength(I1);
-    const auto Y = wei_k_z_y_x_c_grid_desc.GetLength(I2);
-    const auto X = wei_k_z_y_x_c_grid_desc.GetLength(I3);
+    const auto Z = wei_grid_desc_k_z_y_x_c.GetLength(I1);
+    const auto Y = wei_grid_desc_k_z_y_x_c.GetLength(I2);
+    const auto X = wei_grid_desc_k_z_y_x_c.GetLength(I3);
 
     const auto ConvStrideD = conv_strides[I0];
     const auto ConvStrideH = conv_strides[I1];
@@ -209,7 +215,7 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad_split_batch(
 
     // A: input tensor
     const auto in_grid_desc_n_dip_hip_wip_c = transform_tensor_descriptor(
-        in_grid_desc_n_hi_hi_wi_c,
+        in_grid_desc_n_di_hi_wi_c,
         make_tuple(make_pass_through_transform(N),
                    make_pad_transform(Di, InLeftPadD, InRightPadD),
                    make_pad_transform(Hi, InLeftPadH, InRightPadH),
