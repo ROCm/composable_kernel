@@ -1,9 +1,24 @@
 cmake_minimum_required(VERSION 3.5)
+
+# Check support for CUDA/HIP in Cmake
 project(composable_kernel)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
+enable_testing()
+
+find_package(ROCM REQUIRED PATHS /opt/rocm)
+
+include(ROCMInstallTargets)
+include(ROCMPackageConfigHelpers)
+include(ROCMSetupVersion)
+include(ROCMInstallSymlinks)
+include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
+
+rocm_setup_version(VERSION 1.0.0)
+include(TargetFlags)
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 
 ## C++
 enable_language(CXX)
@@ -50,6 +65,12 @@ if(BUILD_DEV)
 endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
+rocm_create_package(
+    NAME MIOpen-${MIOPEN_BACKEND}
+    DESCRIPTION "High Performance Composable Kernels for AMD GPUs"
+    MAINTAINER "MIOpen Kernel Dev Team <dl.MIOpen@amd.com>"
+    LDCONFIG
+)
 ## tidy
 include(EnableCompilerWarnings)
 set(MIOPEN_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
@@ -59,6 +80,7 @@ if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\
 elseif(MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPNOGPU")
     set(MIOPEN_TIDY_ERRORS ALL)
 endif()
+
 
 include(ClangTidy)
 enable_clang_tidy(
@@ -196,6 +218,35 @@ enable_cppcheck(
         CPPCHECK=1
         __linux__=1
 )
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+
+file(GLOB_RECURSE COMPOSABLE_KERNEL_HEADERS "composable_kernel/include/*/*.hpp")
+file(GLOB_RECURSE DEVICE_OPS_HEADERS "device_operation/include/*/*.cpp")
+
+file(GLOB_RECURSE DEVICE_OPS_SOURCE "device_operation/*.cpp")
+file(GLOB_RECURSE COMPOSABLE_KERNEL_WRAPPER_SOURCE "composable_kernel/src/kernel_wrapper/*.cpp")
+
+set(CK_HEADERS ${COMPOSABLE_KERNEL_HEADERS} ${DEVICE_OPS_HEADERS})
+set(CK_SOURCE ${DEVICE_OPS_SOURCE} ${COMPOSABLE_KERNEL_WRAPPER_SOURCE})
+add_library( composable_kernel
+    ${CK_SOURCE}
+    )
+
+target_include_directories(composable_kernel PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include>
+)
+target_include_directories(composable_kernel PUBLIC 
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/device_operation/include>
+)
+target_include_directories(composable_kernel PUBLIC 
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/host/include>
+)
+target_include_directories(composable_kernel PUBLIC 
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/host/host_tensor/include>
+)
+# clang_tidy_check(composable_kernel)
 
 add_subdirectory(host)
 add_subdirectory(example)
