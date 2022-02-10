@@ -14,18 +14,17 @@ struct PassThrough
 
 struct Add
 {
-    __host__ __device__ constexpr void
-    operator()(float& dst, const float& src_y, const float& bias) const
+    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
     {
         // FIXME - Use float (acc type) bias in the future.
-        dst = src_y + bias;
+        y = x0 + x1;
     }
 
     __host__ __device__ constexpr void
-    operator()(half_t& dst, const half_t& src_y, const half_t& bias) const
+    operator()(half_t& y, const half_t& x0, const half_t& x1) const
     {
         // FIXME - Use float (acc type) bias in the future.
-        dst = src_y + bias;
+        y = x0 + x1;
     }
 };
 
@@ -33,18 +32,16 @@ struct AlphaBetaAdd
 {
     AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta) {}
 
-    __host__ __device__ constexpr void
-    operator()(float& dst, const float& src_y, const float& bias) const
+    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
     {
-        dst = alpha_ * src_y + beta_ * bias;
+        y = alpha_ * x0 + beta_ * x1;
     }
 
     __host__ __device__ constexpr void
-    operator()(half_t& dst, const half_t& src_y, const half_t& bias) const
+    operator()(half_t& y, const half_t& x0, const half_t& x1) const
     {
-        // FIXME - Let src_y be acc type
-        dst = static_cast<half_t>(alpha_ * static_cast<float>(src_y) +
-                                  beta_ * static_cast<float>(bias));
+        // FIXME - Let x0 be acc type
+        y = static_cast<half_t>(alpha_ * static_cast<float>(x0) + beta_ * static_cast<float>(x1));
     }
 
     float alpha_;
