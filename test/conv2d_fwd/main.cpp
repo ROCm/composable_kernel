@@ -283,7 +283,9 @@ int main(int argc, char* argv[])
     };
 
     if(data_type == 0)
+    {
         Run(float(), float(), float());
+    }
     else if(data_type == 1)
     {
         Run(ck::half_t(), ck::half_t(), ck::half_t());
