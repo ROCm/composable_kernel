@@ -16,7 +16,6 @@ struct Add
 {
     __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
     {
-        // FIXME - Use float (acc type) bias in the future.
         y = x0 + x1;
     }
 
