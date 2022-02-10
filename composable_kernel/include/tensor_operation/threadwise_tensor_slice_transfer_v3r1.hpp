@@ -78,6 +78,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
+    static constexpr auto I0 = Number<0>{};
+
     __device__ constexpr ThreadwiseTensorSliceTransfer_v3r1(
         const SrcDesc& src_desc,
         const Index& src_slice_origin,
@@ -102,9 +104,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
     }
 
-    template <typename SrcBuffer, typename SrcStepHacks>
-    __device__ void
-    RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf, const SrcStepHacks& src_step_hacks)
+    template <typename SrcBuffer>
+    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
     {
         static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
                           SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
@@ -113,9 +114,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         static_assert(
             is_same<remove_cvref_t<typename SrcBuffer::type>, remove_cvref_t<SrcData>>::value,
             "wrong! SrcBuffer and SrcData data type are inconsistent");
-
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
 
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
@@ -138,8 +136,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     forward_step_idx(j) = (i.value == j.value) ? src_scalar_per_access[i] : 0;
                 });
 
-                return make_tensor_coordinate_step(
-                    src_desc, forward_step_idx, src_step_hacks[I0][i]);
+                return make_tensor_coordinate_step(src_desc, forward_step_idx);
             },
             Number<nDim>{});
 
@@ -152,8 +149,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     backward_step_idx(j) = (i.value == j.value) ? -src_scalar_per_access[i] : 0;
                 });
 
-                return make_tensor_coordinate_step(
-                    src_desc, backward_step_idx, src_step_hacks[I1][i]);
+                return make_tensor_coordinate_step(src_desc, backward_step_idx);
             },
             Number<nDim>{});
 
@@ -348,9 +344,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 #endif
     }
 
-    template <typename DstBuffer, typename DstStepHacks>
-    __device__ void
-    RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, const DstStepHacks& dst_step_hacks)
+    template <typename DstBuffer>
+    __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
     {
         // if there is transpose, it's done here
         // TODO move this elsewhere
@@ -363,9 +358,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         static_assert(
             is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value,
             "wrong! SrcBuffer or DstBuffer data type is wrong");
-
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
 
         // src scalar per access on each dim
         // TODO: don't use this
@@ -388,8 +380,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     forward_step_idx(j) = (i.value == j.value) ? dst_scalar_per_access[i] : 0;
                 });
 
-                return make_tensor_coordinate_step(
-                    dst_desc, forward_step_idx, dst_step_hacks[I0][i]);
+                return make_tensor_coordinate_step(dst_desc, forward_step_idx);
             },
             Number<nDim>{});
 
@@ -402,8 +393,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     backward_step_idx(j) = (i.value == j.value) ? -dst_scalar_per_access[i] : 0;
                 });
 
-                return make_tensor_coordinate_step(
-                    dst_desc, backward_step_idx, dst_step_hacks[I1][i]);
+                return make_tensor_coordinate_step(dst_desc, backward_step_idx);
             },
             Number<nDim>{});
 
@@ -515,39 +505,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
     }
 
-    template <typename SrcBuffer>
-    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
-    {
-        constexpr index_t ntransform_src = remove_cvref_t<SrcDesc>::GetNumOfTransform();
-
-        constexpr auto zeros = typename uniform_sequence_gen<ntransform_src, 0>::type{};
-
-        constexpr auto src_step_hacks =
-            make_tuple(generate_tuple([&](auto) { return zeros; }, Number<nDim>{}),
-                       generate_tuple([&](auto) { return zeros; }, Number<nDim>{}));
-
-        RunRead(src_desc, src_buf, src_step_hacks);
-    }
-
-    template <typename DstBuffer>
-    __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
-    {
-        // TODO: why need remove_cvref_t ?
-        constexpr index_t ntransform_dst = remove_cvref_t<DstDesc>::GetNumOfTransform();
-
-        constexpr auto zeros = typename uniform_sequence_gen<ntransform_dst, 0>::type{};
-
-        constexpr auto dst_step_hacks =
-            make_tuple(generate_tuple([&](auto) { return zeros; }, Number<nDim>{}),
-                       generate_tuple([&](auto) { return zeros; }, Number<nDim>{}));
-
-        RunWrite(dst_desc, dst_buf, dst_step_hacks);
-    }
-
     __device__ static constexpr auto GetSrcCoordinateResetStep()
     {
-        constexpr auto I0 = Number<0>{};
-
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto src_scalar_per_access = generate_sequence(
@@ -606,8 +565,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
     __device__ static constexpr auto GetDstCoordinateResetStep()
     {
-        constexpr auto I0 = Number<0>{};
-
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
@@ -675,25 +632,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         // is it OK to construct a new step every time?
         const auto adjusted_step = make_tensor_coordinate_step(src_desc, adjusted_step_idx);
-
-        move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
-    }
-
-    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
-    template <typename SrcMoveSliceWindowStepHack>
-    __device__ void
-    MoveSrcSliceWindow(const SrcDesc& src_desc,
-                       const Index& src_slice_origin_step_idx,
-                       const SrcMoveSliceWindowStepHack& src_move_slice_window_step_hack)
-    {
-        // if src coord was not reset by RunRead(), then need to adjust the step here
-        const auto adjusted_step_idx =
-            SrcResetCoordinateAfterRun ? src_slice_origin_step_idx
-                                       : src_slice_origin_step_idx + GetSrcCoordinateResetStep();
-
-        // is it OK to construct a new step every time?
-        const auto adjusted_step = make_tensor_coordinate_step(
-            src_desc, adjusted_step_idx, src_move_slice_window_step_hack);
 
         move_tensor_coordinate(src_desc, src_coord_, adjusted_step);
     }
@@ -815,6 +753,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
+#if 1
     StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
                                     SrcData,
                                     SrcScalarPerVector,
@@ -828,6 +767,23 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                     decltype(dst_thread_scratch_desc_),
                                     true>
         dst_thread_scratch_;
+#else
+    using SrcThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
+                                                             SrcData,
+                                                             SrcScalarPerVector,
+                                                             decltype(src_thread_scratch_desc_),
+                                                             true>;
+
+    using DstThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
+                                                             DstData,
+                                                             DstScalarPerVector,
+                                                             decltype(dst_thread_scratch_desc_),
+                                                             true>;
+
+    StaticallyIndexedArray<SrcThreadScratch, NumThreadScratch> src_thread_scratch_tuple_;
+
+    DstThreadScratch dst_thread_scratch_;
+#endif
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;
