@@ -372,10 +372,18 @@ int profile_reduce(int argc, char* argv[])
     }
     else if(args.use_double)
     {
-        // profile_reduce<double, double, double>(args,do_verification, args.init_method,
-        // args.do_log, args.nrepeat,
-        //                   args.inLengths, args.toReduceDims, args.reduceOp, args.nanOpt,
-        //                   args.indicesOpt, args.scales[0], args.scales[1]);
+        profile_reduce_impl<double, double, double>(args.do_verification,
+                                                    args.init_method,
+                                                    args.do_log,
+                                                    args.do_dumpout,
+                                                    args.nrepeat,
+                                                    args.inLengths,
+                                                    args.toReduceDims,
+                                                    args.reduceOp,
+                                                    args.nanOpt,
+                                                    args.indicesOpt,
+                                                    args.scales[0],
+                                                    args.scales[1]);
     }
     else
     {

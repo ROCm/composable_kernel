@@ -175,8 +175,7 @@ void profile_reduce_impl_impl(bool do_verification,
 
     constexpr bool PropagateNan = (NanOpt == NanPropagation_t::PROPAGATE_NAN);
 
-    constexpr bool out_support_atomic_add =
-        (std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value);
+    constexpr bool out_support_atomic_add = std::is_same<OutDataType, float>::value;
     constexpr bool op_support_atomic_add =
         !op_support_indices && ReduceOpId != ReduceTensorOp_t::NORM2;
     constexpr bool use_atomic_add = (out_support_atomic_add && op_support_atomic_add);
