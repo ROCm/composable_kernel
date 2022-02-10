@@ -13,7 +13,8 @@ namespace ck {
 // 1. Use StaticallyIndexedArray instead of C array for thread buffer
 // 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
 // 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
-template <index_t BlockSize,
+template <index_t NumThreadScratch,
+          index_t BlockSize,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
@@ -86,45 +87,38 @@ struct BlockwiseTensorSliceTransfer_v4r1
         }
     }
 
-    template <typename SrcBuffer, typename SrcStepHacks>
+    template <typename SrcBuffer, index_t ThreadScratchId>
+    __device__ void RunRead(const SrcDesc& src_desc,
+                            const SrcBuffer& src_buf,
+                            Number<ThreadScratchId> thread_scratch_id)
+    {
+        if(BlockSize == thread_cluster_desc_.GetElementSize() or
+           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
+        {
+            threadwise_transfer_.RunRead(src_desc, src_buf, thread_scratch_id);
+        }
+    }
+
+    template <typename DstBuffer, index_t ThreadScratchId>
     __device__ void
-    RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf, const SrcStepHacks& src_step_hacks)
+    RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, Number<ThreadScratchId> thread_scratch_id)
     {
         if(BlockSize == thread_cluster_desc_.GetElementSize() or
            get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.RunRead(src_desc, src_buf, src_step_hacks);
+            threadwise_transfer_.RunWrite(dst_desc, dst_buf, thread_scratch_id);
         }
     }
 
-    template <typename SrcBuffer>
-    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
-    {
-        if(BlockSize == thread_cluster_desc_.GetElementSize() or
-           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
-        {
-            threadwise_transfer_.RunRead(src_desc, src_buf);
-        }
-    }
-
-    template <typename DstBuffer>
-    __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
-    {
-        if(BlockSize == thread_cluster_desc_.GetElementSize() or
-           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
-        {
-            threadwise_transfer_.RunWrite(dst_desc, dst_buf);
-        }
-    }
-
-    template <typename SrcBuffer, typename DstBuffer>
+    template <typename SrcBuffer, typename DstBuffer, index_t ThreadScratchId>
     __device__ void Run(const SrcDesc& src_desc,
                         const SrcBuffer& src_buf,
                         const DstDesc& dst_desc,
-                        DstBuffer& dst_buf)
+                        DstBuffer& dst_buf,
+                        Number<ThreadScratchId> thread_scratch_id)
     {
-        RunRead(src_desc, src_buf);
-        RunWrite(dst_desc, dst_buf);
+        RunRead(src_desc, src_buf, thread_scratch_id);
+        RunWrite(dst_desc, dst_buf, thread_scratch_id);
     }
 
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& step)
@@ -133,21 +127,6 @@ struct BlockwiseTensorSliceTransfer_v4r1
            get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.MoveSrcSliceWindow(src_desc, step);
-        }
-    }
-
-    // SrcMoveSliceWindowStepHack to control index calculation move slice window
-    template <typename SrcMoveSliceWindowStepHack>
-    __device__ void
-    MoveSrcSliceWindow(const SrcDesc& src_desc,
-                       const Index& step,
-                       const SrcMoveSliceWindowStepHack& src_move_slice_window_step_hack)
-    {
-        if(BlockSize == thread_cluster_desc_.GetElementSize() or
-           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
-        {
-            threadwise_transfer_.MoveSrcSliceWindow(
-                src_desc, step, src_move_slice_window_step_hack);
         }
     }
 
@@ -165,7 +144,8 @@ struct BlockwiseTensorSliceTransfer_v4r1
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
-        ThreadwiseTensorSliceTransfer_v3r1<decltype(thread_slice_lengths),
+        ThreadwiseTensorSliceTransfer_v3r1<NumThreadScratch,
+                                           decltype(thread_slice_lengths),
                                            SrcElementwiseOperation,
                                            DstElementwiseOperation,
                                            DstInMemOp,

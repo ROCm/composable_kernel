@@ -45,7 +45,8 @@ struct lambda_scalar_per_access_for_src_and_dst
 //   2. SrcBuffer and DstBuffer are DynamicBuffer
 //   3. src_slice_origin and dst_slice_origin are not known at compile-time,
 //   4. Use thread buffer
-template <typename SliceLengths,
+template <index_t NumThreadScratch,
+          typename SliceLengths,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
@@ -104,8 +105,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
     }
 
-    template <typename SrcBuffer>
-    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
+    template <typename SrcBuffer, index_t ThreadScratchId>
+    __device__ void RunRead(const SrcDesc& src_desc,
+                            const SrcBuffer& src_buf,
+                            Number<ThreadScratchId> thread_scratch_id)
     {
         static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
                           SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
@@ -211,8 +214,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             });
 
             // copy data from src_vector_container into src_thread_scratch_
-            src_thread_scratch_.template SetAsType<src_vector_t>(
-                src_data_idx_seq, src_vector_container.template AsType<src_vector_t>()[I0]);
+            src_thread_scratch_tuple_(thread_scratch_id)
+                .template SetAsType<src_vector_t>(
+                    src_data_idx_seq, src_vector_container.template AsType<src_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -259,12 +263,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         }
     }
 
-    __device__ void TransferDataFromSrcThreadScratchToDstThreadScratch()
+    template <index_t ThreadScratchId>
+    __device__ void
+    TransferDataFromSrcThreadScratchToDstThreadScratch(Number<ThreadScratchId> thread_scratch_id)
     {
 #if !CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE
         static_ford<SliceLengths>{}([&](auto idx) {
             // convert from SrcData to DstData here
-            dst_thread_scratch_(idx) = type_convert<DstData>(src_thread_scratch_[idx]);
+            dst_thread_scratch_(idx) =
+                type_convert<DstData>(src_thread_scratch_tuple[thread_scratch_id][idx]);
         });
 #else
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
@@ -314,7 +321,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 const auto src_vector_refs = generate_tie(
                     [&](auto i) -> const src_vector_t& {
                         // i increment corresponds to movement in DstVectorDim
-                        return src_thread_scratch_.GetVectorTypeReference(
+                        return src_thread_scratch_tuple_[thread_scratch_id].GetVectorTypeReference(
                             data_idx_seq + i * dst_scalar_step_in_vector);
                     },
                     Number<num_src_vector>{});
@@ -338,18 +345,20 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         {
             static_ford<SliceLengths>{}([&](auto idx) {
                 // convert from SrcData to DstData here
-                dst_thread_scratch_(idx) = type_convert<DstData>(src_thread_scratch_[idx]);
+                dst_thread_scratch_(idx) =
+                    type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
             });
         }
 #endif
     }
 
-    template <typename DstBuffer>
-    __device__ void RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf)
+    template <typename DstBuffer, index_t ThreadScratchId>
+    __device__ void
+    RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, Number<ThreadScratchId> thread_scratch_id)
     {
         // if there is transpose, it's done here
         // TODO move this elsewhere
-        TransferDataFromSrcThreadScratchToDstThreadScratch();
+        TransferDataFromSrcThreadScratchToDstThreadScratch(thread_scratch_id);
 
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
                           DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
@@ -753,21 +762,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
-#if 1
-    StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
-                                    SrcData,
-                                    SrcScalarPerVector,
-                                    decltype(src_thread_scratch_desc_),
-                                    true>
-        src_thread_scratch_;
-
-    StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
-                                    DstData,
-                                    DstScalarPerVector,
-                                    decltype(dst_thread_scratch_desc_),
-                                    true>
-        dst_thread_scratch_;
-#else
     using SrcThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
                                                              SrcData,
                                                              SrcScalarPerVector,
@@ -783,7 +777,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     StaticallyIndexedArray<SrcThreadScratch, NumThreadScratch> src_thread_scratch_tuple_;
 
     DstThreadScratch dst_thread_scratch_;
-#endif
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;
