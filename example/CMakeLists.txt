@@ -19,7 +19,7 @@ set(CONV2D_FWD_XDL_SOURCE 4_conv2d_fwd_xdl/conv2d_fwd_xdl.cpp)
 set(CONV2D_FWD_XDL_BIAS_RELU_SOURCE 5_conv2d_fwd_xdl_bias_relu/conv2d_fwd_xdl_bias_relu.cpp)
 set(CONV2D_FWD_XDL_BIAS_RELU_ADD_SOURCE 6_conv2d_fwd_xdl_bias_relu_add/conv2d_fwd_xdl_bias_relu_add.cpp)
 set(CONV2D_FWD_XDL_BIAS_RELU_ATOMIC_ADD_SOURCE 7_conv2d_fwd_xdl_bias_relu_atomic_add/conv2d_fwd_xdl_bias_relu_atomic_add.cpp)
-set(CONVND_FWD_XDL_SOURCE 8_convnd_fwd_xdl/convnd_fwd_xdl.cpp)
+set(CONVND_FWD_XDL_SOURCE 9_convnd_fwd_xdl/convnd_fwd_xdl.cpp)
 
 add_executable(gemm_xdl ${GEMM_XDL_SOURCE})
 add_executable(gemm_xdl_bias_relu ${GEMM_XDL_BIAS_RELU_SOURCE})
