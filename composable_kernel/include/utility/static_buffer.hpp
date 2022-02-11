@@ -149,6 +149,13 @@ struct StaticBufferTupleOfVector
 
         return base::operator()(i_v);
     }
+
+    __host__ __device__ void Clear()
+    {
+        const index_t numScalars = NumOfVector * ScalarPerVector;
+
+        static_for<0, Number<numScalars>{}, 1>{}([&](auto i) { SetAsType(i, S{0}); });
+    }
 };
 
 template <AddressSpaceEnum_t AddressSpace, typename T, index_t N>

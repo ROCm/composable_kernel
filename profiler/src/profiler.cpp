@@ -6,6 +6,7 @@
 #include <half.hpp>
 
 int profile_gemm(int, char*[]);
+int profile_batched_gemm(int, char*[]);
 int profile_gemm_bias_relu(int, char*[]);
 int profile_gemm_bias_relu_add(int, char*[]);
 int profile_conv_fwd(int, char*[]);
@@ -19,13 +20,17 @@ int main(int argc, char* argv[])
     {
         return profile_gemm(argc, argv);
     }
-    if(strcmp(argv[1], "gemm_bias_relu") == 0)
+    else if(strcmp(argv[1], "gemm_bias_relu") == 0)
     {
         return profile_gemm_bias_relu(argc, argv);
     }
-    if(strcmp(argv[1], "gemm_bias_relu_add") == 0)
+    else if(strcmp(argv[1], "gemm_bias_relu_add") == 0)
     {
         return profile_gemm_bias_relu_add(argc, argv);
+    }
+    else if(strcmp(argv[1], "batched_gemm") == 0)
+    {
+        return profile_batched_gemm(argc, argv);
     }
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
