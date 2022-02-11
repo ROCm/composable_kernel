@@ -185,7 +185,7 @@ pipeline {
                         build_cmd = "make -j\$(nproc) -k ckProfiler"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_cmd:build_cmd, no_reboot:true, build_type: 'debug')
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_cmd:build_cmd, no_reboot:true, build_type: 'Release')
                     }
                 }
                 stage('Clang Format') {
