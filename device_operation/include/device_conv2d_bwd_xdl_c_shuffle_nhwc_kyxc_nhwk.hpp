@@ -5,7 +5,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
-#include "device_conv_fwd.hpp"
+#include "device_conv_bwd.hpp"
 #include "convolution_forward_specialization.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
@@ -55,7 +55,7 @@ template <
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
     index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
 struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
+    : public DeviceConvBwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
     using DeviceOp = DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
@@ -353,9 +353,9 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(const InDataType* p_in_grid,
+        Argument(InDataType* p_in_grid,
                  const WeiDataType* p_wei_grid,
-                 OutDataType* p_out_grid,
+                 const OutDataType* p_out_grid,
                  ck::index_t N,
                  ck::index_t K,
                  ck::index_t C,
@@ -371,14 +371,14 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
-            : p_a_grid_{p_in_grid},
+            : p_a_grid_{p_out_grid},
               p_b_grid_{p_wei_grid},
-              p_c_grid_{p_out_grid},
+              p_c_grid_{p_in_grid},
               M01_{M01},
               N01_{N01},
-              in_element_op_{in_element_op},
+              in_element_op_{out_element_op},
               wei_element_op_{wei_element_op},
-              out_element_op_{out_element_op},
+              out_element_op_{in_element_op},
               Conv_N_{N},
               Conv_K_{K},
               Conv_C_{C},
@@ -495,7 +495,7 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
                     std::cout
                         << "arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_"
-                           "nwavenperxdl_{ "
+                           "nwavenperxdl_( "
                         << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                                [i]
                                    .GetLength(I0)
@@ -519,9 +519,93 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                         << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                                [i]
                                    .GetLength(I5)
-                        << " } " << std::endl;
+                        << " ) " << std::endl;
                 }
 
+                if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_[i],
+                                                arg.b_grid_desc_k0_n_k1_[i],
+                                                arg.c_grid_desc_m_n_[i],
+                                                arg.M01_,
+                                                arg.N01_))
+                {
+                    throw std::runtime_error(
+                        "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
+                }
+
+                const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_[i]);
+
+                const auto K0 = arg.a_grid_desc_k0_m_k1_[i].GetLength(I0);
+
+                const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+
+                if(has_main_k0_block_loop)
+                {
+                    const auto kernel = kernel_gemm_xdlops_v3r1<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<
+                            typename GridwiseGemm::
+                                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
+                        InElementwiseOperation,
+                        WeiElementwiseOperation,
+                        OutElementwiseOperation,
+                        remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                        true>;
+
+                    ave_time += launch_and_time_kernel(
+                        kernel,
+                        nrepeat,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        arg.p_a_grid_,
+                        arg.p_b_grid_,
+                        arg.p_c_grid_,
+                        arg.a_grid_desc_k0_m_k1_[i],
+                        arg.b_grid_desc_k0_n_k1_[i],
+                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_[i],
+                        arg.in_element_op_,
+                        arg.wei_element_op_,
+                        arg.out_element_op_,
+                        arg.block_2_ctile_map_[i]);
+                }
+                else
+                {
+                    const auto kernel = kernel_gemm_xdlops_v3r1<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<
+                            typename GridwiseGemm::
+                                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
+                        InElementwiseOperation,
+                        WeiElementwiseOperation,
+                        OutElementwiseOperation,
+                        remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                        false>;
+
+                    ave_time += launch_and_time_kernel(
+                        kernel,
+                        nrepeat,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        arg.p_a_grid_,
+                        arg.p_b_grid_,
+                        arg.p_c_grid_,
+                        arg.a_grid_desc_k0_m_k1_[i],
+                        arg.b_grid_desc_k0_n_k1_[i],
+                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_[i],
+                        arg.in_element_op_,
+                        arg.wei_element_op_,
+                        arg.out_element_op_,
+                        arg.block_2_ctile_map_[i]);
+                }
             }
             return ave_time;
         }
@@ -574,9 +658,9 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(const InDataType* p_in_grid,
+    static auto MakeArgument(InDataType* p_in_grid,
                              const WeiDataType* p_wei_grid,
-                             OutDataType* p_out_grid,
+                             const OutDataType* p_out_grid,
                              ck::index_t N,
                              ck::index_t K,
                              ck::index_t C,
@@ -614,9 +698,9 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     static auto MakeInvoker() { return Invoker{}; }
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_in_grid,
+    MakeArgumentPointer(void* p_in_grid,
                         const void* p_wei_grid,
-                        void* p_out_grid,
+                        const void* p_out_grid,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
@@ -631,9 +715,9 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op) override
     {
-        return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
+        return std::make_unique<Argument>(static_cast<InDataType*>(p_in_grid),
                                           static_cast<const WeiDataType*>(p_wei_grid),
-                                          static_cast<OutDataType*>(p_out_grid),
+                                          static_cast<const OutDataType*>(p_out_grid),
                                           N,
                                           K,
                                           C,
