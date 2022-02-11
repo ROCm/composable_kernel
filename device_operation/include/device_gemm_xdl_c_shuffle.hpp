@@ -425,7 +425,7 @@ struct DeviceGemmXdl_C_Shuffle
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
-                                                      ck::index_t KBatch = 1) override
+                                                      index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
