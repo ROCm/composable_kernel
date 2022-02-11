@@ -19,7 +19,7 @@ def cmake_build(Map conf=[:]){
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 MIOPEN_CONV_PRECISE_ROCBLAS_TIMING=0 " + conf.get("build_env","")
     def prefixpath = conf.get("prefixpath","/opt/rocm")
-    def setup_args = conf.get("setup_flags","")
+    def setup_args = conf.get("setup_args","")
 
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
@@ -207,18 +207,19 @@ pipeline {
                 }
             }
         }
-        stage("Packages") {
-            when {
-                expression { params.BUILD_PACKAGES && params.TARGET_NOGPU && params.DATATYPE_NA }
-            }
-            parallel {
-                stage("Package /opt/rocm") {
-                    agent{ label rocmnode("nogpu") }
-                    steps{
-                    buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
-                    }
-                }
-            }
-        }
+        // enable after the cmake file supports packaging
+        // stage("Packages") {
+        //     when {
+        //         expression { params.BUILD_PACKAGES && params.TARGET_NOGPU && params.DATATYPE_NA }
+        //     }
+        //     parallel {
+        //         stage("Package /opt/rocm") {
+        //             agent{ label rocmnode("nogpu") }
+        //             steps{
+        //             buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
