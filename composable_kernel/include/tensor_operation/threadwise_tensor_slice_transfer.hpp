@@ -199,9 +199,13 @@ struct ThreadwiseTensorSliceTransfer_v1r3
                 constexpr index_t src_offset = src_desc.CalculateOffset(
                     src_slice_origin_idx + dst_data_idx + i * dst_scalar_step_in_vector);
 
-                // apply element-wise operation and type convert
-                dst_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>(dst_element_op_(src_buf[Number<src_offset>{}]));
+                SrcData dst_v;
+
+                // apply element-wise operation
+                dst_element_op_(dst_v, src_buf[Number<src_offset>{}]);
+
+                // apply type convert
+                dst_vector.template AsType<DstData>()(i) = type_convert<DstData>(dst_v);
             });
 
             const bool is_dst_valid =

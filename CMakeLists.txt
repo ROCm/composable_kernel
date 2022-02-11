@@ -279,6 +279,7 @@ message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/hip_version.hpp")
 
 add_subdirectory(host)
+add_subdirectory(device_operation)
 add_subdirectory(example)
 add_subdirectory(profiler)
 add_subdirectory(test)
