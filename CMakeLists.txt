@@ -45,12 +45,30 @@ message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
 message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
 message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+# set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 link_libraries(${OpenMP_gomp_LIBRARY})
 link_libraries(${OpenMP_pthread_LIBRARY})
 
 ## HIP
 find_package(HIP REQUIRED)
+# Override HIP version in config.h, if necessary.
+# The variables set by find_package() can't be overwritten,
+# therefore let's use intermediate variables.
+set(CK_hip_VERSION_MAJOR "${hip_VERSION_MAJOR}")
+set(CK_hip_VERSION_MINOR "${hip_VERSION_MINOR}")
+set(CK_hip_VERSION_PATCH "${hip_VERSION_PATCH}")
+if( DEFINED CK_OVERRIDE_HIP_VERSION_MAJOR )
+    set(CK_hip_VERSION_MAJOR "${MIOPEN_OVERRIDE_HIP_VERSION_MAJOR}")
+    message(STATUS "CK_hip_VERSION_MAJOR overriden with ${MIOPEN_OVERRIDE_HIP_VERSION_MAJOR}")
+endif()
+if( DEFINED CK_OVERRIDE_HIP_VERSION_MINOR )
+    set(CK_hip_VERSION_MINOR "${MIOPEN_OVERRIDE_HIP_VERSION_MINOR}")
+    message(STATUS "CK_hip_VERSION_MINOR overriden with ${MIOPEN_OVERRIDE_HIP_VERSION_MINOR}")
+endif()
+if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
+    set(CK_hip_VERSION_PATCH "${MIOPEN_OVERRIDE_HIP_VERSION_PATCH}")
+    message(STATUS "CK_hip_VERSION_PATCH overriden with ${MIOPEN_OVERRIDE_HIP_VERSION_PATCH}")
+endif()
 message(STATUS "Build with HIP ${hip_VERSION}")
 
 ## half
@@ -58,12 +76,6 @@ message(STATUS "Build with HIP ${hip_VERSION}")
 set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/half/include")
 message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
 
-# CMAKE_CXX_FLAGS
-SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
-if(BUILD_DEV)
-    string(APPEND CMAKE_CXX_FLAGS " -Werror -Weverything")
-endif()
-message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 rocm_create_package(
     NAME MIOpen-${MIOPEN_BACKEND}
@@ -246,7 +258,25 @@ target_include_directories(composable_kernel PUBLIC
 target_include_directories(composable_kernel PUBLIC 
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/host/host_tensor/include>
 )
+# The following should eventually be removed
+target_include_directories(composable_kernel PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include/utility>
+)
+target_include_directories(composable_kernel PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation>
+)
+target_include_directories(composable_kernel PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_description>
+)
 # clang_tidy_check(composable_kernel)
+SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
+if(BUILD_DEV)
+    target_compile_options(composable_kernel PRIVATE -Werror)
+    target_compile_options(composable_kernel PRIVATE -Weverything)
+endif()
+message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+
+configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/hip_version.hpp")
 
 add_subdirectory(host)
 add_subdirectory(example)

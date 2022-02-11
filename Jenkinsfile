@@ -166,14 +166,26 @@ pipeline {
     stages{
         stage("Static checks") {
             parallel{
-                stage('Tidy') {
-                    agent{ label rocmnode("nogpu") }
+                // enable after we move from hipcc to hip-clang
+                // stage('Tidy') {
+                //     agent{ label rocmnode("nogpu") }
+                //     environment{
+                //         // setup_cmd = "CXX='/opt/rocm/bin/hipcc' cmake -DBUILD_DEV=On .. "
+                //         build_cmd = "make -j\$(nproc) -k analyze"
+                //     }
+                //     steps{
+                //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
+                //     }
+                // }
+                stage('Build Profiler: gfx908')
+                {
+                    agent { label rocmnode("gfx908")}
                     environment{
-                        // setup_cmd = "CXX='/opt/rocm/bin/hipcc' cmake -DBUILD_DEV=On .. "
-                        build_cmd = "make -j\$(nproc) -k analyze"
+                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                        build_cmd = "make -j\$(nproc) -k ckProfiler"
                     }
                     steps{
-                        buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_cmd:build_cmd, no_reboot:true, build_type: 'debug')
                     }
                 }
                 stage('Clang Format') {

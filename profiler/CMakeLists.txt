@@ -55,6 +55,7 @@ set_target_properties(device_conv2d_fwd_bias_relu_instance PROPERTIES POSITION_I
 install(TARGETS device_conv2d_fwd_bias_relu_instance LIBRARY DESTINATION lib) 
 
 # device_conv2d_fwd_bias_relu_add_instance
+# Missing file "blockwise_tensor_slice_transfer.hpp"
 set(DEVICE_CONV2D_FWD_BIAS_RELU_ADD_INSTANCE_SOURCE 
    ${PROJECT_SOURCE_DIR}/device_operation/device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instance.cpp;
 ) 
