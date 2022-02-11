@@ -12,7 +12,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "transform_forward_convolution3d_into_gemm_v4r4r4_ndhwc_kzyxc_ndhwk.hpp"
-#include "gridwise_batched_gemm_xdlops_v2r3.hpp"
+#include "gridwise_batched_gemm_xdlops_v2r3r2.hpp"
 #include "../conv_utility/conv_utility.hpp"
 
 namespace ck {
