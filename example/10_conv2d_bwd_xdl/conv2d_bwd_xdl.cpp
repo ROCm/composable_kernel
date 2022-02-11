@@ -13,7 +13,7 @@
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
 #include "device_conv2d_bwd_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
-#include "reference_conv_fwd.hpp"
+#include "reference_conv_bwd.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -74,8 +74,8 @@ using DeviceConvFwdInstance = ck::tensor_operation::device::
         8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-using ReferenceConvFwdInstance = ck::tensor_operation::host::
-    ReferenceConvFwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
+using ReferenceConvBwdInstance = ck::tensor_operation::host::
+    ReferenceConvBwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -248,7 +248,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        auto ref_conv    = ReferenceConvFwdInstance{};
+        auto ref_conv    = ReferenceConvBwdInstance{};
         auto ref_invoker = ref_conv.MakeInvoker();
 
         auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
