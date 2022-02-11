@@ -18,6 +18,41 @@ struct PassThrough
     __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; }
 };
 
+struct Add
+{
+    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
+    {
+        y = x0 + x1;
+    }
+
+    __host__ __device__ constexpr void
+    operator()(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        // FIXME - Use float (acc type) bias in the future.
+        y = x0 + x1;
+    }
+};
+
+struct AlphaBetaAdd
+{
+    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta) {}
+
+    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
+    {
+        y = alpha_ * x0 + beta_ * x1;
+    }
+
+    __host__ __device__ constexpr void
+    operator()(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        // FIXME - Let x0 be acc type
+        y = static_cast<half_t>(alpha_ * static_cast<float>(x0) + beta_ * static_cast<float>(x1));
+    }
+
+    float alpha_;
+    float beta_;
+};
+
 struct AddRelu
 {
     __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
