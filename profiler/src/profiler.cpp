@@ -47,13 +47,13 @@ int main(int argc, char* argv[])
     {
         // clang-format off
         printf("arg1: tensor operation (gemm: GEMM\n"
-                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
-                "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
-                "                        conv_fwd: ForwardConvolution\n"
-                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
-                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
-                "                        conv_fwd_bias_relu_atomic_add:
-                ForwardConvolution+Bias+ReLU+AtomicAdd\n");
+               "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
+               "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
+               "                        conv_fwd: ForwardConvolution\n"
+               "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
+               "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
+               "                        conv_fwd_bias_relu_atomic_add:
+               ForwardConvolution+Bias+ReLU+AtomicAdd\n");
         // clang-format on
 
         return 0;
