@@ -7,7 +7,7 @@ namespace device {
 
 enum GemmSpecialization_t
 {
-    NoPadding = 0,
+    Default,
     MNPadding,
 };
 
