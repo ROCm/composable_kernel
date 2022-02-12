@@ -13,7 +13,6 @@
 #include "tensor_descriptor_helper.hpp"
 #include "transform_forward_convolution3d_into_gemm_v4r4r4_ndhwc_kzyxc_ndhwk.hpp"
 #include "gridwise_batched_gemm_xdlops_v2r3r2.hpp"
-#include "../conv_utility/conv_utility.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -116,7 +115,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         return N1;
     }
 
-    static auto MakeABCGridDescriptor_A_B_K0_M_K1_B_B_K0_N_K1_C_B_M_N(
+    static auto MakeABCGridDescriptor_A_G_K0_M_K1_B_G_K0_N_K1_C_G_M_N(
         const index_t N,
         const index_t K,
         const index_t C,
@@ -188,11 +187,12 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     }
 
     using ABCGridDescs =
-        remove_cvref_t<decltype(MakeABCGridDescriptor_A_B_K0_M_K1_B_B_K0_N_K1_C_B_M_N(
+        remove_cvref_t<decltype(MakeABCGridDescriptor_A_G_K0_M_K1_B_G_K0_N_K1_C_G_M_N(
             1, 1, 1, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}))>;
-    using AGridDesc_B_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
-    using BGridDesc_B_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
-    using CGridDesc_B_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
+
+    using AGridDesc_G_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
+    using BGridDesc_G_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
+    using CGridDesc_G_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     using GridwiseBatchedGemm = GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3<
         BlockSize,
@@ -200,9 +200,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         AccDataType,
         OutDataType,
         InMemoryDataOperationEnum_t::Set,
-        AGridDesc_B_K0_M_K1,
-        BGridDesc_B_K0_N_K1,
-        CGridDesc_B_M_N,
+        AGridDesc_G_K0_M_K1,
+        BGridDesc_G_K0_N_K1,
+        CGridDesc_G_M_N,
         InElementwiseOperation,
         WeiElementwiseOperation,
         OutElementwiseOperation,
@@ -234,10 +234,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         7,
         CThreadTransferDstScalarPerVector>;
 
-    using CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2 = decltype(
-        GridwiseBatchedGemm::MakeCGridDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_B_M_N{}));
+    using CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2 = decltype(
+        GridwiseBatchedGemm::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_G_M_N{}));
     using Block2CTileMap =
-        decltype(GridwiseBatchedGemm::MakeBlock2CTileMap(CGridDesc_B_M_N{}, 1, 1));
+        decltype(GridwiseBatchedGemm::MakeBlock2CTileMap(CGridDesc_G_M_N{}, 1, 1));
 
     // Argument
     struct Argument : public BaseArgument
@@ -270,7 +270,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
               out_element_op_{out_element_op}
         {
             const auto descs =
-                MakeABCGridDescriptor_A_B_K0_M_K1_B_B_K0_N_K1_C_B_M_N(N,
+                MakeABCGridDescriptor_A_G_K0_M_K1_B_G_K0_N_K1_C_G_M_N(N,
                                                                       K,
                                                                       C,
                                                                       input_spatial_lengths,
@@ -281,26 +281,26 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                                       input_left_pads,
                                                                       input_right_pads);
 
-            a_grid_desc_b_k0_m_k1_ = descs[I0];
-            b_grid_desc_b_k0_n_k1_ = descs[I1];
-            c_grid_desc_b_m_n_     = descs[I2];
+            a_grid_desc_g_k0_m_k1_ = descs[I0];
+            b_grid_desc_g_k0_n_k1_ = descs[I1];
+            c_grid_desc_g_m_n_     = descs[I2];
 
-            a_batch_stride_ = a_grid_desc_b_k0_m_k1_.CalculateOffset(make_multi_index(1, 0, 0, 0)) -
-                              a_grid_desc_b_k0_m_k1_.CalculateOffset(make_multi_index(0, 0, 0, 0));
-            b_batch_stride_ = b_grid_desc_b_k0_n_k1_.CalculateOffset(make_multi_index(1, 0, 0, 0)) -
-                              b_grid_desc_b_k0_n_k1_.CalculateOffset(make_multi_index(0, 0, 0, 0));
-            c_batch_stride_ = c_grid_desc_b_m_n_.CalculateOffset(make_multi_index(1, 0, 0)) -
-                              c_grid_desc_b_m_n_.CalculateOffset(make_multi_index(0, 0, 0));
+            a_batch_stride_ = a_grid_desc_g_k0_m_k1_.CalculateOffset(make_multi_index(1, 0, 0, 0)) -
+                              a_grid_desc_g_k0_m_k1_.CalculateOffset(make_multi_index(0, 0, 0, 0));
+            b_batch_stride_ = b_grid_desc_g_k0_n_k1_.CalculateOffset(make_multi_index(1, 0, 0, 0)) -
+                              b_grid_desc_g_k0_n_k1_.CalculateOffset(make_multi_index(0, 0, 0, 0));
+            c_batch_stride_ = c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(1, 0, 0)) -
+                              c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(0, 0, 0));
 
             if(GridwiseBatchedGemm::CheckValidity(
-                   a_grid_desc_b_k0_m_k1_, b_grid_desc_b_k0_n_k1_, c_grid_desc_b_m_n_, M01_, N01_))
+                   a_grid_desc_g_k0_m_k1_, b_grid_desc_g_k0_n_k1_, c_grid_desc_g_m_n_, M01_, N01_))
             {
-                c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseBatchedGemm::MakeCGridDescriptor_B_M0_N0_M1_N1_M2_M3_M4_N2(
-                        c_grid_desc_b_m_n_);
+                c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2_ =
+                    GridwiseBatchedGemm::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(
+                        c_grid_desc_g_m_n_);
 
                 block_2_ctile_map_ =
-                    GridwiseBatchedGemm::MakeBlock2CTileMap(c_grid_desc_b_m_n_, M01, N01);
+                    GridwiseBatchedGemm::MakeBlock2CTileMap(c_grid_desc_g_m_n_, M01, N01);
             }
         }
 
@@ -311,10 +311,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         index_t a_batch_stride_;
         index_t b_batch_stride_;
         index_t c_batch_stride_;
-        AGridDesc_B_K0_M_K1 a_grid_desc_b_k0_m_k1_;
-        BGridDesc_B_K0_N_K1 b_grid_desc_b_k0_n_k1_;
-        CGridDesc_B_M_N c_grid_desc_b_m_n_;
-        CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_;
+        AGridDesc_G_K0_M_K1 a_grid_desc_g_k0_m_k1_;
+        BGridDesc_G_K0_N_K1 b_grid_desc_g_k0_n_k1_;
+        CGridDesc_G_M_N c_grid_desc_g_m_n_;
+        CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -331,24 +331,24 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         float Run(const Argument& arg, int nrepeat = 1)
         {
             {
-                std::cout << "a_grid_desc_b_k0_m_k1{" << arg.a_grid_desc_b_k0_m_k1_.GetLength(I0)
-                          << ", " << arg.a_grid_desc_b_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_b_k0_m_k1_.GetLength(I2) << ", "
-                          << arg.a_grid_desc_b_k0_m_k1_.GetLength(I3) << "}" << std::endl;
+                std::cout << "a_grid_desc_g_k0_m_k1{" << arg.a_grid_desc_g_k0_m_k1_.GetLength(I0)
+                          << ", " << arg.a_grid_desc_g_k0_m_k1_.GetLength(I1) << ", "
+                          << arg.a_grid_desc_g_k0_m_k1_.GetLength(I2) << ", "
+                          << arg.a_grid_desc_g_k0_m_k1_.GetLength(I3) << "}" << std::endl;
 
-                std::cout << "b_grid_desc_b_k0_n_k1{" << arg.b_grid_desc_b_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_b_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_b_k0_n_k1_.GetLength(I2) << ", "
-                          << arg.b_grid_desc_b_k0_n_k1_.GetLength(I3) << "}" << std::endl;
+                std::cout << "b_grid_desc_g_k0_n_k1{" << arg.b_grid_desc_g_k0_n_k1_.GetLength(I0)
+                          << ", " << arg.b_grid_desc_g_k0_n_k1_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_g_k0_n_k1_.GetLength(I2) << ", "
+                          << arg.b_grid_desc_g_k0_n_k1_.GetLength(I3) << "}" << std::endl;
 
-                std::cout << "c_grid_desc_b_m_n{ " << arg.c_grid_desc_b_m_n_.GetLength(I0) << ", "
-                          << arg.c_grid_desc_b_m_n_.GetLength(I1) << ", "
-                          << arg.c_grid_desc_b_m_n_.GetLength(I2) << "}" << std::endl;
+                std::cout << "c_grid_desc_g_m_n{ " << arg.c_grid_desc_g_m_n_.GetLength(I0) << ", "
+                          << arg.c_grid_desc_g_m_n_.GetLength(I1) << ", "
+                          << arg.c_grid_desc_g_m_n_.GetLength(I2) << "}" << std::endl;
             }
 
-            if(!GridwiseBatchedGemm::CheckValidity(arg.a_grid_desc_b_k0_m_k1_,
-                                                   arg.b_grid_desc_b_k0_n_k1_,
-                                                   arg.c_grid_desc_b_m_n_,
+            if(!GridwiseBatchedGemm::CheckValidity(arg.a_grid_desc_g_k0_m_k1_,
+                                                   arg.b_grid_desc_g_k0_n_k1_,
+                                                   arg.c_grid_desc_g_m_n_,
                                                    arg.M01_,
                                                    arg.N01_))
             {
@@ -358,9 +358,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             }
 
             const index_t grid_size =
-                GridwiseBatchedGemm::CalculateGridSize(arg.c_grid_desc_b_m_n_);
+                GridwiseBatchedGemm::CalculateGridSize(arg.c_grid_desc_g_m_n_);
 
-            const auto K0 = arg.a_grid_desc_b_k0_m_k1_.GetLength(I1);
+            const auto K0 = arg.a_grid_desc_g_k0_m_k1_.GetLength(I1);
 
             const bool has_main_k0_block_loop =
                 GridwiseBatchedGemm::CalculateHasMainK0BlockLoop(K0);
@@ -372,9 +372,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     GridwiseBatchedGemm,
                     InDataType,
                     OutDataType,
-                    remove_reference_t<AGridDesc_B_K0_M_K1>,
-                    remove_reference_t<BGridDesc_B_K0_N_K1>,
-                    remove_reference_t<CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<AGridDesc_G_K0_M_K1>,
+                    remove_reference_t<BGridDesc_G_K0_N_K1>,
+                    remove_reference_t<CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
@@ -391,9 +391,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   arg.a_batch_stride_,
                                                   arg.b_batch_stride_,
                                                   arg.c_batch_stride_,
-                                                  arg.a_grid_desc_b_k0_m_k1_,
-                                                  arg.b_grid_desc_b_k0_n_k1_,
-                                                  arg.c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.a_grid_desc_g_k0_m_k1_,
+                                                  arg.b_grid_desc_g_k0_n_k1_,
+                                                  arg.c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,
@@ -405,9 +405,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     GridwiseBatchedGemm,
                     InDataType,
                     OutDataType,
-                    remove_reference_t<AGridDesc_B_K0_M_K1>,
-                    remove_reference_t<BGridDesc_B_K0_N_K1>,
-                    remove_reference_t<CGridDesc_B_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<AGridDesc_G_K0_M_K1>,
+                    remove_reference_t<BGridDesc_G_K0_N_K1>,
+                    remove_reference_t<CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2>,
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
@@ -425,9 +425,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   arg.a_batch_stride_,
                                                   arg.b_batch_stride_,
                                                   arg.c_batch_stride_,
-                                                  arg.a_grid_desc_b_k0_m_k1_,
-                                                  arg.b_grid_desc_b_k0_n_k1_,
-                                                  arg.c_grid_desc_b_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.a_grid_desc_g_k0_m_k1_,
+                                                  arg.b_grid_desc_g_k0_n_k1_,
+                                                  arg.c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.in_element_op_,
                                                   arg.wei_element_op_,
                                                   arg.out_element_op_,
@@ -452,9 +452,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseBatchedGemm::CheckValidity(arg.a_grid_desc_b_k0_m_k1_,
-                                                  arg.b_grid_desc_b_k0_n_k1_,
-                                                  arg.c_grid_desc_b_m_n_,
+        return GridwiseBatchedGemm::CheckValidity(arg.a_grid_desc_g_k0_m_k1_,
+                                                  arg.b_grid_desc_g_k0_n_k1_,
+                                                  arg.c_grid_desc_g_m_n_,
                                                   arg.M01_,
                                                   arg.N01_);
     }

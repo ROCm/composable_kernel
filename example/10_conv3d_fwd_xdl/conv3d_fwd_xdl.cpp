@@ -14,6 +14,7 @@
 #include "device_base.hpp"
 #include "device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp"
 #include "naive_conv_fwd.hpp"
+#include "convolution_utility.hpp"
 
 // convolution data type
 using InDataType  = ck::half_t;
