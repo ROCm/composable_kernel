@@ -8,8 +8,10 @@
 
 enum ConvDataType
 {
-    F32_F32_F32, // 0
-    F16_F16_F16, // 1
+    F32_F32_F32,    // 0
+    F16_F16_F16,    // 1
+    BF16_BF16_BF16, // 2
+    INT8_INT8_INT8, // 3
 };
 
 enum ConvInputLayout
@@ -112,6 +114,56 @@ int profile_conv_fwd(int argc, char* argv[])
                                             ck::half_t,
                                             ck::half_t,
                                             ck::half_t,
+                                            ck::tensor_layout::convolution::NHWC,
+                                            ck::tensor_layout::convolution::KYXC,
+                                            ck::tensor_layout::convolution::NHWK>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            N,
+            K,
+            C,
+            std::vector<ck::index_t>{Hi, Wi},
+            std::vector<ck::index_t>{Y, X},
+            std::vector<ck::index_t>{Ho, Wo},
+            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
+            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
+            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
+            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
+    }
+    else if(data_type == ConvDataType::BF16_BF16_BF16 && in_layout == ConvInputLayout::NHWC &&
+            wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
+    {
+        ck::profiler::profile_conv_fwd_impl<2,
+                                            uint16_t,
+                                            uint16_t,
+                                            uint16_t,
+                                            ck::tensor_layout::convolution::NHWC,
+                                            ck::tensor_layout::convolution::KYXC,
+                                            ck::tensor_layout::convolution::NHWK>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            N,
+            K,
+            C,
+            std::vector<ck::index_t>{Hi, Wi},
+            std::vector<ck::index_t>{Y, X},
+            std::vector<ck::index_t>{Ho, Wo},
+            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
+            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
+            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
+            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
+    }
+    else if(data_type == ConvDataType::INT8_INT8_INT8 && in_layout == ConvInputLayout::NHWC &&
+            wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
+    {
+        ck::profiler::profile_conv_fwd_impl<2,
+                                            int8_t,
+                                            int8_t,
+                                            int8_t,
                                             ck::tensor_layout::convolution::NHWC,
                                             ck::tensor_layout::convolution::KYXC,
                                             ck::tensor_layout::convolution::NHWK>(
