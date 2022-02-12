@@ -45,8 +45,7 @@ struct lambda_scalar_per_access_for_src_and_dst
 //   2. SrcBuffer and DstBuffer are DynamicBuffer
 //   3. src_slice_origin and dst_slice_origin are not known at compile-time,
 //   4. Use thread buffer
-template <index_t NumThreadScratch,
-          typename SliceLengths,
+template <typename SliceLengths,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
@@ -65,9 +64,10 @@ template <index_t NumThreadScratch,
           bool SrcResetCoordinateAfterRun, // control whether to move back src coordinate after each
                                            // RunRead(),  will be fused with MoveSrcSliceWindow to
                                            // save addr computation
-          bool DstResetCoordinateAfterRun> // control whether to move back dst coordinate after each
+          bool DstResetCoordinateAfterRun, // control whether to move back dst coordinate after each
                                            // RunWrite(),  will be fused with MoveDstSliceWindow to
                                            // save addr computation
+          index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v3r1
 {
     static constexpr index_t nDim = SliceLengths::Size();
@@ -105,10 +105,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
     }
 
-    template <typename SrcBuffer, index_t ThreadScratchId>
+    template <typename SrcBuffer, index_t ThreadScratchId = 0>
     __device__ void RunRead(const SrcDesc& src_desc,
                             const SrcBuffer& src_buf,
-                            Number<ThreadScratchId> thread_scratch_id)
+                            Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
                           SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
@@ -352,9 +352,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 #endif
     }
 
-    template <typename DstBuffer, index_t ThreadScratchId>
-    __device__ void
-    RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, Number<ThreadScratchId> thread_scratch_id)
+    template <typename DstBuffer, index_t ThreadScratchId = 0>
+    __device__ void RunWrite(const DstDesc& dst_desc,
+                             DstBuffer& dst_buf,
+                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         // if there is transpose, it's done here
         // TODO move this elsewhere

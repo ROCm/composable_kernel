@@ -376,8 +376,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v4r1
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r1<2,
-                                              BlockSize,
+            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
@@ -397,18 +396,17 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v4r1
                                               1,
                                               1,
                                               AThreadTransferSrcResetCoordinateAfterRun,
-                                              true>(
-                a_grid_desc_k0_m_k1,
-                make_multi_index(0, m_block_data_idx_on_grid, 0),
-                a_element_op,
-                a_block_desc_k0_m_k1,
-                make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{});
+                                              true,
+                                              2>(a_grid_desc_k0_m_k1,
+                                                 make_multi_index(0, m_block_data_idx_on_grid, 0),
+                                                 a_element_op,
+                                                 a_block_desc_k0_m_k1,
+                                                 make_multi_index(0, 0, 0),
+                                                 ck::tensor_operation::element_wise::PassThrough{});
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r1<2,
-                                              BlockSize,
+            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
@@ -428,13 +426,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v4r1
                                               1,
                                               1,
                                               BThreadTransferSrcResetCoordinateAfterRun,
-                                              true>(
-                b_grid_desc_k0_n_k1,
-                make_multi_index(0, n_block_data_idx_on_grid, 0),
-                b_element_op,
-                b_block_desc_k0_n_k1,
-                make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{});
+                                              true,
+                                              2>(b_grid_desc_k0_n_k1,
+                                                 make_multi_index(0, n_block_data_idx_on_grid, 0),
+                                                 b_element_op,
+                                                 b_block_desc_k0_n_k1,
+                                                 make_multi_index(0, 0, 0),
+                                                 ck::tensor_operation::element_wise::PassThrough{});
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx

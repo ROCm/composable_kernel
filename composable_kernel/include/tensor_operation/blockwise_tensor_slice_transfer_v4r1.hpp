@@ -13,8 +13,7 @@ namespace ck {
 // 1. Use StaticallyIndexedArray instead of C array for thread buffer
 // 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
 // 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
-template <index_t NumThreadScratch,
-          index_t BlockSize,
+template <index_t BlockSize,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
           InMemoryDataOperationEnum_t DstInMemOp,
@@ -34,7 +33,8 @@ template <index_t NumThreadScratch,
           index_t SrcScalarStrideInVector,
           index_t DstScalarStrideInVector,
           bool ThreadTransferSrcResetCoordinateAfterRun,
-          bool ThreadTransferDstResetCoordinateAfterRun>
+          bool ThreadTransferDstResetCoordinateAfterRun,
+          index_t NumThreadScratch = 1>
 struct BlockwiseTensorSliceTransfer_v4r1
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
@@ -87,10 +87,10 @@ struct BlockwiseTensorSliceTransfer_v4r1
         }
     }
 
-    template <typename SrcBuffer, index_t ThreadScratchId>
+    template <typename SrcBuffer, index_t ThreadScratchId = 0>
     __device__ void RunRead(const SrcDesc& src_desc,
                             const SrcBuffer& src_buf,
-                            Number<ThreadScratchId> thread_scratch_id)
+                            Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         if(BlockSize == thread_cluster_desc_.GetElementSize() or
            get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
@@ -99,9 +99,10 @@ struct BlockwiseTensorSliceTransfer_v4r1
         }
     }
 
-    template <typename DstBuffer, index_t ThreadScratchId>
-    __device__ void
-    RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, Number<ThreadScratchId> thread_scratch_id)
+    template <typename DstBuffer, index_t ThreadScratchId = 0>
+    __device__ void RunWrite(const DstDesc& dst_desc,
+                             DstBuffer& dst_buf,
+                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         if(BlockSize == thread_cluster_desc_.GetElementSize() or
            get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
@@ -144,8 +145,7 @@ struct BlockwiseTensorSliceTransfer_v4r1
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
-        ThreadwiseTensorSliceTransfer_v3r1<NumThreadScratch,
-                                           decltype(thread_slice_lengths),
+        ThreadwiseTensorSliceTransfer_v3r1<decltype(thread_slice_lengths),
                                            SrcElementwiseOperation,
                                            DstElementwiseOperation,
                                            DstInMemOp,
@@ -162,7 +162,8 @@ struct BlockwiseTensorSliceTransfer_v4r1
                                            SrcScalarStrideInVector,
                                            DstScalarStrideInVector,
                                            ThreadTransferSrcResetCoordinateAfterRun,
-                                           ThreadTransferDstResetCoordinateAfterRun>;
+                                           ThreadTransferDstResetCoordinateAfterRun,
+                                           NumThreadScratch>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

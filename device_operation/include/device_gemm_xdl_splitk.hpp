@@ -11,6 +11,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r4.hpp"
+#include "gemm_specialization.hpp"
 
 #ifndef CK_RUN_KERNEL_AND_TIME
 #define CK_RUN_KERNEL_AND_TIME 1
@@ -30,6 +31,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          GemmSpecialization_t GemmSpecialization,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -88,14 +90,26 @@ struct DeviceGemmXdlSplitK
             make_tuple(make_right_pad_transform(K, KPad - K), make_pass_through_transform(M)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
-        const auto a_grid_desc_kbatch_k0_m_k1 = transform_tensor_descriptor(
-            a_grid_desc_m_kpad,
-            make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
-                       make_pass_through_transform(M)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
-        return a_grid_desc_kbatch_k0_m_k1;
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
+        {
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+            return transform_tensor_descriptor(
+                a_grid_desc_m_kpad,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                           make_right_pad_transform(M, PadM)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                a_grid_desc_m_kpad,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
     }
 
     static auto
@@ -122,25 +136,59 @@ struct DeviceGemmXdlSplitK
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        const auto b_grid_desc_kbatch_k0_n_k1 = transform_tensor_descriptor(
-            b_grid_desc_kpad_n,
-            make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
-                       make_pass_through_transform(N)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
-
-        return b_grid_desc_kbatch_k0_n_k1;
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
+        {
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+            return transform_tensor_descriptor(
+                b_grid_desc_kpad_n,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                           make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                b_grid_desc_kpad_n,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
     }
 
     static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+        const auto c_grid_desc_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+            }
+        }();
+
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
         {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
-        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+        else
         {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
     }
 
