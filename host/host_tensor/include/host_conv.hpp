@@ -22,7 +22,7 @@ void host_conv_nchw_kcyx_nkhw(const Tensor<TIn>& in,
     constexpr auto I1 = ck::Number<1>{};
 
     auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-        double v = 0;
+        float v = 0;
         for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
         {
             for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
@@ -34,13 +34,13 @@ void host_conv_nchw_kcyx_nkhw(const Tensor<TIn>& in,
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[3])
                     {
-                        v += static_cast<const double>(in(n, c, hi, wi)) *
-                             static_cast<const double>(wei(k, c, y, x));
+                        v += ck::type_convert<float>(in(n, c, hi, wi)) *
+                             ck::type_convert<float>(wei(k, c, y, x));
                     }
                 }
             }
         }
-        out(n, k, ho, wo) = v;
+        out(n, k, ho, wo) = ck::type_convert<TOut>(v);
     };
 
     make_ParallelTensorFunctor(f_nchw,

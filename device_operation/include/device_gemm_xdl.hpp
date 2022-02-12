@@ -11,6 +11,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
+#include "gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -26,6 +27,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          GemmSpecialization_t GemmSpecialization,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -77,14 +79,26 @@ struct DeviceGemmXdl
             }
         }();
 
-        const auto a_grid_desc_k0_m_k1 =
-            transform_tensor_descriptor(a_grid_desc_m_k,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(M)),
-                                        make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
+        {
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
 
-        return a_grid_desc_k0_m_k1;
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_right_pad_transform(M, PadM)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
     }
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
@@ -104,25 +118,60 @@ struct DeviceGemmXdl
             }
         }();
 
-        const auto b_grid_desc_k0_n_k1 =
-            transform_tensor_descriptor(b_grid_desc_k_n,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(N)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
+        {
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
 
-        return b_grid_desc_k0_n_k1;
+            return transform_tensor_descriptor(
+                b_grid_desc_k_n,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                b_grid_desc_k_n,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
     }
 
     static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+        const auto c_grid_desc_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+            }
+        }();
+
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
         {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
-        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+        else
         {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
     }
 
@@ -408,7 +457,8 @@ struct DeviceGemmXdl
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op,
+                                                      index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),

@@ -386,8 +386,8 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
 
     const auto element_space_size = old_tensor_desc.GetElementSpaceSize();
     // \todo: It's not absolutely safe to inherit ElementSize type from old_tensor_desc
-    using ElementSize             = remove_cv_t<decltype(old_tensor_desc.GetElementSize())>;
-    using ElementSpaceSize        = remove_cv_t<decltype(old_tensor_desc.GetElementSpaceSize())>;
+    using ElementSize      = remove_cv_t<decltype(old_tensor_desc.GetElementSize())>;
+    using ElementSpaceSize = remove_cv_t<decltype(old_tensor_desc.GetElementSpaceSize())>;
 
     return TensorDescriptor<remove_cv_t<decltype(all_transforms)>,
                             remove_cv_t<decltype(all_low_dim_hidden_idss)>,

@@ -175,6 +175,10 @@ struct DynamicBuffer
                                        is_same<remove_cvref_t<X>, int8x2_t>::value) ||
                                       (is_same<remove_cvref_t<T>, int8_t>::value &&
                                        is_same<remove_cvref_t<X>, int8x4_t>::value) ||
+                                      (is_same<remove_cvref_t<T>, int8_t>::value &&
+                                       is_same<remove_cvref_t<X>, int8x8_t>::value) ||
+                                      (is_same<remove_cvref_t<T>, int8_t>::value &&
+                                       is_same<remove_cvref_t<X>, int8x16_t>::value) ||
                                       (is_same<remove_cvref_t<T>, int8x4_t>::value &&
                                        is_same<remove_cvref_t<X>, int8x4_t>::value) ||
                                       (is_same<remove_cvref_t<T>, int8x8_t>::value &&
@@ -207,6 +211,22 @@ struct DynamicBuffer
                         // TODO: remove this after compiler fix
                         *c_style_pointer_cast<int32_t*>(&p_data_[i]) =
                             *c_style_pointer_cast<const int32_t*>(&x);
+                    }
+                    else if constexpr(is_same<remove_cvref_t<T>, int8_t>::value &&
+                                      is_same<remove_cvref_t<X>, int8x8_t>::value)
+                    {
+                        // HACK: cast pointer of x is bad
+                        // TODO: remove this after compiler fix
+                        *c_style_pointer_cast<int32x2_t*>(&p_data_[i]) =
+                            *c_style_pointer_cast<const int32x2_t*>(&x);
+                    }
+                    else if constexpr(is_same<remove_cvref_t<T>, int8_t>::value &&
+                                      is_same<remove_cvref_t<X>, int8x16_t>::value)
+                    {
+                        // HACK: cast pointer of x is bad
+                        // TODO: remove this after compiler fix
+                        *c_style_pointer_cast<int32x4_t*>(&p_data_[i]) =
+                            *c_style_pointer_cast<const int32x4_t*>(&x);
                     }
                     else if constexpr(is_same<remove_cvref_t<T>, int8x4_t>::value &&
                                       is_same<remove_cvref_t<X>, int8x4_t>::value)
