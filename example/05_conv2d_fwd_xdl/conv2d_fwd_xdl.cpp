@@ -14,6 +14,7 @@
 #include "element_wise_operation.hpp"
 #include "device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_fwd.hpp"
+#include "convolution_utility.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -143,12 +144,12 @@ int main(int argc, char* argv[])
     const std::vector<ck::index_t> input_left_pads{{in_left_pad_h, in_left_pad_w}};
     const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
     const auto output_spatial_lengths =
-        ck::tensor_operation::ComputeOutputSpatialLengthsOfConvFwd({Hi, Wi},
-                                                                   {Y, X},
-                                                                   conv_filter_strides,
-                                                                   conv_filter_dilations,
-                                                                   input_left_pads,
-                                                                   input_right_pads);
+        ck::tensor_operation::ConvolutionUtility::ComputeOutputSpatialLengths({Hi, Wi},
+                                                                              {Y, X},
+                                                                              conv_filter_strides,
+                                                                              conv_filter_dilations,
+                                                                              input_left_pads,
+                                                                              input_right_pads);
 
     const ck::index_t Ho = output_spatial_lengths[0];
     const ck::index_t Wo = output_spatial_lengths[1];

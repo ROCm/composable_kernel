@@ -139,12 +139,13 @@ int main(int argc, char* argv[])
     auto conv3d = DeviceConv3dFwdInstance{};
 
     const auto out_spatial_lengths =
-        ck::tensor_operation::ComputeOutputSpatialLengthsOfConvFwd(in_spatial_lengths,
-                                                                   filter_spatial_lengths,
-                                                                   conv_filter_strides,
-                                                                   conv_filter_dilations,
-                                                                   in_left_pads,
-                                                                   in_right_pads);
+        ck::tensor_operation::ConvolutionUtility::ComputeOutputSpatialLengths(
+            in_spatial_lengths,
+            filter_spatial_lengths,
+            conv_filter_strides,
+            conv_filter_dilations,
+            in_left_pads,
+            in_right_pads);
     Tensor<InDataType> in(
         {N, in_spatial_lengths[0], in_spatial_lengths[1], in_spatial_lengths[2], C});
     Tensor<WeiDataType> wei(
