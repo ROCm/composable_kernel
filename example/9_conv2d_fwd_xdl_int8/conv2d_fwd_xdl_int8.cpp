@@ -36,10 +36,42 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
-// clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
-    DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<  int8_t,  int8_t,  int8_t,     int32_t, PassThrough, PassThrough, PassThrough, ConvFwdDefault,   128,   128,   128,     4,  16,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              16,              16,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              16,              16,      true,               7,               1>;
-// clang-format on
+    DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+        int8_t,         // InDataType
+        int8_t,         // WeiDataType
+        int8_t,         // OutDataType
+        int32_t,        // AccDataType
+        PassThrough,    // InElementwiseOperation
+        PassThrough,    // WeiElementwiseOperation
+        PassThrough,    // OutElementwiseOperation
+        ConvFwdDefault, // ConvForwardSpecialization
+        256,            // BlockSize
+        128,            // MPerBlock
+        256,            // NPerBlock
+        4,              // K0PerBlock
+        16,             // K1
+        32,             // MPerXdl
+        32,             // NPerXdl
+        2,              // MXdlPerWave
+        4,              // NXdlPerWave
+        S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
+        2,              // ABlockTransferSrcVectorDim
+        16,             // ABlockTransferSrcScalarPerVector
+        16,             // ABlockTransferDstScalarPerVector_K1
+        true,           // ABlockLdsAddExtraM
+        S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,     // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // BBlockTransferSrcAccessOrder
+        2,              // BBlockTransferSrcVectorDim
+        16,             // BBlockTransferSrcScalarPerVector
+        16,             // BBlockTransferDstScalarPerVector_K1
+        true,           // BBlockLdsAddExtraN
+        7,              // CThreadTransferSrcDstVectorDim
+        1>;             // CThreadTransferDstScalarPerVector
+
 using ReferenceConvFwdInstance = ck::tensor_operation::host::
     ReferenceConvFwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
 
