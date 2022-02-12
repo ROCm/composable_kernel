@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_GEMM_XDLOPS_V2R3_SPLITM_HPP
-#define CK_GRIDWISE_GEMM_XDLOPS_V2R3_SPLITM_HPP
+#ifndef CK_GRIDWISE_GEMM_XDLOPS_V2R3R2_SPLITM_HPP
+#define CK_GRIDWISE_GEMM_XDLOPS_V2R3R2_SPLITM_HPP
 
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
@@ -28,7 +28,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_v2r3(
+        kernel_batched_gemm_xdlops_v2r3r2(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
@@ -78,7 +78,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_v2r3(
+        kernel_batched_gemm_xdlops_v2r3r2(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
@@ -168,7 +168,7 @@ template <index_t BlockSize,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
-struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
+struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -330,8 +330,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
                        make_pass_through_transform(M),
                        make_pass_through_transform(K1)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            // make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+            make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
         return a_grid_desc_k0_m_k1;
     }
@@ -349,7 +348,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
                        make_pass_through_transform(N),
                        make_pass_through_transform(K1)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+            make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
         return b_grid_desc_k0_n_k1;
     }
@@ -366,7 +365,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
                                                    make_pass_through_transform(M),
                                                    make_pass_through_transform(N)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+                                        make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
 
         return c_m_n_grid_desc;
     }
@@ -409,7 +408,8 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
                                                    Sequence<6>{},
                                                    Sequence<7>{},
                                                    Sequence<8>{}),
-                                        make_tuple(Sequence<0>{},
+                                        make_tuple(Sequence<>{},
+                                                   Sequence<0>{},
                                                    Sequence<1>{},
                                                    Sequence<2>{},
                                                    Sequence<3>{},
@@ -746,7 +746,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3
             ++bb;
         } while(bb < B);
     }
-}; // struct GridwiseBatchedGemm_sk0mk1_k0nk1_smn_xdlops_v2r3
+}; // struct GridwiseBatchedGemm_sk0mk1_k0nk1_smn_xdlops_v2r3r2
 
 } // namespace ck
 #endif

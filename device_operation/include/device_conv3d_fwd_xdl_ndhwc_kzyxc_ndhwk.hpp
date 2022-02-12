@@ -194,7 +194,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     using BGridDesc_G_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_G_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    using GridwiseBatchedGemm = GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3<
+    using GridwiseBatchedGemm = GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2<
         BlockSize,
         InDataType,
         AccDataType,
@@ -353,7 +353,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                    arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3_xdlops_v2r3 has "
+                    "wrong! GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2_xdlops_v2r3 has "
                     "invalid setting");
             }
 
@@ -368,7 +368,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             float ave_time = 0;
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                const auto kernel = kernel_batched_gemm_xdlops_v2r3r2<
                     GridwiseBatchedGemm,
                     InDataType,
                     OutDataType,
@@ -401,7 +401,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             }
             else
             {
-                const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                const auto kernel = kernel_batched_gemm_xdlops_v2r3r2<
                     GridwiseBatchedGemm,
                     InDataType,
                     OutDataType,
