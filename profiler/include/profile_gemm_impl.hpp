@@ -1,4 +1,5 @@
 #pragma once
+#include <iomanip>
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -33,7 +34,6 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(std::vector<De
 void add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(
     std::vector<DeviceGemmNoOpPtr>&);
 
-#if 0
 void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -43,7 +43,6 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<Devic
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-#endif
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -146,7 +145,6 @@ void profile_gemm_impl(int do_verification,
     if constexpr(is_same<ADataType, float>::value && is_same<BDataType, float>::value &&
                  is_same<CDataType, float>::value)
     {
-#if 0
         if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
@@ -208,7 +206,6 @@ void profile_gemm_impl(int do_verification,
                     add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
             }
         }
-#endif
     }
     else if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
                       is_same<CDataType, half_t>::value)
@@ -303,8 +300,8 @@ void profile_gemm_impl(int do_verification,
 
             float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-            std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s, " << gemm_name << std::endl;
+            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
+                      << gb_per_sec << " GB/s, " << gemm_name << std::endl;
 
             if(tflops > best_tflops)
             {

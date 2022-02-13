@@ -470,6 +470,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
 
+#if 0
         // preload data into LDS
         {
             a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
@@ -515,6 +516,54 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
+#else
+        // preload data into LDS
+        a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+        b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+        b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+
+        // main body
+        if constexpr(HasMainKBlockLoop)
+        {
+            index_t k0_block_data_begin = 0;
+
+            do
+            {
+                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+
+                block_sync_lds();
+
+                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                block_sync_lds();
+
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
+
+                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+
+                k0_block_data_begin += K0PerBlock;
+            } while(k0_block_data_begin < (K0 - K0PerBlock));
+        }
+
+        // tail
+        {
+            block_sync_lds();
+
+            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+        }
+#endif
 
         // shuffle C and write out
         {
