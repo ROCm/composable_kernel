@@ -30,9 +30,3 @@ foreach(TEST ${TESTS})
     message("adding test ${BASE_NAME}")
     add_test_executeable(test_${BASE_NAME} ${TEST})
 endforeach(TEST ${TESTS})
-
-# test_split_k
-set(SPLIT_K_SOURCE split_k/main.cpp)
-add_executable(test_split_k ${SPLIT_K_SOURCE})
-target_link_libraries(test_split_k PRIVATE host_tensor)
-target_link_libraries(test_split_k PRIVATE device_gemm_instance)
