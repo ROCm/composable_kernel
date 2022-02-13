@@ -60,7 +60,7 @@ def cmake_build(Map conf=[:]){
             cd build
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make -j\$(nproc) ${config_targets}")
+    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make -j\$(( \$(nproc) / 2 )) ${config_targets}")
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
@@ -182,10 +182,9 @@ pipeline {
                     agent { label rocmnode("nogpu")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
-                        build_cmd = "make -j\$(nproc) -k ckProfiler"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_cmd:build_cmd, no_reboot:true, build_type: 'Release')
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                     }
                 }
                 stage('Clang Format') {
@@ -216,10 +215,9 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
-                        build_cmd = "make -j\$(nproc) -k check"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_cmd:build_cmd, no_reboot:true, build_type: 'Release')
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
                     }
 
                 }
