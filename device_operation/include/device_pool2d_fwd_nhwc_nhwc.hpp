@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <sstream>
-#include "device_pool_fwd.hpp"
+#include "device_pool2d_fwd.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "reduction_operator_mapping.hpp"
@@ -24,7 +24,7 @@ template <typename InDataType,
           ck::index_t ReduceMThreadSliceSize,
           ck::index_t ReduceKThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePoolFwd<ReduceOpId>
+struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd<ReduceOpId>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

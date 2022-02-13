@@ -1,5 +1,5 @@
-#ifndef DEVICE_POOL_FWD_HPP
-#define DEVICE_POOL_FWD_HPP
+#ifndef DEVICE_POOL2D_FWD_HPP
+#define DEVICE_POOL2D_FWD_HPP
 
 #include <iostream>
 #include <array>
@@ -11,7 +11,7 @@ namespace tensor_operation {
 namespace device {
 
 template <ck::ReduceTensorOp_t ReduceOpId>
-struct DevicePoolFwd : public BaseOperator
+struct DevicePool2dFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* in_dev,
@@ -30,7 +30,7 @@ struct DevicePoolFwd : public BaseOperator
 };
 
 template <ck::ReduceTensorOp_t ReduceOpId>
-using DevicePoolFwdPtr = std::unique_ptr<DevicePoolFwd<ReduceOpId>>;
+using DevicePool2dFwdPtr = std::unique_ptr<DevicePool2dFwd<ReduceOpId>>;
 
 } // namespace device
 } // namespace tensor_operation
