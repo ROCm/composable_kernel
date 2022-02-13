@@ -179,7 +179,7 @@ pipeline {
                 // }
                 stage('Build Profiler: gfx908')
                 {
-                    agent { label rocmnode("gfx908")}
+                    agent { label rocmnode("nogpu")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
                         build_cmd = "make -j\$(nproc) -k ckProfiler"
@@ -205,6 +205,25 @@ pipeline {
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
                     }
                 }
+            }
+        }
+        stage("Tests")
+        {
+            parallel
+            {
+                stage("Run Tests: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                        build_cmd = "make -j\$(nproc) -k check"
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_cmd:build_cmd, no_reboot:true, build_type: 'Release')
+                    }
+
+                }
+
             }
         }
         // enable after the cmake file supports packaging
