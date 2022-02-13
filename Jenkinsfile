@@ -17,7 +17,7 @@ def cmake_build(Map conf=[:]){
     def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
-    def build_envs = "CTEST_PARALLEL_LEVEL=4 MIOPEN_CONV_PRECISE_ROCBLAS_TIMING=0 " + conf.get("build_env","")
+    def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
 
@@ -177,7 +177,7 @@ pipeline {
                 //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
                 //     }
                 // }
-                stage('Build Profiler: gfx908')
+                stage('Build Profiler: Release, gfx908')
                 {
                     agent { label rocmnode("nogpu")}
                     environment{
@@ -185,6 +185,19 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                    }
+                }
+                stage('Build Profiler: Debug, gfx908')
+                {
+                    agent { label rocmnode("nogpu")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        // until we stabilize debug build due to compiler crashes
+                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
+                        }
                     }
                 }
                 stage('Clang Format') {
