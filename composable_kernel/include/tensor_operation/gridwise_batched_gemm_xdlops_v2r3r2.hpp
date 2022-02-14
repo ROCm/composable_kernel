@@ -318,14 +318,14 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
     }
 
     __host__ __device__ static constexpr auto
-    MakeAGridDescriptor_K0_M_K1(const AGridDesc_G_K0_M_K1& a_grid_desc_g_k0_m_k1, const index_t bb)
+    MakeAGridDescriptor_K0_M_K1(const AGridDesc_G_K0_M_K1& a_grid_desc_g_k0_m_k1, const index_t gg)
     {
         const auto K0 = a_grid_desc_g_k0_m_k1.GetLength(I1);
         const auto M  = a_grid_desc_g_k0_m_k1.GetLength(I2);
 
         const auto a_grid_desc_k0_m_k1 = transform_tensor_descriptor(
             a_grid_desc_g_k0_m_k1,
-            make_tuple(make_freeze_transform(bb),
+            make_tuple(make_freeze_transform(gg),
                        make_pass_through_transform(K0),
                        make_pass_through_transform(M),
                        make_pass_through_transform(K1)),
@@ -336,14 +336,14 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
     }
 
     __host__ __device__ static constexpr auto
-    MakeBGridDescriptor_K0_N_K1(const BGridDesc_G_K0_N_K1& b_grid_desc_g_k0_n_k1, const index_t bb)
+    MakeBGridDescriptor_K0_N_K1(const BGridDesc_G_K0_N_K1& b_grid_desc_g_k0_n_k1, const index_t gg)
     {
         const auto K0 = b_grid_desc_g_k0_n_k1.GetLength(I1);
         const auto N  = b_grid_desc_g_k0_n_k1.GetLength(I2);
 
         const auto b_grid_desc_k0_n_k1 = transform_tensor_descriptor(
             b_grid_desc_g_k0_n_k1,
-            make_tuple(make_freeze_transform(bb),
+            make_tuple(make_freeze_transform(gg),
                        make_pass_through_transform(K0),
                        make_pass_through_transform(N),
                        make_pass_through_transform(K1)),
@@ -354,14 +354,14 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
     }
 
     __host__ __device__ static constexpr auto
-    MakeCGridDesc_M_N(const CGridDesc_G_M_N& c_grid_desc_g_m_n, const index_t bb)
+    MakeCGridDesc_M_N(const CGridDesc_G_M_N& c_grid_desc_g_m_n, const index_t gg)
     {
         const auto M = c_grid_desc_g_m_n.GetLength(I1);
         const auto N = c_grid_desc_g_m_n.GetLength(I2);
 
         const auto c_m_n_grid_desc =
             transform_tensor_descriptor(c_grid_desc_g_m_n,
-                                        make_tuple(make_freeze_transform(bb),
+                                        make_tuple(make_freeze_transform(gg),
                                                    make_pass_through_transform(M),
                                                    make_pass_through_transform(N)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
@@ -377,7 +377,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
 
     __host__ __device__ static constexpr auto MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
         const CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2& c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2,
-        const index_t bb)
+        const index_t gg)
     {
         const auto M0 = c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I1);
         const auto N0 = c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I2);
@@ -390,7 +390,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
 
         const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
             transform_tensor_descriptor(c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2,
-                                        make_tuple(make_freeze_transform(bb),
+                                        make_tuple(make_freeze_transform(gg),
                                                    make_pass_through_transform(M0),
                                                    make_pass_through_transform(N0),
                                                    make_pass_through_transform(M1),
@@ -476,7 +476,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
         const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map)
     {
-        const auto B  = a_grid_desc_g_k0_m_k1.GetLength(I0);
+        const auto G  = a_grid_desc_g_k0_m_k1.GetLength(I0);
         const auto K0 = a_grid_desc_g_k0_m_k1.GetLength(I1);
 
         // divide block work by [M, N]
@@ -675,7 +675,7 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_grid_, c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
 
-        index_t bb = 0;
+        index_t gg = 0;
         do
         {
             // preload data into LDS
@@ -743,8 +743,8 @@ struct GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2
                                                 make_multi_index(K0PerBlock - K0, 0, 0));
             b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
                                                 make_multi_index(K0PerBlock - K0, 0, 0));
-            ++bb;
-        } while(bb < B);
+            ++gg;
+        } while(gg < G);
     }
 }; // struct GridwiseBatchedGemm_sk0mk1_k0nk1_smn_xdlops_v2r3r2
 

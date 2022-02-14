@@ -13,7 +13,7 @@
 #include "device_tensor.hpp"
 #include "device_base.hpp"
 #include "device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp"
-#include "naive_conv_fwd.hpp"
+#include "device_conv3d_fwd_naive_ndhwc_kzyxc_ndhwk.hpp"
 #include "convolution_utility.hpp"
 
 // convolution data type
@@ -233,38 +233,41 @@ int main(int argc, char* argv[])
     {
         DeviceMem out_ref_device_buf(sizeof(OutDataType) * N * Do * Ho * Wo * K);
 
-        const auto naive_conv_fwd_kernel =
-            ck::ref::naive_conv_fwd_ndhwc<InDataType, WeiDataType, OutDataType>;
+        using DeviceConv3dFwdNaive = ck::tensor_operation::device::
+            DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K<
+                InDataType,
+                WeiDataType,
+                OutDataType,
+                AccDataType,
+                InElementOp,
+                WeiElementOp,
+                OutElementOp>;
+        auto conv3d_naive  = DeviceConv3dFwdNaive{};
+        auto invoker_naive = conv3d_naive.MakeInvoker();
+        auto argument_naive =
+            conv3d_naive.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                                      static_cast<OutDataType*>(out_ref_device_buf.GetDeviceBuffer()),
+                                      N,
+                                      K,
+                                      C,
+                                      in_spatial_lengths,
+                                      filter_spatial_lengths,
+                                      out_spatial_lengths,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      in_left_pads,
+                                      in_right_pads,
+                                      InElementOp{},
+                                      WeiElementOp{},
+                                      OutElementOp{});
 
-        launch_and_time_kernel(naive_conv_fwd_kernel,
-                               1,
-                               dim3(256),
-                               dim3(256),
-                               0,
-                               static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                               static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                               static_cast<OutDataType*>(out_ref_device_buf.GetDeviceBuffer()),
-                               N,
-                               K,
-                               C,
-                               in_spatial_lengths[0],
-                               in_spatial_lengths[1],
-                               in_spatial_lengths[2],
-                               filter_spatial_lengths[0],
-                               filter_spatial_lengths[1],
-                               filter_spatial_lengths[2],
-                               out_spatial_lengths[0],
-                               out_spatial_lengths[1],
-                               out_spatial_lengths[2],
-                               conv_filter_strides[0],
-                               conv_filter_strides[1],
-                               conv_filter_strides[2],
-                               conv_filter_dilations[0],
-                               conv_filter_dilations[1],
-                               conv_filter_dilations[2],
-                               in_left_pads[0],
-                               in_left_pads[1],
-                               in_left_pads[2]);
+        if(!conv3d_naive.IsSupportedArgument(argument_naive))
+        {
+            throw std::runtime_error(
+                "wrong! device_conv3d_naive does NOT support the specified compilation parameters");
+        }
+        invoker_naive.Run(argument_naive);
 
         Tensor<OutDataType> out_ref(
             {N, out_spatial_lengths[0], out_spatial_lengths[1], out_spatial_lengths[2], K});
