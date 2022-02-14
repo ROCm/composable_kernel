@@ -490,7 +490,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmXdl"
+        str << "DeviceGemmXdl_C_Shuffle_Bias_2d"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
