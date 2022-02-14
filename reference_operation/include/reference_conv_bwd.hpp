@@ -74,7 +74,7 @@ struct ReferenceConvBwd : public device::BaseOperator
                 std::size_t Ho = arg.out_n_k_ho_wo_.mDesc.GetLengths()[2];
                 std::size_t Wo = arg.out_n_k_ho_wo_.mDesc.GetLengths()[3];
 
-                double v = 0;
+                float v_acc = 0;
 
                 for(int y = 0; y < Y; ++y)
                 {
@@ -90,13 +90,22 @@ struct ReferenceConvBwd : public device::BaseOperator
                                 if(w_tmp % arg.conv_strides_[1] == 0)
                                 {
                                     int wo = w_tmp / arg.conv_strides_[1];
-
                                     if(wo >= 0 && wo < Wo)
                                     {
                                         for(int k = 0; k < K; ++k)
                                         {
-                                            v += arg.out_n_k_ho_wo_(n, k, ho, wo) *
-                                                 arg.wei_k_c_y_x_(k, c, y, x);
+                                            float v_out = 0;
+                                            float v_wei = 0;
+
+                                            arg.out_element_op_(
+                                                v_out,
+                                                ck::type_convert<float>(
+                                                    arg.out_n_k_ho_wo_(n, k, ho, wo)));
+                                            arg.wei_element_op_(v_wei,
+                                                                ck::type_convert<float>(
+                                                                    arg.wei_k_c_y_x_(k, c, y, x)));
+
+                                            v_acc += v_out * v_wei;
                                         }
                                     }
                                 }
@@ -105,7 +114,9 @@ struct ReferenceConvBwd : public device::BaseOperator
                     }
                 }
 
-                arg.in_n_c_hi_wi_(n, c, hi, wi) = v;
+                float v_in;
+                arg.in_element_op_(v_in, v_acc);
+                arg.in_n_c_hi_wi_(n, c, hi, wi) = ck::type_convert<InDataType>(v_in);
             };
 
             make_ParallelTensorFunctor(f_nchw,
