@@ -95,7 +95,8 @@ template <
     index_t CShuffleMXdlPerWavePerShuffle,
     index_t CShuffleNXdlPerWavePerShuffle,
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-    index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
+    index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
+    index_t NumPrefetch = 1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 {
     static constexpr auto I0 = Number<0>{};
@@ -470,100 +471,210 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
 
-#if 0
-        // preload data into LDS
+        static_assert(NumPrefetch == 1 || NumPrefetch == 2, "wrong!");
+
+        if constexpr(NumPrefetch == 1)
         {
+#if 0
+            // preload data into LDS
             a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
             b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
 
+            // Initialize C
+            c_thread_buf.Clear();
+
             a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
             b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-        }
 
-        // Initialize C
-        c_thread_buf.Clear();
-
-        // main body
-        if constexpr(HasMainKBlockLoop)
-        {
-            index_t k0_block_data_begin = 0;
-
-            do
+            // main body
+            if constexpr(HasMainKBlockLoop)
             {
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
+                index_t k0_block_data_begin = 0;
 
-                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+                do
+                {
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
+                                                        a_block_slice_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
+                                                        b_block_slice_copy_step);
 
+                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+
+                    block_sync_lds();
+
+                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+
+                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                    block_sync_lds();
+
+                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+
+                    k0_block_data_begin += K0PerBlock;
+                } while(k0_block_data_begin < (K0 - K0PerBlock));
+            }
+
+            // tail
+            {
                 block_sync_lds();
-
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+            }
+#elif 1
+            // preload data into LDS
+            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
 
-                block_sync_lds();
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
 
-                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+            // Initialize C
+            c_thread_buf.Clear();
 
-                k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (K0 - K0PerBlock));
-        }
+            a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+            b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
 
-        // tail
-        {
-            block_sync_lds();
-
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-        }
-#else
-        // preload data into LDS
-        a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-        b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
-
-        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
-        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
-
-        // Initialize C
-        c_thread_buf.Clear();
-
-        a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-        b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-
-        // main body
-        if constexpr(HasMainKBlockLoop)
-        {
-            index_t k0_block_data_begin = 0;
-
-            do
+            // main body
+            if constexpr(HasMainKBlockLoop)
             {
-                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+                index_t k0_block_data_begin = 0;
 
+                do
+                {
+                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
+
+                    block_sync_lds();
+
+                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+
+                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                    block_sync_lds();
+
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
+                                                        a_block_slice_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
+                                                        b_block_slice_copy_step);
+
+                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+
+                    k0_block_data_begin += K0PerBlock;
+                } while(k0_block_data_begin < (K0 - K0PerBlock));
+            }
+
+            // tail
+            {
                 block_sync_lds();
-
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                block_sync_lds();
-
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
-
-                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-
-                k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (K0 - K0PerBlock));
-        }
-
-        // tail
-        {
-            block_sync_lds();
-
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-        }
+            }
 #endif
+        }
+        else if constexpr(NumPrefetch == 2)
+        {
+            // preload data into LDS
+            {
+                // Read 0
+                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I0);
+                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I0);
+
+                // Move
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
+
+                // Read 1
+                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I1);
+                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I1);
+            }
+
+            // Initialize C
+            c_thread_buf.Clear();
+
+            // main body
+            if constexpr(HasMainKBlockLoop)
+            {
+                index_t k0_block_data_begin = 0;
+
+                do
+                {
+                    // Move
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
+                                                        a_block_slice_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
+                                                        b_block_slice_copy_step);
+
+                    // Write i
+                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I0);
+                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I0);
+
+                    // Read i+2
+                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I0);
+                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I0);
+
+                    // Sync
+                    block_sync_lds();
+
+                    // Gemm i
+                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                    // Sync
+                    block_sync_lds();
+
+                    // Move
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
+                                                        a_block_slice_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
+                                                        b_block_slice_copy_step);
+
+                    // Write i+1
+                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I1);
+                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I1);
+
+                    // Read i+3
+                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I1);
+                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I1);
+
+                    // Sync
+                    block_sync_lds();
+
+                    // Gemm i+1
+                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                    // Sync
+                    block_sync_lds();
+
+                    k0_block_data_begin += 2 * K0PerBlock;
+                } while(k0_block_data_begin < (K0 - 2 * K0PerBlock));
+            }
+
+            // tail
+            {
+                // Write K0-2
+                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I0);
+                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I0);
+
+                // Sync
+                block_sync_lds();
+
+                // Gemm K0-2
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                // Sync
+                block_sync_lds();
+
+                // Write K0-1
+                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I1);
+                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I1);
+
+                // Sync
+                block_sync_lds();
+
+                // Gemm K0-1
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+            }
+        }
 
         // shuffle C and write out
         {

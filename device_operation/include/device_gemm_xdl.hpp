@@ -52,7 +52,8 @@ template <typename ADataType,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+          ck::index_t CThreadTransferDstScalarPerVector,
+          ck::index_t NumPrefetch = 1>
 struct DeviceGemmXdl
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -218,7 +219,8 @@ struct DeviceGemmXdl
         BBlockLdsAddExtraN,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector>;
+        CThreadTransferDstScalarPerVector,
+        NumPrefetch>;
 
     // Argument
     struct Argument : public BaseArgument
