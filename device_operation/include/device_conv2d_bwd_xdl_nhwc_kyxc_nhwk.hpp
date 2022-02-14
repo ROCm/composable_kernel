@@ -11,53 +11,49 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v3r1.hpp"
+#include "gridwise_gemm_xdlops_v2r3.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
 // out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
-template <
-    typename InDataType,
-    typename WeiDataType,
-    typename OutDataType,
-    typename AccDataType,
-    typename InElementwiseOperation,
-    typename WeiElementwiseOperation,
-    typename OutElementwiseOperation,
-    ConvolutionForwardSpecialization_t ConvForwardSpecialization,
-    ck::index_t BlockSize,
-    ck::index_t MPerBlock,
-    ck::index_t NPerBlock,
-    ck::index_t K0PerBlock,
-    ck::index_t K1,
-    ck::index_t MPerXdl,
-    ck::index_t NPerXdl,
-    ck::index_t MXdlPerWave,
-    ck::index_t NXdlPerWave,
-    typename ABlockTransferThreadClusterLengths_K0_M_K1,
-    typename ABlockTransferThreadClusterArrangeOrder,
-    typename ABlockTransferSrcAccessOrder,
-    ck::index_t ABlockTransferSrcVectorDim,
-    ck::index_t ABlockTransferSrcScalarPerVector,
-    ck::index_t ABlockTransferDstScalarPerVector_K1,
-    bool ABlockLdsAddExtraM,
-    typename BBlockTransferThreadClusterLengths_K0_N_K1,
-    typename BBlockTransferThreadClusterArrangeOrder,
-    typename BBlockTransferSrcAccessOrder,
-    ck::index_t BBlockTransferSrcVectorDim,
-    ck::index_t BBlockTransferSrcScalarPerVector,
-    ck::index_t BBlockTransferDstScalarPerVector_K1,
-    bool BBlockLdsAddExtraN,
-    index_t CShuffleMXdlPerWavePerShuffle,
-    index_t CShuffleNXdlPerWavePerShuffle,
-    typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-    index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
-struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
+template <typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename AccDataType,
+          typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation,
+          ck::index_t BlockSize,
+          ck::index_t MPerBlock,
+          ck::index_t NPerBlock,
+          ck::index_t K0PerBlock,
+          ck::index_t K1,
+          ck::index_t MPerXdl,
+          ck::index_t NPerXdl,
+          ck::index_t MXdlPerWave,
+          ck::index_t NXdlPerWave,
+          typename ABlockTransferThreadClusterLengths_K0_M_K1,
+          typename ABlockTransferThreadClusterArrangeOrder,
+          typename ABlockTransferSrcAccessOrder,
+          ck::index_t ABlockTransferSrcVectorDim,
+          ck::index_t ABlockTransferSrcScalarPerVector,
+          ck::index_t ABlockTransferDstScalarPerVector_K1,
+          bool ABlockLdsAddExtraM,
+          typename BBlockTransferThreadClusterLengths_K0_N_K1,
+          typename BBlockTransferThreadClusterArrangeOrder,
+          typename BBlockTransferSrcAccessOrder,
+          ck::index_t BBlockTransferSrcVectorDim,
+          ck::index_t BBlockTransferSrcScalarPerVector,
+          ck::index_t BBlockTransferDstScalarPerVector_K1,
+          bool BBlockLdsAddExtraN,
+          ck::index_t CThreadTransferSrcDstVectorDim,
+          ck::index_t CThreadTransferDstScalarPerVector>
+struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     : public DeviceConvBwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
-    using DeviceOp = DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
+    using DeviceOp = DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -309,7 +305,7 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -345,10 +341,9 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
-        CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-        CBlockTransferScalarPerVector_NWaveNPerXdl>;
+        Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
+        7,                                // CThreadTransferSrcDstVectorDim,
+        CThreadTransferDstScalarPerVector>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -425,11 +420,8 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
                     if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], M01_, N01_))
                     {
-                        c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
-                            .push_back(
-                                GridwiseGemm::
-                                    MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
-                                        descs[I2]));
+                        c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_.push_back(
+                            GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
                         block_2_ctile_map_.push_back(
                             GridwiseGemm::MakeBlock2CTileMap(descs[I2], M01, N01));
@@ -444,10 +436,8 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_;
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_;
         std::vector<CGridDesc_M_N> c_grid_desc_m_n_;
-        std::vector<
-            typename GridwiseGemm::
-                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>
-            c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
+        std::vector<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>
+            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
         std::vector<typename GridwiseGemm::Block2CTileMap> block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -493,33 +483,14 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                     std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_[i].GetLength(I0)
                               << ", " << arg.c_grid_desc_m_n_[i].GetLength(I1) << "}" << std::endl;
 
-                    std::cout
-                        << "arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_"
-                           "nwavenperxdl_( "
-                        << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
-                               [i]
-                                   .GetLength(I0)
-                        << ", "
-                        << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
-                               [i]
-                                   .GetLength(I1)
-                        << ", "
-                        << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
-                               [i]
-                                   .GetLength(I2)
-                        << ", "
-                        << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
-                               [i]
-                                   .GetLength(I3)
-                        << ", "
-                        << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
-                               [i]
-                                   .GetLength(I4)
-                        << ", "
-                        << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
-                               [i]
-                                   .GetLength(I5)
-                        << " ) " << std::endl;
+                    std::cout << "arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_( "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I0) << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I1) << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I2) << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I3) << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I4) << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I5) << " ) "
+                              << std::endl;
                 }
 
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_[i],
@@ -540,71 +511,67 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
                 if(has_main_k0_block_loop)
                 {
-                    const auto kernel = kernel_gemm_xdlops_v3r1<
+                    const auto kernel = kernel_gemm_xdlops_v2r3<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                         remove_reference_t<
-                            typename GridwiseGemm::
-                                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
+                            typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         InElementwiseOperation,
                         WeiElementwiseOperation,
                         OutElementwiseOperation,
                         remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                         true>;
 
-                    ave_time += launch_and_time_kernel(
-                        kernel,
-                        nrepeat,
-                        dim3(grid_size),
-                        dim3(BlockSize),
-                        0,
-                        arg.p_a_grid_,
-                        arg.p_b_grid_,
-                        arg.p_c_grid_,
-                        arg.a_grid_desc_k0_m_k1_[i],
-                        arg.b_grid_desc_k0_n_k1_[i],
-                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_[i],
-                        arg.in_element_op_,
-                        arg.wei_element_op_,
-                        arg.out_element_op_,
-                        arg.block_2_ctile_map_[i]);
+                    ave_time += launch_and_time_kernel(kernel,
+                                                       nrepeat,
+                                                       dim3(grid_size),
+                                                       dim3(BlockSize),
+                                                       0,
+                                                       arg.p_a_grid_,
+                                                       arg.p_b_grid_,
+                                                       arg.p_c_grid_,
+                                                       arg.a_grid_desc_k0_m_k1_[i],
+                                                       arg.b_grid_desc_k0_n_k1_[i],
+                                                       arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i],
+                                                       arg.in_element_op_,
+                                                       arg.wei_element_op_,
+                                                       arg.out_element_op_,
+                                                       arg.block_2_ctile_map_[i]);
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v3r1<
+                    const auto kernel = kernel_gemm_xdlops_v2r3<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                         remove_reference_t<
-                            typename GridwiseGemm::
-                                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
+                            typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         InElementwiseOperation,
                         WeiElementwiseOperation,
                         OutElementwiseOperation,
                         remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                         false>;
 
-                    ave_time += launch_and_time_kernel(
-                        kernel,
-                        nrepeat,
-                        dim3(grid_size),
-                        dim3(BlockSize),
-                        0,
-                        arg.p_a_grid_,
-                        arg.p_b_grid_,
-                        arg.p_c_grid_,
-                        arg.a_grid_desc_k0_m_k1_[i],
-                        arg.b_grid_desc_k0_n_k1_[i],
-                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_[i],
-                        arg.in_element_op_,
-                        arg.wei_element_op_,
-                        arg.out_element_op_,
-                        arg.block_2_ctile_map_[i]);
+                    ave_time += launch_and_time_kernel(kernel,
+                                                       nrepeat,
+                                                       dim3(grid_size),
+                                                       dim3(BlockSize),
+                                                       0,
+                                                       arg.p_a_grid_,
+                                                       arg.p_b_grid_,
+                                                       arg.p_c_grid_,
+                                                       arg.a_grid_desc_k0_m_k1_[i],
+                                                       arg.b_grid_desc_k0_n_k1_[i],
+                                                       arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i],
+                                                       arg.in_element_op_,
+                                                       arg.wei_element_op_,
+                                                       arg.out_element_op_,
+                                                       arg.block_2_ctile_map_[i]);
                 }
             }
             return ave_time;
@@ -633,7 +600,7 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         }
 
         // vector store C matrix into global memory
-        if(!(arg.Conv_K_ % CBlockTransferScalarPerVector_NWaveNPerXdl == 0))
+        if(!(arg.Conv_K_ % CThreadTransferDstScalarPerVector == 0))
         {
             return false;
         }
@@ -745,7 +712,7 @@ struct DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
+        str << "DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

@@ -12,12 +12,12 @@
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
-#include "device_conv2d_bwd_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
+#include "device_conv2d_bwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_bwd.hpp"
 
-using InDataType  = ck::half_t;
-using WeiDataType = ck::half_t;
-using OutDataType = ck::half_t;
+using InDataType  = float;
+using WeiDataType = float;
+using OutDataType = float;
 using AccDataType = float;
 
 template <ck::index_t... Is>
@@ -31,12 +31,9 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
-
 // clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
-    DeviceConv2dBwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+    DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         InDataType,                       // InDataType
         WeiDataType,                      // WeiDataType
         OutDataType,                      // OutDataType
@@ -44,34 +41,31 @@ using DeviceConvFwdInstance = ck::tensor_operation::device::
         InElementOp,                      // InElementwiseOperation
         WeiElementOp,                     // WeiElementwiseOperation
         OutElementOp,                     // OutElementwiseOperation
-        ConvFwdDefault,                   // ConvForwardSpecialization
         256,                              // BlockSize
         128,                              // MPerBlock
-        256,                              // NPerBlock
+        128,                              // NPerBlock
         4,                                // K0PerBlock
-        8,                                // K1
+        4,                                // K1
         32,                               // MPerXdl
         32,                               // NPerXdl
         2,                                // MXdlPerWave
-        4,                                // NXdlPerWave
+        2,                                // NXdlPerWave
         S<4, 64, 1>,                      // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,                       // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,                       // ABlockTransferSrcAccessOrder
         2,                                // ABlockTransferSrcVectorDim
-        8,                                // ABlockTransferSrcScalarPerVector
-        8,                                // ABlockTransferDstScalarPerVector_K1
+        4,                                // ABlockTransferSrcScalarPerVector
+        4,                                // ABlockTransferDstScalarPerVector_K1
         true,                             // ABlockLdsAddExtraM
         S<4, 64, 1>,                      // BBlockTransferThreadClusterLengths_K0_N_K1
         S<1, 0, 2>,                       // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,                       // BBlockTransferSrcAccessOrder
         2,                                // BBlockTransferSrcVectorDim
-        8,                                // BBlockTransferSrcScalarPerVector
-        8,                                // BBlockTransferDstScalarPerVector_K1
+        4,                                // BBlockTransferSrcScalarPerVector
+        4,                                // BBlockTransferDstScalarPerVector_K1
         true,                             // BBlockLdsAddExtraN
-        1,                                // CShuffleMXdlPerWavePerShuffle
-        1,                                // CShuffleNXdlPerWavePerShuffle
-        S<1, 1, 32, 1, 1, 8>,             // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
-        8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
+        7,
+        1>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
 using ReferenceConvBwdInstance = ck::tensor_operation::host::
@@ -188,12 +182,12 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+        out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         break;
     default:
-        out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) *
