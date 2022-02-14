@@ -20,8 +20,8 @@ using DeviceGemmAlphaBetaPtr = ck::tensor_operation::device::DeviceGemmBiasPtr<
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::AlphaBetaAdd>;
 
-// void add_device_gemm_xdl_c_shuffle_bias_2d_f16_f16_f16_mk_kn_mn_instances(
-//     std::vector<DeviceGemmAlphaBetaPtr>&);
+void add_device_gemm_xdl_c_shuffle_bias_2d_f16_f16_f16_mk_kn_mn_instances(
+    std::vector<DeviceGemmAlphaBetaPtr>&);
 
 void add_device_gemm_xdl_c_shuffle_bias_2d_f16_f16_f16_mk_nk_mn_instances(
     std::vector<DeviceGemmAlphaBetaPtr>&);
@@ -147,7 +147,8 @@ void profile_gemm_bias_2d_impl(int do_verification,
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            // TODO
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_c_shuffle_bias_2d_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
