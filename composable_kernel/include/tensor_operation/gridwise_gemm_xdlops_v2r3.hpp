@@ -253,6 +253,25 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
             return false;
 
+        // check NumPrefetch
+        if constexpr(NumPrefetch == 1)
+        {
+            // 1-stage prefetch always supported
+        }
+        else if constexpr(NumPrefetch == 2)
+        {
+            // 2-stage prefetch currently only support even number of K0 loop
+            // TODO: add support for odd number of K0 loop
+            if(!((K0 / K0PerBlock) % 2 == 0))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
         // check M01, N01
         constexpr auto M1 = Number<MPerBlock>{};
         constexpr auto N1 = Number<NPerBlock>{};

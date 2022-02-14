@@ -52,7 +52,8 @@ template <
     index_t CShuffleMXdlPerWavePerShuffle,
     index_t CShuffleNXdlPerWavePerShuffle,
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-    index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
+    index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
+    index_t NumPrefetch = 1>
 struct DeviceGemmXdl_C_Shuffle
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -172,7 +173,8 @@ struct DeviceGemmXdl_C_Shuffle
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-        CBlockTransferScalarPerVector_NWaveNPerXdl>;
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        NumPrefetch>;
 
     // Argument
     struct Argument : public BaseArgument
