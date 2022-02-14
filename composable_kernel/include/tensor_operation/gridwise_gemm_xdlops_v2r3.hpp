@@ -8,6 +8,7 @@
 #include "blockwise_gemm_xdlops.hpp"
 #include "blockwise_tensor_slice_transfer_v4r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
+#include "gridwise_gemm_pipeline_v1.hpp"
 
 namespace ck {
 
@@ -22,7 +23,7 @@ template <typename GridwiseGemm,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename Block2CTileMap,
-          bool HasMainKBlockLoop>
+          bool HasMainK0BlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -41,17 +42,17 @@ __global__ void
 {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_shared,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  block_2_ctile_map);
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
+                                                   p_b_grid,
+                                                   p_c_grid,
+                                                   p_shared,
+                                                   a_grid_desc_k0_m_k1,
+                                                   b_grid_desc_k0_n_k1,
+                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                   a_element_op,
+                                                   b_element_op,
+                                                   c_element_op,
+                                                   block_2_ctile_map);
 }
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 template <typename GridwiseGemm,
@@ -97,17 +98,17 @@ __global__ void
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_shared,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  block_2_ctile_map);
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
+                                                   p_b_grid,
+                                                   p_c_grid,
+                                                   p_shared,
+                                                   a_grid_desc_k0_m_k1,
+                                                   b_grid_desc_k0_n_k1,
+                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                   a_element_op,
+                                                   b_element_op,
+                                                   c_element_op,
+                                                   block_2_ctile_map);
 }
 #endif
 
@@ -394,7 +395,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
     using Block2CTileMap = decltype(MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
-    template <bool HasMainKBlockLoop>
+    template <bool HasMainK0BlockLoop>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
@@ -535,210 +536,42 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
 
-        static_assert(NumPrefetch == 1 || NumPrefetch == 2, "wrong!");
+        // gridwise GEMM pipeline
+        const auto gridwise_gemm_pipeline =
+            GridwiseGemmPipeline_v1<remove_cvref_t<decltype(a_grid_desc_k0_m_k1)>,
+                                    remove_cvref_t<decltype(a_block_desc_k0_m_k1)>,
+                                    remove_cvref_t<decltype(a_blockwise_copy)>,
+                                    remove_cvref_t<decltype(a_grid_buf)>,
+                                    remove_cvref_t<decltype(a_block_buf)>,
+                                    remove_cvref_t<decltype(a_block_slice_copy_step)>,
+                                    remove_cvref_t<decltype(b_grid_desc_k0_n_k1)>,
+                                    remove_cvref_t<decltype(b_block_desc_k0_n_k1)>,
+                                    remove_cvref_t<decltype(b_blockwise_copy)>,
+                                    remove_cvref_t<decltype(b_grid_buf)>,
+                                    remove_cvref_t<decltype(b_block_buf)>,
+                                    remove_cvref_t<decltype(b_block_slice_copy_step)>,
+                                    remove_cvref_t<decltype(blockwise_gemm)>,
+                                    remove_cvref_t<decltype(c_thread_buf)>,
+                                    NumPrefetch,
+                                    HasMainK0BlockLoop>{};
 
-        if constexpr(NumPrefetch == 1)
-        {
-#if 0
-            // preload data into LDS
-            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+        const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K0 / K0PerBlock);
 
-            // Initialize C
-            c_thread_buf.Clear();
-
-            a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-            b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-
-            // main body
-            if constexpr(HasMainKBlockLoop)
-            {
-                index_t k0_block_data_begin = 0;
-
-                do
-                {
-                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
-                                                        a_block_slice_copy_step);
-                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
-                                                        b_block_slice_copy_step);
-
-                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-
-                    block_sync_lds();
-
-                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
-
-                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                    block_sync_lds();
-
-                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-
-                    k0_block_data_begin += K0PerBlock;
-                } while(k0_block_data_begin < (K0 - K0PerBlock));
-            }
-
-            // tail
-            {
-                block_sync_lds();
-
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-            }
-#elif 1
-            // preload data into LDS
-            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
-
-            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
-            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
-
-            // Initialize C
-            c_thread_buf.Clear();
-
-            a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-            b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-
-            // main body
-            if constexpr(HasMainKBlockLoop)
-            {
-                index_t k0_block_data_begin = 0;
-
-                do
-                {
-                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-
-                    block_sync_lds();
-
-                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
-
-                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                    block_sync_lds();
-
-                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
-                                                        a_block_slice_copy_step);
-                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
-                                                        b_block_slice_copy_step);
-
-                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-
-                    k0_block_data_begin += K0PerBlock;
-                } while(k0_block_data_begin < (K0 - K0PerBlock));
-            }
-
-            // tail
-            {
-                block_sync_lds();
-
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-            }
-#endif
-        }
-        else if constexpr(NumPrefetch == 2)
-        {
-            // preload data into LDS
-            {
-                // Read 0
-                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I0);
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I0);
-
-                // Move
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
-
-                // Read 1
-                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I1);
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I1);
-            }
-
-            // Initialize C
-            c_thread_buf.Clear();
-
-            // main body
-            if constexpr(HasMainKBlockLoop)
-            {
-                index_t k0_block_data_begin = 0;
-
-                do
-                {
-                    // Move
-                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
-                                                        a_block_slice_copy_step);
-                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
-                                                        b_block_slice_copy_step);
-
-                    // Write i
-                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I0);
-                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I0);
-
-                    // Read i+2
-                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I0);
-                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I0);
-
-                    // Sync
-                    block_sync_lds();
-
-                    // Gemm i
-                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                    // Sync
-                    block_sync_lds();
-
-                    // Move
-                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
-                                                        a_block_slice_copy_step);
-                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1,
-                                                        b_block_slice_copy_step);
-
-                    // Write i+1
-                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I1);
-                    b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I1);
-
-                    // Read i+3
-                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf, I1);
-                    b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf, I1);
-
-                    // Sync
-                    block_sync_lds();
-
-                    // Gemm i+1
-                    blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                    // Sync
-                    block_sync_lds();
-
-                    k0_block_data_begin += 2 * K0PerBlock;
-                } while(k0_block_data_begin < (K0 - 2 * K0PerBlock));
-            }
-
-            // tail
-            {
-                // Write K0-2
-                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I0);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I0);
-
-                // Sync
-                block_sync_lds();
-
-                // Gemm K0-2
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                // Sync
-                block_sync_lds();
-
-                // Write K0-1
-                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf, I1);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf, I1);
-
-                // Sync
-                block_sync_lds();
-
-                // Gemm K0-1
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-            }
-        }
+        gridwise_gemm_pipeline.Run(a_grid_desc_k0_m_k1,
+                                   a_block_desc_k0_m_k1,
+                                   a_blockwise_copy,
+                                   a_grid_buf,
+                                   a_block_buf,
+                                   a_block_slice_copy_step,
+                                   b_grid_desc_k0_n_k1,
+                                   b_block_desc_k0_n_k1,
+                                   b_blockwise_copy,
+                                   b_grid_buf,
+                                   b_block_buf,
+                                   b_block_slice_copy_step,
+                                   blockwise_gemm,
+                                   c_thread_buf,
+                                   K0BlockMainLoop);
 
         // output: register to global memory
         {
