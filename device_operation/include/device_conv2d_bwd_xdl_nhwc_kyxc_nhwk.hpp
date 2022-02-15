@@ -55,9 +55,9 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 {
     using DeviceOp = DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
-    using ADataType = InDataType;
+    using ADataType = OutDataType;
     using BDataType = WeiDataType;
-    using CDataType = OutDataType;
+    using CDataType = InDataType;
 
     // TODO make A/B datatype different
     using ABDataType = InDataType;
@@ -326,17 +326,17 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         MXdlPerWave,
         NXdlPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
-        Sequence<1, 0, 2>, // ABlockTransferThreadClusterArrangeOrder,
-        Sequence<1, 0, 2>, // ABlockTransferSrcAccessOrder,
-        2,                 // ABlockTransferSrcVectorDim,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
-        Sequence<1, 0, 2>, // BBlockTransferThreadClusterArrangeOrder,
-        Sequence<1, 0, 2>, // BBlockTransferSrcAccessOrder,
-        2,                 // BBlockTransferSrcVectorDim,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
@@ -371,9 +371,9 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
               p_c_grid_{p_in_grid},
               M01_{M01},
               N01_{N01},
-              in_element_op_{out_element_op},
-              wei_element_op_{wei_element_op},
-              out_element_op_{in_element_op},
+              a_element_op_{out_element_op},
+              b_element_op_{wei_element_op},
+              c_element_op_{in_element_op},
               Conv_N_{N},
               Conv_K_{K},
               Conv_C_{C},
@@ -441,9 +441,9 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         std::vector<typename GridwiseGemm::Block2CTileMap> block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
-        InElementwiseOperation in_element_op_;
-        WeiElementwiseOperation wei_element_op_;
-        OutElementwiseOperation out_element_op_;
+        OutElementwiseOperation a_element_op_;
+        WeiElementwiseOperation b_element_op_;
+        InElementwiseOperation c_element_op_;
         // for checking IsSupportedArgument()
         index_t Conv_N_;
         index_t Conv_K_;
@@ -519,9 +519,9 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                         remove_reference_t<
                             typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        InElementwiseOperation,
-                        WeiElementwiseOperation,
                         OutElementwiseOperation,
+                        WeiElementwiseOperation,
+                        InElementwiseOperation,
                         remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                         true>;
 
@@ -536,9 +536,9 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                                        arg.a_grid_desc_k0_m_k1_[i],
                                                        arg.b_grid_desc_k0_n_k1_[i],
                                                        arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i],
-                                                       arg.in_element_op_,
-                                                       arg.wei_element_op_,
-                                                       arg.out_element_op_,
+                                                       arg.a_element_op_,
+                                                       arg.b_element_op_,
+                                                       arg.c_element_op_,
                                                        arg.block_2_ctile_map_[i]);
                 }
                 else
@@ -551,9 +551,9 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                         remove_reference_t<
                             typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        InElementwiseOperation,
-                        WeiElementwiseOperation,
                         OutElementwiseOperation,
+                        WeiElementwiseOperation,
+                        InElementwiseOperation,
                         remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                         false>;
 
@@ -568,9 +568,9 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                                        arg.a_grid_desc_k0_m_k1_[i],
                                                        arg.b_grid_desc_k0_n_k1_[i],
                                                        arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i],
-                                                       arg.in_element_op_,
-                                                       arg.wei_element_op_,
-                                                       arg.out_element_op_,
+                                                       arg.a_element_op_,
+                                                       arg.b_element_op_,
+                                                       arg.c_element_op_,
                                                        arg.block_2_ctile_map_[i]);
                 }
             }
@@ -592,15 +592,15 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     static bool IsSupportedArgument(const Argument& arg)
     {
         // vector load A/B matrix from global memory
-        if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
-             arg.Conv_C_ % ABlockTransferSrcScalarPerVector == 0 &&
+        if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 1 &&
+             arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
              arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
         {
             return false;
         }
 
         // vector store C matrix into global memory
-        if(!(arg.Conv_K_ % CThreadTransferDstScalarPerVector == 0))
+        if(!(arg.Conv_C_ % CThreadTransferDstScalarPerVector == 0))
         {
             return false;
         }

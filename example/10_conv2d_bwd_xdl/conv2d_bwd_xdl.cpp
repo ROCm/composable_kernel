@@ -58,14 +58,14 @@ using DeviceConvFwdInstance = ck::tensor_operation::device::
         4,                                // ABlockTransferDstScalarPerVector_K1
         true,                             // ABlockLdsAddExtraM
         S<4, 64, 1>,                      // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<1, 0, 2>,                       // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,                       // BBlockTransferSrcAccessOrder
-        2,                                // BBlockTransferSrcVectorDim
-        4,                                // BBlockTransferSrcScalarPerVector
+        S<0, 2, 1>,                       // BBlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1>,                       // BBlockTransferSrcAccessOrder
+        1,                                // BBlockTransferSrcVectorDim
+        2,                                // BBlockTransferSrcScalarPerVector
         4,                                // BBlockTransferDstScalarPerVector_K1
         true,                             // BBlockLdsAddExtraN
         7,
-        1>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
+        1>;                               // GemmCThreadTransferDstScalarPerVector
 // clang-format on
 
 using ReferenceConvBwdInstance = ck::tensor_operation::host::
