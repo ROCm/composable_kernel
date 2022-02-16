@@ -75,8 +75,12 @@ int main(int argc, char* argv[])
     ck::index_t in_left_pad_w   = 1;
     ck::index_t in_right_pad_h  = 1;
     ck::index_t in_right_pad_w  = 1;
-
-    if(argc == 3)
+    if(argc == 1)
+    {
+        init_method = 1;
+        data_type = 0;
+    }
+    else if(argc == 3)
     {
         data_type   = std::stoi(argv[1]);
         init_method = std::stoi(argv[2]);
@@ -275,33 +279,31 @@ int main(int argc, char* argv[])
         if(success)
         {
             std::cout << "test conv2d fwd : Pass" << std::endl;
+            return 0;
         }
         else
         {
             std::cout << "test conv2d fwd: Fail " << std::endl;
+            return -1;
         }
     };
-
+    int res = -1;
     if(data_type == 0)
     {
-        Run(float(), float(), float());
+        res = Run(float(), float(), float());
     }
     else if(data_type == 1)
     {
-        Run(ck::half_t(), ck::half_t(), ck::half_t());
+        res = Run(ck::half_t(), ck::half_t(), ck::half_t());
     }
     else if(data_type == 2)
     {
-        Run(ushort(), ushort(), ushort());
+        res = Run(ushort(), ushort(), ushort());
     }
     else if(data_type == 3)
     {
-        Run(int8_t(), int8_t(), int8_t());
-    }
-    else
-    {
-        return 1;
+        res = Run(int8_t(), int8_t(), int8_t());
     }
 
-    return 0;
+    return res;
 }

@@ -59,7 +59,7 @@ message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
 
 
 rocm_create_package(
-    NAME MIOpen-${MIOPEN_BACKEND}
+    NAME composable_kernel
     DESCRIPTION "High Performance Composable Kernels for AMD GPUs"
     MAINTAINER "MIOpen Kernel Dev Team <dl.MIOpen@amd.com>"
     LDCONFIG
