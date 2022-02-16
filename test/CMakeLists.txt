@@ -21,6 +21,8 @@ set(SPLIT_K_SOURCE split_k/main.cpp)
 add_executable(test_split_k ${SPLIT_K_SOURCE})
 target_link_libraries(test_split_k PRIVATE host_tensor)
 target_link_libraries(test_split_k PRIVATE device_gemm_instance)
+
 # test_conv_util
 set(CONV_UTIL_SOURCE conv_util/main.cpp)
 add_executable(test_conv_util ${CONV_UTIL_SOURCE})
+target_link_libraries(test_conv_util PRIVATE host_tensor)

@@ -1,10 +1,17 @@
+#ifndef CONV_UTILS_HPP
+#define CONV_UTILS_HPP
+
 #include <cstdlib>
 #include <functional>
 #include <iterator>
 #include <numeric>
+#include <sstream>
+#include <type_traits>
 #include <vector>
 
 #include "config.hpp"
+#include "host_tensor.hpp"
+#include "tensor_layout.hpp"
 
 namespace ck {
 namespace conv_util {
@@ -40,6 +47,22 @@ std::size_t GetFlops(ck::index_t N,
                            std::multiplies<ck::index_t>());
 }
 
+/**
+ * @brief      Calculate number of bytes read/write by convolution algorithm.
+ *
+ * @param[in]  N                       Batch size.
+ * @param[in]  C                       Number of input channels.
+ * @param[in]  K                       Number of output channels.
+ * @param[in]  input_spatial_lengths   Input spatial dimensions lengths.
+ * @param[in]  filter_spatial_lengths  Filter spatial dimensions lengths.
+ * @param[in]  output_spatial_lengths  Output spatial dimensions lengths
+ *
+ * @tparam     InDataType              Input tensor data type.
+ * @tparam     WeiDataType             Weights tensor data type.
+ * @tparam     OutDataType             Output tensor data type.
+ *
+ * @return     The number of used bytes.
+ */
 template <typename InDataType  = float,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType>
@@ -118,5 +141,58 @@ struct ConvParams
     }
 };
 
+/**
+ * @brief      Gets the host tensor descriptor.
+ *
+ * @param[in]  dims          The tensor dimensions lengths. Always in NCHW format.
+ * @param[in]  layout        The tensor data layout.
+ *
+ * @tparam     TensorLayout  Layout type.
+ *
+ * @return     The host tensor descriptor object.
+ */
+template <typename TensorLayout>
+HostTensorDescriptor GetHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                             const TensorLayout& layout)
+{
+    std::size_t C = dims[1];
+    // 1D
+    if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NCW>::value ||
+                 std::is_same<TensorLayout, ck::tensor_layout::convolution::KCX>::value ||
+                 std::is_same<TensorLayout, ck::tensor_layout::convolution::NKW>::value)
+    {
+
+        return HostTensorDescriptor(dims, std::vector<std::size_t>({C * dims[2], dims[2], 1}));
+    }
+    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NWC>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KXC>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NWK>::value)
+    {
+        return HostTensorDescriptor(dims, std::vector<std::size_t>({C * dims[2], 1, C}));
+    }
+    // 2D
+    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NCHW>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KCYX>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NKHW>::value)
+    {
+
+        return HostTensorDescriptor(
+            dims, std::vector<std::size_t>{C * dims[2] * dims[3], dims[2] * dims[3], dims[3], 1});
+    }
+    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NHWC>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KYXC>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NHWK>::value)
+    {
+        return HostTensorDescriptor(
+            dims, std::vector<std::size_t>{C * dims[2] * dims[3], 1, dims[3] * C, C});
+    }
+
+    std::stringstream err_msg;
+    err_msg << "Unsupported data layout provided: " << layout << "!";
+    throw std::runtime_error(err_msg.str());
+}
+
 } // namespace conv_util
 } // namespace ck
+
+#endif

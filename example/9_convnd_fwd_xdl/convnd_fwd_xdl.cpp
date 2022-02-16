@@ -87,52 +87,6 @@ using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<
                                                                                 OutElementOp,
                                                                                 SpatialDims>;
 
-template <typename TensorLayout>
-HostTensorDescriptor GetHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                             const TensorLayout& layout)
-{
-    std::size_t N = dims[0];
-    std::size_t C = dims[1];
-    // 1D
-    if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NCW>::value ||
-                 std::is_same<TensorLayout, ck::tensor_layout::convolution::KCX>::value ||
-                 std::is_same<TensorLayout, ck::tensor_layout::convolution::NKW>::value)
-    {
-
-        return HostTensorDescriptor(std::vector<std::size_t>({N, C, dims[2]}),
-                                    std::vector<std::size_t>({C * dims[2], dims[2], 1}));
-    }
-    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NWC>::value ||
-                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KXC>::value ||
-                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NWK>::value)
-    {
-        return HostTensorDescriptor(std::vector<std::size_t>({N, C, dims[2]}),
-                                    std::vector<std::size_t>({C * dims[2], 1, C}));
-    }
-    // 2D
-    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NCHW>::value ||
-                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KCYX>::value ||
-                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NKHW>::value)
-    {
-
-        return HostTensorDescriptor(
-            std::vector<std::size_t>({N, C, dims[2], dims[3]}),
-            std::vector<std::size_t>({C * dims[2] * dims[3], dims[2] * dims[3], dims[3], 1}));
-    }
-    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NHWC>::value ||
-                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KYXC>::value ||
-                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NHWK>::value)
-    {
-        return HostTensorDescriptor(
-            std::vector<std::size_t>({N, C, dims[2], dims[3]}),
-            std::vector<std::size_t>({C * dims[2] * dims[3], 1, dims[3] * C, C}));
-    }
-
-    std::stringstream err_msg;
-    err_msg << "Unsupported data layout provided: " << layout << "!";
-    throw std::runtime_error(err_msg.str());
-}
-
 DeviceConvFwdBasePtr GetConvInstance(int spatial_dims)
 {
     switch(spatial_dims)
@@ -260,10 +214,12 @@ int main(int argc, char* argv[])
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(GetHostTensorDescriptor(input_dims, InLayout{}));
-    Tensor<WeiDataType> weights(GetHostTensorDescriptor(filter_dims, WeiLayout{}));
-    Tensor<OutDataType> host_output(GetHostTensorDescriptor(output_dims, OutLayout{}));
-    Tensor<OutDataType> device_output(GetHostTensorDescriptor(output_dims, OutLayout{}));
+    Tensor<InDataType> input(ck::conv_util::GetHostTensorDescriptor(input_dims, InLayout{}));
+    Tensor<WeiDataType> weights(ck::conv_util::GetHostTensorDescriptor(filter_dims, WeiLayout{}));
+    Tensor<OutDataType> host_output(
+        ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
+    Tensor<OutDataType> device_output(
+        ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weights: " << weights.mDesc << std::endl;
