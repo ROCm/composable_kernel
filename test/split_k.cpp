@@ -212,7 +212,7 @@ int test_gemm(const gemmArgs& args)
 
 int main(int argc, char* argv[])
 {
-    std::vector<const gemmArgs> test_cases;
+    std::vector<gemmArgs> test_cases;
     if(argc == 1)
     {
         test_cases = {{0, 3, 3, 3, 3, 3, 3, 1}};
@@ -242,7 +242,12 @@ int main(int argc, char* argv[])
         printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC KBatch\n");
         return -1;
     }
-
-    return test_gemm(test_cases);
+    for(const auto& kinder: test_cases)
+    {
+        const auto res = test_gemm(kinder);
+        if(!res)
+           return -1;
+    }
+    return 0;
 
 }

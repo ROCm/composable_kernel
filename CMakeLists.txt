@@ -51,25 +51,6 @@ link_libraries(${OpenMP_pthread_LIBRARY})
 
 ## HIP
 find_package(HIP REQUIRED)
-# Override HIP version in config.h, if necessary.
-# The variables set by find_package() can't be overwritten,
-# therefore let's use intermediate variables.
-set(CK_hip_VERSION_MAJOR "${hip_VERSION_MAJOR}")
-set(CK_hip_VERSION_MINOR "${hip_VERSION_MINOR}")
-set(CK_hip_VERSION_PATCH "${hip_VERSION_PATCH}")
-if( DEFINED CK_OVERRIDE_HIP_VERSION_MAJOR )
-    set(CK_hip_VERSION_MAJOR "${MIOPEN_OVERRIDE_HIP_VERSION_MAJOR}")
-    message(STATUS "CK_hip_VERSION_MAJOR overriden with ${MIOPEN_OVERRIDE_HIP_VERSION_MAJOR}")
-endif()
-if( DEFINED CK_OVERRIDE_HIP_VERSION_MINOR )
-    set(CK_hip_VERSION_MINOR "${MIOPEN_OVERRIDE_HIP_VERSION_MINOR}")
-    message(STATUS "CK_hip_VERSION_MINOR overriden with ${MIOPEN_OVERRIDE_HIP_VERSION_MINOR}")
-endif()
-if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
-    set(CK_hip_VERSION_PATCH "${MIOPEN_OVERRIDE_HIP_VERSION_PATCH}")
-    message(STATUS "CK_hip_VERSION_PATCH overriden with ${MIOPEN_OVERRIDE_HIP_VERSION_PATCH}")
-endif()
-message(STATUS "Build with HIP ${hip_VERSION}")
 
 ## half
 #find_path(HALF_INCLUDE_DIR half.hpp)
@@ -275,8 +256,6 @@ if(BUILD_DEV)
     target_compile_options(composable_kernel PRIVATE -Weverything)
 endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
-
-configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/hip_version.hpp")
 
 add_subdirectory(host)
 add_subdirectory(device_operation)
