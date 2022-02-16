@@ -30,9 +30,11 @@ using OutLayout = ck::tensor_layout::convolution::NHWK;
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+static constexpr auto ConvBwdDefault =
+    ck::tensor_operation::device::ConvolutionBackwardSpecialization_t::Default;
 
 // clang-format off
-using DeviceConvFwdInstance = ck::tensor_operation::device::
+using DeviceConvBwdInstance = ck::tensor_operation::device::
     DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         InDataType,                       // InDataType
         WeiDataType,                      // WeiDataType
@@ -41,6 +43,7 @@ using DeviceConvFwdInstance = ck::tensor_operation::device::
         InElementOp,                      // InElementwiseOperation
         WeiElementOp,                     // WeiElementwiseOperation
         OutElementOp,                     // OutElementwiseOperation
+        ConvBwdDefault,                   // ConvolutionBackwardSpecialization_t
         256,                              // BlockSize
         128,                              // MPerBlock
         128,                              // NPerBlock
@@ -199,7 +202,7 @@ int main(int argc, char* argv[])
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
     // do GEMM
-    auto conv     = DeviceConvFwdInstance{};
+    auto conv     = DeviceConvBwdInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                       static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
