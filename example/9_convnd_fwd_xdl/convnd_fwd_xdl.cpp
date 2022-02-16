@@ -1,21 +1,20 @@
 #include <cstdlib>
-#include <half.hpp>
 #include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <stdlib.h>
 #include <type_traits>
 
 #include "config.hpp"
-#include "print.hpp"
+#include "conv_utils.hpp"
 #include "device.hpp"
+#include "device_tensor.hpp"
+#include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "element_wise_operation.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "tensor_layout.hpp"
-#include "element_wise_operation.hpp"
-#include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "print.hpp"
 #include "reference_conv_fwd.hpp"
+#include "tensor_layout.hpp"
 
 using InDataType  = float;
 using WeiDataType = float;
@@ -150,52 +149,6 @@ DeviceConvFwdBasePtr GetConvInstance(int spatial_dims)
     }
 }
 
-std::size_t GetFlops(ck::index_t N,
-                     ck::index_t C,
-                     ck::index_t K,
-                     const std::vector<ck::index_t>& filter_spatial_lengths,
-                     const std::vector<ck::index_t>& output_spatial_lengths)
-{
-    // 2 * N * K * <output spatial lengths product> * C * <filter spatial lengths product>
-    return ck::index_t(2) * N * K *
-           std::accumulate(std::begin(output_spatial_lengths),
-                           std::end(output_spatial_lengths),
-                           1,
-                           std::multiplies<ck::index_t>()) *
-           C *
-           std::accumulate(std::begin(filter_spatial_lengths),
-                           std::end(filter_spatial_lengths),
-                           1,
-                           std::multiplies<ck::index_t>());
-}
-
-ck::index_t GetBtype(ck::index_t N,
-                     ck::index_t C,
-                     ck::index_t K,
-                     const std::vector<ck::index_t>& input_spatial_lengths,
-                     const std::vector<ck::index_t>& filter_spatial_lengths,
-                     const std::vector<ck::index_t>& output_spatial_lengths)
-{
-    // sizeof(InDataType) * (N * C * <input spatial lengths product>) +
-    // sizeof(WeiDataType) * (K * C * <filter spatial lengths product>) +
-    // sizeof(OutDataType) * (N * K * <output spatial lengths product>);
-    return sizeof(InDataType) * (N * C *
-                                 std::accumulate(std::begin(input_spatial_lengths),
-                                                 std::end(input_spatial_lengths),
-                                                 1,
-                                                 std::multiplies<ck::index_t>())) +
-           sizeof(WeiDataType) * (K * C *
-                                  std::accumulate(std::begin(filter_spatial_lengths),
-                                                  std::end(filter_spatial_lengths),
-                                                  1,
-                                                  std::multiplies<ck::index_t>())) +
-           sizeof(OutDataType) * (N * K *
-                                  std::accumulate(std::begin(output_spatial_lengths),
-                                                  std::end(output_spatial_lengths),
-                                                  1,
-                                                  std::multiplies<ck::index_t>()));
-}
-
 void PrintUseMsg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
@@ -213,55 +166,7 @@ void PrintUseMsg()
               << std::endl;
 }
 
-struct ConvParams
-{
-    ConvParams()
-        : spatial_dims(2),
-          N(128),
-          K(256),
-          C(192),
-          filter_spatial_lengths(2, 3),
-          input_spatial_lengths(2, 71),
-          conv_filter_strides(2, 2),
-          conv_filter_dilations(2, 1),
-          input_left_pads(2, 1),
-          input_right_pads(2, 1)
-    {
-    }
-
-    ck::index_t spatial_dims;
-    ck::index_t N;
-    ck::index_t K;
-    ck::index_t C;
-
-    std::vector<ck::index_t> filter_spatial_lengths;
-    std::vector<ck::index_t> input_spatial_lengths;
-
-    std::vector<ck::index_t> conv_filter_strides;
-    std::vector<ck::index_t> conv_filter_dilations;
-
-    std::vector<ck::index_t> input_left_pads;
-    std::vector<ck::index_t> input_right_pads;
-
-    std::vector<ck::index_t> GetOutputSpatialLengths() const
-    {
-        std::vector<ck::index_t> out_spatial_len(spatial_dims, 0);
-        for(ck::index_t i = 0; i < spatial_dims; ++i)
-        {
-            // XEff = (X - 1) * conv_dilation_w + 1;
-            // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-            const ck::index_t idx_eff =
-                (filter_spatial_lengths[i] - 1) * conv_filter_dilations[i] + 1;
-            out_spatial_len[i] =
-                (input_spatial_lengths[i] + input_left_pads[i] + input_right_pads[i] - idx_eff) /
-                    conv_filter_strides[i] +
-                1;
-        }
-        return out_spatial_len;
-    }
-};
-
-ConvParams ParseConvParams(int spatial_dims, int argc, char* argv[])
+ck::conv_util::ConvParams ParseConvParams(int spatial_dims, int argc, char* argv[])
 {
     // (N, K, C) + spatial_dims * 6 (filter, input, strides, dilations, pad left, pad right)
     int conv_args     = 3 + spatial_dims * 6;
@@ -272,7 +177,7 @@ ConvParams ParseConvParams(int spatial_dims, int argc, char* argv[])
         exit(0);
     }
 
-    ConvParams params;
+    ck::conv_util::ConvParams params;
     int arg_idx = 5;
 
     params.spatial_dims = spatial_dims;
@@ -321,19 +226,19 @@ int main(int argc, char* argv[])
     int nrepeat          = 5;
     int spatial_dims     = 2;
 
-    ConvParams params;
+    ck::conv_util::ConvParams params;
 
-    if(argc >= 4)
+    if(argc >= 5)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
+        spatial_dims    = std::stoi(argv[4]);
     }
 
-    if(argc >= 5)
+    if(argc >= 6)
     {
-        spatial_dims = std::stoi(argv[4]);
-        params       = ParseConvParams(spatial_dims, argc, argv);
+        params = ParseConvParams(spatial_dims, argc, argv);
     }
 
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
@@ -363,6 +268,9 @@ int main(int argc, char* argv[])
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weights: " << weights.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
+
+    // std::iota(input.begin(), input.end(), InDataType(0.f));
+    // std::fill(weights.begin(), weights.end(), WeiDataType(0.25f));
 
     switch(init_method)
     {
@@ -413,14 +321,15 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker->Run(argument.get(), nrepeat);
 
-    ck::index_t flop = GetFlops(
+    ck::index_t flop = ck::conv_util::GetFlops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
-    ck::index_t num_btype = GetBtype(params.N,
-                                     params.C,
-                                     params.K,
-                                     params.input_spatial_lengths,
-                                     params.filter_spatial_lengths,
-                                     output_spatial_lengths);
+    ck::index_t num_btype =
+        ck::conv_util::GetBtype<InDataType, WeiDataType, OutDataType>(params.N,
+                                                                      params.C,
+                                                                      params.K,
+                                                                      params.input_spatial_lengths,
+                                                                      params.filter_spatial_lengths,
+                                                                      output_spatial_lengths);
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -447,7 +356,10 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
             out_device_buf.FromDevice(device_output.mData.data());
-            check_error(host_output, device_output);
+            // check_error(host_output, device_output);
+
+            // LogRange(std::cout <<"host_output:\n", host_output, ", ");
+            // LogRange(std::cout <<"device_output:\n", device_output, ", ");
         };
 
         switch(spatial_dims)
