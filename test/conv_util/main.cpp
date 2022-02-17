@@ -132,6 +132,15 @@ bool TestGetHostTensorDescriptor()
     res =
         cmp_vec(h.GetStrides(), {3 * 4 * 5, 4 * 5, 5, 1}, "Error: wrong NCHW dimensions strides!");
 
+    dims                   = std::vector<std::size_t>{2, 3, 4};
+    HostTensorDescriptor h = ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
+    res = cmp_vec(h.GetLengths(), {2, 3, 4}, "Error: wrong NWC dimensions lengths!");
+    res = cmp_vec(h.GetStrides(), {3 * 4, 1, 3}, "Error: wrong NWC dimensions strides!");
+
+    h   = ck::conv_util::GetHostTensorDescriptor(dims, tl::NCW{});
+    res = cmp_vec(h.GetLengths(), {2, 3, 4}, "Error: wrong NCW dimensions lengths!");
+    res = cmp_vec(h.GetStrides(), {3 * 4, 4, 1}, "Error: wrong NCW dimensions strides!");
+
     return res;
 }
 
