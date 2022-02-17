@@ -14,6 +14,7 @@
 #include "device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_conv_fwd.hpp"
+#include "convolution_utility.hpp"
 
 using InDataType  = int8_t;
 using WeiDataType = int8_t;
@@ -136,16 +137,20 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
-    const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
-
-    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
-    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-
     const std::vector<ck::index_t> conv_filter_strides{{conv_stride_h, conv_stride_w}};
     const std::vector<ck::index_t> conv_filter_dilations{{conv_dilation_h, conv_dilation_w}};
     const std::vector<ck::index_t> input_left_pads{{in_left_pad_h, in_left_pad_w}};
     const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
+    const auto output_spatial_lengths =
+        ck::tensor_operation::ConvolutionUtility::ComputeOutputSpatialLengths({Hi, Wi},
+                                                                              {Y, X},
+                                                                              conv_filter_strides,
+                                                                              conv_filter_dilations,
+                                                                              input_left_pads,
+                                                                              input_right_pads);
+
+    const ck::index_t Ho = output_spatial_lengths[0];
+    const ck::index_t Wo = output_spatial_lengths[1];
 
     // tensor layout
     auto f_host_tensor_descriptor = [](std::size_t N_,

@@ -53,6 +53,58 @@ __global__ void
                                                   c_element_op,
                                                   block_2_ctile_map);
 }
+
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AGridDesc_K0_M_K1,
+          typename BGridDesc_K0_N_K1,
+          typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename Block2CTileMap,
+          bool HasMainKBlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_batched_gemm_xdlops_v2r3(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            const index_t num_batches,
+            const index_t a_batch_stride,
+            const index_t b_batch_stride,
+            const index_t c_batch_stride,
+            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
+            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
+            const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const Block2CTileMap block_2_ctile_map)
+{
+    const index_t g_idx = get_block_1d_id() / num_batches;
+
+    const long_index_t a_batch_offset = static_cast<long_index_t>(a_batch_stride) * g_idx;
+    const long_index_t b_batch_offset = static_cast<long_index_t>(b_batch_stride) * g_idx;
+    const long_index_t c_batch_offset = static_cast<long_index_t>(c_batch_stride) * g_idx;
+
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                  p_b_grid + b_batch_offset,
+                                                  p_c_grid + c_batch_offset,
+                                                  p_shared,
+                                                  a_grid_desc_k0_m_k1,
+                                                  b_grid_desc_k0_n_k1,
+                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  block_2_ctile_map);
+}
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
 template <typename GridwiseGemm,
           typename FloatAB,
@@ -109,6 +161,73 @@ __global__ void
                                                   c_element_op,
                                                   block_2_ctile_map);
 }
+
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AGridDesc_K0_M_K1,
+          typename BGridDesc_K0_N_K1,
+          typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename Block2CTileMap>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_batched_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
+                                        const FloatAB* __restrict__ p_b_grid,
+                                        FloatC* __restrict__ p_c_grid,
+                                        const index_t num_batches,
+                                        const index_t a_batch_stride,
+                                        const index_t b_batch_stride,
+                                        const index_t c_batch_stride,
+                                        const void CONSTANT* p_a_grid_desc_k0_m_k1,
+                                        const void CONSTANT* p_b_grid_desc_k0_n_k1,
+                                        const void CONSTANT* p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                        const void CONSTANT* p_a_element_op,
+                                        const void CONSTANT* p_b_element_op,
+                                        const void CONSTANT* p_c_element_op,
+                                        const void CONSTANT* p_block_2_ctile_map)
+{
+    const auto a_grid_desc_k0_m_k1 = *reinterpret_cast<const AGridDesc_K0_M_K1*>(
+        cast_pointer_to_generic_address_space(p_a_grid_desc_k0_m_k1));
+    const auto b_grid_desc_k0_n_k1 = *reinterpret_cast<const BGridDesc_K0_N_K1*>(
+        cast_pointer_to_generic_address_space(p_b_grid_desc_k0_n_k1));
+    const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
+        *reinterpret_cast<const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2*>(
+            cast_pointer_to_generic_address_space(p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2));
+    const auto block_2_ctile_map = *reinterpret_cast<const Block2CTileMap*>(
+        cast_pointer_to_generic_address_space(p_block_2_ctile_map));
+    const auto a_element_op = *reinterpret_cast<const AElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_a_element_op));
+    const auto b_element_op = *reinterpret_cast<const BElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_b_element_op));
+    const auto c_element_op = *reinterpret_cast<const CElementwiseOperation*>(
+        cast_pointer_to_generic_address_space(p_c_element_op));
+
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    const index_t g_idx = get_block_1d_id() / num_batches;
+
+    const long_index_t a_batch_offset = static_cast<long_index_t>(a_batch_stride) * g_idx;
+    const long_index_t b_batch_offset = static_cast<long_index_t>(b_batch_stride) * g_idx;
+    const long_index_t c_batch_offset = static_cast<long_index_t>(c_batch_stride) * g_idx;
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                  p_b_grid + b_batch_offset,
+                                                  p_c_grid + c_batch_offset,
+                                                  p_shared,
+                                                  a_grid_desc_k0_m_k1,
+                                                  b_grid_desc_k0_n_k1,
+                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  block_2_ctile_map);
+}
+
 #endif
 
 template <index_t BlockSize,
@@ -417,6 +536,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            printf("ok: %s: %d\n", __FILE__, __LINE__);
+        }
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
@@ -497,6 +620,19 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 NXdlPerWave,
                                                                 K1>{};
 
+#define print_line()                                                \
+    do                                                              \
+    {                                                               \
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0) \
+        {                                                           \
+            printf("ok: %s: %d\n", __FILE__, __LINE__);             \
+        }                                                           \
+    } while(0);
+
+        if(get_thread_local_1d_id() == 0 && get_block_1d_id() == 0)
+        {
+            printf("ok: %s: %d\n", __FILE__, __LINE__);
+        }
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
         // LDS allocation for A and B: be careful of alignment
@@ -522,9 +658,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
         }
 
+                print_line();
         // Initialize C
         c_thread_buf.Clear();
 
+                print_line();
         // main body
         if constexpr(HasMainKBlockLoop)
         {
@@ -532,23 +670,34 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
             do
             {
+                print_line();
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
+                print_line();
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
+                print_line();
 
                 a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
 
+                print_line();
                 block_sync_lds();
 
+                print_line();
                 b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
 
+                print_line();
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
+                print_line();
                 block_sync_lds();
 
+                print_line();
                 a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+                print_line();
                 b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
+                print_line();
 
                 k0_block_data_begin += K0PerBlock;
+                print_line();
             } while(k0_block_data_begin < (K0 - K0PerBlock));
         }
 
@@ -606,6 +755,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_grid));
 
+                print_line();
             auto c_thread_copy =
                 ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
                                                    FloatC,
@@ -635,6 +785,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                               c_thread_buf,
                               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                               c_grid_buf);
+                print_line();
         }
     }
 };

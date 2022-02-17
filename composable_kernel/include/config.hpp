@@ -64,9 +64,18 @@
 #define CK_USE_AMD_BUFFER_ADDRESSING 1
 #endif
 
-// only gfx908 support native floating point atomic add
-#ifndef CK_USE_AMD_BUFFER_ATOMIC_FADD
-#define CK_USE_AMD_BUFFER_ATOMIC_FADD 0
+// AMD buffer_load. TODO: conv3d does NOT work with buffer load
+#ifndef CK_USE_AMD_BUFFER_LOAD
+#define CK_USE_AMD_BUFFER_LOAD 0
+#endif
+// AMD buffer_store
+#ifndef CK_USE_AMD_BUFFER_STORE
+#define CK_USE_AMD_BUFFER_STORE 1
+#endif
+
+// AMD buffer_atomic_add
+#ifndef CK_USE_AMD_BUFFER_ATOMIC_ADD
+#define CK_USE_AMD_BUFFER_ATOMIC_ADD 1
 #endif
 
 // AMD XDLOPS
@@ -167,6 +176,7 @@ enum ActivTypeEnum_t
 
 // index type
 using index_t = int32_t;
+using long_index_t = int64_t;
 
 } // namespace ck
 #endif
