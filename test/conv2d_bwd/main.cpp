@@ -139,7 +139,7 @@ int main(int argc, char* argv[])
         Tensor<OutDataType> out_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo));
         Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X));
         Tensor<InDataType> in_n_c_hi_wi_host_result(f_host_tensor_descriptor(N, C, Hi, Wi));
-        Tensor<OutDataType> in_n_c_hi_wi_device_result(f_host_tensor_descriptor(N, C, Hi, Wi));
+        Tensor<InDataType> in_n_c_hi_wi_device_result(f_host_tensor_descriptor(N, C, Hi, Wi));
 
         std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
         std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
@@ -186,21 +186,23 @@ int main(int argc, char* argv[])
             throw std::runtime_error("wrong! no device Conv instance found");
         }
 
-        auto ref_conv    = ReferenceConvBwdInstance{};
-        auto ref_invoker = ref_conv.MakeInvoker();
+        // get host result
+        {
+            auto ref_conv    = ReferenceConvBwdInstance{};
+            auto ref_invoker = ref_conv.MakeInvoker();
 
-        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
-                                                  wei_k_c_y_x,
-                                                  out_n_k_ho_wo,
-                                                  conv_filter_strides,
-                                                  conv_filter_dilations,
-                                                  input_left_pads,
-                                                  input_right_pads,
-                                                  InElementOp{},
-                                                  WeiElementOp{},
-                                                  OutElementOp{});
-
-        ref_invoker.Run(ref_argument);
+            auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
+                                                      wei_k_c_y_x,
+                                                      out_n_k_ho_wo,
+                                                      conv_filter_strides,
+                                                      conv_filter_dilations,
+                                                      input_left_pads,
+                                                      input_right_pads,
+                                                      InElementOp{},
+                                                      WeiElementOp{},
+                                                      OutElementOp{});
+            ref_invoker.Run(ref_argument);
+        }
 
         // profile device Conv instances
         bool success = false;
@@ -231,8 +233,12 @@ int main(int argc, char* argv[])
                 invoker_ptr->Run(argument_ptr.get(), 0);
 
                 out_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
+
+                check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+
                 if(!check_out(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result))
                 {
+                    std::cout << "Tuning Parameter is: " << conv_ptr->GetTypeString() << std::endl;
                     success = false;
                     break;
                 }

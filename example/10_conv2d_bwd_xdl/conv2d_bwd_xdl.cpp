@@ -33,43 +33,41 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdDefault =
     ck::tensor_operation::device::ConvolutionBackwardSpecialization_t::Default;
 
-// clang-format off
 using DeviceConvBwdInstance = ck::tensor_operation::device::
     DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
-        InDataType,                       // InDataType
-        WeiDataType,                      // WeiDataType
-        OutDataType,                      // OutDataType
-        AccDataType,                      // AccDataType
-        InElementOp,                      // InElementwiseOperation
-        WeiElementOp,                     // WeiElementwiseOperation
-        OutElementOp,                     // OutElementwiseOperation
-        ConvBwdDefault,                   // ConvolutionBackwardSpecialization_t
-        256,                              // BlockSize
-        128,                              // MPerBlock
-        128,                              // NPerBlock
-        4,                                // K0PerBlock
-        4,                                // K1
-        32,                               // MPerXdl
-        32,                               // NPerXdl
-        2,                                // MXdlPerWave
-        2,                                // NXdlPerWave
-        S<4, 64, 1>,                      // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<1, 0, 2>,                       // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,                       // ABlockTransferSrcAccessOrder
-        2,                                // ABlockTransferSrcVectorDim
-        4,                                // ABlockTransferSrcScalarPerVector
-        4,                                // ABlockTransferDstScalarPerVector_K1
-        true,                             // ABlockLdsAddExtraM
-        S<4, 64, 1>,                      // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<0, 2, 1>,                       // BBlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1>,                       // BBlockTransferSrcAccessOrder
-        1,                                // BBlockTransferSrcVectorDim
-        2,                                // BBlockTransferSrcScalarPerVector
-        4,                                // BBlockTransferDstScalarPerVector_K1
-        true,                             // BBlockLdsAddExtraN
+        InDataType,     // InDataType
+        WeiDataType,    // WeiDataType
+        OutDataType,    // OutDataType
+        AccDataType,    // AccDataType
+        InElementOp,    // InElementwiseOperation
+        WeiElementOp,   // WeiElementwiseOperation
+        OutElementOp,   // OutElementwiseOperation
+        ConvBwdDefault, // ConvolutionBackwardSpecialization_t
+        128,            // BlockSize
+        128,            // MPerBlock
+        64,             // NPerBlock
+        4,              // K0PerBlock
+        4,              // K1
+        32,             // MPerXdl
+        32,             // NPerXdl
+        2,              // MXdlPerWave
+        2,              // NXdlPerWave
+        S<4, 32, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
+        2,              // ABlockTransferSrcVectorDim
+        4,              // ABlockTransferSrcScalarPerVector
+        4,              // ABlockTransferDstScalarPerVector_K1
+        true,           // ABlockLdsAddExtraM
+        S<4, 32, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<0, 2, 1>,     // BBlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1>,     // BBlockTransferSrcAccessOrder
+        1,              // BBlockTransferSrcVectorDim
+        2,              // BBlockTransferSrcScalarPerVector
+        4,              // BBlockTransferDstScalarPerVector_K1
+        true,           // BBlockLdsAddExtraN
         7,
-        1>;                               // GemmCThreadTransferDstScalarPerVector
-// clang-format on
+        1>; // GemmCThreadTransferDstScalarPerVector
 
 using ReferenceConvBwdInstance = ck::tensor_operation::host::
     ReferenceConvBwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
@@ -83,7 +81,7 @@ int main(int argc, char* argv[])
     // Conv shape
     ck::index_t N               = 128;
     ck::index_t K               = 256;
-    ck::index_t C               = 256;
+    ck::index_t C               = 192;
     ck::index_t Y               = 3;
     ck::index_t X               = 3;
     ck::index_t Hi              = 71;
@@ -174,7 +172,7 @@ int main(int argc, char* argv[])
     Tensor<OutDataType> out_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
     Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X, WeiLayout{}));
     Tensor<InDataType> in_n_c_hi_wi_host_result(f_host_tensor_descriptor(N, C, Hi, Wi, InLayout{}));
-    Tensor<OutDataType> in_n_c_hi_wi_device_result(
+    Tensor<InDataType> in_n_c_hi_wi_device_result(
         f_host_tensor_descriptor(N, C, Hi, Wi, OutLayout{}));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;

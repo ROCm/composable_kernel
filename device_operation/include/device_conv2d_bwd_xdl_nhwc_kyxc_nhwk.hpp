@@ -72,6 +72,13 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
+    static_assert((K1 % ABlockTransferThreadClusterLengths_K0_M_K1{}[I2]) %
+                      ABlockTransferSrcScalarPerVector ==
+                  0);
+    static_assert((NPerBlock / BBlockTransferThreadClusterLengths_K0_N_K1{}[I1]) %
+                      BBlockTransferSrcScalarPerVector ==
+                  0);
+
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
 
