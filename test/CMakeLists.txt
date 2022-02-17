@@ -9,6 +9,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/problem_transform
     ${PROJECT_SOURCE_DIR}/external/rocm/include
+    ${PROJECT_SOURCE_DIR}/reference_operation/include
 )
 
 # test_magic_number_division
@@ -26,3 +27,8 @@ target_link_libraries(test_split_k PRIVATE device_gemm_instance)
 set(CONV_UTIL_SOURCE conv_util/main.cpp)
 add_executable(test_conv_util ${CONV_UTIL_SOURCE})
 target_link_libraries(test_conv_util PRIVATE host_tensor)
+
+# test_reference_conv_fwd
+set(REFERENCE_CONV_FWD_SOURCE reference_conv_fwd/main.cpp)
+add_executable(test_reference_conv_fwd ${REFERENCE_CONV_FWD_SOURCE})
+target_link_libraries(test_reference_conv_fwd PRIVATE host_tensor)
