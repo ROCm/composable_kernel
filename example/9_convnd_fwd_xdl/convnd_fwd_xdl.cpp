@@ -12,7 +12,6 @@
 #include "element_wise_operation.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "print.hpp"
 #include "reference_conv_fwd.hpp"
 #include "tensor_layout.hpp"
 
@@ -23,10 +22,6 @@ using AccDataType = float;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
-
-using InLayout  = ck::tensor_layout::convolution::NHWC;
-using WeiLayout = ck::tensor_layout::convolution::KYXC;
-using OutLayout = ck::tensor_layout::convolution::NHWK;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -173,6 +168,63 @@ ck::conv_util::ConvParams ParseConvParams(int spatial_dims, int argc, char* argv
     return params;
 }
 
+HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                   int spatial_dims = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(spatial_dims)
+    {
+    case 2: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWK{});
+    }
+    case 1: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWK{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
+HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                    int spatial_dims = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(spatial_dims)
+    {
+    case 2: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KYXC{});
+    }
+    case 1: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KXC{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
+HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                  int spatial_dims = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(spatial_dims)
+    {
+    case 2: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
+    }
+    case 1: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     bool do_verification = 0;
@@ -214,12 +266,10 @@ int main(int argc, char* argv[])
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(ck::conv_util::GetHostTensorDescriptor(input_dims, InLayout{}));
-    Tensor<WeiDataType> weights(ck::conv_util::GetHostTensorDescriptor(filter_dims, WeiLayout{}));
-    Tensor<OutDataType> host_output(
-        ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
-    Tensor<OutDataType> device_output(
-        ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
+    Tensor<InDataType> input(GetInputHostTensorDescriptor(input_dims, spatial_dims));
+    Tensor<WeiDataType> weights(GetFiltersHostTensorDescriptor(filter_dims, spatial_dims));
+    Tensor<OutDataType> host_output(GetOutputHostTensorDescriptor(output_dims, spatial_dims));
+    Tensor<OutDataType> device_output(GetOutputHostTensorDescriptor(output_dims, spatial_dims));
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weights: " << weights.mDesc << std::endl;
@@ -284,7 +334,7 @@ int main(int argc, char* argv[])
                                                                       params.filter_spatial_lengths,
                                                                       output_spatial_lengths);
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
@@ -307,6 +357,7 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
             out_device_buf.FromDevice(device_output.mData.data());
+            check_error(host_output, device_output);
         };
 
         switch(spatial_dims)
