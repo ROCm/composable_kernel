@@ -17,8 +17,8 @@ namespace device_conv2d_bwd_instance {
 using DeviceConvBwdNoOpPtr = DeviceConvBwdPtr<ck::tensor_operation::element_wise::PassThrough,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               ck::tensor_operation::element_wise::PassThrough>;
-
-void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_f32_instances(std::vector<DeviceConvBwdNoOpPtr>&);
+template <>
+void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, float);
 } // namespace device_conv2d_bwd_instance
 } // namespace device
 } // namespace tensor_operation
@@ -165,26 +165,8 @@ int main(int argc, char* argv[])
         out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
         wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
-        using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-        using DeviceConvBwdNoOpPtr =
-            ck::tensor_operation::device::DeviceConvBwdPtr<PassThrough, PassThrough, PassThrough>;
-
-        // add device Conv instances
-        std::vector<DeviceConvBwdNoOpPtr> conv_ptrs;
-
-        if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, float> &&
-                     ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
-                     ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
-        {
-            ck::tensor_operation::device::device_conv2d_bwd_instance::
-                add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
-        }
-
-        if(conv_ptrs.size() <= 0)
-        {
-            throw std::runtime_error("wrong! no device Conv instance found");
-        }
+        in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{5});
+        in_device_buf.ToDevice(in_n_c_hi_wi_device_result.mData.data());
 
         // get host result
         {
@@ -202,6 +184,21 @@ int main(int argc, char* argv[])
                                                       WeiElementOp{},
                                                       OutElementOp{});
             ref_invoker.Run(ref_argument);
+        }
+
+        using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+        using DeviceConvBwdNoOpPtr =
+            ck::tensor_operation::device::DeviceConvBwdPtr<PassThrough, PassThrough, PassThrough>;
+
+        // add device Conv instances
+        std::vector<DeviceConvBwdNoOpPtr> conv_ptrs;
+
+        ck::tensor_operation::device::device_conv2d_bwd_instance::
+            add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(conv_ptrs, OutDataType());
+
+        if(conv_ptrs.size() <= 0)
+        {
+            throw std::runtime_error("wrong! no device Conv instance found");
         }
 
         // profile device Conv instances
@@ -222,19 +219,16 @@ int main(int argc, char* argv[])
                 conv_filter_dilations,
                 input_left_pads,
                 input_right_pads,
-                PassThrough{},
-                PassThrough{},
-                PassThrough{});
-
-            auto invoker_ptr = conv_ptr->MakeInvokerPointer();
+                InElementOp{},
+                WeiElementOp{},
+                OutElementOp{});
 
             if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                invoker_ptr->Run(argument_ptr.get(), 0);
+                auto invoker_ptr = conv_ptr->MakeInvokerPointer();
+                invoker_ptr->Run(argument_ptr.get(), 1);
 
-                out_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
-
-                check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+                in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
                 if(!check_out(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result))
                 {

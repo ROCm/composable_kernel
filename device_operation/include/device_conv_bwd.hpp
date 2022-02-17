@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include "device_base.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -40,6 +41,15 @@ template <typename InElementwiseOperation,
 using DeviceConvBwdPtr = std::unique_ptr<
     DeviceConvBwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
 
+namespace device_conv2d_bwd_instance {
+template <typename T>
+void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(
+    std::vector<DeviceConvBwdPtr<ck::tensor_operation::element_wise::PassThrough,
+                                 ck::tensor_operation::element_wise::PassThrough,
+                                 ck::tensor_operation::element_wise::PassThrough>>&,
+    T);
+
+} // namespace device_conv2d_bwd_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

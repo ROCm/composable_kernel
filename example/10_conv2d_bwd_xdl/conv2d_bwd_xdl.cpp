@@ -23,10 +23,6 @@ using AccDataType = float;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using InLayout  = ck::tensor_layout::convolution::NHWC;
-using WeiLayout = ck::tensor_layout::convolution::KYXC;
-using OutLayout = ck::tensor_layout::convolution::NHWK;
-
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -145,35 +141,16 @@ int main(int argc, char* argv[])
     const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
 
     // tensor layout
-    auto f_host_tensor_descriptor = [](std::size_t N_,
-                                       std::size_t C_,
-                                       std::size_t H,
-                                       std::size_t W,
-                                       auto layout) {
-        if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value ||
-                     ck::is_same<decltype(layout), ck::tensor_layout::convolution::KCYX>::value ||
-                     ck::is_same<decltype(layout), ck::tensor_layout::convolution::NKHW>::value)
-        {
-            return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                        std::vector<std::size_t>({C_ * H * W, H * W, W, 1}));
-        }
-        else if constexpr(ck::is_same<decltype(layout),
-                                      ck::tensor_layout::convolution::NHWC>::value ||
-                          ck::is_same<decltype(layout),
-                                      ck::tensor_layout::convolution::KYXC>::value ||
-                          ck::is_same<decltype(layout),
-                                      ck::tensor_layout::convolution::NHWK>::value)
-        {
+    auto f_host_tensor_descriptor =
+        [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
             return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
                                         std::vector<std::size_t>({C_ * H * W, 1, W * C_, C_}));
-        }
-    };
+        };
 
-    Tensor<OutDataType> out_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
-    Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X, WeiLayout{}));
-    Tensor<InDataType> in_n_c_hi_wi_host_result(f_host_tensor_descriptor(N, C, Hi, Wi, InLayout{}));
-    Tensor<InDataType> in_n_c_hi_wi_device_result(
-        f_host_tensor_descriptor(N, C, Hi, Wi, OutLayout{}));
+    Tensor<OutDataType> out_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo));
+    Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X));
+    Tensor<InDataType> in_n_c_hi_wi_host_result(f_host_tensor_descriptor(N, C, Hi, Wi));
+    Tensor<InDataType> in_n_c_hi_wi_device_result(f_host_tensor_descriptor(N, C, Hi, Wi));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
