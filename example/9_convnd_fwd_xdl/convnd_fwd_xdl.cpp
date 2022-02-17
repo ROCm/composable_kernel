@@ -225,9 +225,6 @@ int main(int argc, char* argv[])
     std::cout << "weights: " << weights.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
 
-    // std::iota(input.begin(), input.end(), InDataType(0.f));
-    // std::fill(weights.begin(), weights.end(), WeiDataType(0.25f));
-
     switch(init_method)
     {
     case 0: break;
@@ -288,9 +285,7 @@ int main(int argc, char* argv[])
                                                                       output_spatial_lengths);
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
     float gb_per_sec = num_btype / 1.E6 / ave_time;
-
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
@@ -312,10 +307,6 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
             out_device_buf.FromDevice(device_output.mData.data());
-            // check_error(host_output, device_output);
-
-            // LogRange(std::cout <<"host_output:\n", host_output, ", ");
-            // LogRange(std::cout <<"device_output:\n", device_output, ", ");
         };
 
         switch(spatial_dims)
