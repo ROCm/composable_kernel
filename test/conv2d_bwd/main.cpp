@@ -12,6 +12,7 @@
 using F16  = ck::half_t;
 using F32  = float;
 using BF16 = ushort;
+using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -28,6 +29,9 @@ void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBw
 
 template <>
 void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, BF16);
+
+template <>
+void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, INT8);
 } // namespace device_conv2d_bwd_instance
 } // namespace device
 } // namespace tensor_operation
@@ -270,6 +274,10 @@ int main(int argc, char* argv[])
     else if(data_type == 2)
     {
         Run(BF16(), BF16(), BF16());
+    }
+    else if(data_type == 3)
+    {
+        Run(INT8(), INT8(), INT8());
     }
     else
     {

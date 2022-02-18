@@ -84,6 +84,7 @@ set(DEVICE_CONV2D_BWD_INSTANCE_SOURCE
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_bf16_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_int8_instance.cpp;
 ) 
 
 add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE}) 
