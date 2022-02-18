@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <half.hpp>
@@ -10,6 +11,8 @@
 #include "element_wise_operation.hpp"
 #include "host_tensor.hpp"
 #include "reference_conv_fwd.hpp"
+#include "tensor_layout.hpp"
+#include "test_util.hpp"
 
 namespace {
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
@@ -77,60 +80,6 @@ Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params)
     return host_output;
 }
 
-template <typename T, typename std::enable_if<std::is_floating_point<T>::value, bool>::type = false>
-bool check_err(const std::vector<T>& out,
-               const std::vector<T>& ref,
-               const std::string& msg,
-               T rtol = static_cast<T>(1e-5),
-               T atol = static_cast<T>(1e-8))
-{
-    if(out.size() != ref.size())
-    {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
-        return false;
-    }
-
-    for(std::size_t i = 0; i < ref.size(); ++i)
-    {
-        if(std::abs(out[i] - ref[i]) > atol + rtol * std::abs(ref[i]) || !std::isfinite(out[i]) ||
-           !std::isfinite(ref[i]))
-        {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << "!=" << ref[i]
-                      << std::endl
-                      << msg << std::endl;
-            return false;
-        }
-    }
-    return true;
-}
-
-template <typename T, typename std::enable_if<std::is_integral<T>::value, bool>::type = false>
-bool check_err(
-    const std::vector<T>& out, const std::vector<T>& ref, const std::string& msg, T = 0, T = 0)
-{
-    if(out.size() != ref.size())
-    {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
-        return false;
-    }
-
-    for(std::size_t i = 0; i < ref.size(); ++i)
-    {
-        if(out[i] != ref[i])
-        {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << "!=" << ref[i]
-                      << std::endl
-                      << msg << std::endl;
-            return false;
-        }
-    }
-    return true;
-}
-
 bool TestConv2DNHWC()
 {
     bool res{true};
@@ -163,10 +112,10 @@ bool TestConv2DNHWC()
                                 472.5,
                                 490.5,
                                 508.5};
-    res = res && check_err(out_tensor.mDesc.GetLengths(),
-                           ref_dims,
-                           "Error: wrong output tensor dimensions!");
-    res = res && check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
+    res = res && test_util::check_err(out_tensor.mDesc.GetLengths(),
+                                      ref_dims,
+                                      "Error: wrong output tensor dimensions!");
+    res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
 
     params.N                      = 1;
     params.K                      = 2;
@@ -186,10 +135,10 @@ bool TestConv2DNHWC()
         747.,  747.,  1138.5, 1138.5, 1174.5, 1174.5, 1210.5, 1210.5, 1246.5, 1246.5,
         1035., 1035., 1570.5, 1570.5, 1606.5, 1606.5, 1642.5, 1642.5, 1678.5, 1678.5,
         1323., 1323., 2002.5, 2002.5, 2038.5, 2038.5, 2074.5, 2074.5, 2110.5, 2110.5};
-    res = res && check_err(out_tensor.mDesc.GetLengths(),
-                           ref_dims,
-                           "Error: wrong output tensor dimensions!");
-    res = res && check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
+    res = res && test_util::check_err(out_tensor.mDesc.GetLengths(),
+                                      ref_dims,
+                                      "Error: wrong output tensor dimensions!");
+    res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
 
     return res;
 }
@@ -218,10 +167,10 @@ bool TestConv1DNHWC()
                                        ck::tensor_layout::convolution::NWK>(params);
     std::vector<std::size_t> ref_dims{1, 1, 4};
     std::vector<float> ref_data{7.5, 13.5, 19.5, 25.5};
-    res = res && check_err(out_tensor.mDesc.GetLengths(),
-                           ref_dims,
-                           "Error: wrong output tensor dimensions!");
-    res = res && check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
+    res = res && test_util::check_err(out_tensor.mDesc.GetLengths(),
+                                      ref_dims,
+                                      "Error: wrong output tensor dimensions!");
+    res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
 
     params.spatial_dims           = 1;
     params.N                      = 1;
@@ -243,10 +192,10 @@ bool TestConv1DNHWC()
                                   ck::tensor_layout::convolution::NWK>(params);
     ref_dims   = std::vector<std::size_t>{1, 2, 5};
     ref_data   = std::vector<float>{9., 9., 19.5, 19.5, 31.5, 31.5, 43.5, 43.5, 55.5, 55.5};
-    res        = res && check_err(out_tensor.mDesc.GetLengths(),
-                           ref_dims,
-                           "Error: wrong output tensor dimensions!");
-    res        = res && check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
+    res        = res && test_util::check_err(out_tensor.mDesc.GetLengths(),
+                                      ref_dims,
+                                      "Error: wrong output tensor dimensions!");
+    res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
 
     return res;
 }
