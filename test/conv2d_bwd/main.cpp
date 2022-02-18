@@ -9,8 +9,9 @@
 #include "element_wise_operation.hpp"
 #include "reference_conv_bwd.hpp"
 
-using F16 = ck::half_t;
-using F32 = float;
+using F16  = ck::half_t;
+using F32  = float;
+using BF16 = ushort;
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -21,8 +22,12 @@ using DeviceConvBwdNoOpPtr = DeviceConvBwdPtr<ck::tensor_operation::element_wise
                                               ck::tensor_operation::element_wise::PassThrough>;
 template <>
 void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, F32);
+
 template <>
 void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, F16);
+
+template <>
+void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, BF16);
 } // namespace device_conv2d_bwd_instance
 } // namespace device
 } // namespace tensor_operation
@@ -261,6 +266,10 @@ int main(int argc, char* argv[])
     else if(data_type == 1)
     {
         Run(F16(), F16(), F16());
+    }
+    else if(data_type == 2)
+    {
+        Run(BF16(), BF16(), BF16());
     }
     else
     {
