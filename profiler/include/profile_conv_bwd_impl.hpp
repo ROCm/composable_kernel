@@ -9,6 +9,10 @@
 #include "element_wise_operation.hpp"
 #include "reference_conv_bwd.hpp"
 
+using F16  = ck::half_t;
+using F32  = float;
+using BF16 = ushort;
+using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -91,7 +95,7 @@ void profile_conv_bwd_impl(int do_verification,
     Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X, WeiLayout{}));
     Tensor<OutDataType> out_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
-    std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
+    std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
     std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo.mDesc << std::endl;
 
@@ -117,7 +121,7 @@ void profile_conv_bwd_impl(int do_verification,
 
     if(do_verification)
     {
-        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvbwd<InDataType,
+        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwd<InDataType,
                                                                                       WeiDataType,
                                                                                       OutDataType,
                                                                                       InElementOp,
@@ -126,9 +130,9 @@ void profile_conv_bwd_impl(int do_verification,
 
         auto ref_conv     = ReferenceConvBwdInstance{};
         auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
                                                   wei_k_c_y_x,
-                                                  out_n_k_ho_wo_host_result,
+                                                  out_n_k_ho_wo,
                                                   conv_filter_strides,
                                                   conv_filter_dilations,
                                                   input_left_pads,
@@ -150,11 +154,11 @@ void profile_conv_bwd_impl(int do_verification,
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-    using DeviceConvFwdNoOpPtr =
-        ck::tensor_operation::device::DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>;
+    using DeviceConvBwdNoOpPtr =
+        ck::tensor_operation::device::DeviceConvBwdPtr<PassThrough, PassThrough, PassThrough>;
 
     // add device Conv instances
-    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    std::vector<DeviceConvBwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_bwd_instance::
         add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(conv_ptrs, WeiDataType());
     if(conv_ptrs.size() <= 0)
@@ -225,7 +229,7 @@ void profile_conv_bwd_impl(int do_verification,
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi.mData, ",")
+                    LogRangeAsType<float>(std::cout << "in : ", out_n_k_ho_wo.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x.mData, ",")
                         << std::endl;
