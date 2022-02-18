@@ -78,7 +78,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? K : StrideA,
             (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
