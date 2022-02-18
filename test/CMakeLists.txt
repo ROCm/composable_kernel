@@ -10,6 +10,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/composable_kernel/include/problem_transform
     ${PROJECT_SOURCE_DIR}/external/rocm/include
     ${PROJECT_SOURCE_DIR}/reference_operation/include
+    ${PROJECT_SOURCE_DIR}/test/include
 )
 
 # test_magic_number_division
@@ -32,3 +33,8 @@ target_link_libraries(test_conv_util PRIVATE host_tensor)
 set(REFERENCE_CONV_FWD_SOURCE reference_conv_fwd/main.cpp)
 add_executable(test_reference_conv_fwd ${REFERENCE_CONV_FWD_SOURCE})
 target_link_libraries(test_reference_conv_fwd PRIVATE host_tensor)
+
+# test_convnd_fwd_xdl
+set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/main.cpp)
+add_executable(test_convnd_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
+target_link_libraries(test_convnd_fwd_xdl PRIVATE host_tensor)
