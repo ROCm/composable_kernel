@@ -62,7 +62,8 @@ int main(int argc, char* argv[])
                "                        conv_fwd: ForwardConvolution\n"
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
-               "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n");
+               "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
+               "                        conv_bwd: BackwardConvolution\n");
         // clang-format on
 
         return 0;

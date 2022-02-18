@@ -36,7 +36,7 @@ int profile_conv_bwd(int argc, char* argv[])
 {
     if(argc != 25)
     {
-        printf("arg1: tensor operation (conv_fwd: ForwardConvolution)\n");
+        printf("arg1: tensor operation (conv_bwd: BackwardConvolution)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: input tensor layout (0: NCHW; 1: NHWC)\n");
         printf("arg4: weight tensor layout (0: KCYX; 1: KYXC)\n");
