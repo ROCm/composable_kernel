@@ -1862,5 +1862,94 @@ struct Slice
     }
 };
 
+/*
+ * \brief lower_idx = upper_idx % modulus.
+ *
+ * jfy: Can be considered as the inverse transform of Vectorize?
+ * jfy: up_lengths_ is not used.
+ */
+template <typename Modulus, typename UpLength>
+struct Modulo
+{
+    using LowerIndex = MultiIndex<1>;
+    using UpperIndex = MultiIndex<1>;
+    using UpLengths  = decltype(make_tuple(UpLength{}));
+
+    Modulus modulus_;
+    UpLengths up_lengths_;
+
+    __host__ __device__ constexpr Modulo() = default;
+
+    __host__ __device__ constexpr Modulo(const Modulus& modulus, const UpLength& up_length)
+        : modulus_{modulus}, up_lengths_{make_tuple(up_length)}
+    {
+    }
+
+    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return 1; }
+
+    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
+
+    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                           const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(Number<0>{}) = idx_up[Number<0>{}] % modulus_;
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    __host__ __device__ void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                                              const UpIdxDiff& idx_diff_up,
+                                              LowIdx& idx_low,
+                                              const UpIdx& up_idx,
+                                              Number<Hack>) const
+    {
+        static_assert(LowIdxDiff::Size() == 1 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 1 &&
+                          UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        constexpr auto I0 = Number<0>{};
+
+        const auto idx_low_old = idx_low;
+        idx_low(I0)            = (up_idx(I0) + idx_diff_up(I0)) % modulus_;
+        idx_diff_low(I0)       = idx_low - idx_low_old;
+    }
+
+    __host__ __device__ static constexpr bool IsLinearTransform() { return false; }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    __host__ __device__ static constexpr bool
+    IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<UpLengths>::value;
+    }
+
+    __host__ __device__ void Print() const
+    {
+        printf("{");
+        printf("Modulus, ");
+        printf("up_lengths_");
+        print_multi_index(up_lengths_);
+        printf("}");
+    }
+};
 } // namespace ck
 #endif

@@ -143,7 +143,6 @@ int main(int, char*[])
             continue;
         }
 
-
         cpu_magic_number_division(magic_multiplier,
                                   magic_shift,
                                   dividends_host.data(),

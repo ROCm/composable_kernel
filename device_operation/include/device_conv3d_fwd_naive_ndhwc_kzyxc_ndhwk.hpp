@@ -274,4 +274,3 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
 } // namespace tensor_operation
 } // namespace ck
 #endif
-

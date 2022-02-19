@@ -130,13 +130,13 @@ int main(int argc, char* argv[])
         const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
         const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 
-        const std::vector<ck::index_t> input_spatial_lengths{{Hi, Wi}};
-        const std::vector<ck::index_t> filter_spatial_lengths{{Y, X}};
-        const std::vector<ck::index_t> output_spatial_lengths{{Ho, Wo}};
-        const std::vector<ck::index_t> conv_filter_strides{{conv_stride_h, conv_stride_w}};
-        const std::vector<ck::index_t> conv_filter_dilations{{conv_dilation_h, conv_dilation_w}};
-        const std::vector<ck::index_t> input_left_pads{{in_left_pad_h, in_left_pad_w}};
-        const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
+        const std::vector<ck::index_t> input_spatial_lengths{Hi, Wi};
+        const std::vector<ck::index_t> filter_spatial_lengths{Y, X};
+        const std::vector<ck::index_t> output_spatial_lengths{Ho, Wo};
+        const std::vector<ck::index_t> conv_filter_strides{conv_stride_h, conv_stride_w};
+        const std::vector<ck::index_t> conv_filter_dilations{conv_dilation_h, conv_dilation_w};
+        const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
+        const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
 
         auto f_host_tensor_descriptor =
             [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {

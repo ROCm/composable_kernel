@@ -119,5 +119,11 @@ __host__ __device__ constexpr auto make_vectorize_transform(const VectorSize& ve
     return Vectorize<VectorSize, UpLength>{vector_size, up_length};
 }
 
+template <typename Modulus, typename UpLength>
+__host__ __device__ constexpr auto make_modulo_transform(const Modulus& modulus,
+                                                         const UpLength& up_length)
+{
+    return Modulo<Modulus, UpLength>{modulus, up_length};
+}
 } // namespace ck
 #endif

@@ -22,7 +22,7 @@ template <typename... In,
           typename InRightPads,
           index_t GemmK1Value>
 __host__ __device__ constexpr auto
-transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
+transform_forward_convolution3d_into_gemm_v4r4r4_ndhwc_kzyxc_ndhwk_pad(
     const TensorDescriptor<In...>& in_grid_desc_n_di_hi_wi_c,
     const TensorDescriptor<Wei...>& wei_k_z_y_x_c_grid_desc,
     const TensorDescriptor<Out...>& out_n_do_ho_wo_k_grid_desc,
@@ -134,6 +134,13 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
         make_tuple(Sequence<0>{}, Sequence<1>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
+    // const auto out_grid_desc_gemmm_gemmn = transform_tensor_descriptor(
+    //     out_n_do_ho_wo_k_grid_desc,
+    //     make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo)),
+    //                make_pass_through_transform(K)),
+    //     make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<3>{}),
+    //     make_tuple(Sequence<0>{}, Sequence<1>{}));
+
     return make_tuple(in_grid_desc_gemmk0_gemmm_gemmk1,
                       wei_grid_desc_gemmk0_gemmn_gemmk1,
                       out_grid_desc_gemmm_gemmn);
@@ -141,4 +148,3 @@ transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
 
 } // namespace ck
 #endif
-

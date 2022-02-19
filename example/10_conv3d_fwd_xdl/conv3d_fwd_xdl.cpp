@@ -242,25 +242,25 @@ int main(int argc, char* argv[])
                 InElementOp,
                 WeiElementOp,
                 OutElementOp>;
-        auto conv3d_naive  = DeviceConv3dFwdNaive{};
-        auto invoker_naive = conv3d_naive.MakeInvoker();
-        auto argument_naive =
-            conv3d_naive.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_ref_device_buf.GetDeviceBuffer()),
-                                      N,
-                                      K,
-                                      C,
-                                      in_spatial_lengths,
-                                      filter_spatial_lengths,
-                                      out_spatial_lengths,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      in_left_pads,
-                                      in_right_pads,
-                                      InElementOp{},
-                                      WeiElementOp{},
-                                      OutElementOp{});
+        auto conv3d_naive   = DeviceConv3dFwdNaive{};
+        auto invoker_naive  = conv3d_naive.MakeInvoker();
+        auto argument_naive = conv3d_naive.MakeArgument(
+            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+            static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            static_cast<OutDataType*>(out_ref_device_buf.GetDeviceBuffer()),
+            N,
+            K,
+            C,
+            in_spatial_lengths,
+            filter_spatial_lengths,
+            out_spatial_lengths,
+            conv_filter_strides,
+            conv_filter_dilations,
+            in_left_pads,
+            in_right_pads,
+            InElementOp{},
+            WeiElementOp{},
+            OutElementOp{});
 
         if(!conv3d_naive.IsSupportedArgument(argument_naive))
         {

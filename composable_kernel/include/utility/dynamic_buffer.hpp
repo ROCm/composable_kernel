@@ -68,8 +68,7 @@ struct DynamicBuffer
 
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
-                                                                          t_per_x>(
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>, t_per_x>(
                     p_data_, i, is_valid_element, element_space_size_);
             }
             else

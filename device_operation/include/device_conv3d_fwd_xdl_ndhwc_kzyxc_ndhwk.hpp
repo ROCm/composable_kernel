@@ -158,19 +158,15 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         }
         else
         {
-            const index_t subbatch_size =
-                GetMaxAllowableSubBatchSize(N, K, C, input_spatial_lengths, output_spatial_lengths);
-            printf("subbatch_size = %d\n", subbatch_size);
-
             const auto in_desc_n_di_hi_wi_c =
-                make_naive_tensor_descriptor_packed(make_tuple(subbatch_size, Di, Hi, Wi, C));
+                make_naive_tensor_descriptor_packed(make_tuple(N, Di, Hi, Wi, C));
             const auto wei_desc_k_z_y_x_c =
                 make_naive_tensor_descriptor_packed(make_tuple(K, Z, Y, X, C));
             const auto out_desc_n_do_ho_wo_k =
-                make_naive_tensor_descriptor_packed(make_tuple(subbatch_size, Do, Ho, Wo, K));
+                make_naive_tensor_descriptor_packed(make_tuple(N, Do, Ho, Wo, K));
 
             const auto descs =
-                transform_forward_convolution3d_into_gemm_v4r4r4_nhwc_kyxc_nhwk_pad(
+                transform_forward_convolution3d_into_gemm_v4r4r4_ndhwc_kzyxc_ndhwk_pad(
                     in_desc_n_di_hi_wi_c,
                     wei_desc_k_z_y_x_c,
                     out_desc_n_do_ho_wo_k,
@@ -192,7 +188,89 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
-    using CGridDesc_M_N   = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
+    using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
+
+    struct Block2CTileMapMaker
+    {
+        Block2CTileMapMaker(index_t num_batches) : num_batches_(num_batches) {}
+
+        __host__ __device__ constexpr auto
+        MakeBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
+        {
+            const auto M = c_grid_desc_m_n.GetLength(I0);
+            const auto N = c_grid_desc_m_n.GetLength(I1);
+
+            constexpr auto M1 = Number<MPerBlock>{};
+            constexpr auto N1 = Number<NPerBlock>{};
+
+            const auto M0 = M / M1;
+            const auto N0 = N / N1;
+
+            const auto M00 = M0 / M01;
+            const auto N00 = N0 / N01;
+
+#if 0
+            // const index_t num_blocks_per_batch = c_grid_desc_m_n.GetLength(I0) *
+            //                                      c_grid_desc_m_n.GetLength(I1) /
+            //                                      (MPerBlock * NPerBlock);
+            const index_t num_blocks_per_batch = GridwiseGemm::CalculateGridSize(c_grid_desc_m_n);
+
+            const auto m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_unmerge_transform(make_tuple(M00, M01)),
+                               make_unmerge_transform(make_tuple(N00, N01))),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
+
+            const auto c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_merge_transform(make_tuple(M00, N00, M01, N01))),
+                    make_tuple(Sequence<0, 1, 2, 3>{}),
+                    make_tuple(Sequence<0>{}));
+
+            const auto c_blockid_to_m0_n0_block_cluster_adaptor =
+                chain_tensor_adaptors(m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
+                                      c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor);
+
+            // global_blockid % num_blocks_per_batch = c_blockid
+            // where global_blockid is the upper index, while c_blockid is the lower index
+            const auto global_blockid_to_c_blockid_cluster_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_modulo_transform(num_blocks_per_batch, num_blocks_per_batch)),
+                    make_tuple(Sequence<0>{}),
+                    make_tuple(Sequence<0>{}));
+
+            const auto global_blockid_to_m0_n0_block_cluster_adaptor = 
+                chain_tensor_adaptors(c_blockid_to_m0_n0_block_cluster_adaptor,
+                                      global_blockid_to_c_blockid_cluster_adaptor);
+
+            return global_blockid_to_m0_n0_block_cluster_adaptor;
+#else
+            const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_insert_transform(num_batches_),
+                               make_unmerge_transform(make_tuple(M00, M01)),
+                               make_unmerge_transform(make_tuple(N00, N01))),
+                    make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
+
+            const auto global_blockid_to_g_m00_m01_n00_n01_block_cluster_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_merge_transform(make_tuple(num_batches_, M00, N00, M01, N01))),
+                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                    make_tuple(Sequence<0>{}));
+
+            const auto global_blockid_to_m0_n0_block_cluster_adaptor =
+                chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
+                                      global_blockid_to_g_m00_m01_n00_n01_block_cluster_adaptor);
+
+            return global_blockid_to_m0_n0_block_cluster_adaptor;
+#endif
+        }
+
+        private:
+        index_t num_batches_;
+    };
 
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
@@ -236,7 +314,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using Block2CTileMap = decltype(GridwiseGemm::MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+    using Block2CTileMap =
+        decltype(Block2CTileMapMaker{1}.MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
     // Argument
     struct Argument : public BaseArgument
@@ -271,6 +350,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             const index_t subbatch_size =
                 GetMaxAllowableSubBatchSize(N, K, C, input_spatial_lengths, output_spatial_lengths);
             num_subbatches_ = N / subbatch_size;
+
             const auto descs =
                 MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(subbatch_size,
                                                                 K,
@@ -287,9 +367,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             b_grid_desc_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_     = descs[I2];
 
-            a_batch_stride_ = a_grid_desc_k0_m_k1_.GetElementSize();
-            b_batch_stride_ = b_grid_desc_k0_n_k1_.GetElementSize();
-            c_batch_stride_ = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_.GetElementSize();
+            a_batch_stride_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
+            b_batch_stride_ = 0;
+            c_batch_stride_ = c_grid_desc_m_n_.GetElementSpaceSize();
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
@@ -297,7 +377,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ = Block2CTileMapMaker{num_subbatches_}.MakeBlock2CTileMap(
+                    c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -348,11 +429,12 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                             arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseBatchedGemm_bk0mk1_k0nk1_bmn_xdlops_v2r3r2_xdlops_v2r3 has "
-                    "invalid setting");
+                    "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            // todo: grid_size times arg.num_subbatches_
+            const index_t grid_size =
+                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.num_subbatches_;
 
             const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
 
@@ -567,4 +649,3 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
 } // namespace tensor_operation
 } // namespace ck
 #endif
-

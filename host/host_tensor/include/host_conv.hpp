@@ -49,7 +49,6 @@ void host_conv_nchw_kcyx_nkhw(const Tensor<TIn>& in,
                                out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
 }
 
-
 template <typename TIn,
           typename TWei,
           typename TOut,
@@ -148,4 +147,3 @@ void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
                                out.mDesc.GetLengths()[3],
                                out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency() - 4);
 }
-

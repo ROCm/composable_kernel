@@ -921,9 +921,9 @@ __device__ void amd_buffer_atomic_add_impl(const typename vector_type<T, N>::typ
 template <typename T, index_t N>
 __device__ typename vector_type_maker<T, N>::type::type
 amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
-                                                   index_t src_thread_element_offset,
-                                                   bool src_thread_element_valid,
-                                                   index_t src_element_space_size)
+                                            index_t src_thread_element_offset,
+                                            bool src_thread_element_valid,
+                                            index_t src_element_space_size)
 {
     const int32x4_t src_wave_buffer_resource =
         make_wave_buffer_resource(p_src_wave, src_element_space_size);

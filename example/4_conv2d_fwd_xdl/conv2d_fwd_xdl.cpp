@@ -139,10 +139,10 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    const std::vector<ck::index_t> conv_filter_strides{{conv_stride_h, conv_stride_w}};
-    const std::vector<ck::index_t> conv_filter_dilations{{conv_dilation_h, conv_dilation_w}};
-    const std::vector<ck::index_t> input_left_pads{{in_left_pad_h, in_left_pad_w}};
-    const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
+    const std::vector<ck::index_t> conv_filter_strides{conv_stride_h, conv_stride_w};
+    const std::vector<ck::index_t> conv_filter_dilations{conv_dilation_h, conv_dilation_w};
+    const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
+    const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
     const auto output_spatial_lengths =
         ck::tensor_operation::ConvolutionUtility::ComputeOutputSpatialLengths({Hi, Wi},
                                                                               {Y, X},

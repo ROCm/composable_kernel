@@ -66,7 +66,7 @@
 
 // AMD buffer_load. TODO: conv3d does NOT work with buffer load
 #ifndef CK_USE_AMD_BUFFER_LOAD
-#define CK_USE_AMD_BUFFER_LOAD 0
+#define CK_USE_AMD_BUFFER_LOAD 1
 #endif
 // AMD buffer_store
 #ifndef CK_USE_AMD_BUFFER_STORE
@@ -175,7 +175,7 @@ enum ActivTypeEnum_t
 };
 
 // index type
-using index_t = int32_t;
+using index_t      = int32_t;
 using long_index_t = int64_t;
 
 } // namespace ck

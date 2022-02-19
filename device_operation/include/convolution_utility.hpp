@@ -71,4 +71,3 @@ struct ConvolutionUtility
 } // namespace tensor_operation
 } // namespace ck
 #endif
-
