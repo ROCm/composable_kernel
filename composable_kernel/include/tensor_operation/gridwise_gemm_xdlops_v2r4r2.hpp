@@ -336,8 +336,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         return c_blockid_to_kbatch_m0_n0_block_cluster_adaptor;
     }
 
-    static constexpr index_t CShuffleMRepeatPerShuffle = 1;
-    static constexpr index_t CShuffleNRepeatPerShuffle = 1;
+    static constexpr index_t CShuffleMRepeatPerShuffle                   = 1;
+    static constexpr index_t CShuffleNRepeatPerShuffle                   = 9;
+    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL  = 8;
+    using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock = Sequence<1, 8, 1, 18>;
 
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
@@ -710,11 +712,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                      m_thread_data_on_block_idx[I4],
                                      n_thread_data_on_block_idx[I2]),
                     ck::tensor_operation::element_wise::PassThrough{}};
-
-            constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL = 2;
-
-            using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
-                Sequence<1, 16, 1, 8>;
 
             auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r1<
                 BlockSize,                  // index_t BlockSize,
