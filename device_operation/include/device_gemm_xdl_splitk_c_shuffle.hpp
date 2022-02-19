@@ -250,7 +250,7 @@ struct DeviceGemmXdlSplitKCShuffle
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum_t::AtomicAdd,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -285,8 +285,8 @@ struct DeviceGemmXdlSplitKCShuffle
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
 
-    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(CGridDesc_M_N{}));
+    using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+        decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
 
     using Block2CTileMap =
         decltype(GridwiseGemm::MakeCBlockClusterAdaptor(CGridDesc_M_N{}, 1, 1, 1));
@@ -315,7 +315,7 @@ struct DeviceGemmXdlSplitKCShuffle
               a_grid_desc_kbatch_k0_m_k1_{},
               b_grid_desc_kbatch_k0_n_k1_{},
               c_grid_desc_m_n_{},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -340,8 +340,8 @@ struct DeviceGemmXdlSplitKCShuffle
                                            M01_,
                                            N01_))
             {
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCM0N0M1N1M2M3M4N2GridDescriptor(c_grid_desc_m_n_);
+                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n_);
 
                 block_2_ctile_map_ =
                     GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
@@ -355,7 +355,7 @@ struct DeviceGemmXdlSplitKCShuffle
         AGridDesc_K0_M_K1 a_grid_desc_kbatch_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_kbatch_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock c_grid_desc_mblock_mperblock_nblock_nperblock_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -398,7 +398,7 @@ struct DeviceGemmXdlSplitKCShuffle
                                             arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2 has invalid setting");
             }
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_, kbatch);
@@ -413,30 +413,31 @@ struct DeviceGemmXdlSplitKCShuffle
                 if(nrepeat > 0)
                 {
                     ShowInfo(arg);
-                    ave_time = launch_and_time_kernel(kernel,
-                                                      nrepeat,
-                                                      dim3(grid_size),
-                                                      dim3(BlockSize),
-                                                      0,
-                                                      arg.p_a_grid_,
-                                                      arg.p_b_grid_,
-                                                      arg.p_c_grid_,
-                                                      arg.a_grid_desc_kbatch_k0_m_k1_,
-                                                      arg.b_grid_desc_kbatch_k0_n_k1_,
-                                                      arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                      arg.a_element_op_,
-                                                      arg.b_element_op_,
-                                                      arg.c_element_op_,
-                                                      arg.block_2_ctile_map_);
+                    ave_time =
+                        launch_and_time_kernel(kernel,
+                                               nrepeat,
+                                               dim3(grid_size),
+                                               dim3(BlockSize),
+                                               0,
+                                               arg.p_a_grid_,
+                                               arg.p_b_grid_,
+                                               arg.p_c_grid_,
+                                               arg.a_grid_desc_kbatch_k0_m_k1_,
+                                               arg.b_grid_desc_kbatch_k0_n_k1_,
+                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                               arg.a_element_op_,
+                                               arg.b_element_op_,
+                                               arg.c_element_op_,
+                                               arg.block_2_ctile_map_);
                 }
 
                 if(kbatch > 1 || nrepeat <= 0)
                 {
-                    hipGetErrorString(
-                        hipMemset(arg.p_c_grid_,
-                                  0,
-                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_.GetElementSpaceSize() *
-                                      sizeof(CDataType)));
+                    hipGetErrorString(hipMemset(
+                        arg.p_c_grid_,
+                        0,
+                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                            sizeof(CDataType)));
 
                     launch_kernel(kernel,
                                   dim3(grid_size),
@@ -447,7 +448,7 @@ struct DeviceGemmXdlSplitKCShuffle
                                   arg.p_c_grid_,
                                   arg.a_grid_desc_kbatch_k0_m_k1_,
                                   arg.b_grid_desc_kbatch_k0_n_k1_,
-                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                   arg.a_element_op_,
                                   arg.b_element_op_,
                                   arg.c_element_op_,
@@ -464,8 +465,8 @@ struct DeviceGemmXdlSplitKCShuffle
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            DeviceGemmXdlSplitKCShuffle::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitKCShuffle::
+                                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
@@ -482,8 +483,8 @@ struct DeviceGemmXdlSplitKCShuffle
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            DeviceGemmXdlSplitKCShuffle::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitKCShuffle::
+                                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
@@ -503,8 +504,8 @@ struct DeviceGemmXdlSplitKCShuffle
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            DeviceGemmXdlSplitKCShuffle::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitKCShuffle::
+                                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
@@ -521,8 +522,8 @@ struct DeviceGemmXdlSplitKCShuffle
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitKCShuffle::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            DeviceGemmXdlSplitKCShuffle::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<DeviceGemmXdlSplitKCShuffle::
+                                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                         AElementwiseOperation,
                         BElementwiseOperation,
                         CElementwiseOperation,
