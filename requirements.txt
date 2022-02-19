@@ -1,0 +1,2 @@
+half,https://github.com/pfultz2/half/archive/1.12.0.tar.gz -X header -H sha256:0a08660b68abb176ebc2a0cdf8de46e3182a7f46c66443bb80dbfaaec98cf969 --build
+danmar/cppcheck@dd05839a7e63ef04afd34711cb3e1e0ef742882f
