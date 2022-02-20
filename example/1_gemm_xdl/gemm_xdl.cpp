@@ -11,12 +11,23 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
+#include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"
+#include "device_gemm_xdl_splitk_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
+#include "gemm_specialization.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
+
+using F16 = ck::half_t;
+using F32 = float;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using ADataType   = ck::half_t;
 using BDataType   = ck::half_t;
@@ -31,45 +42,65 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
+static constexpr auto GemmDefault   = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization_t::MNPadding;
+
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle<
-    ADataType,              // ADataType
-    BDataType,              // BDataType
-    CDataType,              // CDataType
-    AccDataType,            // AccDataType
-    ALayout,                // ALayout
-    BLayout,                // BLayout
-    CLayout,                // CLayout
-    AElementOp,             // AElementwiseOperation
-    BElementOp,             // BElementwiseOperation
-    CElementOp,             // CElementwiseOperation
-    256,                    // BlockSize
-    256,                    // MPerBlock
-    128,                    // NPerBlock
-    4,                      // K0PerBlock
-    8,                      // K1
-    32,                     // MPerXDL
-    32,                     // NPerXDL
-    4,                      // MXdlPerWave
-    2,                      // NXdlPerWave
-    S<4, 64, 1>,            // ABlockTransferThreadClusterLengths_K0_M_K1
-    S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
-    2,                      // ABlockTransferSrcVectorDim
-    8,                      // ABlockTransferSrcScalarPerVector
-    8,                      // ABlockTransferDstScalarPerVector_K1
-    true,                   // ABlockLdsAddExtraM
-    S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
-    S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
-    2,                      // BBlockTransferSrcVectorDim
-    8,                      // BBlockTransferSrcScalarPerVector
-    8,                      // BBlockTransferDstScalarPerVector_K1
-    true,                   // BBlockLdsAddExtraN
-    1,                      // CShuffleMXdlPerWavePerShuffle
-    1,                      // CShuffleNXdlPerWavePerShuffle
-    S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
-    8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
+#if 0
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
+//######| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|      Num|
+//######|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar| Prefetch|
+//######|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|         |
+//######|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |         |
+//    [256, 128, 4, 8], 1 stage, 2 occupancy
+        <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,        1>;
+#elif 0
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
+//######| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|      Num|
+//######|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar| Prefetch|
+//######|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|         |
+//######|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |         |
+//    [128, 144, 8, 8], 1 stage, 1 occupancy, bounded by LDS size
+//     99 TFlops, 120 blocks (1024x2160x3840)
+//     99 TFlops, 960 blocks (4096x4320x3840)
+        <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     8,  8,   16,   16,    2,    9,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<8,  8, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1,        1>;
+//    [128, 144, 4, 8], 1 stage, 2 occupancy,
+//     92 TFlops, 120 blocks (1024x2160x3840)
+//    120 TFlops, 240 blocks (1024x4320x3840)
+//    128 TFlops, 960 blocks (4096x4320x3840)
+//      <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     4,  8,   16,   16,    2,    9,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1,        1>;
+//    [ 64, 144, 8, 8], 1 stage, 2 occupancy/
+//     96 TFlops, 240 blocks (1024x2160x3840)
+//     96 TFlops, 480 blocks (1024x4320x3840)
+//     99 TFlops,1920 blocks (4096x4320x3840)
+//      <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   144,     8,  8,   16,   16,    1,    9,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<8,  8, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1,        1>;
+//    [ 64, 144, 8, 8], 2 stage, 2 occupancy
+//     93 TFlops
+//      <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   144,     8,  8,   16,   16,    1,    9,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<8,  8, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1,        2>;
+//    [ 64, 144, 4, 8], 1 stage, 2 occupancy
+//     87 TFlops
+//      <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   144,     4,  8,   16,   16,    1,    9,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1,        1>;
+//    [ 64, 144, 4, 8], 2 stage, 2 occupancy
+//     85 TFlops
+//      <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   144,     4,  8,   16,   16,    1,    9,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1,        2>;
+#elif 0
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
+//######| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
+//######|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
+//######|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|      |      |      |        |        |        |        |            |            |            |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
+//    [128, 144, 8, 8], 1 stage, 1 occupancy, bounded by LDS size
+      //<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,   128,   144,     8,  8,   16,   16,    2,    9,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<8,  8, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,           1,           9,             S<1, 1,  8, 1, 9, 2>,               8>;
+        <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,   128,   144,     4,  8,   16,   16,    2,    9,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,           1,           9,             S<1, 1,  8, 1, 9, 2>,               8>;
+#elif 1
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffle
+//######| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
+//######|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
+//######|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
+      //<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     8,  8,   16,   16,    2,    9,  S<1, 8, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8,  8, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              2,              2,      true,           1,           9,                   S<1, 2, 1, 72>,               2>;
+        <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     4,  8,   16,   16,    2,    9,  S<1, 4, 64, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              2,              2,      true,           1,           9,                   S<1, 2, 1, 72>,               2>;
+#endif
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
@@ -90,13 +121,15 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
+    ck::index_t KBatch = 1;
+
     if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
     }
-    else if(argc == 10)
+    else if(argc == 11)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -109,6 +142,8 @@ int main(int argc, char* argv[])
         StrideA = std::stoi(argv[7]);
         StrideB = std::stoi(argv[8]);
         StrideC = std::stoi(argv[9]);
+
+        KBatch = std::stoi(argv[10]);
     }
     else
     {
@@ -180,7 +215,8 @@ int main(int argc, char* argv[])
                                       StrideC,
                                       a_element_op,
                                       b_element_op,
-                                      c_element_op);
+                                      c_element_op,
+                                      KBatch);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -199,8 +235,8 @@ int main(int argc, char* argv[])
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << gemm.GetTypeString() << std::endl;
 
     c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
