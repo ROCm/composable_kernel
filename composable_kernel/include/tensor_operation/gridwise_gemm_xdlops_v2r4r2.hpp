@@ -155,9 +155,10 @@ template <index_t BlockSize,
           index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
           bool BBlockLdsExtraN,
-          typename CThreadTransferSrcDstAccessOrder,
-          index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector>
+          index_t CShuffleMRepeatPerShuffle,
+          index_t CShuffleNRepeatPerShuffle,
+          index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
+          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 {
     static constexpr auto I0 = Number<0>{};
@@ -335,11 +336,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         return c_blockid_to_kbatch_m0_n0_block_cluster_adaptor;
     }
-
-    static constexpr index_t CShuffleMRepeatPerShuffle                   = 1;
-    static constexpr index_t CShuffleNRepeatPerShuffle                   = 9;
-    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL  = 8;
-    using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock = Sequence<1, 8, 1, 18>;
 
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()

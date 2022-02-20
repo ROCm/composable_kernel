@@ -55,8 +55,10 @@ template <typename ADataType,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
-          ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+          index_t CShuffleMRepeatPerShuffle,
+          index_t CShuffleNRepeatPerShuffle,
+          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          index_t CBlockTransferScalarPerVector_NWaveNPerXDL>
 struct DeviceGemmXdlSplitKCShuffle
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -240,9 +242,10 @@ struct DeviceGemmXdlSplitKCShuffle
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
-        Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
-        CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector>;
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
+        CBlockTransferScalarPerVector_NWaveNPerXDL,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
 
     // GridwiseGemm
     using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
@@ -250,8 +253,7 @@ struct DeviceGemmXdlSplitKCShuffle
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        // InMemoryDataOperationEnum_t::AtomicAdd,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum_t::AtomicAdd,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -282,9 +284,10 @@ struct DeviceGemmXdlSplitKCShuffle
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
-        Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
-        CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector>;
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
+        CBlockTransferScalarPerVector_NWaveNPerXDL,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
 
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
