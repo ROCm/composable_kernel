@@ -162,10 +162,9 @@ struct ReferenceConvFwd : public device::BaseOperator
                                 float v_wei;
 
                                 arg.in_element_op_(
-                                    v_in, static_cast<const float>(arg.input_(n, c, hi, wi)));
+                                    v_in, ck::type_convert<float>(arg.input_(n, c, hi, wi)));
                                 arg.wei_element_op_(
-                                    v_wei, static_cast<const float>(arg.weights_(k, c, y, x)));
-
+                                    v_wei, ck::type_convert<float>(arg.weights_(k, c, y, x)));
                                 v_acc += v_in * v_wei;
                             }
                         }
@@ -175,7 +174,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                 float v_out;
 
                 arg.out_element_op_(v_out, v_acc);
-                arg.output_(n, k, ho, wo) = v_out;
+                arg.output_(n, k, ho, wo) = ck::type_convert<OutDataType>(v_out);
             };
 
             make_ParallelTensorFunctor(f_nchw,
