@@ -81,11 +81,29 @@ set(DEVICE_CONV2D_FWD_BIAS_RELU_ATOMIC_ADD_INSTANCE_SOURCE
 
 # device_reduce_instance
 set(DEVICE_REDUCE_INSTANCE_SOURCE
-   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_threadwise.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_second_call.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_atomic_add.cpp;
-   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_two_call.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_f16_f16_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_f16_f32_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_f32_f32_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_f32_f64_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_f64_f64_f64.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_threadwise_f16_f16_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_threadwise_f16_f32_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_threadwise_f32_f32_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_threadwise_f32_f64_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_threadwise_f64_f64_f64.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_second_call_f16_f16_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_second_call_f32_f32_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_second_call_f32_f32_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_second_call_f64_f64_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_blockwise_second_call_f64_f64_f64.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_atomic_add_f16_f32_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_atomic_add_f32_f32_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_atomic_add_f32_f64_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_two_call_f16_f16_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_two_call_f16_f32_f16.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_two_call_f32_f32_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_two_call_f32_f64_f32.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_reduce_instance_multiblock_two_call_f64_f64_f64.cpp;
 )
 
 add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE}) 
