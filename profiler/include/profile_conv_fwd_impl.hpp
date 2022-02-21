@@ -25,6 +25,9 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(std::vector<DeviceCo
 void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdNoOpPtr>&);
 
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
+
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 } // namespace device_conv2d_fwd_instance
 } // namespace device
 } // namespace tensor_operation
@@ -170,6 +173,20 @@ void profile_conv_fwd_impl(int do_verification,
 
         ck::tensor_operation::device::device_conv2d_fwd_instance::
             add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+    }
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ushort> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, ushort> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, ushort>)
+    {
+        ck::tensor_operation::device::device_conv2d_fwd_instance::
+            add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
+    }
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, int8_t> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, int8_t> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, int8_t>)
+    {
+        ck::tensor_operation::device::device_conv2d_fwd_instance::
+            add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
     }
 
     if(conv_ptrs.size() <= 0)
