@@ -443,7 +443,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             float ave_time = 0;
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v2r3_for_conv3d<
                     GridwiseGemm,
                     InDataType,
                     OutDataType,
@@ -477,7 +477,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             }
             else
             {
-                const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_v2r3_for_conv3d<
                     GridwiseGemm,
                     InDataType,
                     OutDataType,

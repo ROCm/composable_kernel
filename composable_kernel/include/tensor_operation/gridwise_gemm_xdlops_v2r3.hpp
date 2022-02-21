@@ -69,7 +69,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_v2r3(
+        kernel_gemm_xdlops_v2r3_for_conv3d(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
@@ -85,12 +85,16 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-    const index_t num_blocks_per_batch = get_grid_size() / num_batches;
-    const index_t g_idx                = get_block_1d_id() / num_blocks_per_batch;
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = static_cast<long_index_t>(a_batch_stride) * g_idx;
-    const long_index_t b_batch_offset = static_cast<long_index_t>(b_batch_stride) * g_idx;
-    const long_index_t c_batch_offset = static_cast<long_index_t>(c_batch_stride) * g_idx;
+    const long_index_t a_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(a_batch_stride) * g_idx);
+    const long_index_t b_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(b_batch_stride) * g_idx);
+    const long_index_t c_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(c_batch_stride) * g_idx);
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -177,20 +181,21 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
-                                        const FloatAB* __restrict__ p_b_grid,
-                                        FloatC* __restrict__ p_c_grid,
-                                        const index_t num_batches,
-                                        const index_t a_batch_stride,
-                                        const index_t b_batch_stride,
-                                        const index_t c_batch_stride,
-                                        const void CONSTANT* p_a_grid_desc_k0_m_k1,
-                                        const void CONSTANT* p_b_grid_desc_k0_n_k1,
-                                        const void CONSTANT* p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                        const void CONSTANT* p_a_element_op,
-                                        const void CONSTANT* p_b_element_op,
-                                        const void CONSTANT* p_c_element_op,
-                                        const void CONSTANT* p_block_2_ctile_map)
+        kernel_gemm_xdlops_v2r3_for_conv3d(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            const index_t num_batches,
+            const index_t a_batch_stride,
+            const index_t b_batch_stride,
+            const index_t c_batch_stride,
+            const void CONSTANT* p_a_grid_desc_k0_m_k1,
+            const void CONSTANT* p_b_grid_desc_k0_n_k1,
+            const void CONSTANT* p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+            const void CONSTANT* p_a_element_op,
+            const void CONSTANT* p_b_element_op,
+            const void CONSTANT* p_c_element_op,
+            const void CONSTANT* p_block_2_ctile_map)
 {
     const auto a_grid_desc_k0_m_k1 = *reinterpret_cast<const AGridDesc_K0_M_K1*>(
         cast_pointer_to_generic_address_space(p_a_grid_desc_k0_m_k1));
@@ -210,12 +215,16 @@ __global__ void
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const index_t num_blocks_per_batch = get_grid_size() / num_batches;
-    const index_t g_idx                = get_block_1d_id() / num_blocks_per_batch;
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = static_cast<long_index_t>(a_batch_stride) * g_idx;
-    const long_index_t b_batch_offset = static_cast<long_index_t>(b_batch_stride) * g_idx;
-    const long_index_t c_batch_offset = static_cast<long_index_t>(c_batch_stride) * g_idx;
+    const long_index_t a_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(a_batch_stride) * g_idx);
+    const long_index_t b_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(b_batch_stride) * g_idx);
+    const long_index_t c_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(c_batch_stride) * g_idx);
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
                                                   p_b_grid + b_batch_offset,
@@ -493,9 +502,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using DefaultBlock2CTileMap = decltype(MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+    using Block2CTileMap = decltype(MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap2 = Block2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
@@ -507,7 +516,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
         const CElementwiseOperation& c_element_op,
-        const Block2CTileMap& block_2_ctile_map)
+        const Block2CTileMap2& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
