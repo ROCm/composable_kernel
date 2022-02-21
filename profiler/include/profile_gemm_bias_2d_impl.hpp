@@ -191,7 +191,7 @@ void profile_gemm_bias_2d_impl(int do_verification,
         }
     }
     else if constexpr(is_same<ADataType, float>::value && is_same<BDataType, float>::value &&
-                 is_same<CDataType, float>::value)
+                      is_same<CDataType, float>::value)
     {
         if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
