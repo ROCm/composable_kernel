@@ -261,7 +261,8 @@ struct DeviceGemmXdl
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ =
+                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 

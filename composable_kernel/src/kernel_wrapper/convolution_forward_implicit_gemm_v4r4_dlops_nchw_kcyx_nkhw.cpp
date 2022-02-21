@@ -335,11 +335,10 @@ extern "C" __global__ void
     constexpr auto cblockid_to_m0_n0_block_cluster_adaptor_tmp =
         GridwiseGemm::MakeCBlockIdToM0N0BlockClusterAdaptor(c_m_n_grid_desc);
 
-    using AKM0M1GridDesc            = decltype(a_k_m0_m1_grid_desc_tmp);
-    using BKN0N1GridDesc            = decltype(b_k_n0_n1_grid_desc_tmp);
-    using CM0M10M11N0N10N11GridDesc = decltype(c_m0_m10_m11_n0_n10_n11_grid_desc_tmp);
-    using CBlockIdToM0N0BlockClusterAdaptor =
-        decltype(cblockid_to_m0_n0_block_cluster_adaptor_tmp);
+    using AKM0M1GridDesc                    = decltype(a_k_m0_m1_grid_desc_tmp);
+    using BKN0N1GridDesc                    = decltype(b_k_n0_n1_grid_desc_tmp);
+    using CM0M10M11N0N10N11GridDesc         = decltype(c_m0_m10_m11_n0_n10_n11_grid_desc_tmp);
+    using CBlockIdToM0N0BlockClusterAdaptor = decltype(cblockid_to_m0_n0_block_cluster_adaptor_tmp);
 
     const auto a_k_m0_m1_grid_desc =
         *reinterpret_cast<const AKM0M1GridDesc*>((const void*)p_a_k_m0_m1_grid_desc);

@@ -64,7 +64,6 @@
 #define CK_USE_AMD_BUFFER_ADDRESSING 1
 #endif
 
-// AMD buffer_load. TODO: conv3d does NOT work with buffer load
 #ifndef CK_USE_AMD_BUFFER_LOAD
 #define CK_USE_AMD_BUFFER_LOAD 1
 #endif

@@ -235,7 +235,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                         MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                             c_grid_desc_m_n_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ =
+                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 
