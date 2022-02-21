@@ -215,11 +215,48 @@ bool TestConv2DNHWC()
     return res;
 }
 
+bool TestConv1DNWC()
+{
+    bool res{true};
+    ck::conv_util::ConvParams params;
+    params.spatial_dims           = 1;
+    params.N                      = 2;
+    params.K                      = 16;
+    params.C                      = 4;
+    params.filter_spatial_lengths = std::vector<ck::index_t>{3};
+    params.input_spatial_lengths  = std::vector<ck::index_t>{16};
+    params.conv_filter_strides    = std::vector<ck::index_t>{1};
+    params.conv_filter_dilations  = std::vector<ck::index_t>{1};
+    params.input_left_pads        = std::vector<ck::index_t>{1};
+    params.input_right_pads       = std::vector<ck::index_t>{1};
+
+    auto host_tensors            = GetHostTensors<float,
+                                       float,
+                                       float,
+                                       ck::tensor_layout::convolution::NWC,
+                                       ck::tensor_layout::convolution::KXC,
+                                       ck::tensor_layout::convolution::NWK>(params);
+    const Tensor<float>& input   = std::get<0>(host_tensors);
+    const Tensor<float>& weights = std::get<1>(host_tensors);
+    Tensor<float>& host_output   = std::get<2>(host_tensors);
+    Tensor<float>& device_output = std::get<3>(host_tensors);
+
+    RunReferenceConv<1>(params, input, weights, host_output);
+    RunConv<1>(params, input, weights, device_output);
+    res = res &&
+          test_util::check_err(
+              device_output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+
+    return res;
+}
+
 } // anonymous namespace
 
 int main()
 {
     bool res{true};
+    res = TestConv1DNWC();
+    std::cout << "TestConv1DNWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv2DNHWC();
     std::cout << "TestConv2DNHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 }

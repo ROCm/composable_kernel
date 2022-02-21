@@ -19,14 +19,42 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
+template <typename T>
+struct FillMonotonicSeq
+{
+    T m_init_value{0};
+
+    template <typename ForwardIter>
+    void operator(ForwardIter first, ForwardIter last, T init_value = m_init_value)
+    {
+        std::iota(first, last, m_init_value);
+    }
+};
+
+template <typename T>
+struct FillConstant
+{
+    T m_value{0};
+
+    template <typename ForwardIter>
+    void operator(ForwardIter first, ForwardIter last, T value = m_value)
+    {
+        std::fill(first, last, value);
+    }
+}
+
 template <ck::index_t NDim,
-          typename InDataType  = float,
-          typename WeiDataType = float,
-          typename OutDataType = float,
-          typename InLayout    = ck::tensor_layout::convolution::NHWC,
-          typename WeiLayout   = ck::tensor_layout::convolution::KYXC,
-          typename OutLayout   = ck::tensor_layout::convolution::NHWK>
-Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params)
+          typename InDataType    = float,
+          typename WeiDataType   = float,
+          typename OutDataType   = float,
+          typename InLayout      = ck::tensor_layout::convolution::NHWC,
+          typename WeiLayout     = ck::tensor_layout::convolution::KYXC,
+          typename OutLayout     = ck::tensor_layout::convolution::NHWK,
+          typename FillInputOp   = FillMonotonicSeq<InDataType>,
+          typename FillWeightsOp = FillConstant<WeiDataType>>
+Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params,
+                                     const FillInputOp& fill_input_op     = FillInputOp(),
+                                     const FillWeightsOp& fill_weights_op = FillWeightsOp())
 {
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
                                         static_cast<std::size_t>(params.C)};
@@ -52,9 +80,8 @@ Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params)
     Tensor<OutDataType> host_output(
         ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
 
-    // init
-    std::iota(input.begin(), input.end(), InDataType(0.f));
-    std::fill(weights.begin(), weights.end(), WeiDataType(0.5f));
+    fill_input_op(input.begin(), input.end());
+    fill_weights_op()(weights.begin(), weights.end(), WeiDataType(0.5f));
     std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
 
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
@@ -143,7 +170,7 @@ bool TestConv2DNHWC()
     return res;
 }
 
-bool TestConv1DNHWC()
+bool TestConv1DNWC()
 {
     bool res{true};
     ck::conv_util::ConvParams params;
@@ -197,6 +224,99 @@ bool TestConv1DNHWC()
                                       "Error: wrong output tensor dimensions!");
     res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
 
+    params.spatial_dims           = 1;
+    params.N                      = 2;
+    params.K                      = 16;
+    params.C                      = 4;
+    params.filter_spatial_lengths = std::vector<ck::index_t>{3};
+    params.input_spatial_lengths  = std::vector<ck::index_t>{16};
+    params.conv_filter_strides    = std::vector<ck::index_t>{1};
+    params.conv_filter_dilations  = std::vector<ck::index_t>{1};
+    params.input_left_pads        = std::vector<ck::index_t>{1};
+    params.input_right_pads       = std::vector<ck::index_t>{1};
+
+    auto out_tensor =
+        RunReferenceConv<1,
+                         float,
+                         float,
+                         float,
+                         ck::tensor_layout::convolution::NWC,
+                         ck::tensor_layout::convolution::KXC,
+                         ck::tensor_layout::convolution::NWK>(params, [](auto first, auto last) {
+            std::generate(first, last, [n = 0]() mutable { return float(n++) * float(0.1f); });
+        });
+
+    ref_dims = std::vector<std::size_t>{2, 16, 16};
+    ref_data = std::vector<float>{
+        1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,
+        1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,
+        3.3,       3.3,       3.3,       3.3,       3.3,       3.3,       3.3,       3.3,
+        3.3,       3.3,       3.3,       3.3,       3.3,       3.3,       3.3,       3.3,
+        5.7,       5.7,       5.7,       5.7,       5.7,       5.7,       5.7,       5.7,
+        5.7,       5.7,       5.7,       5.7,       5.7,       5.7,       5.7,       5.7,
+        8.1,       8.1,       8.1,       8.1,       8.1,       8.1,       8.1,       8.1,
+        8.1,       8.1,       8.1,       8.1,       8.1,       8.1,       8.1,       8.1,
+        10.5,      10.5,      10.5,      10.5,      10.5,      10.5,      10.5,      10.5,
+        10.5,      10.5,      10.5,      10.5,      10.5,      10.5,      10.5,      10.5,
+        12.900001, 12.900001, 12.900001, 12.900001, 12.900001, 12.900001, 12.900001, 12.900001,
+        12.900001, 12.900001, 12.900001, 12.900001, 12.900001, 12.900001, 12.900001, 12.900001,
+        15.3,      15.3,      15.3,      15.3,      15.3,      15.3,      15.3,      15.3,
+        15.3,      15.3,      15.3,      15.3,      15.3,      15.3,      15.3,      15.3,
+        17.7,      17.7,      17.7,      17.7,      17.7,      17.7,      17.7,      17.7,
+        17.7,      17.7,      17.7,      17.7,      17.7,      17.7,      17.7,      17.7,
+        20.1,      20.1,      20.1,      20.1,      20.1,      20.1,      20.1,      20.1,
+        20.1,      20.1,      20.1,      20.1,      20.1,      20.1,      20.1,      20.1,
+        22.5,      22.5,      22.5,      22.5,      22.5,      22.5,      22.5,      22.5,
+        22.5,      22.5,      22.5,      22.5,      22.5,      22.5,      22.5,      22.5,
+        24.900002, 24.900002, 24.900002, 24.900002, 24.900002, 24.900002, 24.900002, 24.900002,
+        24.900002, 24.900002, 24.900002, 24.900002, 24.900002, 24.900002, 24.900002, 24.900002,
+        27.300001, 27.300001, 27.300001, 27.300001, 27.300001, 27.300001, 27.300001, 27.300001,
+        27.300001, 27.300001, 27.300001, 27.300001, 27.300001, 27.300001, 27.300001, 27.300001,
+        29.7,      29.7,      29.7,      29.7,      29.7,      29.7,      29.7,      29.7,
+        29.7,      29.7,      29.7,      29.7,      29.7,      29.7,      29.7,      29.7,
+        32.100002, 32.100002, 32.100002, 32.100002, 32.100002, 32.100002, 32.100002, 32.100002,
+        32.100002, 32.100002, 32.100002, 32.100002, 32.100002, 32.100002, 32.100002, 32.100002,
+        34.5,      34.5,      34.5,      34.5,      34.5,      34.5,      34.5,      34.5,
+        34.5,      34.5,      34.5,      34.5,      34.5,      34.5,      34.5,      34.5,
+        23.8,      23.8,      23.8,      23.8,      23.8,      23.8,      23.8,      23.8,
+        23.8,      23.8,      23.8,      23.8,      23.8,      23.8,      23.8,      23.8,
+        27.,       27.,       27.,       27.,       27.,       27.,       27.,       27.,
+        27.,       27.,       27.,       27.,       27.,       27.,       27.,       27.,
+        41.7,      41.7,      41.7,      41.7,      41.7,      41.7,      41.7,      41.7,
+        41.7,      41.7,      41.7,      41.7,      41.7,      41.7,      41.7,      41.7,
+        44.100002, 44.100002, 44.100002, 44.100002, 44.100002, 44.100002, 44.100002, 44.100002,
+        44.100002, 44.100002, 44.100002, 44.100002, 44.100002, 44.100002, 44.100002, 44.100002,
+        46.5,      46.5,      46.5,      46.5,      46.5,      46.5,      46.5,      46.5,
+        46.5,      46.5,      46.5,      46.5,      46.5,      46.5,      46.5,      46.5,
+        48.899998, 48.899998, 48.899998, 48.899998, 48.899998, 48.899998, 48.899998, 48.899998,
+        48.899998, 48.899998, 48.899998, 48.899998, 48.899998, 48.899998, 48.899998, 48.899998,
+        51.3,      51.3,      51.3,      51.3,      51.3,      51.3,      51.3,      51.3,
+        51.3,      51.3,      51.3,      51.3,      51.3,      51.3,      51.3,      51.3,
+        53.7,      53.7,      53.7,      53.7,      53.7,      53.7,      53.7,      53.7,
+        53.7,      53.7,      53.7,      53.7,      53.7,      53.7,      53.7,      53.7,
+        56.100002, 56.100002, 56.100002, 56.100002, 56.100002, 56.100002, 56.100002, 56.100002,
+        56.100002, 56.100002, 56.100002, 56.100002, 56.100002, 56.100002, 56.100002, 56.100002,
+        58.5,      58.5,      58.5,      58.5,      58.5,      58.5,      58.5,      58.5,
+        58.5,      58.5,      58.5,      58.5,      58.5,      58.5,      58.5,      58.5,
+        60.899998, 60.899998, 60.899998, 60.899998, 60.899998, 60.899998, 60.899998, 60.899998,
+        60.899998, 60.899998, 60.899998, 60.899998, 60.899998, 60.899998, 60.899998, 60.899998,
+        63.3,      63.3,      63.3,      63.3,      63.3,      63.3,      63.3,      63.3,
+        63.3,      63.3,      63.3,      63.3,      63.3,      63.3,      63.3,      63.3,
+        65.7,      65.7,      65.7,      65.7,      65.7,      65.7,      65.7,      65.7,
+        65.7,      65.7,      65.7,      65.7,      65.7,      65.7,      65.7,      65.7,
+        68.1,      68.1,      68.1,      68.1,      68.1,      68.1,      68.1,      68.1,
+        68.1,      68.1,      68.1,      68.1,      68.1,      68.1,      68.1,      68.1,
+        70.5,      70.5,      70.5,      70.5,      70.5,      70.5,      70.5,      70.5,
+        70.5,      70.5,      70.5,      70.5,      70.5,      70.5,      70.5,      70.5,
+        72.9,      72.9,      72.9,      72.9,      72.9,      72.9,      72.9,      72.9,
+        72.9,      72.9,      72.9,      72.9,      72.9,      72.9,      72.9,      72.9,
+        49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4,
+        49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4};
+    res = res && test_util::check_err(out_tensor.mDesc.GetLengths(),
+                                      ref_dims,
+                                      "Error: wrong output tensor dimensions!");
+    res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
+
     return res;
 }
 
@@ -207,7 +327,7 @@ int main(void)
     bool res{true};
     res = TestConv2DNHWC();
     std::cout << "TestConv2DNHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-    res = TestConv1DNHWC();
+    res = TestConv1DNWC();
     std::cout << "TestConv1DNHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     return 0;
 }
