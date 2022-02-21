@@ -391,7 +391,7 @@ struct GridwiseBatchedGemm_gk0mk1_gk0nk1_gmn_xdlops_v2r3
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeBlock2CTileMap(const CGridDesc_G_M_N& c_grid_desc_g_m_n, index_t M01, index_t N01)
+    MakeDefaultBlock2CTileMap(const CGridDesc_G_M_N& c_grid_desc_g_m_n, index_t M01, index_t N01)
     {
         const auto G = c_grid_desc_g_m_n.GetLength(I0);
         const auto M = c_grid_desc_g_m_n.GetLength(I1);
@@ -414,24 +414,24 @@ struct GridwiseBatchedGemm_gk0mk1_gk0nk1_gmn_xdlops_v2r3
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
 
-        const auto c_blockid_to_g_m00_m01_n00_n01_block_cluster_adaptor =
+        const auto cblockid_to_g_m00_m01_n00_n01_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
                 make_tuple(make_merge_transform(make_tuple(G, M00, N00, M01, N01))),
                 make_tuple(Sequence<0, 1, 2, 3, 4>{}),
                 make_tuple(Sequence<0>{}));
 
-        const auto c_blockid_to_g_m0_n0_block_cluster_adaptor =
+        const auto cblockid_to_g_m0_n0_block_cluster_adaptor =
             chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  c_blockid_to_g_m00_m01_n00_n01_block_cluster_adaptor);
+                                  cblockid_to_g_m00_m01_n00_n01_block_cluster_adaptor);
 
-        return c_blockid_to_g_m0_n0_block_cluster_adaptor;
+        return cblockid_to_g_m0_n0_block_cluster_adaptor;
     }
 
     using CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_G_M_N{}));
-    using Block2CTileMap = decltype(MakeBlock2CTileMap(CGridDesc_G_M_N{}, 1, 1));
+    using DefaultBlock2CTileMap = decltype(MakeDefaultBlock2CTileMap(CGridDesc_G_M_N{}, 1, 1));
 
-    template <bool HasMainKBlockLoop>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,

@@ -235,7 +235,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                         MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                             c_grid_desc_m_n_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -254,7 +254,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
         typename GridwiseGemm::
             CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
                 c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
-        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -320,7 +320,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(
@@ -359,7 +359,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(

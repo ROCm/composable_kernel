@@ -209,43 +209,6 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             const auto M00 = M0 / M01;
             const auto N00 = N0 / N01;
 
-#if 0
-            // const index_t num_blocks_per_batch = c_grid_desc_m_n.GetLength(I0) *
-            //                                      c_grid_desc_m_n.GetLength(I1) /
-            //                                      (MPerBlock * NPerBlock);
-            const index_t num_blocks_per_batch = GridwiseGemm::CalculateGridSize(c_grid_desc_m_n);
-
-            const auto m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_unmerge_transform(make_tuple(M00, M01)),
-                               make_unmerge_transform(make_tuple(N00, N01))),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}),
-                    make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
-
-            const auto c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(M00, N00, M01, N01))),
-                    make_tuple(Sequence<0, 1, 2, 3>{}),
-                    make_tuple(Sequence<0>{}));
-
-            const auto c_blockid_to_m0_n0_block_cluster_adaptor =
-                chain_tensor_adaptors(m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                      c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor);
-
-            // global_blockid % num_blocks_per_batch = c_blockid
-            // where global_blockid is the upper index, while c_blockid is the lower index
-            const auto global_blockid_to_c_blockid_cluster_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_modulo_transform(num_blocks_per_batch, num_blocks_per_batch)),
-                    make_tuple(Sequence<0>{}),
-                    make_tuple(Sequence<0>{}));
-
-            const auto global_blockid_to_m0_n0_block_cluster_adaptor = 
-                chain_tensor_adaptors(c_blockid_to_m0_n0_block_cluster_adaptor,
-                                      global_blockid_to_c_blockid_cluster_adaptor);
-
-            return global_blockid_to_m0_n0_block_cluster_adaptor;
-#else
             const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
                 make_single_stage_tensor_adaptor(
                     make_tuple(make_insert_transform(num_batches_),
@@ -254,18 +217,17 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
 
-            const auto global_blockid_to_g_m00_m01_n00_n01_block_cluster_adaptor =
+            const auto globalblockid_to_g_m00_m01_n00_n01_block_cluster_adaptor =
                 make_single_stage_tensor_adaptor(
                     make_tuple(make_merge_transform(make_tuple(num_batches_, M00, N00, M01, N01))),
                     make_tuple(Sequence<0, 1, 2, 3, 4>{}),
                     make_tuple(Sequence<0>{}));
 
-            const auto global_blockid_to_m0_n0_block_cluster_adaptor =
+            const auto globalblockid_to_m0_n0_block_cluster_adaptor =
                 chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                      global_blockid_to_g_m00_m01_n00_n01_block_cluster_adaptor);
+                                      globalblockid_to_g_m00_m01_n00_n01_block_cluster_adaptor);
 
-            return global_blockid_to_m0_n0_block_cluster_adaptor;
-#endif
+            return globalblockid_to_m0_n0_block_cluster_adaptor;
         }
 
         private:
@@ -410,6 +372,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         float Run(const Argument& arg, int nrepeat = 1)
         {
             {
+                std::cout << "num_batches_of_GEMM = " << arg.num_subbatches_ << std::endl;
                 std::cout << "a_grid_desc_k0_m_k1{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
                           << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;

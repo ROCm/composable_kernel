@@ -415,7 +415,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -428,7 +428,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         CGridDesc_M_N c_grid_desc_m_n_;
         typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         InElementwiseOperation in_element_op_;
@@ -494,7 +494,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -525,7 +525,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,

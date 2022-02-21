@@ -288,7 +288,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
+    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
     {
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);
@@ -309,26 +309,26 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
 
-        const auto c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor =
+        const auto cblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
                 make_tuple(make_merge_transform(make_tuple(M00, N00, M01, N01))),
                 make_tuple(Sequence<0, 1, 2, 3>{}),
                 make_tuple(Sequence<0>{}));
 
-        const auto c_blockid_to_m0_n0_block_cluster_adaptor =
+        const auto cblockid_to_m0_n0_block_cluster_adaptor =
             chain_tensor_adaptors(m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor);
+                                  cblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
 
-        return c_blockid_to_m0_n0_block_cluster_adaptor;
+        return cblockid_to_m0_n0_block_cluster_adaptor;
     }
     using CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl =
         remove_cvref_t<decltype(
             MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                 CGridDesc_M_N{}))>;
 
-    using Block2CTileMap = remove_cvref_t<decltype(MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
+    using DefaultBlock2CTileMap = remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
-    template <bool HasMainKBlockLoop>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,

@@ -83,7 +83,7 @@ extern "C" __global__ void convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcy
     void* p_a_k_m0_m1_grid_desc,
     void* p_b_k_n0_n1_grid_desc,
     void* p_c_m0_m10_m11_n0_n10_n11_grid_desc,
-    void* p_c_blockid_to_m0_n0_block_cluster_adaptor)
+    void* p_cblockid_to_m0_n0_block_cluster_adaptor)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -194,7 +194,7 @@ extern "C" __global__ void convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcy
     auto b_k_n0_n1_grid_desc = GridwiseGemm::MakeBKN0N1GridDescriptor(b_k_n_grid_desc);
     auto c_m0_m10_m11_n0_n10_n11_grid_desc =
         GridwiseGemm::MakeCM0M10M11N0N10N11GridDescriptor(c_m_n_grid_desc);
-    auto c_blockid_to_m0_n0_block_cluster_adaptor =
+    auto cblockid_to_m0_n0_block_cluster_adaptor =
         GridwiseGemm::MakeCBlockIdToM0N0BlockClusterAdaptor(c_m_n_grid_desc);
 
     if(hipThreadIdx_x == 0)
@@ -203,8 +203,8 @@ extern "C" __global__ void convolution_forward_implicit_gemm_v4r4_dlops_nchw_kcy
         *static_cast<decltype(b_k_n0_n1_grid_desc)*>(p_b_k_n0_n1_grid_desc) = b_k_n0_n1_grid_desc;
         *static_cast<decltype(c_m0_m10_m11_n0_n10_n11_grid_desc)*>(
             p_c_m0_m10_m11_n0_n10_n11_grid_desc) = c_m0_m10_m11_n0_n10_n11_grid_desc;
-        *static_cast<decltype(c_blockid_to_m0_n0_block_cluster_adaptor)*>(
-            p_c_blockid_to_m0_n0_block_cluster_adaptor) = c_blockid_to_m0_n0_block_cluster_adaptor;
+        *static_cast<decltype(cblockid_to_m0_n0_block_cluster_adaptor)*>(
+            p_cblockid_to_m0_n0_block_cluster_adaptor) = cblockid_to_m0_n0_block_cluster_adaptor;
     };
 };
 
@@ -219,7 +219,7 @@ extern "C" __global__ void
             const void CONSTANT* p_a_k_m0_m1_grid_desc,
             const void CONSTANT* p_b_k_n0_n1_grid_desc,
             const void CONSTANT* p_c_m0_m10_m11_n0_n10_n11_grid_desc,
-            const void CONSTANT* p_c_blockid_to_m0_n0_block_cluster_adaptor)
+            const void CONSTANT* p_cblockid_to_m0_n0_block_cluster_adaptor)
 {
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
@@ -332,14 +332,14 @@ extern "C" __global__ void
         GridwiseGemm::MakeBKN0N1GridDescriptor(b_k_n_grid_desc);
     constexpr auto c_m0_m10_m11_n0_n10_n11_grid_desc_tmp =
         GridwiseGemm::MakeCM0M10M11N0N10N11GridDescriptor(c_m_n_grid_desc);
-    constexpr auto c_blockid_to_m0_n0_block_cluster_adaptor_tmp =
+    constexpr auto cblockid_to_m0_n0_block_cluster_adaptor_tmp =
         GridwiseGemm::MakeCBlockIdToM0N0BlockClusterAdaptor(c_m_n_grid_desc);
 
     using AKM0M1GridDesc            = decltype(a_k_m0_m1_grid_desc_tmp);
     using BKN0N1GridDesc            = decltype(b_k_n0_n1_grid_desc_tmp);
     using CM0M10M11N0N10N11GridDesc = decltype(c_m0_m10_m11_n0_n10_n11_grid_desc_tmp);
     using CBlockIdToM0N0BlockClusterAdaptor =
-        decltype(c_blockid_to_m0_n0_block_cluster_adaptor_tmp);
+        decltype(cblockid_to_m0_n0_block_cluster_adaptor_tmp);
 
     const auto a_k_m0_m1_grid_desc =
         *reinterpret_cast<const AKM0M1GridDesc*>((const void*)p_a_k_m0_m1_grid_desc);
@@ -348,9 +348,9 @@ extern "C" __global__ void
     const auto c_m0_m10_m11_n0_n10_n11_grid_desc =
         *reinterpret_cast<const CM0M10M11N0N10N11GridDesc*>(
             (const void*)p_c_m0_m10_m11_n0_n10_n11_grid_desc);
-    const auto c_blockid_to_m0_n0_block_cluster_adaptor =
+    const auto cblockid_to_m0_n0_block_cluster_adaptor =
         *reinterpret_cast<const CBlockIdToM0N0BlockClusterAdaptor*>(
-            (const void*)p_c_blockid_to_m0_n0_block_cluster_adaptor);
+            (const void*)p_cblockid_to_m0_n0_block_cluster_adaptor);
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -364,7 +364,7 @@ extern "C" __global__ void
                       a_k_m0_m1_grid_desc,
                       b_k_n0_n1_grid_desc,
                       c_m0_m10_m11_n0_n10_n11_grid_desc,
-                      c_blockid_to_m0_n0_block_cluster_adaptor,
+                      cblockid_to_m0_n0_block_cluster_adaptor,
                       integral_constant<bool, HasMainKBlockLoop>{},
                       integral_constant<bool, HasDoubleTailKBlockLoop>{});
 };

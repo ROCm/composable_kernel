@@ -138,7 +138,7 @@ __host__ float driver_gemm_xdlops_v2r3(const FloatAB* p_a_grid,
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 = decltype(c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc);
 
-    const auto block_2_ctile_map = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n, M01, N01);
+    const auto block_2_ctile_map = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, M01, N01);
 
     using Block2CTileMap = decltype(block_2_ctile_map);
 

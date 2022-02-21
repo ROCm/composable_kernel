@@ -1864,9 +1864,7 @@ struct Slice
 
 /*
  * \brief lower_idx = upper_idx % modulus.
- *
- * jfy: Can be considered as the inverse transform of Vectorize?
- * jfy: up_lengths_ is not used.
+ * TODO: The modulo operation is expensive.
  */
 template <typename Modulus, typename UpLength>
 struct Modulo

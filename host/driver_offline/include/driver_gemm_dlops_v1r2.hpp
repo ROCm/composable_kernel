@@ -136,11 +136,11 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
 
     using CM0M10M11N0N10N11GridDesc = decltype(c_m0_m10_m11_n0_n10_n11_grid_desc);
 
-    // c_blockid_to_m0_n0_block_cluster_adaptor
-    const auto c_blockid_to_m0_n0_block_cluster_adaptor =
+    // cblockid_to_m0_n0_block_cluster_adaptor
+    const auto cblockid_to_m0_n0_block_cluster_adaptor =
         GridwiseGemm::MakeCBlockIdToM0N0BlockClusterAdaptor(c_m_n_grid_desc);
 
-    using CBlockIdToM0N0BlockClusterAdaptor = decltype(c_blockid_to_m0_n0_block_cluster_adaptor);
+    using CBlockIdToM0N0BlockClusterAdaptor = decltype(cblockid_to_m0_n0_block_cluster_adaptor);
 
     const index_t grid_size = GridwiseGemm::CalculateGridSize(M, N);
 
@@ -193,7 +193,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
                                           a_k_m0_m1_grid_desc,
                                           b_k_n0_n1_grid_desc,
                                           c_m0_m10_m11_n0_n10_n11_grid_desc,
-                                          c_blockid_to_m0_n0_block_cluster_adaptor);
+                                          cblockid_to_m0_n0_block_cluster_adaptor);
     }
     else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
     {
@@ -219,7 +219,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
                                           a_k_m0_m1_grid_desc,
                                           b_k_n0_n1_grid_desc,
                                           c_m0_m10_m11_n0_n10_n11_grid_desc,
-                                          c_blockid_to_m0_n0_block_cluster_adaptor);
+                                          cblockid_to_m0_n0_block_cluster_adaptor);
     }
     else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
     {
@@ -245,7 +245,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
                                           a_k_m0_m1_grid_desc,
                                           b_k_n0_n1_grid_desc,
                                           c_m0_m10_m11_n0_n10_n11_grid_desc,
-                                          c_blockid_to_m0_n0_block_cluster_adaptor);
+                                          cblockid_to_m0_n0_block_cluster_adaptor);
     }
     else
     {
@@ -271,7 +271,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
                                           a_k_m0_m1_grid_desc,
                                           b_k_n0_n1_grid_desc,
                                           c_m0_m10_m11_n0_n10_n11_grid_desc,
-                                          c_blockid_to_m0_n0_block_cluster_adaptor);
+                                          cblockid_to_m0_n0_block_cluster_adaptor);
     }
 
     return ave_time;
@@ -279,14 +279,14 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
     DeviceMem a_k_m0_m1_grid_desc_dev_buf(sizeof(AKM0M1GridDesc));
     DeviceMem b_k_n0_n1_grid_desc_dev_buf(sizeof(BKN0N1GridDesc));
     DeviceMem c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf(sizeof(CM0M10M11N0N10N11GridDesc));
-    DeviceMem c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf(
+    DeviceMem cblockid_to_m0_n0_block_cluster_adaptor_dev_buf(
         sizeof(CBlockIdToM0N0BlockClusterAdaptor));
 
     a_k_m0_m1_grid_desc_dev_buf.ToDevice(&a_k_m0_m1_grid_desc);
     b_k_n0_n1_grid_desc_dev_buf.ToDevice(&b_k_n0_n1_grid_desc);
     c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.ToDevice(&c_m0_m10_m11_n0_n10_n11_grid_desc);
-    c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.ToDevice(
-        &c_blockid_to_m0_n0_block_cluster_adaptor);
+    cblockid_to_m0_n0_block_cluster_adaptor_dev_buf.ToDevice(
+        &cblockid_to_m0_n0_block_cluster_adaptor);
 
     float ave_time = 0;
 
@@ -317,7 +317,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
             cast_pointer_to_constant_address_space(
                 c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer()),
             cast_pointer_to_constant_address_space(
-                c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+                cblockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
     }
     else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
     {
@@ -346,7 +346,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
             cast_pointer_to_constant_address_space(
                 c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer()),
             cast_pointer_to_constant_address_space(
-                c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+                cblockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
     }
     else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
     {
@@ -375,7 +375,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
             cast_pointer_to_constant_address_space(
                 c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer()),
             cast_pointer_to_constant_address_space(
-                c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+                cblockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
     }
     else
     {
@@ -404,7 +404,7 @@ __host__ float driver_gemm_dlops_v1r2(const FloatAB* p_a_grid,
             cast_pointer_to_constant_address_space(
                 c_m0_m10_m11_n0_n10_n11_grid_desc_dev_buf.GetDeviceBuffer()),
             cast_pointer_to_constant_address_space(
-                c_blockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+                cblockid_to_m0_n0_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
     }
 
     return ave_time;

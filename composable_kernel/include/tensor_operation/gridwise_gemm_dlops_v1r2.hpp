@@ -33,7 +33,7 @@ __global__ void
             const AKM0M1GridDesc a_k_m0_m1_grid_desc,
             const BKN0N1GridDesc b_k_n0_n1_grid_desc,
             const CM0M10M11N0N10N11GridDesc c_m0_m10_m11_n0_n10_n11_grid_desc,
-            const CBlockIdToM0N0BlockClusterAdaptor c_blockid_to_m0_n0_block_cluster_adaptor)
+            const CBlockIdToM0N0BlockClusterAdaptor cblockid_to_m0_n0_block_cluster_adaptor)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -47,7 +47,7 @@ __global__ void
                       a_k_m0_m1_grid_desc,
                       b_k_n0_n1_grid_desc,
                       c_m0_m10_m11_n0_n10_n11_grid_desc,
-                      c_blockid_to_m0_n0_block_cluster_adaptor,
+                      cblockid_to_m0_n0_block_cluster_adaptor,
                       integral_constant<bool, HasMainKBlockLoop>{},
                       integral_constant<bool, HasDoubleTailKBlockLoop>{});
 }
@@ -74,7 +74,7 @@ __global__ void
                                const void CONSTANT* p_a_k_m0_m1_grid_desc,
                                const void CONSTANT* p_b_k_n0_n1_grid_desc,
                                const void CONSTANT* p_c_m0_m10_m11_n0_n10_n11_grid_desc,
-                               const void CONSTANT* p_c_blockid_to_m0_n0_block_cluster_adaptor)
+                               const void CONSTANT* p_cblockid_to_m0_n0_block_cluster_adaptor)
 {
     // first cast void CONSTANT void* to void*
     // second cast void* to Desc*
@@ -86,9 +86,9 @@ __global__ void
     const auto c_m0_m10_m11_n0_n10_n11_grid_desc =
         *reinterpret_cast<const CM0M10M11N0N10N11GridDesc*>(
             cast_pointer_to_generic_address_space(p_c_m0_m10_m11_n0_n10_n11_grid_desc));
-    const auto c_blockid_to_m0_n0_block_cluster_adaptor =
+    const auto cblockid_to_m0_n0_block_cluster_adaptor =
         *reinterpret_cast<const CBlockIdToM0N0BlockClusterAdaptor*>(
-            cast_pointer_to_generic_address_space(p_c_blockid_to_m0_n0_block_cluster_adaptor));
+            cast_pointer_to_generic_address_space(p_cblockid_to_m0_n0_block_cluster_adaptor));
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -102,7 +102,7 @@ __global__ void
                       a_k_m0_m1_grid_desc,
                       b_k_n0_n1_grid_desc,
                       c_m0_m10_m11_n0_n10_n11_grid_desc,
-                      c_blockid_to_m0_n0_block_cluster_adaptor,
+                      cblockid_to_m0_n0_block_cluster_adaptor,
                       integral_constant<bool, HasMainKBlockLoop>{},
                       integral_constant<bool, HasDoubleTailKBlockLoop>{});
 }
@@ -298,12 +298,12 @@ struct GridwiseGemmDlops_km_kn_mn_v1r2
         const auto M0 = M / M1;
         const auto N0 = N / N1;
 
-        const auto c_blockid_to_m0_n0_block_cluster_adaptor =
+        const auto cblockid_to_m0_n0_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(make_tuple(make_merge_transform(make_tuple(M0, N0))),
                                              make_tuple(Sequence<0, 1>{}),
                                              make_tuple(Sequence<0>{}));
 
-        return c_blockid_to_m0_n0_block_cluster_adaptor;
+        return cblockid_to_m0_n0_block_cluster_adaptor;
     }
 
     using AKM0M1GridDesc            = decltype(MakeAKM0M1GridDescriptor(AKMGridDesc{}));
@@ -321,7 +321,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r2
         const AKM0M1GridDesc& a_k_m0_m1_grid_desc,
         const BKN0N1GridDesc& b_k_n0_n1_grid_desc,
         const CM0M10M11N0N10N11GridDesc& c_m0_m10_m11_n0_n10_n11_grid_desc,
-        const CBlockIdToM0N0BlockClusterAdaptor& c_blockid_to_m0_n0_block_cluster_adaptor,
+        const CBlockIdToM0N0BlockClusterAdaptor& cblockid_to_m0_n0_block_cluster_adaptor,
         integral_constant<bool, HasMainKBlockLoop>,
         integral_constant<bool, HasDoubleTailKBlockLoop>)
     {
@@ -336,7 +336,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r2
 
         // divide block work by [M, N]
         const auto c_m0_n0_block_cluster_idx =
-            c_blockid_to_m0_n0_block_cluster_adaptor.CalculateBottomIndex(
+            cblockid_to_m0_n0_block_cluster_adaptor.CalculateBottomIndex(
                 make_multi_index(get_block_1d_id()));
 
         // HACK: this force index data into SGPR

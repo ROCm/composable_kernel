@@ -365,11 +365,11 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         std::cerr << "has_main_e0_block_loop = " << has_main_e0_block_loop << std::endl;
 
-        const auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
+        const auto cblockid_to_k_n_h_w_block_cluster_adaptor =
             GridwiseGemm::MakeCBlockIdToKNHoWoBlockClusterAdaptor(c_k_n_hop_wop_grid_desc);
 
         using CBlockIdToBlockClusterAdaptor_K_N_H_W =
-            decltype(c_blockid_to_k_n_h_w_block_cluster_adaptor);
+            decltype(cblockid_to_k_n_h_w_block_cluster_adaptor);
 
         float ave_time = 0;
 
@@ -403,7 +403,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                               c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                                               d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                                              c_blockid_to_k_n_h_w_block_cluster_adaptor);
+                                              cblockid_to_k_n_h_w_block_cluster_adaptor);
         }
         else
         {
@@ -433,7 +433,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                               c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                                               d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                                              c_blockid_to_k_n_h_w_block_cluster_adaptor);
+                                              cblockid_to_k_n_h_w_block_cluster_adaptor);
         }
 
 #elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
@@ -444,7 +444,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             sizeof(CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2));
         DeviceMem d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf(
             sizeof(DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx));
-        DeviceMem c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf(
+        DeviceMem cblockid_to_k_n_h_w_block_cluster_adaptor_dev_buf(
             sizeof(CBlockIdToBlockClusterAdaptor_K_N_H_W));
 
         a_e0_e1_k0_k1_e2_grid_desc_dev_buf.ToDevice(&a_e0_e1_k0_k1_e2_grid_desc);
@@ -454,8 +454,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             &c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
         d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf.ToDevice(
             &d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
-        c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.ToDevice(
-            &c_blockid_to_k_n_h_w_block_cluster_adaptor);
+        cblockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.ToDevice(
+            &cblockid_to_k_n_h_w_block_cluster_adaptor);
 
         if(has_main_e0_block_loop)
         {
@@ -492,7 +492,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 cast_pointer_to_constant_address_space(
                     d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf.GetDeviceBuffer()),
                 cast_pointer_to_constant_address_space(
-                    c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+                    cblockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
         else
         {
@@ -529,7 +529,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 cast_pointer_to_constant_address_space(
                     d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc_dev_buf.GetDeviceBuffer()),
                 cast_pointer_to_constant_address_space(
-                    c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
+                    cblockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
         }
 #elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
         {
@@ -537,7 +537,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
             static_assert(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.IsKnownAtCompileTime(), "");
             static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
-            static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
+            static_assert(cblockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
             const auto kernel = kernel_gemm_dlops_v3_maxpool<
                 GridwiseGemm,

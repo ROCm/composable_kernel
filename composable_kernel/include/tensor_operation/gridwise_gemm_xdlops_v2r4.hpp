@@ -349,17 +349,17 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
 
-        const auto c_blockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor =
+        const auto cblockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
                 make_tuple(make_merge_transform(make_tuple(KBatch, M00, N00, M01, N01))),
                 make_tuple(Sequence<0, 1, 2, 3, 4>{}),
                 make_tuple(Sequence<0>{}));
 
-        const auto c_blockid_to_kbatch_m0_n0_block_cluster_adaptor =
+        const auto cblockid_to_kbatch_m0_n0_block_cluster_adaptor =
             chain_tensor_adaptors(kbatch_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  c_blockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor);
+                                  cblockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor);
 
-        return c_blockid_to_kbatch_m0_n0_block_cluster_adaptor;
+        return cblockid_to_kbatch_m0_n0_block_cluster_adaptor;
     }
 
     using CM0N0M1N1M2M3M4N2GridDesc = decltype(MakeCM0N0M1N1M2M3M4N2GridDescriptor(CMNGridDesc{}));
