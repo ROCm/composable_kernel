@@ -1864,7 +1864,7 @@ struct Slice
 
 /*
  * \brief lower_idx = upper_idx % modulus.
- * TODO: The modulo operation is expensive.
+ * TODO: An naive implementation since the modulo operation is expensive.
  */
 template <typename Modulus, typename UpLength>
 struct Modulo

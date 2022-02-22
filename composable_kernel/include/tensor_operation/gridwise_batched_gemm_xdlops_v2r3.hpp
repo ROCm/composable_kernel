@@ -11,7 +11,6 @@
 
 namespace ck {
 
-#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
 template <typename GridwiseBatchedGemm,
           typename FloatAB,
           typename FloatC,
@@ -53,64 +52,6 @@ __global__ void
                                                          c_element_op,
                                                          block_2_ctile_map);
 }
-#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
-template <typename GridwiseBatchedGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AGridDesc_G_K0_M_K1,
-          typename BGridDesc_G_K0_N_K1,
-          typename CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename Block2CTileMap>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_batched_gemm_xdlops_v2r3(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const void CONSTANT* p_a_grid_desc_g_k0_m_k1,
-            const void CONSTANT* p_b_grid_desc_g_k0_n_k1,
-            const void CONSTANT* p_c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2,
-            const void CONSTANT* p_a_element_op,
-            const void CONSTANT* p_b_element_op,
-            const void CONSTANT* p_c_element_op,
-            const void CONSTANT* p_block_2_ctile_map)
-{
-    const auto a_grid_desc_g_k0_m_k1 = *reinterpret_cast<const AGridDesc_G_K0_M_K1*>(
-        cast_pointer_to_generic_address_space(p_a_grid_desc_g_k0_m_k1));
-    const auto b_grid_desc_g_k0_n_k1 = *reinterpret_cast<const BGridDesc_G_K0_N_K1*>(
-        cast_pointer_to_generic_address_space(p_b_grid_desc_g_k0_n_k1));
-    const auto c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2 =
-        *reinterpret_cast<const CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2*>(
-            cast_pointer_to_generic_address_space(p_c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2));
-    const auto block_2_ctile_map = *reinterpret_cast<const Block2CTileMap*>(
-        cast_pointer_to_generic_address_space(p_block_2_ctile_map));
-    const auto a_element_op = *reinterpret_cast<const AElementwiseOperation*>(
-        cast_pointer_to_generic_address_space(p_a_element_op));
-    const auto b_element_op = *reinterpret_cast<const BElementwiseOperation*>(
-        cast_pointer_to_generic_address_space(p_b_element_op));
-    const auto c_element_op = *reinterpret_cast<const CElementwiseOperation*>(
-        cast_pointer_to_generic_address_space(p_c_element_op));
-
-    __shared__ char p_shared[GridwiseBatchedGemm::GetSharedMemoryNumberOfByte()];
-
-    GridwiseBatchedGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                         p_b_grid,
-                                                         p_c_grid,
-                                                         p_shared,
-                                                         a_grid_desc_g_k0_m_k1,
-                                                         b_grid_desc_g_k0_n_k1,
-                                                         c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                         a_element_op,
-                                                         b_element_op,
-                                                         c_element_op,
-                                                         block_2_ctile_map);
-}
-#endif
 
 template <index_t BlockSize,
           typename FloatAB,

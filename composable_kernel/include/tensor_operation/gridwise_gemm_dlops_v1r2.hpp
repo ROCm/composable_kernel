@@ -12,7 +12,6 @@
 
 namespace ck {
 
-#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
@@ -51,62 +50,6 @@ __global__ void
                       integral_constant<bool, HasMainKBlockLoop>{},
                       integral_constant<bool, HasDoubleTailKBlockLoop>{});
 }
-#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
-// pass tensor descriptor by CONSTANT void pointer
-// CONSTANT is needed to inform compiler void pointers in the kernel signature are pointing to
-// non-modifiable parameter address space, so compiler can enable corresponding optimization
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AKM0M1GridDesc,
-          typename BKN0N1GridDesc,
-          typename CM0M10M11N0N10N11GridDesc,
-          typename CBlockIdToM0N0BlockClusterAdaptor,
-          bool HasMainKBlockLoop,
-          bool HasDoubleTailKBlockLoop>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_gemm_dlops_v1r2(const FloatAB* __restrict__ p_a_grid,
-                               const FloatAB* __restrict__ p_b_grid,
-                               FloatC* __restrict__ p_c_grid,
-                               const void CONSTANT* p_a_k_m0_m1_grid_desc,
-                               const void CONSTANT* p_b_k_n0_n1_grid_desc,
-                               const void CONSTANT* p_c_m0_m10_m11_n0_n10_n11_grid_desc,
-                               const void CONSTANT* p_cblockid_to_m0_n0_block_cluster_adaptor)
-{
-    // first cast void CONSTANT void* to void*
-    // second cast void* to Desc*
-    // the copy constructor of tensor descriptor doesn't take address_space(4)
-    const auto a_k_m0_m1_grid_desc = *reinterpret_cast<const AKM0M1GridDesc*>(
-        cast_pointer_to_generic_address_space(p_a_k_m0_m1_grid_desc));
-    const auto b_k_n0_n1_grid_desc = *reinterpret_cast<const BKN0N1GridDesc*>(
-        cast_pointer_to_generic_address_space(p_b_k_n0_n1_grid_desc));
-    const auto c_m0_m10_m11_n0_n10_n11_grid_desc =
-        *reinterpret_cast<const CM0M10M11N0N10N11GridDesc*>(
-            cast_pointer_to_generic_address_space(p_c_m0_m10_m11_n0_n10_n11_grid_desc));
-    const auto cblockid_to_m0_n0_block_cluster_adaptor =
-        *reinterpret_cast<const CBlockIdToM0N0BlockClusterAdaptor*>(
-            cast_pointer_to_generic_address_space(p_cblockid_to_m0_n0_block_cluster_adaptor));
-
-    constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
-
-    __shared__ FloatAB p_shared_block[shared_block_size];
-
-    GridwiseGemm::Run(p_a_grid,
-                      p_b_grid,
-                      p_c_grid,
-                      p_shared_block,
-                      a_k_m0_m1_grid_desc,
-                      b_k_n0_n1_grid_desc,
-                      c_m0_m10_m11_n0_n10_n11_grid_desc,
-                      cblockid_to_m0_n0_block_cluster_adaptor,
-                      integral_constant<bool, HasMainKBlockLoop>{},
-                      integral_constant<bool, HasDoubleTailKBlockLoop>{});
-}
-#endif
 
 template <index_t BlockSize,
           typename FloatAB,

@@ -18,6 +18,63 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AGridDesc_K0_M_K1,
+          typename BGridDesc_K0_N_K1,
+          typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename Block2CTileMap,
+          bool HasMainKBlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_gemm_xdlops_v2r3_for_conv3d(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            const index_t num_batches,
+            const index_t a_batch_stride,
+            const index_t b_batch_stride,
+            const index_t c_batch_stride,
+            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
+            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
+            const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const Block2CTileMap block_2_ctile_map)
+{
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+
+    const long_index_t a_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(a_batch_stride) * g_idx);
+    const long_index_t b_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(b_batch_stride) * g_idx);
+    const long_index_t c_batch_offset =
+        __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(c_batch_stride) * g_idx);
+
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                  p_b_grid + b_batch_offset,
+                                                  p_c_grid + c_batch_offset,
+                                                  p_shared,
+                                                  a_grid_desc_k0_m_k1,
+                                                  b_grid_desc_k0_n_k1,
+                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  block_2_ctile_map);
+}
+
 // specialization for #D conv: in[n, di, hi, wi, c] * wei[k, z, y, x, c] = out[n, do, ho, wo, k]
 template <typename InDataType,
           typename WeiDataType, // WeiDataType must be the same as InDataType
@@ -69,6 +126,11 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
+    /*
+     * \brief Split the number of batches, \p N, into N = B * N1, such that the memory
+     * space of input and output tensors stays with the value range of index_t, and each subbatch
+     * can be dealed with GridwiseGemm.
+     */
     static index_t GetMaxAllowableSubBatchSize(const index_t N,
                                                const index_t K,
                                                const index_t C,
