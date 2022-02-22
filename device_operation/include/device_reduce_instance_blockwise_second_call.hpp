@@ -11,21 +11,29 @@ namespace device {
 namespace device_reduce_instance {
 
 #ifdef QUICK_REDUCE_TEST
-using reduce_configuration_2_instances_blockwise_second_call =
-    std::tuple<ReductionConfiguration_2<1, 2, 1, 1, 2>,
-               ReductionConfiguration_2<1, 2, 2, 1, 2>,
-               ReductionConfiguration_2<1, 1, 1, 1, 3>,
-               ReductionConfiguration_2<1, 1, 2, 1, 3>>;
+using reduce_configuration_2_instances_blockwise_second_call = std::tuple<
+    // clang-format off
+    // InSrcVectorDim | InSrcVectorSize | OutDstVectorSize | MThreadSliceSize | KThreadSliceSize
+    ReductionConfiguration_2<1, 2, 1, 1, 2>,
+    ReductionConfiguration_2<1, 2, 2, 1, 2>,
+    ReductionConfiguration_2<1, 1, 1, 1, 3>,
+    ReductionConfiguration_2<1, 1, 2, 1, 3>
+    // clang-format on
+    >;
 #else
-using reduce_configuration_2_instances_blockwise_second_call =
-    std::tuple<ReductionConfiguration_2<1, 4, 1, 1, 8>,
-               ReductionConfiguration_2<1, 4, 1, 1, 4>,
-               ReductionConfiguration_2<1, 2, 1, 1, 2>,
+using reduce_configuration_2_instances_blockwise_second_call = std::tuple<
+    // clang-format off
+    // InSrcVectorDim | InSrcVectorSize | OutDstVectorSize | MThreadSliceSize | KThreadSliceSize
+    ReductionConfiguration_2<1, 4, 1, 1, 8>,
+    ReductionConfiguration_2<1, 4, 1, 1, 4>,
+    ReductionConfiguration_2<1, 2, 1, 1, 2>,
 
-               ReductionConfiguration_2<1, 1, 1, 1, 3>,
-               ReductionConfiguration_2<1, 1, 1, 1, 5>,
-               ReductionConfiguration_2<1, 1, 1, 1, 7>,
-               ReductionConfiguration_2<1, 1, 1, 1, 11>>;
+    ReductionConfiguration_2<1, 1, 1, 1, 3>,
+    ReductionConfiguration_2<1, 1, 1, 1, 5>,
+    ReductionConfiguration_2<1, 1, 1, 1, 7>,
+    ReductionConfiguration_2<1, 1, 1, 1, 11>
+    // clang-format on
+    >;
 #endif
 
 template <typename AccDataType, ReduceTensorOp_t ReduceOpId>

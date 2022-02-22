@@ -11,33 +11,41 @@ namespace device {
 namespace device_reduce_instance {
 
 #ifdef QUICK_REDUCE_TEST
-using reduce_configuration_2_instances_threadwise =
-    std::tuple<ReductionConfiguration_2<0, 2, 2, 2, 1>,
-               ReductionConfiguration_2<0, 1, 1, 2, 1>,
-               ReductionConfiguration_2<1, 2, 1, 1, 2>,
-               ReductionConfiguration_2<1, 2, 2, 1, 2>,
-               ReductionConfiguration_2<0, 1, 1, 3, 1>,
-               ReductionConfiguration_2<1, 1, 1, 1, 3>>;
+using reduce_configuration_2_instances_threadwise = std::tuple<
+    // clang-format off
+    // InSrcVectorDim | InSrcVectorSize | OutDstVectorSize | MThreadSliceSize | KThreadSliceSize
+    ReductionConfiguration_2<0, 2, 2, 2, 1>,
+    ReductionConfiguration_2<0, 1, 1, 2, 1>,
+    ReductionConfiguration_2<1, 2, 1, 1, 2>,
+    ReductionConfiguration_2<1, 2, 2, 1, 2>,
+    ReductionConfiguration_2<0, 1, 1, 3, 1>,
+    ReductionConfiguration_2<1, 1, 1, 1, 3>
+    // clang-format on
+    >;
 #else
-using reduce_configuration_2_instances_threadwise =
-    std::tuple<ReductionConfiguration_2<0, 4, 4, 8, 1>,
-               ReductionConfiguration_2<0, 4, 4, 4, 1>,
-               ReductionConfiguration_2<0, 2, 2, 2, 1>,
+using reduce_configuration_2_instances_threadwise = std::tuple<
+    // clang-format off
+    // InSrcVectorDim | InSrcVectorSize | OutDstVectorSize | MThreadSliceSize | KThreadSliceSize
+    ReductionConfiguration_2<0, 4, 4, 8, 1>,
+    ReductionConfiguration_2<0, 4, 4, 4, 1>,
+    ReductionConfiguration_2<0, 2, 2, 2, 1>,
 
-               ReductionConfiguration_2<1, 4, 1, 1, 8>,
-               ReductionConfiguration_2<1, 4, 1, 1, 4>,
-               ReductionConfiguration_2<1, 2, 1, 1, 2>,
+    ReductionConfiguration_2<1, 4, 1, 1, 8>,
+    ReductionConfiguration_2<1, 4, 1, 1, 4>,
+    ReductionConfiguration_2<1, 2, 1, 1, 2>,
 
-               // special instances
-               ReductionConfiguration_2<0, 1, 1, 3, 1>,
-               ReductionConfiguration_2<0, 1, 1, 5, 1>,
-               ReductionConfiguration_2<0, 1, 1, 7, 1>,
-               ReductionConfiguration_2<0, 1, 1, 11, 1>,
+    // special instances
+    ReductionConfiguration_2<0, 1, 1, 3, 1>,
+    ReductionConfiguration_2<0, 1, 1, 5, 1>,
+    ReductionConfiguration_2<0, 1, 1, 7, 1>,
+    ReductionConfiguration_2<0, 1, 1, 11, 1>,
 
-               ReductionConfiguration_2<1, 1, 1, 1, 3>,
-               ReductionConfiguration_2<1, 1, 1, 1, 5>,
-               ReductionConfiguration_2<1, 1, 1, 1, 7>,
-               ReductionConfiguration_2<1, 1, 1, 1, 11>>;
+    ReductionConfiguration_2<1, 1, 1, 1, 3>,
+    ReductionConfiguration_2<1, 1, 1, 1, 5>,
+    ReductionConfiguration_2<1, 1, 1, 1, 7>,
+    ReductionConfiguration_2<1, 1, 1, 1, 11>
+    // clang-format on
+    >;
 #endif
 
 template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
