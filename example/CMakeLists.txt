@@ -49,8 +49,3 @@ target_link_libraries(conv2d_fwd_xdl_int8 PRIVATE host_tensor)
 target_link_libraries(conv3d_fwd_xdl PRIVATE host_tensor)
 target_link_libraries(convnd_fwd_xdl PRIVATE host_tensor)
 
-set(SPACE_FILLING_CURVE_SOURCE space_filling_curve/space_filling_curve.cpp)
-add_executable(space_filling_curve ${SPACE_FILLING_CURVE_SOURCE})
-target_include_directories(space_filling_curve PUBLIC ${PROJECT_SOURCE_DIR}/device_operation_reference/include)
-target_link_libraries(space_filling_curve PRIVATE host_tensor)
-
