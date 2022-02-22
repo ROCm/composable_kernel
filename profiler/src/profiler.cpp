@@ -7,6 +7,7 @@
 
 int profile_gemm(int, char*[]);
 int profile_batched_gemm(int, char*[]);
+int profile_gemm_bias_2d(int, char*[]);
 int profile_gemm_bias_relu(int, char*[]);
 int profile_gemm_bias_relu_add(int, char*[]);
 int profile_conv_fwd(int, char*[]);
@@ -20,6 +21,10 @@ int main(int argc, char* argv[])
     if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
+    }
+    else if(strcmp(argv[1], "gemm_bias_2d") == 0)
+    {
+        return profile_gemm_bias_2d(argc, argv);
     }
     else if(strcmp(argv[1], "gemm_bias_relu") == 0)
     {
@@ -57,6 +62,7 @@ int main(int argc, char* argv[])
     {
         // clang-format off
         printf("arg1: tensor operation (gemm: GEMM\n"
+               "                        gemm_bias_2d: GEMM+Bias(2D)\n"
                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
                "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
                "                        conv_fwd: ForwardConvolution\n"
