@@ -25,7 +25,7 @@ struct FillMonotonicSeq
     T m_init_value{0};
 
     template <typename ForwardIter>
-    void operator(ForwardIter first, ForwardIter last, T init_value = m_init_value)
+    void operator()(ForwardIter first, ForwardIter last) const
     {
         std::iota(first, last, m_init_value);
     }
@@ -37,11 +37,11 @@ struct FillConstant
     T m_value{0};
 
     template <typename ForwardIter>
-    void operator(ForwardIter first, ForwardIter last, T value = m_value)
+    void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::fill(first, last, value);
+        std::fill(first, last, m_value);
     }
-}
+};
 
 template <ck::index_t NDim,
           typename InDataType    = float,
@@ -53,8 +53,8 @@ template <ck::index_t NDim,
           typename FillInputOp   = FillMonotonicSeq<InDataType>,
           typename FillWeightsOp = FillConstant<WeiDataType>>
 Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params,
-                                     const FillInputOp& fill_input_op     = FillInputOp(),
-                                     const FillWeightsOp& fill_weights_op = FillWeightsOp())
+                                     const FillInputOp& fill_input_op     = FillInputOp{0},
+                                     const FillWeightsOp& fill_weights_op = FillWeightsOp{0.5f})
 {
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
                                         static_cast<std::size_t>(params.C)};
@@ -81,7 +81,7 @@ Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params,
         ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
 
     fill_input_op(input.begin(), input.end());
-    fill_weights_op()(weights.begin(), weights.end(), WeiDataType(0.5f));
+    fill_weights_op(weights.begin(), weights.end());
     std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
 
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
@@ -174,7 +174,7 @@ bool TestConv1DNWC()
 {
     bool res{true};
     ck::conv_util::ConvParams params;
-    params.spatial_dims           = 1;
+    params.num_dim_spatial        = 1;
     params.N                      = 1;
     params.K                      = 1;
     params.C                      = 2;
@@ -199,7 +199,7 @@ bool TestConv1DNWC()
                                       "Error: wrong output tensor dimensions!");
     res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
 
-    params.spatial_dims           = 1;
+    params.num_dim_spatial        = 1;
     params.N                      = 1;
     params.K                      = 2;
     params.C                      = 2;
@@ -224,7 +224,7 @@ bool TestConv1DNWC()
                                       "Error: wrong output tensor dimensions!");
     res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
 
-    params.spatial_dims           = 1;
+    params.num_dim_spatial        = 1;
     params.N                      = 2;
     params.K                      = 16;
     params.C                      = 4;
@@ -235,7 +235,7 @@ bool TestConv1DNWC()
     params.input_left_pads        = std::vector<ck::index_t>{1};
     params.input_right_pads       = std::vector<ck::index_t>{1};
 
-    auto out_tensor =
+    auto out_tensor2 =
         RunReferenceConv<1,
                          float,
                          float,
@@ -312,10 +312,10 @@ bool TestConv1DNWC()
         72.9,      72.9,      72.9,      72.9,      72.9,      72.9,      72.9,      72.9,
         49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4,
         49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4,      49.4};
-    res = res && test_util::check_err(out_tensor.mDesc.GetLengths(),
+    res = res && test_util::check_err(out_tensor2.mDesc.GetLengths(),
                                       ref_dims,
                                       "Error: wrong output tensor dimensions!");
-    res = res && test_util::check_err(out_tensor.mData, ref_data, "Error: incorrect results!");
+    res = res && test_util::check_err(out_tensor2.mData, ref_data, "Error: incorrect results!");
 
     return res;
 }

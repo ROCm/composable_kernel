@@ -40,9 +40,9 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         WeiDataType,        //
         OutDataType,        //
         AccDataType,        // 
-        InElementOp,       // Input Elementwise Operation
-        WeiElementOp,      // Weights Elementwise Operation
-        OutElementOp,      // Output Elementwise Operation
+        InElementOp,        // Input Elementwise Operation
+        WeiElementOp,       // Weights Elementwise Operation
+        OutElementOp,       // Output Elementwise Operation
         ConvFwdDefault,     // ConvForwardSpecialization
         SpatialDims,        // SptialDims
         256,                // BlockSize
@@ -81,9 +81,9 @@ using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<
                                                                                 OutElementOp,
                                                                                 SpatialDims>;
 
-DeviceConvFwdBasePtr GetConvInstance(int spatial_dims)
+DeviceConvFwdBasePtr GetConvInstance(int num_dim_spatial)
 {
-    switch(spatial_dims)
+    switch(num_dim_spatial)
     {
     case 2: {
         return std::make_unique<DeviceConvNDFwdInstance<2>>();
@@ -114,10 +114,10 @@ void PrintUseMsg()
               << std::endl;
 }
 
-ck::conv_util::ConvParams ParseConvParams(int spatial_dims, int argc, char* argv[])
+ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, int argc, char* argv[])
 {
-    // (N, K, C) + spatial_dims * 6 (filter, input, strides, dilations, pad left, pad right)
-    int conv_args     = 3 + spatial_dims * 6;
+    // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
+    int conv_args     = 3 + num_dim_spatial * 6;
     int cmdline_nargs = conv_args + 5;
     if(cmdline_nargs != argc)
     {
@@ -128,38 +128,38 @@ ck::conv_util::ConvParams ParseConvParams(int spatial_dims, int argc, char* argv
     ck::conv_util::ConvParams params;
     int arg_idx = 5;
 
-    params.spatial_dims = spatial_dims;
-    params.N            = std::stoi(argv[arg_idx++]);
-    params.K            = std::stoi(argv[arg_idx++]);
-    params.C            = std::stoi(argv[arg_idx++]);
+    params.num_dim_spatial = num_dim_spatial;
+    params.N               = std::stoi(argv[arg_idx++]);
+    params.K               = std::stoi(argv[arg_idx++]);
+    params.C               = std::stoi(argv[arg_idx++]);
 
-    params.filter_spatial_lengths.resize(spatial_dims);
-    for(int i = 0; i < spatial_dims; ++i)
+    params.filter_spatial_lengths.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
     {
         params.filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_spatial_lengths.resize(spatial_dims);
-    for(int i = 0; i < spatial_dims; ++i)
+    params.input_spatial_lengths.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
     {
         params.input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_strides.resize(spatial_dims);
-    for(int i = 0; i < spatial_dims; ++i)
+    params.conv_filter_strides.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
     {
         params.conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_dilations.resize(spatial_dims);
-    for(int i = 0; i < spatial_dims; ++i)
+    params.conv_filter_dilations.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
     {
         params.conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_left_pads.resize(spatial_dims);
-    for(int i = 0; i < spatial_dims; ++i)
+    params.input_left_pads.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
     {
         params.input_left_pads[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_right_pads.resize(spatial_dims);
-    for(int i = 0; i < spatial_dims; ++i)
+    params.input_right_pads.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
     {
         params.input_right_pads[i] = std::stoi(argv[arg_idx++]);
     }
@@ -168,11 +168,11 @@ ck::conv_util::ConvParams ParseConvParams(int spatial_dims, int argc, char* argv
 }
 
 HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                   int spatial_dims = 2)
+                                                   int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
-    switch(spatial_dims)
+    switch(num_dim_spatial)
     {
     case 2: {
         return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWK{});
@@ -187,11 +187,11 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
 }
 
 HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                    int spatial_dims = 2)
+                                                    int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
-    switch(spatial_dims)
+    switch(num_dim_spatial)
     {
     case 2: {
         return ck::conv_util::GetHostTensorDescriptor(dims, tl::KYXC{});
@@ -206,11 +206,11 @@ HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_
 }
 
 HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                  int spatial_dims = 2)
+                                                  int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
-    switch(spatial_dims)
+    switch(num_dim_spatial)
     {
     case 2: {
         return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
@@ -229,7 +229,7 @@ int main(int argc, char* argv[])
     bool do_verification = 0;
     int init_method      = 0;
     int nrepeat          = 5;
-    int spatial_dims     = 2;
+    int num_dim_spatial  = 2;
 
     ck::conv_util::ConvParams params;
 
@@ -238,12 +238,12 @@ int main(int argc, char* argv[])
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
-        spatial_dims    = std::stoi(argv[4]);
+        num_dim_spatial = std::stoi(argv[4]);
     }
 
     if(argc >= 6)
     {
-        params = ParseConvParams(spatial_dims, argc, argv);
+        params = ParseConvParams(num_dim_spatial, argc, argv);
     }
 
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
@@ -265,10 +265,10 @@ int main(int argc, char* argv[])
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(GetInputHostTensorDescriptor(input_dims, spatial_dims));
-    Tensor<WeiDataType> weights(GetFiltersHostTensorDescriptor(filter_dims, spatial_dims));
-    Tensor<OutDataType> host_output(GetOutputHostTensorDescriptor(output_dims, spatial_dims));
-    Tensor<OutDataType> device_output(GetOutputHostTensorDescriptor(output_dims, spatial_dims));
+    Tensor<InDataType> input(GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+    Tensor<WeiDataType> weights(GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
+    Tensor<OutDataType> host_output(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+    Tensor<OutDataType> device_output(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weights: " << weights.mDesc << std::endl;
@@ -294,7 +294,7 @@ int main(int argc, char* argv[])
     wei_device_buf.ToDevice(weights.mData.data());
 
     // do GEMM
-    auto conv    = GetConvInstance(spatial_dims);
+    auto conv    = GetConvInstance(num_dim_spatial);
     auto invoker = conv->MakeInvokerPointer();
     auto argument =
         conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
@@ -359,7 +359,7 @@ int main(int argc, char* argv[])
             check_error(host_output, device_output);
         };
 
-        switch(spatial_dims)
+        switch(num_dim_spatial)
         {
         case 2: {
             auto ref_conv = ReferenceConvNDFwdInstance<2>();

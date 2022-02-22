@@ -219,7 +219,7 @@ bool TestConv1DNWC()
 {
     bool res{true};
     ck::conv_util::ConvParams params;
-    params.spatial_dims           = 1;
+    params.num_dim_spatial        = 1;
     params.N                      = 2;
     params.K                      = 16;
     params.C                      = 4;

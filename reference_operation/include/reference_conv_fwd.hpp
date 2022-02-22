@@ -25,7 +25,7 @@ namespace host {
 //                                      operation.
 // @tparam     WeiElementwiseOperation  Functor for weights tensor elementwise
 //                                      operation.
-// @tparam     SpatialNDims  Number of spatial dimensions.
+// @tparam     NumDimSpatial  Number of spatial dimensions.
 //
 template <typename InDataType,
           typename WeiDataType,
@@ -33,15 +33,15 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ck::index_t SpatialNDims                                                    = 2,
-          typename std::enable_if<SpatialNDims >= 1 && SpatialNDims <= 3, bool>::type = false>
+          ck::index_t NumDimSpatial                                                     = 2,
+          typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvFwd : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
     {
         Argument(const Tensor<InDataType>& input,
-                 const Tensor<WeiDataType>& weights,
+                 const Tensor<WeiDataType>& weight,
                  Tensor<OutDataType>& output,
                  std::vector<ck::index_t> conv_filter_strides,
                  std::vector<ck::index_t> conv_filter_dilations,
@@ -51,7 +51,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
             : input_{input},
-              weights_{weights},
+              weight_{weight},
               output_{output},
               conv_strides_{conv_filter_strides},
               conv_dilations_{conv_filter_dilations},
@@ -64,7 +64,7 @@ struct ReferenceConvFwd : public device::BaseOperator
         }
 
         const Tensor<InDataType>& input_;
-        const Tensor<WeiDataType>& weights_;
+        const Tensor<WeiDataType>& weight_;
         Tensor<OutDataType>& output_;
 
         std::vector<index_t> conv_strides_;
@@ -77,114 +77,98 @@ struct ReferenceConvFwd : public device::BaseOperator
         OutElementwiseOperation out_element_op_;
     };
 
-    // Invoker
-    template <ck::index_t NDim>
     struct Invoker : public device::BaseInvoker
     {
-    };
-
-    template <>
-    struct Invoker<1> : public device::BaseInvoker
-    {
         using Argument = ReferenceConvFwd::Argument;
 
         float Run(const Argument& arg)
         {
-            auto f_ncw = [&](auto n, auto k, auto wo) {
-                float v_acc = 0;
+            if constexpr(NumDimSpatial == 1)
+            {
+                auto f_ncw = [&](auto n, auto k, auto wo) {
+                    float v_acc = 0;
 
-                for(int c = 0; c < arg.weights_.mDesc.GetLengths()[1]; ++c)
-                {
-                    for(int x = 0; x < arg.weights_.mDesc.GetLengths()[2]; ++x)
+                    for(int c = 0; c < arg.weight_.mDesc.GetLengths()[1]; ++c)
                     {
-                        int wi = wo * arg.conv_strides_[0] + x * arg.conv_dilations_[0] -
-                                 arg.in_left_pads_[0];
-                        if(wi >= 0 && wi < arg.input_.mDesc.GetLengths()[2])
+                        for(int x = 0; x < arg.weight_.mDesc.GetLengths()[2]; ++x)
                         {
-                            float v_in;
-                            float v_wei;
-
-                            arg.in_element_op_(v_in,
-                                               static_cast<const float>(arg.input_(n, c, wi)));
-                            arg.wei_element_op_(v_wei,
-                                                static_cast<const float>(arg.weights_(k, c, x)));
-
-                            v_acc += v_in * v_wei;
-                        }
-                    }
-                }
-
-                float v_out;
-
-                arg.out_element_op_(v_out, v_acc);
-                arg.output_(n, k, wo) = v_out;
-            };
-
-            make_ParallelTensorFunctor(f_ncw,
-                                       arg.output_.mDesc.GetLengths()[0],
-                                       arg.output_.mDesc.GetLengths()[1],
-                                       arg.output_.mDesc.GetLengths()[2])(
-                std::thread::hardware_concurrency());
-
-            return 0;
-        }
-
-        float Run(const device::BaseArgument* p_arg, int) override
-        {
-            return Run(*dynamic_cast<const Argument*>(p_arg));
-        }
-    };
-
-    template <>
-    struct Invoker<2> : public device::BaseInvoker
-    {
-        using Argument = ReferenceConvFwd::Argument;
-
-        float Run(const Argument& arg)
-        {
-            auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
-                float v_acc = 0;
-
-                for(int c = 0; c < arg.weights_.mDesc.GetLengths()[1]; ++c)
-                {
-                    for(int y = 0; y < arg.weights_.mDesc.GetLengths()[2]; ++y)
-                    {
-                        int hi = ho * arg.conv_strides_[0] + y * arg.conv_dilations_[0] -
-                                 arg.in_left_pads_[0];
-                        for(int x = 0; x < arg.weights_.mDesc.GetLengths()[3]; ++x)
-                        {
-                            int wi = wo * arg.conv_strides_[1] + x * arg.conv_dilations_[1] -
-                                     arg.in_left_pads_[1];
-                            if(hi >= 0 && hi < arg.input_.mDesc.GetLengths()[2] && wi >= 0 &&
-                               wi < arg.input_.mDesc.GetLengths()[3])
+                            int wi = wo * arg.conv_strides_[0] + x * arg.conv_dilations_[0] -
+                                     arg.in_left_pads_[0];
+                            if(wi >= 0 && wi < arg.input_.mDesc.GetLengths()[2])
                             {
                                 float v_in;
                                 float v_wei;
 
-                                arg.in_element_op_(
-                                    v_in, ck::type_convert<float>(arg.input_(n, c, hi, wi)));
-                                arg.wei_element_op_(
-                                    v_wei, ck::type_convert<float>(arg.weights_(k, c, y, x)));
+                                arg.in_element_op_(v_in,
+                                                   static_cast<const float>(arg.input_(n, c, wi)));
+                                arg.wei_element_op_(v_wei,
+                                                    static_cast<const float>(arg.weight_(k, c, x)));
+
                                 v_acc += v_in * v_wei;
                             }
                         }
                     }
-                }
 
-                float v_out;
+                    float v_out;
 
-                arg.out_element_op_(v_out, v_acc);
-                arg.output_(n, k, ho, wo) = ck::type_convert<OutDataType>(v_out);
-            };
+                    arg.out_element_op_(v_out, v_acc);
+                    arg.output_(n, k, wo) = v_out;
+                };
 
-            make_ParallelTensorFunctor(f_nchw,
-                                       arg.output_.mDesc.GetLengths()[0],
-                                       arg.output_.mDesc.GetLengths()[1],
-                                       arg.output_.mDesc.GetLengths()[2],
-                                       arg.output_.mDesc.GetLengths()[3])(
-                std::thread::hardware_concurrency());
+                make_ParallelTensorFunctor(f_ncw,
+                                           arg.output_.mDesc.GetLengths()[0],
+                                           arg.output_.mDesc.GetLengths()[1],
+                                           arg.output_.mDesc.GetLengths()[2])(
+                    std::thread::hardware_concurrency());
 
-            return 0;
+                return 0;
+            }
+            else if constexpr(NumDimSpatial == 2)
+            {
+                auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
+                    float v_acc = 0;
+
+                    for(int c = 0; c < arg.weight_.mDesc.GetLengths()[1]; ++c)
+                    {
+                        for(int y = 0; y < arg.weight_.mDesc.GetLengths()[2]; ++y)
+                        {
+                            int hi = ho * arg.conv_strides_[0] + y * arg.conv_dilations_[0] -
+                                     arg.in_left_pads_[0];
+                            for(int x = 0; x < arg.weight_.mDesc.GetLengths()[3]; ++x)
+                            {
+                                int wi = wo * arg.conv_strides_[1] + x * arg.conv_dilations_[1] -
+                                         arg.in_left_pads_[1];
+                                if(hi >= 0 && hi < arg.input_.mDesc.GetLengths()[2] && wi >= 0 &&
+                                   wi < arg.input_.mDesc.GetLengths()[3])
+                                {
+                                    float v_in;
+                                    float v_wei;
+
+                                    arg.in_element_op_(
+                                        v_in, ck::type_convert<float>(arg.input_(n, c, hi, wi)));
+                                    arg.wei_element_op_(
+                                        v_wei, ck::type_convert<float>(arg.weight_(k, c, y, x)));
+                                    v_acc += v_in * v_wei;
+                                }
+                            }
+                        }
+                    }
+
+                    float v_out;
+
+                    arg.out_element_op_(v_out, v_acc);
+                    arg.output_(n, k, ho, wo) = ck::type_convert<OutDataType>(v_out);
+                };
+
+                make_ParallelTensorFunctor(f_nchw,
+                                           arg.output_.mDesc.GetLengths()[0],
+                                           arg.output_.mDesc.GetLengths()[1],
+                                           arg.output_.mDesc.GetLengths()[2],
+                                           arg.output_.mDesc.GetLengths()[3])(
+                    std::thread::hardware_concurrency());
+
+                return 0;
+            }
         }
 
         float Run(const device::BaseArgument* p_arg, int) override
@@ -202,7 +186,7 @@ struct ReferenceConvFwd : public device::BaseOperator
     bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
 
     static auto MakeArgument(const Tensor<InDataType>& input,
-                             const Tensor<WeiDataType>& weights,
+                             const Tensor<WeiDataType>& weight,
                              Tensor<OutDataType>& output,
                              std::vector<ck::index_t> conv_filter_strides,
                              std::vector<ck::index_t> conv_filter_dilations,
@@ -213,7 +197,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                              OutElementwiseOperation out_element_op)
     {
         return Argument{input,
-                        weights,
+                        weight,
                         output,
                         conv_filter_strides,
                         conv_filter_dilations,
@@ -224,11 +208,11 @@ struct ReferenceConvFwd : public device::BaseOperator
                         out_element_op};
     }
 
-    static auto MakeInvoker() { return Invoker<SpatialNDims>{}; }
+    static auto MakeInvoker() { return Invoker{}; }
 
     virtual std::unique_ptr<device::BaseInvoker> MakeInvokerPointer()
     {
-        return std::make_unique<Invoker<SpatialNDims>>(Invoker<SpatialNDims>{});
+        return std::make_unique<Invoker>(Invoker{});
     }
 
     std::string GetTypeString() const override

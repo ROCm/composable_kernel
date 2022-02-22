@@ -96,7 +96,7 @@ ck::index_t GetBtype(ck::index_t N,
 struct ConvParams
 {
     ConvParams()
-        : spatial_dims(2),
+        : num_dim_spatial(2),
           N(128),
           K(256),
           C(192),
@@ -109,7 +109,7 @@ struct ConvParams
     {
     }
 
-    ck::index_t spatial_dims;
+    ck::index_t num_dim_spatial;
     ck::index_t N;
     ck::index_t K;
     ck::index_t C;
@@ -125,8 +125,8 @@ struct ConvParams
 
     std::vector<ck::index_t> GetOutputSpatialLengths() const
     {
-        std::vector<ck::index_t> out_spatial_len(spatial_dims, 0);
-        for(ck::index_t i = 0; i < spatial_dims; ++i)
+        std::vector<ck::index_t> out_spatial_len(num_dim_spatial, 0);
+        for(ck::index_t i = 0; i < num_dim_spatial; ++i)
         {
             // XEff = (X - 1) * conv_dilation_w + 1;
             // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;

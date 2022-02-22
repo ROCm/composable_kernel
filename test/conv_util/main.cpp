@@ -75,7 +75,7 @@ bool TestConvParams_GetOutputSpatialLengths()
                   "Error: ConvParams 2D strides{3,3}, padding {1,1}, dilations {2,2}.");
 
     // -------------------------- 1D ------------------------------------
-    conv_params.spatial_dims           = 1;
+    conv_params.num_dim_spatial        = 1;
     conv_params.filter_spatial_lengths = std::vector<ck::index_t>{3};
     conv_params.input_spatial_lengths  = std::vector<ck::index_t>{71};
     conv_params.conv_filter_strides    = std::vector<ck::index_t>{2};
@@ -132,10 +132,10 @@ bool TestGetHostTensorDescriptor()
     res =
         cmp_vec(h.GetStrides(), {3 * 4 * 5, 4 * 5, 5, 1}, "Error: wrong NCHW dimensions strides!");
 
-    dims                   = std::vector<std::size_t>{2, 3, 4};
-    HostTensorDescriptor h = ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
-    res = cmp_vec(h.GetLengths(), {2, 3, 4}, "Error: wrong NWC dimensions lengths!");
-    res = cmp_vec(h.GetStrides(), {3 * 4, 1, 3}, "Error: wrong NWC dimensions strides!");
+    dims = std::vector<std::size_t>{2, 3, 4};
+    h    = ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
+    res  = cmp_vec(h.GetLengths(), {2, 3, 4}, "Error: wrong NWC dimensions lengths!");
+    res  = cmp_vec(h.GetStrides(), {3 * 4, 1, 3}, "Error: wrong NWC dimensions strides!");
 
     h   = ck::conv_util::GetHostTensorDescriptor(dims, tl::NCW{});
     res = cmp_vec(h.GetLengths(), {2, 3, 4}, "Error: wrong NCW dimensions lengths!");
