@@ -323,9 +323,9 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker->Run(argument.get(), nrepeat);
 
-    ck::index_t flop = ck::conv_util::GetFlops(
+    std::size_t flop = ck::conv_util::GetFlops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
-    ck::index_t num_btype =
+    std::size_t num_btype =
         ck::conv_util::GetBtype<InDataType, WeiDataType, OutDataType>(params.N,
                                                                       params.C,
                                                                       params.K,

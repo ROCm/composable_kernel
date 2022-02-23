@@ -35,16 +35,16 @@ std::size_t GetFlops(ck::index_t N,
                      const std::vector<ck::index_t>& output_spatial_lengths)
 {
     // 2 * N * K * <output spatial lengths product> * C * <filter spatial lengths product>
-    return std::size_t(2) * N * K *
+    return static_cast<std::size_t>(2) * N * K *
            std::accumulate(std::begin(output_spatial_lengths),
                            std::end(output_spatial_lengths),
-                           1,
-                           std::multiplies<ck::index_t>()) *
+                           static_cast<std::size_t>(1),
+                           std::multiplies<std::size_t>()) * 
            C *
            std::accumulate(std::begin(filter_spatial_lengths),
                            std::end(filter_spatial_lengths),
-                           1,
-                           std::multiplies<ck::index_t>());
+                           static_cast<std::size_t>(1),
+                           std::multiplies<std::size_t>());       
 }
 
 /**
@@ -66,7 +66,7 @@ std::size_t GetFlops(ck::index_t N,
 template <typename InDataType  = float,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType>
-ck::index_t GetBtype(ck::index_t N,
+std::size_t GetBtype(ck::index_t N,
                      ck::index_t C,
                      ck::index_t K,
                      const std::vector<ck::index_t>& input_spatial_lengths,
@@ -79,18 +79,18 @@ ck::index_t GetBtype(ck::index_t N,
     return sizeof(InDataType) * (N * C *
                                  std::accumulate(std::begin(input_spatial_lengths),
                                                  std::end(input_spatial_lengths),
-                                                 1,
-                                                 std::multiplies<ck::index_t>())) +
+                                                 static_cast<std::size_t>(1),
+                                                 std::multiplies<std::size_t>())) +
            sizeof(WeiDataType) * (K * C *
                                   std::accumulate(std::begin(filter_spatial_lengths),
                                                   std::end(filter_spatial_lengths),
-                                                  1,
-                                                  std::multiplies<ck::index_t>())) +
+                                                  static_cast<std::size_t>(1),
+                                                  std::multiplies<std::size_t>())) +
            sizeof(OutDataType) * (N * K *
                                   std::accumulate(std::begin(output_spatial_lengths),
                                                   std::end(output_spatial_lengths),
-                                                  1,
-                                                  std::multiplies<ck::index_t>()));
+                                                  static_cast<std::size_t>(1),
+                                                  std::multiplies<std::size_t>()));
 }
 
 struct ConvParams
