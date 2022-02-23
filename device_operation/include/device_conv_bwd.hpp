@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_FWD_HPP
-#define DEVICE_CONV_FWD_HPP
+#ifndef DEVICE_CONV_BWD_HPP
+#define DEVICE_CONV_BWD_HPP
 
 #include <iostream>
 #include "device_base.hpp"

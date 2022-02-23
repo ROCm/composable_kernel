@@ -1,12 +1,12 @@
-#ifndef DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_NHWC_KYXC_NHWK_HPP
+#ifndef DEVICE_CONV2D_BWD_XDL_NHWC_KYXC_NHWK_HPP
+#define DEVICE_CONV2D_BWD_XDL_NHWC_KYXC_NHWK_HPP
 
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
 #include "device_conv_bwd.hpp"
-#include "convolution_backward_specialization.hpp"
+#include "convolution_backward_data_specialization.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -25,7 +25,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ConvolutionBackwardSpecialization_t ConvBackwardSpecialization,
+          ConvolutionBackwardDataSpecialization_t ConvBackwardDataSpecialization,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -128,8 +128,8 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const auto in_n_hi_wi_c_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
-        if constexpr(ConvBackwardSpecialization ==
-                     ConvolutionBackwardSpecialization_t::Filter1x1Stride1Pad0)
+        if constexpr(ConvBackwardDataSpecialization ==
+                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
         {
             // A: output tensor
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
@@ -470,13 +470,13 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         input_right_pads,
                         i_ytilda,
                         i_xtilda);
-                    a_grid_desc_k0_m_k1_.push_back(descs[I0]);
-                    b_grid_desc_k0_n_k1_.push_back(descs[I1]);
-                    c_grid_desc_m_n_.push_back(descs[I2]);
+                    a_grid_desc_k0_m_k1_container_.push_back(descs[I0]);
+                    b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
+                    c_grid_desc_m_n_container_.push_back(descs[I2]);
 
                     if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], M01_, N01_))
                     {
-                        c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_.push_back(
+                        c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
                         block_2_ctile_map_.push_back(
@@ -489,11 +489,11 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_;
-        std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_;
-        std::vector<CGridDesc_M_N> c_grid_desc_m_n_;
+        std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_container_;
+        std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
+        std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
         std::vector<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>
-            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_;
         std::vector<typename GridwiseGemm::Block2CTileMap> block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -523,35 +523,44 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         {
             nrepeat        = 1;
             float ave_time = 0;
-            for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_.size(); i++)
+            for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
                 {
-                    std::cout << "arg.a_grid_desc_k0_m_k1_{"
-                              << arg.a_grid_desc_k0_m_k1_[i].GetLength(I0) << ", "
-                              << arg.a_grid_desc_k0_m_k1_[i].GetLength(I1) << ", "
-                              << arg.a_grid_desc_k0_m_k1_[i].GetLength(I2) << "}" << std::endl;
-
-                    std::cout << "arg.b_grid_desc_k0_n_k1_{"
-                              << arg.b_grid_desc_k0_n_k1_[i].GetLength(I0) << ", "
-                              << arg.b_grid_desc_k0_n_k1_[i].GetLength(I1) << ", "
-                              << arg.b_grid_desc_k0_n_k1_[i].GetLength(I2) << "}" << std::endl;
-
-                    std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_[i].GetLength(I0)
-                              << ", " << arg.c_grid_desc_m_n_[i].GetLength(I1) << "}" << std::endl;
-
-                    std::cout << "arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_( "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I0) << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I1) << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I2) << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I3) << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I4) << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i].GetLength(I5) << " ) "
+                    std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
+                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
+                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I1) << ", "
+                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2) << "}"
                               << std::endl;
+
+                    std::cout << "arg.b_grid_desc_k0_n_k1_container_{"
+                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I0) << ", "
+                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I1) << ", "
+                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I2) << "}"
+                              << std::endl;
+
+                    std::cout << "arg.c_grid_desc_m_n_container_{ "
+                              << arg.c_grid_desc_m_n_container_[i].GetLength(I0) << ", "
+                              << arg.c_grid_desc_m_n_container_[i].GetLength(I1) << "}"
+                              << std::endl;
+
+                    std::cout << "arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_( "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I0)
+                              << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I1)
+                              << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I2)
+                              << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I3)
+                              << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I4)
+                              << ", "
+                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I5)
+                              << " ) " << std::endl;
                 }
 
-                if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_[i],
-                                                arg.b_grid_desc_k0_n_k1_[i],
-                                                arg.c_grid_desc_m_n_[i],
+                if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                                arg.b_grid_desc_k0_n_k1_container_[i],
+                                                arg.c_grid_desc_m_n_container_[i],
                                                 arg.M01_,
                                                 arg.N01_))
                 {
@@ -559,9 +568,10 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
                 }
 
-                const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_[i]);
+                const index_t grid_size =
+                    GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_container_[i]);
 
-                const auto K0 = arg.a_grid_desc_k0_m_k1_[i].GetLength(I0);
+                const auto K0 = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0);
 
                 const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
@@ -581,21 +591,22 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                         true>;
 
-                    ave_time += launch_and_time_kernel(kernel,
-                                                       nrepeat,
-                                                       dim3(grid_size),
-                                                       dim3(BlockSize),
-                                                       0,
-                                                       arg.p_a_grid_,
-                                                       arg.p_b_grid_,
-                                                       arg.p_c_grid_,
-                                                       arg.a_grid_desc_k0_m_k1_[i],
-                                                       arg.b_grid_desc_k0_n_k1_[i],
-                                                       arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i],
-                                                       arg.a_element_op_,
-                                                       arg.b_element_op_,
-                                                       arg.c_element_op_,
-                                                       arg.block_2_ctile_map_[i]);
+                    ave_time += launch_and_time_kernel(
+                        kernel,
+                        nrepeat,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        arg.p_a_grid_,
+                        arg.p_b_grid_,
+                        arg.p_c_grid_,
+                        arg.a_grid_desc_k0_m_k1_container_[i],
+                        arg.b_grid_desc_k0_n_k1_container_[i],
+                        arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i],
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.c_element_op_,
+                        arg.block_2_ctile_map_[i]);
                 }
                 else
                 {
@@ -613,21 +624,22 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
                         false>;
 
-                    ave_time += launch_and_time_kernel(kernel,
-                                                       nrepeat,
-                                                       dim3(grid_size),
-                                                       dim3(BlockSize),
-                                                       0,
-                                                       arg.p_a_grid_,
-                                                       arg.p_b_grid_,
-                                                       arg.p_c_grid_,
-                                                       arg.a_grid_desc_k0_m_k1_[i],
-                                                       arg.b_grid_desc_k0_n_k1_[i],
-                                                       arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i],
-                                                       arg.a_element_op_,
-                                                       arg.b_element_op_,
-                                                       arg.c_element_op_,
-                                                       arg.block_2_ctile_map_[i]);
+                    ave_time += launch_and_time_kernel(
+                        kernel,
+                        nrepeat,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        arg.p_a_grid_,
+                        arg.p_b_grid_,
+                        arg.p_c_grid_,
+                        arg.a_grid_desc_k0_m_k1_container_[i],
+                        arg.b_grid_desc_k0_n_k1_container_[i],
+                        arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i],
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.c_element_op_,
+                        arg.block_2_ctile_map_[i]);
                 }
             }
             return ave_time;
@@ -647,8 +659,8 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if constexpr(ConvBackwardSpecialization ==
-                     ConvolutionBackwardSpecialization_t::Filter1x1Stride1Pad0)
+        if constexpr(ConvBackwardDataSpecialization ==
+                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 pad = 0 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
@@ -675,11 +687,11 @@ struct DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         }
 
         // Gridwise GEMM size
-        for(int i = 0; i < arg.a_grid_desc_k0_m_k1_.size(); i++)
+        for(int i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
         {
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_[i],
-                                            arg.b_grid_desc_k0_n_k1_[i],
-                                            arg.c_grid_desc_m_n_[i],
+            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                            arg.b_grid_desc_k0_n_k1_container_[i],
+                                            arg.c_grid_desc_m_n_container_[i],
                                             arg.M01_,
                                             arg.N01_))
             {

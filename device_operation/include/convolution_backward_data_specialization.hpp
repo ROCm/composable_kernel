@@ -1,11 +1,11 @@
-#ifndef CONVOLUTION_FORWARD_SPECIALIZATION
-#define CONVOLUTION_FORWARD_SPECIALIZATION
+#ifndef CONVOLUTION_BACKWARD_DATA_SPECIALIZATION
+#define CONVOLUTION_BACKWARD_DATA_SPECIALIZATION
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-enum ConvolutionBackwardSpecialization_t
+enum ConvolutionBackwardDataSpecialization_t
 {
     Default,
     Filter1x1Stride1Pad0,
