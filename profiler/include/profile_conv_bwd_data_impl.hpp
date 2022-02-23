@@ -22,16 +22,20 @@ using DeviceConvBwdNoOpPtr = DeviceConvBwdPtr<ck::tensor_operation::element_wise
                                               ck::tensor_operation::element_wise::PassThrough,
                                               ck::tensor_operation::element_wise::PassThrough>;
 template <>
-void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, F32);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+                                                             F32);
 
 template <>
-void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, F16);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+                                                             F16);
 
 template <>
-void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, BF16);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+                                                             BF16);
 
 template <>
-void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&, INT8);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+                                                             INT8);
 } // namespace device_conv2d_bwd_instance
 } // namespace device
 } // namespace tensor_operation
@@ -160,7 +164,7 @@ void profile_conv_bwd_impl(int do_verification,
     // add device Conv instances
     std::vector<DeviceConvBwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_bwd_instance::
-        add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(conv_ptrs, WeiDataType());
+        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(conv_ptrs, WeiDataType());
     if(conv_ptrs.size() <= 0)
     {
         throw std::runtime_error("wrong! no device Conv instance found");

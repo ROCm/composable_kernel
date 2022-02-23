@@ -12,7 +12,7 @@
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
-#include "device_conv2d_bwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_bwd.hpp"
 
 using InDataType  = ck::half_t;

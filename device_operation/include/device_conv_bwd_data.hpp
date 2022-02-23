@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_BWD_HPP
-#define DEVICE_CONV_BWD_HPP
+#ifndef DEVICE_CONV_BWD_DATA_HPP
+#define DEVICE_CONV_BWD_DATA_HPP
 
 #include <iostream>
 #include "device_base.hpp"
@@ -41,15 +41,15 @@ template <typename InElementwiseOperation,
 using DeviceConvBwdPtr = std::unique_ptr<
     DeviceConvBwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
 
-namespace device_conv2d_bwd_instance {
+namespace device_conv2d_bwd_data_instance {
 template <typename T>
-void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(
     std::vector<DeviceConvBwdPtr<ck::tensor_operation::element_wise::PassThrough,
                                  ck::tensor_operation::element_wise::PassThrough,
                                  ck::tensor_operation::element_wise::PassThrough>>&,
     T);
 
-} // namespace device_conv2d_bwd_instance
+} // namespace device_conv2d_bwd_data_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

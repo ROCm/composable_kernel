@@ -5,7 +5,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
-#include "device_conv_bwd.hpp"
+#include "device_conv_bwd_data.hpp"
 #include "convolution_backward_data_specialization.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"

@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include "config.hpp"
-#include "device_conv2d_bwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation.hpp"
 #include "device_operation_instance.hpp"
 
@@ -22,7 +22,7 @@ static constexpr auto ConvBwdDataFilter1x1Stride1Pad0 =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0;
 
 // Compilation parameters for in[n, hi, wi, c] * wei[k, y, x, c] = out[n, ho, wo, k]
-using device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_f32_instances = std::tuple<
+using device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances = std::tuple<
     // clang-format off
         //################################################################| InData| WeiData| OutData| AccData|          In|         Wei|         Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
         //################################################################|   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
@@ -44,7 +44,7 @@ using device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_f32_instances = std::tuple<
     // clang-format on
     >;
 
-using device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f32_instances = std::tuple<
+using device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f32_instances = std::tuple<
     // clang-format off
         //################################################################| InData| WeiData| OutData| AccData|          In|         Wei|         Out|    ConvForward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
         //################################################################|   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise| Specialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
@@ -67,12 +67,13 @@ using device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f32_instances = std::tuple<
     >;
 
 template <>
-void add_device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_instances(
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(
     std::vector<DeviceConvBwdPtr<PassThrough, PassThrough, PassThrough>>& instances, float)
 {
-    add_device_operation_instances(instances, device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_f32_instances{});
     add_device_operation_instances(instances,
-                                   device_conv2d_bwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f32_instances{});
+                                   device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances{});
+    add_device_operation_instances(
+        instances, device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f32_instances{});
 }
 
 } // namespace device_conv2d_bwd_instance

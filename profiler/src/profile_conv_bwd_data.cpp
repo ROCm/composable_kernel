@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
-#include "profile_conv_bwd_impl.hpp"
+#include "profile_conv_bwd_data_impl.hpp"
 
 enum ConvDataType
 {
