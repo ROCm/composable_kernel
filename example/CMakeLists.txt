@@ -48,4 +48,3 @@ target_link_libraries(gemm_xdl_alpha_beta PRIVATE host_tensor)
 target_link_libraries(conv2d_fwd_xdl_int8 PRIVATE host_tensor)
 target_link_libraries(conv3d_fwd_xdl PRIVATE host_tensor)
 target_link_libraries(convnd_fwd_xdl PRIVATE host_tensor)
-
