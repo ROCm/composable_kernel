@@ -160,7 +160,6 @@ int main(int argc, char* argv[])
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
-    c_m_n_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
@@ -216,4 +215,6 @@ int main(int argc, char* argv[])
 
         check_error(c_m_n_host_result, c_m_n_device_result);
     }
+
+    return 0;
 }

@@ -35,7 +35,7 @@ std::size_t GetFlops(ck::index_t N,
                      const std::vector<ck::index_t>& output_spatial_lengths)
 {
     // 2 * N * K * <output spatial lengths product> * C * <filter spatial lengths product>
-    return ck::index_t(2) * N * K *
+    return std::size_t(2) * N * K *
            std::accumulate(std::begin(output_spatial_lengths),
                            std::end(output_spatial_lengths),
                            1,

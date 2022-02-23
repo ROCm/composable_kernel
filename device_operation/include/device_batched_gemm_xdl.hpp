@@ -248,7 +248,7 @@ struct DeviceBatchedGemmXdl
                         c_grid_desc_g_m_n_);
 
                 block_2_ctile_map_ =
-                    GridwiseBatchedGemm::MakeBlock2CTileMap(c_grid_desc_g_m_n_, M01, N01);
+                    GridwiseBatchedGemm::MakeDefaultBlock2CTileMap(c_grid_desc_g_m_n_, M01, N01);
             }
         }
 
@@ -261,7 +261,7 @@ struct DeviceBatchedGemmXdl
         CGridDesc_G_M_N c_grid_desc_g_m_n_;
         typename GridwiseBatchedGemm::CGridDesc_G_M0_N0_M1_N1_M2_M3_M4_N2
             c_grid_desc_g_m0_n0_m1_n1_m2_m3_m4_n2_;
-        typename GridwiseBatchedGemm::Block2CTileMap block_2_ctile_map_;
+        typename GridwiseBatchedGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -327,7 +327,7 @@ struct DeviceBatchedGemmXdl
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseBatchedGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseBatchedGemm::DefaultBlock2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -359,7 +359,7 @@ struct DeviceBatchedGemmXdl
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseBatchedGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseBatchedGemm::DefaultBlock2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,

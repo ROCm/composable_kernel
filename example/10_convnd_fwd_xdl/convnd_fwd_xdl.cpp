@@ -32,7 +32,7 @@ static constexpr auto ConvFwdDefault =
 using DeviceConvFwdBasePtr =
     ck::tensor_operation::device::DeviceConvFwdPtr<InElementOp, WeiElementOp, OutElementOp>;
 
-template <ck::index_t SpatialDims>
+template <ck::index_t NumDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::
     DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         // clang-format off
@@ -44,7 +44,7 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         WeiElementOp,       // Weights Elementwise Operation
         OutElementOp,       // Output Elementwise Operation
         ConvFwdDefault,     // ConvForwardSpecialization
-        SpatialDims,        // SptialDims
+        NumDimSpatial,      // NumDimSpatial
         256,                // BlockSize
         256,                // MPerBlock
         128,                // NPerBlock
@@ -72,14 +72,14 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         1>;                 // CThreadTransferDstScalarPerVector
 // clang-format on
 
-template <ck::index_t SpatialDims>
+template <ck::index_t NumDimSpatial>
 using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
                                                                                 WeiDataType,
                                                                                 OutDataType,
                                                                                 InElementOp,
                                                                                 WeiElementOp,
                                                                                 OutElementOp,
-                                                                                SpatialDims>;
+                                                                                NumDimSpatial>;
 
 DeviceConvFwdBasePtr GetConvInstance(int num_dim_spatial)
 {

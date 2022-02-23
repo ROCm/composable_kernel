@@ -85,6 +85,18 @@ struct NKHW : public BaseTensorLayout
     static constexpr const char* name = "NKHW";
 };
 
+struct NDHWC : public BaseTensorLayout
+{
+};
+
+struct KZYXC : public BaseTensorLayout
+{
+};
+
+struct NDHWK : public BaseTensorLayout
+{
+};
+
 } // namespace convolution
 
 template <
