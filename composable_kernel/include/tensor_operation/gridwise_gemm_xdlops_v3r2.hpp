@@ -281,9 +281,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
         return grid_size;
     }
 
+    // TODO move this function into GEMM-pipeline class
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = (K0 / K0PerBlock) > 1;
+        const bool has_main_k0_block_loop = (K0 / (NumPrefetch * K0PerBlock)) > 1;
 
         return has_main_k0_block_loop;
     }
