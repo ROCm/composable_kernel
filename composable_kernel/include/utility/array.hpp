@@ -49,7 +49,7 @@ template <typename X, typename... Xs>
 __host__ __device__ constexpr auto make_array(X&& x, Xs&&... xs)
 {
     using data_type = remove_cvref_t<X>;
-    return Array<data_type, sizeof...(Xs) + 1>{{std::forward<X>(x), std::forward<Xs>(xs)...}};
+    return Array<data_type, sizeof...(Xs) + 1>{std::forward<X>(x), std::forward<Xs>(xs)...};
 }
 
 // make empty array
