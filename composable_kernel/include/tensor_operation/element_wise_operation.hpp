@@ -159,17 +159,14 @@ struct UnaryIdentic
 template <typename Y, typename X>
 struct UnaryIdentic<Y, X, true>
 {
-    __host__ __device__ UnaryIdentic(const index_t divider = 1)
-    {
-        scaler = 1.0f / static_cast<float>(divider);
-    };
+    __host__ __device__ UnaryIdentic(const index_t divider = 1) { divider_ = divider; };
 
     __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
-        y = type_convert<Y>(x) * type_convert<Y>(scaler);
+        y = type_convert<Y>(x) / type_convert<Y>(divider_);
     };
 
-    float scaler = 1.0f;
+    index_t divider_ = 1;
 };
 
 template <typename Y, typename X, bool HasDividing = false>
@@ -186,17 +183,14 @@ struct UnarySquare
 template <typename Y, typename X>
 struct UnarySquare<Y, X, true>
 {
-    __host__ __device__ UnarySquare(const index_t divider = 1)
-    {
-        scaler = 1.0f / static_cast<float>(divider);
-    };
+    __host__ __device__ UnarySquare(const index_t divider = 1) { divider_ = divider; };
 
     __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
-        y = type_convert<Y>(x) * type_convert<Y>(x) * type_convert<Y>(scaler);
+        y = type_convert<Y>(x) * type_convert<Y>(x) / type_convert<Y>(divider_);
     };
 
-    float scaler = 1.0f;
+    index_t divider_ = 1;
 };
 
 static inline __device__ half_t abs(half_t x) { return __habs(x); };
@@ -216,17 +210,14 @@ struct UnaryAbs
 template <typename Y, typename X>
 struct UnaryAbs<Y, X, true>
 {
-    __host__ __device__ UnaryAbs(const index_t divider = 1)
-    {
-        scaler = 1.0f / static_cast<float>(divider);
-    };
+    __host__ __device__ UnaryAbs(const index_t divider = 1) { divider_ = divider; };
 
     __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
-        y = abs(type_convert<Y>(x) * type_convert<Y>(scaler));
+        y = abs(type_convert<Y>(x) / type_convert<Y>(divider_));
     };
 
-    float scaler = 1.0f;
+    index_t divider_ = 1;
 };
 
 template <typename Y, typename X>
