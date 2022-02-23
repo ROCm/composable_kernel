@@ -41,6 +41,9 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<Devic
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 void add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -261,6 +264,27 @@ void profile_gemm_impl(int do_verification,
         {
             ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
         }
     }
 
