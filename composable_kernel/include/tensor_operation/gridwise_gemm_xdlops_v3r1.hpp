@@ -9,6 +9,7 @@
 #include "blockwise_tensor_slice_transfer_v4r1.hpp"
 #include "blockwise_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
+#include "gridwise_gemm_pipeline_v1.hpp"
 
 namespace ck {
 
@@ -22,7 +23,7 @@ template <typename GridwiseGemm,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename Block2CTileMap,
-          bool HasMainKBlockLoop>
+          bool HasMainK0BlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -42,7 +43,7 @@ __global__ void
 {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(
         p_a_grid,
         p_b_grid,
         p_c_grid,
@@ -95,7 +96,8 @@ template <
     index_t CShuffleMXdlPerWavePerShuffle,
     index_t CShuffleNXdlPerWavePerShuffle,
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-    index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
+    index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
+    index_t NumPrefetch = 1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 {
     static constexpr auto I0 = Number<0>{};
@@ -228,6 +230,25 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
             return false;
 
+        // check NumPrefetch
+        if constexpr(NumPrefetch == 1)
+        {
+            // 1-stage prefetch always supported
+        }
+        else if constexpr(NumPrefetch == 2)
+        {
+            // 2-stage prefetch currently only support even number of K0 loop
+            // TODO: add support for odd number of K0 loop
+            if(!((K0 / K0PerBlock) % 2 == 0))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
         // check M01, N01
         constexpr auto M1 = Number<MPerBlock>{};
         constexpr auto N1 = Number<NPerBlock>{};
@@ -253,9 +274,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         return grid_size;
     }
 
+    // TODO move this function into GEMM-pipeline class
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = (K0 / K0PerBlock) > 1;
+        const bool has_main_k0_block_loop = (K0 / (NumPrefetch * K0PerBlock)) > 1;
 
         return has_main_k0_block_loop;
     }
@@ -329,7 +351,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainK0BlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
@@ -397,7 +419,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               1,
                                               1,
                                               AThreadTransferSrcResetCoordinateAfterRun,
-                                              true>(
+                                              true,
+                                              NumPrefetch>(
                 a_grid_desc_k0_m_k1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -427,7 +450,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               1,
                                               1,
                                               BThreadTransferSrcResetCoordinateAfterRun,
-                                              true>(
+                                              true,
+                                              NumPrefetch>(
                 b_grid_desc_k0_n_k1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b_element_op,
@@ -471,51 +495,42 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
 
-        // preload data into LDS
-        {
-            a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-            b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
+        // gridwise GEMM pipeline
+        const auto gridwise_gemm_pipeline =
+            GridwiseGemmPipeline_v1<remove_cvref_t<decltype(a_grid_desc_k0_m_k1)>,
+                                    remove_cvref_t<decltype(a_block_desc_k0_m_k1)>,
+                                    remove_cvref_t<decltype(a_blockwise_copy)>,
+                                    remove_cvref_t<decltype(a_grid_buf)>,
+                                    remove_cvref_t<decltype(a_block_buf)>,
+                                    remove_cvref_t<decltype(a_block_slice_copy_step)>,
+                                    remove_cvref_t<decltype(b_grid_desc_k0_n_k1)>,
+                                    remove_cvref_t<decltype(b_block_desc_k0_n_k1)>,
+                                    remove_cvref_t<decltype(b_blockwise_copy)>,
+                                    remove_cvref_t<decltype(b_grid_buf)>,
+                                    remove_cvref_t<decltype(b_block_buf)>,
+                                    remove_cvref_t<decltype(b_block_slice_copy_step)>,
+                                    remove_cvref_t<decltype(blockwise_gemm)>,
+                                    remove_cvref_t<decltype(c_thread_buf)>,
+                                    NumPrefetch,
+                                    HasMainK0BlockLoop>{};
 
-            a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-            b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-        }
+        const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K0 / K0PerBlock);
 
-        // Initialize C
-        c_thread_buf.Clear();
-
-        // main body
-        if constexpr(HasMainKBlockLoop)
-        {
-            index_t k0_block_data_begin = 0;
-
-            do
-            {
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n_k1, b_block_slice_copy_step);
-
-                a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
-
-                block_sync_lds();
-
-                b_blockwise_copy.RunRead(b_grid_desc_k0_n_k1, b_grid_buf);
-
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                block_sync_lds();
-
-                a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
-                b_blockwise_copy.RunWrite(b_block_desc_k0_n_k1, b_block_buf);
-
-                k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (K0 - K0PerBlock));
-        }
-
-        // tail
-        {
-            block_sync_lds();
-
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-        }
+        gridwise_gemm_pipeline.Run(a_grid_desc_k0_m_k1,
+                                   a_block_desc_k0_m_k1,
+                                   a_blockwise_copy,
+                                   a_grid_buf,
+                                   a_block_buf,
+                                   a_block_slice_copy_step,
+                                   b_grid_desc_k0_n_k1,
+                                   b_block_desc_k0_n_k1,
+                                   b_blockwise_copy,
+                                   b_grid_buf,
+                                   b_block_buf,
+                                   b_block_slice_copy_step,
+                                   blockwise_gemm,
+                                   c_thread_buf,
+                                   K0BlockMainLoop);
 
         // shuffle C and write out
         {

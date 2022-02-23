@@ -307,6 +307,10 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
 {
     // sanity check
     {
+        static_assert(NewTransforms::Size() == NewLowerDimensionOldVisibleIdss::Size() &&
+                          NewTransforms::Size() == NewUpperDimensionNewVisibleIdss::Size(),
+                      "wrong! inconsitent number of transform");
+
         constexpr auto all_old_top_ids = unpack([](auto... xs) { return merge_sequences(xs...); },
                                                 NewLowerDimensionOldVisibleIdss{});
 
