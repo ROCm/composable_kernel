@@ -263,7 +263,8 @@ struct DeviceGemmXdl
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ =
+                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -276,7 +277,7 @@ struct DeviceGemmXdl
         CGridDesc_M_N c_grid_desc_m_n_;
         typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -311,7 +312,7 @@ struct DeviceGemmXdl
                                             arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
@@ -334,7 +335,7 @@ struct DeviceGemmXdl
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(kernel,
@@ -365,7 +366,7 @@ struct DeviceGemmXdl
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(kernel,

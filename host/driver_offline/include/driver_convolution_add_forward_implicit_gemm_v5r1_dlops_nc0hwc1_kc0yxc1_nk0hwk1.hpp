@@ -84,16 +84,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         const auto ConvDilationH = conv_dilations[I0];
         const auto ConvDilationW = conv_dilations[I1];
 
-#if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
-        const auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
-        const auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
-
-        const auto OutRightPadH = Hop - Ho;
-        const auto OutRightPadW = Wop - Wo;
-
-        const auto OutRightPadHx = Number<OutRightPadH * 2>{};
-        const auto OutRightPadWx = Number<OutRightPadW * 2>{};
-#else
         const auto Hop = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
         const auto Wop = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
 
@@ -102,7 +92,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         const auto OutRightPadHx = OutRightPadH * 2;
         const auto OutRightPadWx = OutRightPadW * 2;
-#endif
 
         const auto InLeftPadH = in_left_pads[I0];
         const auto InLeftPadW = in_left_pads[I1];
@@ -367,16 +356,14 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         std::cerr << "has_main_e0_block_loop = " << has_main_e0_block_loop << std::endl;
 
-        const auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
+        const auto cblockid_to_k_n_h_w_block_cluster_adaptor =
             GridwiseGemm::MakeCBlockIdToKNHoWoBlockClusterAdaptor(c_k_n_hop_wop_grid_desc);
 
         using CBlockIdToBlockClusterAdaptor_K_N_H_W =
-            decltype(c_blockid_to_k_n_h_w_block_cluster_adaptor);
+            decltype(cblockid_to_k_n_h_w_block_cluster_adaptor);
 
         float ave_time = 0;
 
-#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
-
         if(has_main_e0_block_loop)
         {
             const auto kernel = kernel_gemm_dlops_v3_resize_add<
@@ -404,7 +391,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                               c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                                               d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-                                              c_blockid_to_k_n_h_w_block_cluster_adaptor);
+                                              cblockid_to_k_n_h_w_block_cluster_adaptor);
         }
         else
         {
@@ -433,132 +420,9 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
                                               c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                                               d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc,
-                                              c_blockid_to_k_n_h_w_block_cluster_adaptor);
+                                              cblockid_to_k_n_h_w_block_cluster_adaptor);
         }
 
-#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
-        DeviceMem a_e0_e1_k0_k1_e2_grid_desc_dev_buf(sizeof(AGridDesc_E0_E1_K0_K1_E2));
-        DeviceMem b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc_dev_buf(
-            sizeof(BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2));
-        DeviceMem c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf(
-            sizeof(CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2));
-        DeviceMem d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf(
-            sizeof(DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2));
-        DeviceMem c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf(
-            sizeof(CBlockIdToBlockClusterAdaptor_K_N_H_W));
-
-        a_e0_e1_k0_k1_e2_grid_desc_dev_buf.ToDevice(&a_e0_e1_k0_k1_e2_grid_desc);
-        b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc_dev_buf.ToDevice(
-            &b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc);
-        c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf.ToDevice(
-            &c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-        d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf.ToDevice(
-            &d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc);
-        c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.ToDevice(
-            &c_blockid_to_k_n_h_w_block_cluster_adaptor);
-
-        if(has_main_e0_block_loop)
-        {
-
-            const auto kernel = kernel_gemm_dlops_v3_resize_add<
-                GridwiseGemm,
-                FloatAB,
-                FloatC,
-                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
-                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                true,
-                activ_type>;
-
-            ave_time = launch_and_time_kernel(
-                kernel,
-                nrepeat,
-                dim3(grid_size),
-                dim3(BlockSize),
-                0,
-                p_a_grid,
-                p_b_grid,
-                p_bias_grid,
-                p_d_grid,
-                cast_pointer_to_constant_address_space(
-                    a_e0_e1_k0_k1_e2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
-        }
-        else
-        {
-            const auto kernel = kernel_gemm_dlops_v3_resize_add<
-                GridwiseGemm,
-                FloatAB,
-                FloatC,
-                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
-                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                false,
-                activ_type>;
-
-            ave_time = launch_and_time_kernel(
-                kernel,
-                nrepeat,
-                dim3(grid_size),
-                dim3(BlockSize),
-                0,
-                p_a_grid,
-                p_b_grid,
-                p_bias_grid,
-                p_d_grid,
-                cast_pointer_to_constant_address_space(
-                    a_e0_e1_k0_k1_e2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc_dev_buf.GetDeviceBuffer()),
-                cast_pointer_to_constant_address_space(
-                    c_blockid_to_k_n_h_w_block_cluster_adaptor_dev_buf.GetDeviceBuffer()));
-        }
-#elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
-        {
-            static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
-            static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
-            static_assert(d_k0_k1_n_h0_h1_h2x2_w0_w1_w2x2_grid_desc.IsKnownAtCompileTime(), "");
-            static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
-            static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
-
-            const auto kernel = kernel_gemm_dlops_v3_resize_add<
-                GridwiseGemm,
-                FloatAB,
-                FloatC,
-                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<DGridDesc_K0_K1_N_H0_H1_H2x2_W0_W1_W2x2>,
-                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                has_main_e0_block_loop,
-                activ_type>;
-
-            ave_time = launch_and_time_kernel(kernel,
-                                              nrepeat,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              p_a_grid,
-                                              p_b_grid,
-                                              p_bias_grid,
-                                              p_d_grid);
-        }
-#endif
         return ave_time;
     }
 };

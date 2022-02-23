@@ -12,7 +12,6 @@
 
 namespace ck {
 
-#if CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
@@ -54,63 +53,6 @@ __global__ void
                                                    c_element_op,
                                                    block_2_ctile_map);
 }
-#elif CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AGridDesc_K0_M_K1,
-          typename BGridDesc_K0_N_K1,
-          typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename Block2CTileMap>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_gemm_xdlops_v2r3(const FloatAB* __restrict__ p_a_grid,
-                                const FloatAB* __restrict__ p_b_grid,
-                                FloatC* __restrict__ p_c_grid,
-                                const void CONSTANT* p_a_grid_desc_k0_m_k1,
-                                const void CONSTANT* p_b_grid_desc_k0_n_k1,
-                                const void CONSTANT* p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                const void CONSTANT* p_a_element_op,
-                                const void CONSTANT* p_b_element_op,
-                                const void CONSTANT* p_c_element_op,
-                                const void CONSTANT* p_block_2_ctile_map)
-{
-    const auto a_grid_desc_k0_m_k1 = *reinterpret_cast<const AGridDesc_K0_M_K1*>(
-        cast_pointer_to_generic_address_space(p_a_grid_desc_k0_m_k1));
-    const auto b_grid_desc_k0_n_k1 = *reinterpret_cast<const BGridDesc_K0_N_K1*>(
-        cast_pointer_to_generic_address_space(p_b_grid_desc_k0_n_k1));
-    const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-        *reinterpret_cast<const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2*>(
-            cast_pointer_to_generic_address_space(p_c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2));
-    const auto block_2_ctile_map = *reinterpret_cast<const Block2CTileMap*>(
-        cast_pointer_to_generic_address_space(p_block_2_ctile_map));
-    const auto a_element_op = *reinterpret_cast<const AElementwiseOperation*>(
-        cast_pointer_to_generic_address_space(p_a_element_op));
-    const auto b_element_op = *reinterpret_cast<const BElementwiseOperation*>(
-        cast_pointer_to_generic_address_space(p_b_element_op));
-    const auto c_element_op = *reinterpret_cast<const CElementwiseOperation*>(
-        cast_pointer_to_generic_address_space(p_c_element_op));
-
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
-                                                   p_b_grid,
-                                                   p_c_grid,
-                                                   p_shared,
-                                                   a_grid_desc_k0_m_k1,
-                                                   b_grid_desc_k0_n_k1,
-                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                   a_element_op,
-                                                   b_element_op,
-                                                   c_element_op,
-                                                   block_2_ctile_map);
-}
-#endif
 
 template <index_t BlockSize,
           typename FloatAB,
@@ -357,7 +299,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
+    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
     {
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);
@@ -378,24 +320,24 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
 
-        const auto c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor =
+        const auto cblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
                 make_tuple(make_merge_transform(make_tuple(M00, N00, M01, N01))),
                 make_tuple(Sequence<0, 1, 2, 3>{}),
                 make_tuple(Sequence<0>{}));
 
-        const auto c_blockid_to_m0_n0_block_cluster_adaptor =
+        const auto cblockid_to_m0_n0_block_cluster_adaptor =
             chain_tensor_adaptors(m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  c_blockid_to_m00_m01_n00_n01_block_cluster_adaptor);
+                                  cblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
 
-        return c_blockid_to_m0_n0_block_cluster_adaptor;
+        return cblockid_to_m0_n0_block_cluster_adaptor;
     }
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using Block2CTileMap = decltype(MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+    using DefaultBlock2CTileMap = decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
 
-    template <bool HasMainK0BlockLoop>
+    template <bool HasMainK0BlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
