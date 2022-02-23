@@ -15,9 +15,9 @@
 #include "device_conv2d_bwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_bwd.hpp"
 
-using InDataType  = float;
-using WeiDataType = float;
-using OutDataType = float;
+using InDataType  = ck::half_t;
+using WeiDataType = ck::half_t;
+using OutDataType = ck::half_t;
 using AccDataType = float;
 
 template <ck::index_t... Is>
@@ -39,28 +39,28 @@ using DeviceConvBwdInstance = ck::tensor_operation::device::
         WeiElementOp,   // WeiElementwiseOperation
         OutElementOp,   // OutElementwiseOperation
         ConvBwdDefault, // ConvolutionBackwardSpecialization_t
-        128,            // BlockSize
+        256,            // BlockSize
         128,            // MPerBlock
-        64,             // NPerBlock
+        128,             // NPerBlock
         4,              // K0PerBlock
-        4,              // K1
+        8,              // K1
         32,             // MPerXdl
         32,             // NPerXdl
         2,              // MXdlPerWave
         2,              // NXdlPerWave
-        S<4, 32, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
         2,              // ABlockTransferSrcVectorDim
-        4,              // ABlockTransferSrcScalarPerVector
-        4,              // ABlockTransferDstScalarPerVector_K1
+        8,              // ABlockTransferSrcScalarPerVector
+        8,              // ABlockTransferDstScalarPerVector_K1
         true,           // ABlockLdsAddExtraM
-        S<4, 32, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<0, 2, 1>,     // BBlockTransferThreadClusterArrangeOrder
+        S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<2, 0, 1>,     // BBlockTransferThreadClusterArrangeOrder
         S<0, 2, 1>,     // BBlockTransferSrcAccessOrder
         1,              // BBlockTransferSrcVectorDim
         2,              // BBlockTransferSrcScalarPerVector
-        4,              // BBlockTransferDstScalarPerVector_K1
+        8,              // BBlockTransferDstScalarPerVector_K1
         true,           // BBlockLdsAddExtraN
         7,
         1>; // GemmCThreadTransferDstScalarPerVector
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
     // Conv shape
     ck::index_t N               = 128;
     ck::index_t K               = 256;
-    ck::index_t C               = 192;
+    ck::index_t C               = 256;
     ck::index_t Y               = 3;
     ck::index_t X               = 3;
     ck::index_t Hi              = 71;
