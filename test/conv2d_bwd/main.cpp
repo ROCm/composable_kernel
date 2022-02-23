@@ -7,7 +7,7 @@
 #include "device_tensor.hpp"
 #include "device_conv_bwd_data.hpp"
 #include "element_wise_operation.hpp"
-#include "reference_conv_bwd.hpp"
+#include "reference_conv_bwd_data.hpp"
 
 using F16  = ck::half_t;
 using F32  = float;
@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
 
-        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwd<InDataType,
+        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                       WeiDataType,
                                                                                       OutDataType,
                                                                                       InElementOp,

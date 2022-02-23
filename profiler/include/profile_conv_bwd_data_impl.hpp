@@ -7,7 +7,7 @@
 #include "device_tensor.hpp"
 #include "device_conv_bwd_data.hpp"
 #include "element_wise_operation.hpp"
-#include "reference_conv_bwd.hpp"
+#include "reference_conv_bwd_data.hpp"
 
 using F16  = ck::half_t;
 using F32  = float;
@@ -125,7 +125,7 @@ void profile_conv_bwd_impl(int do_verification,
 
     if(do_verification)
     {
-        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwd<InDataType,
+        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                       WeiDataType,
                                                                                       OutDataType,
                                                                                       InElementOp,

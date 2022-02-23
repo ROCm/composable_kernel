@@ -13,7 +13,7 @@
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
 #include "device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk.hpp"
-#include "reference_conv_bwd.hpp"
+#include "reference_conv_bwd_data.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -66,7 +66,7 @@ using DeviceConvBwdInstance = ck::tensor_operation::device::
         1>; // GemmCThreadTransferDstScalarPerVector
 
 using ReferenceConvBwdInstance = ck::tensor_operation::host::
-    ReferenceConvBwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
+    ReferenceConvBwdData<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
 
 int main(int argc, char* argv[])
 {
