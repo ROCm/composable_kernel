@@ -59,14 +59,11 @@
 #define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
 #endif
 
-// AMD buffer addressing
-#ifndef CK_USE_AMD_BUFFER_ADDRESSING
-#define CK_USE_AMD_BUFFER_ADDRESSING 1
-#endif
-
+// AMD buffer_load
 #ifndef CK_USE_AMD_BUFFER_LOAD
 #define CK_USE_AMD_BUFFER_LOAD 1
 #endif
+
 // AMD buffer_store
 #ifndef CK_USE_AMD_BUFFER_STORE
 #define CK_USE_AMD_BUFFER_STORE 1
