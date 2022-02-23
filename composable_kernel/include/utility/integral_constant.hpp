@@ -14,38 +14,33 @@ struct integral_constant
 };
 
 template <typename TX, TX X, typename TY, TY Y>
-__host__ __device__ constexpr auto operator+(integral_constant<TX, X>,
-                                             integral_constant<TY, Y>)
+__host__ __device__ constexpr auto operator+(integral_constant<TX, X>, integral_constant<TY, Y>)
 {
     return integral_constant<decltype(X + Y), X + Y>{};
 }
 
 template <typename TX, TX X, typename TY, TY Y>
-__host__ __device__ constexpr auto operator-(integral_constant<TX, X>,
-                                             integral_constant<TY, Y>)
+__host__ __device__ constexpr auto operator-(integral_constant<TX, X>, integral_constant<TY, Y>)
 {
     static_assert(Y <= X, "wrong!");
     return integral_constant<decltype(X - Y), X - Y>{};
 }
 
 template <typename TX, TX X, typename TY, TY Y>
-__host__ __device__ constexpr auto operator*(integral_constant<TX, X>,
-                                             integral_constant<TY, Y>)
+__host__ __device__ constexpr auto operator*(integral_constant<TX, X>, integral_constant<TY, Y>)
 {
     return integral_constant<decltype(X * Y), X * Y>{};
 }
 
 template <typename TX, TX X, typename TY, TY Y>
-__host__ __device__ constexpr auto operator/(integral_constant<TX, X>,
-                                             integral_constant<TY, Y>)
+__host__ __device__ constexpr auto operator/(integral_constant<TX, X>, integral_constant<TY, Y>)
 {
     static_assert(Y > 0, "wrong!");
     return integral_constant<decltype(X / Y), X / Y>{};
 }
 
 template <typename TX, TX X, typename TY, TY Y>
-__host__ __device__ constexpr auto operator%(integral_constant<TX, X>,
-                                             integral_constant<TY, Y>)
+__host__ __device__ constexpr auto operator%(integral_constant<TX, X>, integral_constant<TY, Y>)
 {
     static_assert(Y > 0, "wrong!");
     return integral_constant<decltype(X % Y), X % Y>{};

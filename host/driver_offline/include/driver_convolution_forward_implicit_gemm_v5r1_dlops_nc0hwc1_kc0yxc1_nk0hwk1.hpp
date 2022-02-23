@@ -325,7 +325,6 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
 
         float ave_time = 0;
 
-
         if(has_main_e0_block_loop)
         {
             const auto kernel =
