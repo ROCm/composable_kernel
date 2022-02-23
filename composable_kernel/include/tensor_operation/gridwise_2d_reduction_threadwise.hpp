@@ -29,7 +29,7 @@
 #include "data_type.hpp"
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
-#include "reduction_functions_binop.hpp"
+#include "reduction_functions_accumulate.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
@@ -45,8 +45,8 @@ template <typename GridwiseReduction,
           typename AccElementwiseOperation>
 __global__ void kernel_reduce_threadwise(const In2dDescType in2dDesc,
                                          const Out1dDescType out1dDesc,
-                                         const InElementwiseOperation inElementwiseOp,
-                                         const AccElementwiseOperation accElementwiseOp,
+                                         const InElementwiseOperation in_elementwise_op,
+                                         const AccElementwiseOperation acc_elementwise_op,
                                          AccDataType alpha,
                                          const InDataType* const __restrict__ p_src_global,
                                          OutDataType beta,
@@ -57,8 +57,8 @@ __global__ void kernel_reduce_threadwise(const In2dDescType in2dDesc,
     {
         GridwiseReduction::Run(in2dDesc,
                                out1dDesc,
-                               inElementwiseOp,
-                               accElementwiseOp,
+                               in_elementwise_op,
+                               acc_elementwise_op,
                                alpha,
                                p_src_global,
                                beta,
@@ -69,8 +69,8 @@ __global__ void kernel_reduce_threadwise(const In2dDescType in2dDesc,
     {
         GridwiseReduction::RunWithIndices(in2dDesc,
                                           out1dDesc,
-                                          inElementwiseOp,
-                                          accElementwiseOp,
+                                          in_elementwise_op,
+                                          acc_elementwise_op,
                                           alpha,
                                           p_src_global,
                                           beta,
@@ -100,17 +100,17 @@ template <typename InDataType,
 struct GridwiseReduction_xy_to_x_threadwise
 {
     template <typename T>
-    using PassThroughOp = tensor_operation::element_wise::unary_identic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
 
     static constexpr auto I0 = Number<0>{};
 
-    using BinaryOperation =
-        detail::binop_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
+    using Accumulation =
+        detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
 
     __device__ static void Run(const In2dDescType& in2dDesc,
                                const Out1dDescType& out1dDesc,
-                               const InElementwiseOperation& inElementwiseOp,
-                               const AccElementwiseOperation& accElementwiseOp,
+                               const InElementwiseOperation& in_elementwise_op,
+                               const AccElementwiseOperation& acc_elementwise_op,
                                AccDataType alpha,
                                const InDataType* const __restrict__ p_src_global,
                                OutDataType beta,
@@ -168,13 +168,13 @@ struct GridwiseReduction_xy_to_x_threadwise
                 // do element-wise pre-reduction operation
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    inElementwiseOp(in_thread_buf(offset), in_thread_buf(offset));
+                    in_elementwise_op(in_thread_buf(offset), in_thread_buf(offset));
                 });
 
                 // reduce on each thread-local slice
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    BinaryOperation::calculate(accuValue_buf(I), in_thread_buf[offset]);
+                    Accumulation::calculate(accuValue_buf(I), in_thread_buf[offset]);
                 });
             });
 
@@ -184,7 +184,7 @@ struct GridwiseReduction_xy_to_x_threadwise
         } while(reducedLength < toReduceLength);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            accElementwiseOp(accuValue_buf(I), accuValue_buf(I));
+            acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
 
             accuValue_buf(I) *= alpha;
         });
@@ -244,15 +244,15 @@ struct GridwiseReduction_xy_to_x_threadwise
 
     __device__ static void RunWithIndices(const In2dDescType& in2dDesc,
                                           const Out1dDescType& out1dDesc,
-                                          const InElementwiseOperation& inElementwiseOp,
-                                          const AccElementwiseOperation& accElementwiseOp,
+                                          const InElementwiseOperation& in_elementwise_op,
+                                          const AccElementwiseOperation& acc_elementwise_op,
                                           AccDataType alpha,
                                           const InDataType* const __restrict__ p_src_global,
                                           OutDataType beta,
                                           OutDataType* const __restrict__ p_dst_global,
                                           int* const __restrict__ indices_global)
     {
-        (void)accElementwiseOp;
+        (void)acc_elementwise_op;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
 
@@ -311,13 +311,13 @@ struct GridwiseReduction_xy_to_x_threadwise
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
 
-                    inElementwiseOp(in_thread_buf(offset), in_thread_buf(offset));
+                    in_elementwise_op(in_thread_buf(offset), in_thread_buf(offset));
                 });
 
                 // reduce on each thread-local slice
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    BinaryOperation::calculate(
+                    Accumulation::calculate(
                         accuValue_buf(I), in_thread_buf[offset], accuIndex_buf(I), indexStart + J);
                 });
             });
@@ -328,9 +328,9 @@ struct GridwiseReduction_xy_to_x_threadwise
             reducedLength += KThreadSliceSize;
         } while(reducedLength < toReduceLength);
 
-        // for indiced operation, accElementwiseOp shoud do nothing
+        // for indiced operation, acc_elementwise_op shoud do nothing
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            accElementwiseOp(accuValue_buf(I), accuValue_buf(I));
+            acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
 
             accuValue_buf(I) *= alpha;
         });

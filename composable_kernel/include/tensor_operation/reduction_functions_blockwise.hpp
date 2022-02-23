@@ -30,7 +30,7 @@
 
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
-#include "reduction_functions_binop.hpp"
+#include "reduction_functions_accumulate.hpp"
 
 namespace ck {
 
@@ -55,7 +55,7 @@ struct PartitionedBlockwiseReduction_1d_block_buffer
     static_assert(buffer1dDesc.GetElementSize() == BlockSize,
                   "The buffer size should be the same as BlockSize!");
 
-    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
+    using Accumulation = detail::accumulate_with_nan_check<propagate_nan, opReduce, compType>;
 
     template <typename BufferType>
     __device__ static void Reduce(BufferType& block_buffer,
@@ -91,7 +91,7 @@ struct PartitionedBlockwiseReduction_1d_block_buffer
 
                 compType opData1 = type_convert<compType>(block_buffer[offset1]);
                 compType opData2 = type_convert<compType>(block_buffer[offset2]);
-                binop::calculate(opData1, opData2);
+                Accumulation::calculate(opData1, opData2);
                 block_buffer(offset1) = type_convert<compType>(opData1);
             }
 
@@ -146,7 +146,7 @@ struct PartitionedBlockwiseReduction_1d_block_buffer
                 int currIndex1   = block_idx_buffer[offset1];
                 int currIndex2   = block_idx_buffer[offset2];
 
-                binop::calculate(opData1, opData2, currIndex1, currIndex2);
+                Accumulation::calculate(opData1, opData2, currIndex1, currIndex2);
                 block_val_buffer(offset1) = type_convert<compType>(opData1);
                 block_idx_buffer(offset1) = currIndex1;
             }

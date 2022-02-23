@@ -30,7 +30,7 @@
 
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
-#include "reduction_functions_binop.hpp"
+#include "reduction_functions_accumulate.hpp"
 
 namespace ck {
 
@@ -47,13 +47,13 @@ struct ThreadReduce
 
     static constexpr index_t ThreadBufferLen = BufferType::Size();
 
-    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
+    using Accumulation = detail::accumulate_with_nan_check<propagate_nan, opReduce, compType>;
 
     // This interface does not accumulate on indices
     __device__ static void Reduce(const BufferType& thread_buffer, compType& accuData)
     {
         static_for<0, ThreadBufferLen, 1>{}(
-            [&](auto I) { binop::calculate(accuData, thread_buffer[I]); });
+            [&](auto I) { Accumulation::calculate(accuData, thread_buffer[I]); });
     };
 
     // This interface accumulates on both data values and indices and
@@ -63,7 +63,7 @@ struct ThreadReduce
     {
         static_for<0, ThreadBufferLen, 1>{}([&](auto I) {
             int currIndex = I + indexStart;
-            binop::calculate(accuData, thread_buffer[I], accuIndex, currIndex);
+            Accumulation::calculate(accuData, thread_buffer[I], accuIndex, currIndex);
         });
     };
 
@@ -106,7 +106,7 @@ struct ThreadReduceWithIndicesInput
 
     static constexpr index_t ThreadBufferLen = BufferType::Size();
 
-    using binop = detail::binop_with_nan_check<propagate_nan, opReduce, compType>;
+    using Accumulation = detail::accumulate_with_nan_check<propagate_nan, opReduce, compType>;
 
     // This interface accumulates on both data values and indices and
     // is called by Direct_ThreadWise reduction method at second-time reduction
@@ -116,7 +116,8 @@ struct ThreadReduceWithIndicesInput
                                   int& accuIndex)
     {
         static_for<0, ThreadBufferLen, 1>{}([&](auto I) {
-            binop::calculate(accuData, thread_buffer[I], accuIndex, thread_indices_buffer[I]);
+            Accumulation::calculate(
+                accuData, thread_buffer[I], accuIndex, thread_indices_buffer[I]);
         });
     };
 

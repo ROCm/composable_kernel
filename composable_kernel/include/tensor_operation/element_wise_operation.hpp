@@ -145,26 +145,26 @@ struct AddHardswishAdd
 // elements.
 // They are needed for easy implementation of reduction types of AVG, NRM1, NRM2
 
-template <typename Y, typename X, bool hasDividing = false> 
-struct unary_identic
+template <typename Y, typename X, bool HasDividing = false>
+struct UnaryIdentic
 {
-    __host__ __device__ unary_identic(const int divider = 1) { (void)divider; };
+    __host__ __device__ UnaryIdentic(const index_t divider = 1) { (void)divider; };
 
-    __host__ __device__ inline constexpr void operator()(Y& y, const X& x) const
+    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
         y = type_convert<Y>(x);
     };
 };
 
 template <typename Y, typename X>
-struct unary_identic<Y, X, true>
-{   
-    __host__ __device__ unary_identic(const int divider = 1)
+struct UnaryIdentic<Y, X, true>
+{
+    __host__ __device__ UnaryIdentic(const index_t divider = 1)
     {
         scaler = 1.0f / static_cast<float>(divider);
     };
-    
-    __host__ __device__ inline constexpr void operator()(Y& y, const X& x) const
+
+    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
         y = type_convert<Y>(x) * type_convert<Y>(scaler);
     };
@@ -172,26 +172,26 @@ struct unary_identic<Y, X, true>
     float scaler = 1.0f;
 };
 
-template <typename Y, typename X, bool hasDividing = false>
-struct unary_square
+template <typename Y, typename X, bool HasDividing = false>
+struct UnarySquare
 {
-    __host__ __device__ unary_square(const int divider = 1) { (void)divider; };
+    __host__ __device__ UnarySquare(const index_t divider = 1) { (void)divider; };
 
-    __host__ __device__ inline constexpr void operator()(Y& y, const X& x) const
+    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
         y = type_convert<Y>(x) * type_convert<Y>(x);
     };
 };
 
 template <typename Y, typename X>
-struct unary_square<Y, X, true>
+struct UnarySquare<Y, X, true>
 {
-    __host__ __device__ unary_square(const int divider = 1)
+    __host__ __device__ UnarySquare(const index_t divider = 1)
     {
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __host__ __device__ inline constexpr void operator()(Y& y, const X& x) const
+    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
         y = type_convert<Y>(x) * type_convert<Y>(x) * type_convert<Y>(scaler);
     };
@@ -202,26 +202,26 @@ struct unary_square<Y, X, true>
 static inline __device__ half_t abs(half_t x) { return __habs(x); };
 static inline __device__ half_t sqrtf(half_t x) { return hsqrt(x); };
 
-template <typename Y, typename X, bool hasDividing = false>
-struct unary_abs
+template <typename Y, typename X, bool HasDividing = false>
+struct UnaryAbs
 {
-    __host__ __device__ unary_abs(const int divider = 1) { (void)divider; };
+    __host__ __device__ UnaryAbs(const index_t divider = 1) { (void)divider; };
 
-    __host__ __device__ inline constexpr void operator()(Y& y, const X& x) const
+    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
         y = abs(type_convert<Y>(x));
     };
 };
 
 template <typename Y, typename X>
-struct unary_abs<Y, X, true>
+struct UnaryAbs<Y, X, true>
 {
-    __host__ __device__ unary_abs(const int divider = 1)
+    __host__ __device__ UnaryAbs(const index_t divider = 1)
     {
         scaler = 1.0f / static_cast<float>(divider);
     };
 
-    __host__ __device__ inline constexpr void operator()(Y& y, const X& x) const
+    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
         y = abs(type_convert<Y>(x) * type_convert<Y>(scaler));
     };
@@ -230,14 +230,11 @@ struct unary_abs<Y, X, true>
 };
 
 template <typename Y, typename X>
-struct unary_sqrt
+struct UnarySqrt
 {
-    __host__ __device__ unary_sqrt(const int divider = 1) { (void)divider; };
+    __host__ __device__ UnarySqrt(const index_t divider = 1) { (void)divider; };
 
-    __host__ __device__ inline void operator()(Y& y, const X& x) const
-    {
-        y = sqrtf(type_convert<Y>(x));
-    };
+    __host__ __device__ void operator()(Y& y, const X& x) const { y = sqrtf(type_convert<Y>(x)); };
 };
 
 } // namespace element_wise

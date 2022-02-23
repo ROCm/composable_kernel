@@ -140,8 +140,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
                  OutDataType* out_dev,
                  int* out_indices_dev,
                  AccDataType* workspace_dev,
-                 const InElementwiseOperation& inElementwiseOp,
-                 const OutElementwiseOperation& accElementwiseOp)
+                 const InElementwiseOperation& in_elementwise_op,
+                 const OutElementwiseOperation& acc_elementwise_op)
             : in_dev_{in_dev}, out_dev_{out_dev}, out_indices_dev_{out_indices_dev}
         {
             (void)workspace_dev;
@@ -151,8 +151,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
             outLengths_ = outLengths;
             outStrides_ = outStrides;
 
-            inElementwiseOp_  = inElementwiseOp;
-            accElementwiseOp_ = accElementwiseOp;
+            in_elementwise_op_  = in_elementwise_op;
+            acc_elementwise_op_ = acc_elementwise_op;
 
             alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
@@ -183,8 +183,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
         OutDataType* out_dev_;
         int* out_indices_dev_;
 
-        InElementwiseOperation inElementwiseOp_;
-        OutElementwiseOperation accElementwiseOp_;
+        InElementwiseOperation in_elementwise_op_;
+        OutElementwiseOperation acc_elementwise_op_;
 
         int outer_lowest_length;
         int inner_lowest_length;
@@ -243,8 +243,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
                                               0,
                                               in2dDesc,
                                               out1dDesc,
-                                              arg.inElementwiseOp_,
-                                              arg.accElementwiseOp_,
+                                              arg.in_elementwise_op_,
+                                              arg.acc_elementwise_op_,
                                               arg.alpha_,
                                               arg.in_dev_,
                                               arg.beta_,
@@ -308,8 +308,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
                         void* out_dev,
                         void* out_indices_dev,
                         void* workspace_dev,
-                        const InElementwiseOperation& inElementwiseOp,
-                        const OutElementwiseOperation& accElementwiseOp) override
+                        const InElementwiseOperation& in_elementwise_op,
+                        const OutElementwiseOperation& acc_elementwise_op) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -321,8 +321,8 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
                                           static_cast<OutDataType*>(out_dev),
                                           static_cast<int*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
-                                          inElementwiseOp,
-                                          accElementwiseOp);
+                                          in_elementwise_op,
+                                          acc_elementwise_op);
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

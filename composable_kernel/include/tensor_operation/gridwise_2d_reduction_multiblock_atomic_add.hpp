@@ -28,7 +28,7 @@
 
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
-#include "reduction_functions_binop.hpp"
+#include "reduction_functions_accumulate.hpp"
 #include "reduction_functions_blockwise.hpp"
 
 #include "threadwise_tensor_slice_transfer.hpp"
@@ -46,8 +46,8 @@ template <typename GridwiseReduction,
 __global__ void
 kernel_reduce_multiblock_atocmi_add(const In2dDescType in2dDesc,
                                     const Out1dDescType out1dDesc,
-                                    const InElementwiseOperation inElementwiseOp,
-                                    const AccElementwiseOperation accElementwiseOp,
+                                    const InElementwiseOperation in_elementwise_op,
+                                    const AccElementwiseOperation acc_elementwise_op,
                                     int BlkGroupSize,
                                     int kBlockTileIterations,
                                     AccDataType alpha,
@@ -56,8 +56,8 @@ kernel_reduce_multiblock_atocmi_add(const In2dDescType in2dDesc,
 {
     GridwiseReduction::Run(in2dDesc,
                            out1dDesc,
-                           inElementwiseOp,
-                           accElementwiseOp,
+                           in_elementwise_op,
+                           acc_elementwise_op,
                            BlkGroupSize,
                            kBlockTileIterations,
                            alpha,
@@ -98,20 +98,20 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                                                            PropagateNan>;
 
     template <typename T>
-    using PassThroughOp = tensor_operation::element_wise::unary_identic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
 
     static constexpr auto I0 = Number<0>{};
 
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    using BinaryOperation =
-        detail::binop_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
+    using Accumulation =
+        detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
 
     __device__ static void Run(const In2dDescType& in2dDesc,
                                const Out1dDescType& out1dDesc,
-                               const InElementwiseOperation& inElementwiseOp,
-                               const AccElementwiseOperation& accElementwiseOp,
+                               const InElementwiseOperation& in_elementwise_op,
+                               const AccElementwiseOperation& acc_elementwise_op,
                                int BlkGroupSize,
                                int kBlockTileIterations,
                                AccDataType alpha,
@@ -186,13 +186,13 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                 // do element-wise pre-reduction operation
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    inElementwiseOp(in_thread_buf(offset), in_thread_buf(offset));
+                    in_elementwise_op(in_thread_buf(offset), in_thread_buf(offset));
                 });
 
                 // reduce on each thread-local slice
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    BinaryOperation::calculate(accuValue_buf(I), in_thread_buf[offset]);
+                    Accumulation::calculate(accuValue_buf(I), in_thread_buf[offset]);
                 });
             });
 
@@ -210,8 +210,10 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
         // each block/thread is involved into multiple invarirant dimensions.
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             if constexpr(reorder_thread_cluster)
+            {
                 block_reduce_buf(thread_dim1_cluster_id * MThreadClusterSize +
                                  thread_dim0_cluster_id) = accuValue_buf[I];
+            }
             else
                 block_reduce_buf(thread_dim0_cluster_id * KThreadClusterSize +
                                  thread_dim1_cluster_id) = accuValue_buf[I];
@@ -227,7 +229,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             if(thread_dim1_cluster_id == 0)
             {
-                accElementwiseOp(accuValue_buf(I), accuValue_buf(I));
+                acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
 
                 accuValue_buf(I) *= alpha;
             }
@@ -265,7 +267,7 @@ __global__ void kernel_buffer_set_value(const Global1dBufferDescType global1dBuf
                                         DataType value)
 
 {
-    using PassThroughOp = tensor_operation::element_wise::unary_identic<DataType, DataType>;
+    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<DataType, DataType>;
 
     constexpr auto I0 = Number<0>{};
 
