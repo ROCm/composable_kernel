@@ -5,7 +5,7 @@
 #include "host_tensor_generator.hpp"
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
-#include "device_conv_bwd.hpp"
+#include "device_conv_bwd_data.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_conv_bwd.hpp"
 

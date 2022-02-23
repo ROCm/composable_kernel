@@ -17,7 +17,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct ReferenceConvBwd : public device::BaseOperator
+struct ReferenceConvBwdData : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -62,7 +62,7 @@ struct ReferenceConvBwd : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceConvBwd::Argument;
+        using Argument = ReferenceConvBwdData::Argument;
 
         float Run(const Argument& arg)
         {
@@ -178,7 +178,7 @@ struct ReferenceConvBwd : public device::BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceConvBwd"
+        str << "ReferenceConvBwdData"
             << std::endl;
         // clang-format on
 
