@@ -59,14 +59,19 @@
 #define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
 #endif
 
-// AMD buffer addressing
-#ifndef CK_USE_AMD_BUFFER_ADDRESSING
-#define CK_USE_AMD_BUFFER_ADDRESSING 1
+// AMD buffer_load
+#ifndef CK_USE_AMD_BUFFER_LOAD
+#define CK_USE_AMD_BUFFER_LOAD 1
 #endif
 
-// only gfx908 support native floating point atomic add
-#ifndef CK_USE_AMD_BUFFER_ATOMIC_FADD
-#define CK_USE_AMD_BUFFER_ATOMIC_FADD 0
+// AMD buffer_store
+#ifndef CK_USE_AMD_BUFFER_STORE
+#define CK_USE_AMD_BUFFER_STORE 1
+#endif
+
+// AMD buffer_atomic_add
+#ifndef CK_USE_AMD_BUFFER_ATOMIC_ADD
+#define CK_USE_AMD_BUFFER_ATOMIC_ADD 1
 #endif
 
 // AMD XDLOPS
@@ -97,9 +102,6 @@
 #define CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE 1
 #endif
 
-// pass tensor descriptor by value or void*
-#define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VALUE 1
-#define CK_EXPERIMENTAL_PASS_TENSOR_DESCRIPTOR_BY_VOID_POINTER 0
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
 // merge transformation use magic number division
@@ -166,7 +168,8 @@ enum ActivTypeEnum_t
 };
 
 // index type
-using index_t = int32_t;
+using index_t      = int32_t;
+using long_index_t = int64_t;
 
 } // namespace ck
 #endif

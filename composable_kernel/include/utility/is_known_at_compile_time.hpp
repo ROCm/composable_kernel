@@ -17,6 +17,12 @@ struct is_known_at_compile_time<index_t>
     static constexpr bool value = false;
 };
 
+template <>
+struct is_known_at_compile_time<long_index_t>
+{
+    static constexpr bool value = false;
+};
+
 template <typename T, T X>
 struct is_known_at_compile_time<integral_constant<T, X>>
 {
