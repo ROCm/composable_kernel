@@ -73,7 +73,7 @@ void profile_gemm_impl(int do_verification,
                        int StrideA,
                        int StrideB,
                        int StrideC,
-                       int KBatch = 1)
+                       int KBatch)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -186,7 +186,6 @@ void profile_gemm_impl(int do_verification,
         {
             if(KBatch > 1)
             {
-
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
             }
