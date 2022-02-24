@@ -8,36 +8,6 @@
 
 namespace ck {
 
-// Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
-// and sometimes useless instructions:
-//   1. Don't save a reference to tensor descriptor in class, pass in tensor descriptor as argument
-//   instead
-//   2. Don't construct a new tensor coordinate everytime when using it, update and reuse the same
-//   tensor coordinate instead
-//   3. Don't use a pointer to VGPR buffer, use vector instead
-
-// namespace detail {
-// // TODO: How to fix this? It uses an struct instead of lambda because lambda
-// // doesn't have constructor
-// template <index_t VectorDim, index_t ScalarPerVector>
-// struct lambda_scalar_per_access
-// {
-//     __host__ __device__ constexpr auto operator()(index_t i) const
-//     {
-//         return (i == VectorDim) ? ScalarPerVector : 1;
-//     }
-// };
-//
-// template <index_t VectorDim>
-// struct lambda_scalar_step_in_vector
-// {
-//     __host__ __device__ constexpr auto operator()(index_t i) const
-//     {
-//         return (i == VectorDim) ? 1 : 0;
-//     }
-// };
-// } // namespace detail
-
 // Assume:
 //   1. src:
 //     1. SrcDesc is known at compile-time
@@ -122,7 +92,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
                                                     remove_cv_t<decltype(dst_scalar_per_access)>>;
 
         // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
-        static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector);
+        static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector, "Wrong! ");
         typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
         using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
@@ -130,15 +100,15 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
         static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
 
-            // constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
-            constexpr auto all_indices = SpaceFillingCurve::GetIndices(idx_1d);
+            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+            // constexpr auto all_indices = SpaceFillingCurve::GetIndices(idx_1d);
 
             // copy data from src_buf into dst_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
-                // constexpr index_t src_offset = src_desc.CalculateOffset(
-                //     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
                 constexpr index_t src_offset = src_desc.CalculateOffset(
-                    src_slice_origin_idx + all_indices[i]);
+                    src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+                // constexpr index_t src_offset = src_desc.CalculateOffset(
+                //     src_slice_origin_idx + all_indices[i]);
 
                 SrcData dst_v;
 
