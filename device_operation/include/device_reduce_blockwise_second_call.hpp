@@ -22,14 +22,14 @@ template <typename InDataType,
           typename AccElementwiseOperation,
           bool PropagateNan,
           bool NeedIndices,
-          int BlockSize,
-          int MThreadClusterSize,
-          int KThreadClusterSize,
-          int MThreadSliceSize,
-          int KThreadSliceSize,
-          int InSrcVectorDim,
-          int InSrcVectorSize,
-          int OutDstVectorSize>
+          index_t BlockSize,
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          index_t MThreadSliceSize,
+          index_t KThreadSliceSize,
+          index_t InSrcVectorDim,
+          index_t InSrcVectorSize,
+          index_t OutDstVectorSize>
 struct DeviceReduceBlockWiseSecondCall
     : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
@@ -56,22 +56,23 @@ struct DeviceReduceBlockWiseSecondCall
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<2>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<2>{});
 
-        const auto in2dDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
+        const auto in_grid_desc_m_k =
+            make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
-        const auto outerLen = in2dDesc.GetLength(Number<0>{});
-        const auto innerLen = in2dDesc.GetLength(Number<1>{});
+        const auto outerLen = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto innerLen = in_grid_desc_m_k.GetLength(Number<1>{});
 
         const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
         const auto inPad_K = math::integer_least_multiple(innerLen, K_BlockTileSize) - innerLen;
 
-        auto in2dDesc_M_K =
-            transform_tensor_descriptor(in2dDesc,
+        auto in_grid_desc_m_k_padded =
+            transform_tensor_descriptor(in_grid_desc_m_k,
                                         make_tuple(make_right_pad_transform(outerLen, inPad_M),
                                                    make_right_pad_transform(innerLen, inPad_K)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return (in2dDesc_M_K);
+        return (in_grid_desc_m_k_padded);
     };
 
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
@@ -82,22 +83,22 @@ struct DeviceReduceBlockWiseSecondCall
 
         auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
-        auto out1dDesc = transform_tensor_descriptor(
+        auto out_grid_desc_m = transform_tensor_descriptor(
             outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
             make_tuple(typename arithmetic_sequence_gen<0, dstDims, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
-        const auto outerLen = out1dDesc.GetLength(Number<0>{});
+        const auto outerLen = out_grid_desc_m.GetLength(Number<0>{});
 
         const auto outPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
 
-        auto out1dDesc_M =
-            transform_tensor_descriptor(out1dDesc,
+        auto out_grid_desc_m_padded =
+            transform_tensor_descriptor(out_grid_desc_m,
                                         make_tuple(make_right_pad_transform(outerLen, outPad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
-        return (out1dDesc_M);
+        return (out_grid_desc_m_padded);
     };
 
     struct Argument : public BaseArgument
@@ -110,7 +111,7 @@ struct DeviceReduceBlockWiseSecondCall
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 int* out_indices_dev,
+                 index_t* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -140,7 +141,7 @@ struct DeviceReduceBlockWiseSecondCall
                 outer_total_length * inner_total_length * sizeof(AccDataType), 64);
 
             if constexpr(NeedIndices)
-                workspace_indices_dev_ = reinterpret_cast<int*>(
+                workspace_indices_dev_ = reinterpret_cast<index_t*>(
                     reinterpret_cast<char*>(workspace_dev) + ws_buf2_bytes_offset);
             else
                 workspace_indices_dev_ = nullptr;
@@ -156,8 +157,8 @@ struct DeviceReduceBlockWiseSecondCall
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        int* out_indices_dev_;
-        int* workspace_indices_dev_;
+        index_t* out_indices_dev_;
+        index_t* workspace_indices_dev_;
 
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
@@ -174,18 +175,18 @@ struct DeviceReduceBlockWiseSecondCall
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto in2dDesc = DeviceReduceBlockWiseSecondCall::MakeSrc2dDescriptor(
+            const auto in_grid_desc_m_k = DeviceReduceBlockWiseSecondCall::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_);
-            const auto out1dDesc = DeviceReduceBlockWiseSecondCall::MakeDst1dDescriptor(
+            const auto out_grid_desc_m = DeviceReduceBlockWiseSecondCall::MakeDst1dDescriptor(
                 arg.outLengths_, arg.outStrides_);
-            using In2dDescType  = decltype(in2dDesc);
-            using Out1dDescType = decltype(out1dDesc);
+            using InGridDesc_M_K = decltype(in_grid_desc_m_k);
+            using OutGridDesc_M  = decltype(out_grid_desc_m);
 
-            using GridwiseReduce = GridwiseReduction_xy_to_x_blockwise<InDataType,
+            using GridwiseReduce = GridwiseReduction_mk_to_m_blockwise<InDataType,
                                                                        OutDataType,
                                                                        AccDataType,
-                                                                       In2dDescType,
-                                                                       Out1dDescType,
+                                                                       InGridDesc_M_K,
+                                                                       OutGridDesc_M,
                                                                        ReduceOperation,
                                                                        InElementwiseOperation,
                                                                        AccElementwiseOperation,
@@ -207,8 +208,8 @@ struct DeviceReduceBlockWiseSecondCall
                                                                     InDataType,
                                                                     OutDataType,
                                                                     AccDataType,
-                                                                    In2dDescType,
-                                                                    Out1dDescType,
+                                                                    InGridDesc_M_K,
+                                                                    OutGridDesc_M,
                                                                     InElementwiseOperation,
                                                                     AccElementwiseOperation>;
 
@@ -217,8 +218,8 @@ struct DeviceReduceBlockWiseSecondCall
                                               dim3(arg.gridSize),
                                               dim3(BlockSize),
                                               0,
-                                              in2dDesc,
-                                              out1dDesc,
+                                              in_grid_desc_m_k,
+                                              out_grid_desc_m,
                                               arg.in_elementwise_op_,
                                               arg.acc_elementwise_op_,
                                               arg.alpha_,
@@ -280,7 +281,7 @@ struct DeviceReduceBlockWiseSecondCall
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<int*>(out_indices_dev),
+                                          static_cast<index_t*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);

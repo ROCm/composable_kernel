@@ -1,12 +1,12 @@
-#ifndef DEVICE_REDUCE_MULTIBLOCK_TWO_CALL_HPP
-#define DEVICE_REDUCE_MULTIBLOCK_TWO_CALL_HPP
+#ifndef DEVICE_REDUCE_MULTIBLOCK_PARTIAL_REDUCE_HPP
+#define DEVICE_REDUCE_MULTIBLOCK_PARTIAL_REDUCE_HPP
 
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_common.hpp"
-#include "gridwise_2d_reduction_multiblock_two_call.hpp"
+#include "gridwise_2d_reduction_multiblock_partial_reduce.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -22,22 +22,22 @@ template <typename InDataType,
           typename AccElementwiseOperation,
           bool PropagateNan,
           bool NeedIndices,
-          int BlockSize,
-          int MThreadClusterSize,
-          int KThreadClusterSize,
-          int MThreadSliceSize,
-          int KThreadSliceSize,
-          int InSrcVectorDim,
-          int InSrcVectorSize,
-          int OutDstVectorSize>
-struct DeviceReduceMultiBlockTwoCall
+          index_t BlockSize,
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          index_t MThreadSliceSize,
+          index_t KThreadSliceSize,
+          index_t InSrcVectorDim,
+          index_t InSrcVectorSize,
+          index_t OutDstVectorSize>
+struct DeviceReduceMultiBlockPartialReduce
     : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
-    static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockTwoCall!");
+    static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockPartialReduce!");
 
     using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
 
@@ -93,7 +93,7 @@ struct DeviceReduceMultiBlockTwoCall
 
         const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
-        const auto in2dDesc = [&]() {
+        const auto in_grid_desc_m_k = [&]() {
             if constexpr(reduceAllDims)
             {
                 const auto one_dim_inDesc = transform_tensor_descriptor(
@@ -124,50 +124,50 @@ struct DeviceReduceMultiBlockTwoCall
             }
         }();
 
-        const auto outerLen = in2dDesc.GetLength(Number<0>{});
-        const auto innerLen = in2dDesc.GetLength(Number<1>{});
+        const auto outerLen = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto innerLen = in_grid_desc_m_k.GetLength(Number<1>{});
 
         const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
         const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
         const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
 
-        auto in2dDesc_M_K =
-            transform_tensor_descriptor(in2dDesc,
+        auto in_grid_desc_m_k_padded =
+            transform_tensor_descriptor(in_grid_desc_m_k,
                                         make_tuple(make_right_pad_transform(outerLen, inPad_M),
                                                    make_right_pad_transform(innerLen, inPad_K)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return (in2dDesc_M_K);
+        return (in_grid_desc_m_k_padded);
     };
 
     static auto MakeWorkspace2dDescriptor(int outerLen, int blkGroupSize)
     {
-        auto ws2dDesc = make_naive_tensor_descriptor_packed(make_tuple(outerLen, blkGroupSize));
+        auto ws_desc_m_k = make_naive_tensor_descriptor_packed(make_tuple(outerLen, blkGroupSize));
 
         const auto wsPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
 
-        auto ws2dDesc_M_K =
-            transform_tensor_descriptor(ws2dDesc,
+        auto ws_desc_m_k_padded =
+            transform_tensor_descriptor(ws_desc_m_k,
                                         make_tuple(make_right_pad_transform(outerLen, wsPad),
                                                    make_pass_through_transform(blkGroupSize)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return (ws2dDesc_M_K);
+        return (ws_desc_m_k_padded);
     };
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int>& inLengths,
-                 const std::vector<int>& inStrides,
-                 const std::vector<int>& outLengths,
-                 const std::vector<int>& outStrides,
+        Argument(const std::vector<index_t>& inLengths,
+                 const std::vector<index_t>& inStrides,
+                 const std::vector<index_t>& outLengths,
+                 const std::vector<index_t>& outStrides,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 int* out_indices_dev,
+                 index_t* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -238,9 +238,9 @@ struct DeviceReduceMultiBlockTwoCall
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        int* out_indices_dev_;
+        index_t* out_indices_dev_;
         AccDataType* workspace_dev_;
-        int* workspace_indices_dev_;
+        index_t* workspace_indices_dev_;
 
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
@@ -250,8 +250,8 @@ struct DeviceReduceMultiBlockTwoCall
         size_t outer_total_length;
         size_t inner_total_length;
 
-        int blkGroupSize;
-        int kBlockTileIterations;
+        index_t blkGroupSize;
+        index_t kBlockTileIterations;
         size_t gridSize;
     };
 
@@ -259,50 +259,50 @@ struct DeviceReduceMultiBlockTwoCall
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto in2dDesc = DeviceReduceMultiBlockTwoCall::MakeSrc2dDescriptor(
+            const auto in_grid_desc_m_k = DeviceReduceMultiBlockPartialReduce::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
-            const auto ws2dDesc = DeviceReduceMultiBlockTwoCall::MakeWorkspace2dDescriptor(
+            const auto ws_desc_m_k = DeviceReduceMultiBlockPartialReduce::MakeWorkspace2dDescriptor(
                 arg.outer_total_length, arg.blkGroupSize);
-            using In2dDescType        = decltype(in2dDesc);
-            using Workspace2dDescType = decltype(ws2dDesc);
+            using InGridDesc_M_K    = decltype(in_grid_desc_m_k);
+            using WorkspaceDesc_M_K = decltype(ws_desc_m_k);
 
             using GridwiseReduce =
-                GridwiseReduction_xy_to_x_multiblock_two_call<InDataType,
-                                                              OutDataType,
-                                                              AccDataType,
-                                                              In2dDescType,
-                                                              Workspace2dDescType,
-                                                              ReduceOperation,
-                                                              InElementwiseOperation,
-                                                              AccElementwiseOperation,
-                                                              PropagateNan,
-                                                              BlockSize,
-                                                              MThreadClusterSize,
-                                                              KThreadClusterSize,
-                                                              MThreadSliceSize,
-                                                              KThreadSliceSize,
-                                                              InSrcVectorDim,
-                                                              InSrcVectorSize,
-                                                              OutDstVectorSize>;
+                GridwiseReduction_mk_to_mk_multiblock_partial_reduce<InDataType,
+                                                                     OutDataType,
+                                                                     AccDataType,
+                                                                     InGridDesc_M_K,
+                                                                     WorkspaceDesc_M_K,
+                                                                     ReduceOperation,
+                                                                     InElementwiseOperation,
+                                                                     AccElementwiseOperation,
+                                                                     PropagateNan,
+                                                                     BlockSize,
+                                                                     MThreadClusterSize,
+                                                                     KThreadClusterSize,
+                                                                     MThreadSliceSize,
+                                                                     KThreadSliceSize,
+                                                                     InSrcVectorDim,
+                                                                     InSrcVectorSize,
+                                                                     OutDstVectorSize>;
 
             float avg_time = 0;
 
-            const auto kernel = kernel_reduce_multiblock_two_call<GridwiseReduce,
-                                                                  NeedIndices,
-                                                                  InDataType,
-                                                                  AccDataType,
-                                                                  In2dDescType,
-                                                                  Workspace2dDescType,
-                                                                  InElementwiseOperation,
-                                                                  AccElementwiseOperation>;
+            const auto kernel = kernel_partial_reduce_multiblock<GridwiseReduce,
+                                                                 NeedIndices,
+                                                                 InDataType,
+                                                                 AccDataType,
+                                                                 InGridDesc_M_K,
+                                                                 WorkspaceDesc_M_K,
+                                                                 InElementwiseOperation,
+                                                                 AccElementwiseOperation>;
 
             avg_time = launch_and_time_kernel(kernel,
                                               nrepeat,
                                               dim3(arg.gridSize),
                                               dim3(BlockSize),
                                               0,
-                                              in2dDesc,
-                                              ws2dDesc,
+                                              in_grid_desc_m_k,
+                                              ws_desc_m_k,
                                               arg.in_elementwise_op_,
                                               arg.acc_elementwise_op_,
                                               arg.blkGroupSize,
@@ -399,7 +399,7 @@ struct DeviceReduceMultiBlockTwoCall
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceMultiBlockTwoCall<" << BlockSize << ",";
+        str << "DeviceReduceMultiBlockPartialReduce<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";

@@ -23,14 +23,14 @@ template <typename InDataType,
           typename AccElementwiseOperation,
           bool PropagateNan,
           bool NeedIndices,
-          int BlockSize,
-          int MThreadClusterSize,
-          int KThreadClusterSize,
-          int MThreadSliceSize,
-          int KThreadSliceSize,
-          int InSrcVectorDim,
-          int InSrcVectorSize,
-          int OutDstVectorSize>
+          index_t BlockSize,
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          index_t MThreadSliceSize,
+          index_t KThreadSliceSize,
+          index_t InSrcVectorDim,
+          index_t InSrcVectorSize,
+          index_t OutDstVectorSize>
 struct DeviceReduceMultiBlockAtomicAdd
     : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
@@ -64,7 +64,7 @@ struct DeviceReduceMultiBlockAtomicAdd
 
         const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
-        const auto in2dDesc = [&]() {
+        const auto in_grid_desc_m_k = [&]() {
             if constexpr(reduceAllDims)
             {
                 const auto one_dim_inDesc = transform_tensor_descriptor(
@@ -95,21 +95,21 @@ struct DeviceReduceMultiBlockAtomicAdd
             }
         }();
 
-        const auto outerLen = in2dDesc.GetLength(Number<0>{});
-        const auto innerLen = in2dDesc.GetLength(Number<1>{});
+        const auto outerLen = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto innerLen = in_grid_desc_m_k.GetLength(Number<1>{});
 
         const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
         const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
         const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
 
-        auto in2dDesc_M_K =
-            transform_tensor_descriptor(in2dDesc,
+        auto in_grid_desc_m_k_padded =
+            transform_tensor_descriptor(in_grid_desc_m_k,
                                         make_tuple(make_right_pad_transform(outerLen, inPad_M),
                                                    make_right_pad_transform(innerLen, inPad_K)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return (in2dDesc_M_K);
+        return (in_grid_desc_m_k_padded);
     };
 
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
@@ -120,22 +120,22 @@ struct DeviceReduceMultiBlockAtomicAdd
 
         auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
-        auto out1dDesc = transform_tensor_descriptor(
+        auto out_grid_desc_m = transform_tensor_descriptor(
             outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
             make_tuple(typename arithmetic_sequence_gen<0, dstDims, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
-        const auto outerLen = out1dDesc.GetLength(Number<0>{});
+        const auto outerLen = out_grid_desc_m.GetLength(Number<0>{});
 
         const auto outPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
 
-        auto out1dDesc_M =
-            transform_tensor_descriptor(out1dDesc,
+        auto out_grid_desc_m_padded =
+            transform_tensor_descriptor(out_grid_desc_m,
                                         make_tuple(make_right_pad_transform(outerLen, outPad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
-        return (out1dDesc_M);
+        return (out_grid_desc_m_padded);
     };
 
     struct Argument : public BaseArgument
@@ -148,7 +148,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 int* out_indices_dev,
+                 index_t* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -221,8 +221,8 @@ struct DeviceReduceMultiBlockAtomicAdd
         size_t outer_total_length;
         size_t inner_total_length;
 
-        int blkGroupSize;
-        int kBlockTileIterations;
+        index_t blkGroupSize;
+        index_t kBlockTileIterations;
         size_t gridSize;
 
         size_t gridSize_pre;
@@ -232,19 +232,19 @@ struct DeviceReduceMultiBlockAtomicAdd
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto in2dDesc = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
+            const auto in_grid_desc_m_k = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
-            const auto out1dDesc = DeviceReduceMultiBlockAtomicAdd::MakeDst1dDescriptor(
+            const auto out_grid_desc_m = DeviceReduceMultiBlockAtomicAdd::MakeDst1dDescriptor(
                 arg.outLengths_, arg.outStrides_);
-            using In2dDescType  = decltype(in2dDesc);
-            using Out1dDescType = decltype(out1dDesc);
+            using InGridDesc_M_K = decltype(in_grid_desc_m_k);
+            using OutGridDesc_M  = decltype(out_grid_desc_m);
 
             using GridwiseReduce =
-                GridwiseReduction_xy_to_x_multiblock_atomic_add<InDataType,
+                GridwiseReduction_mk_to_m_multiblock_atomic_add<InDataType,
                                                                 OutDataType,
                                                                 AccDataType,
-                                                                In2dDescType,
-                                                                Out1dDescType,
+                                                                InGridDesc_M_K,
+                                                                OutGridDesc_M,
                                                                 ReduceOperation,
                                                                 InElementwiseOperation,
                                                                 AccElementwiseOperation,
@@ -262,13 +262,13 @@ struct DeviceReduceMultiBlockAtomicAdd
 
             KernelTimer timer;
 
-            const auto kernel_pre  = kernel_buffer_set_value<BlockSize, OutDataType, Out1dDescType>;
+            const auto kernel_pre  = kernel_buffer_set_value<BlockSize, OutDataType, OutGridDesc_M>;
             const auto kernel_main = kernel_reduce_multiblock_atocmi_add<GridwiseReduce,
                                                                          InDataType,
                                                                          OutDataType,
                                                                          AccDataType,
-                                                                         In2dDescType,
-                                                                         Out1dDescType,
+                                                                         InGridDesc_M_K,
+                                                                         OutGridDesc_M,
                                                                          InElementwiseOperation,
                                                                          AccElementwiseOperation>;
 
@@ -286,7 +286,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                               dim3(arg.gridSize_pre),
                               dim3(BlockSize),
                               0,
-                              out1dDesc,
+                              out_grid_desc_m,
                               arg.out_dev_,
                               static_cast<OutDataType>(0.0f));
 
@@ -294,8 +294,8 @@ struct DeviceReduceMultiBlockAtomicAdd
                               dim3(arg.gridSize),
                               dim3(BlockSize),
                               0,
-                              in2dDesc,
-                              out1dDesc,
+                              in_grid_desc_m_k,
+                              out_grid_desc_m,
                               arg.in_elementwise_op_,
                               arg.acc_elementwise_op_,
                               arg.blkGroupSize,
@@ -382,7 +382,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<int*>(out_indices_dev),
+                                          static_cast<index_t*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);

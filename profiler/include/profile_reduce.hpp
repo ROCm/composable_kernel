@@ -324,14 +324,14 @@ void profile_reduce_impl_impl(bool do_verification,
                                                              NanOpt,
                                                              IndicesOpt>(reduce0_ptrs);
         else
-            add_device_reduce_instance_multiblock_two_call<InDataType,
-                                                           AccDataType,
-                                                           OutDataType,
-                                                           Rank,
-                                                           InnerDims_,
-                                                           ReduceOpId,
-                                                           NanOpt,
-                                                           IndicesOpt>(reduce1_ptrs);
+            add_device_reduce_instance_multiblock_partial_reduce<InDataType,
+                                                                 AccDataType,
+                                                                 OutDataType,
+                                                                 Rank,
+                                                                 InnerDims_,
+                                                                 ReduceOpId,
+                                                                 NanOpt,
+                                                                 IndicesOpt>(reduce1_ptrs);
 
         // used for secondary reduction
         if constexpr(!use_atomic_add)

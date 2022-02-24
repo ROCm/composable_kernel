@@ -39,48 +39,48 @@ template <typename GridwiseReduction,
           bool NeedIndices,
           typename InDataType,
           typename AccDataType,
-          typename In2dDescType,
-          typename Workspace2dDescType,
+          typename InGridDesc_M_K,
+          typename WorkspaceDesc_M_K,
           typename InElementwiseOperation,
           typename AccElementwiseOperation>
-__global__ void kernel_reduce_multiblock_two_call(const In2dDescType in2dDesc,
-                                                  const Workspace2dDescType ws2dDesc,
-                                                  const InElementwiseOperation in_elementwise_op,
-                                                  const AccElementwiseOperation acc_elementwise_op,
-                                                  int BlkGroupSize,
-                                                  int kBlockTileIterations,
-                                                  const InDataType* const __restrict__ p_src_global,
-                                                  AccDataType* const __restrict__ ws_values_global,
-                                                  int* const __restrict__ ws_indices_global)
+__global__ void kernel_partial_reduce_multiblock(const InGridDesc_M_K in_grid_desc_m_k,
+                                                 const WorkspaceDesc_M_K workspace_desc_m_k,
+                                                 const InElementwiseOperation in_elementwise_op,
+                                                 const AccElementwiseOperation acc_elementwise_op,
+                                                 index_t BlkGroupSize,
+                                                 index_t kBlockTileIterations,
+                                                 const InDataType* const __restrict__ p_src_global,
+                                                 AccDataType* const __restrict__ p_ws_values_global,
+                                                 index_t* const __restrict__ p_ws_indices_global)
 
 {
     if constexpr(!NeedIndices)
-        GridwiseReduction::Run(in2dDesc,
-                               ws2dDesc,
+        GridwiseReduction::Run(in_grid_desc_m_k,
+                               workspace_desc_m_k,
                                in_elementwise_op,
                                acc_elementwise_op,
                                BlkGroupSize,
                                kBlockTileIterations,
                                p_src_global,
-                               ws_values_global,
-                               ws_indices_global);
+                               p_ws_values_global,
+                               p_ws_indices_global);
     else
-        GridwiseReduction::RunWithIndices(in2dDesc,
-                                          ws2dDesc,
+        GridwiseReduction::RunWithIndices(in_grid_desc_m_k,
+                                          workspace_desc_m_k,
                                           in_elementwise_op,
                                           acc_elementwise_op,
                                           BlkGroupSize,
                                           kBlockTileIterations,
                                           p_src_global,
-                                          ws_values_global,
-                                          ws_indices_global);
+                                          p_ws_values_global,
+                                          p_ws_indices_global);
 };
 
 template <typename InDataType,
           typename dstDataType,
           typename AccDataType,
-          typename In2dDescType,
-          typename Workspace2dDescType,
+          typename InGridDesc_M_K,
+          typename WorkspaceDesc_M_K,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -93,7 +93,7 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct GridwiseReduction_xy_to_x_multiblock_two_call
+struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
 {
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
@@ -118,17 +118,17 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
     using Accumulation =
         detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
 
-    __device__ static void Run(const In2dDescType& in2dDesc,
-                               const Workspace2dDescType& ws2dDesc,
+    __device__ static void Run(const InGridDesc_M_K& in_grid_desc_m_k,
+                               const WorkspaceDesc_M_K& workspace_desc_m_k,
                                const InElementwiseOperation& in_elementwise_op,
                                const AccElementwiseOperation& acc_elementwise_op,
-                               int BlkGroupSize,
-                               int kBlockTileIterations,
+                               index_t BlkGroupSize,
+                               index_t kBlockTileIterations,
                                const InDataType* const __restrict__ p_src_global,
-                               AccDataType* const __restrict__ ws_values_global,
-                               int* const __restrict__ ws_indices_global)
+                               AccDataType* const __restrict__ p_ws_values_global,
+                               index_t* const __restrict__ p_ws_indices_global)
     {
-        (void)ws_indices_global;
+        (void)p_ws_indices_global;
         (void)acc_elementwise_op;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
@@ -136,10 +136,12 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         // LDS
         __shared__ AccDataType p_block_reduce_buffer[BlockSize];
 
-        const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, in2dDesc.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
+        const auto in_global_buf =
+            make_dynamic_buffer<AddressSpaceEnum_t::Global>(p_src_global,
+                                                            in_grid_desc_m_k.GetElementSpaceSize(),
+                                                            type_convert<InDataType>(zeroVal));
         auto workspace_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            ws_values_global, ws2dDesc.GetElementSpaceSize());
+            p_ws_values_global, workspace_desc_m_k.GetElementSpaceSize());
 
         auto block_reduce_buf =
             make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_block_reduce_buffer, BlockSize);
@@ -174,7 +176,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
             InDataType,
             AccDataType,
-            In2dDescType,
+            InGridDesc_M_K,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
             typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
@@ -182,7 +184,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             InSrcVectorSize,
             1,
             false>(
-            in2dDesc,
+            in_grid_desc_m_k,
             make_multi_index(
                 blkgroup_id * M_BlockTileSize + thread_dim0_cluster_id * MThreadSliceSize,
                 block_local_id * reduceSizePerBlock + thread_dim1_cluster_id * KThreadSliceSize));
@@ -192,8 +194,11 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         index_t reducedTiles = 0;
         do
         {
-            threadwise_src_load.Run(
-                in2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
+            threadwise_src_load.Run(in_grid_desc_m_k,
+                                    in_global_buf,
+                                    ThreadBufferDesc,
+                                    make_tuple(I0, I0),
+                                    in_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 // do element-wise pre-reduction operation
@@ -209,7 +214,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                 });
             });
 
-            threadwise_src_load.MoveSrcSliceWindow(in2dDesc, in_thread_copy_step);
+            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
 
             reducedTiles++;
         } while(reducedTiles < kBlockTileIterations);
@@ -243,7 +248,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                 ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                    AccDataType,
                                                    decltype(ReducedDataDesc),
-                                                   Workspace2dDescType,
+                                                   WorkspaceDesc_M_K,
                                                    PassThroughOp<AccDataType>,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
@@ -252,26 +257,29 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
-                    ws2dDesc,
+                    workspace_desc_m_k,
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_dim0_cluster_id * MThreadSliceSize,
                                      block_local_id),
                     PassThroughOp<AccDataType>{});
 
-            threadwise_workspace_store.Run(
-                ReducedDataDesc, make_tuple(I0, I0), accuValue_buf, ws2dDesc, workspace_global_buf);
+            threadwise_workspace_store.Run(ReducedDataDesc,
+                                           make_tuple(I0, I0),
+                                           accuValue_buf,
+                                           workspace_desc_m_k,
+                                           workspace_global_buf);
         }
     };
 
-    __device__ static void RunWithIndices(const In2dDescType& in2dDesc,
-                                          const Workspace2dDescType& ws2dDesc,
+    __device__ static void RunWithIndices(const InGridDesc_M_K& in_grid_desc_m_k,
+                                          const WorkspaceDesc_M_K& workspace_desc_m_k,
                                           const InElementwiseOperation& in_elementwise_op,
                                           const AccElementwiseOperation& acc_elementwise_op,
-                                          int BlkGroupSize,
-                                          int kBlockTileIterations,
+                                          index_t BlkGroupSize,
+                                          index_t kBlockTileIterations,
                                           const InDataType* const __restrict__ p_src_global,
-                                          AccDataType* const __restrict__ ws_values_global,
-                                          int* const __restrict__ ws_indices_global)
+                                          AccDataType* const __restrict__ p_ws_values_global,
+                                          index_t* const __restrict__ p_ws_indices_global)
     {
         (void)acc_elementwise_op;
 
@@ -279,14 +287,16 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
 
         // LDS
         __shared__ AccDataType p_block_reduce_val_buffer[BlockSize];
-        __shared__ int p_block_reduce_idx_buffer[BlockSize];
+        __shared__ index_t p_block_reduce_idx_buffer[BlockSize];
 
-        const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, in2dDesc.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
+        const auto in_global_buf =
+            make_dynamic_buffer<AddressSpaceEnum_t::Global>(p_src_global,
+                                                            in_grid_desc_m_k.GetElementSpaceSize(),
+                                                            type_convert<InDataType>(zeroVal));
         auto workspace_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            ws_values_global, ws2dDesc.GetElementSpaceSize());
+            p_ws_values_global, workspace_desc_m_k.GetElementSpaceSize());
         auto workspace_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            ws_indices_global, ws2dDesc.GetElementSpaceSize());
+            p_ws_indices_global, workspace_desc_m_k.GetElementSpaceSize());
 
         auto block_reduce_val_buf =
             make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_block_reduce_val_buffer, BlockSize);
@@ -298,11 +308,11 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                      MThreadSliceSize * KThreadSliceSize,
                      true>
             in_thread_val_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, int, MThreadSliceSize * KThreadSliceSize, true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, index_t, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_idx_buf;
 
         StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, int, MThreadSliceSize, true> accuIndex_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, index_t, MThreadSliceSize, true> accuIndex_buf;
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -324,7 +334,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
             InDataType,
             AccDataType,
-            In2dDescType,
+            InGridDesc_M_K,
             decltype(ThreadBufferDesc),
             ThreadBufferLengths,
             typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
@@ -332,14 +342,14 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
             InSrcVectorSize,
             1,
             false>(
-            in2dDesc,
+            in_grid_desc_m_k,
             make_multi_index(
                 blkgroup_id * M_BlockTileSize + thread_dim0_cluster_id * MThreadSliceSize,
                 block_local_id * reduceSizePerBlock + thread_dim1_cluster_id * KThreadSliceSize));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, K_BlockTileSize);
 
-        int indexOffset = block_local_id * reduceSizePerBlock;
+        index_t indexOffset = block_local_id * reduceSizePerBlock;
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             accuValue_buf(I) = zeroVal;
@@ -350,8 +360,11 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
         do
         {
             // load the thread slice
-            threadwise_src_load.Run(
-                in2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_val_buf);
+            threadwise_src_load.Run(in_grid_desc_m_k,
+                                    in_global_buf,
+                                    ThreadBufferDesc,
+                                    make_tuple(I0, I0),
+                                    in_thread_val_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
@@ -366,7 +379,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                 });
 
                 AccDataType tmpValue = zeroVal;
-                int tmpIndex         = 0;
+                index_t tmpIndex     = 0;
 
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
@@ -404,7 +417,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                 Accumulation::calculate(accuValue_buf(I), tmpValue, accuIndex_buf(I), tmpIndex);
             });
 
-            threadwise_src_load.MoveSrcSliceWindow(in2dDesc, in_thread_copy_step);
+            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
 
             indexOffset += K_BlockTileSize;
 
@@ -420,7 +433,7 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                 ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                    AccDataType,
                                                    decltype(ReducedDataDesc),
-                                                   Workspace2dDescType,
+                                                   WorkspaceDesc_M_K,
                                                    PassThroughOp<AccDataType>,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
@@ -429,18 +442,18 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
-                    ws2dDesc,
+                    workspace_desc_m_k,
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_dim0_cluster_id * MThreadSliceSize,
                                      block_local_id),
                     PassThroughOp<AccDataType>{});
 
             auto threadwise_workspace_idx_store =
-                ThreadwiseTensorSliceTransfer_v1r3<int,
-                                                   int,
+                ThreadwiseTensorSliceTransfer_v1r3<index_t,
+                                                   index_t,
                                                    decltype(ReducedDataDesc),
-                                                   Workspace2dDescType,
-                                                   PassThroughOp<int>,
+                                                   WorkspaceDesc_M_K,
+                                                   PassThroughOp<index_t>,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -448,21 +461,21 @@ struct GridwiseReduction_xy_to_x_multiblock_two_call
                                                    InMemoryDataOperationEnum_t::Set,
                                                    1,
                                                    true>(
-                    ws2dDesc,
+                    workspace_desc_m_k,
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_dim0_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<int>{});
+                    PassThroughOp<index_t>{});
 
             threadwise_workspace_val_store.Run(ReducedDataDesc,
                                                make_tuple(I0, I0),
                                                accuValue_buf,
-                                               ws2dDesc,
+                                               workspace_desc_m_k,
                                                workspace_global_val_buf);
             threadwise_workspace_idx_store.Run(ReducedDataDesc,
                                                make_tuple(I0, I0),
                                                accuIndex_buf,
-                                               ws2dDesc,
+                                               workspace_desc_m_k,
                                                workspace_global_idx_buf);
         }
     };

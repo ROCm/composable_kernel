@@ -204,7 +204,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     {
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            using gridwise_reduce = GridwiseReduction_xy_to_x_threadwise<InDataType,
+            using gridwise_reduce = GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                                          OutDataType,
                                                                          AccDataType,
                                                                          AGridDesc_M_K,

@@ -48,11 +48,11 @@ kernel_reduce_multiblock_atocmi_add(const In2dDescType in2dDesc,
                                     const Out1dDescType out1dDesc,
                                     const InElementwiseOperation in_elementwise_op,
                                     const AccElementwiseOperation acc_elementwise_op,
-                                    int BlkGroupSize,
-                                    int kBlockTileIterations,
+                                    index_t BlkGroupSize,
+                                    index_t kBlockTileIterations,
                                     AccDataType alpha,
-                                    const InDataType* const __restrict__ p_src_global,
-                                    OutDataType* const __restrict__ p_dst_global)
+                                    const InDataType* const __restrict__ p_in_global,
+                                    OutDataType* const __restrict__ p_out_global)
 {
     GridwiseReduction::Run(in2dDesc,
                            out1dDesc,
@@ -61,8 +61,8 @@ kernel_reduce_multiblock_atocmi_add(const In2dDescType in2dDesc,
                            BlkGroupSize,
                            kBlockTileIterations,
                            alpha,
-                           p_src_global,
-                           p_dst_global);
+                           p_in_global,
+                           p_out_global);
 };
 
 template <typename InDataType,
@@ -82,7 +82,7 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct GridwiseReduction_xy_to_x_multiblock_atomic_add
+struct GridwiseReduction_mk_to_m_multiblock_atomic_add
 {
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
@@ -112,21 +112,21 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                                const Out1dDescType& out1dDesc,
                                const InElementwiseOperation& in_elementwise_op,
                                const AccElementwiseOperation& acc_elementwise_op,
-                               int BlkGroupSize,
-                               int kBlockTileIterations,
+                               index_t BlkGroupSize,
+                               index_t kBlockTileIterations,
                                AccDataType alpha,
-                               const InDataType* const __restrict__ p_src_global,
-                               OutDataType* const __restrict__ p_dst_global)
+                               const InDataType* const __restrict__ p_in_global,
+                               OutDataType* const __restrict__ p_out_global)
     {
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
 
         // LDS
         __shared__ AccDataType p_block_reduce_buffer[BlockSize];
 
-        const auto src_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_src_global, in2dDesc.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
-        auto dst_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_dst_global, out1dDesc.GetElementSpaceSize());
+        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_in_global, in2dDesc.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
+        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_out_global, out1dDesc.GetElementSpaceSize());
 
         auto block_reduce_buf =
             make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_block_reduce_buffer, BlockSize);
@@ -180,7 +180,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
         do
         {
             threadwise_src_load.Run(
-                in2dDesc, src_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
+                in2dDesc, in_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 // do element-wise pre-reduction operation
@@ -256,7 +256,7 @@ struct GridwiseReduction_xy_to_x_multiblock_atomic_add
                     PassThroughOp<AccDataType>{});
 
             threadwise_dst_store.Run(
-                ReducedDataDesc, make_tuple(I0), accuValue_buf, out1dDesc, dst_global_buf);
+                ReducedDataDesc, make_tuple(I0), accuValue_buf, out1dDesc, out_global_buf);
         }
     };
 };
