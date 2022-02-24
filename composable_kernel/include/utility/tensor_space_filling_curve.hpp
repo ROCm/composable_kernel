@@ -42,7 +42,7 @@ struct SpaceFillingCurve
     {
 
         constexpr auto idx_curr = GetIndex(Number<AccessIdx1d>{});
-        constexpr auto idx_next = GetIndex(Number<AccessIdx1d>{} + Number<1>{});
+        constexpr auto idx_next = GetIndex(Number<AccessIdx1d + 1>{});
         return idx_next - idx_curr;
     }
 
@@ -52,7 +52,7 @@ struct SpaceFillingCurve
         static_assert(AccessIdx1d > 0, "1D index should be larger than 0");
 
         constexpr auto idx_curr = GetIndex(Number<AccessIdx1d>{});
-        constexpr auto idx_prev = GetIndex(Number<AccessIdx1d>{} - Number<1>{});
+        constexpr auto idx_prev = GetIndex(Number<AccessIdx1d - 1>{});
         return idx_prev - idx_curr;
     }
 
