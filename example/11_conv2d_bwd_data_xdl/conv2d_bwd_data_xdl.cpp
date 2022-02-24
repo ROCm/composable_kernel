@@ -30,7 +30,7 @@ static constexpr auto ConvBwdDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Default;
 
 using DeviceConvBwdDataInstance = ck::tensor_operation::device::
-    DeviceConv2dBwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+    DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         InDataType,     // InDataType
         WeiDataType,    // WeiDataType
         OutDataType,    // OutDataType

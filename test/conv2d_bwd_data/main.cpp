@@ -16,7 +16,7 @@ using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_bwd_instance {
+namespace device_conv2d_bwd_data_instance {
 
 using DeviceConvBwdDataNoOpPtr =
     DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
@@ -207,12 +207,12 @@ int main(int argc, char* argv[])
 
         using PassThrough = ck::tensor_operation::element_wise::PassThrough;
         using DeviceConvBwdDataNoOpPtr =
-            ck::tensor_operation::device::DeviceConvBwdPtr<PassThrough, PassThrough, PassThrough>;
+            ck::tensor_operation::device::DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>;
 
         // add device Conv instances
         std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
 
-        ck::tensor_operation::device::device_conv2d_bwd_instance::
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
             add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(conv_ptrs, OutDataType());
 
         if(conv_ptrs.size() <= 0)
