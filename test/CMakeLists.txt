@@ -24,10 +24,10 @@ target_link_libraries(test_conv2d_fwd PRIVATE host_tensor)
 target_link_libraries(test_conv2d_fwd PRIVATE device_conv2d_fwd_instance)
 
 #test bwd
-set(CONV2D_BWD_SOURCE conv2d_bwd/main.cpp)
-add_executable(test_conv2d_bwd ${CONV2D_BWD_SOURCE})
-target_link_libraries(test_conv2d_bwd PRIVATE host_tensor)
-target_link_libraries(test_conv2d_bwd PRIVATE device_conv2d_bwd_instance)
+set(CONV2D_BWD_SOURCE conv2d_bwd_data/main.cpp)
+add_executable(test_conv2d_bwd_data ${CONV2D_BWD_SOURCE})
+target_link_libraries(test_conv2d_bwd_data PRIVATE host_tensor)
+target_link_libraries(test_conv2d_bwd_data PRIVATE device_conv2d_bwd_data_instance)
 
 # test_split_k
 set(SPLIT_K_SOURCE split_k/main.cpp)

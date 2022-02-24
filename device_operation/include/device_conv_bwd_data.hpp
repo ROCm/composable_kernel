@@ -12,7 +12,7 @@ namespace device {
 template <typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct DeviceConvBwd : public BaseOperator
+struct DeviceConvBwdData : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(void* p_in,
@@ -38,13 +38,13 @@ struct DeviceConvBwd : public BaseOperator
 template <typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-using DeviceConvBwdPtr = std::unique_ptr<
-    DeviceConvBwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
+using DeviceConvBwdDataPtr = std::unique_ptr<
+    DeviceConvBwdData<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
 
 namespace device_conv2d_bwd_data_instance {
 template <typename T>
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(
-    std::vector<DeviceConvBwdPtr<ck::tensor_operation::element_wise::PassThrough,
+    std::vector<DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
                                  ck::tensor_operation::element_wise::PassThrough,
                                  ck::tensor_operation::element_wise::PassThrough>>&,
     T);
