@@ -18,8 +18,8 @@ using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 using AccDataType = float;
 
-using InLayout  = ck::tensor_layout::pool::NHWC;
-using OutLayout = ck::tensor_layout::pool::NHWC;
+using InLayout  = ck::tensor_layout::convolution::NHWC;
+using OutLayout = ck::tensor_layout::convolution::NHWC;
 
 #if 1
 static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::MAX;
@@ -211,12 +211,13 @@ int main(int argc, char* argv[])
     // tensor layout
     auto f_host_tensor_descriptor =
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
-            if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::pool::NCHW>::value)
+            if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value)
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
                                             std::vector<std::size_t>({C_ * H * W, H * W, W, 1}));
             }
-            else if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::pool::NHWC>::value)
+            else if constexpr(ck::is_same<decltype(layout),
+                                          ck::tensor_layout::convolution::NHWC>::value)
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
                                             std::vector<std::size_t>({C_ * H * W, 1, W * C_, C_}));
@@ -304,7 +305,7 @@ int main(int argc, char* argv[])
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-//          check_indices(out_indices_n_c_ho_wo_host, out_indices_n_c_ho_wo_device);
+            //          check_indices(out_indices_n_c_ho_wo_host, out_indices_n_c_ho_wo_device);
         };
     }
 }
