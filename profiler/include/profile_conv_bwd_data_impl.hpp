@@ -16,27 +16,28 @@ using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_bwd_instance {
+namespace device_conv2d_bwd_data_instance {
 
-using DeviceConvBwdNoOpPtr = DeviceConvBwdPtr<ck::tensor_operation::element_wise::PassThrough,
-                                              ck::tensor_operation::element_wise::PassThrough,
-                                              ck::tensor_operation::element_wise::PassThrough>;
+using DeviceConvBwdDataNoOpPtr =
+    DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
+                         ck::tensor_operation::element_wise::PassThrough,
+                         ck::tensor_operation::element_wise::PassThrough>;
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
                                                              F32);
 
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
                                                              F16);
 
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
                                                              BF16);
 
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdNoOpPtr>&,
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
                                                              INT8);
-} // namespace device_conv2d_bwd_instance
+} // namespace device_conv2d_bwd_data_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -51,20 +52,20 @@ template <int NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-void profile_conv_bwd_impl(int do_verification,
-                           int init_method,
-                           bool do_log,
-                           int nrepeat,
-                           ck::index_t N,
-                           ck::index_t K,
-                           ck::index_t C,
-                           std::vector<ck::index_t> input_spatial_lengths,
-                           std::vector<ck::index_t> filter_spatial_lengths,
-                           std::vector<ck::index_t> output_spatial_lengths,
-                           std::vector<ck::index_t> conv_filter_strides,
-                           std::vector<ck::index_t> conv_filter_dilations,
-                           std::vector<ck::index_t> input_left_pads,
-                           std::vector<ck::index_t> input_right_pads)
+void profile_conv_bwd_data_impl(int do_verification,
+                                int init_method,
+                                bool do_log,
+                                int nrepeat,
+                                ck::index_t N,
+                                ck::index_t K,
+                                ck::index_t C,
+                                std::vector<ck::index_t> input_spatial_lengths,
+                                std::vector<ck::index_t> filter_spatial_lengths,
+                                std::vector<ck::index_t> output_spatial_lengths,
+                                std::vector<ck::index_t> conv_filter_strides,
+                                std::vector<ck::index_t> conv_filter_dilations,
+                                std::vector<ck::index_t> input_left_pads,
+                                std::vector<ck::index_t> input_right_pads)
 {
     const ck::index_t Y = filter_spatial_lengths[0];
     const ck::index_t X = filter_spatial_lengths[1];
@@ -125,14 +126,15 @@ void profile_conv_bwd_impl(int do_verification,
 
     if(do_verification)
     {
-        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                                      WeiDataType,
-                                                                                      OutDataType,
-                                                                                      InElementOp,
-                                                                                      WeiElementOp,
-                                                                                      OutElementOp>;
+        using ReferenceConvBwdDataInstance =
+            ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                             WeiDataType,
+                                                             OutDataType,
+                                                             InElementOp,
+                                                             WeiElementOp,
+                                                             OutElementOp>;
 
-        auto ref_conv     = ReferenceConvBwdInstance{};
+        auto ref_conv     = ReferenceConvBwdDataInstance{};
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
                                                   wei_k_c_y_x,
@@ -158,12 +160,12 @@ void profile_conv_bwd_impl(int do_verification,
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-    using DeviceConvBwdNoOpPtr =
-        ck::tensor_operation::device::DeviceConvBwdPtr<PassThrough, PassThrough, PassThrough>;
+    using DeviceConvBwdDataNoOpPtr =
+        ck::tensor_operation::device::DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>;
 
     // add device Conv instances
-    std::vector<DeviceConvBwdNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv2d_bwd_instance::
+    std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
         add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(conv_ptrs, WeiDataType());
     if(conv_ptrs.size() <= 0)
     {

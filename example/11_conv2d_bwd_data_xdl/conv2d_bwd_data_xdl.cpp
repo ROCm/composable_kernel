@@ -65,8 +65,12 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
         7,
         1>; // GemmCThreadTransferDstScalarPerVector
 
-using ReferenceConvBwdInstance = ck::tensor_operation::host::
-    ReferenceConvBwdData<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
+using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                                                  WeiDataType,
+                                                                                  OutDataType,
+                                                                                  InElementOp,
+                                                                                  WeiElementOp,
+                                                                                  OutElementOp>;
 
 int main(int argc, char* argv[])
 {

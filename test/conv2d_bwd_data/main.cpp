@@ -18,20 +18,25 @@ namespace tensor_operation {
 namespace device {
 namespace device_conv2d_bwd_instance {
 
-using DeviceConvBwdDataNoOpPtr = DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
-                                              ck::tensor_operation::element_wise::PassThrough,
-                                              ck::tensor_operation::element_wise::PassThrough>;
+using DeviceConvBwdDataNoOpPtr =
+    DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
+                         ck::tensor_operation::element_wise::PassThrough,
+                         ck::tensor_operation::element_wise::PassThrough>;
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&, F32);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
+                                                             F32);
 
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&, F16);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
+                                                             F16);
 
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&, BF16);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
+                                                             BF16);
 
 template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&, INT8);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
+                                                             INT8);
 } // namespace device_conv2d_bwd_instance
 } // namespace device
 } // namespace tensor_operation
@@ -122,12 +127,13 @@ int main(int argc, char* argv[])
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
 
-        using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                                      WeiDataType,
-                                                                                      OutDataType,
-                                                                                      InElementOp,
-                                                                                      WeiElementOp,
-                                                                                      OutElementOp>;
+        using ReferenceConvBwdInstance =
+            ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                             WeiDataType,
+                                                             OutDataType,
+                                                             InElementOp,
+                                                             WeiElementOp,
+                                                             OutElementOp>;
 
         const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
         const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
