@@ -29,9 +29,9 @@ void traverse_using_space_filling_curve()
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
 
-    using TensorLengths     = Sequence<4, 10, 9>;
+    using TensorLengths     = Sequence<16, 10, 9>;
     using DimAccessOrder    = Sequence<2, 0, 1>;
-    using ScalarsPerAccess  = Sequence<1, 2, 3>;
+    using ScalarsPerAccess  = Sequence<4, 2, 3>;
     using SpaceFillingCurve = SpaceFillingCurve<TensorLengths, DimAccessOrder, ScalarsPerAccess>;
 
     constexpr auto expected = make_tuple(make_tuple(0, 0, 0),
@@ -39,36 +39,36 @@ void traverse_using_space_filling_curve()
                                          make_tuple(0, 4, 0),
                                          make_tuple(0, 6, 0),
                                          make_tuple(0, 8, 0),
-                                         make_tuple(1, 8, 0),
-                                         make_tuple(1, 6, 0),
-                                         make_tuple(1, 4, 0),
-                                         make_tuple(1, 2, 0),
-                                         make_tuple(1, 0, 0),
-                                         make_tuple(2, 0, 0),
-                                         make_tuple(2, 2, 0),
-                                         make_tuple(2, 4, 0),
-                                         make_tuple(2, 6, 0),
-                                         make_tuple(2, 8, 0),
-                                         make_tuple(3, 8, 0),
-                                         make_tuple(3, 6, 0),
-                                         make_tuple(3, 4, 0),
-                                         make_tuple(3, 2, 0),
-                                         make_tuple(3, 0, 0),
-                                         make_tuple(3, 0, 3),
-                                         make_tuple(3, 2, 3),
-                                         make_tuple(3, 4, 3),
-                                         make_tuple(3, 6, 3),
-                                         make_tuple(3, 8, 3),
-                                         make_tuple(2, 8, 3),
-                                         make_tuple(2, 6, 3),
-                                         make_tuple(2, 4, 3),
-                                         make_tuple(2, 2, 3),
-                                         make_tuple(2, 0, 3),
-                                         make_tuple(1, 0, 3),
-                                         make_tuple(1, 2, 3),
-                                         make_tuple(1, 4, 3),
-                                         make_tuple(1, 6, 3),
-                                         make_tuple(1, 8, 3),
+                                         make_tuple(4, 8, 0),
+                                         make_tuple(4, 6, 0),
+                                         make_tuple(4, 4, 0),
+                                         make_tuple(4, 2, 0),
+                                         make_tuple(4, 0, 0),
+                                         make_tuple(8, 0, 0),
+                                         make_tuple(8, 2, 0),
+                                         make_tuple(8, 4, 0),
+                                         make_tuple(8, 6, 0),
+                                         make_tuple(8, 8, 0),
+                                         make_tuple(12, 8, 0),
+                                         make_tuple(12, 6, 0),
+                                         make_tuple(12, 4, 0),
+                                         make_tuple(12, 2, 0),
+                                         make_tuple(12, 0, 0),
+                                         make_tuple(12, 0, 3),
+                                         make_tuple(12, 2, 3),
+                                         make_tuple(12, 4, 3),
+                                         make_tuple(12, 6, 3),
+                                         make_tuple(12, 8, 3),
+                                         make_tuple(8, 8, 3),
+                                         make_tuple(8, 6, 3),
+                                         make_tuple(8, 4, 3),
+                                         make_tuple(8, 2, 3),
+                                         make_tuple(8, 0, 3),
+                                         make_tuple(4, 0, 3),
+                                         make_tuple(4, 2, 3),
+                                         make_tuple(4, 4, 3),
+                                         make_tuple(4, 6, 3),
+                                         make_tuple(4, 8, 3),
                                          make_tuple(0, 8, 3),
                                          make_tuple(0, 6, 3),
                                          make_tuple(0, 4, 3),
@@ -79,21 +79,21 @@ void traverse_using_space_filling_curve()
                                          make_tuple(0, 4, 6),
                                          make_tuple(0, 6, 6),
                                          make_tuple(0, 8, 6),
-                                         make_tuple(1, 8, 6),
-                                         make_tuple(1, 6, 6),
-                                         make_tuple(1, 4, 6),
-                                         make_tuple(1, 2, 6),
-                                         make_tuple(1, 0, 6),
-                                         make_tuple(2, 0, 6),
-                                         make_tuple(2, 2, 6),
-                                         make_tuple(2, 4, 6),
-                                         make_tuple(2, 6, 6),
-                                         make_tuple(2, 8, 6),
-                                         make_tuple(3, 8, 6),
-                                         make_tuple(3, 6, 6),
-                                         make_tuple(3, 4, 6),
-                                         make_tuple(3, 2, 6),
-                                         make_tuple(3, 0, 6));
+                                         make_tuple(4, 8, 6),
+                                         make_tuple(4, 6, 6),
+                                         make_tuple(4, 4, 6),
+                                         make_tuple(4, 2, 6),
+                                         make_tuple(4, 0, 6),
+                                         make_tuple(8, 0, 6),
+                                         make_tuple(8, 2, 6),
+                                         make_tuple(8, 4, 6),
+                                         make_tuple(8, 6, 6),
+                                         make_tuple(8, 8, 6),
+                                         make_tuple(12, 8, 6),
+                                         make_tuple(12, 6, 6),
+                                         make_tuple(12, 4, 6),
+                                         make_tuple(12, 2, 6),
+                                         make_tuple(12, 0, 6));
 
     constexpr index_t num_accesses = SpaceFillingCurve::GetNumOfAccess();
 
@@ -127,5 +127,20 @@ void traverse_using_space_filling_curve()
         static_assert(forward_step[I0] == expected_step[I0]);
         static_assert(forward_step[I1] == expected_step[I1]);
         static_assert(forward_step[I2] == expected_step[I2]);
+    });
+
+    static_for<0, num_accesses - 1, 1>{}([&](auto i) {
+        constexpr auto idx_curr = SpaceFillingCurve::GetIndex(i);
+        printf("idx_1d = %d, idx_md = [%d, %d, %d]\n",
+               i.value,
+               idx_curr[I0],
+               idx_curr[I1],
+               idx_curr[I2]);
+
+        constexpr auto all_indices = SpaceFillingCurve::GetIndices<Sequence<0, 1, 2>>(i);
+
+        static_for<0, SpaceFillingCurve::ScalarPerVector, 1>{}([&](auto j) {
+            printf("  [%d, %d, %d]\n", all_indices[j][I0], all_indices[j][I1], all_indices[j][I2]);
+        });
     });
 }

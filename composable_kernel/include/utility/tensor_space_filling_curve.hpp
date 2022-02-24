@@ -1,5 +1,6 @@
 #include "math.hpp"
 #include "sequence.hpp"
+#include "sequence_helper.hpp"
 #include "tensor_adaptor.hpp"
 #include "statically_indexed_array_multi_index.hpp"
 #include "tuple_helper.hpp"
@@ -54,6 +55,21 @@ struct SpaceFillingCurve
         constexpr auto idx_curr = GetIndex(Number<AccessIdx1d>{});
         constexpr auto idx_prev = GetIndex(Number<AccessIdx1d - 1>{});
         return idx_prev - idx_curr;
+    }
+
+    /*
+     * \brief Get all the multi-dimensional indices between given access_id and next access_id.
+     */
+    template <typename DimAccessOrderOfSubTensor=DimAccessOrder, index_t AccessIdx1d>
+    static __device__ __host__ constexpr auto GetIndices(Number<AccessIdx1d>)
+    {
+        constexpr auto base_index = GetIndex(Number<AccessIdx1d>{});
+        // TODO: Should we use a zig-zag space-filling-curve here?
+        using SubSpaceFillingCurve = SpaceFillingCurve<ScalarsPerAccess, DimAccessOrderOfSubTensor, typename uniform_sequence_gen<nDim, 1>::type>;
+        constexpr auto compute_index = [base_index](auto k) constexpr {
+            return SubSpaceFillingCurve::GetIndex(k) + base_index;
+        };
+        return generate_tuple(compute_index, Number<ScalarPerVector>{});
     }
 
     template <index_t AccessIdx1d>

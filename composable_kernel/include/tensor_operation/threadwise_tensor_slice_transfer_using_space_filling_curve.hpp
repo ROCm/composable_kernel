@@ -130,12 +130,15 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
         static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
 
-            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+            // constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+            constexpr auto all_indices = SpaceFillingCurve::GetIndices(idx_1d);
 
             // copy data from src_buf into dst_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                // constexpr index_t src_offset = src_desc.CalculateOffset(
+                //     src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
                 constexpr index_t src_offset = src_desc.CalculateOffset(
-                    src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+                    src_slice_origin_idx + all_indices[i]);
 
                 SrcData dst_v;
 
