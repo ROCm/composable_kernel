@@ -117,20 +117,20 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
         constexpr auto dst_scalar_step_in_vector =
             generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
 
-        using SpaceFillingCurve =
-            SpaceFillingCurve<SliceLengths, DimAccessOrder, remove_cv_t<decltype(dst_scalar_per_access)>>;
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
+
+        // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
+        static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector);
+        typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
+        using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
         constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
 
         static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
 
             constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
-
-            static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector);
-            typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
-
-            using dst_vector_t =
-                typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
             // copy data from src_buf into dst_vector
             static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
@@ -145,7 +145,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
                 // apply type convert
                 dst_vector.template AsType<DstData>()(i) = type_convert<DstData>(dst_v);
             });
-
 
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
@@ -182,10 +181,15 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
             }
 
-            constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
-            // move_tensor_coordinate(dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step, dst_step_hacks[I0]));
-            move_tensor_coordinate(dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+            // TODO: wrap into a function, say SpaceFillingCurve::MoveCoordForward(dst_desc, dst_cood_, idx_1d)?
+            // TODO: Do we need the if-statement? GetForwardStep is not well-defined for the last access.
+            if constexpr(idx_1d.value != num_accesses - 1)
+            {
+                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
 
+                move_tensor_coordinate(
+                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+            }
         });
 
         // move dst coordinate back to slice origin (or not)
