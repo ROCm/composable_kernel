@@ -109,9 +109,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
         constexpr auto src_desc             = remove_cvref_t<SrcDesc>{};
         constexpr auto src_slice_origin_idx = to_multi_index(SrcSliceOriginIdx{});
 
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
@@ -119,38 +116,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
         constexpr auto dst_scalar_step_in_vector =
             generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
-
-        constexpr auto access_lengths = SliceLengths{} / dst_scalar_per_access;
-
-        constexpr auto dim_access_order = DimAccessOrder{};
-
-        // make forward steps
-        const auto dst_forward_steps = generate_tuple(
-            [&](auto i) {
-                Index forward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? dst_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(
-                    dst_desc, forward_step_idx, dst_step_hacks[I0][i]);
-            },
-            Number<nDim>{});
-
-        // make backward steps
-        const auto dst_backward_steps = generate_tuple(
-            [&](auto i) {
-                Index backward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -dst_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(
-                    dst_desc, backward_step_idx, dst_step_hacks[I1][i]);
-            },
-            Number<nDim>{});
 
         using SpaceFillingCurve =
             SpaceFillingCurve<SliceLengths, DimAccessOrder, remove_cv_t<decltype(dst_scalar_per_access)>>;
@@ -216,6 +181,10 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
                     is_dst_valid,
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
             }
+
+            constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+            // move_tensor_coordinate(dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step, dst_step_hacks[I0]));
+            move_tensor_coordinate(dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
 
         });
 
