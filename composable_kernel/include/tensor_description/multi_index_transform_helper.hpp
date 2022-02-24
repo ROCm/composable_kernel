@@ -98,6 +98,12 @@ __host__ __device__ constexpr auto make_freeze_transform(const LowerIndex& low_i
     return Freeze<LowerIndex>{low_idx};
 }
 
+template <typename UpperIndex>
+__host__ __device__ constexpr auto make_insert_transform(const UpperIndex& up_idx)
+{
+    return Insert<UpperIndex>{up_idx};
+}
+
 template <typename LowLength, typename SliceBegin, typename SliceEnd>
 __host__ __device__ constexpr auto make_slice_transform(const LowLength& low_length,
                                                         const SliceBegin& slice_begin,
@@ -113,5 +119,11 @@ __host__ __device__ constexpr auto make_vectorize_transform(const VectorSize& ve
     return Vectorize<VectorSize, UpLength>{vector_size, up_length};
 }
 
+template <typename Modulus, typename UpLength>
+__host__ __device__ constexpr auto make_modulo_transform(const Modulus& modulus,
+                                                         const UpLength& up_length)
+{
+    return Modulo<Modulus, UpLength>{modulus, up_length};
+}
 } // namespace ck
 #endif

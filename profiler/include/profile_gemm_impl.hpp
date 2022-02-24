@@ -1,4 +1,5 @@
 #pragma once
+#include <iomanip>
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -29,6 +30,9 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(std::vector<De
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
+void add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
 
 void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -245,6 +249,9 @@ void profile_gemm_impl(int do_verification,
 
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
             }
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -330,8 +337,8 @@ void profile_gemm_impl(int do_verification,
 
             float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-            std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s, " << gemm_name << std::endl;
+            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
+                      << gb_per_sec << " GB/s, " << gemm_name << std::endl;
 
             if(tflops > best_tflops)
             {
