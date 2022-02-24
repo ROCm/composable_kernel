@@ -21,6 +21,7 @@ set(CONV2D_FWD_XDL_BIAS_RELU_ADD_SOURCE 6_conv2d_fwd_xdl_bias_relu_add/conv2d_fw
 set(CONV2D_FWD_XDL_BIAS_RELU_ATOMIC_ADD_SOURCE 7_conv2d_fwd_xdl_bias_relu_atomic_add/conv2d_fwd_xdl_bias_relu_atomic_add.cpp)
 set(GEMM_XDL_ALPHA_BETA_SOURCE 8_gemm_xdl_alpha_beta/gemm_xdl_alpha_beta.cpp)
 set(CONV2D_FWD_XDL_INT8_SOURCE 9_conv2d_fwd_xdl_int8/conv2d_fwd_xdl_int8.cpp)
+set(CONV2D_WRW_XDL_SOURCE 14_conv2d_backward_weight_xdl/main.cpp)
 
 add_executable(gemm_xdl ${GEMM_XDL_SOURCE})
 add_executable(gemm_xdl_bias_relu ${GEMM_XDL_BIAS_RELU_SOURCE})
@@ -31,6 +32,7 @@ add_executable(conv2d_fwd_xdl_bias_relu_add ${CONV2D_FWD_XDL_BIAS_RELU_ADD_SOURC
 add_executable(conv2d_fwd_xdl_bias_relu_atomic_add ${CONV2D_FWD_XDL_BIAS_RELU_ATOMIC_ADD_SOURCE})
 add_executable(gemm_xdl_alpha_beta ${GEMM_XDL_ALPHA_BETA_SOURCE})
 add_executable(conv2d_fwd_xdl_int8 ${CONV2D_FWD_XDL_INT8_SOURCE})
+add_executable(conv2d_wrw_xdl ${CONV2D_WRW_XDL_SOURCE})
 
 target_link_libraries(gemm_xdl PRIVATE host_tensor)
 target_link_libraries(gemm_xdl_bias_relu PRIVATE host_tensor)
@@ -41,3 +43,4 @@ target_link_libraries(conv2d_fwd_xdl_bias_relu_add PRIVATE host_tensor)
 target_link_libraries(conv2d_fwd_xdl_bias_relu_atomic_add PRIVATE host_tensor)
 target_link_libraries(gemm_xdl_alpha_beta PRIVATE host_tensor)
 target_link_libraries(conv2d_fwd_xdl_int8 PRIVATE host_tensor)
+target_link_libraries(conv2d_wrw_xdl PRIVATE host_tensor)
