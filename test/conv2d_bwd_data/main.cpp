@@ -37,7 +37,7 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceC
 template <>
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
                                                              INT8);
-} // namespace device_conv2d_bwd_instance
+} // namespace device_conv2d_bwd_data_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -205,9 +205,9 @@ int main(int argc, char* argv[])
             ref_invoker.Run(ref_argument);
         }
 
-        using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-        using DeviceConvBwdDataNoOpPtr =
-            ck::tensor_operation::device::DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>;
+        using PassThrough              = ck::tensor_operation::element_wise::PassThrough;
+        using DeviceConvBwdDataNoOpPtr = ck::tensor_operation::device::
+            DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>;
 
         // add device Conv instances
         std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
