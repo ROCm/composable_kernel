@@ -383,7 +383,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3
     private:
     DstCoord dst_coord_;
     const DstElementwiseOperation dst_element_op_;
-}; // namespace ck
+}; // struct ThreadwiseTensorSliceTransfer_v1r3
 
 // Assume:
 //   1. src:

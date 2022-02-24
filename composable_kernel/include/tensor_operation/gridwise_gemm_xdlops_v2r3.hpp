@@ -7,8 +7,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_xdlops.hpp"
 #include "blockwise_tensor_slice_transfer_v4r1.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "gridwise_gemm_pipeline_v1.hpp"
+#include "threadwise_tensor_slice_transfer_using_space_filling_curve.hpp"
 
 namespace ck {
 
@@ -564,7 +563,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                     make_multi_index(n_thread_data_on_grid));
 
             auto c_thread_copy =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
+                ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve<FloatAcc,
                                                    FloatC,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
