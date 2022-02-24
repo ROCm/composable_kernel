@@ -20,7 +20,6 @@ int main(int argc, char* argv[])
     {
         return profile_gemm(argc, argv);
     }
-#if 0
     else if(strcmp(argv[1], "gemm_bias_relu") == 0)
     {
         return profile_gemm_bias_relu(argc, argv);
@@ -63,5 +62,4 @@ int main(int argc, char* argv[])
 
         return 0;
     }
-#endif
 }
