@@ -8,6 +8,7 @@
 #include "blockwise_gemm_xdlops.hpp"
 #include "blockwise_tensor_slice_transfer_v4r1.hpp"
 #include "threadwise_tensor_slice_transfer_using_space_filling_curve.hpp"
+#include "gridwise_gemm_pipeline_v1.hpp"
 
 namespace ck {
 
