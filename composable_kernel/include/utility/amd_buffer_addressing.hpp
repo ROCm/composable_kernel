@@ -653,18 +653,18 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
         }
         else if constexpr(N == 8)
         {
-            vector_type<half_t, 8> tmp{src_thread_data};
+3            vector_type<ushort, 8> tmp{src_thread_data};
 
-            llvm_amdgcn_raw_buffer_store_fp16x4(tmp.AsType<half4_t>()[Number<0>{}],
+            llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<ushort4_t>()[Number<0>{}],
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset,
                                                 0);
 
-            llvm_amdgcn_raw_buffer_store_fp16x4(tmp.AsType<half4_t>()[Number<1>{}],
+            llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<ushort4_t>()[Number<1>{}],
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
-                                                dst_wave_addr_offset + 4 * sizeof(half_t),
+                                                dst_wave_addr_offset + 4 * sizeof(ushort),
                                                 0);
         }
     }
