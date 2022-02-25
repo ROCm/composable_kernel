@@ -1,3 +1,6 @@
+#ifndef TENSOR_SPACE_FILLING_CURVE_HPP
+#define TENSOR_SPACE_FILLING_CURVE_HPP
+
 #include "math.hpp"
 #include "sequence.hpp"
 #include "sequence_helper.hpp"
@@ -139,3 +142,4 @@ struct SpaceFillingCurve
 };
 
 } // namespace ck
+#endif

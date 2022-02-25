@@ -38,8 +38,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
     using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
 
-    using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
-
     __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve(
         const DstDesc& dst_desc,
         const Index& dst_slice_origin_idx,
@@ -166,8 +164,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
     __device__ static constexpr auto GetDstCoordinateResetStep()
     {
-        constexpr auto I0 = Number<0>{};
-
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
@@ -177,7 +173,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
         constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
         constexpr auto reset_step =
-            SpaceFillingCurve::GetStepBetween(Number<num_accesses - 1>{}, I0);
+            SpaceFillingCurve::GetStepBetween(Number<num_accesses - 1>{}, Number<0>{});
 
         return reset_step;
     }

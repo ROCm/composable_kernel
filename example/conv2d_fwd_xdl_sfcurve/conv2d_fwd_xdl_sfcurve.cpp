@@ -211,6 +211,10 @@ int main(int argc, char* argv[])
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
+    {
+        memset(out_n_k_ho_wo_device_result.mData.data(), static_cast<OutDataType>(0), out_n_k_ho_wo_device_result.mDesc.GetElementSpace());
+        out_device_buf.ToDevice(out_n_k_ho_wo_device_result.mData.data());
+    }
 
     // do GEMM
     auto conv     = DeviceConvFwdInstance{};
