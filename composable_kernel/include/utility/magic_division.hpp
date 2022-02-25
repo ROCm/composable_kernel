@@ -25,21 +25,28 @@ struct MagicDivision
     // uint32_t
     __host__ __device__ static constexpr auto CalculateMagicNumbers(uint32_t divisor)
     {
-        // assert(divisior >= 1 && divisior <= INT32_MAX);
-        uint32_t shift = 0;
-        for(shift = 0; shift < 32; ++shift)
+        if(divisor >= 1 && divisor <= INT32_MAX)
         {
-            if((1U << shift) >= divisor)
+            uint32_t shift = 0;
+            for(shift = 0; shift < 32; ++shift)
             {
-                break;
+                if((1U << shift) >= divisor)
+                {
+                    break;
+                }
             }
+
+            uint64_t one        = 1;
+            uint64_t multiplier = ((one << 32) * ((one << shift) - divisor)) / divisor + 1;
+            // assert(multiplier <= 0xffffffffUL);
+
+            return make_tuple(uint32_t(multiplier), shift);
         }
-
-        uint64_t one        = 1;
-        uint64_t multiplier = ((one << 32) * ((one << shift) - divisor)) / divisor + 1;
-        // assert(multiplier <= 0xffffffffUL);
-
-        return make_tuple(uint32_t(multiplier), shift);
+        else
+        {
+            // this is not correct multiplier and shift
+            return make_tuple(uint32_t(0), uint32_t(0));
+        }
     }
 
     __host__ __device__ static constexpr uint32_t CalculateMagicMultiplier(uint32_t divisor)
