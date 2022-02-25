@@ -465,6 +465,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
+        constexpr index_t k_pack = math::max(math::lcm(A_K1, B_K1),
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -475,7 +477,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                                                 MPerXdl,
                                                                 NPerXdl,
                                                                 MXdlPerWave,
-                                                                NXdlPerWave>{};
+                                                                NXdlPerWave,
+                                                                k_pack>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
