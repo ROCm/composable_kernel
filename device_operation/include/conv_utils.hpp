@@ -39,12 +39,12 @@ std::size_t GetFlops(ck::index_t N,
            std::accumulate(std::begin(output_spatial_lengths),
                            std::end(output_spatial_lengths),
                            static_cast<std::size_t>(1),
-                           std::multiplies<std::size_t>()) * 
+                           std::multiplies<std::size_t>()) *
            C *
            std::accumulate(std::begin(filter_spatial_lengths),
                            std::end(filter_spatial_lengths),
                            static_cast<std::size_t>(1),
-                           std::multiplies<std::size_t>());       
+                           std::multiplies<std::size_t>());
 }
 
 /**

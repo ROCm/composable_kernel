@@ -78,7 +78,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? K : StrideA,
             (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
@@ -97,7 +98,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? K : StrideA,
             (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
@@ -116,7 +118,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? M : StrideA,
             (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
@@ -135,7 +138,8 @@ int profile_gemm(int argc, char* argv[])
             K,
             (StrideA < 0) ? M : StrideA,
             (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
