@@ -92,7 +92,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
                                                     remove_cv_t<decltype(dst_scalar_per_access)>>;
 
         // TODO: Use SpaceFillingCurve::ScalarsPerAccess instread of DstScalarPerVector?
-        static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector, "Wrong! ");
+        static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector, "wrong!DstScalarPerVector != SpaceFillingCurve::ScalarPerVector");
         typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
         using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
 
@@ -154,8 +154,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
                     dst_vector.template AsType<dst_vector_t>()[Number<0>{}]);
             }
 
-            // TODO: wrap into a function, say SpaceFillingCurve::MoveCoordForward(dst_desc, dst_cood_, idx_1d)?
-            // TODO: Do we need the if-statement? GetForwardStep is not well-defined for the last access.
             if constexpr(idx_1d.value != num_accesses - 1)
             {
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
@@ -197,60 +195,17 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
     {
         constexpr auto I0 = Number<0>{};
 
-        // scalar per access on each dim
-        // TODO: don't use lambda_scalar_per_access
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto access_lengths = SliceLengths{} / dst_scalar_per_access;
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
 
-        constexpr auto dim_access_order = DimAccessOrder{};
+        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
+        constexpr auto reset_step = SpaceFillingCurve::GetStepBetween(Number<num_accesses - 1>{}, I0);
 
-        constexpr auto ordered_access_lengths =
-            container_reorder_given_new2old(access_lengths, dim_access_order);
-
-        // judge move forward or move backward during the last iteration
-        constexpr auto forward_sweep = [&]() {
-            StaticallyIndexedArray<bool, nDim> forward_sweep_;
-
-            forward_sweep_(I0) = true;
-
-            static_for<1, nDim, 1>{}([&](auto i) {
-                index_t tmp = ordered_access_lengths[I0] - 1;
-
-                static_for<1, i, 1>{}([&](auto j) {
-                    tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
-                });
-
-                forward_sweep_(i) = tmp % 2 == 0;
-            });
-
-            return forward_sweep_;
-        }();
-
-        // calculate dst data index after last iteration in Run(), if it has not being reset by
-        // RunWrite()
-        constexpr auto dst_data_idx = [&]() {
-            Index ordered_idx;
-
-            static_for<0, nDim, 1>{}([&](auto i) {
-                ordered_idx(i) = forward_sweep[i] ? ordered_access_lengths[i] - 1 : 0;
-            });
-
-            return container_reorder_given_old2new(ordered_idx, dim_access_order) *
-                   dst_scalar_per_access;
-        }();
-
-        //
-        constexpr auto reset_dst_data_step = [&]() {
-            Index reset_dst_data_step_;
-
-            static_for<0, nDim, 1>{}([&](auto i) { reset_dst_data_step_(i) = -dst_data_idx[i]; });
-
-            return reset_dst_data_step_;
-        }();
-
-        return reset_dst_data_step;
+        return reset_step;
     }
 
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason

@@ -38,13 +38,24 @@ struct SpaceFillingCurve
                ScalarPerVector;
     }
 
+    template <index_t AccessIdx1dBegin, index_t AccessIdx1dEnd>
+    static __device__ __host__ constexpr auto GetStepBetween(Number<AccessIdx1dBegin>, Number<AccessIdx1dEnd>)
+    {
+        static_assert(AccessIdx1dBegin >= 0, "1D index should be non-negative");
+        static_assert(AccessIdx1dBegin < GetNumOfAccess(), "1D index should be larger than 0");
+        static_assert(AccessIdx1dEnd >= 0, "1D index should be non-negative");
+        static_assert(AccessIdx1dEnd < GetNumOfAccess(), "1D index should be larger than 0");
+
+        constexpr auto idx_begin = GetIndex(Number<AccessIdx1dBegin>{});
+        constexpr auto idx_end   = GetIndex(Number<AccessIdx1dEnd>{});
+        return idx_end - idx_begin;
+    }
+
     template <index_t AccessIdx1d>
     static __device__ __host__ constexpr auto GetForwardStep(Number<AccessIdx1d>)
     {
-
-        constexpr auto idx_curr = GetIndex(Number<AccessIdx1d>{});
-        constexpr auto idx_next = GetIndex(Number<AccessIdx1d + 1>{});
-        return idx_next - idx_curr;
+        static_assert(AccessIdx1d < GetNumOfAccess(), "1D index should be larger than 0");
+        return GetStepBetween(Number<AccessIdx1d>{}, Number<AccessIdx1d + 1>{});
     }
 
     template <index_t AccessIdx1d>
@@ -52,24 +63,7 @@ struct SpaceFillingCurve
     {
         static_assert(AccessIdx1d > 0, "1D index should be larger than 0");
 
-        constexpr auto idx_curr = GetIndex(Number<AccessIdx1d>{});
-        constexpr auto idx_prev = GetIndex(Number<AccessIdx1d - 1>{});
-        return idx_prev - idx_curr;
-    }
-
-    /*
-     * \brief Get all the multi-dimensional indices between given access_id and next access_id.
-     */
-    template <typename DimAccessOrderOfSubTensor=DimAccessOrder, index_t AccessIdx1d>
-    static __device__ __host__ constexpr auto GetIndices(Number<AccessIdx1d>)
-    {
-        constexpr auto base_index = GetIndex(Number<AccessIdx1d>{});
-        // TODO: Should we use a zig-zag space-filling-curve here?
-        using SubSpaceFillingCurve = SpaceFillingCurve<ScalarsPerAccess, DimAccessOrderOfSubTensor, typename uniform_sequence_gen<nDim, 1>::type>;
-        constexpr auto compute_index = [base_index](auto k) constexpr {
-            return SubSpaceFillingCurve::GetIndex(k) + base_index;
-        };
-        return generate_tuple(compute_index, Number<ScalarPerVector>{});
+        return GetStepBetween(Number<AccessIdx1d>{}, Number<AccessIdx1d - 1>{});
     }
 
     template <index_t AccessIdx1d>
