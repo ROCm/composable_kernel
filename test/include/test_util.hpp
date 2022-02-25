@@ -1,10 +1,12 @@
 #ifndef TEST_UTIL_HPP
 #define TEST_UTIL_HPP
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
+#include <iterator>
 #include <limits>
 #include <type_traits>
 #include <vector>
@@ -80,5 +82,12 @@ typename std::enable_if<std::is_integral<T>::value, bool>::type check_err(
 }
 
 } // namespace test_util
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+{
+    std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
+    return os;
+}
 
 #endif

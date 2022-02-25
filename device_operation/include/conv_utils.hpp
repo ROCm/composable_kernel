@@ -186,6 +186,30 @@ HostTensorDescriptor GetHostTensorDescriptor(const std::vector<std::size_t>& dim
         return HostTensorDescriptor(
             dims, std::vector<std::size_t>{C * dims[2] * dims[3], 1, dims[3] * C, C});
     }
+    // 3D
+    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NCDHW>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KCZYX>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NKDHW>::value)
+    {
+
+        return HostTensorDescriptor(
+            dims, std::vector<std::size_t>{C * dims[2] * dims[3] * dims[4],
+                                               dims[2] * dims[3] * dims[4],
+                                                         dims[3] * dims[4],
+                                                                   dims[4],
+                                                                         1});
+    }
+    else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NDHWC>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::KZYXC>::value ||
+                      std::is_same<TensorLayout, ck::tensor_layout::convolution::NDHWK>::value)
+    {
+        return HostTensorDescriptor(
+            dims, std::vector<std::size_t>{C * dims[2] * dims[3] * dims[4],
+                                                                         1,
+                                                     C * dims[3] * dims[4],
+                                                               C * dims[4],
+                                                                         C});
+    }
 
     std::stringstream err_msg;
     err_msg << "Unsupported data layout provided: " << layout << "!";
