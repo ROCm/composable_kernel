@@ -79,12 +79,11 @@ struct DeviceGemmXdl_C_Shuffle
             }
         }();
 
-        const auto a_grid_desc_k0_m_k1 =
-            transform_tensor_descriptor(a_grid_desc_m_k,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, AK1)),
-                                                   make_pass_through_transform(M)),
-                                        make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto a_grid_desc_k0_m_k1 = transform_tensor_descriptor(
+            a_grid_desc_m_k,
+            make_tuple(make_unmerge_transform(make_tuple(K0, AK1)), make_pass_through_transform(M)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         return a_grid_desc_k0_m_k1;
     }
@@ -106,12 +105,11 @@ struct DeviceGemmXdl_C_Shuffle
             }
         }();
 
-        const auto b_grid_desc_k0_n_k1 =
-            transform_tensor_descriptor(b_grid_desc_k_n,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, BK1)),
-                                                   make_pass_through_transform(N)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto b_grid_desc_k0_n_k1 = transform_tensor_descriptor(
+            b_grid_desc_k_n,
+            make_tuple(make_unmerge_transform(make_tuple(K0, BK1)), make_pass_through_transform(N)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         return b_grid_desc_k0_n_k1;
     }

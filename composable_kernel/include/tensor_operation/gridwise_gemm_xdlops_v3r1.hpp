@@ -465,8 +465,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-        constexpr index_t k_pack = math::max(math::lcm(AK1, BK1),
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        constexpr index_t k_pack = math::max(
+            math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -483,8 +483,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size_aligned =
-            math::integer_least_multiple(a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             static_cast<FloatAB*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -516,7 +516,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                     HasMainK0BlockLoop>{};
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-                (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) / KPerBlock);
+            (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
+            KPerBlock);
 
         gridwise_gemm_pipeline.Run(a_grid_desc_ak0_m_ak1,
                                    a_block_desc_ak0_m_ak1,
