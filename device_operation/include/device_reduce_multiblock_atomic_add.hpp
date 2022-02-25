@@ -8,6 +8,7 @@
 #include "device_reduce.hpp"
 #include "device_reduce_common.hpp"
 #include "gridwise_2d_reduction_multiblock_atomic_add.hpp"
+#include "gridwise_set_buffer_value.hpp"
 
 namespace ck {
 namespace tensor_operation {

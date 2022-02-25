@@ -261,50 +261,5 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
     };
 };
 
-template <index_t BlockSize, typename DataType, typename Global1dBufferDescType>
-__global__ void kernel_buffer_set_value(const Global1dBufferDescType global1dBufferDesc,
-                                        DataType* const __restrict__ p_global,
-                                        DataType value)
-
-{
-    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<DataType, DataType>;
-
-    constexpr auto I0 = Number<0>{};
-
-    const index_t thread_local_id = get_thread_local_1d_id();
-    const index_t block_global_id = get_block_1d_id();
-
-    const index_t thread_global_id = block_global_id * BlockSize + thread_local_id;
-
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, DataType, 1, true> value_buf;
-
-    value_buf(I0) = value;
-
-    constexpr auto valueBuffDesc = make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
-
-    auto global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_global, global1dBufferDesc.GetElementSpaceSize());
-
-    if(thread_global_id < global1dBufferDesc.GetElementSize())
-    {
-        auto threadwise_store = ThreadwiseTensorSliceTransfer_v1r3<DataType,
-                                                                   DataType,
-                                                                   decltype(valueBuffDesc),
-                                                                   Global1dBufferDescType,
-                                                                   PassThroughOp,
-                                                                   Sequence<1>,
-                                                                   Sequence<0>,
-                                                                   0,
-                                                                   1,
-                                                                   InMemoryDataOperationEnum_t::Set,
-                                                                   1,
-                                                                   true>(
-            global1dBufferDesc, make_multi_index(thread_global_id), PassThroughOp{});
-
-        threadwise_store.Run(
-            valueBuffDesc, make_tuple(I0), value_buf, global1dBufferDesc, global_buf);
-    }
-};
-
 } // namespace ck
 #endif
