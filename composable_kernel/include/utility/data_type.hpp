@@ -5,6 +5,7 @@
 
 namespace ck {
 
+using bhalf_t = ushort;
 using half_t = _Float16;
 
 // vector_type
@@ -904,12 +905,12 @@ using half32_t = typename vector_type<half_t, 32>::type;
 using half64_t = typename vector_type<half_t, 64>::type;
 
 // bfp16
-using ushort2_t  = typename vector_type<ushort, 2>::type;
-using ushort4_t  = typename vector_type<ushort, 4>::type;
-using ushort8_t  = typename vector_type<ushort, 8>::type;
-using ushort16_t = typename vector_type<ushort, 16>::type;
-using ushort32_t = typename vector_type<ushort, 32>::type;
-using ushort64_t = typename vector_type<ushort, 64>::type;
+using bhalf2_t  = typename vector_type<bhalf_t, 2>::type;
+using bhalf4_t  = typename vector_type<bhalf_t, 4>::type;
+using bhalf8_t  = typename vector_type<bhalf_t, 8>::type;
+using bhalf16_t = typename vector_type<bhalf_t, 16>::type;
+using bhalf32_t = typename vector_type<bhalf_t, 32>::type;
+using bhalf64_t = typename vector_type<bhalf_t, 64>::type;
 
 // i32
 using int32x2_t  = typename vector_type<int32_t, 2>::type;

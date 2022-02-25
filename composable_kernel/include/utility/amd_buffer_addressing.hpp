@@ -57,13 +57,13 @@ llvm_amdgcn_raw_buffer_load_i16(int32x4_t srsrc,
                                 index_t soffset,
                                 index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.i16");
 
-__device__ ushort2_t
+__device__ bhalf2_t
 llvm_amdgcn_raw_buffer_load_i16x2(int32x4_t srsrc,
                                   index_t voffset,
                                   index_t soffset,
                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2i16");
 
-__device__ ushort4_t
+__device__ bhalf4_t
 llvm_amdgcn_raw_buffer_load_i16x4(int32x4_t srsrc,
                                   index_t voffset,
                                   index_t soffset,
@@ -156,14 +156,14 @@ llvm_amdgcn_raw_buffer_store_i16(ushort vdata,
                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i16");
 
 __device__ void
-llvm_amdgcn_raw_buffer_store_i16x2(ushort2_t vdata,
+llvm_amdgcn_raw_buffer_store_i16x2(bhalf2_t vdata,
                                    int32x4_t rsrc,
                                    index_t voffset,
                                    index_t soffset,
                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i16");
 
 __device__ void
-llvm_amdgcn_raw_buffer_store_i16x4(ushort4_t vdata,
+llvm_amdgcn_raw_buffer_store_i16x4(bhalf4_t vdata,
                                    int32x4_t rsrc,
                                    index_t voffset,
                                    index_t soffset,
@@ -387,7 +387,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             int32x4_t tmp = llvm_amdgcn_raw_buffer_load_i32x4(
                 src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
 
-            return bit_cast<ushort8_t>(tmp);
+            return bit_cast<bhalf8_t>(tmp);
         }
     }
     else if constexpr(is_same<T, int32_t>::value)
@@ -655,13 +655,13 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
         {
 3            vector_type<ushort, 8> tmp{src_thread_data};
 
-            llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<ushort4_t>()[Number<0>{}],
+            llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<bhalf4_t>()[Number<0>{}],
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset,
                                                 0);
 
-            llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<ushort4_t>()[Number<1>{}],
+            llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<bhalf4_t>()[Number<1>{}],
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
                                                 dst_wave_addr_offset + 4 * sizeof(ushort),
