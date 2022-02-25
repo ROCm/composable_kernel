@@ -145,10 +145,10 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         const index_t block_global_id = get_block_1d_id();
         const index_t blkgroup_id     = block_global_id / BlkGroupSize;
         const index_t block_local_id  = block_global_id % BlkGroupSize;
-        const index_t thread_dim0_cluster_id =
+        const index_t thread_m_cluster_id =
             reorder_thread_cluster ? thread_local_id % MThreadClusterSize
                                    : ((thread_local_id / KThreadClusterSize) % MThreadClusterSize);
-        const index_t thread_dim1_cluster_id =
+        const index_t thread_k_cluster_id =
             reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
                                    : thread_local_id % KThreadClusterSize;
 
@@ -170,9 +170,9 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
             1,
             false>(
             in2dDesc,
-            make_multi_index(
-                blkgroup_id * M_BlockTileSize + thread_dim0_cluster_id * MThreadSliceSize,
-                block_local_id * reduceSizePerBlock + thread_dim1_cluster_id * KThreadSliceSize));
+            make_multi_index(blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
+                             block_local_id * reduceSizePerBlock +
+                                 thread_k_cluster_id * KThreadSliceSize));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, K_BlockTileSize);
 
@@ -211,23 +211,23 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             if constexpr(reorder_thread_cluster)
             {
-                block_reduce_buf(thread_dim1_cluster_id * MThreadClusterSize +
-                                 thread_dim0_cluster_id) = accuValue_buf[I];
+                block_reduce_buf(thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id) =
+                    accuValue_buf[I];
             }
             else
-                block_reduce_buf(thread_dim0_cluster_id * KThreadClusterSize +
-                                 thread_dim1_cluster_id) = accuValue_buf[I];
+                block_reduce_buf(thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id) =
+                    accuValue_buf[I];
 
             accuValue_buf(I) = zeroVal;
 
             __syncthreads();
 
             blockwise_reduce::Reduce(
-                block_reduce_buf, accuValue_buf(I), thread_dim0_cluster_id, thread_dim1_cluster_id);
+                block_reduce_buf, accuValue_buf(I), thread_m_cluster_id, thread_k_cluster_id);
         });
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            if(thread_dim1_cluster_id == 0)
+            if(thread_k_cluster_id == 0)
             {
                 acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
 
@@ -235,7 +235,7 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
             }
         });
 
-        if(thread_dim1_cluster_id == 0)
+        if(thread_k_cluster_id == 0)
         {
             auto threadwise_dst_store =
                 ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
@@ -252,7 +252,7 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                                                    true>(
                     out1dDesc,
                     make_multi_index(blkgroup_id * M_BlockTileSize +
-                                     thread_dim0_cluster_id * MThreadSliceSize),
+                                     thread_m_cluster_id * MThreadSliceSize),
                     PassThroughOp<AccDataType>{});
 
             threadwise_dst_store.Run(

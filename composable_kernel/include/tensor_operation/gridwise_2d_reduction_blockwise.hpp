@@ -218,10 +218,10 @@ struct GridwiseReduction_mk_to_m_blockwise
 
         const index_t thread_local_id    = get_thread_local_1d_id();
         const index_t block_global_1d_id = get_block_1d_id();
-        const index_t thread_dim0_cluster_id =
+        const index_t thread_m_cluster_id =
             reorder_thread_cluster ? thread_local_id % MThreadClusterSize
                                    : ((thread_local_id / KThreadClusterSize) % MThreadClusterSize);
-        const index_t thread_dim1_cluster_id =
+        const index_t thread_k_cluster_id =
             reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
                                    : thread_local_id % KThreadClusterSize;
 
@@ -241,8 +241,8 @@ struct GridwiseReduction_mk_to_m_blockwise
             1,
             false>(in_grid_desc_m_k,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                        thread_dim0_cluster_id * MThreadSliceSize,
-                                    thread_dim1_cluster_id * KThreadSliceSize));
+                                        thread_m_cluster_id * MThreadSliceSize,
+                                    thread_k_cluster_id * KThreadSliceSize));
 
         constexpr auto in_thread_copy_step = make_multi_index(0, K_BlockTileSize);
 
@@ -282,23 +282,23 @@ struct GridwiseReduction_mk_to_m_blockwise
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             if constexpr(reorder_thread_cluster)
             {
-                block_reduce_buf(thread_dim1_cluster_id * MThreadClusterSize +
-                                 thread_dim0_cluster_id) = accuValue_buf[I];
+                block_reduce_buf(thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id) =
+                    accuValue_buf[I];
             }
             else
-                block_reduce_buf(thread_dim0_cluster_id * KThreadClusterSize +
-                                 thread_dim1_cluster_id) = accuValue_buf[I];
+                block_reduce_buf(thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id) =
+                    accuValue_buf[I];
 
             accuValue_buf(I) = zeroVal;
 
             __syncthreads();
 
             blockwise_reduce::Reduce(
-                block_reduce_buf, accuValue_buf(I), thread_dim0_cluster_id, thread_dim1_cluster_id);
+                block_reduce_buf, accuValue_buf(I), thread_m_cluster_id, thread_k_cluster_id);
         });
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            if(thread_dim1_cluster_id == 0)
+            if(thread_k_cluster_id == 0)
             {
                 acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
 
@@ -306,7 +306,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             }
         });
 
-        if(thread_dim1_cluster_id == 0)
+        if(thread_k_cluster_id == 0)
         {
             if constexpr(!BetaIsZero)
             {
@@ -328,7 +328,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                          false>(
                             out_grid_desc_m,
                             make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                             thread_dim0_cluster_id * MThreadSliceSize));
+                                             thread_m_cluster_id * MThreadSliceSize));
 
                     threadwise_dst_load.Run(out_grid_desc_m,
                                             out_global_buf,
@@ -357,7 +357,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    true>(
                     out_grid_desc_m,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                     thread_dim0_cluster_id * MThreadSliceSize),
+                                     thread_m_cluster_id * MThreadSliceSize),
                     PassThroughOp<AccDataType>{});
 
             threadwise_dst_store.Run(
@@ -412,10 +412,10 @@ struct GridwiseReduction_mk_to_m_blockwise
 
         const index_t thread_local_id    = get_thread_local_1d_id();
         const index_t block_global_1d_id = get_block_1d_id();
-        const index_t thread_dim0_cluster_id =
+        const index_t thread_m_cluster_id =
             reorder_thread_cluster ? thread_local_id % MThreadClusterSize
                                    : ((thread_local_id / KThreadClusterSize) % MThreadClusterSize);
-        const index_t thread_dim1_cluster_id =
+        const index_t thread_k_cluster_id =
             reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
                                    : thread_local_id % KThreadClusterSize;
 
@@ -435,8 +435,8 @@ struct GridwiseReduction_mk_to_m_blockwise
             1,
             false>(in_grid_desc_m_k,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                        thread_dim0_cluster_id * MThreadSliceSize,
-                                    thread_dim1_cluster_id * KThreadSliceSize));
+                                        thread_m_cluster_id * MThreadSliceSize,
+                                    thread_k_cluster_id * KThreadSliceSize));
 
         index_t indexOffset = 0;
 
@@ -465,7 +465,7 @@ struct GridwiseReduction_mk_to_m_blockwise
 
                     // initialize the indices for the per-thread to-reduce values
                     in_thread_idx_buf(offset) =
-                        indexOffset + thread_dim1_cluster_id * KThreadSliceSize + J();
+                        indexOffset + thread_k_cluster_id * KThreadSliceSize + J();
 
                     // do element-wise pre-reduction operation
                     in_elementwise_op(in_thread_val_buf(offset), in_thread_val_buf(offset));
@@ -485,17 +485,17 @@ struct GridwiseReduction_mk_to_m_blockwise
                 // store thread local value to LDS for parallel reduction
                 if constexpr(reorder_thread_cluster)
                 {
-                    block_reduce_val_buf(thread_dim1_cluster_id * MThreadClusterSize +
-                                         thread_dim0_cluster_id) = tmpValue;
-                    block_reduce_idx_buf(thread_dim1_cluster_id * MThreadClusterSize +
-                                         thread_dim0_cluster_id) = tmpIndex;
+                    block_reduce_val_buf(thread_k_cluster_id * MThreadClusterSize +
+                                         thread_m_cluster_id) = tmpValue;
+                    block_reduce_idx_buf(thread_k_cluster_id * MThreadClusterSize +
+                                         thread_m_cluster_id) = tmpIndex;
                 }
                 else
                 {
-                    block_reduce_val_buf(thread_dim0_cluster_id * KThreadClusterSize +
-                                         thread_dim1_cluster_id) = tmpValue;
-                    block_reduce_idx_buf(thread_dim0_cluster_id * KThreadClusterSize +
-                                         thread_dim1_cluster_id) = tmpIndex;
+                    block_reduce_val_buf(thread_m_cluster_id * KThreadClusterSize +
+                                         thread_k_cluster_id) = tmpValue;
+                    block_reduce_idx_buf(thread_m_cluster_id * KThreadClusterSize +
+                                         thread_k_cluster_id) = tmpIndex;
                 }
 
                 __syncthreads();
@@ -504,8 +504,8 @@ struct GridwiseReduction_mk_to_m_blockwise
                                           block_reduce_idx_buf,
                                           tmpValue,
                                           tmpIndex,
-                                          thread_dim0_cluster_id,
-                                          thread_dim1_cluster_id);
+                                          thread_m_cluster_id,
+                                          thread_k_cluster_id);
 
                 Accumulation::calculate(accuValue_buf(I), tmpValue, accuIndex_buf(I), tmpIndex);
             });
@@ -520,7 +520,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            if(thread_dim1_cluster_id == 0)
+            if(thread_k_cluster_id == 0)
             {
                 // for indiced operation, acc_elementwise_op shoud do nothing
                 acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
@@ -529,7 +529,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             }
         });
 
-        if(thread_dim1_cluster_id == 0)
+        if(thread_k_cluster_id == 0)
         {
             if constexpr(!BetaIsZero)
             {
@@ -551,7 +551,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                          false>(
                             out_grid_desc_m,
                             make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                             thread_dim0_cluster_id * MThreadSliceSize));
+                                             thread_m_cluster_id * MThreadSliceSize));
 
                     threadwise_dst_load.Run(out_grid_desc_m,
                                             out_global_val_buf,
@@ -580,7 +580,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    false>(
                     out_grid_desc_m,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                     thread_dim0_cluster_id * MThreadSliceSize),
+                                     thread_m_cluster_id * MThreadSliceSize),
                     PassThroughOp<AccDataType>{});
 
             auto threadwise_dst_idx_store =
@@ -598,7 +598,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    false>(
                     out_grid_desc_m,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                     thread_dim0_cluster_id * MThreadSliceSize),
+                                     thread_m_cluster_id * MThreadSliceSize),
                     PassThroughOp<index_t>{});
 
             threadwise_dst_val_store.Run(ReducedDataDesc,
@@ -666,10 +666,10 @@ struct GridwiseReduction_mk_to_m_blockwise
 
         const index_t thread_local_id    = get_thread_local_1d_id();
         const index_t block_global_1d_id = get_block_1d_id();
-        const index_t thread_dim0_cluster_id =
+        const index_t thread_m_cluster_id =
             reorder_thread_cluster ? thread_local_id % MThreadClusterSize
                                    : ((thread_local_id / KThreadClusterSize) % MThreadClusterSize);
-        const index_t thread_dim1_cluster_id =
+        const index_t thread_k_cluster_id =
             reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
                                    : thread_local_id % KThreadClusterSize;
 
@@ -689,8 +689,8 @@ struct GridwiseReduction_mk_to_m_blockwise
             1,
             false>(in_grid_desc_m_k,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                        thread_dim0_cluster_id * MThreadSliceSize,
-                                    thread_dim1_cluster_id * KThreadSliceSize));
+                                        thread_m_cluster_id * MThreadSliceSize,
+                                    thread_k_cluster_id * KThreadSliceSize));
 
         auto threadwise_src_idx_load = ThreadwiseTensorSliceTransfer_v2<
             index_t,
@@ -704,8 +704,8 @@ struct GridwiseReduction_mk_to_m_blockwise
             1,
             false>(in_grid_desc_m_k,
                    make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                        thread_dim0_cluster_id * MThreadSliceSize,
-                                    thread_dim1_cluster_id * KThreadSliceSize));
+                                        thread_m_cluster_id * MThreadSliceSize,
+                                    thread_k_cluster_id * KThreadSliceSize));
 
         index_t indexOffset = 0;
 
@@ -748,17 +748,17 @@ struct GridwiseReduction_mk_to_m_blockwise
                 // store thread local value to LDS for parallel reduction
                 if constexpr(reorder_thread_cluster)
                 {
-                    block_reduce_val_buf(thread_dim1_cluster_id * MThreadClusterSize +
-                                         thread_dim0_cluster_id) = tmpValue;
-                    block_reduce_idx_buf(thread_dim1_cluster_id * MThreadClusterSize +
-                                         thread_dim0_cluster_id) = tmpIndex;
+                    block_reduce_val_buf(thread_k_cluster_id * MThreadClusterSize +
+                                         thread_m_cluster_id) = tmpValue;
+                    block_reduce_idx_buf(thread_k_cluster_id * MThreadClusterSize +
+                                         thread_m_cluster_id) = tmpIndex;
                 }
                 else
                 {
-                    block_reduce_val_buf(thread_dim0_cluster_id * KThreadClusterSize +
-                                         thread_dim1_cluster_id) = tmpValue;
-                    block_reduce_idx_buf(thread_dim0_cluster_id * KThreadClusterSize +
-                                         thread_dim1_cluster_id) = tmpIndex;
+                    block_reduce_val_buf(thread_m_cluster_id * KThreadClusterSize +
+                                         thread_k_cluster_id) = tmpValue;
+                    block_reduce_idx_buf(thread_m_cluster_id * KThreadClusterSize +
+                                         thread_k_cluster_id) = tmpIndex;
                 }
 
                 __syncthreads();
@@ -767,8 +767,8 @@ struct GridwiseReduction_mk_to_m_blockwise
                                           block_reduce_idx_buf,
                                           tmpValue,
                                           tmpIndex,
-                                          thread_dim0_cluster_id,
-                                          thread_dim1_cluster_id);
+                                          thread_m_cluster_id,
+                                          thread_k_cluster_id);
 
                 Accumulation::calculate(accuValue_buf(I), tmpValue, accuIndex_buf(I), tmpIndex);
             });
@@ -784,7 +784,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            if(thread_dim1_cluster_id == 0)
+            if(thread_k_cluster_id == 0)
             {
                 // for indiced operation, acc_elementwise_op shoud do nothing
                 acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
@@ -793,7 +793,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             }
         });
 
-        if(thread_dim1_cluster_id == 0)
+        if(thread_k_cluster_id == 0)
         {
             if constexpr(!BetaIsZero)
             {
@@ -815,7 +815,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                          true>(
                             out_grid_desc_m,
                             make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                             thread_dim0_cluster_id * MThreadSliceSize));
+                                             thread_m_cluster_id * MThreadSliceSize));
 
                     threadwise_dst_load.Run(out_grid_desc_m,
                                             out_global_val_buf,
@@ -844,7 +844,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    true>(
                     out_grid_desc_m,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                     thread_dim0_cluster_id * MThreadSliceSize),
+                                     thread_m_cluster_id * MThreadSliceSize),
                     PassThroughOp<AccDataType>{});
 
             auto threadwise_dst_idx_store =
@@ -862,7 +862,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    true>(
                     out_grid_desc_m,
                     make_multi_index(block_global_1d_id * M_BlockTileSize +
-                                     thread_dim0_cluster_id * MThreadSliceSize),
+                                     thread_m_cluster_id * MThreadSliceSize),
                     PassThroughOp<index_t>{});
 
             threadwise_dst_val_store.Run(ReducedDataDesc,
