@@ -3,6 +3,7 @@
 
 #include "amd_buffer_addressing.hpp"
 #include "c_style_pointer_cast.hpp"
+#include "config.hpp"
 #include "enable_if.hpp"
 
 namespace ck {
@@ -105,6 +106,31 @@ struct DynamicBuffer
                                         : X{invalid_element_value_};
 #endif
             }
+        }
+    }
+
+    template <InMemoryDataOperationEnum_t Op,
+              typename X,
+              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                 bool>::type = false>
+    __host__ __device__ void Transfer(index_t i, bool is_valid_element, const X& x)
+    {
+        if constexpr(Op == InMemoryDataOperationEnum_t::Set)
+        {
+            this->template Set<X>(i, is_valid_element, x);
+        }
+        else if constexpr(Op == InMemoryDataOperationEnum_t::AtomicAdd)
+        {
+            this->template AtomicAdd<X>(i, is_valid_element, x);
+
+        }
+        else if constexpr(Op == InMemoryDataOperationEnum_t::Add)
+        {
+            auto tmp = this->template Get<X>(i, is_valid_element);
+            this->template Set<X>(i, is_valid_element, x+tmp);
+            // tmp += x;
+            // this->template Set<X>(i, is_valid_element, tmp);
         }
     }
 
