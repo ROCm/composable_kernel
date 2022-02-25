@@ -16,8 +16,8 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename AGridDesc_K0_M_K1,
-          typename BGridDesc_K0_N_K1,
+          typename AGridDesc_AK0_M_AK1,
+          typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -32,8 +32,8 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
-            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
                 c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl,
             const AElementwiseOperation a_element_op,
@@ -48,8 +48,8 @@ __global__ void
         p_b_grid,
         p_c_grid,
         p_shared,
-        a_grid_desc_k0_m_k1,
-        b_grid_desc_k0_n_k1,
+        a_grid_desc_ak0_m_ak1,
+        b_grid_desc_bk0_n_bk1,
         c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl,
         a_element_op,
         b_element_op,
@@ -63,8 +63,8 @@ template <
     typename FloatAcc,
     typename FloatC,
     InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
-    typename AGridDesc_K0_M_K1,
-    typename BGridDesc_K0_N_K1,
+    typename AGridDesc_AK0_M_AK1,
+    typename BGridDesc_BK0_N_BK1,
     typename CGridDesc_M_N,
     typename AElementwiseOperation,
     typename BElementwiseOperation,
@@ -72,23 +72,23 @@ template <
     index_t MPerBlock,
     index_t NPerBlock,
     index_t KPerBlock,
+    index_t AK1Value,
+    index_t BK1Value,
     index_t MPerXdl,
     index_t NPerXdl,
     index_t MXdlPerWave,
     index_t NXdlPerWave,
-    typename ABlockTransferThreadClusterLengths_K0_M_K1,
+    typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
     typename ABlockTransferThreadClusterArrangeOrder,
     typename ABlockTransferSrcAccessOrder,
-    index_t ABlockTransferK1PerBlock,
     index_t ABlockTransferSrcVectorDim,
     index_t ABlockTransferSrcScalarPerVector,
     index_t ABlockTransferDstScalarPerVector_K1,
     bool AThreadTransferSrcResetCoordinateAfterRun,
     bool ABlockLdsExtraM,
-    typename BBlockTransferThreadClusterLengths_K0_N_K1,
+    typename BBlockTransferThreadClusterLengths_BK0_N_BK1,
     typename BBlockTransferThreadClusterArrangeOrder,
     typename BBlockTransferSrcAccessOrder,
-    index_t BBlockTransferK1PerBlock,
     index_t BBlockTransferSrcVectorDim,
     index_t BBlockTransferSrcScalarPerVector,
     index_t BBlockTransferDstScalarPerVector_K1,
@@ -111,53 +111,53 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto A_K1 = Number<ABlockTransferK1PerBlock>{};
-    static constexpr auto B_K1 = Number<BBlockTransferK1PerBlock>{};
-    static constexpr auto A_K0 = Number<KPerBlock>{} / A_K1;
-    static constexpr auto B_K0 = Number<KPerBlock>{} / B_K1;
+    static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
+    static constexpr auto BK0 = Number<KPerBlock / BK1Value>{};
+    static constexpr auto AK1 = Number<AK1Value>{};
+    static constexpr auto BK1 = Number<BK1Value>{};
 
-    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
+    __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
-        constexpr auto max_lds_align = A_K1;
+        constexpr auto max_lds_align = AK1;
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_m_k1 = [&]() {
+        constexpr auto a_block_desc_ak0_m_ak1 = [&]() {
             if constexpr(ABlockLdsExtraM)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(A_K0, Number<MPerBlock>{}, A_K1),
-                    make_tuple(Number<MPerBlock + 1>{} * A_K1, A_K1, I1));
+                    make_tuple(AK0, Number<MPerBlock>{}, AK1),
+                    make_tuple(Number<MPerBlock + 1>{} * AK1, AK1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(A_K0, Number<MPerBlock>{}, A_K1), max_lds_align);
+                    make_tuple(AK0, Number<MPerBlock>{}, AK1), max_lds_align);
             }
         }();
 
-        return a_block_desc_k0_m_k1;
+        return a_block_desc_ak0_m_ak1;
     }
 
-    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
+    __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
-        constexpr auto max_lds_align = B_K1;
+        constexpr auto max_lds_align = BK1;
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = [&]() {
+        constexpr auto b_block_desc_bk0_n_bk1 = [&]() {
             if constexpr(BBlockLdsExtraN)
             {
                 return make_naive_tensor_descriptor(
-                    make_tuple(B_K0, Number<NPerBlock>{}, B_K1),
-                    make_tuple(Number<NPerBlock + 1>{} * B_K1, B_K1, I1));
+                    make_tuple(BK0, Number<NPerBlock>{}, BK1),
+                    make_tuple(Number<NPerBlock + 1>{} * BK1, BK1, I1));
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(B_K0, Number<NPerBlock>{}, B_K1), max_lds_align);
+                    make_tuple(BK0, Number<NPerBlock>{}, BK1), max_lds_align);
             }
         }();
 
-        return b_block_desc_k0_n_k1;
+        return b_block_desc_bk0_n_bk1;
     }
 
     __host__ __device__ static constexpr auto
@@ -182,15 +182,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_desc_k0_m_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
+        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
-        constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
+        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         constexpr auto a_block_space_size_aligned =
-            math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), A_K1);
+            math::integer_least_multiple(a_block_desc_ak0_m_ak1.GetElementSpaceSize(), AK1);
 
         constexpr auto b_block_space_size_aligned =
-            math::integer_least_multiple(b_block_desc_k0_n_k1.GetElementSpaceSize(), B_K1);
+            math::integer_least_multiple(b_block_desc_bk0_n_bk1.GetElementSpaceSize(), BK1);
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl =
@@ -207,23 +207,23 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ __device__ static constexpr bool
-    CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
-                  const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
+    CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+                  const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                   const CGridDesc_M_N& c_grid_desc_m_n,
                   index_t M01,
                   index_t N01)
     {
-        static_assert(is_known_at_compile_time<remove_cv_t<decltype(A_K1)>>::value &&
-                      is_known_at_compile_time<remove_cv_t<decltype(B_K1)>>::value,
-                      "wrong! K1 need to be known at compile-time");
+        // static_assert(is_known_at_compile_time<remove_cv_t<decltype(AK1)>>::value &&
+        //               is_known_at_compile_time<remove_cv_t<decltype(BK1)>>::value,
+        //               "wrong! K1 need to be known at compile-time");
 
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-        const auto M = a_grid_desc_k0_m_k1.GetLength(I1);
-        const auto N = b_grid_desc_k0_n_k1.GetLength(I1);
-        const auto K = a_grid_desc_k0_m_k1.GetLength(I0) * a_grid_desc_k0_m_k1.GetLength(I2);
+        const auto M = a_grid_desc_ak0_m_ak1.GetLength(I1);
+        const auto N = b_grid_desc_bk0_n_bk1.GetLength(I1);
+        const auto K = a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2);
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1)))
             return false;
@@ -278,7 +278,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
     // TODO move this function into GEMM-pipeline class
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = ((K0 * ABlockTransferK1PerBlock) / (NumPrefetch * KPerBlock)) > 1;
+        const bool has_main_k0_block_loop = ((K0 * AK1) / (NumPrefetch * KPerBlock)) > 1;
 
         return has_main_k0_block_loop;
     }
@@ -358,8 +358,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         const FloatAB* __restrict__ p_b_grid,
         FloatC* __restrict__ p_c_grid,
         void* __restrict__ p_shared,
-        const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
-        const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
+        const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
         const CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl&
             c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl,
         const AElementwiseOperation& a_element_op,
@@ -368,9 +368,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
+            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_b_grid, b_grid_desc_k0_n_k1.GetElementSpaceSize());
+            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_grid,
             c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl
@@ -388,13 +388,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
         // lds max alignment
-        constexpr auto max_lds_align = math::lcm(A_K1, B_K1);
+        constexpr auto max_lds_align = math::lcm(AK1, BK1);
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_m_k1 = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
+        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
+        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
@@ -402,13 +402,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
-                                              Sequence<A_K0, MPerBlock, ABlockTransferK1PerBlock>,
-                                              ABlockTransferThreadClusterLengths_K0_M_K1,
+                                              Sequence<AK0, MPerBlock, AK1>,
+                                              ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                               ABlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
                                               FloatAB,
-                                              decltype(a_grid_desc_k0_m_k1),
-                                              decltype(a_block_desc_k0_m_k1),
+                                              decltype(a_grid_desc_ak0_m_ak1),
+                                              decltype(a_block_desc_ak0_m_ak1),
                                               ABlockTransferSrcAccessOrder,
                                               Sequence<1, 0, 2>,
                                               ABlockTransferSrcVectorDim,
@@ -420,10 +420,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               AThreadTransferSrcResetCoordinateAfterRun,
                                               true,
                                               NumPrefetch>(
-                a_grid_desc_k0_m_k1,
+                a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
-                a_block_desc_k0_m_k1,
+                a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
@@ -433,13 +433,13 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
                                               InMemoryDataOperationEnum_t::Set,
-                                              Sequence<B_K0, NPerBlock, BBlockTransferK1PerBlock>,
-                                              BBlockTransferThreadClusterLengths_K0_N_K1,
+                                              Sequence<BK0, NPerBlock, BK1>,
+                                              BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                               BBlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
                                               FloatAB,
-                                              decltype(b_grid_desc_k0_n_k1),
-                                              decltype(b_block_desc_k0_n_k1),
+                                              decltype(b_grid_desc_bk0_n_bk1),
+                                              decltype(b_block_desc_bk0_n_bk1),
                                               BBlockTransferSrcAccessOrder,
                                               Sequence<1, 0, 2>,
                                               BBlockTransferSrcVectorDim,
@@ -451,10 +451,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               BThreadTransferSrcResetCoordinateAfterRun,
                                               true,
                                               NumPrefetch>(
-                b_grid_desc_k0_n_k1,
+                b_grid_desc_bk0_n_bk1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b_element_op,
-                b_block_desc_k0_n_k1,
+                b_block_desc_bk0_n_bk1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
@@ -465,15 +465,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-        constexpr index_t k_pack = math::max(math::lcm(A_K1, B_K1),
+        constexpr index_t k_pack = math::max(math::lcm(AK1, BK1),
             MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
                                                                 FloatAcc,
-                                                                decltype(a_block_desc_k0_m_k1),
-                                                                decltype(b_block_desc_k0_n_k1),
+                                                                decltype(a_block_desc_ak0_m_ak1),
+                                                                decltype(b_block_desc_bk0_n_bk1),
                                                                 MPerXdl,
                                                                 NPerXdl,
                                                                 MXdlPerWave,
@@ -484,28 +484,28 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned =
-            math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
+            math::integer_least_multiple(a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
-            static_cast<FloatAB*>(p_shared), a_block_desc_k0_m_k1.GetElementSpaceSize());
+            static_cast<FloatAB*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
             static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
-            b_block_desc_k0_n_k1.GetElementSpaceSize());
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / A_K1, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / B_K1, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
 
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_v1<remove_cvref_t<decltype(a_grid_desc_k0_m_k1)>,
-                                    remove_cvref_t<decltype(a_block_desc_k0_m_k1)>,
+            GridwiseGemmPipeline_v1<remove_cvref_t<decltype(a_grid_desc_ak0_m_ak1)>,
+                                    remove_cvref_t<decltype(a_block_desc_ak0_m_ak1)>,
                                     remove_cvref_t<decltype(a_blockwise_copy)>,
                                     remove_cvref_t<decltype(a_grid_buf)>,
                                     remove_cvref_t<decltype(a_block_buf)>,
                                     remove_cvref_t<decltype(a_block_slice_copy_step)>,
-                                    remove_cvref_t<decltype(b_grid_desc_k0_n_k1)>,
-                                    remove_cvref_t<decltype(b_block_desc_k0_n_k1)>,
+                                    remove_cvref_t<decltype(b_grid_desc_bk0_n_bk1)>,
+                                    remove_cvref_t<decltype(b_block_desc_bk0_n_bk1)>,
                                     remove_cvref_t<decltype(b_blockwise_copy)>,
                                     remove_cvref_t<decltype(b_grid_buf)>,
                                     remove_cvref_t<decltype(b_block_buf)>,
@@ -516,16 +516,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                     HasMainK0BlockLoop>{};
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-                (a_grid_desc_k0_m_k1.GetLength(I0) * a_grid_desc_k0_m_k1.GetLength(I2)) / KPerBlock);
+                (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) / KPerBlock);
 
-        gridwise_gemm_pipeline.Run(a_grid_desc_k0_m_k1,
-                                   a_block_desc_k0_m_k1,
+        gridwise_gemm_pipeline.Run(a_grid_desc_ak0_m_ak1,
+                                   a_block_desc_ak0_m_ak1,
                                    a_blockwise_copy,
                                    a_grid_buf,
                                    a_block_buf,
                                    a_block_slice_copy_step,
-                                   b_grid_desc_k0_n_k1,
-                                   b_block_desc_k0_n_k1,
+                                   b_grid_desc_bk0_n_bk1,
+                                   b_block_desc_bk0_n_bk1,
                                    b_blockwise_copy,
                                    b_grid_buf,
                                    b_block_buf,

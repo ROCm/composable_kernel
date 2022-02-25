@@ -433,6 +433,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         MPerBlock,
         NPerBlock,
         K0PerBlock * K1,
+        K1,                // AK1
+        K1,                // BK1
         MPerXdl,
         NPerXdl,
         MXdlPerWave,
@@ -440,7 +442,6 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         ABlockTransferThreadClusterLengths_K0_M_K1,
         Sequence<1, 0, 2>, // ABlockTransferThreadClusterArrangeOrder,
         Sequence<1, 0, 2>, // ABlockTransferSrcAccessOrder,
-        K1,                // ABlockTransferK1PerBlock,
         2,                 // ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
@@ -449,7 +450,6 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         BBlockTransferThreadClusterLengths_K0_N_K1,
         Sequence<1, 0, 2>, // BBlockTransferThreadClusterArrangeOrder,
         Sequence<1, 0, 2>, // BBlockTransferSrcAccessOrder,
-        K1,                // BBlockTransferK1PerBlock,
         2,                 // BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,

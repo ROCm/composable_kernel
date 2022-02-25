@@ -30,6 +30,8 @@ template <
     ck::index_t MPerBlock,
     ck::index_t NPerBlock,
     ck::index_t KPerBlock,
+    ck::index_t AK1,
+    ck::index_t BK1,
     ck::index_t MPerXDL,
     ck::index_t NPerXDL,
     ck::index_t MXdlPerWave,
@@ -37,7 +39,6 @@ template <
     typename ABlockTransferThreadClusterLengths_K0_M_K1,
     typename ABlockTransferThreadClusterArrangeOrder,
     typename ABlockTransferSrcAccessOrder,
-    ck::index_t ABlockTransferK1PerBlock,
     ck::index_t ABlockTransferSrcVectorDim,
     ck::index_t ABlockTransferSrcScalarPerVector,
     ck::index_t ABlockTransferDstScalarPerVector_K1,
@@ -45,7 +46,6 @@ template <
     typename BBlockTransferThreadClusterLengths_K0_N_K1,
     typename BBlockTransferThreadClusterArrangeOrder,
     typename BBlockTransferSrcAccessOrder,
-    ck::index_t BBlockTransferK1PerBlock,
     ck::index_t BBlockTransferSrcVectorDim,
     ck::index_t BBlockTransferSrcScalarPerVector,
     ck::index_t BBlockTransferDstScalarPerVector_K1,
@@ -64,9 +64,9 @@ struct DeviceGemmXdl_C_Shuffle
 
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
-        assert(K % ABlockTransferK1PerBlock == 0);
+        assert(K % AK1 == 0);
 
-        const index_t K0 = K / ABlockTransferK1PerBlock;
+        const index_t K0 = K / AK1;
 
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -81,7 +81,7 @@ struct DeviceGemmXdl_C_Shuffle
 
         const auto a_grid_desc_k0_m_k1 =
             transform_tensor_descriptor(a_grid_desc_m_k,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, ABlockTransferK1PerBlock)),
+                                        make_tuple(make_unmerge_transform(make_tuple(K0, AK1)),
                                                    make_pass_through_transform(M)),
                                         make_tuple(Sequence<1>{}, Sequence<0>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -91,9 +91,9 @@ struct DeviceGemmXdl_C_Shuffle
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
-        assert(K % BBlockTransferK1PerBlock == 0);
+        assert(K % BK1 == 0);
 
-        const index_t K0 = K / BBlockTransferK1PerBlock;
+        const index_t K0 = K / BK1;
 
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -108,7 +108,7 @@ struct DeviceGemmXdl_C_Shuffle
 
         const auto b_grid_desc_k0_n_k1 =
             transform_tensor_descriptor(b_grid_desc_k_n,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, BBlockTransferK1PerBlock)),
+                                        make_tuple(make_unmerge_transform(make_tuple(K0, BK1)),
                                                    make_pass_through_transform(N)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -148,6 +148,8 @@ struct DeviceGemmXdl_C_Shuffle
         MPerBlock,
         NPerBlock,
         KPerBlock,
+        AK1,
+        BK1,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
@@ -155,7 +157,6 @@ struct DeviceGemmXdl_C_Shuffle
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
-        ABlockTransferK1PerBlock,
         ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
@@ -164,7 +165,6 @@ struct DeviceGemmXdl_C_Shuffle
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
-        BBlockTransferK1PerBlock,
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
@@ -462,8 +462,8 @@ struct DeviceGemmXdl_C_Shuffle
             << MPerBlock << ", "
             << NPerBlock << ", "
             << KPerBlock << ", "
-            << ABlockTransferK1PerBlock << ", "
-            << BBlockTransferK1PerBlock
+            << AK1 << ", "
+            << BK1
             << ">";
         // clang-format on
 
