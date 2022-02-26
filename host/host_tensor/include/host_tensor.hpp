@@ -315,6 +315,8 @@ void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream
 
 float bf16_to_f32_(ck::bhalf_t src_val);
 
+void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
+
 template <typename T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {

@@ -73,3 +73,9 @@ float bf16_to_f32_(ck::bhalf_t src_val)
     } u = {uint32_t(src_val) << 16};
     return u.fp32;
 }
+
+void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst)
+{
+    for(int i = 0; i < src.mData.size(); ++i)
+        dst.mData[i] = bf16_to_f32_(src.mData[i]);
+}
