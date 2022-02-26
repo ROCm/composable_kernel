@@ -1,5 +1,4 @@
 #include <cassert>
-
 #include "host_tensor.hpp"
 
 void HostTensorDescriptor::CalculateStrides()
@@ -65,7 +64,7 @@ void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream
     os << "}" << std::endl;
 }
 
-float bf16_to_f32_(ushort src_val)
+float bf16_to_f32_(ck::bhalf_t src_val)
 {
     union
     {

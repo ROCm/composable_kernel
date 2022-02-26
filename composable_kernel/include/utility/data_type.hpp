@@ -108,9 +108,9 @@ struct scalar_type<half_t>
 };
 
 template <>
-struct scalar_type<ushort>
+struct scalar_type<bhalf_t>
 {
-    using type                           = ushort;
+    using type                           = bhalf_t;
     static constexpr index_t vector_size = 1;
 };
 
@@ -937,7 +937,7 @@ __host__ __device__ Y type_convert(X x)
 
 // convert bfp16 to fp32
 template <>
-inline __host__ __device__ float type_convert(ushort x)
+inline __host__ __device__ float type_convert(bhalf_t x)
 {
     union
     {
@@ -950,7 +950,7 @@ inline __host__ __device__ float type_convert(ushort x)
 
 // convert fp32 to bfp16
 template <>
-inline __host__ __device__ ushort type_convert(float x)
+inline __host__ __device__ bhalf_t type_convert(float x)
 {
     union
     {

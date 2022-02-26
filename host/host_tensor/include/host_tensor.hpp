@@ -8,6 +8,8 @@
 #include <utility>
 #include <cassert>
 #include <iostream>
+#include "data_type.hpp"
+
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -311,7 +313,7 @@ HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> s
 
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
-float bf16_to_f32_(ushort src_val);
+float bf16_to_f32_(ck::bhalf_t src_val);
 
 template <typename T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)
@@ -320,7 +322,7 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
     float max_diff  = -1;
     float ref_value = 0, result_value = 0;
 
-    if constexpr(std::is_same<ushort, T>::value)
+    if constexpr(std::is_same<ck::bhalf_t, T>::value)
     {
         for(int i = 0; i < ref.mData.size(); ++i)
         {

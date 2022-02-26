@@ -51,7 +51,7 @@ llvm_amdgcn_raw_buffer_load_i8x4(int32x4_t srsrc,
                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4i8");
 
 // buffer load i16
-__device__ ushort
+__device__ bhalf_t
 llvm_amdgcn_raw_buffer_load_i16(int32x4_t srsrc,
                                 index_t voffset,
                                 index_t soffset,
@@ -149,7 +149,7 @@ llvm_amdgcn_raw_buffer_store_i8x4(int8x4_t vdata,
 
 // buffer store i16
 __device__ void
-llvm_amdgcn_raw_buffer_store_i16(ushort vdata,
+llvm_amdgcn_raw_buffer_store_i16(bhalf_t vdata,
                                  int32x4_t rsrc,
                                  index_t voffset,
                                  index_t soffset,
@@ -266,7 +266,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
         (is_same<T, double>::value && (N == 1 || N == 2 || N == 4)) ||
             (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (is_same<T, ushort>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+            (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
@@ -365,7 +365,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             return bit_cast<half8_t>(tmp);
         }
     }
-    else if constexpr(is_same<T, ushort>::value)
+    else if constexpr(is_same<T, bhalf_t>::value)
     {
         if constexpr(N == 1)
         {
@@ -522,7 +522,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
         (is_same<T, double>::value && (N == 1 || N == 2)) ||
             (is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (is_same<T, ushort>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+            (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4)) ||
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
@@ -625,7 +625,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
 #endif
         }
     }
-    else if constexpr(is_same<T, ushort>::value)
+    else if constexpr(is_same<T, bhalf_t>::value)
     {
         if constexpr(N == 1)
         {
@@ -653,7 +653,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
         }
         else if constexpr(N == 8)
         {
-3            vector_type<ushort, 8> tmp{src_thread_data};
+            vector_type<bhalf_t, 8> tmp{src_thread_data};
 
             llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<bhalf4_t>()[Number<0>{}],
                                                 dst_wave_buffer_resource,
@@ -664,7 +664,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
             llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<bhalf4_t>()[Number<1>{}],
                                                 dst_wave_buffer_resource,
                                                 dst_thread_addr_offset,
-                                                dst_wave_addr_offset + 4 * sizeof(ushort),
+                                                dst_wave_addr_offset + 4 * sizeof(bhalf_t),
                                                 0);
         }
     }
