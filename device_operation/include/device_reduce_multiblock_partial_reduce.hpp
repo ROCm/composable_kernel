@@ -167,7 +167,7 @@ struct DeviceReduceMultiBlockPartialReduce
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 index_t* out_indices_dev,
+                 int32_t* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -238,9 +238,9 @@ struct DeviceReduceMultiBlockPartialReduce
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        index_t* out_indices_dev_;
+        int32_t* out_indices_dev_;
         AccDataType* workspace_dev_;
-        index_t* workspace_indices_dev_;
+        int32_t* workspace_indices_dev_;
 
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
@@ -270,6 +270,7 @@ struct DeviceReduceMultiBlockPartialReduce
                 GridwiseReduction_mk_to_mk_multiblock_partial_reduce<InDataType,
                                                                      OutDataType,
                                                                      AccDataType,
+                                                                     int32_t,
                                                                      InGridDesc_M_K,
                                                                      WorkspaceDesc_M_K,
                                                                      ReduceOperation,
@@ -291,6 +292,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                                                  NeedIndices,
                                                                  InDataType,
                                                                  AccDataType,
+                                                                 int32_t,
                                                                  InGridDesc_M_K,
                                                                  WorkspaceDesc_M_K,
                                                                  InElementwiseOperation,
@@ -383,7 +385,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<int*>(out_indices_dev),
+                                          static_cast<int32_t*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);

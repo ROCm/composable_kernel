@@ -90,6 +90,7 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
 
     using blockwise_reduce = PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
+                                                                           AccDataType,
                                                                            BlockSize,
                                                                            MThreadClusterSize,
                                                                            KThreadClusterSize,

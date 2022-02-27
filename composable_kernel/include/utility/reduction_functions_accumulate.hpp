@@ -36,22 +36,43 @@ namespace detail {
 
 static inline __device__ bool isnan(half_t x) { return __hisnan(x); };
 
-template <bool propagate_nan, typename opReduce, typename compType>
+template <bool propagate_nan, typename opReduce, typename AccDataType>
 struct accumulate_with_nan_check;
 
-template <typename opReduce, typename compType>
-struct accumulate_with_nan_check<false, opReduce, compType>
+template <typename opReduce, typename AccDataType>
+struct accumulate_with_nan_check<false, opReduce, AccDataType>
 {
     // cppcheck-suppress constParameter
-    __device__ static inline void calculate(compType& accuVal, compType currVal)
+    __device__ static inline void calculate(AccDataType& accuVal, AccDataType currVal)
     {
         opReduce{}(accuVal, currVal);
     };
+};
 
-    // The method is called when the opReduce is indexable and the user asked for indices
+template <typename opReduce, typename AccDataType>
+struct accumulate_with_nan_check<true, opReduce, AccDataType>
+{
+    __device__ static inline void calculate(AccDataType& accuVal, AccDataType currVal)
+    {
+        if(isnan(currVal))
+            accuVal = currVal;
+        else
+            opReduce{}(accuVal, currVal);
+    };
+};
+
+template <bool propagate_nan, typename opReduce, typename AccDataType, typename IndexDataType>
+struct accumulate_with_indices_with_nan_check;
+
+template <typename opReduce, typename AccDataType, typename IndexDataType>
+struct accumulate_with_indices_with_nan_check<false, opReduce, AccDataType, IndexDataType>
+{
     __device__ static inline void
     // cppcheck-suppress constParameter
-    calculate(compType& accuVal, compType currVal, int& accuIndex, int currIndex)
+    calculate(AccDataType& accuVal,
+              AccDataType currVal,
+              IndexDataType& accuIndex,
+              IndexDataType currIndex)
     {
         bool changed = false;
 
@@ -62,20 +83,14 @@ struct accumulate_with_nan_check<false, opReduce, compType>
     };
 };
 
-template <typename opReduce, typename compType>
-struct accumulate_with_nan_check<true, opReduce, compType>
+template <typename opReduce, typename AccDataType, typename IndexDataType>
+struct accumulate_with_indices_with_nan_check<true, opReduce, AccDataType, IndexDataType>
 {
-    __device__ static inline void calculate(compType& accuVal, compType currVal)
-    {
-        if(isnan(currVal))
-            accuVal = currVal;
-        else
-            opReduce{}(accuVal, currVal);
-    };
-
     // The method is called when the opReduce is indexable and the user asked for indices
-    __device__ static inline void
-    calculate(compType& accuVal, compType currVal, int& accuIndex, int currIndex)
+    __device__ static inline void calculate(AccDataType& accuVal,
+                                            AccDataType currVal,
+                                            IndexDataType& accuIndex,
+                                            IndexDataType currIndex)
     {
         if(isnan(currVal))
         {

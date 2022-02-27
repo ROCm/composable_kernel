@@ -111,7 +111,7 @@ struct DeviceReduceBlockWiseSecondCall
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 index_t* out_indices_dev,
+                 int32_t* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -157,8 +157,8 @@ struct DeviceReduceBlockWiseSecondCall
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        index_t* out_indices_dev_;
-        index_t* workspace_indices_dev_;
+        int32_t* out_indices_dev_;
+        int32_t* workspace_indices_dev_;
 
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
@@ -185,6 +185,7 @@ struct DeviceReduceBlockWiseSecondCall
             using GridwiseReduce = GridwiseReduction_mk_to_m_blockwise<InDataType,
                                                                        OutDataType,
                                                                        AccDataType,
+                                                                       int32_t,
                                                                        InGridDesc_M_K,
                                                                        OutGridDesc_M,
                                                                        ReduceOperation,
@@ -208,6 +209,7 @@ struct DeviceReduceBlockWiseSecondCall
                                                                     InDataType,
                                                                     OutDataType,
                                                                     AccDataType,
+                                                                    int32_t,
                                                                     InGridDesc_M_K,
                                                                     OutGridDesc_M,
                                                                     InElementwiseOperation,
@@ -281,7 +283,7 @@ struct DeviceReduceBlockWiseSecondCall
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<index_t*>(out_indices_dev),
+                                          static_cast<int32_t*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);

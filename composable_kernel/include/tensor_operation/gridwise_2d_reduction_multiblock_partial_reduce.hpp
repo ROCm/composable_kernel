@@ -39,22 +39,25 @@ template <typename GridwiseReduction,
           bool NeedIndices,
           typename InDataType,
           typename AccDataType,
+          typename IndexDataType,
           typename InGridDesc_M_K,
           typename WorkspaceDesc_M_K,
           typename InElementwiseOperation,
           typename AccElementwiseOperation>
-__global__ void kernel_partial_reduce_multiblock(const InGridDesc_M_K in_grid_desc_m_k,
-                                                 const WorkspaceDesc_M_K workspace_desc_m_k,
-                                                 const InElementwiseOperation in_elementwise_op,
-                                                 const AccElementwiseOperation acc_elementwise_op,
-                                                 index_t BlkGroupSize,
-                                                 index_t kBlockTileIterations,
-                                                 const InDataType* const __restrict__ p_src_global,
-                                                 AccDataType* const __restrict__ p_ws_values_global,
-                                                 index_t* const __restrict__ p_ws_indices_global)
+__global__ void
+kernel_partial_reduce_multiblock(const InGridDesc_M_K in_grid_desc_m_k,
+                                 const WorkspaceDesc_M_K workspace_desc_m_k,
+                                 const InElementwiseOperation in_elementwise_op,
+                                 const AccElementwiseOperation acc_elementwise_op,
+                                 index_t BlkGroupSize,
+                                 index_t kBlockTileIterations,
+                                 const InDataType* const __restrict__ p_src_global,
+                                 AccDataType* const __restrict__ p_ws_values_global,
+                                 IndexDataType* const __restrict__ p_ws_indices_global)
 
 {
     if constexpr(!NeedIndices)
+    {
         GridwiseReduction::Run(in_grid_desc_m_k,
                                workspace_desc_m_k,
                                in_elementwise_op,
@@ -64,7 +67,9 @@ __global__ void kernel_partial_reduce_multiblock(const InGridDesc_M_K in_grid_de
                                p_src_global,
                                p_ws_values_global,
                                p_ws_indices_global);
+    }
     else
+    {
         GridwiseReduction::RunWithIndices(in_grid_desc_m_k,
                                           workspace_desc_m_k,
                                           in_elementwise_op,
@@ -74,11 +79,13 @@ __global__ void kernel_partial_reduce_multiblock(const InGridDesc_M_K in_grid_de
                                           p_src_global,
                                           p_ws_values_global,
                                           p_ws_indices_global);
+    };
 };
 
 template <typename InDataType,
           typename dstDataType,
           typename AccDataType,
+          typename IndexDataType,
           typename InGridDesc_M_K,
           typename WorkspaceDesc_M_K,
           typename ReduceOperation,
@@ -100,13 +107,26 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
 
-    using blockwise_reduce = PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
-                                                                           BlockSize,
-                                                                           MThreadClusterSize,
-                                                                           KThreadClusterSize,
-                                                                           reorder_thread_cluster,
-                                                                           ReduceOperation,
-                                                                           PropagateNan>;
+    using BlockwiseReduce = PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
+                                                                          AccDataType,
+                                                                          BlockSize,
+                                                                          MThreadClusterSize,
+                                                                          KThreadClusterSize,
+                                                                          reorder_thread_cluster,
+                                                                          ReduceOperation,
+                                                                          PropagateNan>;
+
+    using BlockwiseReduceWithIndices =
+        PartitionedBlockwiseReductionWithIndices_1d_block_buffer<decltype(buffer1dDesc),
+                                                                 AccDataType,
+                                                                 IndexDataType,
+                                                                 BlockSize,
+                                                                 MThreadClusterSize,
+                                                                 KThreadClusterSize,
+                                                                 reorder_thread_cluster,
+                                                                 ReduceOperation,
+                                                                 PropagateNan>;
+
     template <typename T>
     using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
 
@@ -118,6 +138,11 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
     using Accumulation =
         detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
 
+    using AccumulationWithIndices = detail::accumulate_with_indices_with_nan_check<PropagateNan,
+                                                                                   ReduceOperation,
+                                                                                   AccDataType,
+                                                                                   IndexDataType>;
+
     __device__ static void Run(const InGridDesc_M_K& in_grid_desc_m_k,
                                const WorkspaceDesc_M_K& workspace_desc_m_k,
                                const InElementwiseOperation& in_elementwise_op,
@@ -126,7 +151,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                index_t kBlockTileIterations,
                                const InDataType* const __restrict__ p_src_global,
                                AccDataType* const __restrict__ p_ws_values_global,
-                               index_t* const __restrict__ p_ws_indices_global)
+                               IndexDataType* const __restrict__ p_ws_indices_global)
     {
         (void)p_ws_indices_global;
         (void)acc_elementwise_op;
@@ -238,7 +263,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
 
             __syncthreads();
 
-            blockwise_reduce::Reduce(
+            BlockwiseReduce::Reduce(
                 block_reduce_buf, accuValue_buf(I), thread_m_cluster_id, thread_k_cluster_id);
         });
 
@@ -279,7 +304,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                           index_t kBlockTileIterations,
                                           const InDataType* const __restrict__ p_src_global,
                                           AccDataType* const __restrict__ p_ws_values_global,
-                                          index_t* const __restrict__ p_ws_indices_global)
+                                          IndexDataType* const __restrict__ p_ws_indices_global)
     {
         (void)acc_elementwise_op;
 
@@ -308,11 +333,14 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                      MThreadSliceSize * KThreadSliceSize,
                      true>
             in_thread_val_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, index_t, MThreadSliceSize * KThreadSliceSize, true>
+        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+                     IndexDataType,
+                     MThreadSliceSize * KThreadSliceSize,
+                     true>
             in_thread_idx_buf;
 
         StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, index_t, MThreadSliceSize, true> accuIndex_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, IndexDataType, MThreadSliceSize, true> accuIndex_buf;
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -378,14 +406,14 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     in_elementwise_op(in_thread_val_buf(offset), in_thread_val_buf(offset));
                 });
 
-                AccDataType tmpValue = zeroVal;
-                index_t tmpIndex     = 0;
+                AccDataType tmpValue   = zeroVal;
+                IndexDataType tmpIndex = 0;
 
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
 
                     // reduce on the dim1 thread slice
-                    Accumulation::calculate(
+                    AccumulationWithIndices::calculate(
                         tmpValue, in_thread_val_buf[offset], tmpIndex, in_thread_idx_buf[offset]);
                 });
 
@@ -407,14 +435,15 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
 
                 __syncthreads();
 
-                blockwise_reduce::Reduce2(block_reduce_val_buf,
-                                          block_reduce_idx_buf,
-                                          tmpValue,
-                                          tmpIndex,
-                                          thread_m_cluster_id,
-                                          thread_k_cluster_id);
+                BlockwiseReduceWithIndices::Reduce(block_reduce_val_buf,
+                                                   block_reduce_idx_buf,
+                                                   tmpValue,
+                                                   tmpIndex,
+                                                   thread_m_cluster_id,
+                                                   thread_k_cluster_id);
 
-                Accumulation::calculate(accuValue_buf(I), tmpValue, accuIndex_buf(I), tmpIndex);
+                AccumulationWithIndices::calculate(
+                    accuValue_buf(I), tmpValue, accuIndex_buf(I), tmpIndex);
             });
 
             threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
@@ -449,11 +478,11 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     PassThroughOp<AccDataType>{});
 
             auto threadwise_workspace_idx_store =
-                ThreadwiseTensorSliceTransfer_v1r3<index_t,
-                                                   index_t,
+                ThreadwiseTensorSliceTransfer_v1r3<IndexDataType,
+                                                   IndexDataType,
                                                    decltype(ReducedDataDesc),
                                                    WorkspaceDesc_M_K,
-                                                   PassThroughOp<index_t>,
+                                                   PassThroughOp<IndexDataType>,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -465,7 +494,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_m_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<index_t>{});
+                    PassThroughOp<IndexDataType>{});
 
             threadwise_workspace_val_store.Run(ReducedDataDesc,
                                                make_tuple(I0, I0),

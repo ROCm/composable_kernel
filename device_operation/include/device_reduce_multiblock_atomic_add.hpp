@@ -149,7 +149,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 index_t* out_indices_dev,
+                 int32_t* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -383,7 +383,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<index_t*>(out_indices_dev),
+                                          static_cast<int32_t*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);
