@@ -22,7 +22,8 @@ enum GemmDataType
 {
     F32_F32_F32,    // 0
     F16_F16_F16,    // 1
-    INT8_INT8_INT8, // 2
+    BF16_BF16_BF16, // 2
+    INT8_INT8_INT8, // 3
 };
 
 int profile_gemm(int argc, char* argv[])
@@ -30,7 +31,7 @@ int profile_gemm(int argc, char* argv[])
     if(!(argc == 14 || argc == 15))
     {
         printf("arg1: tensor operation (gemm: GEMM)\n");
-        printf("arg2: data type (0: fp32; 1: fp16; 2: int8)\n");
+        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
@@ -227,6 +228,26 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        ck::tensor_layout::gemm::RowMajor,
+                                        ck::tensor_layout::gemm::ColumnMajor,
+                                        ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? M : StrideA,
+            (StrideB < 0) ? K : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            KBatch);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_gemm_impl<ck::bhalf_t,
+                                        ck::bhalf_t,
+                                        ck::bhalf_t,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
