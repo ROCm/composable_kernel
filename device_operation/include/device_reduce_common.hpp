@@ -14,27 +14,20 @@ namespace device {
 // template <typename preUnaryOpType, typename posUnaryOpType>
 // using DeviceReducePtr = std::unique_ptr<DeviceReduce<preUnaryOpType, posUnaryOpType>>;
 
-template <int rank, typename InnerDims>
+template <int Rank, typename InnerDims>
 std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
 {
-    static_assert(rank <= 6, "bigger rank size not supported!");
+    static_assert(Rank <= 6, "bigger Rank size not supported!");
 
-    size_t dim0_total_length = 1;
-    size_t dim1_total_length = 1;
+    size_t tensor_total_length = 1;
+    size_t inner_total_length  = 1;
 
     static_for<0, InnerDims::Size(), 1>{}(
-        [&](auto i) { dim1_total_length *= inLengths[InnerDims::At(i)]; });
+        [&](auto i) { inner_total_length *= inLengths[InnerDims::At(i)]; });
 
-    unsigned int flag = 0;
+    static_for<0, Rank, 1>{}([&](auto i) { tensor_total_length *= inLengths[i.value]; });
 
-    static_for<0, InnerDims::Size(), 1>{}([&](auto i) { flag = flag | (0x1 << InnerDims::At(i)); });
-
-    static_for<0, rank, 1>{}([&](auto i) {
-        if(!(flag & (0x1 << i.value)))
-            dim0_total_length *= inLengths[i.value];
-    });
-
-    return std::make_pair(dim0_total_length, dim1_total_length);
+    return std::make_pair(tensor_total_length / inner_total_length, inner_total_length);
 };
 
 template <int x, typename Seq>
@@ -47,19 +40,19 @@ constexpr bool belong()
     return (inside);
 };
 
-template <int rank, typename InnerDims, int start = 0>
+template <int Rank, typename InnerDims, int start = 0>
 constexpr auto get_outer_dims()
 {
-    static_assert(rank <= 6, "bigger rank size not supported!");
+    static_assert(Rank <= 6, "bigger Rank size not supported!");
 
-    if constexpr(start >= rank)
+    if constexpr(start >= Rank)
         return Sequence<>{};
     else
     {
         if constexpr(!belong<start, InnerDims>())
-            return merge_sequences(Sequence<start>{}, get_outer_dims<rank, InnerDims, start + 1>());
+            return merge_sequences(Sequence<start>{}, get_outer_dims<Rank, InnerDims, start + 1>());
         else
-            return get_outer_dims<rank, InnerDims, start + 1>();
+            return get_outer_dims<Rank, InnerDims, start + 1>();
     };
 };
 
