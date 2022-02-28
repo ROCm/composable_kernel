@@ -221,7 +221,7 @@ int main(int argc, char* argv[])
         }
 
         // profile device Conv instances
-        bool success = false;
+        bool success = true;
         for(auto& conv_ptr : conv_ptrs)
         {
             auto argument_ptr = conv_ptr->MakeArgumentPointer(
@@ -251,11 +251,17 @@ int main(int argc, char* argv[])
 
                 if(!check_out(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result))
                 {
-                    std::cout << "Tuning Parameter is: " << conv_ptr->GetTypeString() << std::endl;
+                    std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
                     success = false;
-                    break;
                 }
-                success = true;
+                else
+                {
+                    std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
+                }
+            }
+            else
+            {
+                std::cout << "Not support Info: " << conv_ptr->GetTypeString() << std::endl;
             }
         }
 
