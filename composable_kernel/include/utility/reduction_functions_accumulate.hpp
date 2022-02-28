@@ -34,7 +34,17 @@
 namespace ck {
 namespace detail {
 
-static inline __device__ bool isnan(half_t x) { return __hisnan(x); };
+template <typename T>
+static inline __device__ bool is_nan(T x)
+{
+    return (isnan(x));
+};
+
+template <>
+inline __device__ bool is_nan<half_t>(half_t x)
+{
+    return (__hisnan(x));
+};
 
 template <bool propagate_nan, typename opReduce, typename AccDataType>
 struct accumulate_with_nan_check;
@@ -54,7 +64,7 @@ struct accumulate_with_nan_check<true, opReduce, AccDataType>
 {
     __device__ static inline void calculate(AccDataType& accuVal, AccDataType currVal)
     {
-        if(isnan(currVal))
+        if(is_nan(currVal))
             accuVal = currVal;
         else
             opReduce{}(accuVal, currVal);
@@ -92,7 +102,7 @@ struct accumulate_with_indices_with_nan_check<true, opReduce, AccDataType, Index
                                             IndexDataType& accuIndex,
                                             IndexDataType currIndex)
     {
-        if(isnan(currVal))
+        if(is_nan(currVal))
         {
             accuVal   = currVal;
             accuIndex = currIndex;
