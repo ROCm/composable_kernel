@@ -178,7 +178,8 @@ struct UnarySquare
 
     __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
-        y = type_convert<Y>(x) * type_convert<Y>(x);
+        y = type_convert<Y>(x);
+        y = y * y;
     };
 };
 
@@ -189,7 +190,9 @@ struct UnarySquare<Y, X, true>
 
     __host__ __device__ constexpr void operator()(Y& y, const X& x) const
     {
-        y = type_convert<Y>(x) * type_convert<Y>(x) / type_convert<Y>(divider_);
+        y = type_convert<Y>(x);
+        y = y * y;
+        y = y / type_convert<Y>(divider_);
     };
 
     int32_t divider_ = 1;

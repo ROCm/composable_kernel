@@ -107,26 +107,6 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
     static constexpr auto buffer1dDesc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
 
-    using BlockwiseReduce = PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
-                                                                          AccDataType,
-                                                                          BlockSize,
-                                                                          MThreadClusterSize,
-                                                                          KThreadClusterSize,
-                                                                          reorder_thread_cluster,
-                                                                          ReduceOperation,
-                                                                          PropagateNan>;
-
-    using BlockwiseReduceWithIndices =
-        PartitionedBlockwiseReductionWithIndices_1d_block_buffer<decltype(buffer1dDesc),
-                                                                 AccDataType,
-                                                                 IndexDataType,
-                                                                 BlockSize,
-                                                                 MThreadClusterSize,
-                                                                 KThreadClusterSize,
-                                                                 reorder_thread_cluster,
-                                                                 ReduceOperation,
-                                                                 PropagateNan>;
-
     template <typename T>
     using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
 
@@ -134,14 +114,6 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
 
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
-
-    using Accumulation =
-        detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
-
-    using AccumulationWithIndices = detail::accumulate_with_indices_with_nan_check<PropagateNan,
-                                                                                   ReduceOperation,
-                                                                                   AccDataType,
-                                                                                   IndexDataType>;
 
     __device__ static void Run(const InGridDesc_M_K& in_grid_desc_m_k,
                                const WorkspaceDesc_M_K& workspace_desc_m_k,
@@ -153,6 +125,19 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                AccDataType* const __restrict__ p_ws_values_global,
                                IndexDataType* const __restrict__ p_ws_indices_global)
     {
+        using BlockwiseReduce =
+            PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
+                                                          AccDataType,
+                                                          BlockSize,
+                                                          MThreadClusterSize,
+                                                          KThreadClusterSize,
+                                                          reorder_thread_cluster,
+                                                          ReduceOperation,
+                                                          PropagateNan>;
+
+        using Accumulation =
+            detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
+
         (void)p_ws_indices_global;
         (void)acc_elementwise_op;
 
@@ -306,6 +291,23 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                           AccDataType* const __restrict__ p_ws_values_global,
                                           IndexDataType* const __restrict__ p_ws_indices_global)
     {
+        using BlockwiseReduceWithIndices =
+            PartitionedBlockwiseReductionWithIndices_1d_block_buffer<decltype(buffer1dDesc),
+                                                                     AccDataType,
+                                                                     IndexDataType,
+                                                                     BlockSize,
+                                                                     MThreadClusterSize,
+                                                                     KThreadClusterSize,
+                                                                     reorder_thread_cluster,
+                                                                     ReduceOperation,
+                                                                     PropagateNan>;
+
+        using AccumulationWithIndices =
+            detail::accumulate_with_indices_with_nan_check<PropagateNan,
+                                                           ReduceOperation,
+                                                           AccDataType,
+                                                           IndexDataType>;
+
         (void)acc_elementwise_op;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();

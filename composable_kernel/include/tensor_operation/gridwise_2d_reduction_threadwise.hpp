@@ -106,13 +106,6 @@ struct GridwiseReduction_mk_to_m_threadwise
 
     static constexpr auto I0 = Number<0>{};
 
-    using Accumulation =
-        detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
-    using AccumulationWithIndices = detail::accumulate_with_indices_with_nan_check<PropagateNan,
-                                                                                   ReduceOperation,
-                                                                                   AccDataType,
-                                                                                   IndexDataType>;
-
     __device__ static void Run(const InGridDesc_M_K& in_grid_desc_m_k,
                                const OutGridDesc_M& out_grid_desc_m,
                                const InElementwiseOperation& in_elementwise_op,
@@ -123,6 +116,10 @@ struct GridwiseReduction_mk_to_m_threadwise
                                OutDataType* const __restrict__ p_out_global,
                                IndexDataType* const __restrict__ p_indices_global)
     {
+
+        using Accumulation =
+            detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
+
         (void)p_indices_global;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
@@ -264,6 +261,11 @@ struct GridwiseReduction_mk_to_m_threadwise
                                           OutDataType* const __restrict__ p_out_global,
                                           IndexDataType* const __restrict__ p_indices_global)
     {
+        using AccumulationWithIndices =
+            detail::accumulate_with_indices_with_nan_check<PropagateNan,
+                                                           ReduceOperation,
+                                                           AccDataType,
+                                                           IndexDataType>;
         (void)acc_elementwise_op;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
