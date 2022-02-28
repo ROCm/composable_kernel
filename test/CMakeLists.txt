@@ -50,3 +50,8 @@ target_link_libraries(test_reference_conv_fwd PRIVATE host_tensor)
 set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/main.cpp)
 add_executable(test_convnd_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
 target_link_libraries(test_convnd_fwd_xdl PRIVATE host_tensor)
+
+# test space_filling_curve_
+set(SPACE_FILLING_CURVE_SOURCE space_filling_curve/space_filling_curve.cpp)
+add_executable(space_filling_curve ${SPACE_FILLING_CURVE_SOURCE})
+target_link_libraries(space_filling_curve PRIVATE host_tensor)
