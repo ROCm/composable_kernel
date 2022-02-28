@@ -190,31 +190,6 @@ void RunConv(const ck::conv_util::ConvParams& params,
     out_device_buf.FromDevice(output.mData.data());
 }
 
-bool TestConv2DNHWC()
-{
-    bool res{true};
-    ck::conv_util::ConvParams params;
-    params.N                     = 2;
-    params.K                     = 16;
-    params.C                     = 4;
-    params.input_spatial_lengths = std::vector<ck::index_t>{16, 16};
-    params.conv_filter_strides   = std::vector<ck::index_t>{1, 1};
-
-    auto host_tensors            = GetHostTensors(params);
-    const Tensor<float>& input   = std::get<0>(host_tensors);
-    const Tensor<float>& weights = std::get<1>(host_tensors);
-    Tensor<float>& host_output   = std::get<2>(host_tensors);
-    Tensor<float>& device_output = std::get<3>(host_tensors);
-
-    RunReferenceConv<2>(params, input, weights, host_output);
-    RunConv<2>(params, input, weights, device_output);
-    res = res &&
-          test_util::check_err(
-              device_output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
-
-    return res;
-}
-
 bool TestConv1DNWC()
 {
     bool res{true};
@@ -250,6 +225,66 @@ bool TestConv1DNWC()
     return res;
 }
 
+bool TestConv2DNHWC()
+{
+    bool res{true};
+    ck::conv_util::ConvParams params;
+    params.N                     = 2;
+    params.K                     = 16;
+    params.C                     = 4;
+    params.input_spatial_lengths = std::vector<ck::index_t>{16, 16};
+    params.conv_filter_strides   = std::vector<ck::index_t>{1, 1};
+
+    auto host_tensors            = GetHostTensors(params);
+    const Tensor<float>& input   = std::get<0>(host_tensors);
+    const Tensor<float>& weights = std::get<1>(host_tensors);
+    Tensor<float>& host_output   = std::get<2>(host_tensors);
+    Tensor<float>& device_output = std::get<3>(host_tensors);
+
+    RunReferenceConv<2>(params, input, weights, host_output);
+    RunConv<2>(params, input, weights, device_output);
+    res = res &&
+          test_util::check_err(
+              device_output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+
+    return res;
+}
+
+bool TestConv3DNDHWC()
+{
+    bool res{true};
+    ck::conv_util::ConvParams params;
+    params.num_dim_spatial        = 3;
+    params.N                      = 2;
+    params.K                      = 16;
+    params.C                      = 4;
+    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 3};
+    params.input_spatial_lengths  = std::vector<ck::index_t>{16, 16, 16};
+    params.conv_filter_strides    = std::vector<ck::index_t>{1, 1, 1};
+    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
+    params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
+
+    auto host_tensors            = GetHostTensors<float,
+                                       float,
+                                       float,
+                                       ck::tensor_layout::convolution::NDHWC,
+                                       ck::tensor_layout::convolution::KZYXC,
+                                       ck::tensor_layout::convolution::NDHWK>(params);
+    const Tensor<float>& input   = std::get<0>(host_tensors);
+    const Tensor<float>& weights = std::get<1>(host_tensors);
+    Tensor<float>& host_output   = std::get<2>(host_tensors);
+    Tensor<float>& device_output = std::get<3>(host_tensors);
+
+    RunReferenceConv<3>(params, input, weights, host_output);
+    RunConv<3>(params, input, weights, device_output);
+    res = res &&
+          test_util::check_err(
+              device_output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+
+    return res;
+}
+
 } // anonymous namespace
 
 int main()
@@ -259,4 +294,6 @@ int main()
     std::cout << "TestConv1DNWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv2DNHWC();
     std::cout << "TestConv2DNHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    res = TestConv3DNDHWC();
+    std::cout << "TestConv3DNDHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 }

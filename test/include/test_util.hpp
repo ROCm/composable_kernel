@@ -43,7 +43,7 @@ check_err(const std::vector<T>& out,
             if(err_count < 5)
             {
                 std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << out[i] << "!=" << ref[i] << std::endl
+                          << i << "]: " << out[i] << " != " << ref[i] << std::endl
                           << msg << std::endl;
             }
             res = false;
@@ -72,7 +72,7 @@ typename std::enable_if<std::is_integral<T>::value, bool>::type check_err(
     {
         if(out[i] != ref[i])
         {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << "!=" << ref[i]
+            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << " != " << ref[i]
                       << std::endl
                       << msg << std::endl;
             return false;
