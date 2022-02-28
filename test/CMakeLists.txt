@@ -12,6 +12,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/reference_operation/include
     ${PROJECT_SOURCE_DIR}/test/include
 )
+
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
