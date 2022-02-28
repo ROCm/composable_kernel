@@ -151,6 +151,11 @@
 #define CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R5_TYPE_CONVERT_ISSUE 1
 #endif
 
+// workaround for compiler issue when bwd fp16 use some tuning parameter
+#ifndef CK_WORKAROUND_SWDEV_325164
+#define CK_WORKAROUND_SWDEV_325164 1
+#endif
+
 namespace ck {
 
 enum InMemoryDataOperationEnum_t
