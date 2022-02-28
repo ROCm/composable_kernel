@@ -234,7 +234,7 @@ void profile_reduce_impl_impl(bool do_verification,
                 out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
             break;
         case 1:
-            in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-99, 99}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             if(beta != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             break;

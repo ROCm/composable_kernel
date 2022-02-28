@@ -32,7 +32,7 @@ using kAccDataType = float;
 constexpr int Rank = 4;
 using InnerDims_   = ck::Sequence<0, 1, 2>;
 
-constexpr ReduceTensorOp_t ReduceOpId = ReduceTensorOp_t::AVG;
+constexpr ReduceTensorOp_t ReduceOpId = ReduceTensorOp_t::NORM2;
 constexpr NanPropagation_t NanOpt     = NanPropagation_t::PROPAGATE_NAN;
 constexpr bool PropagateNan = (NanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
 constexpr ReduceTensorIndices_t IndicesOpt = ReduceTensorIndices_t::NO_INDICES;
@@ -298,7 +298,7 @@ int main(int argc, char* argv[])
                 out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
             break;
         case 1:
-            in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-99, 99}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             if(beta != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             break;
