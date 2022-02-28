@@ -373,7 +373,7 @@ void profile_reduce_impl_impl(bool do_verification,
 
     for(auto& reduce_ptr : reduce0_ptrs)
     {
-        auto wsSizeInBytes = reduce_ptr->getWorkspaceSizeInBytes(i_inLengths);
+        auto wsSizeInBytes = reduce_ptr->GetWorkspaceSizeInBytes(i_inLengths);
 
         DeviceMem ws_dev(wsSizeInBytes);
 
@@ -452,7 +452,7 @@ void profile_reduce_impl_impl(bool do_verification,
 
     for(auto& reduce_ptr : reduce1_ptrs)
     {
-        auto wsSizeInBytes = reduce_ptr->getWorkspaceSizeInBytes(i_inLengths);
+        auto wsSizeInBytes = reduce_ptr->GetWorkspaceSizeInBytes(i_inLengths);
 
         DeviceMem ws_dev(wsSizeInBytes);
 
@@ -482,7 +482,7 @@ void profile_reduce_impl_impl(bool do_verification,
         std::size_t num_bytes = outer_total_length * inner_total_length * sizeof(InDataType) +
                                 outer_total_length * sizeof(OutDataType);
 
-        std::vector<int> inLengths2 = reduce_ptr->getWorkspace2dLengths(argument_ptr.get());
+        std::vector<int> inLengths2 = reduce_ptr->GetWorkspace2dLengths(argument_ptr.get());
         std::vector<int> inStrides2{inLengths2[1], 1};
 
         for(auto& reduce2_ptr : reduce2_ptrs)

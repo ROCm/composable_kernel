@@ -16,7 +16,7 @@ template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           int Rank,
-          typename InnerDims,
+          typename ReduceDims,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -39,40 +39,42 @@ struct DeviceReduceMultiBlockPartialReduce
 
     static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockPartialReduce!");
 
-    using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
+    using IndexDataType = int32_t;
+
+    using InvariantDims = decltype(get_invariant_dims<Rank, ReduceDims>());
 
     static constexpr index_t srcDims    = Rank;
-    static constexpr index_t dstDims    = (OuterDims::Size() == 0) ? 1 : OuterDims::Size();
-    static constexpr bool reduceAllDims = (OuterDims::Size() == 0);
+    static constexpr index_t dstDims    = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
+    static constexpr bool reduceAllDims = (InvariantDims::Size() == 0);
 
     static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    size_t getWorkspaceSizeInBytes(const std::vector<int>& inLengths) override
+    size_t GetWorkspaceSizeInBytes(const std::vector<int>& inLengths) override
     {
-        size_t outer_total_length;
-        size_t inner_total_length;
+        size_t invariant_total_length;
+        size_t reduce_total_length;
 
-        std::tie(outer_total_length, inner_total_length) =
-            get_2d_lengths<Rank, InnerDims>(inLengths);
+        std::tie(invariant_total_length, reduce_total_length) =
+            get_2d_lengths<Rank, ReduceDims>(inLengths);
 
         int iterations = 1;
         while(true)
         {
-            int test_blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
-                                    (K_BlockTileSize * iterations);
+            int testBlkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
+                                   (K_BlockTileSize * iterations);
 
             // we want the blkGroupSize be not more than 128
-            if(test_blkGroupSize <= 128)
+            if(testBlkGroupSize <= 128)
                 break;
 
             iterations++;
         };
 
-        int blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
+        int blkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
-        size_t workspace_size = outer_total_length * blkGroupSize;
+        size_t workspace_size = invariant_total_length * blkGroupSize;
 
         size_t wsSizeInBytes =
             !NeedIndices ? workspace_size * sizeof(AccDataType)
@@ -81,7 +83,7 @@ struct DeviceReduceMultiBlockPartialReduce
         return (wsSizeInBytes);
     };
 
-    bool hasFurtherCall() override { return (true); };
+    bool HasFurtherCall() override { return (true); };
 
     static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
                                     const std::vector<int>& inStrides,
@@ -111,15 +113,15 @@ struct DeviceReduceMultiBlockPartialReduce
             else
             {
                 const auto toReduceDimLengths =
-                    make_tuple_from_array_and_index_seq(inLengths, InnerDims{});
+                    make_tuple_from_array_and_index_seq(inLengths, ReduceDims{});
                 const auto invariantDimLengths =
-                    make_tuple_from_array_and_index_seq(inLengths, OuterDims{});
+                    make_tuple_from_array_and_index_seq(inLengths, InvariantDims{});
 
                 return transform_tensor_descriptor(
                     inDesc,
                     make_tuple(make_merge_transform(invariantDimLengths),
                                make_merge_transform(toReduceDimLengths)),
-                    make_tuple(OuterDims{}, InnerDims{}),
+                    make_tuple(InvariantDims{}, ReduceDims{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
             }
         }();
@@ -167,7 +169,7 @@ struct DeviceReduceMultiBlockPartialReduce
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 int32_t* out_indices_dev,
+                 IndexDataType* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -187,39 +189,39 @@ struct DeviceReduceMultiBlockPartialReduce
             alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
 
-            std::tie(outer_total_length, inner_total_length) =
-                get_2d_lengths<Rank, InnerDims>(inLengths);
+            std::tie(invariant_total_length, reduce_total_length) =
+                get_2d_lengths<Rank, ReduceDims>(inLengths);
 
-            if constexpr(OuterDims::Size() == 0)
-                outer_lowest_length = 1;
+            if constexpr(InvariantDims::Size() == 0)
+                invariant_lowest_length = 1;
             else
-                outer_lowest_length = inLengths[OuterDims::At(OuterDims::Size() - 1)];
+                invariant_lowest_length = inLengths[InvariantDims::At(InvariantDims::Size() - 1)];
 
-            inner_lowest_length = inLengths[InnerDims::At(InnerDims::Size() - 1)];
+            reduce_lowest_length = inLengths[ReduceDims::At(ReduceDims::Size() - 1)];
 
             int iterations = 1;
             while(true)
             {
-                int test_blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
-                                        (K_BlockTileSize * iterations);
+                int testBlkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
+                                       (K_BlockTileSize * iterations);
 
                 // we want the blkGroupSize be not more than 128
-                if(test_blkGroupSize <= 128)
+                if(testBlkGroupSize <= 128)
                     break;
 
                 iterations++;
             };
 
-            blkGroupSize = (inner_total_length + (K_BlockTileSize * iterations) - 1) /
+            blkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
             kBlockTileIterations = iterations;
 
-            gridSize = math::integer_least_multiple(outer_total_length, M_BlockTileSize) /
+            gridSize = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                        M_BlockTileSize * blkGroupSize;
 
             size_t ws_buf2_bytes_offset = math::integer_least_multiple(
-                outer_total_length * blkGroupSize * sizeof(AccDataType), 64);
+                invariant_total_length * blkGroupSize * sizeof(AccDataType), 64);
 
             if constexpr(NeedIndices)
                 workspace_indices_dev_ = reinterpret_cast<int*>(
@@ -238,17 +240,17 @@ struct DeviceReduceMultiBlockPartialReduce
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        int32_t* out_indices_dev_;
+        IndexDataType* out_indices_dev_;
         AccDataType* workspace_dev_;
-        int32_t* workspace_indices_dev_;
+        IndexDataType* workspace_indices_dev_;
 
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
 
-        int outer_lowest_length;
-        int inner_lowest_length;
-        size_t outer_total_length;
-        size_t inner_total_length;
+        int invariant_lowest_length;
+        int reduce_lowest_length;
+        size_t invariant_total_length;
+        size_t reduce_total_length;
 
         index_t blkGroupSize;
         index_t kBlockTileIterations;
@@ -262,15 +264,14 @@ struct DeviceReduceMultiBlockPartialReduce
             const auto in_grid_desc_m_k = DeviceReduceMultiBlockPartialReduce::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
             const auto ws_desc_m_k = DeviceReduceMultiBlockPartialReduce::MakeWorkspace2dDescriptor(
-                arg.outer_total_length, arg.blkGroupSize);
+                arg.invariant_total_length, arg.blkGroupSize);
             using InGridDesc_M_K    = decltype(in_grid_desc_m_k);
             using WorkspaceDesc_M_K = decltype(ws_desc_m_k);
 
             using GridwiseReduce =
                 GridwiseReduction_mk_to_mk_multiblock_partial_reduce<InDataType,
-                                                                     OutDataType,
                                                                      AccDataType,
-                                                                     int32_t,
+                                                                     IndexDataType,
                                                                      InGridDesc_M_K,
                                                                      WorkspaceDesc_M_K,
                                                                      ReduceOperation,
@@ -292,7 +293,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                                                  NeedIndices,
                                                                  InDataType,
                                                                  AccDataType,
-                                                                 int32_t,
+                                                                 IndexDataType,
                                                                  InGridDesc_M_K,
                                                                  WorkspaceDesc_M_K,
                                                                  InElementwiseOperation,
@@ -331,36 +332,37 @@ struct DeviceReduceMultiBlockPartialReduce
 
         if constexpr(InSrcVectorDim == 0)
         {
-            if constexpr(OuterDims::Size() == 0)
+            if constexpr(InvariantDims::Size() == 0)
                 return (false);
 
-            if(pArg->inStrides_[OuterDims::At(OuterDims::Size() - 1)] != 1)
+            if(pArg->inStrides_[InvariantDims::At(InvariantDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->outer_lowest_length % InSrcVectorSize != 0)
+            if(pArg->invariant_lowest_length % InSrcVectorSize != 0)
                 return (false);
         }
         else
         {
-            if(pArg->inStrides_[InnerDims::At(InnerDims::Size() - 1)] != 1)
+            if(pArg->inStrides_[ReduceDims::At(ReduceDims::Size() - 1)] != 1)
                 return (false);
 
-            if(pArg->inner_lowest_length % InSrcVectorSize != 0)
+            if(pArg->reduce_lowest_length % InSrcVectorSize != 0)
                 return (false);
         };
 
-        // cases with small inner_total_length should be handled by the BlockWise method
-        if(pArg->inner_total_length <= BlockSize * KThreadSliceSize)
+        // cases with small reduce_total_length should be handled by the BlockWise method
+        if(pArg->reduce_total_length <= BlockSize * KThreadSliceSize)
             return (false);
 
         return (true);
     };
 
-    std::vector<int> getWorkspace2dLengths(const BaseArgument* p_arg) override
+    std::vector<int> GetWorkspace2dLengths(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        return (std::vector<int>{static_cast<int>(pArg->outer_total_length), pArg->blkGroupSize});
+        return (
+            std::vector<int>{static_cast<int>(pArg->invariant_total_length), pArg->blkGroupSize});
     };
 
     std::unique_ptr<BaseArgument>
@@ -385,7 +387,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<int32_t*>(out_indices_dev),
+                                          static_cast<IndexDataType*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);

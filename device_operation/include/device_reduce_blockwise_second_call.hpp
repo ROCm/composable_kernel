@@ -16,7 +16,7 @@ template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           int Rank,
-          typename InnerDims,
+          typename ReduceDims,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -37,15 +37,17 @@ struct DeviceReduceBlockWiseSecondCall
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    using IndexDataType = int32_t;
+
     static constexpr bool BetaIsZero = NeedIndices;
 
     static_assert(
         std::is_same<InDataType, AccDataType>::value,
         "InDataType and AccDataType should be the same to use DEviceReduceBlockWiseSecondCall!");
 
-    using OuterDims = decltype(get_outer_dims<Rank, InnerDims>());
+    using InvariantDims = decltype(get_invariant_dims<Rank, ReduceDims>());
 
-    static constexpr index_t dstDims = (OuterDims::Size() == 0) ? 1 : OuterDims::Size();
+    static constexpr index_t dstDims = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
 
     static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
@@ -111,7 +113,7 @@ struct DeviceReduceBlockWiseSecondCall
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 int32_t* out_indices_dev,
+                 IndexDataType* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
@@ -128,17 +130,17 @@ struct DeviceReduceBlockWiseSecondCall
             alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
 
-            outer_total_length = inLengths[0];
-            inner_total_length = inLengths[1];
+            invariant_total_length = inLengths[0];
+            reduce_total_length    = inLengths[1];
 
-            outer_lowest_length = inLengths[0];
-            inner_lowest_length = inLengths[1];
+            invariant_lowest_length = inLengths[0];
+            reduce_lowest_length    = inLengths[1];
 
-            gridSize =
-                math::integer_least_multiple(outer_total_length, M_BlockTileSize) / M_BlockTileSize;
+            gridSize = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
+                       M_BlockTileSize;
 
             size_t ws_buf2_bytes_offset = math::integer_least_multiple(
-                outer_total_length * inner_total_length * sizeof(AccDataType), 64);
+                invariant_total_length * reduce_total_length * sizeof(AccDataType), 64);
 
             if constexpr(NeedIndices)
                 workspace_indices_dev_ = reinterpret_cast<index_t*>(
@@ -157,16 +159,16 @@ struct DeviceReduceBlockWiseSecondCall
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        int32_t* out_indices_dev_;
-        int32_t* workspace_indices_dev_;
+        IndexDataType* out_indices_dev_;
+        IndexDataType* workspace_indices_dev_;
 
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
 
-        int outer_lowest_length;
-        int inner_lowest_length;
-        size_t outer_total_length;
-        size_t inner_total_length;
+        int invariant_lowest_length;
+        int reduce_lowest_length;
+        size_t invariant_total_length;
+        size_t reduce_total_length;
 
         size_t gridSize;
     };
@@ -185,7 +187,7 @@ struct DeviceReduceBlockWiseSecondCall
             using GridwiseReduce = GridwiseReduction_mk_to_m_blockwise<InDataType,
                                                                        OutDataType,
                                                                        AccDataType,
-                                                                       int32_t,
+                                                                       IndexDataType,
                                                                        InGridDesc_M_K,
                                                                        OutGridDesc_M,
                                                                        ReduceOperation,
@@ -209,7 +211,7 @@ struct DeviceReduceBlockWiseSecondCall
                                                                     InDataType,
                                                                     OutDataType,
                                                                     AccDataType,
-                                                                    int32_t,
+                                                                    IndexDataType,
                                                                     InGridDesc_M_K,
                                                                     OutGridDesc_M,
                                                                     InElementwiseOperation,
@@ -247,15 +249,15 @@ struct DeviceReduceBlockWiseSecondCall
         if constexpr(InSrcVectorDim == 0)
             return (false);
 
-        if(pArg->inner_lowest_length % InSrcVectorSize != 0)
+        if(pArg->reduce_lowest_length % InSrcVectorSize != 0)
             return (false);
 
         // To improve
-        if(pArg->outer_lowest_length % OutDstVectorSize != 0)
+        if(pArg->invariant_lowest_length % OutDstVectorSize != 0)
             return (false);
 
-        // cases with very small inner_total_length should be handled by the ThreadWise method
-        if(pArg->inner_total_length / KThreadSliceSize < 2)
+        // cases with very small reduce_total_length should be handled by the ThreadWise method
+        if(pArg->reduce_total_length / KThreadSliceSize < 2)
             return (false);
 
         return (true);
@@ -283,7 +285,7 @@ struct DeviceReduceBlockWiseSecondCall
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<int32_t*>(out_indices_dev),
+                                          static_cast<IndexDataType*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);

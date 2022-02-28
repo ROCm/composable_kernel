@@ -97,7 +97,7 @@ static T get_offset_from_index(const std::vector<T>& strides, const std::vector<
 };
 
 template <typename T>
-static T get_flatten_offset(const std::vector<T>& lengths, const std::vector<T>& index)
+static inline T get_flatten_offset(const std::vector<T>& lengths, const std::vector<T>& index)
 {
     T offset = 0;
 

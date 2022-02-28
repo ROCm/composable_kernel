@@ -39,27 +39,27 @@ template <typename GridwiseReduction,
           typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          typename In2dDescType,
-          typename Out1dDescType,
+          typename InGridDesc_M_K,
+          typename OutGridDesc_M,
           typename InElementwiseOperation,
           typename AccElementwiseOperation>
 __global__ void
-kernel_reduce_multiblock_atocmi_add(const In2dDescType in2dDesc,
-                                    const Out1dDescType out1dDesc,
+kernel_reduce_multiblock_atocmi_add(const InGridDesc_M_K in_grid_desc_m_k,
+                                    const OutGridDesc_M out_grid_desc_m,
                                     const InElementwiseOperation in_elementwise_op,
                                     const AccElementwiseOperation acc_elementwise_op,
-                                    index_t BlkGroupSize,
-                                    index_t kBlockTileIterations,
+                                    index_t block_group_size,
+                                    index_t num_k_block_tile_iteration,
                                     AccDataType alpha,
                                     const InDataType* const __restrict__ p_in_global,
                                     OutDataType* const __restrict__ p_out_global)
 {
-    GridwiseReduction::Run(in2dDesc,
-                           out1dDesc,
+    GridwiseReduction::Run(in_grid_desc_m_k,
+                           out_grid_desc_m,
                            in_elementwise_op,
                            acc_elementwise_op,
-                           BlkGroupSize,
-                           kBlockTileIterations,
+                           block_group_size,
+                           num_k_block_tile_iteration,
                            alpha,
                            p_in_global,
                            p_out_global);
@@ -68,8 +68,8 @@ kernel_reduce_multiblock_atocmi_add(const In2dDescType in2dDesc,
 template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          typename In2dDescType,
-          typename Out1dDescType,
+          typename InGridDesc_M_K,
+          typename OutGridDesc_M,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -86,17 +86,17 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
 {
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
-    static constexpr auto buffer1dDesc =
+    static constexpr auto buffer_1d_desc =
         make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
 
-    using blockwise_reduce = PartitionedBlockwiseReduction_1d_block_buffer<decltype(buffer1dDesc),
-                                                                           AccDataType,
-                                                                           BlockSize,
-                                                                           MThreadClusterSize,
-                                                                           KThreadClusterSize,
-                                                                           reorder_thread_cluster,
-                                                                           ReduceOperation,
-                                                                           PropagateNan>;
+    using blockwise_reduce = PartitionedBlockwiseReductionOn1dBuffer<decltype(buffer_1d_desc),
+                                                                     AccDataType,
+                                                                     BlockSize,
+                                                                     MThreadClusterSize,
+                                                                     KThreadClusterSize,
+                                                                     reorder_thread_cluster,
+                                                                     ReduceOperation,
+                                                                     PropagateNan>;
 
     template <typename T>
     using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
@@ -106,15 +106,14 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    using Accumulation =
-        detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
+    using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
 
-    __device__ static void Run(const In2dDescType& in2dDesc,
-                               const Out1dDescType& out1dDesc,
+    __device__ static void Run(const InGridDesc_M_K& in_grid_desc_m_k,
+                               const OutGridDesc_M& out_grid_desc_m,
                                const InElementwiseOperation& in_elementwise_op,
                                const AccElementwiseOperation& acc_elementwise_op,
-                               index_t BlkGroupSize,
-                               index_t kBlockTileIterations,
+                               index_t block_group_size,
+                               index_t num_k_block_tile_iteration,
                                AccDataType alpha,
                                const InDataType* const __restrict__ p_in_global,
                                OutDataType* const __restrict__ p_out_global)
@@ -125,9 +124,9 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         __shared__ AccDataType p_block_reduce_buffer[BlockSize];
 
         const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_in_global, in2dDesc.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
+            p_in_global, in_grid_desc_m_k.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
         auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_out_global, out1dDesc.GetElementSpaceSize());
+            p_out_global, out_grid_desc_m.GetElementSpaceSize());
 
         auto block_reduce_buf =
             make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_block_reduce_buffer, BlockSize);
@@ -138,14 +137,14 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                      true>
             in_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accuValue_buf(I) = zeroVal; });
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = zeroVal; });
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
-        const index_t blkgroup_id     = block_global_id / BlkGroupSize;
-        const index_t block_local_id  = block_global_id % BlkGroupSize;
+        const index_t blkgroup_id     = block_global_id / block_group_size;
+        const index_t block_local_id  = block_global_id % block_group_size;
         const index_t thread_m_cluster_id =
             reorder_thread_cluster ? thread_local_id % MThreadClusterSize
                                    : ((thread_local_id / KThreadClusterSize) % MThreadClusterSize);
@@ -153,24 +152,24 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
             reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
                                    : thread_local_id % KThreadClusterSize;
 
-        const index_t reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
+        const index_t reduceSizePerBlock = K_BlockTileSize * num_k_block_tile_iteration;
 
-        using ThreadBufferLengths       = Sequence<MThreadSliceSize, KThreadSliceSize>;
-        constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
+        using ThreadBufferLengths         = Sequence<MThreadSliceSize, KThreadSliceSize>;
+        constexpr auto thread_buffer_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
 
         auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
             InDataType,
             AccDataType,
-            In2dDescType,
-            decltype(ThreadBufferDesc),
+            InGridDesc_M_K,
+            decltype(thread_buffer_desc),
             ThreadBufferLengths,
             typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
             InSrcVectorDim,
             InSrcVectorSize,
             1,
             false>(
-            in2dDesc,
+            in_grid_desc_m_k,
             make_multi_index(blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
                              block_local_id * reduceSizePerBlock +
                                  thread_k_cluster_id * KThreadSliceSize));
@@ -180,8 +179,11 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         index_t reducedTiles = 0;
         do
         {
-            threadwise_src_load.Run(
-                in2dDesc, in_global_buf, ThreadBufferDesc, make_tuple(I0, I0), in_thread_buf);
+            threadwise_src_load.Run(in_grid_desc_m_k,
+                                    in_global_buf,
+                                    thread_buffer_desc,
+                                    make_tuple(I0, I0),
+                                    in_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 // do element-wise pre-reduction operation
@@ -193,16 +195,16 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                 // reduce on each thread-local slice
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    Accumulation::calculate(accuValue_buf(I), in_thread_buf[offset]);
+                    Accumulation::Calculate(accu_value_buf(I), in_thread_buf[offset]);
                 });
             });
 
-            threadwise_src_load.MoveSrcSliceWindow(in2dDesc, in_thread_copy_step);
+            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
 
             reducedTiles++;
-        } while(reducedTiles < kBlockTileIterations);
+        } while(reducedTiles < num_k_block_tile_iteration);
 
-        constexpr auto ReducedDataDesc =
+        constexpr auto reduced_data_desc =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
 
         // Each block executes multiple parallel reductions on the LDS, and by atomic-adding its
@@ -213,26 +215,26 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
             if constexpr(reorder_thread_cluster)
             {
                 block_reduce_buf(thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id) =
-                    accuValue_buf[I];
+                    accu_value_buf[I];
             }
             else
                 block_reduce_buf(thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id) =
-                    accuValue_buf[I];
+                    accu_value_buf[I];
 
-            accuValue_buf(I) = zeroVal;
+            accu_value_buf(I) = zeroVal;
 
             __syncthreads();
 
             blockwise_reduce::Reduce(
-                block_reduce_buf, accuValue_buf(I), thread_m_cluster_id, thread_k_cluster_id);
+                block_reduce_buf, accu_value_buf(I), thread_m_cluster_id, thread_k_cluster_id);
         });
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             if(thread_k_cluster_id == 0)
             {
-                acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
+                acc_elementwise_op(accu_value_buf(I), accu_value_buf(I));
 
-                accuValue_buf(I) *= alpha;
+                accu_value_buf(I) *= alpha;
             }
         });
 
@@ -241,8 +243,8 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
             auto threadwise_dst_store =
                 ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                    OutDataType,
-                                                   decltype(ReducedDataDesc),
-                                                   Out1dDescType,
+                                                   decltype(reduced_data_desc),
+                                                   OutGridDesc_M,
                                                    PassThroughOp<AccDataType>,
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
@@ -251,13 +253,13 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                                                    InMemoryDataOperationEnum_t::AtomicAdd,
                                                    1,
                                                    true>(
-                    out1dDesc,
+                    out_grid_desc_m,
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize),
                     PassThroughOp<AccDataType>{});
 
             threadwise_dst_store.Run(
-                ReducedDataDesc, make_tuple(I0), accuValue_buf, out1dDesc, out_global_buf);
+                reduced_data_desc, make_tuple(I0), accu_value_buf, out_grid_desc_m, out_global_buf);
         }
     };
 };

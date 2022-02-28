@@ -30,7 +30,7 @@ using kOutDataType = ck::half_t;
 using kAccDataType = float;
 
 constexpr int Rank = 4;
-using InnerDims_   = ck::Sequence<0, 1, 2>;
+using ReduceDims_  = ck::Sequence<0, 1, 2>;
 
 constexpr ReduceTensorOp_t ReduceOpId = ReduceTensorOp_t::NORM2;
 constexpr NanPropagation_t NanOpt     = NanPropagation_t::PROPAGATE_NAN;
@@ -47,7 +47,7 @@ using DeviceReduceInstance = DeviceReduceBlockWise<kInDataType,
                                                    kAccDataType,
                                                    kOutDataType,
                                                    Rank,
-                                                   InnerDims_,
+                                                   ReduceDims_,
                                                    ReduceOperation,
                                                    InElementwiseOperation,
                                                    AccElementwiseOperation,
@@ -193,24 +193,24 @@ class SimpleAppArgs
     };
 };
 
-template <int Rank, typename InnerDims>
-static std::vector<int> get_inner_dims()
+template <int Rank, typename ReduceDims>
+static std::vector<int> get_reduce_dims()
 {
     std::vector<int> resDims;
 
-    static_for<0, InnerDims::Size(), 1>{}([&](auto i) { resDims.push_back(InnerDims::At(i)); });
+    static_for<0, ReduceDims::Size(), 1>{}([&](auto i) { resDims.push_back(ReduceDims::At(i)); });
 
     return (resDims);
 };
 
-template <int Rank, typename InnerDims>
-static std::vector<int> get_outer_dims()
+template <int Rank, typename ReduceDims>
+static std::vector<int> get_invariant_dims()
 {
     std::vector<int> resDims;
     unsigned int incFlag = 0;
 
-    static_for<0, InnerDims::Size(), 1>{}(
-        [&](auto i) { incFlag = incFlag | (0x1 << InnerDims::At(i)); });
+    static_for<0, ReduceDims::Size(), 1>{}(
+        [&](auto i) { incFlag = incFlag | (0x1 << ReduceDims::At(i)); });
 
     for(int dim = 0; dim < Rank; dim++)
     {
@@ -261,15 +261,15 @@ int main(int argc, char* argv[])
 
     Tensor<InDataType> in(args.inLengths);
 
-    const std::vector<int> OuterDims = get_outer_dims<Rank, InnerDims_>();
-    const std::vector<int> InnerDims = get_inner_dims<Rank, InnerDims_>();
+    const std::vector<int> InvariantDims = get_invariant_dims<Rank, ReduceDims_>();
+    const std::vector<int> ReduceDims    = get_reduce_dims<Rank, ReduceDims_>();
 
     std::vector<size_t> outLengths;
 
-    if(OuterDims.empty())
+    if(InvariantDims.empty())
         outLengths.push_back(1);
     else
-        for(auto dim : OuterDims)
+        for(auto dim : InvariantDims)
             outLengths.push_back(args.inLengths[dim]);
 
     Tensor<OutDataType> out_ref(outLengths);
@@ -280,8 +280,8 @@ int main(int argc, char* argv[])
     auto inStrides  = in.mDesc.GetStrides();
     auto outStrides = out.mDesc.GetStrides();
 
-    size_t outer_total_length = out.mDesc.GetElementSize();
-    size_t inner_total_length = in.mDesc.GetElementSize() / outer_total_length;
+    size_t invariant_total_length = out.mDesc.GetElementSize();
+    size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
 
     float alpha = args.scales[0];
     float beta  = args.scales[1];
@@ -329,7 +329,7 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         ReductionHost<InDataType, AccDataType, OutDataType, ReduceOpId, PropagateNan, NeedIndices>
-            hostReduce(in.mDesc, out_ref.mDesc, OuterDims, InnerDims);
+            hostReduce(in.mDesc, out_ref.mDesc, InvariantDims, ReduceDims);
 
         hostReduce.Run(
             alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
@@ -342,7 +342,7 @@ int main(int argc, char* argv[])
 
     auto reduce = DeviceReduceInstance{};
 
-    auto wsSizeInBytes = reduce.getWorkspaceSizeInBytes(i_inLengths);
+    auto wsSizeInBytes = reduce.GetWorkspaceSizeInBytes(i_inLengths);
 
     DeviceMem ws_dev(wsSizeInBytes);
 
@@ -357,8 +357,8 @@ int main(int argc, char* argv[])
                                    out_dev.GetDeviceBuffer(),
                                    out_indices_dev.GetDeviceBuffer(),
                                    ws_dev.GetDeviceBuffer(),
-                                   InElementwiseOperation{static_cast<int>(inner_total_length)},
-                                   AccElementwiseOperation{static_cast<int>(inner_total_length)});
+                                   InElementwiseOperation{static_cast<int>(reduce_total_length)},
+                                   AccElementwiseOperation{static_cast<int>(reduce_total_length)});
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {
@@ -373,8 +373,8 @@ int main(int argc, char* argv[])
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), args.nrepeat);
 
-    std::size_t num_bytes = outer_total_length * inner_total_length * sizeof(InDataType) +
-                            outer_total_length * sizeof(OutDataType);
+    std::size_t num_bytes = invariant_total_length * reduce_total_length * sizeof(InDataType) +
+                            invariant_total_length * sizeof(OutDataType);
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 

@@ -118,7 +118,7 @@ struct GridwiseReduction_mk_to_m_threadwise
     {
 
         using Accumulation =
-            detail::accumulate_with_nan_check<PropagateNan, ReduceOperation, AccDataType>;
+            detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
 
         (void)p_indices_global;
 
@@ -135,14 +135,14 @@ struct GridwiseReduction_mk_to_m_threadwise
                      true>
             in_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accuValue_buf(I) = zeroVal; });
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = zeroVal; });
 
         const auto toReduceLength = in_grid_desc_m_k.GetLength(Number<1>{});
 
-        using ThreadBufferLengths       = Sequence<MThreadSliceSize, KThreadSliceSize>;
-        constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
+        using ThreadBufferLengths         = Sequence<MThreadSliceSize, KThreadSliceSize>;
+        constexpr auto thread_buffer_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
@@ -151,7 +151,7 @@ struct GridwiseReduction_mk_to_m_threadwise
             InDataType,
             AccDataType,
             InGridDesc_M_K,
-            decltype(ThreadBufferDesc),
+            decltype(thread_buffer_desc),
             ThreadBufferLengths,
             typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
             InSrcVectorDim,
@@ -166,7 +166,7 @@ struct GridwiseReduction_mk_to_m_threadwise
         {
             threadwise_src_load.Run(in_grid_desc_m_k,
                                     in_global_buf,
-                                    ThreadBufferDesc,
+                                    thread_buffer_desc,
                                     make_tuple(I0, I0),
                                     in_thread_buf);
 
@@ -180,7 +180,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                 // reduce on each thread-local slice
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    Accumulation::calculate(accuValue_buf(I), in_thread_buf[offset]);
+                    Accumulation::Calculate(accu_value_buf(I), in_thread_buf[offset]);
                 });
             });
 
@@ -190,12 +190,12 @@ struct GridwiseReduction_mk_to_m_threadwise
         } while(reducedLength < toReduceLength);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
+            acc_elementwise_op(accu_value_buf(I), accu_value_buf(I));
 
-            accuValue_buf(I) *= alpha;
+            accu_value_buf(I) *= alpha;
         });
 
-        constexpr auto ReducedDataDesc =
+        constexpr auto reduced_data_desc =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
 
         if constexpr(!BetaIsZero)
@@ -206,7 +206,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                     ThreadwiseTensorSliceTransfer_v2<OutDataType,
                                                      OutDataType,
                                                      OutGridDesc_M,
-                                                     decltype(ReducedDataDesc),
+                                                     decltype(reduced_data_desc),
                                                      Sequence<MThreadSliceSize>,
                                                      Sequence<0>,
                                                      0,
@@ -220,12 +220,12 @@ struct GridwiseReduction_mk_to_m_threadwise
 
                 threadwise_dst_load.Run(out_grid_desc_m,
                                         dst_global_buf,
-                                        ReducedDataDesc,
+                                        reduced_data_desc,
                                         make_tuple(I0),
                                         priorDstValue_buf);
 
                 static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                    accuValue_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
+                    accu_value_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
                 });
             };
         };
@@ -233,7 +233,7 @@ struct GridwiseReduction_mk_to_m_threadwise
         auto threadwise_dst_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                OutDataType,
-                                               decltype(ReducedDataDesc),
+                                               decltype(reduced_data_desc),
                                                OutGridDesc_M,
                                                PassThroughOp<AccDataType>,
                                                Sequence<MThreadSliceSize>,
@@ -248,7 +248,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                 PassThroughOp<AccDataType>{});
 
         threadwise_dst_store.Run(
-            ReducedDataDesc, make_tuple(I0), accuValue_buf, out_grid_desc_m, dst_global_buf);
+            reduced_data_desc, make_tuple(I0), accu_value_buf, out_grid_desc_m, dst_global_buf);
     };
 
     __device__ static void RunWithIndices(const InGridDesc_M_K& in_grid_desc_m_k,
@@ -261,11 +261,10 @@ struct GridwiseReduction_mk_to_m_threadwise
                                           OutDataType* const __restrict__ p_out_global,
                                           IndexDataType* const __restrict__ p_indices_global)
     {
-        using AccumulationWithIndices =
-            detail::accumulate_with_indices_with_nan_check<PropagateNan,
-                                                           ReduceOperation,
-                                                           AccDataType,
-                                                           IndexDataType>;
+        using AccumulationWithIndex = detail::AccumulateWithIndexAndNanCheck<PropagateNan,
+                                                                             ReduceOperation,
+                                                                             AccDataType,
+                                                                             IndexDataType>;
         (void)acc_elementwise_op;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
@@ -283,18 +282,19 @@ struct GridwiseReduction_mk_to_m_threadwise
                      true>
             in_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accuValue_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, IndexDataType, MThreadSliceSize, true> accuIndex_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
+        StaticBuffer<AddressSpaceEnum_t::Vgpr, IndexDataType, MThreadSliceSize, true>
+            accu_index_buf;
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            accuValue_buf(I) = zeroVal;
-            accuIndex_buf(I) = 0;
+            accu_value_buf(I) = zeroVal;
+            accu_index_buf(I) = 0;
         });
 
         const auto toReduceLength = in_grid_desc_m_k.GetLength(Number<1>{});
 
-        using ThreadBufferLengths       = Sequence<MThreadSliceSize, KThreadSliceSize>;
-        constexpr auto ThreadBufferDesc = make_naive_tensor_descriptor_packed(
+        using ThreadBufferLengths         = Sequence<MThreadSliceSize, KThreadSliceSize>;
+        constexpr auto thread_buffer_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
 
         index_t thread_global_1d_id = get_block_1d_id() * BlockSize + get_thread_local_1d_id();
@@ -303,7 +303,7 @@ struct GridwiseReduction_mk_to_m_threadwise
             InDataType,
             AccDataType,
             InGridDesc_M_K,
-            decltype(ThreadBufferDesc),
+            decltype(thread_buffer_desc),
             ThreadBufferLengths,
             typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
             InSrcVectorDim,
@@ -319,7 +319,7 @@ struct GridwiseReduction_mk_to_m_threadwise
         {
             threadwise_src_load.Run(in_grid_desc_m_k,
                                     in_global_buf,
-                                    ThreadBufferDesc,
+                                    thread_buffer_desc,
                                     make_tuple(I0, I0),
                                     in_thread_buf);
 
@@ -334,8 +334,10 @@ struct GridwiseReduction_mk_to_m_threadwise
                 // reduce on each thread-local slice
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    AccumulationWithIndices::calculate(
-                        accuValue_buf(I), in_thread_buf[offset], accuIndex_buf(I), indexStart + J);
+                    AccumulationWithIndex::Calculate(accu_value_buf(I),
+                                                     in_thread_buf[offset],
+                                                     accu_index_buf(I),
+                                                     indexStart + J);
                 });
             });
 
@@ -347,12 +349,12 @@ struct GridwiseReduction_mk_to_m_threadwise
 
         // for indiced operation, acc_elementwise_op shoud do nothing
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            acc_elementwise_op(accuValue_buf(I), accuValue_buf(I));
+            acc_elementwise_op(accu_value_buf(I), accu_value_buf(I));
 
-            accuValue_buf(I) *= alpha;
+            accu_value_buf(I) *= alpha;
         });
 
-        constexpr auto ReducedDataDesc =
+        constexpr auto reduced_data_desc =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
 
         if constexpr(!BetaIsZero)
@@ -363,7 +365,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                     ThreadwiseTensorSliceTransfer_v2<OutDataType,
                                                      OutDataType,
                                                      OutGridDesc_M,
-                                                     decltype(ReducedDataDesc),
+                                                     decltype(reduced_data_desc),
                                                      Sequence<MThreadSliceSize>,
                                                      Sequence<0>,
                                                      0,
@@ -377,12 +379,12 @@ struct GridwiseReduction_mk_to_m_threadwise
 
                 threadwise_dst_load.Run(out_grid_desc_m,
                                         out_global_val_buf,
-                                        ReducedDataDesc,
+                                        reduced_data_desc,
                                         make_tuple(I0),
                                         priorDstValue_buf);
 
                 static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                    accuValue_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
+                    accu_value_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
                 });
             };
         };
@@ -390,7 +392,7 @@ struct GridwiseReduction_mk_to_m_threadwise
         auto threadwise_dst_val_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                OutDataType,
-                                               decltype(ReducedDataDesc),
+                                               decltype(reduced_data_desc),
                                                OutGridDesc_M,
                                                PassThroughOp<AccDataType>,
                                                Sequence<MThreadSliceSize>,
@@ -407,7 +409,7 @@ struct GridwiseReduction_mk_to_m_threadwise
         auto threadwise_dst_idx_store =
             ThreadwiseTensorSliceTransfer_v1r3<IndexDataType,
                                                IndexDataType,
-                                               decltype(ReducedDataDesc),
+                                               decltype(reduced_data_desc),
                                                OutGridDesc_M,
                                                PassThroughOp<IndexDataType>,
                                                Sequence<MThreadSliceSize>,
@@ -422,10 +424,10 @@ struct GridwiseReduction_mk_to_m_threadwise
                 PassThroughOp<IndexDataType>{});
 
         threadwise_dst_val_store.Run(
-            ReducedDataDesc, make_tuple(I0), accuValue_buf, out_grid_desc_m, out_global_val_buf);
+            reduced_data_desc, make_tuple(I0), accu_value_buf, out_grid_desc_m, out_global_val_buf);
 
         threadwise_dst_idx_store.Run(
-            ReducedDataDesc, make_tuple(I0), accuIndex_buf, out_grid_desc_m, out_global_idx_buf);
+            reduced_data_desc, make_tuple(I0), accu_index_buf, out_grid_desc_m, out_global_idx_buf);
     };
 };
 

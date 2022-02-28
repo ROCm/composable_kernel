@@ -14,20 +14,20 @@ namespace device {
 // template <typename preUnaryOpType, typename posUnaryOpType>
 // using DeviceReducePtr = std::unique_ptr<DeviceReduce<preUnaryOpType, posUnaryOpType>>;
 
-template <int Rank, typename InnerDims>
+template <int Rank, typename ReduceDims>
 std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
 {
     static_assert(Rank <= 6, "bigger Rank size not supported!");
 
     size_t tensor_total_length = 1;
-    size_t inner_total_length  = 1;
+    size_t reduce_total_length = 1;
 
-    static_for<0, InnerDims::Size(), 1>{}(
-        [&](auto i) { inner_total_length *= inLengths[InnerDims::At(i)]; });
+    static_for<0, ReduceDims::Size(), 1>{}(
+        [&](auto i) { reduce_total_length *= inLengths[ReduceDims::At(i)]; });
 
     static_for<0, Rank, 1>{}([&](auto i) { tensor_total_length *= inLengths[i.value]; });
 
-    return std::make_pair(tensor_total_length / inner_total_length, inner_total_length);
+    return std::make_pair(tensor_total_length / reduce_total_length, reduce_total_length);
 };
 
 template <int x, typename Seq>
@@ -40,8 +40,8 @@ constexpr bool belong()
     return (inside);
 };
 
-template <int Rank, typename InnerDims, int start = 0>
-constexpr auto get_outer_dims()
+template <int Rank, typename ReduceDims, int start = 0>
+constexpr auto get_invariant_dims()
 {
     static_assert(Rank <= 6, "bigger Rank size not supported!");
 
@@ -49,10 +49,11 @@ constexpr auto get_outer_dims()
         return Sequence<>{};
     else
     {
-        if constexpr(!belong<start, InnerDims>())
-            return merge_sequences(Sequence<start>{}, get_outer_dims<Rank, InnerDims, start + 1>());
+        if constexpr(!belong<start, ReduceDims>())
+            return merge_sequences(Sequence<start>{},
+                                   get_invariant_dims<Rank, ReduceDims, start + 1>());
         else
-            return get_outer_dims<Rank, InnerDims, start + 1>();
+            return get_invariant_dims<Rank, ReduceDims, start + 1>();
     };
 };
 

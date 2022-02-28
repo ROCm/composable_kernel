@@ -46,58 +46,62 @@ inline __device__ bool is_nan<half_t>(half_t x)
     return (__hisnan(x));
 };
 
-template <bool propagate_nan, typename opReduce, typename AccDataType>
-struct accumulate_with_nan_check;
+template <bool PropagateNan, typename ReduceOperation, typename AccDataType>
+struct AccumulateWithNanCheck;
 
-template <typename opReduce, typename AccDataType>
-struct accumulate_with_nan_check<false, opReduce, AccDataType>
+template <typename ReduceOperation, typename AccDataType>
+struct AccumulateWithNanCheck<false, ReduceOperation, AccDataType>
 {
     // cppcheck-suppress constParameter
-    __device__ static inline void calculate(AccDataType& accuVal, AccDataType currVal)
+    __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
     {
-        opReduce{}(accuVal, currVal);
+        ReduceOperation{}(accuVal, currVal);
     };
 };
 
-template <typename opReduce, typename AccDataType>
-struct accumulate_with_nan_check<true, opReduce, AccDataType>
+template <typename ReduceOperation, typename AccDataType>
+struct AccumulateWithNanCheck<true, ReduceOperation, AccDataType>
 {
-    __device__ static inline void calculate(AccDataType& accuVal, AccDataType currVal)
+    __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
     {
         if(is_nan(currVal))
+        {
             accuVal = currVal;
+        }
         else
-            opReduce{}(accuVal, currVal);
+        {
+            ReduceOperation{}(accuVal, currVal);
+        };
     };
 };
 
-template <bool propagate_nan, typename opReduce, typename AccDataType, typename IndexDataType>
-struct accumulate_with_indices_with_nan_check;
+template <bool PropagateNan, typename ReduceOperation, typename AccDataType, typename IndexDataType>
+struct AccumulateWithIndexAndNanCheck;
 
-template <typename opReduce, typename AccDataType, typename IndexDataType>
-struct accumulate_with_indices_with_nan_check<false, opReduce, AccDataType, IndexDataType>
+template <typename ReduceOperation, typename AccDataType, typename IndexDataType>
+struct AccumulateWithIndexAndNanCheck<false, ReduceOperation, AccDataType, IndexDataType>
 {
     __device__ static inline void
     // cppcheck-suppress constParameter
-    calculate(AccDataType& accuVal,
+    Calculate(AccDataType& accuVal,
               AccDataType currVal,
               IndexDataType& accuIndex,
               IndexDataType currIndex)
     {
         bool changed = false;
 
-        opReduce{}(accuVal, currVal, changed);
+        ReduceOperation{}(accuVal, currVal, changed);
 
         if(changed)
             accuIndex = currIndex;
     };
 };
 
-template <typename opReduce, typename AccDataType, typename IndexDataType>
-struct accumulate_with_indices_with_nan_check<true, opReduce, AccDataType, IndexDataType>
+template <typename ReduceOperation, typename AccDataType, typename IndexDataType>
+struct AccumulateWithIndexAndNanCheck<true, ReduceOperation, AccDataType, IndexDataType>
 {
-    // The method is called when the opReduce is indexable and the user asked for indices
-    __device__ static inline void calculate(AccDataType& accuVal,
+    // The method is called when the ReduceOperation is indexable and the user asked for indices
+    __device__ static inline void Calculate(AccDataType& accuVal,
                                             AccDataType currVal,
                                             IndexDataType& accuIndex,
                                             IndexDataType currIndex)
@@ -111,7 +115,7 @@ struct accumulate_with_indices_with_nan_check<true, opReduce, AccDataType, Index
         {
             bool changed = false;
 
-            opReduce{}(accuVal, currVal, changed);
+            ReduceOperation{}(accuVal, currVal, changed);
 
             if(changed)
                 accuIndex = currIndex;

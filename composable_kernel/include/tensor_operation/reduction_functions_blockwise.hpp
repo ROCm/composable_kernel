@@ -23,8 +23,8 @@
  * SOFTWARE.
  *
  *******************************************************************************/
-#ifndef CK_REDUCTION_FUNCTIONS_PARTITIONED_BLOCKWISE_HPP
-#define CK_REDUCTION_FUNCTIONS_PARTITIONED_BLOCKWISE_HPP
+#ifndef CK_REDUCTION_FUNCTIONS_BLOCKWISE_HPP
+#define CK_REDUCTION_FUNCTIONS_BLOCKWISE_HPP
 
 #include "data_type.hpp"
 
@@ -34,26 +34,26 @@
 
 namespace ck {
 
-template <typename buffer1dDescType,
+template <typename Buffer1dDescType,
           typename AccDataType,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
-          bool reorder_thread_clusters,
-          typename opReduce,
-          bool propagate_nan>
-struct PartitionedBlockwiseReduction_1d_block_buffer
+          bool ReorderThreadClusters,
+          typename OpReduce,
+          bool PropagateNan>
+struct PartitionedBlockwiseReductionOn1dBuffer
 {
-    static constexpr auto buffer1dDesc = buffer1dDescType{};
+    static constexpr auto buffer_1d_desc = Buffer1dDescType{};
 
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "The product of cluster lengths should be same as BlockSize!");
     static_assert(KThreadClusterSize > 1, "Parallel reduction need work on at least two elements");
 
-    static_assert(buffer1dDesc.GetElementSize() == BlockSize,
+    static_assert(buffer_1d_desc.GetElementSize() == BlockSize,
                   "The buffer size should be the same as BlockSize!");
 
-    using Accumulation = detail::accumulate_with_nan_check<propagate_nan, opReduce, AccDataType>;
+    using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
 
     template <typename BufferType>
     __device__ static void Reduce(BufferType& block_buffer,
@@ -71,59 +71,59 @@ struct PartitionedBlockwiseReduction_1d_block_buffer
                 // consider the thread clusters order, ensure the contiguous locations are accessed
                 // by contiguous Thread-ID
                 index_t offset1 =
-                    reorder_thread_clusters
-                        ? buffer1dDesc.CalculateOffset(make_tuple(
+                    ReorderThreadClusters
+                        ? buffer_1d_desc.CalculateOffset(make_tuple(
                               thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id))
-                        : buffer1dDesc.CalculateOffset(make_tuple(
+                        : buffer_1d_desc.CalculateOffset(make_tuple(
                               thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id));
-                index_t offset2 = reorder_thread_clusters
-                                      ? buffer1dDesc.CalculateOffset(make_tuple(
+                index_t offset2 = ReorderThreadClusters
+                                      ? buffer_1d_desc.CalculateOffset(make_tuple(
                                             (thread_k_cluster_id + indOffset) * MThreadClusterSize +
                                             thread_m_cluster_id))
-                                      : buffer1dDesc.CalculateOffset(
+                                      : buffer_1d_desc.CalculateOffset(
                                             make_tuple(thread_m_cluster_id * KThreadClusterSize +
                                                        (thread_k_cluster_id + indOffset)));
 
                 AccDataType opData1 = type_convert<AccDataType>(block_buffer[offset1]);
                 AccDataType opData2 = type_convert<AccDataType>(block_buffer[offset2]);
-                Accumulation::calculate(opData1, opData2);
+                Accumulation::Calculate(opData1, opData2);
                 block_buffer(offset1) = type_convert<AccDataType>(opData1);
             }
 
             __syncthreads();
         });
 
-        index_t offset = reorder_thread_clusters
-                             ? buffer1dDesc.CalculateOffset(make_tuple(thread_m_cluster_id))
-                             : buffer1dDesc.CalculateOffset(
+        index_t offset = ReorderThreadClusters
+                             ? buffer_1d_desc.CalculateOffset(make_tuple(thread_m_cluster_id))
+                             : buffer_1d_desc.CalculateOffset(
                                    make_tuple(thread_m_cluster_id * KThreadClusterSize));
 
         accuData = type_convert<AccDataType>(block_buffer[offset]);
     };
 };
 
-template <typename buffer1dDescType,
+template <typename Buffer1dDescType,
           typename AccDataType,
           typename IndexDataType,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
-          bool reorder_thread_clusters,
-          typename opReduce,
-          bool propagate_nan>
-struct PartitionedBlockwiseReductionWithIndices_1d_block_buffer
+          bool ReorderThreadClusters,
+          typename OpReduce,
+          bool PropagateNan>
+struct PartitionedBlockwiseReductionWithIndexOn1dBuffer
 {
-    static constexpr auto buffer1dDesc = buffer1dDescType{};
+    static constexpr auto buffer_1d_desc = Buffer1dDescType{};
 
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "The product of cluster lengths should be same as BlockSize!");
     static_assert(KThreadClusterSize > 1, "Parallel reduction need work on at least two elements");
 
-    static_assert(buffer1dDesc.GetElementSize() == BlockSize,
+    static_assert(buffer_1d_desc.GetElementSize() == BlockSize,
                   "The buffer size should be the same as BlockSize!");
 
-    using Accumulation = detail::
-        accumulate_with_indices_with_nan_check<propagate_nan, opReduce, AccDataType, IndexDataType>;
+    using Accumulation =
+        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>;
 
     // This interface accumulates on both data values and indices
     template <typename BufferType, typename IdxBufferType>
@@ -144,16 +144,16 @@ struct PartitionedBlockwiseReductionWithIndices_1d_block_buffer
                 // consider the thread clusters order, ensure the contiguous locations are accessed
                 // by contiguous Thread-ID
                 index_t offset1 =
-                    reorder_thread_clusters
-                        ? buffer1dDesc.CalculateOffset(make_tuple(
+                    ReorderThreadClusters
+                        ? buffer_1d_desc.CalculateOffset(make_tuple(
                               thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id))
-                        : buffer1dDesc.CalculateOffset(make_tuple(
+                        : buffer_1d_desc.CalculateOffset(make_tuple(
                               thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id));
-                index_t offset2 = reorder_thread_clusters
-                                      ? buffer1dDesc.CalculateOffset(make_tuple(
+                index_t offset2 = ReorderThreadClusters
+                                      ? buffer_1d_desc.CalculateOffset(make_tuple(
                                             (thread_k_cluster_id + indOffset) * MThreadClusterSize +
                                             thread_m_cluster_id))
-                                      : buffer1dDesc.CalculateOffset(
+                                      : buffer_1d_desc.CalculateOffset(
                                             make_tuple(thread_m_cluster_id * KThreadClusterSize +
                                                        (thread_k_cluster_id + indOffset)));
 
@@ -162,7 +162,7 @@ struct PartitionedBlockwiseReductionWithIndices_1d_block_buffer
                 IndexDataType currIndex1 = block_idx_buffer[offset1];
                 IndexDataType currIndex2 = block_idx_buffer[offset2];
 
-                Accumulation::calculate(opData1, opData2, currIndex1, currIndex2);
+                Accumulation::Calculate(opData1, opData2, currIndex1, currIndex2);
                 block_val_buffer(offset1) = type_convert<AccDataType>(opData1);
                 block_idx_buffer(offset1) = currIndex1;
             }
@@ -170,9 +170,9 @@ struct PartitionedBlockwiseReductionWithIndices_1d_block_buffer
             __syncthreads();
         });
 
-        index_t offset = reorder_thread_clusters
-                             ? buffer1dDesc.CalculateOffset(make_tuple(thread_m_cluster_id))
-                             : buffer1dDesc.CalculateOffset(
+        index_t offset = ReorderThreadClusters
+                             ? buffer_1d_desc.CalculateOffset(make_tuple(thread_m_cluster_id))
+                             : buffer_1d_desc.CalculateOffset(
                                    make_tuple(thread_m_cluster_id * KThreadClusterSize));
 
         accuData  = type_convert<AccDataType>(block_val_buffer[offset]);

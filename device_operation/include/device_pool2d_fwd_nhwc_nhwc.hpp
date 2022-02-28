@@ -33,6 +33,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
+    using IndexDataType = int32_t;
+
     using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 
     using InElementwiseOperation =
@@ -44,7 +46,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     static constexpr bool BetaIsZero = true;
 
-    static constexpr int InSrcOutDstVectorDim =
+    static constexpr index_t InSrcOutDstVectorDim =
         0; // for NHWC, the dim C is the vector Dim for both input and output in memory, which is
            // not reduced.
 
@@ -175,8 +177,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
             a_grid_desc_m_k_ = descs[I0];
             b_grid_desc_m_   = descs[I1];
 
-            outer_lowest_length_ = C;
-            inner_lowest_length_ = window_spatial_lengths[1];
+            invariant_lowest_length_ = C;
+            reduce_lowest_length_    = window_spatial_lengths[1];
 
             // TODO: is this correct?
             if constexpr(ReduceOpId == ck::ReduceTensorOp_t::AVG)
@@ -196,8 +198,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
         AccElementwiseOperation acc_element_op_;
 
         // for checking vector load/store
-        ck::index_t outer_lowest_length_;
-        ck::index_t inner_lowest_length_;
+        ck::index_t invariant_lowest_length_;
+        ck::index_t reduce_lowest_length_;
     };
 
     struct Invoker : public BaseInvoker
@@ -207,7 +209,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
             using gridwise_reduce = GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                                          OutDataType,
                                                                          AccDataType,
-                                                                         int32_t,
+                                                                         IndexDataType,
                                                                          AGridDesc_M_K,
                                                                          BGridDesc_M,
                                                                          ReduceOperation,
@@ -229,7 +231,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
                                                          InDataType,
                                                          OutDataType,
                                                          AccDataType,
-                                                         int32_t,
+                                                         IndexDataType,
                                                          AGridDesc_M_K,
                                                          BGridDesc_M,
                                                          InElementwiseOperation,
@@ -265,7 +267,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if(pArg->outer_lowest_length_ % InSrcOutDstVectorSize != 0)
+        if(pArg->invariant_lowest_length_ % InSrcOutDstVectorSize != 0)
         {
             return (false);
         }

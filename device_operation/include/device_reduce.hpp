@@ -16,16 +16,16 @@ namespace device {
 template <typename InElementwiseOperation, typename AccElementwiseOperation>
 struct DeviceReduce : public BaseOperator
 {
-    virtual size_t getWorkspaceSizeInBytes(const std::vector<int>& inLengths)
+    virtual size_t GetWorkspaceSizeInBytes(const std::vector<int>& inLengths)
     {
         (void)inLengths;
 
         return (0);
     };
 
-    virtual bool hasFurtherCall() { return (false); };
+    virtual bool HasFurtherCall() { return (false); };
 
-    virtual std::vector<int> getWorkspace2dLengths(const BaseArgument* argPtr)
+    virtual std::vector<int> GetWorkspace2dLengths(const BaseArgument* argPtr)
     {
         (void)argPtr;
         return (std::vector<int>{0, 0});
