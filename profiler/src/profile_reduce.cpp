@@ -16,7 +16,7 @@
 #include "device_tensor.hpp"
 #include "reduction_enums.hpp"
 
-#include "profile_reduce.hpp"
+#include "profile_reduce_impl.hpp"
 
 using namespace std;
 
