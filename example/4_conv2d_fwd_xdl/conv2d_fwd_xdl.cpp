@@ -12,8 +12,10 @@
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
+#include "device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_fwd.hpp"
+#include "convolution_utility.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -34,45 +36,41 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
-// clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::
-    DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
-        InDataType,                       // InDataType
-        WeiDataType,                      // WeiDataType
-        OutDataType,                      // OutDataType
-        AccDataType,                      // AccDataType
-        InElementOp,                      // InElementwiseOperation
-        WeiElementOp,                     // WeiElementwiseOperation
-        OutElementOp,                     // OutElementwiseOperation
-        ConvFwdDefault,                   // ConvForwardSpecialization
-        256,                              // BlockSize
-        128,                              // MPerBlock
-        256,                              // NPerBlock
-        4,                                // K0PerBlock
-        8,                                // K1
-        32,                               // MPerXdl
-        32,                               // NPerXdl
-        2,                                // MXdlPerWave
-        4,                                // NXdlPerWave
-        S<4, 64, 1>,                      // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<1, 0, 2>,                       // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,                       // ABlockTransferSrcAccessOrder
-        2,                                // ABlockTransferSrcVectorDim
-        8,                                // ABlockTransferSrcScalarPerVector
-        8,                                // ABlockTransferDstScalarPerVector_K1
-        true,                             // ABlockLdsAddExtraM
-        S<4, 64, 1>,                      // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<1, 0, 2>,                       // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,                       // BBlockTransferSrcAccessOrder
-        2,                                // BBlockTransferSrcVectorDim
-        8,                                // BBlockTransferSrcScalarPerVector
-        8,                                // BBlockTransferDstScalarPerVector_K1
-        true,                             // BBlockLdsAddExtraN
-        1,                                // CShuffleMXdlPerWavePerShuffle
-        1,                                // CShuffleNXdlPerWavePerShuffle
-        S<1, 1, 32, 1, 1, 8>,             // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
-        8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
-// clang-format on
+    DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+        InDataType,     // InDataType
+        WeiDataType,    // WeiDataType
+        OutDataType,    // OutDataType
+        AccDataType,    // AccDataType
+        InElementOp,    // InElementwiseOperation
+        WeiElementOp,   // WeiElementwiseOperation
+        OutElementOp,   // OutElementwiseOperation
+        ConvFwdDefault, // ConvForwardSpecialization
+        256,            // BlockSize
+        128,            // MPerBlock
+        256,            // NPerBlock
+        4,              // K0PerBlock
+        8,              // K1
+        32,             // MPerXdl
+        32,             // NPerXdl
+        2,              // MXdlPerWave
+        4,              // NXdlPerWave
+        S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
+        2,              // ABlockTransferSrcVectorDim
+        8,              // ABlockTransferSrcScalarPerVector
+        8,              // ABlockTransferDstScalarPerVector_K1
+        true,           // ABlockLdsAddExtraM
+        S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,     // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // BBlockTransferSrcAccessOrder
+        2,              // BBlockTransferSrcVectorDim
+        8,              // BBlockTransferSrcScalarPerVector
+        8,              // BBlockTransferDstScalarPerVector_K1
+        true,           // BBlockLdsAddExtraN
+        7,              // CThreadTransferSrcDstVectorDim
+        1>;             // CThreadTransferDstScalarPerVector
 
 using ReferenceConvFwdInstance = ck::tensor_operation::host::
     ReferenceConvFwd<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
@@ -138,16 +136,20 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
-    const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
+    const std::vector<ck::index_t> conv_filter_strides{conv_stride_h, conv_stride_w};
+    const std::vector<ck::index_t> conv_filter_dilations{conv_dilation_h, conv_dilation_w};
+    const std::vector<ck::index_t> input_left_pads{in_left_pad_h, in_left_pad_w};
+    const std::vector<ck::index_t> input_right_pads{in_right_pad_h, in_right_pad_w};
+    const auto output_spatial_lengths =
+        ck::tensor_operation::ConvolutionUtility::ComputeOutputSpatialLengths({Hi, Wi},
+                                                                              {Y, X},
+                                                                              conv_filter_strides,
+                                                                              conv_filter_dilations,
+                                                                              input_left_pads,
+                                                                              input_right_pads);
 
-    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
-    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-
-    const std::vector<ck::index_t> conv_filter_strides{{conv_stride_h, conv_stride_w}};
-    const std::vector<ck::index_t> conv_filter_dilations{{conv_dilation_h, conv_dilation_w}};
-    const std::vector<ck::index_t> input_left_pads{{in_left_pad_h, in_left_pad_w}};
-    const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
+    const ck::index_t Ho = output_spatial_lengths[0];
+    const ck::index_t Wo = output_spatial_lengths[1];
 
     // tensor layout
     auto f_host_tensor_descriptor = [](std::size_t N_,
@@ -214,9 +216,9 @@ int main(int argc, char* argv[])
                                       N,
                                       K,
                                       C,
-                                      std::vector<ck::index_t>{{Hi, Wi}},
-                                      std::vector<ck::index_t>{{Y, X}},
-                                      std::vector<ck::index_t>{{Ho, Wo}},
+                                      std::vector<ck::index_t>{Hi, Wi},
+                                      std::vector<ck::index_t>{Y, X},
+                                      std::vector<ck::index_t>{Ho, Wo},
                                       conv_filter_strides,
                                       conv_filter_dilations,
                                       input_left_pads,

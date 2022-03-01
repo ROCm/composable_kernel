@@ -4,9 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
-#include "device_base.hpp"
 #include "device_gemm.hpp"
-#include "device_gemm_xdl.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -31,8 +29,9 @@ template <
     ck::index_t BlockSize,
     ck::index_t MPerBlock,
     ck::index_t NPerBlock,
-    ck::index_t K0PerBlock,
-    ck::index_t K1,
+    ck::index_t KPerBlock,
+    ck::index_t AK1,
+    ck::index_t BK1,
     ck::index_t MPerXDL,
     ck::index_t NPerXDL,
     ck::index_t MXdlPerWave,
@@ -54,7 +53,8 @@ template <
     index_t CShuffleMXdlPerWavePerShuffle,
     index_t CShuffleNXdlPerWavePerShuffle,
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-    index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
+    index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
+    index_t NumPrefetch = 1>
 struct DeviceGemmXdl_C_Shuffle
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -62,13 +62,11 @@ struct DeviceGemmXdl_C_Shuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto K1Number = Number<K1>{};
-
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
-        assert(K % K1 == 0);
+        assert(K % AK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / AK1;
 
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -81,21 +79,20 @@ struct DeviceGemmXdl_C_Shuffle
             }
         }();
 
-        const auto a_grid_desc_k0_m_k1 =
-            transform_tensor_descriptor(a_grid_desc_m_k,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(M)),
-                                        make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto a_grid_desc_k0_m_k1 = transform_tensor_descriptor(
+            a_grid_desc_m_k,
+            make_tuple(make_unmerge_transform(make_tuple(K0, AK1)), make_pass_through_transform(M)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         return a_grid_desc_k0_m_k1;
     }
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
-        assert(K % K1 == 0);
+        assert(K % BK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / BK1;
 
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -108,12 +105,11 @@ struct DeviceGemmXdl_C_Shuffle
             }
         }();
 
-        const auto b_grid_desc_k0_n_k1 =
-            transform_tensor_descriptor(b_grid_desc_k_n,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(N)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto b_grid_desc_k0_n_k1 = transform_tensor_descriptor(
+            b_grid_desc_k_n,
+            make_tuple(make_unmerge_transform(make_tuple(K0, BK1)), make_pass_through_transform(N)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         return b_grid_desc_k0_n_k1;
     }
@@ -149,10 +145,11 @@ struct DeviceGemmXdl_C_Shuffle
         CElementwiseOperation,
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
         MPerXDL,
         NPerXDL,
-        K1,
         MXdlPerWave,
         NXdlPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -174,7 +171,8 @@ struct DeviceGemmXdl_C_Shuffle
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
-        CBlockTransferScalarPerVector_NWaveNPerXdl>;
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        NumPrefetch>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -221,7 +219,8 @@ struct DeviceGemmXdl_C_Shuffle
                         MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                             c_grid_desc_m_n_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ =
+                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -235,7 +234,7 @@ struct DeviceGemmXdl_C_Shuffle
         typename GridwiseGemm::
             CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
                 c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
-        typename GridwiseGemm::Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -295,7 +294,7 @@ struct DeviceGemmXdl_C_Shuffle
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
                 ave_time = launch_and_time_kernel(
@@ -329,7 +328,7 @@ struct DeviceGemmXdl_C_Shuffle
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::Block2CTileMap>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
                 ave_time = launch_and_time_kernel(
@@ -460,7 +459,9 @@ struct DeviceGemmXdl_C_Shuffle
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << KPerBlock << ", "
+            << AK1 << ", "
+            << BK1
             << ">";
         // clang-format on
 
