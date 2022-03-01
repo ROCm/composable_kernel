@@ -143,97 +143,159 @@ struct AddHardswishAdd
     }
 };
 
-// Unary operators are usually called element-wisely before the reduction is executed on the
-// elements.
-// They are needed for easy implementation of reduction types of AVG, NRM1, NRM2
+// Unary operators are usually called element-wisely before/after the reduction is executed on the
+// elements. They are needed for easy implementation of reduction types of AVG, NRM1, NRM2
 
 template <typename Y, typename X, bool HasDividing = false>
-struct UnaryIdentic
+struct UnaryIdentic;
+
+template <>
+struct UnaryIdentic<float, float, false>
 {
     __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
-    {
-        y = type_convert<Y>(x);
-    };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = x; };
 };
 
-template <typename Y, typename X>
-struct UnaryIdentic<Y, X, true>
+template <>
+struct UnaryIdentic<float, float, true>
 {
     __host__ __device__ UnaryIdentic(const int32_t divider = 1) { divider_ = divider; };
 
-    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
+    __host__ __device__ void operator()(float& y, const float& x) const
     {
-        y = type_convert<Y>(x) / type_convert<Y>(divider_);
+        y = x / type_convert<float>(divider_);
     };
 
     int32_t divider_ = 1;
+};
+
+template <>
+struct UnaryIdentic<half_t, half_t, false>
+{
+    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = x; };
+};
+
+template <>
+struct UnaryIdentic<double, double, false>
+{
+    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(double& y, const double& x) const { y = x; };
+};
+
+template <>
+struct UnaryIdentic<double, double, true>
+{
+    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { divider_ = divider; };
+
+    __host__ __device__ void operator()(double& y, const double& x) const
+    {
+        y = x / type_convert<double>(divider_);
+    };
+
+    int32_t divider_ = 1;
+};
+
+template <>
+struct UnaryIdentic<int32_t, int32_t, false>
+{
+    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x; };
 };
 
 template <typename Y, typename X, bool HasDividing = false>
-struct UnarySquare
+struct UnarySquare;
+
+template <>
+struct UnarySquare<float, float, false>
 {
     __host__ __device__ UnarySquare(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
-    {
-        y = type_convert<Y>(x) * type_convert<Y>(x);
-    };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = x * x; };
 };
 
-template <typename Y, typename X>
-struct UnarySquare<Y, X, true>
+template <>
+struct UnarySquare<float, float, true>
 {
     __host__ __device__ UnarySquare(const int32_t divider = 1) { divider_ = divider; };
 
-    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
+    __host__ __device__ void operator()(float& y, const float& x) const
     {
-        y = type_convert<Y>(x) * type_convert<Y>(x) / type_convert<Y>(divider_);
+        y = x * x / type_convert<float>(divider_);
+    };
+
+    int32_t divider_ = 1;
+};
+
+template <>
+struct UnarySquare<double, double, false>
+{
+    __host__ __device__ UnarySquare(const int32_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(double& y, const double& x) const { y = x * x; };
+};
+
+template <>
+struct UnarySquare<double, double, true>
+{
+    __host__ __device__ UnarySquare(const int32_t divider = 1) { divider_ = divider; };
+
+    __host__ __device__ void operator()(double& y, const double& x) const
+    {
+        y = x * x / type_convert<double>(divider_);
     };
 
     int32_t divider_ = 1;
 };
 
 template <typename Y, typename X>
-struct UnaryAbs
+struct UnaryAbs;
+
+template <>
+struct UnaryAbs<float, float>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ constexpr void operator()(Y& y, const X& x) const
-    {
-        y = abs(type_convert<Y>(x));
-    };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = abs(x); };
 };
 
-template <typename X>
-struct UnaryAbs<half_t, X>
+template <>
+struct UnaryAbs<half_t, half_t>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ constexpr void operator()(half_t& y, const X& x) const
-    {
-        y = __habs(type_convert<half_t>(x));
-    };
+    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = __habs(x); };
+};
+
+template <>
+struct UnaryAbs<double, double>
+{
+    __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(double& y, const double& x) const { y = abs(x); };
 };
 
 template <typename Y, typename X>
-struct UnarySqrt
+struct UnarySqrt;
+
+template <>
+struct UnarySqrt<float, float>
 {
     __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(Y& y, const X& x) const { y = sqrt(type_convert<Y>(x)); };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = sqrtf(x); };
 };
 
-template <typename X>
-struct UnarySqrt<float, X>
+template <>
+struct UnarySqrt<double, double>
 {
     __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(float& y, const X& x) const
-    {
-        y = sqrtf(type_convert<float>(x));
-    };
+    __host__ __device__ void operator()(double& y, const double& x) const { y = sqrt(x); };
 };
 
 } // namespace element_wise
