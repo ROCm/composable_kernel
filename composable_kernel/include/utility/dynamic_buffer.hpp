@@ -123,12 +123,11 @@ struct DynamicBuffer
         else if constexpr(Op == InMemoryDataOperationEnum_t::AtomicAdd)
         {
             this->template AtomicAdd<X>(i, is_valid_element, x);
-
         }
         else if constexpr(Op == InMemoryDataOperationEnum_t::Add)
         {
             auto tmp = this->template Get<X>(i, is_valid_element);
-            this->template Set<X>(i, is_valid_element, x+tmp);
+            this->template Set<X>(i, is_valid_element, x + tmp);
             // tmp += x;
             // this->template Set<X>(i, is_valid_element, tmp);
         }

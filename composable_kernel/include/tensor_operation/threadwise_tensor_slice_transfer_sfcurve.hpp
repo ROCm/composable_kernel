@@ -30,7 +30,7 @@ template <typename SrcData,
           index_t DstScalarStrideInVector,
           bool DstResetCoordinateAfterRun,
           typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
-struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
+struct ThreadwiseTensorSliceTransfer_v1r3_sfcurve
 {
     static constexpr index_t nDim = SliceLengths::Size();
 
@@ -38,7 +38,7 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
     using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve(
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3_sfcurve(
         const DstDesc& dst_desc,
         const Index& dst_slice_origin_idx,
         const DstElementwiseOperation& dst_element_op)
@@ -98,7 +98,6 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
         constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
 
         static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
-
             constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
 
             // copy data from src_buf into dst_vector
@@ -200,4 +199,3 @@ struct ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve
 
 } // namespace ck
 #endif
-

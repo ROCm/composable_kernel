@@ -300,4 +300,3 @@ struct ThreadwiseTensorSliceTransfer_v6r3
 
 } // namespace ck
 #endif
-

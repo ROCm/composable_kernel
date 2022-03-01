@@ -42,7 +42,8 @@ struct SpaceFillingCurve
     }
 
     template <index_t AccessIdx1dBegin, index_t AccessIdx1dEnd>
-    static __device__ __host__ constexpr auto GetStepBetween(Number<AccessIdx1dBegin>, Number<AccessIdx1dEnd>)
+    static __device__ __host__ constexpr auto GetStepBetween(Number<AccessIdx1dBegin>,
+                                                             Number<AccessIdx1dEnd>)
     {
         static_assert(AccessIdx1dBegin >= 0, "1D index should be non-negative");
         static_assert(AccessIdx1dBegin < GetNumOfAccess(), "1D index should be larger than 0");

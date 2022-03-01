@@ -78,8 +78,8 @@ struct ThreadwiseTensorSliceTransfer_v6r1
             detail::lambda_scalar_per_access<VectorDim, ScalarPerVector>{}, Number<nDim>{});
 
         using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
-                                                       DimAccessOrder,
-                                                       remove_cv_t<decltype(scalar_per_access)>>;
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(scalar_per_access)>>;
 
         // loop over space-filling curve
         constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
@@ -198,4 +198,3 @@ struct ThreadwiseTensorSliceTransfer_v6r1
 
 } // namespace ck
 #endif
-

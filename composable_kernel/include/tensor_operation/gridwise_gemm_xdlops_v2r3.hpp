@@ -8,6 +8,7 @@
 #include "blockwise_gemm_xdlops.hpp"
 #include "blockwise_tensor_slice_transfer_v4r1.hpp"
 #include "threadwise_tensor_slice_transfer_sfcurve.hpp"
+// #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
 
 namespace ck {
@@ -563,29 +564,28 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                 n_thread_data_on_grid_to_n0_n1_n2_adaptor.CalculateBottomIndex(
                     make_multi_index(n_thread_data_on_grid));
 
-            auto c_thread_copy =
-                ThreadwiseTensorSliceTransfer_v1r3_using_space_filling_curve<FloatAcc,
-                                                   FloatC,
-                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   decltype(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   CElementwiseOperation,
-                                                   Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
-                                                   CThreadTransferSrcDstAccessOrder,
-                                                   CThreadTransferSrcDstVectorDim,
-                                                   CThreadTransferDstScalarPerVector,
-                                                   CGlobalMemoryDataOperation,
-                                                   1,
-                                                   true>{
-                    c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    make_multi_index(m_thread_data_on_grid_idx[I0],
-                                     n_thread_data_on_grid_idx[I0],
-                                     m_thread_data_on_grid_idx[I1],
-                                     n_thread_data_on_grid_idx[I1],
-                                     m_thread_data_on_grid_idx[I2],
-                                     m_thread_data_on_grid_idx[I3],
-                                     m_thread_data_on_grid_idx[I4],
-                                     n_thread_data_on_grid_idx[I2]),
-                    c_element_op};
+            auto c_thread_copy = ThreadwiseTensorSliceTransfer_v1r3_sfcurve<
+                FloatAcc,
+                FloatC,
+                decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                decltype(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                CElementwiseOperation,
+                Sequence<M0, N0, I1, I1, M2, I1, M4, I1>,
+                CThreadTransferSrcDstAccessOrder,
+                CThreadTransferSrcDstVectorDim,
+                CThreadTransferDstScalarPerVector,
+                CGlobalMemoryDataOperation,
+                1,
+                true>{c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                      make_multi_index(m_thread_data_on_grid_idx[I0],
+                                       n_thread_data_on_grid_idx[I0],
+                                       m_thread_data_on_grid_idx[I1],
+                                       n_thread_data_on_grid_idx[I1],
+                                       m_thread_data_on_grid_idx[I2],
+                                       m_thread_data_on_grid_idx[I3],
+                                       m_thread_data_on_grid_idx[I4],
+                                       n_thread_data_on_grid_idx[I2]),
+                      c_element_op};
 
             c_thread_copy.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
