@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PRECISION=--half
+PRECISION=  ##--half
 
 if [ $# -ge 1 ] ; then
     NREPEAT=$1
@@ -10,6 +10,26 @@ fi
 
 Operation=4
 
+LENGTHS=64,4,280,82
+
+## for generic validation
+for op in $Operation; do
+    for use_idx in 0 1; do
+        set -x
+        ./bin/ckProfiler reduce $PRECISION -D 64,4,280,82 -R 0 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 4,64,280,82 -R 0 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 280,4,64,82 -R 0 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 64,4,280,82  -R 0,1,2 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 4,64,280,82  -R 0,1,2 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 64,280,82,4  -R 0,1,2 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 700,8192  -R 1 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 700,1024  -R 1 -O $op $CTYPE -v 1 1 $NREPEAT
+        ./bin/ckProfiler reduce $PRECISION -D 700,4  -R 1 -O $op $CTYPE -v 1 1 $NREPEAT
+        set +x
+    done
+done
+
+## for performance evaluation (resnet50 NHWC => C)
 for op in $Operation; do
     for use_idx in 0 1; do
         set -x
@@ -39,3 +59,4 @@ for op in $Operation; do
         set +x
     done
 done 
+
