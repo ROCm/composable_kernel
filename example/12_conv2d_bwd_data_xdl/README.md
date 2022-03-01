@@ -42,7 +42,7 @@ cmake                                                                  \
 ./bin/conv2d_bwd_data_xdl 0 1 5
 ```
 
-Result (MI100 @ 1087Mhz, 79.5597TFlops peak FP16)
+Result
 ```
 in_n_c_hi_wi: dim 4, lengths {128, 256, 71, 71}, strides {1290496, 1, 18176, 256}
 wei_k_c_y_x: dim 4, lengths {256, 256, 3, 3}, strides {2304, 1, 768, 256}
