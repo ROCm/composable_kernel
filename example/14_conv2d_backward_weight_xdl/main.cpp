@@ -35,8 +35,8 @@ static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
 
 // clang-format off
-using DeviceConvFwdInstance = ck::tensor_operation::device::
-    DeviceConv2dWrwXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+using DeviceConvWrWInstance = ck::tensor_operation::device::
+    DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         InDataType,                       // InDataType
         WeiDataType,                      // WeiDataType
         OutDataType,                      // OutDataType
@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
     out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
 
     // do GEMM
-    auto conv     = DeviceConvFwdInstance{};
+    auto conv     = DeviceConvWrWInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                       static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
