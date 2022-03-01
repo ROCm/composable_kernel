@@ -22,21 +22,14 @@ using DeviceConvBwdDataNoOpPtr =
     DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
                          ck::tensor_operation::element_wise::PassThrough,
                          ck::tensor_operation::element_wise::PassThrough>;
-template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
-                                                             F32);
-
-template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
-                                                             F16);
-
-template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
-                                                             BF16);
-
-template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(std::vector<DeviceConvBwdDataNoOpPtr>&,
-                                                             INT8);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
 } // namespace device_conv2d_bwd_data_instance
 } // namespace device
 } // namespace tensor_operation
@@ -165,8 +158,35 @@ void profile_conv_bwd_data_impl(int do_verification,
 
     // add device Conv instances
     std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(conv_ptrs, WeiDataType());
+    if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, float> &&
+                 ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
+                 ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
+    {
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
+    }
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::half_t> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
+    {
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+    }
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ushort> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, ushort> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, ushort>)
+    {
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
+    }
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, int8_t> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, int8_t> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, int8_t>)
+    {
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
+    }
+
     if(conv_ptrs.size() <= 0)
     {
         throw std::runtime_error("wrong! no device Conv instance found");

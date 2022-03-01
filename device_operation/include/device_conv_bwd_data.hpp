@@ -41,15 +41,6 @@ template <typename InElementwiseOperation,
 using DeviceConvBwdDataPtr = std::unique_ptr<
     DeviceConvBwdData<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
 
-namespace device_conv2d_bwd_data_instance {
-template <typename T>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(
-    std::vector<DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
-                                     ck::tensor_operation::element_wise::PassThrough,
-                                     ck::tensor_operation::element_wise::PassThrough>>&,
-    T);
-
-} // namespace device_conv2d_bwd_data_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

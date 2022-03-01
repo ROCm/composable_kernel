@@ -68,9 +68,8 @@ using device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_int8_instances =
         // clang-format on
         >;
 
-template <>
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_instances(
-    std::vector<DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>>& instances, DataType)
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
+    std::vector<DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances{});
