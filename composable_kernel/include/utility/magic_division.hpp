@@ -25,6 +25,9 @@ struct MagicDivision
     // uint32_t
     __host__ __device__ static constexpr auto CalculateMagicNumbers(uint32_t divisor)
     {
+        // WARNING: magic division is only applicable for division inside this range.
+        // You should use the return value of CalculateMagicNumbers, if division is not inside this
+        // range. The "else" logic below is to quiet down run-time error.
         if(divisor >= 1 && divisor <= INT32_MAX)
         {
             uint32_t shift = 0;
@@ -44,7 +47,6 @@ struct MagicDivision
         }
         else
         {
-            // this is not correct multiplier and shift
             return make_tuple(uint32_t(0), uint32_t(0));
         }
     }
