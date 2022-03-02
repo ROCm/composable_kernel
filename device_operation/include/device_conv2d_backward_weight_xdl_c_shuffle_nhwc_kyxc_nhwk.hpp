@@ -370,6 +370,52 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
             float ave_time = 0;
 
+            const auto Run = [&](const auto& kernel) {
+                if(nrepeat > 0)
+                {
+                    ave_time =
+                        launch_and_time_kernel(kernel,
+                                               nrepeat,
+                                               dim3(grid_size),
+                                               dim3(BlockSize),
+                                               0,
+                                               arg.p_a_grid_,
+                                               arg.p_b_grid_,
+                                               arg.p_c_grid_,
+                                               arg.a_grid_desc_kbatch_k0_m_k1_,
+                                               arg.b_grid_desc_kbatch_k0_n_k1_,
+                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                               arg.a_element_op_,
+                                               arg.b_element_op_,
+                                               arg.c_element_op_,
+                                               arg.block_2_ctile_map_);
+                }
+
+                if(kbatch > 1 || nrepeat <= 0)
+                {
+                    hipGetErrorString(hipMemset(
+                        arg.p_c_grid_,
+                        0,
+                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                            sizeof(CDataType)));
+
+                    launch_kernel(kernel,
+                                  dim3(grid_size),
+                                  dim3(BlockSize),
+                                  0,
+                                  arg.p_a_grid_,
+                                  arg.p_b_grid_,
+                                  arg.p_c_grid_,
+                                  arg.a_grid_desc_kbatch_k0_m_k1_,
+                                  arg.b_grid_desc_kbatch_k0_n_k1_,
+                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                  arg.a_element_op_,
+                                  arg.b_element_op_,
+                                  arg.c_element_op_,
+                                  arg.block_2_ctile_map_);
+                }
+            };
+
             if(has_main_k0_block_loop)
             {
                 const auto kernel = kernel_gemm_xdlops_v2r4r2<
@@ -385,22 +431,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                     remove_reference_t<DeviceOp::Block2CTileMap>,
                     true>;
 
-                ave_time =
-                    launch_and_time_kernel(kernel,
-                                           nrepeat,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.a_grid_desc_kbatch_k0_m_k1_,
-                                           arg.b_grid_desc_kbatch_k0_n_k1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.block_2_ctile_map_);
+                Run(kernel);
             }
             else
             {
@@ -417,22 +448,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                     remove_reference_t<DeviceOp::Block2CTileMap>,
                     false>;
 
-                ave_time =
-                    launch_and_time_kernel(kernel,
-                                           nrepeat,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.a_grid_desc_kbatch_k0_m_k1_,
-                                           arg.b_grid_desc_kbatch_k0_n_k1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.block_2_ctile_map_);
+                Run(kernel);
             }
 
             return ave_time;

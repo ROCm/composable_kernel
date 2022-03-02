@@ -203,8 +203,6 @@ int main(int argc, char* argv[])
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x_device_result.mData.data());
-    LogRangeAsType<float>(std::cout << "wei_device(before): ", wei_k_c_y_x_device_result.mData, ",")
-        << std::endl;
 
     // do GEMM
     auto conv     = DeviceConvWrWInstance{};
