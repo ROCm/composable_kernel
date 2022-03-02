@@ -46,6 +46,18 @@ set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/main.cpp)
 add_executable(test_convnd_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
 target_link_libraries(test_convnd_fwd_xdl PRIVATE host_tensor)
 
+# test_gemm_xdl_fp32
+set(GEMM_XDL_FP32_SOURCE gemm_xdl/test_gemm_fp32.cpp)
+add_executable(test_gemm_xdl_fp32 ${GEMM_XDL_FP32_SOURCE})
+target_link_libraries(test_gemm_xdl_fp32 PRIVATE host_tensor)
+target_link_libraries(test_gemm_xdl_fp32 PRIVATE device_gemm_instance)
+
+# test_gemm_xdl_bf16
+set(GEMM_XDL_BF16_SOURCE gemm_xdl/test_gemm_bf16.cpp)
+add_executable(test_gemm_xdl_bf16 ${GEMM_XDL_BF16_SOURCE})
+target_link_libraries(test_gemm_xdl_bf16 PRIVATE host_tensor)
+target_link_libraries(test_gemm_xdl_bf16 PRIVATE device_gemm_instance)
+
 # test_gemm_xdl_int8
 set(GEMM_XDL_INT8_SOURCE gemm_xdl/test_gemm_int8.cpp)
 add_executable(test_gemm_xdl_int8 ${GEMM_XDL_INT8_SOURCE})
