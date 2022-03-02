@@ -78,6 +78,7 @@ int main(int argc, char* argv[])
     bool do_verification = 0;
     int init_method      = 0;
     int nrepeat          = 5;
+    int do_log           = 0;
 
     // Conv shape
     ck::index_t N               = 128;
@@ -97,42 +98,45 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_w  = 1;
     ck::index_t split_k         = 1;
 
-    if(argc == 4)
+    if(argc == 5)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
+        do_log          = std::stoi(argv[4]);
     }
-    else if(argc == 20)
+    else if(argc == 21)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
+        do_log          = std::stoi(argv[4]);
 
-        N               = std::stoi(argv[4]);
-        K               = std::stoi(argv[5]);
-        C               = std::stoi(argv[6]);
-        Y               = std::stoi(argv[7]);
-        X               = std::stoi(argv[8]);
-        Hi              = std::stoi(argv[9]);
-        Wi              = std::stoi(argv[10]);
-        conv_stride_h   = std::stoi(argv[11]);
-        conv_stride_w   = std::stoi(argv[12]);
-        conv_dilation_h = std::stoi(argv[13]);
-        conv_dilation_w = std::stoi(argv[14]);
-        in_left_pad_h   = std::stoi(argv[15]);
-        in_left_pad_w   = std::stoi(argv[16]);
-        in_right_pad_h  = std::stoi(argv[17]);
-        in_right_pad_w  = std::stoi(argv[18]);
-        split_k         = std::stoi(argv[19]);
+        N               = std::stoi(argv[5]);
+        K               = std::stoi(argv[6]);
+        C               = std::stoi(argv[7]);
+        Y               = std::stoi(argv[8]);
+        X               = std::stoi(argv[9]);
+        Hi              = std::stoi(argv[10]);
+        Wi              = std::stoi(argv[11]);
+        conv_stride_h   = std::stoi(argv[12]);
+        conv_stride_w   = std::stoi(argv[13]);
+        conv_dilation_h = std::stoi(argv[14]);
+        conv_dilation_w = std::stoi(argv[15]);
+        in_left_pad_h   = std::stoi(argv[16]);
+        in_left_pad_w   = std::stoi(argv[17]);
+        in_right_pad_h  = std::stoi(argv[18]);
+        in_right_pad_w  = std::stoi(argv[19]);
+        split_k         = std::stoi(argv[20]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: run kernel # of times (>1)\n");
-        printf("arg4 to 18: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
-               "RightPx\n");
+        printf("arg4: is show log (0=no, 1=yes)\n");
+        printf("arg5 to 19: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+               "RightPx, split-k\n");
         exit(0);
     }
 
@@ -267,7 +271,7 @@ int main(int argc, char* argv[])
 
         wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
-        if(1)
+        if(do_log)
         {
             LogRangeAsType<float>(std::cout << "out: ", out_n_k_ho_wo.mData, ",") << std::endl;
             LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi.mData, ",") << std::endl;
