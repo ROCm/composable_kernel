@@ -51,18 +51,18 @@ using DeviceConvWrWInstance = ck::tensor_operation::device::
         2,                                // MXdlPerWave
         2,                                // NXdlPerWave
         S<4, 16, 4>,                      // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<0, 2, 1>,                       // ABlockTransferThreadClusterArrangeOrder
+        S<2, 0, 1>,                       // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,                       // ABlockTransferSrcAccessOrder
         1,                                // ABlockTransferSrcVectorDim
         8,                                // ABlockTransferSrcScalarPerVector
-        8,                                // ABlockTransferDstScalarPerVector_K1
+        2,                                // ABlockTransferDstScalarPerVector_K1
         true,                             // ABlockLdsAddExtraM
         S<4, 16, 4>,                      // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<1, 0, 2>,                       // BBlockTransferThreadClusterArrangeOrder
+        S<2, 0, 1>,                       // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,                       // BBlockTransferSrcAccessOrder
-        2,                                // BBlockTransferSrcVectorDim
+        1,                                // BBlockTransferSrcVectorDim
         8,                                // BBlockTransferSrcScalarPerVector
-        8,                                // BBlockTransferDstScalarPerVector_K1
+        2,                                // BBlockTransferDstScalarPerVector_K1
         true,                             // BBlockLdsAddExtraN
         1,                                // CShuffleMXdlPerWavePerShuffle
         1,                                // CShuffleNXdlPerWavePerShuffle

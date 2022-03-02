@@ -465,7 +465,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     static bool IsSupportedArgument(const Argument& arg)
     {
         // vector load A/B matrix from global memory
-        if(!(ABlockTransferSrcVectorDim == 1 && BBlockTransferSrcVectorDim == 2 &&
+        if(!(ABlockTransferSrcVectorDim == 1 && BBlockTransferSrcVectorDim == 1 &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
              arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
         {
