@@ -189,7 +189,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::AtomicAdd,
+        InMemoryDataOperationEnum_t::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -225,6 +225,46 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         CBlockTransferScalarPerVector_NWaveNPerXdl,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
 
+    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+        BlockSize,
+        ADataType, // TODO: distinguish A/B datatype
+        AccDataType,
+        CDataType,
+        InMemoryDataOperationEnum_t::AtomicAdd,
+        AGridDesc_K0_M_K1,
+        BGridDesc_K0_N_K1,
+        CGridDesc_M_N,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        MPerBlock,
+        NPerBlock,
+        K0PerBlock,
+        MPerXdl,
+        NPerXdl,
+        K1,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false, // AThreadTransferSrcResetCoordinateAfterRun,
+        ABlockLdsAddExtraM,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockLdsAddExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
@@ -335,23 +375,27 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     {
         using Argument = DeviceOp::Argument;
 
+        void ShowInfo(const Argument& arg)
+        {
+            std::cout << "arg.a_grid_desc_kbatch_k0_m_k1_{"
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) << ", "
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1) << ", "
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2) << ", "
+                      << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I3) << "}" << std::endl;
+
+            std::cout << "arg.b_grid_desc_kbatch_k0_n_k1_{"
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I0) << ", "
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1) << ", "
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I2) << ", "
+                      << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I3) << "}" << std::endl;
+
+            std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
+                      << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+        }
+
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            {
-                std::cout << "arg.a_grid_desc_kbatch_k0_m_k1_{"
-                          << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) << ", "
-                          << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_kbatch_k0_n_k1_{"
-                          << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I0) << ", "
-                          << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
-                          << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-            }
-
+            ShowInfo(arg);
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                             arg.b_grid_desc_kbatch_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
@@ -418,37 +462,77 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v2r4r2<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    OutElementwiseOperation,
-                    InElementwiseOperation,
-                    WeiElementwiseOperation,
-                    remove_reference_t<DeviceOp::Block2CTileMap>,
-                    true>;
+                if(kbatch == 1)
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        OutElementwiseOperation,
+                        InElementwiseOperation,
+                        WeiElementwiseOperation,
+                        remove_reference_t<DeviceOp::Block2CTileMap>,
+                        true>;
 
-                Run(kernel);
+                    Run(kernel);
+                }
+                else
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        GridwiseGemmAtomicAdd,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        OutElementwiseOperation,
+                        InElementwiseOperation,
+                        WeiElementwiseOperation,
+                        remove_reference_t<DeviceOp::Block2CTileMap>,
+                        true>;
+
+                    Run(kernel);
+                }
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r4r2<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                    remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    OutElementwiseOperation,
-                    InElementwiseOperation,
-                    WeiElementwiseOperation,
-                    remove_reference_t<DeviceOp::Block2CTileMap>,
-                    false>;
+                if(kbatch == 1)
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        OutElementwiseOperation,
+                        InElementwiseOperation,
+                        WeiElementwiseOperation,
+                        remove_reference_t<DeviceOp::Block2CTileMap>,
+                        false>;
 
-                Run(kernel);
+                    Run(kernel);
+                }
+                else
+                {
+                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        GridwiseGemmAtomicAdd,
+                        ADataType, // TODO: distiguish A/B datatype
+                        CDataType,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        OutElementwiseOperation,
+                        InElementwiseOperation,
+                        WeiElementwiseOperation,
+                        remove_reference_t<DeviceOp::Block2CTileMap>,
+                        false>;
+
+                    Run(kernel);
+                }
             }
 
             return ave_time;

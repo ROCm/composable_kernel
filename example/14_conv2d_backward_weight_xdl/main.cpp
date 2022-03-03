@@ -50,23 +50,23 @@ using DeviceConvWrWInstance = ck::tensor_operation::device::
         32,                               // NPerXdl
         2,                                // MXdlPerWave
         2,                                // NXdlPerWave
-        S<1, 4, 16, 4>,                      // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<0, 3, 1, 2>,                       // ABlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,                       // ABlockTransferSrcAccessOrder
+        S<1, 4, 16, 4>,                   // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<0, 3, 1, 2>,                    // ABlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1, 3>,                    // ABlockTransferSrcAccessOrder
         2,                                // ABlockTransferSrcVectorDim
         8,                                // ABlockTransferSrcScalarPerVector
         2,                                // ABlockTransferDstScalarPerVector_K1
         true,                             // ABlockLdsAddExtraM
-        S<1, 4, 16, 4>,                      // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<0, 3, 1, 2>,                       // BBlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,                       // BBlockTransferSrcAccessOrder
+        S<1, 4, 16, 4>,                   // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<0, 3, 1, 2>,                    // BBlockTransferThreadClusterArrangeOrder
+        S<0, 2, 1, 3>,                    // BBlockTransferSrcAccessOrder
         2,                                // BBlockTransferSrcVectorDim
         8,                                // BBlockTransferSrcScalarPerVector
         2,                                // BBlockTransferDstScalarPerVector_K1
         true,                             // BBlockLdsAddExtraN
         1,                                // CShuffleMXdlPerWavePerShuffle
         1,                                // CShuffleNXdlPerWavePerShuffle
-        S<1, 16, 1, 4>,                   // 
+        S<1, 32, 1, 4>,                   // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
@@ -79,6 +79,7 @@ int main(int argc, char* argv[])
     int init_method      = 0;
     int nrepeat          = 5;
     int do_log           = 0;
+    int split_k          = 1;
 
     // Conv shape
     ck::index_t N               = 128;
@@ -96,14 +97,14 @@ int main(int argc, char* argv[])
     ck::index_t in_left_pad_w   = 1;
     ck::index_t in_right_pad_h  = 1;
     ck::index_t in_right_pad_w  = 1;
-    ck::index_t split_k         = 1;
 
-    if(argc == 5)
+    if(argc == 6)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
         do_log          = std::stoi(argv[4]);
+        split_k         = std::stoi(argv[5]);
     }
     else if(argc == 21)
     {
@@ -111,23 +112,23 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
         do_log          = std::stoi(argv[4]);
+        split_k         = std::stoi(argv[5]);
 
-        N               = std::stoi(argv[5]);
-        K               = std::stoi(argv[6]);
-        C               = std::stoi(argv[7]);
-        Y               = std::stoi(argv[8]);
-        X               = std::stoi(argv[9]);
-        Hi              = std::stoi(argv[10]);
-        Wi              = std::stoi(argv[11]);
-        conv_stride_h   = std::stoi(argv[12]);
-        conv_stride_w   = std::stoi(argv[13]);
-        conv_dilation_h = std::stoi(argv[14]);
-        conv_dilation_w = std::stoi(argv[15]);
-        in_left_pad_h   = std::stoi(argv[16]);
-        in_left_pad_w   = std::stoi(argv[17]);
-        in_right_pad_h  = std::stoi(argv[18]);
-        in_right_pad_w  = std::stoi(argv[19]);
-        split_k         = std::stoi(argv[20]);
+        N               = std::stoi(argv[6]);
+        K               = std::stoi(argv[7]);
+        C               = std::stoi(argv[8]);
+        Y               = std::stoi(argv[9]);
+        X               = std::stoi(argv[10]);
+        Hi              = std::stoi(argv[11]);
+        Wi              = std::stoi(argv[12]);
+        conv_stride_h   = std::stoi(argv[13]);
+        conv_stride_w   = std::stoi(argv[14]);
+        conv_dilation_h = std::stoi(argv[15]);
+        conv_dilation_w = std::stoi(argv[16]);
+        in_left_pad_h   = std::stoi(argv[17]);
+        in_left_pad_w   = std::stoi(argv[18]);
+        in_right_pad_h  = std::stoi(argv[19]);
+        in_right_pad_w  = std::stoi(argv[20]);
     }
     else
     {
@@ -231,9 +232,10 @@ int main(int argc, char* argv[])
 
     if(!conv.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_conv with the specified compilation parameters does "
-            "not support this Conv problem");
+        std::cout << "wrong! device_conv with the specified compilation parameters does "
+                     "not support this Conv problem"
+                  << std::endl;
+        return 1;
     }
 
     float ave_time = invoker.Run(argument, nrepeat);
