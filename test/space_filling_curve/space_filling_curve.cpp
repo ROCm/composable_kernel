@@ -128,19 +128,4 @@ void traverse_using_space_filling_curve()
         static_assert(forward_step[I1] == expected_step[I1]);
         static_assert(forward_step[I2] == expected_step[I2]);
     });
-
-    static_for<0, num_accesses - 1, 1>{}([&](auto i) {
-        constexpr auto idx_curr = SpaceFillingCurve::GetIndex(i);
-        printf("idx_1d = %d, idx_md = [%d, %d, %d]\n",
-               i.value,
-               idx_curr[I0],
-               idx_curr[I1],
-               idx_curr[I2]);
-
-        constexpr auto all_indices = SpaceFillingCurve::GetIndices<Sequence<0, 1, 2>>(i);
-
-        static_for<0, SpaceFillingCurve::ScalarPerVector, 1>{}([&](auto j) {
-            printf("  [%d, %d, %d]\n", all_indices[j][I0], all_indices[j][I1], all_indices[j][I2]);
-        });
-    });
 }
