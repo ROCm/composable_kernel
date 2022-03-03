@@ -10,7 +10,7 @@ namespace device {
 namespace device_conv2d_fwd_instance {
 
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

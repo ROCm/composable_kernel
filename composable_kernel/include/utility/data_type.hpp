@@ -6,7 +6,7 @@
 namespace ck {
 
 using bhalf_t = ushort;
-using half_t = _Float16;
+using half_t  = _Float16;
 
 // vector_type
 template <typename T, index_t N>

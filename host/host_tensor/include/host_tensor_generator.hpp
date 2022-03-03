@@ -153,4 +153,15 @@ struct GeneratorTensor_Checkboard
     }
 };
 
+template <ck::index_t Dim>
+struct GeneratorTensor_Sequential
+{
+    template <typename... Ts>
+    float operator()(Ts... Xs) const
+    {
+        std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
+        return dims[Dim];
+    }
+};
+
 #endif

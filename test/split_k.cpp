@@ -57,32 +57,23 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
     return true;
 }
 
-int main(int argc, char* argv[])
+struct gemmArgs
 {
-    if(argc != 9)
-    {
-        printf("arg1: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
-        printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
-        printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
-        printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
-        printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC KBatch\n");
-        return 1;
-    }
+    int layout;
+    int M;
+    int N;
+    int K;
+    int StrideA;
+    int StrideB;
+    int StrideC;
+    int KBatch;
+};
 
-    const int layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
-
-    const int M = std::stoi(argv[2]);
-    const int N = std::stoi(argv[3]);
-    const int K = std::stoi(argv[4]);
-
-    const int StrideA = std::stoi(argv[5]);
-    const int StrideB = std::stoi(argv[6]);
-    const int StrideC = std::stoi(argv[7]);
-    const int KBatch  = std::stoi(argv[8]);
-
+int test_gemm(const gemmArgs& args)
+{
     bool a_row_major, b_row_major, c_row_major;
 
-    switch(layout)
+    switch(args.layout)
     {
     case GemmMatrixLayout::MK_KN_MN:
         a_row_major = true;
@@ -121,10 +112,12 @@ int main(int argc, char* argv[])
             }
         };
 
-    Tensor<float> a_m_k(f_host_tensor_descriptor(M, K, StrideA, a_row_major));
-    Tensor<float> b_k_n(f_host_tensor_descriptor(K, N, StrideB, b_row_major));
-    Tensor<float> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, c_row_major));
-    Tensor<float> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, c_row_major));
+    Tensor<float> a_m_k(f_host_tensor_descriptor(args.M, args.K, args.StrideA, a_row_major));
+    Tensor<float> b_k_n(f_host_tensor_descriptor(args.K, args.N, args.StrideB, b_row_major));
+    Tensor<float> c_m_n_host_result(
+        f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
+    Tensor<float> c_m_n_device_result(
+        f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
 
     // init data
     std::size_t num_thread = std::thread::hardware_concurrency();
@@ -151,17 +144,17 @@ int main(int argc, char* argv[])
     // add device GEMM instances
     std::vector<DeviceGemmNoOpPtr> gemm_ptrs;
 
-    if(layout == GemmMatrixLayout::MK_KN_MN)
+    if(args.layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::tensor_operation::device::device_gemm_instance::
             add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
     }
-    else if(layout == GemmMatrixLayout::MK_NK_MN)
+    else if(args.layout == GemmMatrixLayout::MK_NK_MN)
     {
         ck::tensor_operation::device::device_gemm_instance::
             add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
     }
-    else if(layout == GemmMatrixLayout::KM_KN_MN)
+    else if(args.layout == GemmMatrixLayout::KM_KN_MN)
     {
         ck::tensor_operation::device::device_gemm_instance::
             add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
@@ -179,16 +172,16 @@ int main(int argc, char* argv[])
             gemm_ptr->MakeArgumentPointer(static_cast<float*>(a_device_buf.GetDeviceBuffer()),
                                           static_cast<float*>(b_device_buf.GetDeviceBuffer()),
                                           static_cast<float*>(c_device_buf.GetDeviceBuffer()),
-                                          M,
-                                          N,
-                                          K,
-                                          StrideA,
-                                          StrideB,
-                                          StrideC,
+                                          args.M,
+                                          args.N,
+                                          args.K,
+                                          args.StrideA,
+                                          args.StrideB,
+                                          args.StrideC,
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
-                                          KBatch);
+                                          args.KBatch);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
@@ -205,7 +198,7 @@ int main(int argc, char* argv[])
             success = true;
         }
     }
-
+    auto error_code = 0;
     if(success)
     {
         std::cout << "test split k : Pass" << std::endl;
@@ -213,6 +206,48 @@ int main(int argc, char* argv[])
     else
     {
         std::cout << "test split k: Fail " << std::endl;
+        error_code = -1; // test needs to report failure
+    }
+    return error_code;
+}
+
+int main(int argc, char* argv[])
+{
+    std::vector<gemmArgs> test_cases;
+    if(argc == 1)
+    {
+        test_cases = {{0, 3, 3, 3, 3, 3, 3, 1}};
+        // JD: Populate with more and meaningful
+        return 0;
+    }
+    else if(argc == 9)
+    {
+        const int layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
+
+        const int M = std::stoi(argv[2]);
+        const int N = std::stoi(argv[3]);
+        const int K = std::stoi(argv[4]);
+
+        const int StrideA = std::stoi(argv[5]);
+        const int StrideB = std::stoi(argv[6]);
+        const int StrideC = std::stoi(argv[7]);
+        const int KBatch  = std::stoi(argv[8]);
+        test_cases        = {{layout, M, N, K, StrideA, StrideB, StrideC, KBatch}};
+    }
+    else
+    {
+        printf("arg1: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
+        printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
+        printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
+        printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
+        printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC KBatch\n");
+        return -1;
+    }
+    for(const auto& kinder : test_cases)
+    {
+        const auto res = test_gemm(kinder);
+        if(!res)
+            return -1;
     }
     return 0;
 }

@@ -10,7 +10,6 @@
 #include <iostream>
 #include "data_type.hpp"
 
-
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
 {

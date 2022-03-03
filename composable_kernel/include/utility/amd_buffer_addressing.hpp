@@ -656,16 +656,16 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
             vector_type<bhalf_t, 8> tmp{src_thread_data};
 
             llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<bhalf4_t>()[Number<0>{}],
-                                                dst_wave_buffer_resource,
-                                                dst_thread_addr_offset,
-                                                dst_wave_addr_offset,
-                                                0);
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset,
+                                               0);
 
             llvm_amdgcn_raw_buffer_store_i16x4(tmp.AsType<bhalf4_t>()[Number<1>{}],
-                                                dst_wave_buffer_resource,
-                                                dst_thread_addr_offset,
-                                                dst_wave_addr_offset + 4 * sizeof(bhalf_t),
-                                                0);
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset + 4 * sizeof(bhalf_t),
+                                               0);
         }
     }
     else if constexpr(is_same<T, int32_t>::value)
