@@ -161,11 +161,12 @@ int main(int, char*[])
     if(pass)
     {
         std::cout << "test magic number division: Pass" << std::endl;
+       return 0;
     }
     else
     {
         std::cout << "test magic number division: Fail" << std::endl;
+       return -1;
     }
 
-    return 1;
 }
