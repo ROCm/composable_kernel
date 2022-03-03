@@ -114,7 +114,7 @@ struct DynamicBuffer
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
-    __host__ __device__ void Transfer(index_t i, bool is_valid_element, const X& x)
+    __host__ __device__ void Update(index_t i, bool is_valid_element, const X& x)
     {
         if constexpr(Op == InMemoryDataOperationEnum_t::Set)
         {

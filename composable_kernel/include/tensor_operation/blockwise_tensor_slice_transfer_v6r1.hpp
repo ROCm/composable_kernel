@@ -5,8 +5,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "cluster_descriptor.hpp"
-// #include "threadwise_tensor_slice_transfer_v6r1.hpp"
-#include "threadwise_tensor_slice_transfer_v6r1_sfcurve.hpp"
+#include "threadwise_tensor_slice_transfer_v6r1.hpp"
 
 namespace ck {
 
