@@ -248,9 +248,7 @@ struct ThreadwiseTensorSliceTransfer_v2
         src_coord_ = make_tensor_coordinate(src_desc, src_slice_origin_idx);
     }
 
-    template <typename SrcBuffer,
-              typename DstBuffer,
-              typename DstSliceOriginIdx>
+    template <typename SrcBuffer, typename DstBuffer, typename DstSliceOriginIdx>
     __device__ void Run(const SrcDesc& src_desc,
                         const SrcBuffer& src_buf,
                         const DstDesc&,
@@ -315,7 +313,6 @@ struct ThreadwiseTensorSliceTransfer_v2
 
                 move_tensor_coordinate(
                     src_desc, src_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
-
             }
         });
 
