@@ -29,7 +29,8 @@ struct DeviceConvWrw : public BaseOperator
                         std::vector<ck::index_t> input_right_pads,
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
-                        OutElementwiseOperation out_element_op) = 0;
+                        OutElementwiseOperation out_element_op,
+                        ck::index_t split_k) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
