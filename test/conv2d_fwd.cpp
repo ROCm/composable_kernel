@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
     if(argc == 1)
     {
         init_method = 1;
-        data_type = 0;
+        data_type   = 0;
     }
     else if(argc == 3)
     {

@@ -69,7 +69,6 @@ struct gemmArgs
     int KBatch;
 };
 
-
 int test_gemm(const gemmArgs& args)
 {
     bool a_row_major, b_row_major, c_row_major;
@@ -115,8 +114,10 @@ int test_gemm(const gemmArgs& args)
 
     Tensor<float> a_m_k(f_host_tensor_descriptor(args.M, args.K, args.StrideA, a_row_major));
     Tensor<float> b_k_n(f_host_tensor_descriptor(args.K, args.N, args.StrideB, b_row_major));
-    Tensor<float> c_m_n_host_result(f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
-    Tensor<float> c_m_n_device_result(f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
+    Tensor<float> c_m_n_host_result(
+        f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
+    Tensor<float> c_m_n_device_result(
+        f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
 
     // init data
     std::size_t num_thread = std::thread::hardware_concurrency();
@@ -205,7 +206,7 @@ int test_gemm(const gemmArgs& args)
     else
     {
         std::cout << "test split k: Fail " << std::endl;
-        error_code = -1; // test needs to report failure 
+        error_code = -1; // test needs to report failure
     }
     return error_code;
 }
@@ -221,17 +222,17 @@ int main(int argc, char* argv[])
     }
     else if(argc == 9)
     {
-    const int layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
+        const int layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
 
-    const int M = std::stoi(argv[2]);
-    const int N = std::stoi(argv[3]);
-    const int K = std::stoi(argv[4]);
+        const int M = std::stoi(argv[2]);
+        const int N = std::stoi(argv[3]);
+        const int K = std::stoi(argv[4]);
 
-    const int StrideA = std::stoi(argv[5]);
-    const int StrideB = std::stoi(argv[6]);
-    const int StrideC = std::stoi(argv[7]);
-    const int KBatch  = std::stoi(argv[8]);
-        test_cases = {{layout, M, N, K, StrideA, StrideB, StrideC, KBatch}};
+        const int StrideA = std::stoi(argv[5]);
+        const int StrideB = std::stoi(argv[6]);
+        const int StrideC = std::stoi(argv[7]);
+        const int KBatch  = std::stoi(argv[8]);
+        test_cases        = {{layout, M, N, K, StrideA, StrideB, StrideC, KBatch}};
     }
     else
     {
@@ -242,12 +243,11 @@ int main(int argc, char* argv[])
         printf("arg2 to 7: M, N, K, StrideA, StrideB, StrideC KBatch\n");
         return -1;
     }
-    for(const auto& kinder: test_cases)
+    for(const auto& kinder : test_cases)
     {
         const auto res = test_gemm(kinder);
         if(!res)
-           return -1;
+            return -1;
     }
     return 0;
-
 }
