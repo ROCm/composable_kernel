@@ -174,7 +174,7 @@ struct ThreadwiseTensorSliceTransfer_v6r3
                 move_tensor_coordinate(
                     src1_desc, src1_coord_, make_tensor_coordinate_step(src1_desc, forward_step));
                 move_tensor_coordinate(
-                    src2_desc, src2_coord_, make_tensor_coordinate_step(src1_desc, forward_step));
+                    src2_desc, src2_coord_, make_tensor_coordinate_step(src2_desc, forward_step));
                 move_tensor_coordinate(
                     dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
             }
