@@ -79,24 +79,24 @@ int main(int argc, char* argv[])
     int init_method      = 0;
     int nrepeat          = 5;
     int do_log           = 0;
-    int split_k          = 1;
+    int split_k          = 4;
 
     // Conv shape
     ck::index_t N               = 128;
     ck::index_t K               = 256;
-    ck::index_t C               = 128;
+    ck::index_t C               = 1024;
     ck::index_t Y               = 3;
     ck::index_t X               = 3;
-    ck::index_t Hi              = 71;
-    ck::index_t Wi              = 71;
+    ck::index_t Hi              = 14;
+    ck::index_t Wi              = 14;
     ck::index_t conv_stride_h   = 2;
     ck::index_t conv_stride_w   = 2;
     ck::index_t conv_dilation_h = 1;
     ck::index_t conv_dilation_w = 1;
-    ck::index_t in_left_pad_h   = 1;
-    ck::index_t in_left_pad_w   = 1;
-    ck::index_t in_right_pad_h  = 1;
-    ck::index_t in_right_pad_w  = 1;
+    ck::index_t in_left_pad_h   = 0;
+    ck::index_t in_left_pad_w   = 0;
+    ck::index_t in_right_pad_h  = 0;
+    ck::index_t in_right_pad_w  = 0;
 
     if(argc == 6)
     {
@@ -136,8 +136,9 @@ int main(int argc, char* argv[])
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: run kernel # of times (>1)\n");
         printf("arg4: is show log (0=no, 1=yes)\n");
-        printf("arg5 to 19: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
-               "RightPx, split-k\n");
+        printf("arg5: split-k \n");
+        printf("arg6 to 19: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+               "RightPx\n");
         exit(0);
     }
 

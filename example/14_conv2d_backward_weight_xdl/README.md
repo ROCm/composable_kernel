@@ -40,19 +40,19 @@ cmake                                                                  \
 #arg3: run kernel # of times (>1)
 #arg4: is show log (0=no, 1=yes)
 #arg5 to 19: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx, split-k
-./example/conv2d_fwd_xdl 0 1 5 1
+./example/conv2d_fwd_xdl 0 1 5 0 4
 ```
 
 Result 
 ```
-in_n_c_hi_wi: dim 4, lengths {128, 128, 71, 71}, strides {645248, 1, 9088, 128}
-wei_k_c_y_x: dim 4, lengths {256, 128, 3, 3}, strides {1152, 1, 384, 128}
-out_n_k_ho_wo: dim 4, lengths {128, 256, 36, 36}, strides {331776, 1, 9216, 256}
-arg.a_grid_desc_kbatch_k0_m_k1_{1, 20736, 256}
-arg.b_grid_desc_kbatch_k0_n_k1_{1, 20736, 1152}
-arg.c_grid_desc_m_n_{ 256, 1152}
-launch_and_time_kernel: grid_dim {18, 1, 1}, block_dim {256, 1, 1} 
+in_n_c_hi_wi: dim 4, lengths {128, 1024, 14, 14}, strides {200704, 1, 14336, 1024}
+wei_k_c_y_x: dim 4, lengths {256, 1024, 3, 3}, strides {9216, 1, 3072, 1024}
+out_n_k_ho_wo: dim 4, lengths {128, 256, 6, 6}, strides {9216, 1, 1536, 256}
+arg.a_grid_desc_kbatch_k0_m_k1_{4, 144, 256, 8}
+arg.b_grid_desc_kbatch_k0_n_k1_{4, 144, 9216, 8}
+arg.c_grid_desc_m_n_{ 256, 9216}
+launch_and_time_kernel: grid_dim {576, 1, 1}, block_dim {256, 1, 1} 
 Warm up
 Start running 5 times...
-Perf: 12.0997 ms, 8.08653 TFlops, 20.7201 GB/s
+Perf: 0.401084 ms, 54.2112 TFlops, 145.75 GB/s
 ```
