@@ -35,6 +35,7 @@
 #include "transpose_vectors.hpp"
 #include "inner_product.hpp"
 #include "element_wise_operation.hpp"
+#include "debug.hpp"
 
 // TODO: remove this
 #if CK_USE_AMD_INLINE_ASM

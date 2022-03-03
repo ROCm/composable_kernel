@@ -20,7 +20,8 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmDefault   = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization_t::MNPadding;
 
 // Compilation parameters for a[m, k] * b[n, k] = c[m, n]
 using device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances =
@@ -54,8 +55,8 @@ using device_gemm_xdl_f16_f16_f16_mk_nk_mn_irregular_tile_instances =
         //###########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
         //###########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
         //###########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
-        DeviceGemmXdl<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     8,  8,   16,   16,    2,    9,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<8,  8, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>,
-        DeviceGemmXdl<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     4,  8,   16,   16,    2,    9,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>
+        DeviceGemmXdl<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough, GemmMNPadding,   256,   128,   144,     8,  8,   16,   16,    2,    9,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<8,  8, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>,
+        DeviceGemmXdl<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough, GemmMNPadding,   256,   128,   144,     4,  8,   16,   16,    2,    9,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 4>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>
         // clang-format on
         >;
 

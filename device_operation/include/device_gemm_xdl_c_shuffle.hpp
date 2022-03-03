@@ -29,8 +29,9 @@ template <
     ck::index_t BlockSize,
     ck::index_t MPerBlock,
     ck::index_t NPerBlock,
-    ck::index_t K0PerBlock,
-    ck::index_t K1,
+    ck::index_t KPerBlock,
+    ck::index_t AK1,
+    ck::index_t BK1,
     ck::index_t MPerXDL,
     ck::index_t NPerXDL,
     ck::index_t MXdlPerWave,
@@ -61,13 +62,11 @@ struct DeviceGemmXdl_C_Shuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto K1Number = Number<K1>{};
-
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
-        assert(K % K1 == 0);
+        assert(K % AK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / AK1;
 
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -80,21 +79,20 @@ struct DeviceGemmXdl_C_Shuffle
             }
         }();
 
-        const auto a_grid_desc_k0_m_k1 =
-            transform_tensor_descriptor(a_grid_desc_m_k,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(M)),
-                                        make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto a_grid_desc_k0_m_k1 = transform_tensor_descriptor(
+            a_grid_desc_m_k,
+            make_tuple(make_unmerge_transform(make_tuple(K0, AK1)), make_pass_through_transform(M)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         return a_grid_desc_k0_m_k1;
     }
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
-        assert(K % K1 == 0);
+        assert(K % BK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / BK1;
 
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -107,12 +105,11 @@ struct DeviceGemmXdl_C_Shuffle
             }
         }();
 
-        const auto b_grid_desc_k0_n_k1 =
-            transform_tensor_descriptor(b_grid_desc_k_n,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_pass_through_transform(N)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto b_grid_desc_k0_n_k1 = transform_tensor_descriptor(
+            b_grid_desc_k_n,
+            make_tuple(make_unmerge_transform(make_tuple(K0, BK1)), make_pass_through_transform(N)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
         return b_grid_desc_k0_n_k1;
     }
@@ -148,10 +145,11 @@ struct DeviceGemmXdl_C_Shuffle
         CElementwiseOperation,
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
         MPerXDL,
         NPerXDL,
-        K1,
         MXdlPerWave,
         NXdlPerWave,
         ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -461,7 +459,9 @@ struct DeviceGemmXdl_C_Shuffle
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << KPerBlock << ", "
+            << AK1 << ", "
+            << BK1
             << ">";
         // clang-format on
 
