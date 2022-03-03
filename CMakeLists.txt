@@ -240,9 +240,8 @@ file(GLOB_RECURSE DEVICE_OPS_SOURCE "device_operation/*.cpp")
 
 set(CK_HEADERS ${COMPOSABLE_KERNEL_HEADERS} ${DEVICE_OPS_HEADERS})
 set(CK_SOURCE ${DEVICE_OPS_SOURCE})
-add_library(composable_kernel
-    ${CK_SOURCE}
-)
+add_library(composable_kernel ${CK_SOURCE})
+
 
 target_include_directories(composable_kernel PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include>
