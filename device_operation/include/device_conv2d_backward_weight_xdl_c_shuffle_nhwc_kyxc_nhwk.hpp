@@ -354,7 +354,6 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         CGridDesc_M_N c_grid_desc_m_n_;
         CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock c_grid_desc_mblock_mperblock_nblock_nperblock_;
         Block2CTileMap block_2_ctile_map_;
-        ;
         index_t M01_;
         index_t N01_;
         InElementwiseOperation a_element_op_;
@@ -568,11 +567,12 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             return false;
         }
 
-        // check split-k 
-        const index_t Ho = arg.output_spatial_lengths_[0];
-        const index_t Wo = arg.output_spatial_lengths_[1];
+        // check split-k
+        const index_t Ho         = arg.output_spatial_lengths_[0];
+        const index_t Wo         = arg.output_spatial_lengths_[1];
         const index_t GemmKTotal = arg.Conv_N_ * Ho * Wo;
-        if(GemmKTotal % (arg.k_batch_ * K0PerBlock * K1) != 0){
+        if(GemmKTotal % (arg.k_batch_ * K0PerBlock * K1) != 0)
+        {
             return false;
         }
 
