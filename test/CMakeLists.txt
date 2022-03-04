@@ -13,35 +13,24 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/test/include
 )
 
-# test_magic_number_division
-set(MAGIC_NUMBER_DIVISISON_SOURCE magic_number_division/main.cpp)
-add_executable(test_magic_number_division ${MAGIC_NUMBER_DIVISISON_SOURCE})
-target_link_libraries(test_magic_number_division PRIVATE host_tensor)
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+add_custom_target(tests)
+
+function(add_test_executeable TEST_NAME)
+    add_executable(${TEST_NAME} ${ARGN})
+    target_link_libraries(${TEST_NAME} PRIVATE host_tensor)
+    target_link_libraries(${TEST_NAME} PRIVATE device_gemm_instance)
+    target_link_libraries(${TEST_NAME} PRIVATE device_conv2d_fwd_instance)
+    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
+    add_dependencies(tests ${TEST_NAME})
+    add_dependencies(check ${TEST_NAME})
+endfunction(add_test_executeable TEST_NAME)
 
 
-set(CONV2D_FWD_SOURCE conv2d_fwd/main.cpp)
+file(GLOB TESTS *.cpp)
 
-add_executable(test_conv2d_fwd ${CONV2D_FWD_SOURCE})
-target_link_libraries(test_conv2d_fwd PRIVATE host_tensor)
-target_link_libraries(test_conv2d_fwd PRIVATE device_conv2d_fwd_instance)
-
-# test_split_k
-set(SPLIT_K_SOURCE split_k/main.cpp)
-add_executable(test_split_k ${SPLIT_K_SOURCE})
-target_link_libraries(test_split_k PRIVATE host_tensor)
-target_link_libraries(test_split_k PRIVATE device_gemm_instance)
-
-# test_conv_util
-set(CONV_UTIL_SOURCE conv_util/main.cpp)
-add_executable(test_conv_util ${CONV_UTIL_SOURCE})
-target_link_libraries(test_conv_util PRIVATE host_tensor)
-
-# test_reference_conv_fwd
-set(REFERENCE_CONV_FWD_SOURCE reference_conv_fwd/main.cpp)
-add_executable(test_reference_conv_fwd ${REFERENCE_CONV_FWD_SOURCE})
-target_link_libraries(test_reference_conv_fwd PRIVATE host_tensor)
-
-# test_convnd_fwd_xdl
-set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/main.cpp)
-add_executable(test_convnd_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
-target_link_libraries(test_convnd_fwd_xdl PRIVATE host_tensor)
+foreach(TEST ${TESTS})
+    get_filename_component(BASE_NAME ${TEST} NAME_WE)
+    message("adding test ${BASE_NAME}")
+    add_test_executeable(test_${BASE_NAME} ${TEST})
+endforeach(TEST ${TESTS})

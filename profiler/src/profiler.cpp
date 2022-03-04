@@ -13,6 +13,7 @@ int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
+int profile_conv_bwd_data(int, char*[]);
 int profile_reduce(int, char*[]);
 
 int main(int argc, char* argv[])
@@ -53,13 +54,16 @@ int main(int argc, char* argv[])
     {
         return profile_conv_fwd_bias_relu_atomic_add(argc, argv);
     }
+    else if(strcmp(argv[1], "conv_bwd") == 0)
+    {
+        return profile_conv_bwd_data(argc, argv);
+    }
     else if(strcmp(argv[1], "reduce") == 0)
     {
         return profile_reduce(argc, argv);
-    }
-    else
-    {
-        // clang-format off
+        else
+        {
+            // clang-format off
         printf("arg1: tensor operation (gemm: GEMM\n"
                "                        gemm_bias_2d: GEMM+Bias(2D)\n"
                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
@@ -68,9 +72,10 @@ int main(int argc, char* argv[])
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
                "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
+               "                        conv_bwd: BackwardConvolution\n"
                "                        reduce: REDUCE\n");
-        // clang-format on
+            // clang-format on
 
-        return 0;
+            return 0;
+        }
     }
-}

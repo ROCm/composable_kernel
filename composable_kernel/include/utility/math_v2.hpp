@@ -14,4 +14,3 @@ static inline __device__ bool isnan(half_t x) { return __hisnan(x); };
 } // namespace ck
 
 #endif
-
