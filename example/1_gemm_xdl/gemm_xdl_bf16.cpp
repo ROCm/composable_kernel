@@ -52,8 +52,9 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     256,                    // BlockSize
     256,                    // MPerBlock
     128,                    // NPerBlock
-    4,                      // K0PerBlock
-    8,                      // K1
+    32,                     // KPerBlock
+    8,                      // AK1
+    8,                      // BK1
     32,                     // MPerXDL
     32,                     // NPerXDL
     4,                      // MXdlPerWave
