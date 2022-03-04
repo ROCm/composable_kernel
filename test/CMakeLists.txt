@@ -27,28 +27,10 @@ function(add_test_executeable TEST_NAME)
 endfunction(add_test_executeable TEST_NAME)
 
 
-file(GLOB TESTS *.cpp)
+file(GLOB TESTS */*.cpp)
 
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     message("adding test ${BASE_NAME}")
     add_test_executeable(test_${BASE_NAME} ${TEST})
 endforeach(TEST ${TESTS})
-
-# test_gemm_xdl_fp32
-set(GEMM_XDL_FP32_SOURCE gemm_xdl/test_gemm_fp32.cpp)
-add_executable(test_gemm_xdl_fp32 ${GEMM_XDL_FP32_SOURCE})
-target_link_libraries(test_gemm_xdl_fp32 PRIVATE host_tensor)
-target_link_libraries(test_gemm_xdl_fp32 PRIVATE device_gemm_instance)
-
-# test_gemm_xdl_bf16
-set(GEMM_XDL_BF16_SOURCE gemm_xdl/test_gemm_bf16.cpp)
-add_executable(test_gemm_xdl_bf16 ${GEMM_XDL_BF16_SOURCE})
-target_link_libraries(test_gemm_xdl_bf16 PRIVATE host_tensor)
-target_link_libraries(test_gemm_xdl_bf16 PRIVATE device_gemm_instance)
-
-# test_gemm_xdl_int8
-set(GEMM_XDL_INT8_SOURCE gemm_xdl/test_gemm_int8.cpp)
-add_executable(test_gemm_xdl_int8 ${GEMM_XDL_INT8_SOURCE})
-target_link_libraries(test_gemm_xdl_int8 PRIVATE host_tensor)
-target_link_libraries(test_gemm_xdl_int8 PRIVATE device_gemm_instance)
