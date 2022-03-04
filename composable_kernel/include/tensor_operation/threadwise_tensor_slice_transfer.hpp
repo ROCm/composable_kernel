@@ -312,7 +312,7 @@ struct ThreadwiseTensorSliceTransfer_v2
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
 
                 move_tensor_coordinate(
-                    src_desc, src_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
+                    src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
             }
         });
 
