@@ -22,6 +22,8 @@ set(DEVICE_GEMM_INSTANCE_SOURCE
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_f16_f16_f16_mk_nk_mn_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_f16_f16_f16_km_kn_mn_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_f16_f16_f16_km_nk_mn_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instance.cpp;
+   ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instance.cpp;
@@ -35,7 +37,7 @@ set(DEVICE_GEMM_INSTANCE_SOURCE
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instance.cpp;
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instance.cpp;
-) 
+)
 
 # device_gemm_bias_2d_instance
 set(DEVICE_GEMM_BIAS_2D_INSTANCE_SOURCE
@@ -82,9 +84,9 @@ set(DEVICE_CONV2D_FWD_INSTANCE_SOURCE
 )
 
 # device_conv1d_fwd_instance
-set(DEVICE_CONV1D_FWD_INSTANCE_SOURCE 
+set(DEVICE_CONV1D_FWD_INSTANCE_SOURCE
    ${PROJECT_SOURCE_DIR}/device_operation/src/device_conv1d_fwd_xdl_nwc_kxc_nwk_f32_instance.cpp;
-) 
+)
 
 # device_conv2d_fwd_bias_relu_instance
 set(DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE
