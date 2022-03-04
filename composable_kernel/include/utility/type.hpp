@@ -1,6 +1,7 @@
 #ifndef CK_TYPE_HPP
 #define CK_TYPE_HPP
 
+#include "config.hpp"
 #include "integral_constant.hpp"
 #include "enable_if.hpp"
 

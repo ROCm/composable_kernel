@@ -5,7 +5,8 @@
 
 namespace ck {
 
-using half_t = _Float16;
+using bhalf_t = ushort;
+using half_t  = _Float16;
 
 // vector_type
 template <typename T, index_t N>
@@ -107,9 +108,9 @@ struct scalar_type<half_t>
 };
 
 template <>
-struct scalar_type<ushort>
+struct scalar_type<bhalf_t>
 {
-    using type                           = ushort;
+    using type                           = bhalf_t;
     static constexpr index_t vector_size = 1;
 };
 
@@ -904,12 +905,12 @@ using half32_t = typename vector_type<half_t, 32>::type;
 using half64_t = typename vector_type<half_t, 64>::type;
 
 // bfp16
-using ushort2_t  = typename vector_type<ushort, 2>::type;
-using ushort4_t  = typename vector_type<ushort, 4>::type;
-using ushort8_t  = typename vector_type<ushort, 8>::type;
-using ushort16_t = typename vector_type<ushort, 16>::type;
-using ushort32_t = typename vector_type<ushort, 32>::type;
-using ushort64_t = typename vector_type<ushort, 64>::type;
+using bhalf2_t  = typename vector_type<bhalf_t, 2>::type;
+using bhalf4_t  = typename vector_type<bhalf_t, 4>::type;
+using bhalf8_t  = typename vector_type<bhalf_t, 8>::type;
+using bhalf16_t = typename vector_type<bhalf_t, 16>::type;
+using bhalf32_t = typename vector_type<bhalf_t, 32>::type;
+using bhalf64_t = typename vector_type<bhalf_t, 64>::type;
 
 // i32
 using int32x2_t  = typename vector_type<int32_t, 2>::type;
@@ -936,7 +937,7 @@ __host__ __device__ Y type_convert(X x)
 
 // convert bfp16 to fp32
 template <>
-inline __host__ __device__ float type_convert(ushort x)
+inline __host__ __device__ float type_convert(bhalf_t x)
 {
     union
     {
@@ -949,7 +950,7 @@ inline __host__ __device__ float type_convert(ushort x)
 
 // convert fp32 to bfp16
 template <>
-inline __host__ __device__ ushort type_convert(float x)
+inline __host__ __device__ bhalf_t type_convert(float x)
 {
     union
     {
