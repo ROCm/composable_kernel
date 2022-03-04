@@ -5,6 +5,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "static_tensor.hpp"
+#include "tensor_space_filling_curve.hpp"
 
 namespace ck {
 
@@ -123,73 +124,16 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    SrcDimAccessOrder,
+                                                    remove_cv_t<decltype(src_scalar_per_access)>>;
 
-        constexpr auto src_dim_access_order = SrcDimAccessOrder{};
-
-        constexpr auto ordered_src_access_lengths =
-            container_reorder_given_new2old(src_access_lengths, src_dim_access_order);
-
-        // make forward steps
-        const auto src_forward_steps = generate_tuple(
-            [&](auto i) {
-                Index forward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? src_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(src_desc, forward_step_idx);
-            },
-            Number<nDim>{});
-
-        // make backward steps
-        const auto src_backward_steps = generate_tuple(
-            [&](auto i) {
-                Index backward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -src_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(src_desc, backward_step_idx);
-            },
-            Number<nDim>{});
+        // loop over space-filling curve
+        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
 
         // loop over tensor and copy
-        static_ford<decltype(ordered_src_access_lengths)>{}([&](auto ordered_src_access_idx) {
-            // judge move forward or move backward
-            constexpr auto forward_sweep = [&]() {
-                StaticallyIndexedArray<bool, nDim> forward_sweep_;
-
-                forward_sweep_(I0) = true;
-
-                static_for<1, nDim, 1>{}([&](auto i) {
-                    index_t tmp = ordered_src_access_idx[I0];
-
-                    static_for<1, i, 1>{}([&](auto j) {
-                        tmp = tmp * ordered_src_access_lengths[j] + ordered_src_access_idx[j];
-                    });
-
-                    forward_sweep_(i) = tmp % 2 == 0;
-                });
-
-                return forward_sweep_;
-            }();
-
-            // calculate src data index
-            constexpr auto src_data_idx = [&]() {
-                Index ordered_idx;
-
-                static_for<0, nDim, 1>{}([&](auto i) {
-                    ordered_idx(i) = forward_sweep[i] ? ordered_src_access_idx[i]
-                                                      : ordered_src_access_lengths[i] - 1 -
-                                                            ordered_src_access_idx[i];
-                });
-
-                return container_reorder_given_old2new(ordered_idx, src_dim_access_order) *
-                       src_scalar_per_access;
-            }();
+        static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
+            constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
 
             constexpr auto src_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
@@ -218,39 +162,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 .template SetAsType<src_vector_t>(
                     src_data_idx_seq, src_vector_container.template AsType<src_vector_t>()[I0]);
 
-            constexpr auto move_on_dim = [&]() constexpr
+            // move coordinate
+            if constexpr(idx_1d.value != num_accesses - 1)
             {
-                StaticallyIndexedArray<bool, nDim> move_on_dim_;
-
-                static_for<0, nDim, 1>{}([&](auto i) {
-                    move_on_dim_(i) = ordered_src_access_idx[i] < ordered_src_access_lengths[i] - 1;
-
-                    static_for<i + 1, nDim, 1>{}([&](auto j) {
-                        move_on_dim_(i) &=
-                            ordered_src_access_idx[j] == ordered_src_access_lengths[j] - 1;
-                    });
-                });
-
-                return move_on_dim_;
+                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+                move_tensor_coordinate(
+                    src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
             }
-            ();
-
-            // move src coord
-            static_for<0, nDim, 1>{}([&](auto i) {
-                if constexpr(move_on_dim[i])
-                {
-                    if constexpr(forward_sweep[i])
-                    {
-                        move_tensor_coordinate(
-                            src_desc, src_coord_, src_forward_steps[src_dim_access_order[i]]);
-                    }
-                    else
-                    {
-                        move_tensor_coordinate(
-                            src_desc, src_coord_, src_backward_steps[src_dim_access_order[i]]);
-                    }
-                }
-            });
         });
 
         // move src coordinate back to slice origin (or not)
@@ -374,73 +292,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DstDimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
 
-        constexpr auto dst_dim_access_order = DstDimAccessOrder{};
-
-        constexpr auto ordered_dst_access_lengths =
-            container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
-
-        // make forward steps
-        const auto dst_forward_steps = generate_tuple(
-            [&](auto i) {
-                Index forward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    forward_step_idx(j) = (i.value == j.value) ? dst_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(dst_desc, forward_step_idx);
-            },
-            Number<nDim>{});
-
-        // make backward steps
-        const auto dst_backward_steps = generate_tuple(
-            [&](auto i) {
-                Index backward_step_idx;
-
-                static_for<0, nDim, 1>{}([&](auto j) {
-                    backward_step_idx(j) = (i.value == j.value) ? -dst_scalar_per_access[i] : 0;
-                });
-
-                return make_tensor_coordinate_step(dst_desc, backward_step_idx);
-            },
-            Number<nDim>{});
+        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
 
         // loop over tensor and copy
-        static_ford<decltype(ordered_dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
-            // judge move forward or move backward
-            constexpr auto forward_sweep = [&]() {
-                StaticallyIndexedArray<bool, nDim> forward_sweep_;
-
-                forward_sweep_(I0) = true;
-
-                static_for<1, nDim, 1>{}([&](auto i) {
-                    index_t tmp = ordered_dst_access_idx[I0];
-
-                    static_for<1, i, 1>{}([&](auto j) {
-                        tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_idx[j];
-                    });
-
-                    forward_sweep_(i) = tmp % 2 == 0;
-                });
-
-                return forward_sweep_;
-            }();
-
-            // calculate dst data index
-            constexpr auto dst_data_idx = [&]() {
-                Index ordered_idx;
-
-                static_for<0, nDim, 1>{}([&](auto i) {
-                    ordered_idx(i) = forward_sweep[i] ? ordered_dst_access_idx[i]
-                                                      : ordered_dst_access_lengths[i] - 1 -
-                                                            ordered_dst_access_idx[i];
-                });
-
-                return container_reorder_given_old2new(ordered_idx, dst_dim_access_order) *
-                       dst_scalar_per_access;
-            }();
+        static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
+            constexpr auto dst_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
 
             constexpr auto dst_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<dst_data_idx[i]>{}; }, Number<dst_data_idx.Size()>{});
@@ -470,39 +330,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
-            constexpr auto move_on_dim = [&]() constexpr
+            // move coordinate
+            if constexpr(idx_1d.value != num_accesses - 1)
             {
-                StaticallyIndexedArray<bool, nDim> move_on_dim_;
-
-                static_for<0, nDim, 1>{}([&](auto i) {
-                    move_on_dim_(i) = ordered_dst_access_idx[i] < ordered_dst_access_lengths[i] - 1;
-
-                    static_for<i + 1, nDim, 1>{}([&](auto j) {
-                        move_on_dim_(i) &=
-                            ordered_dst_access_idx[j] == ordered_dst_access_lengths[j] - 1;
-                    });
-                });
-
-                return move_on_dim_;
+                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+                move_tensor_coordinate(
+                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
             }
-            ();
-
-            // move dst coord
-            static_for<0, nDim, 1>{}([&](auto i) {
-                if constexpr(move_on_dim[i])
-                {
-                    if constexpr(forward_sweep[i])
-                    {
-                        move_tensor_coordinate(
-                            dst_desc, dst_coord_, dst_forward_steps[dst_dim_access_order[i]]);
-                    }
-                    else
-                    {
-                        move_tensor_coordinate(
-                            dst_desc, dst_coord_, dst_backward_steps[dst_dim_access_order[i]]);
-                    }
-                }
-            });
         });
 
         // move dst coordinate back to slice origin (or not)
@@ -522,55 +356,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    SrcDimAccessOrder,
+                                                    remove_cv_t<decltype(src_scalar_per_access)>>;
 
-        constexpr auto src_dim_access_order = SrcDimAccessOrder{};
+        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
+        constexpr auto reset_step =
+            SpaceFillingCurve::GetStepBetween(Number<num_accesses - 1>{}, Number<0>{});
 
-        constexpr auto ordered_src_access_lengths =
-            container_reorder_given_new2old(src_access_lengths, src_dim_access_order);
-
-        // judge move forward or move backward during the last iteration
-        constexpr auto forward_sweep = [&]() {
-            StaticallyIndexedArray<bool, nDim> forward_sweep_;
-
-            forward_sweep_(I0) = true;
-
-            static_for<1, nDim, 1>{}([&](auto i) {
-                index_t tmp = ordered_src_access_lengths[I0] - 1;
-
-                static_for<1, i, 1>{}([&](auto j) {
-                    tmp = tmp * ordered_src_access_lengths[j] + ordered_src_access_lengths[j] - 1;
-                });
-
-                forward_sweep_(i) = tmp % 2 == 0;
-            });
-
-            return forward_sweep_;
-        }();
-
-        // calculate src data index after last iteration in RunRead(), if it has not being reset by
-        // RunRead()
-        constexpr auto src_data_idx = [&]() {
-            Index ordered_idx;
-
-            static_for<0, nDim, 1>{}([&](auto i) {
-                ordered_idx(i) = forward_sweep[i] ? ordered_src_access_lengths[i] - 1 : 0;
-            });
-
-            return container_reorder_given_old2new(ordered_idx, src_dim_access_order) *
-                   src_scalar_per_access;
-        }();
-
-        //
-        constexpr auto reset_src_data_step = [&]() {
-            Index reset_src_data_step_;
-
-            static_for<0, nDim, 1>{}([&](auto i) { reset_src_data_step_(i) = -src_data_idx[i]; });
-
-            return reset_src_data_step_;
-        }();
-
-        return reset_src_data_step;
+        return reset_step;
     }
 
     __device__ static constexpr auto GetDstCoordinateResetStep()
@@ -580,55 +374,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         constexpr auto dst_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
 
-        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DstDimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
 
-        constexpr auto dst_dim_access_order = DstDimAccessOrder{};
+        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
+        constexpr auto reset_step =
+            SpaceFillingCurve::GetStepBetween(Number<num_accesses - 1>{}, Number<0>{});
 
-        constexpr auto ordered_dst_access_lengths =
-            container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
-
-        // judge move forward or move backward during the last iteration
-        constexpr auto forward_sweep = [&]() {
-            StaticallyIndexedArray<bool, nDim> forward_sweep_;
-
-            forward_sweep_(I0) = true;
-
-            static_for<1, nDim, 1>{}([&](auto i) {
-                index_t tmp = ordered_dst_access_lengths[I0] - 1;
-
-                static_for<1, i, 1>{}([&](auto j) {
-                    tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_lengths[j] - 1;
-                });
-
-                forward_sweep_(i) = tmp % 2 == 0;
-            });
-
-            return forward_sweep_;
-        }();
-
-        // calculate dst data index after last iteration in RunWrite(), if it has not being reset by
-        // RunWrite()
-        constexpr auto dst_data_idx = [&]() {
-            Index ordered_idx;
-
-            static_for<0, nDim, 1>{}([&](auto i) {
-                ordered_idx(i) = forward_sweep[i] ? ordered_dst_access_lengths[i] - 1 : 0;
-            });
-
-            return container_reorder_given_old2new(ordered_idx, dst_dim_access_order) *
-                   dst_scalar_per_access;
-        }();
-
-        //
-        constexpr auto reset_dst_data_step = [&]() {
-            Index reset_dst_data_step_;
-
-            static_for<0, nDim, 1>{}([&](auto i) { reset_dst_data_step_(i) = -dst_data_idx[i]; });
-
-            return reset_dst_data_step_;
-        }();
-
-        return reset_dst_data_step;
+        return reset_step;
     }
 
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
