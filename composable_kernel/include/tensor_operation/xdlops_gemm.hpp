@@ -474,7 +474,7 @@ struct MfmaSelector
     }
 
     template <>
-    static constexpr auto GetMfma<ushort, 32, 32>()
+    static constexpr auto GetMfma<bhalf_t, 32, 32>()
     {
 #if defined(CK_AMD_GPU_GFX90A)
         return MfmaInstr::mfma_f32_32x32x8bf16_1k;
@@ -484,7 +484,7 @@ struct MfmaSelector
     }
 
     template <>
-    static constexpr auto GetMfma<ushort, 16, 16>()
+    static constexpr auto GetMfma<bhalf_t, 16, 16>()
     {
 #if defined(CK_AMD_GPU_GFX90A)
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
@@ -662,8 +662,8 @@ struct XdlopsGemm
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
         static_assert(is_same<base_type, float>::value || is_same<base_type, half_t>::value ||
-                          is_same<base_type, ushort>::value || is_same<base_type, int8_t>::value,
-                      "base base_type must be float, half, ushort, and int8_t!");
+                          is_same<base_type, bhalf_t>::value || is_same<base_type, int8_t>::value,
+                      "base base_type must be float, half, bfloat16, and int8_t!");
 
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
             mfma_instr.template run<MPerXdlops, NPerXdlops>(p_a_wave[k], p_b_wave[k], p_c_thread);

@@ -77,7 +77,7 @@ void host_convolution_forward(const Tensor<TIn>& in,
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[3])
                     {
-                        if constexpr(is_same<TIn, ushort>::value)
+                        if constexpr(is_same<TIn, bhalf_t>::value)
                         {
                             v += ck::type_convert<float>(in(n, c, hi, wi)) *
                                  ck::type_convert<float>(wei(k, c, y, x));
@@ -92,9 +92,9 @@ void host_convolution_forward(const Tensor<TIn>& in,
             }
         }
 
-        if constexpr(is_same<TOut, ushort>::value)
+        if constexpr(is_same<TOut, bhalf_t>::value)
         {
-            out(n, k, ho, wo) = ck::type_convert<ushort>(static_cast<float>(v));
+            out(n, k, ho, wo) = ck::type_convert<bhalf_t>(static_cast<float>(v));
         }
         else
         {
@@ -115,7 +115,7 @@ void host_convolution_forward(const Tensor<TIn>& in,
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[1] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[2])
                     {
-                        if constexpr(is_same<TIn, ushort>::value)
+                        if constexpr(is_same<TIn, bhalf_t>::value)
                         {
                             v += ck::type_convert<float>(in(n, hi, wi, c)) *
                                  ck::type_convert<float>(wei(k, y, x, c));
@@ -129,9 +129,9 @@ void host_convolution_forward(const Tensor<TIn>& in,
                 }
             }
         }
-        if constexpr(is_same<TOut, ushort>::value)
+        if constexpr(is_same<TOut, bhalf_t>::value)
         {
-            out(n, ho, wo, k) = ck::type_convert<ushort>(static_cast<float>(v));
+            out(n, ho, wo, k) = ck::type_convert<bhalf_t>(static_cast<float>(v));
         }
         else
         {
@@ -259,9 +259,9 @@ int main(int argc, char* argv[])
     using acc_data_t  = float;
     using out_data_t  = half_t;
 #elif 0
-    using in_data_t  = ushort;
+    using in_data_t  = bhalf_t;
     using acc_data_t = float;
-    using out_data_t = ushort;
+    using out_data_t = bhalf_t;
 #elif 1
     using in_data_t  = int8_t;
     using acc_data_t = int32_t;
