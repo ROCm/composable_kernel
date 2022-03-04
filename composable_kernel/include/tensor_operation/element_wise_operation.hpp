@@ -1,5 +1,6 @@
 #ifndef CK_ELEMENT_WISE_OPERATION_HPP
 #define CK_ELEMENT_WISE_OPERATION_HPP
+#include "data_type.hpp"
 
 #include "data_type.hpp"
 
