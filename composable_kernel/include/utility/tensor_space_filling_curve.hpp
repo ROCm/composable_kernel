@@ -1,5 +1,9 @@
+#ifndef TENSOR_SPACE_FILLING_CURVE_HPP
+#define TENSOR_SPACE_FILLING_CURVE_HPP
+
 #include "math.hpp"
 #include "sequence.hpp"
+#include "sequence_helper.hpp"
 #include "tensor_adaptor.hpp"
 #include "statically_indexed_array_multi_index.hpp"
 #include "tuple_helper.hpp"
@@ -37,13 +41,25 @@ struct SpaceFillingCurve
                ScalarPerVector;
     }
 
+    template <index_t AccessIdx1dBegin, index_t AccessIdx1dEnd>
+    static __device__ __host__ constexpr auto GetStepBetween(Number<AccessIdx1dBegin>,
+                                                             Number<AccessIdx1dEnd>)
+    {
+        static_assert(AccessIdx1dBegin >= 0, "1D index should be non-negative");
+        static_assert(AccessIdx1dBegin < GetNumOfAccess(), "1D index should be larger than 0");
+        static_assert(AccessIdx1dEnd >= 0, "1D index should be non-negative");
+        static_assert(AccessIdx1dEnd < GetNumOfAccess(), "1D index should be larger than 0");
+
+        constexpr auto idx_begin = GetIndex(Number<AccessIdx1dBegin>{});
+        constexpr auto idx_end   = GetIndex(Number<AccessIdx1dEnd>{});
+        return idx_end - idx_begin;
+    }
+
     template <index_t AccessIdx1d>
     static __device__ __host__ constexpr auto GetForwardStep(Number<AccessIdx1d>)
     {
-
-        constexpr auto idx_curr = GetIndex(Number<AccessIdx1d>{});
-        constexpr auto idx_next = GetIndex(Number<AccessIdx1d + 1>{});
-        return idx_next - idx_curr;
+        static_assert(AccessIdx1d < GetNumOfAccess(), "1D index should be larger than 0");
+        return GetStepBetween(Number<AccessIdx1d>{}, Number<AccessIdx1d + 1>{});
     }
 
     template <index_t AccessIdx1d>
@@ -51,9 +67,7 @@ struct SpaceFillingCurve
     {
         static_assert(AccessIdx1d > 0, "1D index should be larger than 0");
 
-        constexpr auto idx_curr = GetIndex(Number<AccessIdx1d>{});
-        constexpr auto idx_prev = GetIndex(Number<AccessIdx1d - 1>{});
-        return idx_prev - idx_curr;
+        return GetStepBetween(Number<AccessIdx1d>{}, Number<AccessIdx1d - 1>{});
     }
 
     template <index_t AccessIdx1d>
@@ -129,3 +143,4 @@ struct SpaceFillingCurve
 };
 
 } // namespace ck
+#endif
