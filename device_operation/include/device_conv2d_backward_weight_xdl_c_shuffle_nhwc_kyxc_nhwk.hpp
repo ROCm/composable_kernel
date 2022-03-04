@@ -119,7 +119,12 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         const index_t GemmKTotal = N * Ho * Wo;
         const index_t GemmM      = K;
         const index_t GemmN      = C * X * Y;
-        const index_t GemmK0     = GemmKTotal / GemmK1Number / batch_k;
+
+        const index_t GemmKBatch = batch_k;
+        const index_t GemmK0 =
+            math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
+            K0PerBlock;
+        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
 
         const auto out_gemmktotal_gemmm_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
@@ -127,9 +132,16 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
         // A: output tensor
-        const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+        const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
             out_gemmktotal_gemmm_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(batch_k, GemmK0, GemmK1Number)),
+            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                       make_pass_through_transform(GemmM)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            out_gemmkpad_gemmm_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                        make_pass_through_transform(GemmM)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
@@ -160,9 +172,17 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                                                    make_merge_transform(make_tuple(N, Ho, Wo))),
                                         make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}),
                                         make_tuple(Sequence<1>{}, Sequence<0>{}));
-        const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+
+        const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
             in_gemmktotal_gemmn_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(batch_k, GemmK0, GemmK1Number)),
+            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
+                       make_pass_through_transform(GemmN)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            in_gemmkpad_gemmn_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
                        make_pass_through_transform(GemmN)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
@@ -563,15 +583,6 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
         // vector store C matrix into global memory
         if(!(arg.Conv_C_ % CBlockTransferScalarPerVector_NWaveNPerXdl == 0))
-        {
-            return false;
-        }
-
-        // check split-k
-        const index_t Ho         = arg.output_spatial_lengths_[0];
-        const index_t Wo         = arg.output_spatial_lengths_[1];
-        const index_t GemmKTotal = arg.Conv_N_ * Ho * Wo;
-        if(GemmKTotal % (arg.k_batch_ * K0PerBlock * K1) != 0)
         {
             return false;
         }
