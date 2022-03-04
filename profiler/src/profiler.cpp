@@ -14,6 +14,7 @@ int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
+int profile_conv_bwd_data(int, char*[]);
 
 int main(int argc, char* argv[])
 {
@@ -53,6 +54,10 @@ int main(int argc, char* argv[])
     {
         return profile_conv_fwd_bias_relu_atomic_add(argc, argv);
     }
+    else if(strcmp(argv[1], "conv_bwd") == 0)
+    {
+        return profile_conv_bwd_data(argc, argv);
+    }
     else
     {
         // clang-format off
@@ -63,7 +68,8 @@ int main(int argc, char* argv[])
                "                        conv_fwd: ForwardConvolution\n"
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
-               "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n");
+               "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
+               "                        conv_bwd: BackwardConvolution\n");
         // clang-format on
 
         return 0;
