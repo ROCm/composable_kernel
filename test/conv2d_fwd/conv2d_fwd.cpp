@@ -77,8 +77,8 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_w  = 1;
     if(argc == 1)
     {
+        data_type   = 1;
         init_method = 1;
-        data_type   = 0;
     }
     else if(argc == 3)
     {
@@ -108,10 +108,9 @@ int main(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg1: data type (0=fp32, 1=fp16, 2= bfp16, 3= int8_t )\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
-        printf("arg4 to 18: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+        printf("arg3 to 17: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(1);
     }
