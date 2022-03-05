@@ -61,9 +61,10 @@ int main(int argc, char* argv[])
     else if(strcmp(argv[1], "reduce") == 0)
     {
         return profile_reduce(argc, argv);
-        else
-        {
-            // clang-format off
+    }
+    else
+    {
+        // clang-format off
         printf("arg1: tensor operation (gemm: GEMM\n"
                "                        gemm_bias_2d: GEMM+Bias(2D)\n"
                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
@@ -74,8 +75,8 @@ int main(int argc, char* argv[])
                "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
                "                        conv_bwd: BackwardConvolution\n"
                "                        reduce: REDUCE\n");
-            // clang-format on
+        // clang-format on
 
-            return 0;
-        }
+        return 0;
     }
+}
