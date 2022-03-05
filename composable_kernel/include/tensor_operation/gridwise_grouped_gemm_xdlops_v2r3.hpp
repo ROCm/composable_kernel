@@ -18,11 +18,13 @@ template <typename GridwiseGemm,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename GemmDesc,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename Block2CTileMap,
-          bool HasMainK0BlockLoop>
+          bool HasMainK0BlockLoop,
+          index_t MaxGroupCount>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -34,6 +36,8 @@ __global__ void
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+            const GemmDesc gemm_shapes,
+            const index_t group_count,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -43,24 +47,67 @@ __global__ void
 
     const index_t block_id = get_block_1d_id();
 
-    const index_t group_id = 0;
+    index_t group_id     = 0;
+    index_t block_id_grp = 0;
+    index_t a_offset_grp = 0;
+    index_t b_offset_grp = 0;
+    index_t c_offset_grp = 0;
+
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        if(i < group_count)
+        {
+            if(block_id >= gemm_shapes[i].BlockStart &&
+               block_id < (gemm_shapes[i].BlockStart + gemm_shapes[i].BlockSize))
+            {
+                group_id     = i;
+                block_id_grp = block_id - gemm_shapes[i].BlockStart;
+                a_offset_grp = gemm_shapes[i].OffsetA;
+                b_offset_grp = gemm_shapes[i].OffsetB;
+                c_offset_grp = gemm_shapes[i].OffsetC;
+
+                // if(get_thread_local_1d_id() == 0)
+                // printf("%d %d %d %d %d %d\n",
+                // block_id,
+                // group_id,
+                // block_id_grp,
+                // a_offset_grp,
+                // b_offset_grp,
+                // c_offset_grp);
+            }
+        }
+    });
 
     constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
 
     if(group_id == 0)
-        GridwiseGemm::template Run<HasMainK0BlockLoop>(
-            p_a_grid,
-            p_b_grid,
-            p_c_grid,
-            p_shared,
-            a_grid_desc_k0_m_k1[Number<0>{}],
-            b_grid_desc_k0_n_k1[Number<0>{}],
-            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[Number<0>{}],
-            a_element_op,
-            b_element_op,
-            c_element_op,
-            block_2_ctile_map[Number<0>{}],
-            block_id);
+        GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
+                                                       p_b_grid + b_offset_grp,
+                                                       p_c_grid + c_offset_grp,
+                                                       p_shared,
+                                                       a_grid_desc_k0_m_k1[I0],
+                                                       b_grid_desc_k0_n_k1[I0],
+                                                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[I0],
+                                                       a_element_op,
+                                                       b_element_op,
+                                                       c_element_op,
+                                                       block_2_ctile_map[I0],
+                                                       block_id_grp,
+                                                       group_id);
+    else if(group_id == 1)
+        GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
+                                                       p_b_grid + b_offset_grp,
+                                                       p_c_grid + c_offset_grp,
+                                                       p_shared,
+                                                       a_grid_desc_k0_m_k1[I1],
+                                                       b_grid_desc_k0_n_k1[I1],
+                                                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[I1],
+                                                       a_element_op,
+                                                       b_element_op,
+                                                       c_element_op,
+                                                       block_2_ctile_map[I1],
+                                                       block_id_grp,
+                                                       group_id);
 }
 
 template <index_t BlockSize,
@@ -360,7 +407,8 @@ struct GridwiseGroupedGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const BElementwiseOperation& b_element_op,
         const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map,
-        const index_t block_id)
+        const index_t block_id,
+        const index_t group_id)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
@@ -381,6 +429,14 @@ struct GridwiseGroupedGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+
+        // if(get_thread_local_1d_id() == 0)
+        //{
+        // printf("m: %d n: %d k: %d\n", a_grid_desc_k0_m_k1.GetLength(I1),
+        // b_grid_desc_k0_n_k1.GetLength(I1), a_grid_desc_k0_m_k1.GetLength(I0));
+        // printf("block_work_idx: %d %d %d %d\n", group_id, block_id, block_work_idx[I0],
+        // block_work_idx[I1]);
+        //}
 
         // lds max alignment
         constexpr auto max_lds_align = K1;

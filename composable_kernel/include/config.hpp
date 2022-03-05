@@ -176,6 +176,7 @@ struct gemm_desc
     ck::index_t M, N, K;
     ck::index_t StrideA, StrideB, StrideC;
     ck::index_t OffsetA, OffsetB, OffsetC;
+    ck::index_t BlockStart, BlockSize;
 };
 
 } // namespace ck

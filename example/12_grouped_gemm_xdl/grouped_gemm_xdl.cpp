@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    int group_count = 1;
+    int group_count = 2;
 
     // GEMM shape
     std::vector<ck::gemm_desc> gemm_shapes;
@@ -85,11 +85,11 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < group_count; i++)
     {
-        int M = 256;
-        int N = 512;
-        int K = 1024;
+        int M = 256 * (i + 1);
+        int N = 512 * (i + 1);
+        int K = 1024 * (i + 1);
 
-        gemm_shapes.push_back({M, N, K, K, K, N, A_size, B_size, C_size});
+        gemm_shapes.push_back({M, N, K, K, K, N, A_size, B_size, C_size, 0, 0});
 
         A_size += M * K;
         B_size += N * K;
