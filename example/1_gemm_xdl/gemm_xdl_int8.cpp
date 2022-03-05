@@ -28,11 +28,11 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
 using RequantReluRequant = ck::tensor_operation::element_wise::RequantReluRequant;
 
-using ADataType       = int8_t;
-using BDataType       = int8_t;
-using CDataType       = int8_t;
-using AccDataType     = int32_t;
-using ShuffleDataType = int32_t;
+using ADataType        = int8_t;
+using BDataType        = int8_t;
+using CDataType        = int8_t;
+using AccDataType      = int32_t;
+using CShuffleDataType = int32_t;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -44,7 +44,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     BDataType,              // BDataType
     CDataType,              // CDataType
     AccDataType,            // AccDataType
-    ShuffleDataType,        // ShuffleDataType
+    CShuffleDataType,        // CShuffleDataType
     ALayout,                // ALayout
     BLayout,                // BLayout
     CLayout,                // CLayout

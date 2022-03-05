@@ -20,7 +20,7 @@ template <
     typename BDataType,
     typename CDataType,
     typename AccDataType,
-    typename ShuffleDataType,
+    typename CShuffleDataType,
     typename ALayout,
     typename BLayout,
     typename CLayout,
@@ -136,7 +136,7 @@ struct DeviceGemmXdl_C_Shuffle
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
-        ShuffleDataType,
+        CShuffleDataType,
         CDataType,
         InMemoryDataOperationEnum_t::Set,
         AGridDesc_K0_M_K1,
