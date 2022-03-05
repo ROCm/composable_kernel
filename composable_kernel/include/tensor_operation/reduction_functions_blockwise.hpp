@@ -30,240 +30,154 @@
 
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
-#include "reduction_functions_binop.hpp"
+#include "reduction_functions_accumulate.hpp"
 
 namespace ck {
 
-template <typename buffer2dDescType,
-          bool blockIsOneRow,
-          typename opReduce,
-          NanPropagation_t nanPropaOpt>
-struct BlockwiseReduction_2d_block_buffer
+template <typename Buffer1dDescType,
+          typename AccDataType,
+          index_t BlockSize,
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          bool ReorderThreadClusters,
+          typename OpReduce,
+          bool PropagateNan>
+struct PartitionedBlockwiseReductionOn1dBuffer
 {
-    using compType = typename opReduce::dataType;
+    static constexpr auto buffer_1d_desc = Buffer1dDescType{};
 
-    static constexpr auto buffer2dDesc = buffer2dDescType{};
+    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
+                  "The product of cluster lengths should be same as BlockSize!");
+    static_assert(KThreadClusterSize > 1, "Parallel reduction need work on at least two elements");
 
-    static constexpr index_t BlockSize =
-        blockIsOneRow ? buffer2dDesc.GetLength(Number<1>{}) : buffer2dDesc.GetLength(Number<0>{});
-    static constexpr index_t NumBlocks =
-        blockIsOneRow ? buffer2dDesc.GetLength(Number<0>{}) : buffer2dDesc.GetLength(Number<1>{});
-    using binop = detail::binop_with_nan_check<nanPropaOpt, opReduce, compType>;
+    static_assert(buffer_1d_desc.GetElementSize() == BlockSize,
+                  "The buffer size should be the same as BlockSize!");
 
-    // This interface does not accumulate on indices
+    using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
+
     template <typename BufferType>
-    __device__ static void
-    Reduce(BufferType& block_buffer, index_t toReduceBlocks, compType& accuData)
+    __device__ static void Reduce(BufferType& block_buffer,
+                                  AccDataType& accuData,
+                                  index_t thread_m_cluster_id,
+                                  index_t thread_k_cluster_id)
     {
-        const index_t thread_local_id = get_thread_local_1d_id();
-        compType lAccuData            = opReduce::GetReductionZeroVal();
+        constexpr auto cluster_len_shift = get_shift<KThreadClusterSize>();
 
-        index_t offset;
-        for(index_t otherDimInd = 0; otherDimInd < toReduceBlocks; otherDimInd++)
-        {
-            offset = blockIsOneRow
-                         ? buffer2dDesc.CalculateOffset(make_tuple(otherDimInd, thread_local_id))
-                         : buffer2dDesc.CalculateOffset(make_tuple(thread_local_id, otherDimInd));
-            compType opData = type_convert<compType>(block_buffer[offset]);
+        static_for<0, cluster_len_shift, 1>{}([&](auto I) {
+            constexpr index_t indOffset = 1 << (cluster_len_shift - 1 - I());
 
-            binop::calculate(lAccuData, opData);
-        }
-
-        offset = blockIsOneRow ? buffer2dDesc.CalculateOffset(make_tuple(0, thread_local_id))
-                               : buffer2dDesc.CalculateOffset(make_tuple(thread_local_id, 0));
-
-        block_buffer(offset) = lAccuData;
-
-        __syncthreads();
-
-        for(index_t indOffset = BlockSize / 2; indOffset > 0; indOffset /= 2)
-        {
-            if(thread_local_id < indOffset)
+            if(thread_k_cluster_id < indOffset)
             {
+                // consider the thread clusters order, ensure the contiguous locations are accessed
+                // by contiguous Thread-ID
                 index_t offset1 =
-                    blockIsOneRow ? buffer2dDesc.CalculateOffset(make_tuple(0, thread_local_id))
-                                  : buffer2dDesc.CalculateOffset(make_tuple(thread_local_id, 0));
+                    ReorderThreadClusters
+                        ? buffer_1d_desc.CalculateOffset(make_tuple(
+                              thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id))
+                        : buffer_1d_desc.CalculateOffset(make_tuple(
+                              thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id));
+                index_t offset2 = ReorderThreadClusters
+                                      ? buffer_1d_desc.CalculateOffset(make_tuple(
+                                            (thread_k_cluster_id + indOffset) * MThreadClusterSize +
+                                            thread_m_cluster_id))
+                                      : buffer_1d_desc.CalculateOffset(
+                                            make_tuple(thread_m_cluster_id * KThreadClusterSize +
+                                                       (thread_k_cluster_id + indOffset)));
 
-                index_t offset2 =
-                    blockIsOneRow
-                        ? buffer2dDesc.CalculateOffset(make_tuple(0, thread_local_id + indOffset))
-                        : buffer2dDesc.CalculateOffset(make_tuple(thread_local_id + indOffset, 0));
-
-                compType opData1 = type_convert<compType>(block_buffer[offset1]);
-                compType opData2 = type_convert<compType>(block_buffer[offset2]);
-                binop::calculate(opData1, opData2);
-                block_buffer(offset1) = type_convert<compType>(opData1);
+                AccDataType opData1 = type_convert<AccDataType>(block_buffer[offset1]);
+                AccDataType opData2 = type_convert<AccDataType>(block_buffer[offset2]);
+                Accumulation::Calculate(opData1, opData2);
+                block_buffer(offset1) = type_convert<AccDataType>(opData1);
             }
 
             __syncthreads();
-        }
+        });
 
-        if(thread_local_id == 0)
-        {
-            compType tmpVal = type_convert<compType>(block_buffer[0]);
+        index_t offset = ReorderThreadClusters
+                             ? buffer_1d_desc.CalculateOffset(make_tuple(thread_m_cluster_id))
+                             : buffer_1d_desc.CalculateOffset(
+                                   make_tuple(thread_m_cluster_id * KThreadClusterSize));
 
-            binop::calculate(accuData, tmpVal);
-        }
+        accuData = type_convert<AccDataType>(block_buffer[offset]);
     };
+};
+
+template <typename Buffer1dDescType,
+          typename AccDataType,
+          typename IndexDataType,
+          index_t BlockSize,
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          bool ReorderThreadClusters,
+          typename OpReduce,
+          bool PropagateNan>
+struct PartitionedBlockwiseReductionWithIndexOn1dBuffer
+{
+    static constexpr auto buffer_1d_desc = Buffer1dDescType{};
+
+    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
+                  "The product of cluster lengths should be same as BlockSize!");
+    static_assert(KThreadClusterSize > 1, "Parallel reduction need work on at least two elements");
+
+    static_assert(buffer_1d_desc.GetElementSize() == BlockSize,
+                  "The buffer size should be the same as BlockSize!");
+
+    using Accumulation =
+        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>;
 
     // This interface accumulates on both data values and indices
     template <typename BufferType, typename IdxBufferType>
-    __device__ static void Reduce2(BufferType& block_buffer,
-                                   IdxBufferType& block_indices_buffer,
-                                   index_t toReduceBlocks,
-                                   compType& accuData,
-                                   int& accuIndex)
+    __device__ static void Reduce(BufferType& block_val_buffer,
+                                  IdxBufferType& block_idx_buffer,
+                                  AccDataType& accuData,
+                                  IndexDataType& accuIndex,
+                                  index_t thread_m_cluster_id,
+                                  index_t thread_k_cluster_id)
     {
-        const index_t thread_local_id = get_thread_local_1d_id();
-        compType lAccuData            = opReduce::GetReductionZeroVal();
-        int lAccuIndex                = 0;
+        constexpr auto cluster_len_shift = get_shift<KThreadClusterSize>();
 
-        if constexpr(blockIsOneRow)
-        {
-            for(index_t otherDimInd = 0; otherDimInd < toReduceBlocks; otherDimInd++)
+        static_for<0, cluster_len_shift, 1>{}([&](auto I) {
+            constexpr index_t indOffset = 1 << I();
+
+            if(thread_k_cluster_id % (indOffset * 2) == 0)
             {
-                for(index_t indOffset = 1; indOffset < BlockSize; indOffset *= 2)
-                {
-                    if(thread_local_id % (indOffset * 2) == 0)
-                    {
-                        index_t offset1 =
-                            buffer2dDesc.CalculateOffset(make_tuple(otherDimInd, thread_local_id));
-                        index_t offset2 = buffer2dDesc.CalculateOffset(
-                            make_tuple(otherDimInd, thread_local_id + indOffset));
+                // consider the thread clusters order, ensure the contiguous locations are accessed
+                // by contiguous Thread-ID
+                index_t offset1 =
+                    ReorderThreadClusters
+                        ? buffer_1d_desc.CalculateOffset(make_tuple(
+                              thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id))
+                        : buffer_1d_desc.CalculateOffset(make_tuple(
+                              thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id));
+                index_t offset2 = ReorderThreadClusters
+                                      ? buffer_1d_desc.CalculateOffset(make_tuple(
+                                            (thread_k_cluster_id + indOffset) * MThreadClusterSize +
+                                            thread_m_cluster_id))
+                                      : buffer_1d_desc.CalculateOffset(
+                                            make_tuple(thread_m_cluster_id * KThreadClusterSize +
+                                                       (thread_k_cluster_id + indOffset)));
 
-                        compType currVal1 = type_convert<compType>(block_buffer[offset1]);
-                        compType currVal2 = type_convert<compType>(block_buffer[offset2]);
-                        int currIndex1    = block_indices_buffer[offset1];
-                        int currIndex2    = block_indices_buffer[offset2];
+                AccDataType opData1      = type_convert<AccDataType>(block_val_buffer[offset1]);
+                AccDataType opData2      = type_convert<AccDataType>(block_val_buffer[offset2]);
+                IndexDataType currIndex1 = block_idx_buffer[offset1];
+                IndexDataType currIndex2 = block_idx_buffer[offset2];
 
-                        binop::calculate(currVal1, currVal2, currIndex1, currIndex2);
-                        block_buffer(offset1)         = type_convert<compType>(currVal1);
-                        block_indices_buffer(offset1) = currIndex1;
-                    }
-                    __syncthreads();
-                }
+                Accumulation::Calculate(opData1, opData2, currIndex1, currIndex2);
+                block_val_buffer(offset1) = type_convert<AccDataType>(opData1);
+                block_idx_buffer(offset1) = currIndex1;
             }
-
-            if(thread_local_id == 0)
-            {
-                for(index_t otherDimInd = 0; otherDimInd < toReduceBlocks; otherDimInd++)
-                {
-                    index_t offset = buffer2dDesc.CalculateOffset(make_tuple(otherDimInd, 0));
-
-                    compType tmpVal = type_convert<compType>(block_buffer[offset]);
-                    int tmpIndex    = block_indices_buffer[offset];
-
-                    binop::calculate(lAccuData, tmpVal, lAccuIndex, tmpIndex);
-                }
-
-                binop::calculate(accuData, lAccuData, accuIndex, lAccuIndex);
-            }
-        }
-        else
-        {
-            index_t offset;
-
-            for(index_t otherDimInd = 0; otherDimInd < toReduceBlocks; otherDimInd++)
-            {
-                offset = buffer2dDesc.CalculateOffset(make_tuple(thread_local_id, otherDimInd));
-                compType currVal = type_convert<compType>(block_buffer[offset]);
-                int currIndex    = block_indices_buffer[offset];
-
-                binop::calculate(lAccuData, currVal, lAccuIndex, currIndex);
-            }
-
-            offset = buffer2dDesc.CalculateOffset(make_tuple(thread_local_id, 0));
-
-            block_buffer(offset)         = lAccuData;
-            block_indices_buffer(offset) = lAccuIndex;
 
             __syncthreads();
+        });
 
-            for(index_t indOffset = 1; indOffset < BlockSize; indOffset *= 2)
-            {
-                if(thread_local_id % (indOffset * 2) == 0)
-                {
-                    index_t offset1 = buffer2dDesc.CalculateOffset(make_tuple(thread_local_id, 0));
-                    index_t offset2 =
-                        buffer2dDesc.CalculateOffset(make_tuple(thread_local_id + indOffset, 0));
+        index_t offset = ReorderThreadClusters
+                             ? buffer_1d_desc.CalculateOffset(make_tuple(thread_m_cluster_id))
+                             : buffer_1d_desc.CalculateOffset(
+                                   make_tuple(thread_m_cluster_id * KThreadClusterSize));
 
-                    compType currVal1 = type_convert<compType>(block_buffer[offset1]);
-                    compType currVal2 = type_convert<compType>(block_buffer[offset2]);
-                    int currIndex1    = block_indices_buffer[offset1];
-                    int currIndex2    = block_indices_buffer[offset2];
-
-                    binop::calculate(currVal1, currVal2, currIndex1, currIndex2);
-                    block_buffer(offset1)         = type_convert<compType>(currVal1);
-                    block_indices_buffer(offset1) = currIndex1;
-                }
-
-                __syncthreads();
-            }
-
-            if(thread_local_id == 0)
-            {
-                compType tmpVal = type_convert<compType>(block_buffer[0]);
-                int tmpIndex    = block_indices_buffer[0];
-
-                binop::calculate(accuData, tmpVal, accuIndex, tmpIndex);
-            }
-        }
-    };
-
-    template <typename BufferType>
-    __device__ static void set_buffer_value(BufferType& block_buffer, compType value)
-    {
-        index_t thread_id = get_thread_local_1d_id();
-
-        for(index_t otherDimInd = 0; otherDimInd < NumBlocks; otherDimInd++)
-        {
-            index_t offset = blockIsOneRow
-                                 ? buffer2dDesc.CalculateOffset(make_tuple(otherDimInd, thread_id))
-                                 : buffer2dDesc.CalculateOffset(make_tuple(thread_id, otherDimInd));
-
-            block_buffer(offset) = value;
-
-            __syncthreads();
-        }
-    };
-
-    // Initialize the block-wise indices buffer, the index for each element in the block-wise
-    // data buffer is calculated according to its position in the buffer and the global starting
-    // index
-    template <typename IdxBufferType>
-    __device__ static void init_buffer_indices(IdxBufferType& block_indices_buffer, int indexStart)
-    {
-        index_t thread_id = get_thread_local_1d_id();
-
-        for(index_t otherDimInd = 0; otherDimInd < NumBlocks; otherDimInd++)
-        {
-            index_t offset = blockIsOneRow
-                                 ? buffer2dDesc.CalculateOffset(make_tuple(otherDimInd, thread_id))
-                                 : buffer2dDesc.CalculateOffset(make_tuple(thread_id, otherDimInd));
-
-            block_indices_buffer(offset) = offset + indexStart;
-
-            __syncthreads();
-        }
-    };
-
-    // Execute unary operation on the block buffer elements
-    template <typename unary_op_type, typename BufferType>
-    __device__ static void operate_on_elements(unary_op_type& unary_op, BufferType& block_buffer)
-    {
-        index_t thread_id = get_thread_local_1d_id();
-
-        for(index_t otherDimInd = 0; otherDimInd < NumBlocks; otherDimInd++)
-        {
-            index_t offset = blockIsOneRow
-                                 ? buffer2dDesc.CalculateOffset(make_tuple(otherDimInd, thread_id))
-                                 : buffer2dDesc.CalculateOffset(make_tuple(thread_id, otherDimInd));
-
-            block_buffer(offset) = unary_op(block_buffer[offset]);
-
-            __syncthreads();
-        }
-    };
+        accuData  = type_convert<AccDataType>(block_val_buffer[offset]);
+        accuIndex = block_idx_buffer[offset];
+    }
 };
 
 }; // end of namespace ck
