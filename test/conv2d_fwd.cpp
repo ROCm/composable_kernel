@@ -202,9 +202,9 @@ int main(int argc, char* argv[])
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
-        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, bhalf_t> &&
-                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, bhalf_t> &&
-                          ck::is_same_v<ck::remove_cv_t<OutDataType>, bhalf_t>)
+        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::bhalf_t>)
         {
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
@@ -298,7 +298,7 @@ int main(int argc, char* argv[])
     }
     else if(data_type == 2)
     {
-        Run(bhalf_t(), bhalf_t(), bhalf_t());
+        Run(ck::bhalf_t(), ck::bhalf_t(), ck::bhalf_t());
     }
     else if(data_type == 3)
     {
