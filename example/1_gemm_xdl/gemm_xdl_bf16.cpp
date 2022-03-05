@@ -43,6 +43,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     BDataType,              // BDataType
     CDataType,              // CDataType
     AccDataType,            // AccDataType
+    CDataType,              // CShuffleDataType
     ALayout,                // ALayout
     BLayout,                // BLayout
     CLayout,                // CLayout
