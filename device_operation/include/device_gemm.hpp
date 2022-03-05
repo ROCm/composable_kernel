@@ -62,6 +62,23 @@ struct DeviceGemm : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
+struct DeviceGroupedGemm : public BaseOperator
+{
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                              const void* p_b,
+                                                              void* p_c,
+                                                              std::vector<gemm_desc> gemm_shapes,
+                                                              AElementwiseOperation a_element_op,
+                                                              BElementwiseOperation b_element_op,
+                                                              CElementwiseOperation c_element_op,
+                                                              ck::index_t KBatch = 1) = 0;
+
+    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+};
+
+template <typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation>
 using DeviceGemmPtr = std::unique_ptr<
     DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
 
