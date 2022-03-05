@@ -144,6 +144,37 @@ struct AddHardswishAdd
     }
 };
 
+struct RequantReluRequant
+{
+    // FIXME: We just need one scale for Relu / Leaky Relu / PRelu
+    RequantReluRequant(float scaleGemm, float scaleRelu)
+        : scaleGemm_(scaleGemm), scaleRelu_(scaleRelu)
+    {
+    }
+
+    __host__ __device__ constexpr void operator()(int8_t& y, const int& x) const
+    {
+        float gemm_requant = scaleGemm_ * static_cast<float>(x);
+        float relu         = gemm_requant > 0 ? gemm_requant : 0;
+        float relu_requant = scaleRelu_ * relu;
+        y                  = static_cast<int8_t>(relu_requant > 127 ? 127
+                                                   : relu_requant < -128 ? -128 : relu_requant);
+    }
+
+    // for reference_gemm
+    __host__ __device__ constexpr void operator()(float& y, const float& x) const
+    {
+        float gemm_requant = scaleGemm_ * x;
+        float relu         = gemm_requant > 0 ? gemm_requant : 0;
+        float relu_requant = scaleRelu_ * relu;
+        y                  = static_cast<float>(relu_requant > 127 ? 127
+                                                  : relu_requant < -128 ? -128 : relu_requant);
+    }
+
+    float scaleGemm_;
+    float scaleRelu_;
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck
