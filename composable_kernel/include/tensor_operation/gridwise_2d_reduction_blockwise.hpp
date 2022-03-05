@@ -748,7 +748,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                         thread_m_cluster_id * MThreadSliceSize,
                                     thread_k_cluster_id * KThreadSliceSize));
 
-        index_t indexOffset = 0;
+        // index_t indexOffset = 0;
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             accu_value_buf(I) = zeroVal;
@@ -818,7 +818,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             threadwise_src_val_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
             threadwise_src_idx_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
 
-            indexOffset += K_BlockTileSize;
+            // indexOffset += K_BlockTileSize;
             reducedTiles++;
         } while(reducedTiles < toReduceTiles);
 
