@@ -3,7 +3,6 @@
 
 #include <cmath>
 #include "config.hpp"
-#include "data_type.hpp"
 
 template <typename T>
 struct GeneratorTensor_0
@@ -28,14 +27,14 @@ struct GeneratorTensor_1
 };
 
 template <>
-struct GeneratorTensor_1<ushort>
+struct GeneratorTensor_1<ck::bhalf_t>
 {
     float value = 1.0;
 
     template <typename... Is>
-    ushort operator()(Is...)
+    ck::bhalf_t operator()(Is...)
     {
-        return ck::type_convert<ushort>(value);
+        return ck::type_convert<ck::bhalf_t>(value);
     }
 };
 
@@ -65,16 +64,16 @@ struct GeneratorTensor_2
 };
 
 template <>
-struct GeneratorTensor_2<ushort>
+struct GeneratorTensor_2<ck::bhalf_t>
 {
     int min_value = 0;
     int max_value = 1;
 
     template <typename... Is>
-    ushort operator()(Is...)
+    ck::bhalf_t operator()(Is...)
     {
         float tmp = (std::rand() % (max_value - min_value)) + min_value;
-        return ck::type_convert<ushort>(tmp);
+        return ck::type_convert<ck::bhalf_t>(tmp);
     }
 };
 
@@ -107,19 +106,19 @@ struct GeneratorTensor_3
 };
 
 template <>
-struct GeneratorTensor_3<ushort>
+struct GeneratorTensor_3<ck::bhalf_t>
 {
     float min_value = 0;
     float max_value = 1;
 
     template <typename... Is>
-    ushort operator()(Is...)
+    ck::bhalf_t operator()(Is...)
     {
         float tmp = float(std::rand()) / float(RAND_MAX);
 
         float fp32_tmp = min_value + tmp * (max_value - min_value);
 
-        return ck::type_convert<ushort>(fp32_tmp);
+        return ck::type_convert<ck::bhalf_t>(fp32_tmp);
     }
 };
 

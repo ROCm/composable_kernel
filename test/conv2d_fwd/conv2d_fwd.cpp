@@ -77,8 +77,8 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_w  = 1;
     if(argc == 1)
     {
+        data_type   = 1;
         init_method = 1;
-        data_type   = 0;
     }
     else if(argc == 3)
     {
@@ -108,10 +108,9 @@ int main(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg1: data type (0=fp32, 1=fp16, 2= bfp16, 3= int8_t )\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
-        printf("arg4 to 18: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+        printf("arg3 to 17: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(1);
     }
@@ -202,9 +201,9 @@ int main(int argc, char* argv[])
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
-        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ushort>)
+        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::bhalf_t>)
         {
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
@@ -298,7 +297,7 @@ int main(int argc, char* argv[])
     }
     else if(data_type == 2)
     {
-        res = Run(ushort(), ushort(), ushort());
+        Run(ck::bhalf_t(), ck::bhalf_t(), ck::bhalf_t());
     }
     else if(data_type == 3)
     {

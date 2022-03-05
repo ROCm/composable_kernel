@@ -14,7 +14,7 @@ struct PassThrough
 
     __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = x; }
 
-    __host__ __device__ void operator()(ushort& y, const ushort& x) const { y = x; }
+    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const { y = x; }
 
     __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x; }
 
@@ -142,6 +142,37 @@ struct AddHardswishAdd
         float d = c + x2;
         y       = d;
     }
+};
+
+struct RequantReluRequant
+{
+    // FIXME: We just need one scale for Relu / Leaky Relu / PRelu
+    RequantReluRequant(float scaleGemm, float scaleRelu)
+        : scaleGemm_(scaleGemm), scaleRelu_(scaleRelu)
+    {
+    }
+
+    __host__ __device__ constexpr void operator()(int8_t& y, const int& x) const
+    {
+        float gemm_requant = scaleGemm_ * static_cast<float>(x);
+        float relu         = gemm_requant > 0 ? gemm_requant : 0;
+        float relu_requant = scaleRelu_ * relu;
+        y                  = static_cast<int8_t>(relu_requant > 127 ? 127
+                                                   : relu_requant < -128 ? -128 : relu_requant);
+    }
+
+    // for reference_gemm
+    __host__ __device__ constexpr void operator()(float& y, const float& x) const
+    {
+        float gemm_requant = scaleGemm_ * x;
+        float relu         = gemm_requant > 0 ? gemm_requant : 0;
+        float relu_requant = scaleRelu_ * relu;
+        y                  = static_cast<float>(relu_requant > 127 ? 127
+                                                  : relu_requant < -128 ? -128 : relu_requant);
+    }
+
+    float scaleGemm_;
+    float scaleRelu_;
 };
 
 // Unary operators are usually called element-wisely before/after the reduction is executed on the
