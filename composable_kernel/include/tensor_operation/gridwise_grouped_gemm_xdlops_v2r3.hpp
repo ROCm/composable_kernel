@@ -48,21 +48,15 @@ __global__ void
 
     const index_t block_id = get_block_1d_id();
 
-    index_t group_id     = 0;
-    index_t block_id_grp = 0;
-    index_t a_offset_grp = 0;
-    index_t b_offset_grp = 0;
-    index_t c_offset_grp = 0;
-
     static_for<0, MaxGroupCount, 1>{}([&](auto i) {
         if(block_id >= gemm_shapes[i].BlockStart &&
            block_id < (gemm_shapes[i].BlockStart + gemm_shapes[i].BlockSize))
         {
-            group_id     = i;
-            block_id_grp = block_id - gemm_shapes[i].BlockStart;
-            a_offset_grp = gemm_shapes[i].OffsetA;
-            b_offset_grp = gemm_shapes[i].OffsetB;
-            c_offset_grp = gemm_shapes[i].OffsetC;
+            const index_t group_id     = i;
+            const index_t block_id_grp = block_id - gemm_shapes[i].BlockStart;
+            const index_t a_offset_grp = gemm_shapes[i].OffsetA;
+            const index_t b_offset_grp = gemm_shapes[i].OffsetB;
+            const index_t c_offset_grp = gemm_shapes[i].OffsetC;
 
             GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
                                                            p_b_grid + b_offset_grp,
@@ -77,14 +71,7 @@ __global__ void
                                                            block_2_ctile_map[i],
                                                            block_id_grp);
 
-            // if(get_thread_local_1d_id() == 0)
-            // printf("%d %d %d %d %d %d\n",
-            // block_id,
-            // group_id,
-            // block_id_grp,
-            // a_offset_grp,
-            // b_offset_grp,
-            // c_offset_grp);
+            return;
         }
     });
 }
@@ -491,14 +478,6 @@ struct GridwiseGroupedGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
-
-        // if(get_thread_local_1d_id() == 0)
-        //{
-        // printf("m: %d n: %d k: %d\n", a_grid_desc_k0_m_k1.GetLength(I1),
-        // b_grid_desc_k0_n_k1.GetLength(I1), a_grid_desc_k0_m_k1.GetLength(I0));
-        // printf("block_work_idx: %d %d %d %d\n", group_id, block_id, block_work_idx[I0],
-        // block_work_idx[I1]);
-        //}
 
         // lds max alignment
         constexpr auto max_lds_align = K1;
