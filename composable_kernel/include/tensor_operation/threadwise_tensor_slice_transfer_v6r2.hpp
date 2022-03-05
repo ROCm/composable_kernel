@@ -4,7 +4,6 @@
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "tensor_space_filling_curve.hpp"
 
 namespace ck {
 
@@ -44,6 +43,10 @@ struct ThreadwiseTensorSliceTransfer_v6r2
     using Src0Coord = decltype(make_tensor_coordinate(Src0Desc{}, Index{}));
     using Src1Coord = decltype(make_tensor_coordinate(Src1Desc{}, Index{}));
     using DstCoord  = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
+
+    using Src0CoordStep = decltype(make_tensor_coordinate_step(Src0Desc{}, Index{}));
+    using Src1CoordStep = decltype(make_tensor_coordinate_step(Src1Desc{}, Index{}));
+    using DstCoordStep  = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
     static constexpr auto I0 = Number<0>{};
 
@@ -93,14 +96,72 @@ struct ThreadwiseTensorSliceTransfer_v6r2
         constexpr auto scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<VectorDim, ScalarPerVector>{}, Number<nDim>{});
 
-        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
-                                                    DimAccessOrder,
-                                                    remove_cv_t<decltype(scalar_per_access)>>;
+        constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
 
-        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
+        constexpr auto dim_access_order = DimAccessOrder{};
 
-        // loop over space-filling curve
-        static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
+        constexpr auto ordered_access_lengths =
+            container_reorder_given_new2old(access_lengths, dim_access_order);
+
+        auto make_forward_steps = [&](auto desc) {
+            return generate_tuple(
+                [&](auto i) {
+                    Index forward_step_idx;
+
+                    static_for<0, nDim, 1>{}([&](auto j) {
+                        forward_step_idx(j) = (i.value == j.value) ? scalar_per_access[i] : 0;
+                    });
+
+                    return make_tensor_coordinate_step(desc, forward_step_idx);
+                },
+                Number<nDim>{});
+        };
+
+        auto make_backward_steps = [&](auto desc) {
+            return generate_tuple(
+                [&](auto i) {
+                    Index backward_step_idx;
+
+                    static_for<0, nDim, 1>{}([&](auto j) {
+                        backward_step_idx(j) = (i.value == j.value) ? -scalar_per_access[i] : 0;
+                    });
+
+                    return make_tensor_coordinate_step(desc, backward_step_idx);
+                },
+                Number<nDim>{});
+        };
+
+        // make forward steps
+        const auto src0_forward_steps = make_forward_steps(src0_desc);
+        const auto src1_forward_steps = make_forward_steps(src1_desc);
+        const auto dst_forward_steps  = make_forward_steps(dst_desc);
+
+        // make backward steps
+        const auto src0_backward_steps = make_backward_steps(src0_desc);
+        const auto src1_backward_steps = make_backward_steps(src1_desc);
+        const auto dst_backward_steps  = make_backward_steps(dst_desc);
+
+        // loop over slice window
+        static_ford<decltype(ordered_access_lengths)>{}([&](auto ordered_access_idx) {
+            // judge move forward or move backward
+            constexpr auto forward_sweep = [&]() {
+                StaticallyIndexedArray<bool, nDim> forward_sweep_;
+
+                forward_sweep_(I0) = true;
+
+                static_for<1, nDim, 1>{}([&](auto i) {
+                    index_t tmp = ordered_access_idx[I0];
+
+                    static_for<1, i, 1>{}([&](auto j) {
+                        tmp = tmp * ordered_access_lengths[j] + ordered_access_idx[j];
+                    });
+
+                    forward_sweep_(i) = tmp % 2 == 0;
+                });
+
+                return forward_sweep_;
+            }();
+
             using src0_vector_type = vector_type_maker_t<Src0Data, ScalarPerVector>;
             using src0_vector_t    = typename src0_vector_type::type;
 
@@ -136,22 +197,65 @@ struct ThreadwiseTensorSliceTransfer_v6r2
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
             // copy data from dst_vector into dst_buf
-            dst_buf.template Update<DstInMemOp, dst_vector_t>(
-                dst_coord_.GetOffset(),
-                is_dst_valid,
-                dst_vector_container.template AsType<dst_vector_t>()[I0]);
+            if constexpr(DstInMemOp == InMemoryDataOperationEnum_t::Set)
+            {
+                dst_buf.template Set<dst_vector_t>(
+                    dst_coord_.GetOffset(),
+                    is_dst_valid,
+                    dst_vector_container.template AsType<dst_vector_t>()[I0]);
+            }
+            else if constexpr(DstInMemOp == InMemoryDataOperationEnum_t::AtomicAdd)
+            {
+                dst_buf.template AtomicAdd<dst_vector_t>(
+                    dst_coord_.GetOffset(),
+                    is_dst_valid,
+                    dst_vector_container.template AsType<dst_vector_t>()[I0]);
+            }
+
+            constexpr auto move_on_dim = [&]() constexpr
+            {
+                StaticallyIndexedArray<bool, nDim> move_on_dim_;
+
+                static_for<0, nDim, 1>{}([&](auto i) {
+                    move_on_dim_(i) = ordered_access_idx[i] < ordered_access_lengths[i] - 1;
+
+                    static_for<i + 1, nDim, 1>{}([&](auto j) {
+                        move_on_dim_(i) &= ordered_access_idx[j] == ordered_access_lengths[j] - 1;
+                    });
+                });
+
+                return move_on_dim_;
+            }
+            ();
 
             // move coordinate
-            if constexpr(idx_1d.value != num_accesses - 1)
-            {
-                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
-                move_tensor_coordinate(
-                    src0_desc, src0_coord_, make_tensor_coordinate_step(src0_desc, forward_step));
-                move_tensor_coordinate(
-                    src1_desc, src1_coord_, make_tensor_coordinate_step(src1_desc, forward_step));
-                move_tensor_coordinate(
-                    dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
-            }
+            static_for<0, nDim, 1>{}([&](auto i) {
+                if constexpr(move_on_dim[i])
+                {
+                    if constexpr(forward_sweep[i])
+                    {
+                        move_tensor_coordinate(
+                            src0_desc, src0_coord_, src0_forward_steps[dim_access_order[i]]);
+
+                        move_tensor_coordinate(
+                            src1_desc, src1_coord_, src1_forward_steps[dim_access_order[i]]);
+
+                        move_tensor_coordinate(
+                            dst_desc, dst_coord_, dst_forward_steps[dim_access_order[i]]);
+                    }
+                    else
+                    {
+                        move_tensor_coordinate(
+                            src0_desc, src0_coord_, src0_backward_steps[dim_access_order[i]]);
+
+                        move_tensor_coordinate(
+                            src1_desc, src1_coord_, src1_backward_steps[dim_access_order[i]]);
+
+                        move_tensor_coordinate(
+                            dst_desc, dst_coord_, dst_backward_steps[dim_access_order[i]]);
+                    }
+                }
+            });
         });
 
         // move coordinate back to slice origin (or not)
@@ -182,18 +286,59 @@ struct ThreadwiseTensorSliceTransfer_v6r2
 
     __device__ static constexpr auto GetCoordinateResetStep()
     {
+        // scalar per access on each dim
+        // TODO: don't use lambda_scalar_per_access
         constexpr auto scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<VectorDim, ScalarPerVector>{}, Number<nDim>{});
 
-        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
-                                                    DimAccessOrder,
-                                                    remove_cv_t<decltype(scalar_per_access)>>;
+        constexpr auto access_lengths = SliceLengths{} / scalar_per_access;
 
-        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
-        constexpr auto reset_step =
-            SpaceFillingCurve::GetStepBetween(Number<num_accesses - 1>{}, Number<0>{});
+        constexpr auto dim_access_order = DimAccessOrder{};
 
-        return reset_step;
+        constexpr auto ordered_access_lengths =
+            container_reorder_given_new2old(access_lengths, dim_access_order);
+
+        // judge move forward or move backward during the last iteration
+        constexpr auto forward_sweep = [&]() {
+            StaticallyIndexedArray<bool, nDim> forward_sweep_;
+
+            forward_sweep_(I0) = true;
+
+            static_for<1, nDim, 1>{}([&](auto i) {
+                index_t tmp = ordered_access_lengths[I0] - 1;
+
+                static_for<1, i, 1>{}([&](auto j) {
+                    tmp = tmp * ordered_access_lengths[j] + ordered_access_lengths[j] - 1;
+                });
+
+                forward_sweep_(i) = tmp % 2 == 0;
+            });
+
+            return forward_sweep_;
+        }();
+
+        // calculate data index after last iteration in Run(), if it has not being reset
+        constexpr auto data_idx = [&]() {
+            Index ordered_idx;
+
+            static_for<0, nDim, 1>{}([&](auto i) {
+                ordered_idx(i) = forward_sweep[i] ? ordered_access_lengths[i] - 1 : 0;
+            });
+
+            return container_reorder_given_old2new(ordered_idx, dim_access_order) *
+                   scalar_per_access;
+        }();
+
+        //
+        constexpr auto reset_data_step = [&]() {
+            Index reset_data_step_;
+
+            static_for<0, nDim, 1>{}([&](auto i) { reset_data_step_(i) = -data_idx[i]; });
+
+            return reset_data_step_;
+        }();
+
+        return reset_data_step;
     }
 
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
