@@ -25,12 +25,14 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
+using RequantReluRequant = ck::tensor_operation::element_wise::RequantReluRequant;
 
-using ADataType   = int8_t;
-using BDataType   = int8_t;
-using CDataType   = int8_t;
-using AccDataType = int32_t;
+using ADataType       = int8_t;
+using BDataType       = int8_t;
+using CDataType       = int8_t;
+using AccDataType     = int32_t;
+using ShuffleDataType = int32_t;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -42,12 +44,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     BDataType,              // BDataType
     CDataType,              // CDataType
     AccDataType,            // AccDataType
+    ShuffleDataType,        // ShuffleDataType
     ALayout,                // ALayout
     BLayout,                // BLayout
     CLayout,                // CLayout
     PassThrough,            // AElementwiseOperation
     PassThrough,            // BElementwiseOperation
-    PassThrough,            // CElementwiseOperation
+    RequantReluRequant,     // CElementwiseOperation
     256,                    // BlockSize
     256,                    // MPerBlock
     128,                    // NPerBlock
@@ -79,7 +82,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
+    ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, RequantReluRequant>;
 
 int main(int argc, char* argv[])
 {
@@ -95,6 +98,9 @@ int main(int argc, char* argv[])
     ck::index_t StrideA = 4096;
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
+
+    float scale_gemm = 0.03;
+    float scale_relu = 1;
 
     if(argc == 4)
     {
@@ -169,7 +175,7 @@ int main(int argc, char* argv[])
 
     auto a_element_op = PassThrough{};
     auto b_element_op = PassThrough{};
-    auto c_element_op = PassThrough{};
+    auto c_element_op = RequantReluRequant{scale_gemm, scale_relu};
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};

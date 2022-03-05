@@ -61,6 +61,7 @@ template <
     index_t BlockSize,
     typename FloatAB,
     typename FloatAcc,
+    typename ShuffleType,
     typename FloatC,
     InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
     typename AGridDesc_AK0_M_AK1,
@@ -202,7 +203,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
         return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
                              sizeof(FloatAB),
-                         c_block_size * sizeof(FloatC));
+                         c_block_size * sizeof(ShuffleType));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -565,8 +566,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             constexpr auto c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl =
                 GetCBlockDescriptor_MBlock_NXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl();
 
-            auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
-                static_cast<FloatC*>(p_shared),
+            auto shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+                static_cast<ShuffleType*>(p_shared),
                 c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl
                     .GetElementSpaceSize());
 
@@ -629,7 +630,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             // VGPR to LDS
             auto c_thread_copy_vgpr_to_lds =
                 ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
-                                                   FloatC,
+                                                   ShuffleType,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    ck::tensor_operation::element_wise::PassThrough,
@@ -670,7 +671,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                          NWave * NPerXdl>, // BlockSliceLengths,
                 CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
                 Sequence<0, 1, 2, 3, 4, 5>, // typename ThreadClusterArrangeOrder,
-                FloatC,                     // typename SrcData,
+                ShuffleType,                // typename SrcData,
                 FloatC,                     // typename DstData,
                 decltype(
                     c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl),
@@ -719,7 +720,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                         make_tuple(mxdlperwave, nxdlperwave, I0, I0, I0, I0, I0, I0),
                         c_thread_buf,
                         c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                        c_block_buf);
+                        shuffle_block_buf);
 
                     // make sure it's safe to do ds_read
                     block_sync_lds();
@@ -727,7 +728,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                     // LDS to global
                     c_block_copy_lds_to_global.Run(
                         c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl,
-                        c_block_buf,
+                        shuffle_block_buf,
                         c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl,
                         c_grid_buf);
 
