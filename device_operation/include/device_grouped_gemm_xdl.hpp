@@ -350,6 +350,11 @@ struct DeviceGroupedGemmXdl
                     std::cout << "group_id " << i << " BlockStart " << gemm_shapes(i).BlockStart
                               << " BlockSize " << gemm_shapes(i).BlockSize << std::endl;
                 }
+                else
+                {
+                    gemm_shapes(i).BlockStart = -1;
+                    gemm_shapes(i).BlockSize  = -1;
+                }
             });
 
             const auto K0 = arg.a_grid_desc_k0_m_k1_[Number<0>{}].GetLength(I0);
@@ -361,26 +366,18 @@ struct DeviceGroupedGemmXdl
 #if 1
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_grouped_gemm_xdlops_v2r3<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<
-                        StaticallyIndexedArray<DeviceGroupedGemmXdl::AGridDesc_K0_M_K1,
-                                               MaxGroupCount>>,
-                    remove_reference_t<
-                        StaticallyIndexedArray<DeviceGroupedGemmXdl::BGridDesc_K0_N_K1,
-                                               MaxGroupCount>>,
-                    remove_reference_t<StaticallyIndexedArray<
-                        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-                        MaxGroupCount>>,
-                    remove_reference_t<StaticallyIndexedArray<gemm_desc, MaxGroupCount>>,
+                    remove_reference_t<DeviceGroupedGemmXdl::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGroupedGemmXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<gemm_desc>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<
-                        StaticallyIndexedArray<typename GridwiseGemm::DefaultBlock2CTileMap,
-                                               MaxGroupCount>>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true,
                     MaxGroupCount>;
 
@@ -404,26 +401,18 @@ struct DeviceGroupedGemmXdl
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_grouped_gemm_xdlops_v2r3<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<
-                        StaticallyIndexedArray<DeviceGroupedGemmXdl::AGridDesc_K0_M_K1,
-                                               MaxGroupCount>>,
-                    remove_reference_t<
-                        StaticallyIndexedArray<DeviceGroupedGemmXdl::BGridDesc_K0_N_K1,
-                                               MaxGroupCount>>,
-                    remove_reference_t<StaticallyIndexedArray<
-                        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-                        MaxGroupCount>>,
-                    remove_reference_t<StaticallyIndexedArray<gemm_desc, MaxGroupCount>>,
+                    remove_reference_t<DeviceGroupedGemmXdl::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGroupedGemmXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<gemm_desc>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    remove_reference_t<
-                        StaticallyIndexedArray<typename GridwiseGemm::DefaultBlock2CTileMap,
-                                               MaxGroupCount>>,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false,
                     MaxGroupCount>;
 

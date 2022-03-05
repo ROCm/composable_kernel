@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    int group_count = 2;
+    int group_count = 3;
 
     // GEMM shape
     std::vector<ck::gemm_desc> gemm_shapes;
@@ -85,11 +85,11 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < group_count; i++)
     {
-        int M = 256 * (i + 1);
-        int N = 512 * (i + 1);
-        int K = 1024 * (i + 1);
+        int M = 2048 + 256 * i;
+        int N = 2048 + 128 * i;
+        int K = 256 + 128 * i;
 
-        gemm_shapes.push_back({M, N, K, K, K, N, A_size, B_size, C_size, 0, 0});
+        gemm_shapes.push_back({M, N, K, K, K, N, A_size, B_size, C_size, -1, -1});
 
         A_size += M * K;
         B_size += N * K;
@@ -115,6 +115,8 @@ int main(int argc, char* argv[])
     std::vector<Tensor<CDataType>> c_host_tensors;
     std::vector<Tensor<CDataType>> c_device_tensors;
 
+    std::size_t flop = 0, num_btype = 0;
+
     for(int i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
@@ -129,6 +131,11 @@ int main(int argc, char* argv[])
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc
                   << std::endl;
+
+        flop += std::size_t(2) * gemm_shapes[i].M * gemm_shapes[i].K * gemm_shapes[i].N;
+        num_btype += sizeof(ADataType) * gemm_shapes[i].M * gemm_shapes[i].K +
+                     sizeof(BDataType) * gemm_shapes[i].K * gemm_shapes[i].N +
+                     sizeof(CDataType) * gemm_shapes[i].M * gemm_shapes[i].N;
     }
 
     for(int i = 0; i < gemm_shapes.size(); i++)
@@ -191,6 +198,13 @@ int main(int argc, char* argv[])
     }
 
     float ave_time = invoker.Run(argument, nrepeat);
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << gemm.GetTypeString() << std::endl;
 
     c_tensors_data.resize(C_size);
 

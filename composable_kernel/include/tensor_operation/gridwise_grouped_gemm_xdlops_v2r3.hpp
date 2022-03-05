@@ -29,19 +29,20 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r3(
+        kernel_grouped_gemm_xdlops_v2r3(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
-            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-            const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            const GemmDesc gemm_shapes,
+            const StaticallyIndexedArray<AGridDesc_K0_M_K1, MaxGroupCount> a_grid_desc_k0_m_k1,
+            const StaticallyIndexedArray<BGridDesc_K0_N_K1, MaxGroupCount> b_grid_desc_k0_n_k1,
+            const StaticallyIndexedArray<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2, MaxGroupCount>
+                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+            const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_shapes,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
-            const Block2CTileMap block_2_ctile_map)
+            const StaticallyIndexedArray<Block2CTileMap, MaxGroupCount> block_2_ctile_map)
 {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -54,60 +55,122 @@ __global__ void
     index_t c_offset_grp = 0;
 
     static_for<0, MaxGroupCount, 1>{}([&](auto i) {
-        if(i < group_count)
+        if(block_id >= gemm_shapes[i].BlockStart &&
+           block_id < (gemm_shapes[i].BlockStart + gemm_shapes[i].BlockSize))
         {
-            if(block_id >= gemm_shapes[i].BlockStart &&
-               block_id < (gemm_shapes[i].BlockStart + gemm_shapes[i].BlockSize))
-            {
-                group_id     = i;
-                block_id_grp = block_id - gemm_shapes[i].BlockStart;
-                a_offset_grp = gemm_shapes[i].OffsetA;
-                b_offset_grp = gemm_shapes[i].OffsetB;
-                c_offset_grp = gemm_shapes[i].OffsetC;
+            group_id     = i;
+            block_id_grp = block_id - gemm_shapes[i].BlockStart;
+            a_offset_grp = gemm_shapes[i].OffsetA;
+            b_offset_grp = gemm_shapes[i].OffsetB;
+            c_offset_grp = gemm_shapes[i].OffsetC;
 
-                // if(get_thread_local_1d_id() == 0)
-                // printf("%d %d %d %d %d %d\n",
-                // block_id,
-                // group_id,
-                // block_id_grp,
-                // a_offset_grp,
-                // b_offset_grp,
-                // c_offset_grp);
-            }
+            GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
+                                                           p_b_grid + b_offset_grp,
+                                                           p_c_grid + c_offset_grp,
+                                                           p_shared,
+                                                           a_grid_desc_k0_m_k1[i],
+                                                           b_grid_desc_k0_n_k1[i],
+                                                           c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[i],
+                                                           a_element_op,
+                                                           b_element_op,
+                                                           c_element_op,
+                                                           block_2_ctile_map[i],
+                                                           block_id_grp);
+
+            // if(get_thread_local_1d_id() == 0)
+            // printf("%d %d %d %d %d %d\n",
+            // block_id,
+            // group_id,
+            // block_id_grp,
+            // a_offset_grp,
+            // b_offset_grp,
+            // c_offset_grp);
         }
     });
+}
 
-    constexpr auto I0 = Number<0>{};
-    constexpr auto I1 = Number<1>{};
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename AGridDesc_K0_M_K1,
+          typename BGridDesc_K0_N_K1,
+          typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename GemmDesc,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename Block2CTileMap,
+          bool HasMainK0BlockLoop,
+          index_t MaxGroupCount>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_grouped_gemm_xdlops_v2r4(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            const StaticallyIndexedArray<AGridDesc_K0_M_K1, MaxGroupCount> a_grid_desc_k0_m_k1,
+            const StaticallyIndexedArray<BGridDesc_K0_N_K1, MaxGroupCount> b_grid_desc_k0_n_k1,
+            const StaticallyIndexedArray<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2, MaxGroupCount>
+                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+            const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_shapes,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const StaticallyIndexedArray<Block2CTileMap, MaxGroupCount> block_2_ctile_map)
+{
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    if(group_id == 0)
-        GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
-                                                       p_b_grid + b_offset_grp,
-                                                       p_c_grid + c_offset_grp,
-                                                       p_shared,
-                                                       a_grid_desc_k0_m_k1[I0],
-                                                       b_grid_desc_k0_n_k1[I0],
-                                                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[I0],
-                                                       a_element_op,
-                                                       b_element_op,
-                                                       c_element_op,
-                                                       block_2_ctile_map[I0],
-                                                       block_id_grp,
-                                                       group_id);
-    else if(group_id == 1)
-        GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
-                                                       p_b_grid + b_offset_grp,
-                                                       p_c_grid + c_offset_grp,
-                                                       p_shared,
-                                                       a_grid_desc_k0_m_k1[I1],
-                                                       b_grid_desc_k0_n_k1[I1],
-                                                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[I1],
-                                                       a_element_op,
-                                                       b_element_op,
-                                                       c_element_op,
-                                                       block_2_ctile_map[I1],
-                                                       block_id_grp,
-                                                       group_id);
+    const index_t block_id = get_block_1d_id();
+
+    __shared__ AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_[MaxGroupCount];
+    __shared__ BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_[MaxGroupCount];
+    __shared__ CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
+        c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[MaxGroupCount];
+    __shared__ Block2CTileMap block_2_ctile_map_[MaxGroupCount];
+    __shared__ GemmDesc gemm_shapes_[MaxGroupCount];
+
+    if(get_thread_local_1d_id())
+    {
+        static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+            a_grid_desc_k0_m_k1_[i]                 = a_grid_desc_k0_m_k1[i];
+            b_grid_desc_k0_n_k1_[i]                 = b_grid_desc_k0_n_k1[i];
+            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[i] = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[i];
+            block_2_ctile_map_[i]                   = block_2_ctile_map[i];
+            gemm_shapes_[i]                         = gemm_shapes[i];
+        });
+    }
+
+    block_sync_lds();
+
+    index_t group_id = 0;
+
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        group_id = (block_id >= gemm_shapes[i].BlockStart &&
+                    block_id < (gemm_shapes[i].BlockStart + gemm_shapes[i].BlockSize))
+                       ? i
+                       : group_id;
+    });
+
+    const index_t block_id_grp = block_id - gemm_shapes_[group_id].BlockStart;
+    const index_t a_offset_grp = gemm_shapes_[group_id].OffsetA;
+    const index_t b_offset_grp = gemm_shapes_[group_id].OffsetB;
+    const index_t c_offset_grp = gemm_shapes_[group_id].OffsetC;
+
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
+                                                   p_b_grid + b_offset_grp,
+                                                   p_c_grid + c_offset_grp,
+                                                   p_shared,
+                                                   a_grid_desc_k0_m_k1_[group_id],
+                                                   b_grid_desc_k0_n_k1_[group_id],
+                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_[group_id],
+                                                   a_element_op,
+                                                   b_element_op,
+                                                   c_element_op,
+                                                   block_2_ctile_map_[group_id],
+                                                   block_id_grp);
 }
 
 template <index_t BlockSize,
@@ -407,8 +470,7 @@ struct GridwiseGroupedGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const BElementwiseOperation& b_element_op,
         const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map,
-        const index_t block_id,
-        const index_t group_id)
+        const index_t block_id)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
