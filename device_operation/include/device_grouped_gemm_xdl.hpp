@@ -223,6 +223,20 @@ struct DeviceGroupedGemmXdl
         CThreadTransferDstScalarPerVector,
         NumPrefetch>;
 
+    struct GemmDesc
+    {
+        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
+        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
+        CGridDesc_M_N c_grid_desc_m_n_;
+
+        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
+            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+
+        ck::index_t OffsetA, OffsetB, OffsetC;
+        ck::index_t BlockStart, BlockEnd;
+    };
+
     // Argument
     struct Argument : public BaseArgument
     {
@@ -246,6 +260,8 @@ struct DeviceGroupedGemmXdl
               c_element_op_{c_element_op}
         {
 
+            grid_size = 0;
+
             static_for<0, MaxGroupCount, 1>{}([&](auto i) {
                 if(i < gemm_shapes_.size())
                 {
@@ -257,26 +273,43 @@ struct DeviceGroupedGemmXdl
                     const index_t StrideB = gemm_shapes_[i].StrideB;
                     const index_t StrideC = gemm_shapes_[i].StrideC;
 
-                    a_grid_desc_k0_m_k1_(i) =
+                    gemm_desc_(i).a_grid_desc_k0_m_k1_ =
                         DeviceGroupedGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-                    b_grid_desc_k0_n_k1_(i) =
+                    gemm_desc_(i).b_grid_desc_k0_n_k1_ =
                         DeviceGroupedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-                    c_grid_desc_m_n_(i) =
+                    gemm_desc_(i).c_grid_desc_m_n_ =
                         DeviceGroupedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
-                    if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_[i],
-                                                   b_grid_desc_k0_n_k1_[i],
-                                                   c_grid_desc_m_n_[i],
+                    const index_t grid_size_grp =
+                        GridwiseGemm::CalculateGridSize(gemm_desc_[i].c_grid_desc_m_n_);
+
+                    gemm_desc_(i).BlockStart = grid_size;
+                    gemm_desc_(i).BlockEnd   = grid_size + grid_size_grp;
+
+                    grid_size += grid_size_grp;
+
+                    gemm_desc_(i).OffsetA = gemm_shapes_[i].OffsetA;
+                    gemm_desc_(i).OffsetB = gemm_shapes_[i].OffsetB;
+                    gemm_desc_(i).OffsetC = gemm_shapes_[i].OffsetC;
+
+                    if(GridwiseGemm::CheckValidity(gemm_desc_[i].a_grid_desc_k0_m_k1_,
+                                                   gemm_desc_[i].b_grid_desc_k0_n_k1_,
+                                                   gemm_desc_[i].c_grid_desc_m_n_,
                                                    M01_,
                                                    N01_))
                     {
-                        c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_(i) =
+                        gemm_desc_(i).c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
-                                c_grid_desc_m_n_[i]);
+                                gemm_desc_[i].c_grid_desc_m_n_);
 
-                        block_2_ctile_map_(i) =
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_[i], M01, N01);
+                        gemm_desc_(i).block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(
+                            gemm_desc_[i].c_grid_desc_m_n_, M01, N01);
                     }
+                }
+                else
+                {
+                    gemm_desc_(i).BlockStart = -1;
+                    gemm_desc_(i).BlockEnd   = -1;
                 }
             });
         }
@@ -285,20 +318,16 @@ struct DeviceGroupedGemmXdl
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        StaticallyIndexedArray<AGridDesc_K0_M_K1, MaxGroupCount> a_grid_desc_k0_m_k1_;
-        StaticallyIndexedArray<BGridDesc_K0_N_K1, MaxGroupCount> b_grid_desc_k0_n_k1_;
-        StaticallyIndexedArray<CGridDesc_M_N, MaxGroupCount> c_grid_desc_m_n_;
-        StaticallyIndexedArray<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
-                               MaxGroupCount>
-            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        StaticallyIndexedArray<typename GridwiseGemm::DefaultBlock2CTileMap, MaxGroupCount>
-            block_2_ctile_map_;
         std::vector<gemm_desc> gemm_shapes_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+
+        StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_desc_;
+
+        index_t grid_size;
     };
 
     // Invoker
@@ -308,134 +337,102 @@ struct DeviceGroupedGemmXdl
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            StaticallyIndexedArray<gemm_desc, MaxGroupCount> gemm_shapes;
-
-            index_t grid_size = 0;
-
             static_for<0, MaxGroupCount, 1>{}([&](auto i) {
                 if(i < arg.gemm_shapes_.size())
                 {
                     std::cout << "arg.a_grid_desc_k0_m_k1_{"
-                              << arg.a_grid_desc_k0_m_k1_[i].GetLength(I0) << ", "
-                              << arg.a_grid_desc_k0_m_k1_[i].GetLength(I1) << ", "
-                              << arg.a_grid_desc_k0_m_k1_[i].GetLength(I2) << "}" << std::endl;
+                              << arg.gemm_desc_[i].a_grid_desc_k0_m_k1_.GetLength(I0) << ", "
+                              << arg.gemm_desc_[i].a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
+                              << arg.gemm_desc_[i].a_grid_desc_k0_m_k1_.GetLength(I2) << "}"
+                              << std::endl;
 
                     std::cout << "arg.b_grid_desc_k0_n_k1_{"
-                              << arg.b_grid_desc_k0_n_k1_[i].GetLength(I0) << ", "
-                              << arg.b_grid_desc_k0_n_k1_[i].GetLength(I1) << ", "
-                              << arg.b_grid_desc_k0_n_k1_[i].GetLength(I2) << "}" << std::endl;
+                              << arg.gemm_desc_[i].b_grid_desc_k0_n_k1_.GetLength(I0) << ", "
+                              << arg.gemm_desc_[i].b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
+                              << arg.gemm_desc_[i].b_grid_desc_k0_n_k1_.GetLength(I2) << "}"
+                              << std::endl;
 
-                    std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_[i].GetLength(I0)
-                              << ", " << arg.c_grid_desc_m_n_[i].GetLength(I1) << "}" << std::endl;
+                    std::cout << "arg.c_grid_desc_m_n_{ "
+                              << arg.gemm_desc_[i].c_grid_desc_m_n_.GetLength(I0) << ", "
+                              << arg.gemm_desc_[i].c_grid_desc_m_n_.GetLength(I1) << "}"
+                              << std::endl;
 
-                    if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_[i],
-                                                    arg.b_grid_desc_k0_n_k1_[i],
-                                                    arg.c_grid_desc_m_n_[i],
+                    std::cout << "Block: " << arg.gemm_desc_[i].BlockStart << ", "
+                              << arg.gemm_desc_[i].BlockEnd << std::endl;
+
+                    if(!GridwiseGemm::CheckValidity(arg.gemm_desc_[i].a_grid_desc_k0_m_k1_,
+                                                    arg.gemm_desc_[i].b_grid_desc_k0_n_k1_,
+                                                    arg.gemm_desc_[i].c_grid_desc_m_n_,
                                                     arg.M01_,
                                                     arg.N01_))
                     {
                         throw std::runtime_error(
                             "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
                     }
-
-                    const index_t grid_size_grp =
-                        GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_[i]);
-
-                    gemm_shapes(i)            = arg.gemm_shapes_[i];
-                    gemm_shapes(i).BlockStart = grid_size;
-                    gemm_shapes(i).BlockSize  = grid_size_grp;
-
-                    grid_size += grid_size_grp;
-
-                    std::cout << "group_id " << i << " BlockStart " << gemm_shapes(i).BlockStart
-                              << " BlockSize " << gemm_shapes(i).BlockSize << std::endl;
-                }
-                else
-                {
-                    gemm_shapes(i).BlockStart = -1;
-                    gemm_shapes(i).BlockSize  = -1;
                 }
             });
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_[Number<0>{}].GetLength(I0);
+            const auto K0 = arg.gemm_desc_[I0].a_grid_desc_k0_m_k1_.GetLength(I0);
 
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
             float ave_time = 0;
 
-#if 1
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_grouped_gemm_xdlops_v2r3<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGroupedGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGroupedGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<gemm_desc>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    true,
-                    MaxGroupCount>;
+                const auto kernel =
+                    kernel_grouped_gemm_xdlops_v2r3<GridwiseGemm,
+                                                    ADataType, // TODO: distiguish A/B datatype
+                                                    CDataType,
+                                                    remove_reference_t<GemmDesc>,
+                                                    AElementwiseOperation,
+                                                    BElementwiseOperation,
+                                                    CElementwiseOperation,
+                                                    true,
+                                                    MaxGroupCount>;
 
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
-                                                  dim3(grid_size),
+                                                  dim3(arg.grid_size),
                                                   dim3(BlockSize),
                                                   0,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  gemm_shapes,
+                                                  arg.gemm_desc_,
                                                   arg.gemm_shapes_.size(),
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                                                  arg.c_element_op_);
             }
             else
             {
-                const auto kernel = kernel_grouped_gemm_xdlops_v2r3<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGroupedGemmXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGroupedGemmXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                    remove_reference_t<gemm_desc>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    false,
-                    MaxGroupCount>;
+                const auto kernel =
+                    kernel_grouped_gemm_xdlops_v2r3<GridwiseGemm,
+                                                    ADataType, // TODO: distiguish A/B datatype
+                                                    CDataType,
+                                                    remove_reference_t<GemmDesc>,
+                                                    AElementwiseOperation,
+                                                    BElementwiseOperation,
+                                                    CElementwiseOperation,
+                                                    false,
+                                                    MaxGroupCount>;
 
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
-                                                  dim3(grid_size),
+                                                  dim3(arg.grid_size),
                                                   dim3(BlockSize),
                                                   0,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  gemm_shapes,
+                                                  arg.gemm_desc_,
                                                   arg.gemm_shapes_.size(),
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                                                  arg.c_element_op_);
             }
 
-#endif
             return ave_time;
         }
 
@@ -454,9 +451,9 @@ struct DeviceGroupedGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_[Number<0>{}],
-                                           arg.b_grid_desc_k0_n_k1_[Number<0>{}],
-                                           arg.c_grid_desc_m_n_[Number<0>{}],
+        return GridwiseGemm::CheckValidity(arg.gemm_desc_[Number<0>{}].a_grid_desc_k0_m_k1_,
+                                           arg.gemm_desc_[Number<0>{}].b_grid_desc_k0_n_k1_,
+                                           arg.gemm_desc_[Number<0>{}].c_grid_desc_m_n_,
                                            arg.M01_,
                                            arg.N01_);
     }

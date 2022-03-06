@@ -15,14 +15,10 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename AGridDesc_K0_M_K1,
-          typename BGridDesc_K0_N_K1,
-          typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
           typename GemmDesc,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename Block2CTileMap,
           bool HasMainK0BlockLoop,
           index_t MaxGroupCount>
 __global__ void
@@ -33,49 +29,43 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            const StaticallyIndexedArray<AGridDesc_K0_M_K1, MaxGroupCount> a_grid_desc_k0_m_k1,
-            const StaticallyIndexedArray<BGridDesc_K0_N_K1, MaxGroupCount> b_grid_desc_k0_n_k1,
-            const StaticallyIndexedArray<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2, MaxGroupCount>
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_shapes,
+            const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_desc_,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
-            const StaticallyIndexedArray<Block2CTileMap, MaxGroupCount> block_2_ctile_map)
+            const CElementwiseOperation c_element_op)
 {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
 
     static_for<0, MaxGroupCount, 1>{}([&](auto i) {
-        if(block_id >= gemm_shapes[i].BlockStart &&
-           block_id < (gemm_shapes[i].BlockStart + gemm_shapes[i].BlockSize))
+        if(block_id >= gemm_desc_[i].BlockStart && block_id < gemm_desc_[i].BlockEnd)
         {
             const index_t group_id     = i;
-            const index_t block_id_grp = block_id - gemm_shapes[i].BlockStart;
-            const index_t a_offset_grp = gemm_shapes[i].OffsetA;
-            const index_t b_offset_grp = gemm_shapes[i].OffsetB;
-            const index_t c_offset_grp = gemm_shapes[i].OffsetC;
+            const index_t block_id_grp = block_id - gemm_desc_[i].BlockStart;
+            const index_t a_offset_grp = gemm_desc_[i].OffsetA;
+            const index_t b_offset_grp = gemm_desc_[i].OffsetB;
+            const index_t c_offset_grp = gemm_desc_[i].OffsetC;
 
-            GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_offset_grp,
-                                                           p_b_grid + b_offset_grp,
-                                                           p_c_grid + c_offset_grp,
-                                                           p_shared,
-                                                           a_grid_desc_k0_m_k1[i],
-                                                           b_grid_desc_k0_n_k1[i],
-                                                           c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2[i],
-                                                           a_element_op,
-                                                           b_element_op,
-                                                           c_element_op,
-                                                           block_2_ctile_map[i],
-                                                           block_id_grp);
-
-            return;
+            GridwiseGemm::template Run<HasMainK0BlockLoop>(
+                p_a_grid + a_offset_grp,
+                p_b_grid + b_offset_grp,
+                p_c_grid + c_offset_grp,
+                p_shared,
+                gemm_desc_[i].a_grid_desc_k0_m_k1_,
+                gemm_desc_[i].b_grid_desc_k0_n_k1_,
+                gemm_desc_[i].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                a_element_op,
+                b_element_op,
+                c_element_op,
+                gemm_desc_[i].block_2_ctile_map_,
+                block_id_grp);
         }
     });
 }
 
+#if 0
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
@@ -159,6 +149,7 @@ __global__ void
                                                    block_2_ctile_map_[group_id],
                                                    block_id_grp);
 }
+#endif
 
 template <index_t BlockSize,
           typename FloatAB,
