@@ -17,8 +17,8 @@ namespace device {
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
-          int Rank,
-          typename ReduceDims,
+          index_t Rank,
+          index_t NumReduceDims,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -41,7 +41,12 @@ struct DeviceReduceMultiBlockAtomicAdd
 
     using IndexDataType = int32_t;
 
-    using InvariantDims = decltype(get_invariant_dims<Rank, ReduceDims>());
+    static constexpr index_t NumInvariantDims = Rank - NumReduceDims;
+    using InvariantDims =
+        typename conditional<NumInvariantDims == 0,
+                             Sequence<>,
+                             typename arithmetic_sequence_gen<0, NumInvariantDims, 1>::type>::type;
+    using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDims, Rank, 1>::type;
 
     static constexpr index_t srcDims    = Rank;
     static constexpr index_t dstDims    = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
@@ -147,6 +152,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                  const std::vector<int>& inStrides,
                  const std::vector<int>& outLengths,
                  const std::vector<int>& outStrides,
+                 const std::vector<int>& toReduceDims,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
@@ -160,10 +166,11 @@ struct DeviceReduceMultiBlockAtomicAdd
             (void)out_indices_dev;
             (void)workspace_dev;
 
-            inLengths_  = inLengths;
-            inStrides_  = inStrides;
             outLengths_ = outLengths;
             outStrides_ = outStrides;
+
+            std::tie(inLengths_, inStrides_) =
+                shuffle_tensor_dimensions<Rank, NumReduceDims>(inLengths, inStrides, toReduceDims);
 
             in_elementwise_op_  = in_elementwise_op;
             acc_elementwise_op_ = acc_elementwise_op;
@@ -172,14 +179,14 @@ struct DeviceReduceMultiBlockAtomicAdd
             beta_  = static_cast<OutDataType>(beta);
 
             std::tie(invariant_total_length, reduce_total_length) =
-                get_2d_lengths<Rank, ReduceDims>(inLengths);
+                get_2d_lengths<Rank, ReduceDims>(inLengths_);
 
             if constexpr(InvariantDims::Size() == 0)
                 invariant_lowest_length = 1;
             else
-                invariant_lowest_length = inLengths[InvariantDims::At(InvariantDims::Size() - 1)];
+                invariant_lowest_length = inLengths_[InvariantDims::At(InvariantDims::Size() - 1)];
 
-            reduce_lowest_length = inLengths[ReduceDims::At(ReduceDims::Size() - 1)];
+            reduce_lowest_length = inLengths_[ReduceDims::At(ReduceDims::Size() - 1)];
 
             int iterations = 1;
             while(true)
@@ -369,6 +376,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                         const std::vector<int>& inStrides,
                         const std::vector<int>& outLengths,
                         const std::vector<int>& outStrides,
+                        const std::vector<int>& toReduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
@@ -382,6 +390,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                                           inStrides,
                                           outLengths,
                                           outStrides,
+                                          toReduceDims,
                                           alpha,
                                           beta,
                                           static_cast<const InDataType*>(in_dev),

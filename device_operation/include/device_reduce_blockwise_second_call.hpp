@@ -15,8 +15,8 @@ namespace device {
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
-          int Rank,
-          typename ReduceDims,
+          index_t Rank,
+          index_t NumReduceDims,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -45,7 +45,8 @@ struct DeviceReduceBlockWiseSecondCall
         std::is_same<InDataType, AccDataType>::value,
         "InDataType and AccDataType should be the same to use DEviceReduceBlockWiseSecondCall!");
 
-    using InvariantDims = decltype(get_invariant_dims<Rank, ReduceDims>());
+    static constexpr index_t NumInvariantDims = Rank - NumReduceDims;
+    using InvariantDims = typename conditional<NumInvariantDims == 0,  Sequence<>, typename arithmetic_sequence_gen<0, NumInvariantDims, 1>::type >::type;
 
     static constexpr index_t dstDims = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
 
@@ -268,6 +269,7 @@ struct DeviceReduceBlockWiseSecondCall
                         const std::vector<int>& inStrides,
                         const std::vector<int>& outLengths,
                         const std::vector<int>& outStrides,
+                        const std::vector<int>& toReduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
@@ -277,6 +279,8 @@ struct DeviceReduceBlockWiseSecondCall
                         const InElementwiseOperation& in_elementwise_op,
                         const AccElementwiseOperation& acc_elementwise_op) override
     {
+        (void) toReduceDims; 
+
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           outLengths,
