@@ -21,7 +21,7 @@ NREPEAT=$3
 
 
 #### 0 - ADD,  5 - AVG,  7 - NORM2
-Operations=7
+Operations="0 5 7"
 
 #### 0 - ADD,  5 - AVG,    for int8, no NORM2 supported
 if test -n $PRECISION && test "$PRECISION" = "--int8"; then

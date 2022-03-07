@@ -12,7 +12,7 @@ INIT=$2
 NREPEAT=$3
 
 #### 2 - MIN,  3 - MAX,  4 - AMAX
-Operations=4
+Operations="2 4"
 
 ## for generic validation
 for op in $Operations; do
@@ -34,6 +34,8 @@ for op in $Operations; do
         set +x
     done
 done
+
+Operations=2
 
 ## for performance evaluation (resnet50 NHWC => C)
 for op in $Operations; do
