@@ -239,6 +239,24 @@ struct UnaryIdentic<int32_t, int32_t, false>
     __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x; };
 };
 
+template <>
+struct UnaryIdentic<int32_t, int32_t, true>
+{
+    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { divider_ = divider; };
+
+    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x / divider_; };
+
+    int32_t divider_ = 1;
+};
+
+template <>
+struct UnaryIdentic<int8_t, int8_t, false>
+{
+    __host__ __device__ UnaryIdentic(const int8_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; };
+};
+
 template <typename Y, typename X, bool HasDividing = false>
 struct UnarySquare;
 
@@ -309,6 +327,19 @@ struct UnaryAbs<double, double>
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
     __host__ __device__ void operator()(double& y, const double& x) const { y = abs(x); };
+};
+
+template <>
+struct UnaryAbs<int8_t, int8_t>
+{
+    __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const
+    {
+        int8_t sgn = x >> (8 - 1);
+
+        y = (x ^ sgn) - sgn;
+    };
 };
 
 template <typename Y, typename X>

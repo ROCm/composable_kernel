@@ -3,9 +3,12 @@
 PRECISION=
 ##PRECISION=--half
 ##PRECISION=--double
+##PRECISION=--int8
 
-if test -n $PRECISION && test "$PRECISION" = "--half"; then 
+if test -n $PRECISION && test "$PRECISION" = "--half"; then
    ACCTYPE="-C 1"
+elif test -n $PRECISION && test "$PRECISION" = "--int8"; then
+   ACCTYPE="-C 2"
 else
    ACCTYPE=""
 fi
@@ -19,6 +22,11 @@ NREPEAT=$3
 
 #### 0 - ADD,  5 - AVG,  7 - NORM2
 Operations=7
+
+#### 0 - ADD,  5 - AVG,    for int8, no NORM2 supported
+if test -n $PRECISION && test "$PRECISION" = "--int8"; then
+   Operations=5
+fi
 
 ## for generic validation
 for op in $Operations; do
@@ -39,7 +47,7 @@ for op in $Operations; do
     set +x
 done
 
-#### 0 - ADD,  5 - AVG,  7 - NORM2
+#### 0 - ADD,  5 - AVG
 Operation=5
 
 ## for performance evaluation (resnet50 NHWC => C)

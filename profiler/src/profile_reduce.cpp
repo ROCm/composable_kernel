@@ -34,6 +34,7 @@ static struct option long_options[] = {{"inLengths", required_argument, nullptr,
                                        {"scales", required_argument, nullptr, 'S'},
                                        {"half", no_argument, nullptr, '?'},
                                        {"double", no_argument, nullptr, '?'},
+                                       {"int8", no_argument, nullptr, '?'},
                                        {"dumpout", required_argument, nullptr, 'o'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"log", required_argument, nullptr, 'l'},
@@ -119,6 +120,7 @@ class AppArgs
     public:
     bool use_half   = false;
     bool use_double = false;
+    bool use_int8   = false;
 
     std::vector<size_t> inLengths;
     std::vector<size_t> outLengths;
@@ -169,6 +171,7 @@ class AppArgs
                   << std::endl;
         std::cout << "--half, use fp16 for the input and output tensor data types" << std::endl;
         std::cout << "--double, use fp64 for the input and output tensor data types" << std::endl;
+        std::cout << "--int8, use int8 for the input and output tensor data types" << std::endl;
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
                      "comparing with the host-based reduction"
                   << std::endl;
@@ -267,6 +270,8 @@ class AppArgs
                     use_half = true;
                 else if(std::string(long_options[option_index].name) == "double")
                     use_double = true;
+                else if(std::string(long_options[option_index].name) == "int8")
+                    use_int8 = true;
                 else if(std::string(long_options[option_index].name) == "help")
                 {
                     show_usage(argv[0]);
@@ -384,6 +389,50 @@ int profile_reduce(int argc, char* argv[])
                                                     args.indicesOpt,
                                                     args.scales[0],
                                                     args.scales[1]);
+    }
+    else if(args.use_int8)
+    {
+        if(!args.compType_assigned)
+            args.compTypeId = appInt8;
+
+        if(args.outType_assigned && (args.outTypeId != appInt8 && args.outTypeId != appInt32))
+            args.outTypeId = appInt32;
+
+        if(!args.outType_assigned)
+            args.outTypeId = appInt8;
+
+        if(args.compTypeId == appInt8)
+        {
+            profile_reduce_impl<int8_t, int8_t, int8_t>(args.do_verification,
+                                                        args.init_method,
+                                                        args.do_log,
+                                                        args.do_dumpout,
+                                                        args.nrepeat,
+                                                        args.inLengths,
+                                                        args.toReduceDims,
+                                                        args.reduceOp,
+                                                        args.nanOpt,
+                                                        args.indicesOpt,
+                                                        args.scales[0],
+                                                        args.scales[1]);
+        }
+        else if(args.compTypeId == appInt32)
+        {
+            profile_reduce_impl<int8_t, int32_t, int8_t>(args.do_verification,
+                                                         args.init_method,
+                                                         args.do_log,
+                                                         args.do_dumpout,
+                                                         args.nrepeat,
+                                                         args.inLengths,
+                                                         args.toReduceDims,
+                                                         args.reduceOp,
+                                                         args.nanOpt,
+                                                         args.indicesOpt,
+                                                         args.scales[0],
+                                                         args.scales[1]);
+        }
+        else
+            throw std::runtime_error("Invalid compType assignment!");
     }
     else
     {

@@ -187,7 +187,22 @@ void profile_reduce_impl_impl(bool do_verification,
     constexpr bool invalid_reduce_3 =
         (!op_support_indices && IndicesOpt != ReduceTensorIndices_t::NO_INDICES);
 
-    constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3);
+    // 1) If InDataType is int8_t, must use int8_t as AccDataType for indexable reduction operations
+    // 2) If InDataType is int8_t, must use int32_t as AccDataType for non-indexable reduction
+    // operations
+    constexpr bool invalid_reduce_4 =
+        std::is_same<InDataType, int8_t>::value &&
+        ((!op_support_indices && !std::is_same<AccDataType, int32_t>::value) ||
+         (op_support_indices && !std::is_same<AccDataType, int8_t>::value));
+
+    // 1) If InDataType is int8_t, the supported operation must be either indexable operations or
+    // ADD/AVG
+    constexpr bool invalid_reduce_5 = std::is_same<InDataType, int8_t>::value &&
+                                      (!op_support_indices && ReduceOpId != ReduceTensorOp_t::ADD &&
+                                       ReduceOpId != ReduceTensorOp_t::AVG);
+
+    constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 ||
+                                     invalid_reduce_4 || invalid_reduce_5);
 
     if constexpr(!invalid_reduce)
     {
@@ -367,20 +382,23 @@ void profile_reduce_impl_impl(bool do_verification,
 
             DeviceMem ws_dev(wsSizeInBytes);
 
-            auto argument_ptr = reduce_ptr->MakeArgumentPointer(
-                i_inLengths,
-                i_inStrides,
-                i_outLengths,
-                i_outStrides,
-                toReduceDims,
-                alpha,
-                beta,
-                in_dev.GetDeviceBuffer(),
-                out_dev.GetDeviceBuffer(),
-                out_indices_dev.GetDeviceBuffer(),
-                ws_dev.GetDeviceBuffer(),
-                InElementwiseOperation_0{static_cast<int32_t>(reduce_total_length)},
-                AccElementwiseOperation_0{static_cast<int32_t>(reduce_total_length)});
+            InElementwiseOperation_0 in_elementwise_op_0(static_cast<int32_t>(reduce_total_length));
+            AccElementwiseOperation_0 acc_elementwise_op_0(
+                static_cast<int32_t>(reduce_total_length));
+
+            auto argument_ptr = reduce_ptr->MakeArgumentPointer(i_inLengths,
+                                                                i_inStrides,
+                                                                i_outLengths,
+                                                                i_outStrides,
+                                                                toReduceDims,
+                                                                alpha,
+                                                                beta,
+                                                                in_dev.GetDeviceBuffer(),
+                                                                out_dev.GetDeviceBuffer(),
+                                                                out_indices_dev.GetDeviceBuffer(),
+                                                                ws_dev.GetDeviceBuffer(),
+                                                                in_elementwise_op_0,
+                                                                acc_elementwise_op_0);
 
             if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
                 continue;
@@ -449,20 +467,23 @@ void profile_reduce_impl_impl(bool do_verification,
 
             DeviceMem ws_dev(wsSizeInBytes);
 
-            auto argument_ptr = reduce_ptr->MakeArgumentPointer(
-                i_inLengths,
-                i_inStrides,
-                i_outLengths,
-                i_outStrides,
-                toReduceDims,
-                alpha,
-                beta,
-                in_dev.GetDeviceBuffer(),
-                out_dev.GetDeviceBuffer(),
-                out_indices_dev.GetDeviceBuffer(),
-                ws_dev.GetDeviceBuffer(),
-                InElementwiseOperation_1{static_cast<int32_t>(reduce_total_length)},
-                AccElementwiseOperation_1{static_cast<int32_t>(reduce_total_length)});
+            InElementwiseOperation_1 in_elementwise_op_1(static_cast<int32_t>(reduce_total_length));
+            AccElementwiseOperation_1 acc_elementwise_op_1(
+                static_cast<int32_t>(reduce_total_length));
+
+            auto argument_ptr = reduce_ptr->MakeArgumentPointer(i_inLengths,
+                                                                i_inStrides,
+                                                                i_outLengths,
+                                                                i_outStrides,
+                                                                toReduceDims,
+                                                                alpha,
+                                                                beta,
+                                                                in_dev.GetDeviceBuffer(),
+                                                                out_dev.GetDeviceBuffer(),
+                                                                out_indices_dev.GetDeviceBuffer(),
+                                                                ws_dev.GetDeviceBuffer(),
+                                                                in_elementwise_op_1,
+                                                                acc_elementwise_op_1);
 
             if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
                 continue;
@@ -482,20 +503,25 @@ void profile_reduce_impl_impl(bool do_verification,
 
             for(auto& reduce2_ptr : reduce2_ptrs)
             {
-                auto argument2_ptr = reduce2_ptr->MakeArgumentPointer(
-                    inLengths2,
-                    inStrides2,
-                    i_outLengths,
-                    i_outStrides,
-                    toReduceDims,
-                    alpha,
-                    beta,
-                    ws_dev.GetDeviceBuffer(),
-                    out_dev.GetDeviceBuffer(),
-                    out_indices_dev.GetDeviceBuffer(),
-                    ws_dev.GetDeviceBuffer(),
-                    InElementwiseOperation_2{static_cast<int32_t>(reduce_total_length)},
-                    AccElementwiseOperation_2{static_cast<int32_t>(reduce_total_length)});
+                InElementwiseOperation_2 in_elementwise_op_2(
+                    static_cast<int32_t>(reduce_total_length));
+                AccElementwiseOperation_2 acc_elementwise_op_2(
+                    static_cast<int32_t>(reduce_total_length));
+
+                auto argument2_ptr =
+                    reduce2_ptr->MakeArgumentPointer(inLengths2,
+                                                     inStrides2,
+                                                     i_outLengths,
+                                                     i_outStrides,
+                                                     toReduceDims,
+                                                     alpha,
+                                                     beta,
+                                                     ws_dev.GetDeviceBuffer(),
+                                                     out_dev.GetDeviceBuffer(),
+                                                     out_indices_dev.GetDeviceBuffer(),
+                                                     ws_dev.GetDeviceBuffer(),
+                                                     in_elementwise_op_2,
+                                                     acc_elementwise_op_2);
 
                 if(!reduce2_ptr->IsSupportedArgument(argument2_ptr.get()))
                     continue;
