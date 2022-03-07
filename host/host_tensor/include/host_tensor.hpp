@@ -8,6 +8,7 @@
 #include <utility>
 #include <cassert>
 #include <iostream>
+#include "data_type.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -311,7 +312,9 @@ HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> s
 
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
-float bf16_to_f32_(ushort src_val);
+float bf16_to_f32_(ck::bhalf_t src_val);
+
+void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
 
 template <typename T>
 void check_error(const Tensor<T>& ref, const Tensor<T>& result)
@@ -320,7 +323,7 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
     float max_diff  = -1;
     float ref_value = 0, result_value = 0;
 
-    if constexpr(std::is_same<ushort, T>::value)
+    if constexpr(std::is_same<ck::bhalf_t, T>::value)
     {
         for(int i = 0; i < ref.mData.size(); ++i)
         {
@@ -351,6 +354,30 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     std::cout << "error: " << error << std::endl;
     std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
+}
+
+template <typename T>
+void check_indices(const Tensor<T>& ref, const Tensor<T>& result)
+{
+    bool has_error  = false;
+    int error_count = 0;
+
+    for(int i = 0; i < ref.mData.size(); ++i)
+    {
+        if(ref.mData[i] != result.mData[i])
+        {
+            std::cerr << std::endl
+                      << "Indices different at position " << i << " (ref: " << ref.mData[i]
+                      << ", result: " << result.mData[i] << ")" << std::endl;
+            has_error = true;
+            error_count++;
+            if(error_count == 20)
+                break;
+        };
+    }
+
+    if(!has_error)
+        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
 }
 
 #endif

@@ -77,12 +77,12 @@ void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
     const auto X      = wei.mDesc.GetLengths()[3];
     const auto C      = wei.mDesc.GetLengths()[4];
 
-    auto f_ndhwc = [&](auto n, auto do__, auto ho_, auto wo_, auto k) {
+    auto f_ndhwc = [&](auto n, auto do_tmp, auto ho_tmp, auto wo_tmp, auto k) {
         // do__ must be converted to signed integer, otherwise zmin might be wrong in cases
         // negative values.
-        const int do_ = static_cast<int>(do__);
-        const int ho  = static_cast<int>(ho_);
-        const int wo  = static_cast<int>(wo_);
+        const int do_ = static_cast<int>(do_tmp);
+        const int ho  = static_cast<int>(ho_tmp);
+        const int wo  = static_cast<int>(wo_tmp);
         const int zmin =
             std::max(0,
                      (in_left_pads[I0] - do_ * conv_strides[I0] + conv_dilations[I0] - 1) /
