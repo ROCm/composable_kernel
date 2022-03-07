@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV2D_WRW_XDL_C_SHUFFLE_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV2D_WRW_XDL_C_SHUFFLE_NHWC_KYXC_NHWK_HPP
+#ifndef DEVICE_CONV2D_BWD_WGT_XDL_C_SHUFFLE_NHWC_KYXC_NHWK_HPP
+#define DEVICE_CONV2D_BWD_WGT_XDL_C_SHUFFLE_NHWC_KYXC_NHWK_HPP
 
 #include <iostream>
 #include <sstream>
@@ -52,10 +52,13 @@ template <typename InDataType,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
-struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public DeviceConvWrw<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
+struct DeviceConv2dBwdWgtXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
+    : public DeviceConvBwdWgt<InElementwiseOperation,
+                              WeiElementwiseOperation,
+                              OutElementwiseOperation>
 {
-    using DeviceOp = DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
+    using DeviceOp =
+        DeviceConv2dBwdWgtXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
     using ADataType = OutDataType;
     using BDataType = InDataType;
@@ -691,7 +694,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
+        str << "DeviceConv2dBwdWgtXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

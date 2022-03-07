@@ -1,5 +1,5 @@
-#ifndef REFERENCE_CONV_WRW_HPP
-#define REFERENCE_CONV_WRW_HPP
+#ifndef REFERENCE_CONV_BWD_WGT_HPP
+#define REFERENCE_CONV_BWD_WGT_HPP
 
 #include <iostream>
 #include <sstream>
@@ -17,7 +17,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct ReferenceConvWrw : public device::BaseOperator
+struct ReferenceConvBwdWgt : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -62,7 +62,7 @@ struct ReferenceConvWrw : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceConvWrw::Argument;
+        using Argument = ReferenceConvBwdWgt::Argument;
 
         float Run(const Argument& arg)
         {

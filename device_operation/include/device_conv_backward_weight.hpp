@@ -1,5 +1,5 @@
-#ifndef DEVICE_CONV_WRW_HPP
-#define DEVICE_CONV_WRW_HPP
+#ifndef DEVICE_CONV_BWD_WGT_HPP
+#define DEVICE_CONV_BWD_WGT_HPP
 
 #include <iostream>
 #include "device_base.hpp"
@@ -11,7 +11,7 @@ namespace device {
 template <typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-struct DeviceConvWrw : public BaseOperator
+struct DeviceConvBwdWgt : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in,
@@ -38,8 +38,8 @@ struct DeviceConvWrw : public BaseOperator
 template <typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
-using DeviceConvWrwPtr = std::unique_ptr<
-    DeviceConvWrw<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
+using DeviceConvBwdWgtPtr = std::unique_ptr<
+    DeviceConvBwdWgt<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
