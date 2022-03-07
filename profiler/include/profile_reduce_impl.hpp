@@ -24,7 +24,7 @@ using reduce_description_instances = std::tuple<ReduceDescription<4, 3, 0, 0, 0>
                                                 ReduceDescription<2, 1, 0, 0, 0>,
 
                                                 ReduceDescription<4, 3, 5, 0, 0>, // for AVG
-                                                ReduceDescription<4, 3, 5, 0, 0>,
+                                                ReduceDescription<4, 1, 5, 0, 0>,
                                                 ReduceDescription<2, 1, 5, 0, 0>,
 
                                                 ReduceDescription<4, 3, 7, 0, 0>, // for NORM2

@@ -18,7 +18,7 @@ NREPEAT=$3
 
 
 #### 0 - ADD,  5 - AVG,  7 - NORM2
-Operations=7
+Operations="0 5 7"
 
 ## for generic validation
 for op in $Operations; do
