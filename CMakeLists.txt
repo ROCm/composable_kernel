@@ -71,11 +71,6 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 
-### half
-##find_path(HALF_INCLUDE_DIR half.hpp)
-#set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/half/include")
-#message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
-
 
 rocm_create_package(
     NAME CK-${CK_BACKEND}
@@ -229,21 +224,18 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
-#file(GLOB_RECURSE COMPOSABLE_KERNEL_HEADERS "composable_kernel/include/*/*.hpp")
-#file(GLOB_RECURSE DEVICE_OPS_HEADERS "device_operation/include/*.hpp")
-#
-#file(GLOB_RECURSE DEVICE_OPS_SOURCE "device_operation/*.cpp")
-#
-#set(CK_HEADERS ${COMPOSABLE_KERNEL_HEADERS} ${DEVICE_OPS_HEADERS})
-#set(CK_SOURCE ${DEVICE_OPS_SOURCE})
-#add_library(composable_kernel ${CK_SOURCE})
-
 configure_file("${PROJECT_SOURCE_DIR}/include/ck/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/include/ck/hip_version.hpp")
+
+include_directories(BEFORE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_BINARY_DIR}/include
+    ${PROJECT_SOURCE_DIR}/library/include
+)
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
-    target_compile_options(composable_kernel PRIVATE -Werror)
-    target_compile_options(composable_kernel PRIVATE -Weverything)
+    add_compile_options(-Werror)
+    add_compile_options(-Weverything)
 endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
