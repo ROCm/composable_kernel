@@ -87,14 +87,17 @@ struct NKHW : public BaseTensorLayout
 
 struct NDHWC : public BaseTensorLayout
 {
+    static constexpr const char* name = "NDHWC";
 };
 
 struct KZYXC : public BaseTensorLayout
 {
+    static constexpr const char* name = "KZYXC";
 };
 
 struct NDHWK : public BaseTensorLayout
 {
+    static constexpr const char* name = "NDHWK";
 };
 
 } // namespace convolution
