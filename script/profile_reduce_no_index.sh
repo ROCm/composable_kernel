@@ -40,7 +40,7 @@ for op in $Operations; do
 done
 
 #### 0 - ADD,  5 - AVG,  7 - NORM2
-Operation=5
+Operations=5
 
 ## for performance evaluation (resnet50 NHWC => C)
 for op in $Operations; do
