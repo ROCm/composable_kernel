@@ -14,7 +14,6 @@
 #include "device_reduce_blockwise.hpp"
 #include "host_reduce_util.hpp"
 #include "host_generic_reduction.hpp"
-
 #include "reduction_enums.hpp"
 #include "reduction_operator_mapping.hpp"
 

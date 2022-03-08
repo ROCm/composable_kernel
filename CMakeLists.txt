@@ -45,7 +45,6 @@ message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
 message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
 message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
 
-# set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 link_libraries(${OpenMP_gomp_LIBRARY})
 link_libraries(${OpenMP_pthread_LIBRARY})
 
@@ -77,6 +76,10 @@ rocm_create_package(
     DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
     LDCONFIG
 )
+
+## half
+set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/include/half")
+message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -180,7 +183,6 @@ enable_clang_tidy(
         -cppcoreguidelines-narrowing-conversions
         -altera-struct-pack-align
         -cppcoreguidelines-prefer-member-initializer
-
         ${CK_TIDY_CHECKS}
         ${CK_TIDY_ERRORS}
     HEADER_FILTER

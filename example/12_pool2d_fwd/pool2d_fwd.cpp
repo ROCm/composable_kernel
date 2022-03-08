@@ -12,7 +12,7 @@
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "reduction_operator.hpp"
-#include "device_operation/include/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "device_pool2d_fwd_nhwc_nhwc.hpp"
 
 using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;

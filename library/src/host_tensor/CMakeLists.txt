@@ -13,6 +13,7 @@ set(HOST_TENSOR_SOURCE
 add_library(host_tensor SHARED ${HOST_TENSOR_SOURCE})
 target_compile_features(host_tensor PUBLIC)
 set_target_properties(host_tensor PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(host_tensor SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 install(TARGETS host_tensor LIBRARY DESTINATION lib)
 
 clang_tidy_check(host_tensor)

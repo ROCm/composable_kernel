@@ -2,7 +2,6 @@
 #include <iostream>
 #include <numeric>
 #include <type_traits>
-
 #include "config.hpp"
 #include "conv_utils.hpp"
 #include "device.hpp"
