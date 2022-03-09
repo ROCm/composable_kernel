@@ -1,3 +1,1 @@
-set(CONV2D_BWD_WGT_XDL_SOURCE conv2d_bwd_wgt_xdl.cpp)
-add_executable(conv2d_bwd_wgt_xdl ${CONV2D_BWD_WGT_XDL_SOURCE})
-target_link_libraries(conv2d_bwd_wgt_xdl PRIVATE host_tensor)
+add_example_executable(example_conv2d_bwd_wgt_xdl conv2d_bwd_wgt_xdl.cpp)

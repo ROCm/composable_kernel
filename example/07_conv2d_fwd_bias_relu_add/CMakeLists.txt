@@ -1,3 +1,1 @@
-set(CONV2D_FWD_XDL_BIAS_RELU_ADD_SOURCE conv2d_fwd_xdl_bias_relu_add.cpp)
-add_executable(conv2d_fwd_xdl_bias_relu_add ${CONV2D_FWD_XDL_BIAS_RELU_ADD_SOURCE})
-target_link_libraries(conv2d_fwd_xdl_bias_relu_add PRIVATE host_tensor)
+add_example_executable(example_conv2d_fwd_xdl_bias_relu_add conv2d_fwd_xdl_bias_relu_add.cpp)

@@ -1,3 +1,1 @@
-set(REDUCE_BLOCKWISE_SOURCE reduce_blockwise.cpp)
-add_executable(reduce_blockwise ${REDUCE_BLOCKWISE_SOURCE})
-target_link_libraries(reduce_blockwise PRIVATE host_tensor)
+add_example_executable(example_reduce_blockwise reduce_blockwise.cpp)

@@ -1,13 +1,11 @@
-set(GEMM_SOURCE
-    gemm_fp32.cpp
-    gemm_bf16.cpp
-    gemm_int8.cpp
-)
+add_test_executable(test_gemm_fp32 gemm_fp32.cpp)
+target_link_libraries(test_gemm_fp32 PRIVATE host_tensor)
+target_link_libraries(test_gemm_fp32 PRIVATE device_gemm_instance)
 
-foreach(TEST ${GEMM_SOURCE})
-    get_filename_component(BASE_NAME ${TEST} NAME_WE)
-    message("adding test test_${BASE_NAME}")
-    add_test_executable(test_${BASE_NAME} ${TEST})
-    target_link_libraries(test_${BASE_NAME} PRIVATE host_tensor)
-    target_link_libraries(test_${BASE_NAME} PRIVATE device_gemm_instance)
-endforeach(TEST ${GEMM_SOURCE})
+add_test_executable(test_gemm_bf16 gemm_bf16.cpp)
+target_link_libraries(test_gemm_bf16 PRIVATE host_tensor)
+target_link_libraries(test_gemm_bf16 PRIVATE device_gemm_instance)
+
+add_test_executable(test_gemm_int8 gemm_int8.cpp)
+target_link_libraries(test_gemm_int8 PRIVATE host_tensor)
+target_link_libraries(test_gemm_int8 PRIVATE device_gemm_instance)

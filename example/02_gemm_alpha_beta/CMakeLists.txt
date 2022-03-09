@@ -1,3 +1,1 @@
-set(GEMM_XDL_ALPHA_BETA_SOURCE gemm_xdl_alpha_beta.cpp)
-add_executable(gemm_xdl_alpha_beta ${GEMM_XDL_ALPHA_BETA_SOURCE})
-target_link_libraries(gemm_xdl_alpha_beta PRIVATE host_tensor)
+add_example_executable(example_gemm_xdl_alpha_beta gemm_xdl_alpha_beta.cpp)

@@ -16,6 +16,15 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
+add_custom_target(examples)
+
+function(add_example_executable EXAMPLE_NAME)
+    message("adding example ${EXAMPLE_NAME}")
+    add_executable(${EXAMPLE_NAME} ${ARGN})
+    target_link_libraries(${EXAMPLE_NAME} PRIVATE host_tensor)
+    add_dependencies(examples ${EXAMPLE_NAME})
+endfunction(add_example_executable EXAMPLE_NAME)
+
 add_subdirectory(01_gemm)
 add_subdirectory(02_gemm_alpha_beta)
 add_subdirectory(03_gemm_bias_relu)
