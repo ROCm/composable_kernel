@@ -1,0 +1,1 @@
+add_example_executable(example_gemm_xdl_alpha_beta gemm_xdl_alpha_beta.cpp)
