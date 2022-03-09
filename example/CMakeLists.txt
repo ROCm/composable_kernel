@@ -1,69 +1,40 @@
 include_directories(BEFORE
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/host/host_tensor/include
-    ${PROJECT_SOURCE_DIR}/host/device/include
-    ${PROJECT_SOURCE_DIR}/device_operation/include
-    ${PROJECT_SOURCE_DIR}/reference_operation/include
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/utility
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_description
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/problem_transform
-    ${PROJECT_SOURCE_DIR}/external/rocm/include
-    ${PROJECT_SOURCE_DIR}/device_operation_reference/include
+    ${PROJECT_SOURCE_DIR}/include/ck
+    ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor
+    ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/device
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/grid
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/block
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
+    ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
-set(GEMM_XDL_SOURCE 1_gemm_xdl/gemm_xdl.cpp)
-set(GEMM_XDL_INT8_SOURCE 1_gemm_xdl/gemm_xdl_int8.cpp)
-set(GEMM_XDL_BF16_SOURCE 1_gemm_xdl/gemm_xdl_bf16.cpp)
-set(GEMM_XDL_BIAS_RELU_SOURCE 2_gemm_xdl_bias_relu/gemm_xdl_bias_relu.cpp)
-set(GEMM_XDL_BIAS_RELU_ADD_SOURCE 3_gemm_xdl_bias_relu_add/gemm_xdl_bias_relu_add.cpp)
-set(CONV2D_FWD_XDL_SOURCE 4_conv2d_fwd_xdl/conv2d_fwd_xdl.cpp)
-set(CONV2D_FWD_XDL_BIAS_RELU_SOURCE 5_conv2d_fwd_xdl_bias_relu/conv2d_fwd_xdl_bias_relu.cpp)
-set(CONV2D_FWD_XDL_BIAS_RELU_ADD_SOURCE 6_conv2d_fwd_xdl_bias_relu_add/conv2d_fwd_xdl_bias_relu_add.cpp)
-set(CONV2D_FWD_XDL_BIAS_RELU_ATOMIC_ADD_SOURCE 7_conv2d_fwd_xdl_bias_relu_atomic_add/conv2d_fwd_xdl_bias_relu_atomic_add.cpp)
-set(GEMM_XDL_ALPHA_BETA_SOURCE 8_gemm_xdl_alpha_beta/gemm_xdl_alpha_beta.cpp)
-set(CONV2D_FWD_XDL_INT8_SOURCE 9_conv2d_fwd_xdl_int8/conv2d_fwd_xdl_int8.cpp)
-set(CONV2D_WRW_XDL_SOURCE 13_conv2d_backward_weight_xdl/main.cpp)
-set(CONV3D_FWD_XDL_SOURCE 10_conv3d_fwd_xdl/conv3d_fwd_xdl.cpp)
-set(CONVND_FWD_XDL_SOURCE 11_convnd_fwd_xdl/convnd_fwd_xdl.cpp)
-set(CONV2D_BWD_DATA_XDL_SOURCE 12_conv2d_bwd_data_xdl/conv2d_bwd_data_xdl.cpp)
-set(POOL2D_FWD_SOURCE 14_pool2d_fwd/pool2d_fwd.cpp)
-set(REDUCE_BLOCKWISE_SOURCE 15_reduce_blockwise/reduce_blockwise.cpp)
+add_custom_target(examples)
 
-add_executable(gemm_xdl ${GEMM_XDL_SOURCE})
-add_executable(gemm_xdl_int8 ${GEMM_XDL_INT8_SOURCE})
-add_executable(gemm_xdl_bf16 ${GEMM_XDL_BF16_SOURCE})
-add_executable(gemm_xdl_bias_relu ${GEMM_XDL_BIAS_RELU_SOURCE})
-add_executable(gemm_xdl_bias_relu_add ${GEMM_XDL_BIAS_RELU_ADD_SOURCE})
-add_executable(conv2d_fwd_xdl ${CONV2D_FWD_XDL_SOURCE})
-add_executable(conv2d_fwd_xdl_bias_relu ${CONV2D_FWD_XDL_BIAS_RELU_SOURCE})
-add_executable(conv2d_fwd_xdl_bias_relu_add ${CONV2D_FWD_XDL_BIAS_RELU_ADD_SOURCE})
-add_executable(conv2d_fwd_xdl_bias_relu_atomic_add ${CONV2D_FWD_XDL_BIAS_RELU_ATOMIC_ADD_SOURCE})
-add_executable(gemm_xdl_alpha_beta ${GEMM_XDL_ALPHA_BETA_SOURCE})
-add_executable(conv2d_fwd_xdl_int8 ${CONV2D_FWD_XDL_INT8_SOURCE})
-add_executable(conv2d_wrw_xdl ${CONV2D_WRW_XDL_SOURCE})
-add_executable(conv3d_fwd_xdl ${CONV3D_FWD_XDL_SOURCE})
-add_executable(convnd_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
-add_executable(conv2d_bwd_data_xdl ${CONV2D_BWD_DATA_XDL_SOURCE})
-add_executable(pool2d_fwd ${POOL2D_FWD_SOURCE})
-add_executable(reduce_blockwise ${REDUCE_BLOCKWISE_SOURCE})
+function(add_example_executable EXAMPLE_NAME)
+    message("adding example ${EXAMPLE_NAME}")
+    add_executable(${EXAMPLE_NAME} ${ARGN})
+    target_link_libraries(${EXAMPLE_NAME} PRIVATE host_tensor)
+    add_dependencies(examples ${EXAMPLE_NAME})
+endfunction(add_example_executable EXAMPLE_NAME)
 
-target_link_libraries(gemm_xdl PRIVATE host_tensor)
-target_link_libraries(gemm_xdl_int8 PRIVATE host_tensor)
-target_link_libraries(gemm_xdl_bf16 PRIVATE host_tensor)
-target_link_libraries(gemm_xdl_bias_relu PRIVATE host_tensor)
-target_link_libraries(gemm_xdl_bias_relu_add PRIVATE host_tensor)
-target_link_libraries(conv2d_fwd_xdl PRIVATE host_tensor)
-target_link_libraries(conv2d_fwd_xdl_bias_relu PRIVATE host_tensor)
-target_link_libraries(conv2d_fwd_xdl_bias_relu_add PRIVATE host_tensor)
-target_link_libraries(conv2d_fwd_xdl_bias_relu_atomic_add PRIVATE host_tensor)
-target_link_libraries(gemm_xdl_alpha_beta PRIVATE host_tensor)
-target_link_libraries(conv2d_fwd_xdl_int8 PRIVATE host_tensor)
-target_link_libraries(conv2d_wrw_xdl PRIVATE host_tensor)
-target_link_libraries(conv3d_fwd_xdl PRIVATE host_tensor)
-target_link_libraries(convnd_fwd_xdl PRIVATE host_tensor)
-target_link_libraries(conv2d_bwd_data_xdl PRIVATE host_tensor)
-target_link_libraries(pool2d_fwd PRIVATE host_tensor)
-target_link_libraries(reduce_blockwise PRIVATE host_tensor)
-
+add_subdirectory(01_gemm)
+add_subdirectory(02_gemm_alpha_beta)
+add_subdirectory(03_gemm_bias_relu)
+add_subdirectory(04_gemm_bias_relu_add)
+add_subdirectory(05_conv2d_fwd)
+add_subdirectory(06_conv2d_fwd_bias_relu)
+add_subdirectory(07_conv2d_fwd_bias_relu_add)
+add_subdirectory(08_conv3d_fwd)
+add_subdirectory(09_convnd_fwd)
+add_subdirectory(10_conv2d_bwd_data)
+add_subdirectory(11_conv2d_bwd_wgt)
+add_subdirectory(12_reduce)
+add_subdirectory(13_pool2d_fwd)
