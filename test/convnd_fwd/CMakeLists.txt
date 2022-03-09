@@ -1,0 +1,2 @@
+add_test_executable(test_convnd_fwd convnd_fwd.cpp)
+target_link_libraries(test_convnd_fwd PRIVATE host_tensor)
