@@ -1,0 +1,3 @@
+set(GEMM_XDL_BIAS_RELU_ADD_SOURCE gemm_xdl_bias_relu_add.cpp)
+add_executable(gemm_xdl_bias_relu_add ${GEMM_XDL_BIAS_RELU_ADD_SOURCE})
+target_link_libraries(gemm_xdl_bias_relu_add PRIVATE host_tensor)

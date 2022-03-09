@@ -1,0 +1,8 @@
+set(CONV2D_FWD_XDL_FP16_SOURCE conv2d_fwd_xdl_fp16.cpp)
+set(CONV2D_FWD_XDL_INT8_SOURCE conv2d_fwd_xdl_int8.cpp)
+
+add_executable(conv2d_fwd_xdl_fp16 ${CONV2D_FWD_XDL_FP16_SOURCE})
+add_executable(conv2d_fwd_xdl_int8 ${CONV2D_FWD_XDL_INT8_SOURCE})
+
+target_link_libraries(conv2d_fwd_xdl_fp16 PRIVATE host_tensor)
+target_link_libraries(conv2d_fwd_xdl_int8 PRIVATE host_tensor)

@@ -6,7 +6,7 @@ set(GEMM_SOURCE
 
 foreach(TEST ${GEMM_SOURCE})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
-    message("adding test ${BASE_NAME}")
+    message("adding test test_${BASE_NAME}")
     add_test_executable(test_${BASE_NAME} ${TEST})
     target_link_libraries(test_${BASE_NAME} PRIVATE host_tensor)
     target_link_libraries(test_${BASE_NAME} PRIVATE device_gemm_instance)

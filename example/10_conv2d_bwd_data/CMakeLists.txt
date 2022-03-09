@@ -1,0 +1,3 @@
+set(CONV2D_BWD_DATA_XDL_SOURCE conv2d_bwd_data_xdl.cpp)
+add_executable(conv2d_bwd_data_xdl ${CONV2D_BWD_DATA_XDL_SOURCE})
+target_link_libraries(conv2d_bwd_data_xdl PRIVATE host_tensor)
