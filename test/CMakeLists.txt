@@ -34,3 +34,20 @@ foreach(TEST ${TESTS})
     message("adding test ${BASE_NAME}")
     add_test_executeable(test_${BASE_NAME} ${TEST})
 endforeach(TEST ${TESTS})
+
+# test_convnd_fwd_xdl
+set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/conv1d_fwd_xdl.cpp)
+add_executable(ut_conv1d_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
+target_link_libraries(ut_conv1d_fwd_xdl PRIVATE host_tensor)
+target_link_libraries(ut_conv1d_fwd_xdl PRIVATE device_conv1d_fwd_instance)
+
+
+set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/conv2d_fwd_xdl.cpp)
+add_executable(ut_conv2d_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
+target_link_libraries(ut_conv2d_fwd_xdl PRIVATE host_tensor)
+target_link_libraries(ut_conv2d_fwd_xdl PRIVATE device_conv2d_fwd_instance)
+
+set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/conv3d_fwd_xdl.cpp)
+add_executable(ut_conv3d_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
+target_link_libraries(ut_conv3d_fwd_xdl PRIVATE host_tensor)
+target_link_libraries(ut_conv3d_fwd_xdl PRIVATE device_conv3d_fwd_instance)
