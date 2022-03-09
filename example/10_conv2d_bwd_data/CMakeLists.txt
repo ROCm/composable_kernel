@@ -1,0 +1,1 @@
+add_example_executable(example_conv2d_bwd_data_xdl conv2d_bwd_data_xdl.cpp)

@@ -1,0 +1,34 @@
+# device_gemm_instance
+set(DEVICE_GEMM_INSTANCE_SOURCE
+   device_gemm_xdl_f32_f32_f32_mk_kn_mn_instance.cpp;
+   device_gemm_xdl_f32_f32_f32_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_f32_f32_f32_km_kn_mn_instance.cpp;
+   device_gemm_xdl_f32_f32_f32_km_nk_mn_instance.cpp;
+   device_gemm_xdl_f16_f16_f16_mk_kn_mn_instance.cpp;
+   device_gemm_xdl_f16_f16_f16_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_f16_f16_f16_km_kn_mn_instance.cpp;
+   device_gemm_xdl_f16_f16_f16_km_nk_mn_instance.cpp;
+   device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instance.cpp;
+   device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instance.cpp;
+   device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instance.cpp;
+   device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instance.cpp;
+   device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instance.cpp;
+   device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instance.cpp;
+   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instance.cpp;
+   device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instance.cpp;
+   device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instance.cpp;
+)
+
+add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE}) 
+
+target_compile_features(device_gemm_instance PUBLIC)
+set_target_properties(device_gemm_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_gemm_instance LIBRARY DESTINATION lib)
+
+clang_tidy_check(device_gemm_instance)
