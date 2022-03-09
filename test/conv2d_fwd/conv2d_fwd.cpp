@@ -8,6 +8,7 @@
 #include "device_conv_fwd.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_conv_fwd.hpp"
+#include "test_util.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -36,23 +37,6 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceC
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-
-template <typename T>
-static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    float max_diff = 1e-6;
-
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        if(max_diff < diff)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
 
 int main(int argc, char* argv[])
 {
@@ -264,9 +248,13 @@ int main(int argc, char* argv[])
             if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 invoker_ptr->Run(argument_ptr.get(), 0);
-
                 out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
-                if(!check_out(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result))
+                bool res = test::check_err(out_n_k_ho_wo_device_result.mData,
+                                           out_n_k_ho_wo_host_result.mData,
+                                           "Error: incorrect results!",
+                                           1e-5f,
+                                           1e-4f);
+                if(!res)
                 {
                     success = false;
                     break;

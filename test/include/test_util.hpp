@@ -13,10 +13,7 @@
 
 #include "data_type.hpp"
 
-namespace test_util {
-
-// This will be removed when bf16 will be properly integrated to CK.
-using bhalf_t = ushort;
+namespace test {
 
 template <typename T>
 typename std::enable_if<std::is_floating_point<T>::value && !std::is_same<T, ck::half_t>::value,
@@ -63,7 +60,7 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, bhalf_t>::value || std::is_same<T, ck::half_t>::value,
+typename std::enable_if<std::is_same<T, ck::bhalf_t>::value || std::is_same<T, ck::half_t>::value,
                         bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
@@ -109,7 +106,8 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, bhalf_t>::value, bool>::type
+typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, ck::bhalf_t>::value,
+                        bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg,
@@ -137,7 +135,7 @@ check_err(const std::vector<T>& out,
     return true;
 }
 
-} // namespace test_util
+} // namespace test
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
