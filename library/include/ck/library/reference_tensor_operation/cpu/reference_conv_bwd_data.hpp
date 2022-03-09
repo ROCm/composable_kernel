@@ -180,6 +180,83 @@ struct ReferenceConvBwdData : public device::BaseOperator
             }
             else if constexpr(NumDimSpatial == 3)
             {
+                auto f_nchw = [&](auto n, auto c, auto di, auto hi, auto wi) {
+                    std::size_t K = arg.weight_.mDesc.GetLengths()[0];
+                    std::size_t Z = arg.weight_.mDesc.GetLengths()[2];
+                    std::size_t Y = arg.weight_.mDesc.GetLengths()[3];
+                    std::size_t X = arg.weight_.mDesc.GetLengths()[4];
+
+                    std::size_t Do = arg.output_.mDesc.GetLengths()[2];
+                    std::size_t Ho = arg.output_.mDesc.GetLengths()[3];
+                    std::size_t Wo = arg.output_.mDesc.GetLengths()[4];
+
+                    float v_acc = 0;
+
+                    for(int z = 0; z < Z; ++z)
+                    {
+                        int d_tmp = di + arg.in_left_pads_[0] - z * arg.conv_dilations_[0];
+                        if(d_tmp % arg.conv_strides_[0] == 0)
+                        {
+                            int do_ = d_tmp / arg.conv_strides_[0];
+                            if(do_ >= 0 && do_ < Do)
+                            {
+                                for(int y = 0; y < Y; ++y)
+                                {
+                                    int h_tmp =
+                                        hi + arg.in_left_pads_[1] - y * arg.conv_dilations_[1];
+                                    if(h_tmp % arg.conv_strides_[1] == 0)
+                                    {
+                                        int ho = h_tmp / arg.conv_strides_[1];
+                                        if(ho >= 0 && ho < Ho)
+                                        {
+                                            for(int x = 0; x < X; ++x)
+                                            {
+                                                int w_tmp = wi + arg.in_left_pads_[2] -
+                                                            x * arg.conv_dilations_[2];
+                                                if(w_tmp % arg.conv_strides_[2] == 0)
+                                                {
+                                                    int wo = w_tmp / arg.conv_strides_[2];
+                                                    if(wo >= 0 && wo < Wo)
+                                                    {
+                                                        for(int k = 0; k < K; ++k)
+                                                        {
+                                                            float v_out = 0;
+                                                            float v_wei = 0;
+
+                                                            arg.out_element_op_(
+                                                                v_out,
+                                                                ck::type_convert<float>(arg.output_(
+                                                                    n, k, do_, ho, wo)));
+                                                            arg.wei_element_op_(
+                                                                v_wei,
+                                                                ck::type_convert<float>(
+                                                                    arg.weight_(k, c, z, y, x)));
+
+                                                            v_acc += v_out * v_wei;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    float v_in;
+                    arg.in_element_op_(v_in, v_acc);
+                    arg.input_(n, c, di, hi, wi) = ck::type_convert<InDataType>(v_in);
+                };
+
+                make_ParallelTensorFunctor(f_nchw,
+                                           arg.input_.mDesc.GetLengths()[0],
+                                           arg.input_.mDesc.GetLengths()[1],
+                                           arg.input_.mDesc.GetLengths()[2],
+                                           arg.input_.mDesc.GetLengths()[3],
+                                           arg.input_.mDesc.GetLengths()[4])(
+                    std::thread::hardware_concurrency());
+
                 return 0;
             }
         }
