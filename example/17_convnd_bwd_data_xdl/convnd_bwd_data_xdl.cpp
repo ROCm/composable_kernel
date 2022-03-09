@@ -14,7 +14,7 @@
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
-#include "device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk.hpp"
+#include "device_convnd_bwd_data_xdl_ndhwc_kzyxc_ndhwk.hpp"
 #include "reference_conv_bwd_data.hpp"
 
 using InDataType  = ck::half_t;
@@ -31,8 +31,9 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Default;
 
-using DeviceConvBwdDataInstance = ck::tensor_operation::device::
-    DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+template <ck::index_t NumDimSpatial>
+using DeviceConvNDBwdDataInstance = ck::tensor_operation::device::
+    DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K<
         InDataType,     // InDataType
         WeiDataType,    // WeiDataType
         OutDataType,    // OutDataType
@@ -41,6 +42,7 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
         WeiElementOp,   // WeiElementwiseOperation
         OutElementOp,   // OutElementwiseOperation
         ConvBwdDefault, // ConvolutionBackwardDataSpecialization_t
+        NumDimSpatial,  // NumDimSpatial
         256,            // BlockSize
         128,            // MPerBlock
         128,            // NPerBlock
@@ -67,12 +69,14 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
         7,
         1>; // GemmCThreadTransferDstScalarPerVector
 
+template <ck::index_t NumDimSpatial>
 using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                   WeiDataType,
                                                                                   OutDataType,
                                                                                   InElementOp,
                                                                                   WeiElementOp,
-                                                                                  OutElementOp>;
+                                                                                  OutElementOp,
+                                                                                  NumDimSpatial>;
 
 void PrintUseMsg()
 {
@@ -281,7 +285,7 @@ int main(int argc, char* argv[])
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
     // do GEMM
-    auto conv     = DeviceConvBwdDataInstance{};
+    auto conv     = DeviceConvNDBwdDataInstance<2>{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                       static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
@@ -327,7 +331,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        auto ref_conv    = ReferenceConvBwdInstance{};
+        auto ref_conv    = ReferenceConvBwdInstance<2>{};
         auto ref_invoker = ref_conv.MakeInvoker();
 
         auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
