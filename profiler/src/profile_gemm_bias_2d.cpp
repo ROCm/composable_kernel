@@ -63,11 +63,6 @@ int profile_gemm_bias_2d(int argc, char* argv[])
     const float alpha = std::stof(argv[14]);
     const float beta  = std::stof(argv[15]);
 
-    int KBatch = 1;
-
-    if(argc == 17)
-        KBatch = std::stoi(argv[16]);
-
     if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_gemm_bias_2d_impl<float,

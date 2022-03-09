@@ -1,0 +1,1 @@
+add_example_executable(example_pool2d_fwd pool2d_fwd.cpp)
