@@ -1,6 +1,8 @@
 #!/bin/bash
 
-PRECISION=  ##--half
+PRECISION=
+##PRECISION=--half
+##PRECISION=--double
 
 driver="./bin/ckProfiler"
 
