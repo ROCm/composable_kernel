@@ -201,8 +201,12 @@ void profile_reduce_impl_impl(bool do_verification,
                                       (!op_support_indices && ReduceOpId != ReduceTensorOp_t::ADD &&
                                        ReduceOpId != ReduceTensorOp_t::AVG);
 
+    // 1) If InDataType is bhalf_t, must use float as AccDataType for all reduction operations
+    constexpr bool invalid_reduce_6 =
+        std::is_same<InDataType, bhalf_t>::value && !std::is_same<AccDataType, float>::value;
+
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 ||
-                                     invalid_reduce_4 || invalid_reduce_5);
+                                     invalid_reduce_4 || invalid_reduce_5 || invalid_reduce_6);
 
     if constexpr(!invalid_reduce)
     {

@@ -35,6 +35,7 @@ static struct option long_options[] = {{"inLengths", required_argument, nullptr,
                                        {"half", no_argument, nullptr, '?'},
                                        {"double", no_argument, nullptr, '?'},
                                        {"int8", no_argument, nullptr, '?'},
+                                       {"bf16", no_argument, nullptr, '?'},
                                        {"dumpout", required_argument, nullptr, 'o'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"log", required_argument, nullptr, 'l'},
@@ -121,6 +122,7 @@ class AppArgs
     bool use_half   = false;
     bool use_double = false;
     bool use_int8   = false;
+    bool use_bf16   = false;
 
     std::vector<size_t> inLengths;
     std::vector<size_t> outLengths;
@@ -172,6 +174,7 @@ class AppArgs
         std::cout << "--half, use fp16 for the input and output tensor data types" << std::endl;
         std::cout << "--double, use fp64 for the input and output tensor data types" << std::endl;
         std::cout << "--int8, use int8 for the input and output tensor data types" << std::endl;
+        std::cout << "--bf16, use bfloat16 for the input and output tensor data types" << std::endl;
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
                      "comparing with the host-based reduction"
                   << std::endl;
@@ -272,6 +275,8 @@ class AppArgs
                     use_double = true;
                 else if(std::string(long_options[option_index].name) == "int8")
                     use_int8 = true;
+                else if(std::string(long_options[option_index].name) == "bf16")
+                    use_bf16 = true;
                 else if(std::string(long_options[option_index].name) == "help")
                 {
                     show_usage(argv[0]);
@@ -433,6 +438,27 @@ int profile_reduce(int argc, char* argv[])
         }
         else
             throw std::runtime_error("Invalid compType assignment!");
+    }
+    else if(args.use_bf16)
+    {
+        if(args.outType_assigned && (args.outTypeId != appBFloat16 && args.outTypeId != appFloat))
+            args.outTypeId = appFloat;
+
+        if(!args.outType_assigned)
+            args.outTypeId = appBFloat16;
+
+        profile_reduce_impl<ck::bhalf_t, float, ck::bhalf_t>(args.do_verification,
+                                                             args.init_method,
+                                                             args.do_log,
+                                                             args.do_dumpout,
+                                                             args.nrepeat,
+                                                             args.inLengths,
+                                                             args.toReduceDims,
+                                                             args.reduceOp,
+                                                             args.nanOpt,
+                                                             args.indicesOpt,
+                                                             args.scales[0],
+                                                             args.scales[1]);
     }
     else
     {
