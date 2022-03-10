@@ -32,57 +32,53 @@
 #include "reduction_operator.hpp"
 #include "reduction_functions_accumulate.hpp"
 
+#include "cluster_descriptor.hpp"
+
 namespace ck {
 
-template <typename Buffer1dDescType,
-          typename AccDataType,
+template <typename AccDataType,
           index_t BlockSize,
-          index_t MThreadClusterSize,
-          index_t KThreadClusterSize,
-          bool ReorderThreadClusters,
+          typename ThreadClusterLengths_M_K,
+          typename ThreadClusterArrangeOrder,
           typename OpReduce,
           bool PropagateNan>
-struct PartitionedBlockwiseReductionOn1dBuffer
+struct PartitionedBlockwiseReduction
 {
-    static constexpr auto buffer_1d_desc = Buffer1dDescType{};
-
-    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
+    static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),
                   "The product of cluster lengths should be same as BlockSize!");
-    static_assert(KThreadClusterSize > 1, "Parallel reduction need work on at least two elements");
 
-    static_assert(buffer_1d_desc.GetElementSize() == BlockSize,
-                  "The buffer size should be the same as BlockSize!");
+    static constexpr auto BufferLength_M = ThreadClusterLengths_M_K::At(0);
+    static constexpr auto BufferLength_K = ThreadClusterLengths_M_K::At(1);
+
+    static_assert(BufferLength_K > 1, "Parallel reduction need work on at least two elements");
+
+    static constexpr auto block_buf_desc_m_k = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<BufferLength_M>{}, Number<BufferLength_K>{}));
+
+    static constexpr auto thread_cluster_desc =
+        make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
 
     using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
 
     template <typename BufferType>
-    __device__ static void Reduce(BufferType& block_buffer,
-                                  AccDataType& accuData,
-                                  index_t thread_m_cluster_id,
-                                  index_t thread_k_cluster_id)
+    __device__ static void Reduce(BufferType& block_buffer, AccDataType& accuData)
     {
-        constexpr auto cluster_len_shift = get_shift<KThreadClusterSize>();
+        constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
+
+        const auto thread_cluster_idx =
+            thread_cluster_desc.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
+
+        const auto thread_m_cluster_id = thread_cluster_idx[Number<0>{}];
+        const auto thread_k_cluster_id = thread_cluster_idx[Number<1>{}];
 
         static_for<0, cluster_len_shift, 1>{}([&](auto I) {
             constexpr index_t indOffset = 1 << (cluster_len_shift - 1 - I());
 
             if(thread_k_cluster_id < indOffset)
             {
-                // consider the thread clusters order, ensure the contiguous locations are accessed
-                // by contiguous Thread-ID
-                index_t offset1 =
-                    ReorderThreadClusters
-                        ? buffer_1d_desc.CalculateOffset(make_tuple(
-                              thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id))
-                        : buffer_1d_desc.CalculateOffset(make_tuple(
-                              thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id));
-                index_t offset2 = ReorderThreadClusters
-                                      ? buffer_1d_desc.CalculateOffset(make_tuple(
-                                            (thread_k_cluster_id + indOffset) * MThreadClusterSize +
-                                            thread_m_cluster_id))
-                                      : buffer_1d_desc.CalculateOffset(
-                                            make_tuple(thread_m_cluster_id * KThreadClusterSize +
-                                                       (thread_k_cluster_id + indOffset)));
+                index_t offset1 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx);
+                index_t offset2 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx +
+                                                                     make_tuple(0, indOffset));
 
                 AccDataType opData1 = type_convert<AccDataType>(block_buffer[offset1]);
                 AccDataType opData2 = type_convert<AccDataType>(block_buffer[offset2]);
@@ -93,34 +89,34 @@ struct PartitionedBlockwiseReductionOn1dBuffer
             __syncthreads();
         });
 
-        index_t offset = ReorderThreadClusters
-                             ? buffer_1d_desc.CalculateOffset(make_tuple(thread_m_cluster_id))
-                             : buffer_1d_desc.CalculateOffset(
-                                   make_tuple(thread_m_cluster_id * KThreadClusterSize));
+        index_t offset = block_buf_desc_m_k.CalculateOffset(make_tuple(thread_m_cluster_id, 0));
 
         accuData = type_convert<AccDataType>(block_buffer[offset]);
     };
 };
 
-template <typename Buffer1dDescType,
-          typename AccDataType,
+template <typename AccDataType,
           typename IndexDataType,
           index_t BlockSize,
-          index_t MThreadClusterSize,
-          index_t KThreadClusterSize,
-          bool ReorderThreadClusters,
+          typename ThreadClusterLengths_M_K,
+          typename ThreadClusterArrangeOrder,
           typename OpReduce,
           bool PropagateNan>
-struct PartitionedBlockwiseReductionWithIndexOn1dBuffer
+struct PartitionedBlockwiseReductionWithIndex
 {
-    static constexpr auto buffer_1d_desc = Buffer1dDescType{};
-
-    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
+    static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),
                   "The product of cluster lengths should be same as BlockSize!");
-    static_assert(KThreadClusterSize > 1, "Parallel reduction need work on at least two elements");
 
-    static_assert(buffer_1d_desc.GetElementSize() == BlockSize,
-                  "The buffer size should be the same as BlockSize!");
+    static constexpr auto BufferLength_M = ThreadClusterLengths_M_K::At(0);
+    static constexpr auto BufferLength_K = ThreadClusterLengths_M_K::At(1);
+
+    static_assert(BufferLength_K > 1, "Parallel reduction need work on at least two elements");
+
+    static constexpr auto block_buf_desc_m_k = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<BufferLength_M>{}, Number<BufferLength_K>{}));
+
+    static constexpr auto thread_cluster_desc =
+        make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
 
     using Accumulation =
         detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>;
@@ -130,32 +126,24 @@ struct PartitionedBlockwiseReductionWithIndexOn1dBuffer
     __device__ static void Reduce(BufferType& block_val_buffer,
                                   IdxBufferType& block_idx_buffer,
                                   AccDataType& accuData,
-                                  IndexDataType& accuIndex,
-                                  index_t thread_m_cluster_id,
-                                  index_t thread_k_cluster_id)
+                                  IndexDataType& accuIndex)
     {
-        constexpr auto cluster_len_shift = get_shift<KThreadClusterSize>();
+        constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
+
+        const auto thread_cluster_idx =
+            thread_cluster_desc.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
+
+        const auto thread_m_cluster_id = thread_cluster_idx[Number<0>{}];
+        const auto thread_k_cluster_id = thread_cluster_idx[Number<1>{}];
 
         static_for<0, cluster_len_shift, 1>{}([&](auto I) {
             constexpr index_t indOffset = 1 << I();
 
             if(thread_k_cluster_id % (indOffset * 2) == 0)
             {
-                // consider the thread clusters order, ensure the contiguous locations are accessed
-                // by contiguous Thread-ID
-                index_t offset1 =
-                    ReorderThreadClusters
-                        ? buffer_1d_desc.CalculateOffset(make_tuple(
-                              thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id))
-                        : buffer_1d_desc.CalculateOffset(make_tuple(
-                              thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id));
-                index_t offset2 = ReorderThreadClusters
-                                      ? buffer_1d_desc.CalculateOffset(make_tuple(
-                                            (thread_k_cluster_id + indOffset) * MThreadClusterSize +
-                                            thread_m_cluster_id))
-                                      : buffer_1d_desc.CalculateOffset(
-                                            make_tuple(thread_m_cluster_id * KThreadClusterSize +
-                                                       (thread_k_cluster_id + indOffset)));
+                index_t offset1 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx);
+                index_t offset2 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx +
+                                                                     make_tuple(0, indOffset));
 
                 AccDataType opData1      = type_convert<AccDataType>(block_val_buffer[offset1]);
                 AccDataType opData2      = type_convert<AccDataType>(block_val_buffer[offset2]);
@@ -170,10 +158,7 @@ struct PartitionedBlockwiseReductionWithIndexOn1dBuffer
             __syncthreads();
         });
 
-        index_t offset = ReorderThreadClusters
-                             ? buffer_1d_desc.CalculateOffset(make_tuple(thread_m_cluster_id))
-                             : buffer_1d_desc.CalculateOffset(
-                                   make_tuple(thread_m_cluster_id * KThreadClusterSize));
+        index_t offset = block_buf_desc_m_k.CalculateOffset(make_tuple(thread_m_cluster_id, 0));
 
         accuData  = type_convert<AccDataType>(block_val_buffer[offset]);
         accuIndex = block_idx_buffer[offset];

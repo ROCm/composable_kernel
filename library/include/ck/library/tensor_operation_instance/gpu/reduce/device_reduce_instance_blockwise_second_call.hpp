@@ -45,7 +45,7 @@ template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           int Rank,
-          typename ReduceDims,
+          int NumReduceDim,
           ReduceTensorOp_t ReduceOpId,
           NanPropagation_t NanOpt,
           ReduceTensorIndices_t IndicesOpt>
@@ -86,7 +86,7 @@ void add_device_reduce_instance_blockwise_second_call(
                                                                      AccDataType,
                                                                      OutDataType,
                                                                      Rank,
-                                                                     ReduceDims,
+                                                                     NumReduceDim,
                                                                      ReduceOperation,
                                                                      InElementwiseOperation,
                                                                      AccElementwiseOperation,
@@ -106,21 +106,21 @@ void add_device_reduce_instance_blockwise_second_call(
     });
 };
 
-#define ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(                                           \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                          \
-    template void add_device_reduce_instance_blockwise_second_call<inT,                   \
-                                                                   compT,                 \
-                                                                   outT,                  \
-                                                                   Rank,                  \
-                                                                   Sequence<__VA_ARGS__>, \
-                                                                   ReduceOpId,            \
-                                                                   NanOpt,                \
-                                                                   IndicesOpt>(           \
-        std::vector<deviceReduceBlockWiseSecondCallPtrType<compT, ReduceOpId>> &          \
+#define ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(                                  \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)        \
+    template void add_device_reduce_instance_blockwise_second_call<inT,          \
+                                                                   compT,        \
+                                                                   outT,         \
+                                                                   Rank,         \
+                                                                   NumReduceDim, \
+                                                                   ReduceOpId,   \
+                                                                   NanOpt,       \
+                                                                   IndicesOpt>(  \
+        std::vector<deviceReduceBlockWiseSecondCallPtrType<compT, ReduceOpId>> & \
         device_op_instances)
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_BY_ID(                                              \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                           \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                  \
     ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(inT,                                            \
                                            compT,                                          \
                                            outT,                                           \
@@ -128,27 +128,27 @@ void add_device_reduce_instance_blockwise_second_call(
                                            static_cast<NanPropagation_t>(NanOpt),          \
                                            static_cast<ReduceTensorIndices_t>(IndicesOpt), \
                                            Rank,                                           \
-                                           __VA_ARGS__)
+                                           NumReduceDim)
 
-#define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(                                              \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                                 \
-    extern template void add_device_reduce_instance_blockwise_second_call<inT,                   \
-                                                                          compT,                 \
-                                                                          outT,                  \
-                                                                          Rank,                  \
-                                                                          Sequence<__VA_ARGS__>, \
-                                                                          ReduceOpId,            \
-                                                                          NanOpt,                \
-                                                                          IndicesOpt>(           \
-        std::vector<                                                                             \
-            DeviceReducePtr<typename reduce_unary_operator<compT, ReduceOpId, false, true>::     \
-                                InElementwiseOperation,                                          \
-                            typename reduce_unary_operator<compT, ReduceOpId, false, true>::     \
-                                AccElementwiseOperation>> &                                      \
+#define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(                                          \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                    \
+    extern template void add_device_reduce_instance_blockwise_second_call<inT,               \
+                                                                          compT,             \
+                                                                          outT,              \
+                                                                          Rank,              \
+                                                                          NumReduceDim,      \
+                                                                          ReduceOpId,        \
+                                                                          NanOpt,            \
+                                                                          IndicesOpt>(       \
+        std::vector<                                                                         \
+            DeviceReducePtr<typename reduce_unary_operator<compT, ReduceOpId, false, true>:: \
+                                InElementwiseOperation,                                      \
+                            typename reduce_unary_operator<compT, ReduceOpId, false, true>:: \
+                                AccElementwiseOperation>> &                                  \
         device_op_instances)
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_ID(                                              \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, ...)                               \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                      \
     ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(inT,                                            \
                                                compT,                                          \
                                                outT,                                           \
@@ -156,7 +156,7 @@ void add_device_reduce_instance_blockwise_second_call(
                                                static_cast<NanPropagation_t>(NanOpt),          \
                                                static_cast<ReduceTensorIndices_t>(IndicesOpt), \
                                                Rank,                                           \
-                                               __VA_ARGS__)
+                                               NumReduceDim)
 
 } // namespace device_reduce_instance
 } // namespace device
