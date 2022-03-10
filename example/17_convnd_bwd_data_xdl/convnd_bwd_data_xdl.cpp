@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
 
     ck::conv_util::ConvParams params;
 
-    if(argc >= 5)
+    if(argc == 5)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -254,6 +254,10 @@ int main(int argc, char* argv[])
     }
     else if(argc >= 6)
     {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+        num_dim_spatial = std::stoi(argv[4]);
         params = ParseConvParams(num_dim_spatial, argc, argv);
     }
 
