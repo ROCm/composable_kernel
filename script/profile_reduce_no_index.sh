@@ -4,10 +4,11 @@ PRECISION=
 ##PRECISION=--half
 ##PRECISION=--double
 ##PRECISION=--int8
+##PRECISION=--bf16
 
-if test -n $PRECISION && test "$PRECISION" = "--half"; then
+if [ -n $PRECISION ] && [ "$PRECISION" = "--half" -o "$PRECISION" = "--bf16" ]; then
    ACCTYPE="-C 1"
-elif test -n $PRECISION && test "$PRECISION" = "--int8"; then
+elif [ -n $PRECISION ] && [ "$PRECISION" = "--int8" ]; then
    ACCTYPE="-C 2"
 else
    ACCTYPE=""
@@ -24,7 +25,7 @@ NREPEAT=$3
 Operations="0 5 7"
 
 #### 0 - ADD,  5 - AVG,    for int8, no NORM2 supported
-if test -n $PRECISION && test "$PRECISION" = "--int8"; then
+if [ -n $PRECISION ] && [ "$PRECISION" = "--int8" ]; then
    Operations=5
 fi
 
