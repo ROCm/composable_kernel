@@ -16,7 +16,7 @@ template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           index_t Rank,
-          index_t NumReduceDims,
+          index_t NumReduceDim,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -41,12 +41,12 @@ struct DeviceReduceMultiBlockPartialReduce
 
     using IndexDataType = int32_t;
 
-    static constexpr index_t NumInvariantDims = Rank - NumReduceDims;
+    static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
     using InvariantDims =
-        typename conditional<NumInvariantDims == 0,
+        typename conditional<NumInvariantDim == 0,
                              Sequence<>,
-                             typename arithmetic_sequence_gen<0, NumInvariantDims, 1>::type>::type;
-    using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDims, Rank, 1>::type;
+                             typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type>::type;
+    using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
 
     static constexpr index_t srcDims    = Rank;
     static constexpr index_t dstDims    = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
@@ -117,7 +117,7 @@ struct DeviceReduceMultiBlockPartialReduce
             }
             else
             {
-                const auto toReduceDimLengths =
+                const auto reduceDimLengths =
                     make_tuple_from_array_and_index_seq(inLengths, ReduceDims{});
                 const auto invariantDimLengths =
                     make_tuple_from_array_and_index_seq(inLengths, InvariantDims{});
@@ -125,7 +125,7 @@ struct DeviceReduceMultiBlockPartialReduce
                 return transform_tensor_descriptor(
                     inDesc,
                     make_tuple(make_merge_transform(invariantDimLengths),
-                               make_merge_transform(toReduceDimLengths)),
+                               make_merge_transform(reduceDimLengths)),
                     make_tuple(InvariantDims{}, ReduceDims{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
             }
@@ -170,7 +170,7 @@ struct DeviceReduceMultiBlockPartialReduce
                  const std::vector<int>& inStrides,
                  const std::vector<int>& outLengths,
                  const std::vector<int>& outStrides,
-                 const std::vector<int>& toReduceDims,
+                 const std::vector<int>& reduceDims,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
@@ -179,19 +179,17 @@ struct DeviceReduceMultiBlockPartialReduce
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
-            : in_dev_{in_dev},
+            : outLengths_{outLengths},
+              outStrides_{outStrides},
+              in_dev_{in_dev},
               out_dev_{out_dev},
               out_indices_dev_{out_indices_dev},
-              workspace_dev_{workspace_dev}
+              workspace_dev_{workspace_dev},
+              in_elementwise_op_{in_elementwise_op},
+              acc_elementwise_op_{acc_elementwise_op}
         {
-            outLengths_ = outLengths;
-            outStrides_ = outStrides;
-
             std::tie(inLengths_, inStrides_) =
-                shuffle_tensor_dimensions<Rank, NumReduceDims>(inLengths, inStrides, toReduceDims);
-
-            in_elementwise_op_  = in_elementwise_op;
-            acc_elementwise_op_ = acc_elementwise_op;
+                shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, inStrides, reduceDims);
 
             alpha_ = static_cast<AccDataType>(alpha);
             beta_  = static_cast<OutDataType>(beta);
@@ -377,7 +375,7 @@ struct DeviceReduceMultiBlockPartialReduce
                         const std::vector<int>& inStrides,
                         const std::vector<int>& outLengths,
                         const std::vector<int>& outStrides,
-                        const std::vector<int>& toReduceDims,
+                        const std::vector<int>& reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
@@ -391,7 +389,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                           inStrides,
                                           outLengths,
                                           outStrides,
-                                          toReduceDims,
+                                          reduceDims,
                                           alpha,
                                           beta,
                                           static_cast<const InDataType*>(in_dev),

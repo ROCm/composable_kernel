@@ -29,8 +29,8 @@ using kInDataType  = ck::half_t;
 using kOutDataType = ck::half_t;
 using kAccDataType = float;
 
-constexpr int Rank          = 4;
-constexpr int NumReduceDims = 3;
+constexpr int Rank         = 4;
+constexpr int NumReduceDim = 3;
 
 constexpr ReduceTensorOp_t ReduceOpId = ReduceTensorOp_t::NORM2;
 constexpr NanPropagation_t NanOpt     = NanPropagation_t::PROPAGATE_NAN;
@@ -47,7 +47,7 @@ using DeviceReduceInstance = DeviceReduceBlockWise<kInDataType,
                                                    kAccDataType,
                                                    kOutDataType,
                                                    Rank,
-                                                   NumReduceDims,
+                                                   NumReduceDim,
                                                    ReduceOperation,
                                                    InElementwiseOperation,
                                                    AccElementwiseOperation,
@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    const std::vector<int> toReduceDims{0, 1, 2};
+    const std::vector<int> reduceDims{0, 1, 2};
     const std::vector<int> invariantDims{3};
 
     SimpleAppArgs args;
@@ -300,7 +300,7 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         ReductionHost<InDataType, AccDataType, OutDataType, ReduceOpId, PropagateNan, NeedIndices>
-            hostReduce(in.mDesc, out_ref.mDesc, invariantDims, toReduceDims);
+            hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
         hostReduce.Run(
             alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
@@ -322,7 +322,7 @@ int main(int argc, char* argv[])
                                    i_inStrides,
                                    i_outLengths,
                                    i_outStrides,
-                                   toReduceDims,
+                                   reduceDims,
                                    alpha,
                                    beta,
                                    in_dev.GetDeviceBuffer(),

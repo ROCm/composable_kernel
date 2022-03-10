@@ -1,4 +1,4 @@
-# Instructions for ```conv2d_bwd_data_xdl``` Example
+# Instructions for ```reduce_blockwise``` Example
 
 ## Docker script
 ```bash
