@@ -45,7 +45,6 @@ message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
 message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
 message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
 
-# set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 link_libraries(${OpenMP_gomp_LIBRARY})
 link_libraries(${OpenMP_pthread_LIBRARY})
 
@@ -71,17 +70,17 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 
-## half
-#find_path(HALF_INCLUDE_DIR half.hpp)
-set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/half/include")
-message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
-
 
 rocm_create_package(
     NAME CK-${CK_BACKEND}
-    DESCRIPTION "High Performance Composable Kernels for AMD GPUs"
+    DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
     LDCONFIG
 )
+
+## half
+set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/include/half")
+message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
+
 ## tidy
 include(EnableCompilerWarnings)
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
@@ -184,7 +183,6 @@ enable_clang_tidy(
         -cppcoreguidelines-narrowing-conversions
         -altera-struct-pack-align
         -cppcoreguidelines-prefer-member-initializer
-
         ${CK_TIDY_CHECKS}
         ${CK_TIDY_ERRORS}
     HEADER_FILTER
@@ -214,70 +212,36 @@ enable_cppcheck(
         unmatchedSuppression
     FORCE
     SOURCES
-        host/host_tensor/src
-        host/driver_offline/src
-        composable_kernel/src/kernel_wrapper
+        library/src
     INCLUDE
-        host/host_tensor/include
-        host/device/include
-        host/solver/include
-        host/driver_offline/include
-        composable_kernel/include/*
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/library/include
     DEFINE
         CPPCHECK=1
         __linux__=1
 )
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
-file(GLOB_RECURSE COMPOSABLE_KERNEL_HEADERS "composable_kernel/include/*/*.hpp")
-file(GLOB_RECURSE DEVICE_OPS_HEADERS "device_operation/include/*.hpp")
+configure_file("${PROJECT_SOURCE_DIR}/include/ck/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/include/ck/hip_version.hpp")
 
-file(GLOB_RECURSE DEVICE_OPS_SOURCE "device_operation/*.cpp")
-
-set(CK_HEADERS ${COMPOSABLE_KERNEL_HEADERS} ${DEVICE_OPS_HEADERS})
-set(CK_SOURCE ${DEVICE_OPS_SOURCE})
-add_library(composable_kernel
-    ${CK_SOURCE}
+include_directories(BEFORE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_BINARY_DIR}/include
+    ${PROJECT_SOURCE_DIR}/library/include
 )
 
-target_include_directories(composable_kernel PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include>
-)
-target_include_directories(composable_kernel PUBLIC 
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/device_operation/include>
-)
-target_include_directories(composable_kernel PUBLIC 
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/host/include>
-)
-target_include_directories(composable_kernel PUBLIC 
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/host/host_tensor/include>
-)
-# The following should eventually be removed
-target_include_directories(composable_kernel PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include/utility>
-)
-target_include_directories(composable_kernel PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation>
-)
-target_include_directories(composable_kernel PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_description>
-)
-# clang_tidy_check(composable_kernel)
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
-    target_compile_options(composable_kernel PRIVATE -Werror)
-    target_compile_options(composable_kernel PRIVATE -Weverything)
+    add_compile_options(-Werror)
+    add_compile_options(-Weverything)
 endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
-configure_file("${PROJECT_SOURCE_DIR}/composable_kernel/include/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/composable_kernel/include/hip_version.hpp")
-
-add_subdirectory(host)
-add_subdirectory(device_operation)
+add_subdirectory(library)
 add_subdirectory(example)
-add_subdirectory(profiler)
 add_subdirectory(test)
+add_subdirectory(profiler)

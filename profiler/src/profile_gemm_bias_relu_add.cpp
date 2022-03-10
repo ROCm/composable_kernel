@@ -59,11 +59,6 @@ int profile_gemm_bias_relu_add(int argc, char* argv[])
     const int StrideC  = std::stoi(argv[13]);
     const int StrideC1 = std::stoi(argv[14]);
 
-    int KBatch = 1;
-
-    if(argc == 16)
-        KBatch = std::stoi(argv[15]);
-
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_gemm_bias_relu_add_impl<ck::half_t,

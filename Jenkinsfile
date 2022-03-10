@@ -17,7 +17,7 @@ def cmake_build(Map conf=[:]){
     def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
-    def build_envs = "CTEST_PARALLEL_LEVEL=4 MIOPEN_CONV_PRECISE_ROCBLAS_TIMING=0 " + conf.get("build_env","")
+    def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
 
@@ -60,7 +60,8 @@ def cmake_build(Map conf=[:]){
             cd build
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make -j\$(nproc) ${config_targets}")
+    // reduce parallelism when compiling, clang uses too much memory
+    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 1 )) ${config_targets}")
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
@@ -177,15 +178,27 @@ pipeline {
                 //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
                 //     }
                 // }
-                stage('Build Profiler: gfx908')
+                stage('Build Profiler: Release, gfx908')
                 {
-                    agent { label rocmnode("gfx908")}
+                    agent { label rocmnode("nogpu")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
-                        build_cmd = "make -j\$(nproc) -k ckProfiler"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_cmd:build_cmd, no_reboot:true, build_type: 'Release')
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                    }
+                }
+                stage('Build Profiler: Debug, gfx908')
+                {
+                    agent { label rocmnode("nogpu")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        // until we stabilize debug build due to compiler crashes
+                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
+                        }
                     }
                 }
                 stage('Clang Format') {
@@ -205,6 +218,24 @@ pipeline {
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
                     }
                 }
+            }
+        }
+        stage("Tests")
+        {
+            parallel
+            {
+                stage("Run Tests: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
+                    }
+
+                }
+
             }
         }
         // enable after the cmake file supports packaging

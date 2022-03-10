@@ -28,7 +28,7 @@ int profile_gemm_bias_2d(int argc, char* argv[])
 {
     if(!(argc == 16 || argc == 17))
     {
-        printf("arg1: tensor operation (gemm: GEMM+Bias)\n");
+        printf("arg1: tensor operation (gemm: GEMM+Bias_2d)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
@@ -62,11 +62,6 @@ int profile_gemm_bias_2d(int argc, char* argv[])
 
     const float alpha = std::stof(argv[14]);
     const float beta  = std::stof(argv[15]);
-
-    int KBatch = 1;
-
-    if(argc == 17)
-        KBatch = std::stoi(argv[16]);
 
     if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {

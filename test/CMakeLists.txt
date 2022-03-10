@@ -1,52 +1,41 @@
 include_directories(BEFORE
-    include
-    ${PROJECT_SOURCE_DIR}/host/host_tensor/include
-    ${PROJECT_SOURCE_DIR}/host/device/include
-    ${PROJECT_SOURCE_DIR}/device_operation/include
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/utility
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_description
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/tensor_operation
-    ${PROJECT_SOURCE_DIR}/composable_kernel/include/problem_transform
-    ${PROJECT_SOURCE_DIR}/external/rocm/include
-    ${PROJECT_SOURCE_DIR}/reference_operation/include
+    ${PROJECT_SOURCE_DIR}/include/ck
+    ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor
+    ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/device
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/grid
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/block
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
     ${PROJECT_SOURCE_DIR}/test/include
+    ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
-# test_magic_number_division
-set(MAGIC_NUMBER_DIVISISON_SOURCE magic_number_division/main.cpp)
-add_executable(test_magic_number_division ${MAGIC_NUMBER_DIVISISON_SOURCE})
-target_link_libraries(test_magic_number_division PRIVATE host_tensor)
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+add_custom_target(tests)
 
+function(add_test_executable TEST_NAME)
+    message("adding test ${TEST_NAME}")
+    add_executable(${TEST_NAME} ${ARGN})
+    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
+    add_dependencies(tests ${TEST_NAME})
+    add_dependencies(check ${TEST_NAME})
+endfunction(add_test_executable TEST_NAME)
 
-set(CONV2D_FWD_SOURCE conv2d_fwd/main.cpp)
-
-add_executable(test_conv2d_fwd ${CONV2D_FWD_SOURCE})
-target_link_libraries(test_conv2d_fwd PRIVATE host_tensor)
-target_link_libraries(test_conv2d_fwd PRIVATE device_conv2d_fwd_instance)
-
-# test_split_k
-set(SPLIT_K_SOURCE split_k/main.cpp)
-add_executable(test_split_k ${SPLIT_K_SOURCE})
-target_link_libraries(test_split_k PRIVATE host_tensor)
-target_link_libraries(test_split_k PRIVATE device_gemm_instance)
-
-# test_conv_util
-set(CONV_UTIL_SOURCE conv_util/main.cpp)
-add_executable(test_conv_util ${CONV_UTIL_SOURCE})
-target_link_libraries(test_conv_util PRIVATE host_tensor)
-
-# test_reference_conv_fwd
-set(REFERENCE_CONV_FWD_SOURCE reference_conv_fwd/main.cpp)
-add_executable(test_reference_conv_fwd ${REFERENCE_CONV_FWD_SOURCE})
-target_link_libraries(test_reference_conv_fwd PRIVATE host_tensor)
-
-# test_convnd_fwd_xdl
-set(CONVND_FWD_XDL_SOURCE convnd_fwd_xdl/main.cpp)
-add_executable(test_convnd_fwd_xdl ${CONVND_FWD_XDL_SOURCE})
-target_link_libraries(test_convnd_fwd_xdl PRIVATE host_tensor)
-
-# test space_filling_curve_
-set(SPACE_FILLING_CURVE_SOURCE space_filling_curve/space_filling_curve.cpp)
-add_executable(space_filling_curve ${SPACE_FILLING_CURVE_SOURCE})
-target_link_libraries(space_filling_curve PRIVATE host_tensor)
+add_subdirectory(magic_number_division)
+add_subdirectory(space_filling_curve)
+add_subdirectory(conv_util)
+add_subdirectory(reference_conv_fwd)
+add_subdirectory(gemm)
+add_subdirectory(gemm_split_k)
+add_subdirectory(conv2d_fwd)
+add_subdirectory(convnd_fwd)
+add_subdirectory(conv2d_bwd_data)
