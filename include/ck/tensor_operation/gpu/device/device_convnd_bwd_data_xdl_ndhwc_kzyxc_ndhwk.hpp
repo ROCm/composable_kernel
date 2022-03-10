@@ -1022,7 +1022,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                             conv_filter_dilations_,
                             input_left_pads_,
                             input_right_pads_,
-                            {i_ytilda,i_xtilda});
+                            {i_ytilda, i_xtilda});
                     a_grid_desc_k0_m_k1_container_.push_back(descs[I0]);
                     b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                     c_grid_desc_m_n_container_.push_back(descs[I2]);

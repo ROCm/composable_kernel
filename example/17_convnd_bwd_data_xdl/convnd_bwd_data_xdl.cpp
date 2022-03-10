@@ -98,17 +98,9 @@ void PrintUseMsg()
               << " <right padding>, (ie RightPy, RightPx for 2D)\n"
               << std::endl;
 }
-ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, int argc, char* argv[])
+ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
-    int conv_args     = 3 + num_dim_spatial * 6;
-    int cmdline_nargs = conv_args + 5;
-    if(cmdline_nargs != argc)
-    {
-        PrintUseMsg();
-        exit(1);
-    }
-
     ck::conv_util::ConvParams params;
     int arg_idx = 5;
 
@@ -245,20 +237,27 @@ int main(int argc, char* argv[])
 
     ck::conv_util::ConvParams params;
 
-    if(argc == 5)
+    if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
-        num_dim_spatial = std::stoi(argv[4]);
     }
-    else if(argc >= 6)
+    else
     {
+        int conv_args     = 3 + num_dim_spatial * 6;
+        int cmdline_nargs = conv_args + 5;
+        if(cmdline_nargs != argc)
+        {
+            PrintUseMsg();
+            exit(1);
+        }
+
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
-        params = ParseConvParams(num_dim_spatial, argc, argv);
+        params          = ParseConvParams(num_dim_spatial, argv);
     }
 
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
