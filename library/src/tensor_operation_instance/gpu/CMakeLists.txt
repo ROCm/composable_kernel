@@ -1,0 +1,30 @@
+include_directories(BEFORE
+    ${PROJECT_SOURCE_DIR}/include/ck
+    ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor
+    ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/device
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/grid
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/block
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
+    ${PROJECT_SOURCE_DIR}/external/include/half
+)
+
+add_subdirectory(gemm)
+add_subdirectory(gemm_bias2d)
+add_subdirectory(gemm_bias_relu)
+add_subdirectory(gemm_bias_relu_add)
+add_subdirectory(batched_gemm)
+add_subdirectory(conv1d_fwd)
+add_subdirectory(conv2d_fwd)
+add_subdirectory(conv2d_fwd_bias_relu)
+add_subdirectory(conv2d_fwd_bias_relu_add)
+add_subdirectory(conv2d_fwd_bias_relu_atomic_add)
+add_subdirectory(conv2d_bwd_data)
+add_subdirectory(reduce)

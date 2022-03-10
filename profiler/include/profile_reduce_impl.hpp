@@ -9,14 +9,14 @@ namespace tensor_operation {
 namespace device {
 namespace device_reduce_instance {
 
-template <int Rank, int NumReduceDims, int ReduceOpId, int NanOpt, int IndicesOpt>
+template <int Rank, int NumReduceDim, int ReduceOpId, int NanOpt, int IndicesOpt>
 struct ReduceDescription
 {
-    static constexpr int Rank_          = Rank;
-    static constexpr int NumReduceDims_ = NumReduceDims;
-    static constexpr int ReduceOpId_    = ReduceOpId;
-    static constexpr int NanOpt_        = NanOpt;
-    static constexpr int IndicesOpt_    = IndicesOpt;
+    static constexpr int Rank_         = Rank;
+    static constexpr int NumReduceDim_ = NumReduceDim;
+    static constexpr int ReduceOpId_   = ReduceOpId;
+    static constexpr int NanOpt_       = NanOpt;
+    static constexpr int IndicesOpt_   = IndicesOpt;
 };
 
 using reduce_description_instances = std::tuple<ReduceDescription<4, 3, 0, 0, 0>, // for ADD
@@ -54,7 +54,7 @@ using reduce_description_instances = std::tuple<ReduceDescription<4, 3, 0, 0, 0>
 template <typename DescriptionType>
 bool description_match(const DescriptionType& description,
                        int Rank,
-                       const std::vector<int>& toReduceDims,
+                       const std::vector<int>& reduceDims,
                        ReduceTensorOp_t ReduceOpId,
                        NanPropagation_t NanOpt,
                        ReduceTensorIndices_t IndicesOpt)
@@ -64,7 +64,7 @@ bool description_match(const DescriptionType& description,
        description.IndicesOpt_ != static_cast<int>(IndicesOpt))
         return (false);
 
-    if(DescriptionType::NumReduceDims_ != toReduceDims.size())
+    if(DescriptionType::NumReduceDim_ != reduceDims.size())
         return (false);
 
     bool result = true;
@@ -80,17 +80,17 @@ bool description_match(const DescriptionType& description,
 namespace ck {
 namespace profiler {
 
-template <index_t Rank, index_t NumReduceDims>
-static inline std::vector<int> get_invariant_dims(const std::vector<int>& toReduceDims)
+template <index_t Rank, index_t NumReduceDim>
+static inline std::vector<int> get_invariant_dims(const std::vector<int>& reduceDims)
 {
-    assert(NumReduceDims == toReduceDims.size());
+    assert(NumReduceDim == reduceDims.size());
 
     int reduceFlag = 0;
 
-    // flag the bits for the toReduceDims
-    for(int i = 0; i < NumReduceDims; i++)
+    // flag the bits for the reduceDims
+    for(int i = 0; i < NumReduceDim; i++)
     {
-        reduceFlag |= 1 << toReduceDims[i];
+        reduceFlag |= 1 << reduceDims[i];
     };
 
     std::vector<int> invariantDims;
@@ -138,7 +138,7 @@ template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           int Rank,
-          int NumReduceDims,
+          int NumReduceDim,
           ReduceTensorOp_t ReduceOpId,
           NanPropagation_t NanOpt,
           ReduceTensorIndices_t IndicesOpt>
@@ -148,7 +148,7 @@ void profile_reduce_impl_impl(bool do_verification,
                               bool do_dumpout,
                               int nrepeat,
                               const std::vector<size_t>& inLengths,
-                              const std::vector<int>& toReduceDims,
+                              const std::vector<int>& reduceDims,
                               float alpha,
                               float beta)
 {
@@ -214,9 +214,9 @@ void profile_reduce_impl_impl(bool do_verification,
 
         std::vector<size_t> outLengths;
 
-        const auto invariantDims = get_invariant_dims<Rank, NumReduceDims>(toReduceDims);
+        const auto invariantDims = get_invariant_dims<Rank, NumReduceDim>(reduceDims);
 
-        if(toReduceDims.size() == Rank)
+        if(reduceDims.size() == Rank)
             outLengths.push_back(1);
         else
             for(auto dim : invariantDims)
@@ -310,7 +310,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                               AccDataType,
                                               OutDataType,
                                               Rank,
-                                              NumReduceDims,
+                                              NumReduceDim,
                                               ReduceOpId,
                                               NanOpt,
                                               IndicesOpt>(reduce0_ptrs);
@@ -319,7 +319,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                              AccDataType,
                                              OutDataType,
                                              Rank,
-                                             NumReduceDims,
+                                             NumReduceDim,
                                              ReduceOpId,
                                              NanOpt,
                                              IndicesOpt>(reduce0_ptrs);
@@ -329,7 +329,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                                              AccDataType,
                                                              OutDataType,
                                                              Rank,
-                                                             NumReduceDims,
+                                                             NumReduceDim,
                                                              ReduceOpId,
                                                              NanOpt,
                                                              IndicesOpt>(reduce0_ptrs);
@@ -338,7 +338,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                                                  AccDataType,
                                                                  OutDataType,
                                                                  Rank,
-                                                                 NumReduceDims,
+                                                                 NumReduceDim,
                                                                  ReduceOpId,
                                                                  NanOpt,
                                                                  IndicesOpt>(reduce1_ptrs);
@@ -349,7 +349,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                                              AccDataType,
                                                              OutDataType,
                                                              Rank,
-                                                             NumReduceDims,
+                                                             NumReduceDim,
                                                              ReduceOpId,
                                                              NanOpt,
                                                              IndicesOpt>(reduce2_ptrs);
@@ -366,7 +366,7 @@ void profile_reduce_impl_impl(bool do_verification,
             using hCompType = typename type_mapping<AccDataType>::outDataType;
 
             ReductionHost<hInType, hCompType, hOutType, ReduceOpId, PropagateNan, NeedIndices>
-                hostReduce(in.mDesc, out_ref.mDesc, invariantDims, toReduceDims);
+                hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
             hostReduce.Run(alpha,
                            reinterpret_cast<const hInType*>(in.mData.data()),
@@ -394,7 +394,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                                                 i_inStrides,
                                                                 i_outLengths,
                                                                 i_outStrides,
-                                                                toReduceDims,
+                                                                reduceDims,
                                                                 alpha,
                                                                 beta,
                                                                 in_dev.GetDeviceBuffer(),
@@ -479,7 +479,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                                                 i_inStrides,
                                                                 i_outLengths,
                                                                 i_outStrides,
-                                                                toReduceDims,
+                                                                reduceDims,
                                                                 alpha,
                                                                 beta,
                                                                 in_dev.GetDeviceBuffer(),
@@ -517,7 +517,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                                      inStrides2,
                                                      i_outLengths,
                                                      i_outStrides,
-                                                     toReduceDims,
+                                                     reduceDims,
                                                      alpha,
                                                      beta,
                                                      ws_dev.GetDeviceBuffer(),
@@ -606,7 +606,7 @@ void profile_reduce_impl(bool do_verification,
                          bool do_dumpout,
                          int nrepeat,
                          const std::vector<size_t>& inLengths,
-                         const std::vector<int>& toReduceDims,
+                         const std::vector<int>& reduceDims,
                          ReduceTensorOp_t ReduceOpId,
                          NanPropagation_t NanOpt,
                          ReduceTensorIndices_t IndicesOpt,
@@ -627,14 +627,14 @@ void profile_reduce_impl(bool do_verification,
         using descType = remove_cvref_t<decltype(std::get<i>(tuple_object))>;
 
         if(!description_match(
-               descType{}, inLengths.size(), toReduceDims, ReduceOpId, NanOpt, IndicesOpt))
+               descType{}, inLengths.size(), reduceDims, ReduceOpId, NanOpt, IndicesOpt))
             return;
 
         profile_reduce_impl_impl<InDataType,
                                  AccDataType,
                                  OutDataType,
                                  descType::Rank_,
-                                 descType::NumReduceDims_,
+                                 descType::NumReduceDim_,
                                  static_cast<ReduceTensorOp_t>(descType::ReduceOpId_),
                                  static_cast<NanPropagation_t>(descType::NanOpt_),
                                  static_cast<ReduceTensorIndices_t>(descType::IndicesOpt_)>(
@@ -644,7 +644,7 @@ void profile_reduce_impl(bool do_verification,
             do_dumpout,
             nrepeat,
             inLengths,
-            toReduceDims,
+            reduceDims,
             alpha,
             beta);
 

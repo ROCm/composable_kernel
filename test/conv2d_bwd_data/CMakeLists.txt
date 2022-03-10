@@ -1,0 +1,3 @@
+add_test_executable(test_conv2d_bwd_data conv2d_bwd_data.cpp)
+target_link_libraries(test_conv2d_bwd_data PRIVATE host_tensor)
+target_link_libraries(test_conv2d_bwd_data PRIVATE device_conv2d_bwd_data_instance)
