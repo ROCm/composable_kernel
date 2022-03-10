@@ -31,6 +31,9 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Default;
 
+using DeviceConvBwdDataBasePtr =
+    ck::tensor_operation::device::DeviceConvBwdDataPtr<InElementOp, WeiElementOp, OutElementOp>;
+
 template <ck::index_t NumDimSpatial>
 using DeviceConvNDBwdDataInstance = ck::tensor_operation::device::
     DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K<
@@ -70,13 +73,14 @@ using DeviceConvNDBwdDataInstance = ck::tensor_operation::device::
         1>; // GemmCThreadTransferDstScalarPerVector
 
 template <ck::index_t NumDimSpatial>
-using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                                  WeiDataType,
-                                                                                  OutDataType,
-                                                                                  InElementOp,
-                                                                                  WeiElementOp,
-                                                                                  OutElementOp,
-                                                                                  NumDimSpatial>;
+using ReferenceConvBwdDataInstance =
+    ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                     WeiDataType,
+                                                     OutDataType,
+                                                     InElementOp,
+                                                     WeiElementOp,
+                                                     OutElementOp,
+                                                     NumDimSpatial>;
 
 void PrintUseMsg()
 {
@@ -213,6 +217,25 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     }
 }
 
+DeviceConvBwdDataBasePtr GetConvInstance(int num_dim_spatial)
+{
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return std::make_unique<DeviceConvNDBwdDataInstance<3>>();
+    }
+    case 2: {
+        return std::make_unique<DeviceConvNDBwdDataInstance<2>>();
+    }
+    case 1: {
+        return std::make_unique<DeviceConvNDBwdDataInstance<1>>();
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     bool do_verification = 0;
@@ -285,33 +308,34 @@ int main(int argc, char* argv[])
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
     // do GEMM
-    auto conv     = DeviceConvNDBwdDataInstance<2>{};
-    auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                      params.N,
-                                      params.K,
-                                      params.C,
-                                      params.input_spatial_lengths,
-                                      params.filter_spatial_lengths,
-                                      output_spatial_lengths,
-                                      params.conv_filter_strides,
-                                      params.conv_filter_dilations,
-                                      params.input_left_pads,
-                                      params.input_right_pads,
-                                      InElementOp{},
-                                      WeiElementOp{},
-                                      OutElementOp{});
+    auto conv    = GetConvInstance(num_dim_spatial);
+    auto invoker = conv->MakeInvokerPointer();
+    auto argument =
+        conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                  static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                                  static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                  params.N,
+                                  params.K,
+                                  params.C,
+                                  params.input_spatial_lengths,
+                                  params.filter_spatial_lengths,
+                                  output_spatial_lengths,
+                                  params.conv_filter_strides,
+                                  params.conv_filter_dilations,
+                                  params.input_left_pads,
+                                  params.input_right_pads,
+                                  InElementOp{},
+                                  WeiElementOp{},
+                                  OutElementOp{});
 
-    if(!conv.IsSupportedArgument(argument))
+    if(!conv->IsSupportedArgument(argument.get()))
     {
         throw std::runtime_error(
             "wrong! device_conv with the specified compilation parameters does "
             "not support this Conv problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker->Run(argument.get(), nrepeat);
 
     std::size_t flop = ck::conv_util::GetFlops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
@@ -331,24 +355,47 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        auto ref_conv    = ReferenceConvBwdInstance<2>{};
-        auto ref_invoker = ref_conv.MakeInvoker();
+        auto verify_f = [&](const auto& ref_conv) {
+            auto ref_invoker = ref_conv.MakeInvoker();
 
-        auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
-                                                  wei_k_c_y_x,
-                                                  out_n_k_ho_wo,
-                                                  params.conv_filter_strides,
-                                                  params.conv_filter_dilations,
-                                                  params.input_left_pads,
-                                                  params.input_right_pads,
-                                                  InElementOp{},
-                                                  WeiElementOp{},
-                                                  OutElementOp{});
+            auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
+                                                      wei_k_c_y_x,
+                                                      out_n_k_ho_wo,
+                                                      params.conv_filter_strides,
+                                                      params.conv_filter_dilations,
+                                                      params.input_left_pads,
+                                                      params.input_right_pads,
+                                                      InElementOp{},
+                                                      WeiElementOp{},
+                                                      OutElementOp{});
 
-        ref_invoker.Run(ref_argument);
+            ref_invoker.Run(ref_argument);
 
-        in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
+            in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-        check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+            check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+        };
+
+        switch(num_dim_spatial)
+        {
+        case 3: {
+            auto ref_conv = ReferenceConvBwdDataInstance<3>();
+            verify_f(ref_conv);
+            break;
+        }
+        case 2: {
+            auto ref_conv = ReferenceConvBwdDataInstance<2>();
+            verify_f(ref_conv);
+            break;
+        }
+        case 1: {
+            auto ref_conv = ReferenceConvBwdDataInstance<1>();
+            verify_f(ref_conv);
+            break;
+        }
+        default: {
+            throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+        }
+        }
     }
 }
