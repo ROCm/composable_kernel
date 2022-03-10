@@ -82,9 +82,9 @@ struct ThreadwiseTensorSliceTransfer_v6r1
                                                     remove_cv_t<decltype(scalar_per_access)>>;
 
         // loop over space-filling curve
-        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
-        static_for<0, num_accesses, 1>{}([&](auto idx_1d) {
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
             using src_vector_type = vector_type_maker_t<SrcData, ScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
 
@@ -116,7 +116,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
             // move coordinate
-            if constexpr(idx_1d.value != num_accesses - 1)
+            if constexpr(idx_1d.value != num_access - 1)
             {
                 constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
                 move_tensor_coordinate(
@@ -153,15 +153,15 @@ struct ThreadwiseTensorSliceTransfer_v6r1
                                                     DimAccessOrder,
                                                     remove_cv_t<decltype(scalar_per_access)>>;
 
-        constexpr auto num_accesses = SpaceFillingCurve::GetNumOfAccess();
-        if constexpr(num_accesses == 0)
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+        if constexpr(num_access == 0)
         {
             return typename SpaceFillingCurve::Index{};
         }
         else
         {
             constexpr auto reset_step =
-                SpaceFillingCurve::GetStepBetween(Number<num_accesses - 1>{}, Number<0>{});
+                SpaceFillingCurve::GetStepBetween(Number<num_access - 1>{}, Number<0>{});
 
             return reset_step;
         }
