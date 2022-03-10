@@ -24,6 +24,8 @@ namespace device_conv2d_fwd_instance {
 
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
+void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
+    std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 
@@ -100,6 +102,8 @@ bool TestConv2DNHWCF16Instances()
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_fwd_instance::
         add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+    ck::tensor_operation::device::device_conv2d_fwd_instance::
+        add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
     return TestConv2DNHWCInstances<ck::half_t>(conv_ptrs);
 }
 
