@@ -26,17 +26,17 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v4r1(const FloatAB* __restrict__ p_a_grid,
-                                const FloatAB* __restrict__ p_b_grid,
-                                FloatC* __restrict__ p_c_grid,
-                                const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                const AElementwiseOperation a_element_op,
-                                const BElementwiseOperation b_element_op,
-                                const CElementwiseOperation c_element_op,
-                                const Block2CTileMap block_2_ctile_map)
+        kernel_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
+                                    const FloatAB* __restrict__ p_b_grid,
+                                    FloatC* __restrict__ p_c_grid,
+                                    const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+                                    const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+                                    const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    const AElementwiseOperation a_element_op,
+                                    const BElementwiseOperation b_element_op,
+                                    const CElementwiseOperation c_element_op,
+                                    const Block2CTileMap block_2_ctile_map)
 {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -95,7 +95,7 @@ template <index_t BlockSize,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           index_t NumPrefetch = 1>
-struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v4r1
+struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

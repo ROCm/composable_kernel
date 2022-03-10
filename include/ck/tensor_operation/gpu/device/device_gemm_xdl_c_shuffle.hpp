@@ -7,7 +7,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v4r1.hpp"
+#include "gridwise_gemm_xdl_cshuffle_v1.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -129,49 +129,54 @@ struct DeviceGemmXdl_C_Shuffle
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v4r1<
-        BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
-        AccDataType,
-        CShuffleDataType,
-        CDataType,
-        InMemoryDataOperationEnum_t::Set,
-        AGridDesc_K0_M_K1,
-        BGridDesc_K0_N_K1,
-        CGridDesc_M_N,
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation,
-        MPerBlock,
-        NPerBlock,
-        KPerBlock,
-        AK1,
-        BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave,
-        ABlockTransferThreadClusterLengths_K0_M_K1,
-        ABlockTransferThreadClusterArrangeOrder,
-        ABlockTransferSrcAccessOrder,
-        ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_K1,
-        false,
-        ABlockLdsAddExtraM,
-        BBlockTransferThreadClusterLengths_K0_N_K1,
-        BBlockTransferThreadClusterArrangeOrder,
-        BBlockTransferSrcAccessOrder,
-        BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_K1,
-        false,
-        BBlockLdsAddExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
-        NumPrefetch>;
+    using GridwiseGemm =
+#if 0
+        GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v4r1
+#else
+        GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
+#endif
+        <BlockSize,
+         ADataType, // TODO: distinguish A/B datatype
+         AccDataType,
+         CShuffleDataType,
+         CDataType,
+         InMemoryDataOperationEnum_t::Set,
+         AGridDesc_K0_M_K1,
+         BGridDesc_K0_N_K1,
+         CGridDesc_M_N,
+         AElementwiseOperation,
+         BElementwiseOperation,
+         CElementwiseOperation,
+         MPerBlock,
+         NPerBlock,
+         KPerBlock,
+         AK1,
+         BK1,
+         MPerXDL,
+         NPerXDL,
+         MXdlPerWave,
+         NXdlPerWave,
+         ABlockTransferThreadClusterLengths_K0_M_K1,
+         ABlockTransferThreadClusterArrangeOrder,
+         ABlockTransferSrcAccessOrder,
+         ABlockTransferSrcVectorDim,
+         ABlockTransferSrcScalarPerVector,
+         ABlockTransferDstScalarPerVector_K1,
+         false,
+         ABlockLdsAddExtraM,
+         BBlockTransferThreadClusterLengths_K0_N_K1,
+         BBlockTransferThreadClusterArrangeOrder,
+         BBlockTransferSrcAccessOrder,
+         BBlockTransferSrcVectorDim,
+         BBlockTransferSrcScalarPerVector,
+         BBlockTransferDstScalarPerVector_K1,
+         false,
+         BBlockLdsAddExtraN,
+         CShuffleMXdlPerWavePerShuffle,
+         CShuffleNXdlPerWavePerShuffle,
+         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+         CShuffleBlockTransferScalarPerVector_NPerBlock,
+         NumPrefetch>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -279,19 +284,24 @@ struct DeviceGemmXdl_C_Shuffle
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v4r1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle::BGridDesc_K0_N_K1>,
-                    remove_reference_t<
-                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    true>;
+                const auto kernel =
+#if 0
+                    kernel_gemm_xdlops_v4r1
+#else
+                    kernel_gemm_xdl_cshuffle_v1
+#endif
+                    <GridwiseGemm,
+                     ADataType, // TODO: distiguish A/B datatype
+                     CDataType,
+                     remove_reference_t<DeviceGemmXdl_C_Shuffle::AGridDesc_K0_M_K1>,
+                     remove_reference_t<DeviceGemmXdl_C_Shuffle::BGridDesc_K0_N_K1>,
+                     remove_reference_t<
+                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
+                     AElementwiseOperation,
+                     BElementwiseOperation,
+                     CElementwiseOperation,
+                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                     true>;
 
                 ave_time =
                     launch_and_time_kernel(kernel,
@@ -312,19 +322,24 @@ struct DeviceGemmXdl_C_Shuffle
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v4r1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle::BGridDesc_K0_N_K1>,
-                    remove_reference_t<
-                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    false>;
+                const auto kernel =
+#if 0
+                    kernel_gemm_xdlops_v4r1
+#else
+                    kernel_gemm_xdl_cshuffle_v1
+#endif
+                    <GridwiseGemm,
+                     ADataType, // TODO: distiguish A/B datatype
+                     CDataType,
+                     remove_reference_t<DeviceGemmXdl_C_Shuffle::AGridDesc_K0_M_K1>,
+                     remove_reference_t<DeviceGemmXdl_C_Shuffle::BGridDesc_K0_N_K1>,
+                     remove_reference_t<
+                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
+                     AElementwiseOperation,
+                     BElementwiseOperation,
+                     CElementwiseOperation,
+                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                     false>;
 
                 ave_time =
                     launch_and_time_kernel(kernel,
