@@ -60,7 +60,7 @@ bool TestConv2DNHWC()
 }
 
 template <typename T>
-bool TestConv2DNHWCInstances()
+bool TestConv2DNHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
     ck::conv_util::ConvParams params;
     params.num_dim_spatial        = 2;
@@ -83,22 +83,41 @@ bool TestConv2DNHWCInstances()
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
     test::conv::RunReferenceConv<2>(params, input, weights, host_output);
-
-    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv2d_fwd_instance::
-        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
-
     return test::conv::RunConvInstances<2>(
         params, conv_ptrs, input, weights, device_output, host_output);
 }
 
-bool TestConv2DNHWCBF16Instances() { return TestConv2DNHWCInstances<ck::bhalf_t>(); }
+bool TestConv2DNHWCBF16Instances()
+{    
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv2d_fwd_instance::
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
+    return TestConv2DNHWCInstances<ck::bhalf_t>(conv_ptrs);
+}
 
-bool TestConv2DNHWCF16Instances() { return TestConv2DNHWCInstances<ck::half_t>(); }
+bool TestConv2DNHWCF16Instances()
+{    
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv2d_fwd_instance::
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+    return TestConv2DNHWCInstances<ck::half_t>(conv_ptrs);
+}
 
-bool TestConv2DNHWCF32Instances() { return TestConv2DNHWCInstances<float>(); }
+bool TestConv2DNHWCF32Instances()
+{    
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv2d_fwd_instance::
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
+    return TestConv2DNHWCInstances<float>(conv_ptrs);
+}
 
-bool TestConv2DNHWCInt8Instances() { return TestConv2DNHWCInstances<int8_t>(); }
+bool TestConv2DNHWCInt8Instances()
+{    
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv2d_fwd_instance::
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
+    return TestConv2DNHWCInstances<int8_t>(conv_ptrs);
+}
 
 } // anonymous namespace
 
@@ -109,13 +128,13 @@ int main()
     std::cout << "TestConv2DNHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
     res = TestConv2DNHWCBF16Instances();
-    std::cout << "TestConv2DNHWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv2DNHWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv2DNHWCF16Instances();
-    std::cout << "TestConv2DNHWCF16Instances ....." << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv2DNHWCF16Instances ....." << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv2DNHWCF32Instances();
-    std::cout << "TestConv2DNHWCF32Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv2DNHWCF32Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv2DNHWCInt8Instances();
-    std::cout << "TestConv2DNHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv2DNHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
     return 0;
 }

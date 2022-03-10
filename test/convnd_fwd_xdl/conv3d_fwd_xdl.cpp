@@ -199,7 +199,7 @@ bool TestConv3DNDHWC2GBOutput()
 }
 
 template <typename T>
-bool TestConv3DNDHWCInstances()
+bool TestConv3DNDHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
     ck::conv_util::ConvParams params;
     params.num_dim_spatial        = 3;
@@ -222,22 +222,41 @@ bool TestConv3DNDHWCInstances()
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
     test::conv::RunReferenceConv<3>(params, input, weights, host_output);
-
-    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv3d_fwd_instance::
-        add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
-
     return test::conv::RunConvInstances<3>(
         params, conv_ptrs, input, weights, device_output, host_output);
 }
 
-bool TestConv3DNDHWCBF16Instances() { return TestConv3DNDHWCInstances<ck::bhalf_t>(); }
+bool TestConv3DNDHWCBF16Instances()
+{   
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv3d_fwd_instance::
+        add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
+    return TestConv3DNDHWCInstances<ck::bhalf_t>(conv_ptrs);
+}
 
-bool TestConv3DNDHWCF16Instances() { return TestConv3DNDHWCInstances<ck::half_t>(); }
+bool TestConv3DNDHWCF16Instances()
+{   
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv3d_fwd_instance::
+        add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
+    return TestConv3DNDHWCInstances<ck::half_t>(conv_ptrs);
+}
 
-bool TestConv3DNDHWCF32Instances() { return TestConv3DNDHWCInstances<float>(); }
+bool TestConv3DNDHWCF32Instances()
+{   
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv3d_fwd_instance::
+        add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
+    return TestConv3DNDHWCInstances<float>(conv_ptrs);
+}
 
-bool TestConv3DNDHWCInt8Instances() { return TestConv3DNDHWCInstances<int8_t>(); }
+bool TestConv3DNDHWCInt8Instances()
+{   
+    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+    ck::tensor_operation::device::device_conv3d_fwd_instance::
+        add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
+    return TestConv3DNDHWCInstances<int8_t>(conv_ptrs);
+}
 
 } // anonymous namespace
 
@@ -248,21 +267,21 @@ int main()
     std::cout << "TestConv3DNDHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
     res = TestConv3DNDHWC2GBInput();
-    std::cout << "TestConv3DNDHWC2GBInput ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv3DNDHWC2GBInput ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv3DNDHWC2GBFilters();
-    std::cout << "TestConv3DNDHWC2GBFilters ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv3DNDHWC2GBFilters ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv3DNDHWC2GBOutput();
-    std::cout << "TestConv3DNDHWC2GBOutput ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv3DNDHWC2GBOutput ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
     res = TestConv3DNDHWCBF16Instances();
-    std::cout << "TestConv3DNDHWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE")
+    std::cout << "\nTestConv3DNDHWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
     res = TestConv3DNDHWCF16Instances();
-    std::cout << "TestConv3DNDHWCF16Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv3DNDHWCF16Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv3DNDHWCF32Instances();
-    std::cout << "TestConv3DNDHWCF32Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv3DNDHWCF32Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv3DNDHWCInt8Instances();
-    std::cout << "TestConv3DNDHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE")
+    std::cout << "\nTestConv3DNDHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
 
     return 0;

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <numeric>
+#include <random>
 #include <stdexcept>
 #include <tuple>
 #include <vector>
@@ -115,7 +116,17 @@ auto GetHostTensors(const ck::conv_util::ConvParams& params)
     Tensor<OutDataType> device_output(
         ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
 
-    std::generate(input.begin(), input.end(), [n = 0]() mutable { return InDataType(n++ * 0.1f); });
+    std::mt19937 gen(11939);
+    if constexpr (std::is_same<InDataType, uint8_t>::value)
+    {
+        std::uniform_int_distribution<> dis(-5, 5);
+        std::generate(input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
+    }
+    else
+    {
+        std::uniform_real_distribution<> dis(0.f, 1.f);
+        std::generate(input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
+    }
     std::fill(weights.begin(), weights.end(), WeiDataType(0.5f));
     std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
     std::fill(device_output.begin(), device_output.end(), OutDataType(0.f));
