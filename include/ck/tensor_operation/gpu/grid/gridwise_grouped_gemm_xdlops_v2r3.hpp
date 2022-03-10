@@ -39,30 +39,61 @@ __global__ void
 
     const index_t block_id = get_block_1d_id();
 
+#if 1
     static_for<0, MaxGroupCount, 1>{}([&](auto i) {
         if(block_id >= gemm_desc_[i].BlockStart && block_id < gemm_desc_[i].BlockEnd)
         {
-            const index_t group_id     = i;
-            const index_t block_id_grp = block_id - gemm_desc_[i].BlockStart;
-            const index_t a_offset_grp = gemm_desc_[i].OffsetA;
-            const index_t b_offset_grp = gemm_desc_[i].OffsetB;
-            const index_t c_offset_grp = gemm_desc_[i].OffsetC;
+            auto group_id              = i;
+            const index_t block_id_grp = block_id - gemm_desc_[group_id].BlockStart;
+            const index_t a_offset_grp = gemm_desc_[group_id].OffsetA;
+            const index_t b_offset_grp = gemm_desc_[group_id].OffsetB;
+            const index_t c_offset_grp = gemm_desc_[group_id].OffsetC;
 
             GridwiseGemm::template Run<HasMainK0BlockLoop>(
                 p_a_grid + a_offset_grp,
                 p_b_grid + b_offset_grp,
                 p_c_grid + c_offset_grp,
                 p_shared,
-                gemm_desc_[i].a_grid_desc_k0_m_k1_,
-                gemm_desc_[i].b_grid_desc_k0_n_k1_,
-                gemm_desc_[i].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                gemm_desc_[group_id].a_grid_desc_k0_m_k1_,
+                gemm_desc_[group_id].b_grid_desc_k0_n_k1_,
+                gemm_desc_[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                 a_element_op,
                 b_element_op,
                 c_element_op,
-                gemm_desc_[i].block_2_ctile_map_,
+                gemm_desc_[group_id].block_2_ctile_map_,
                 block_id_grp);
         }
     });
+#else
+    const GemmDesc* gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(&gemm_desc_);
+
+    index_t group_id = 0;
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        group_id = (block_id >= gemm_desc_[i].BlockStart && block_id < gemm_desc_[i].BlockEnd)
+                       ? i
+                       : group_id;
+    });
+
+    const index_t block_id_grp = block_id - gemm_desc_ptr[group_id].BlockStart;
+    const index_t a_offset_grp = gemm_desc_ptr[group_id].OffsetA;
+    const index_t b_offset_grp = gemm_desc_ptr[group_id].OffsetB;
+    const index_t c_offset_grp = gemm_desc_ptr[group_id].OffsetC;
+
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(
+        p_a_grid + a_offset_grp,
+        p_b_grid + b_offset_grp,
+        p_c_grid + c_offset_grp,
+        p_shared,
+        gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
+        gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
+        gemm_desc_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        gemm_desc_ptr[group_id].block_2_ctile_map_,
+        block_id_grp);
+
+#endif
 }
 
 #if 0
