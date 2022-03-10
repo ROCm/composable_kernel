@@ -88,7 +88,7 @@ template <typename InDataType  = float,
           typename InLayout    = ck::tensor_layout::convolution::NHWC,
           typename WeiLayout   = ck::tensor_layout::convolution::KYXC,
           typename OutLayout   = ck::tensor_layout::convolution::NHWK>
-auto GetHostTensors(const ck::conv_util::ConvParams& params)
+auto GetHostTensors(const ck::conv_util::ConvParams& params, bool init = true)
 {
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
                                         static_cast<std::size_t>(params.C)};
@@ -116,20 +116,25 @@ auto GetHostTensors(const ck::conv_util::ConvParams& params)
     Tensor<OutDataType> device_output(
         ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
 
-    std::mt19937 gen(11939);
-    if constexpr (std::is_same<InDataType, uint8_t>::value)
+    if(init)
     {
-        std::uniform_int_distribution<> dis(-5, 5);
-        std::generate(input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
+        std::mt19937 gen(11939);
+        if constexpr(std::is_same<InDataType, uint8_t>::value)
+        {
+            std::uniform_int_distribution<> dis(-5, 5);
+            std::generate(
+                input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
+        }
+        else
+        {
+            std::uniform_real_distribution<> dis(0.f, 1.f);
+            std::generate(
+                input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
+        }
+        std::fill(weights.begin(), weights.end(), WeiDataType(0.5f));
+        std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
+        std::fill(device_output.begin(), device_output.end(), OutDataType(0.f));
     }
-    else
-    {
-        std::uniform_real_distribution<> dis(0.f, 1.f);
-        std::generate(input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
-    }
-    std::fill(weights.begin(), weights.end(), WeiDataType(0.5f));
-    std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
-    std::fill(device_output.begin(), device_output.end(), OutDataType(0.f));
 
     return std::make_tuple(input, weights, host_output, device_output);
 }
