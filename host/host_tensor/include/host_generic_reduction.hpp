@@ -36,8 +36,7 @@
 
 #include "reduction_enums.hpp"
 #include "host_reduce_util.hpp"
-
-using float16 = half_float::half;
+#include "data_type.hpp"
 
 namespace ck {
 
@@ -214,7 +213,7 @@ class ReductionHost
             {
                 auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                auto currVal = static_cast<AccDataType>(in_data[src_offset]);
+                auto currVal = type_convert<AccDataType>(in_data[src_offset]);
 
                 // unary operation before reducing, needed by AMAX. For MIN/MAX, nothing is actually
                 // done
@@ -227,14 +226,14 @@ class ReductionHost
 
             // scale the accumulated value
             if(!float_equal_one(alpha))
-                accuVal *= static_cast<AccDataType>(alpha);
+                accuVal *= type_convert<AccDataType>(alpha);
 
             // scale the prior dst value and add it to the accumulated value
             if(!float_equal_zero(beta))
-                accuVal += static_cast<AccDataType>(out_data[0]) * static_cast<AccDataType>(beta);
+                accuVal += type_convert<AccDataType>(out_data[0]) * type_convert<AccDataType>(beta);
 
             // store the reduced value to dst location
-            out_data[0] = static_cast<OutDataType>(accuVal);
+            out_data[0] = type_convert<OutDataType>(accuVal);
             indices[0]  = accuIndex;
         }
         else
@@ -275,7 +274,7 @@ class ReductionHost
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                    auto currVal = static_cast<AccDataType>(in_data[src_offset]);
+                    auto currVal = type_convert<AccDataType>(in_data[src_offset]);
                     // unary operation before reducing, needed by AMAX. For MIN/MAX, nothing is
                     // actually done
                     PreUnaryOp(currVal);
@@ -287,15 +286,15 @@ class ReductionHost
 
                 // scale the accumulated value
                 if(!float_equal_one(alpha))
-                    accuVal *= static_cast<AccDataType>(alpha);
+                    accuVal *= type_convert<AccDataType>(alpha);
 
                 // scale the prior dst value and add it to the accumulated value
                 if(!float_equal_zero(beta))
-                    accuVal += static_cast<AccDataType>(out_data[dst_offset]) *
-                               static_cast<AccDataType>(beta);
+                    accuVal += type_convert<AccDataType>(out_data[dst_offset]) *
+                               type_convert<AccDataType>(beta);
 
                 // store the reduced value to dst location
-                out_data[dst_offset] = static_cast<OutDataType>(accuVal);
+                out_data[dst_offset] = type_convert<OutDataType>(accuVal);
                 indices[dst_offset]  = accuIndex;
             };
         };
@@ -335,7 +334,7 @@ class ReductionHost
             {
                 auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                auto currVal = static_cast<AccDataType>(in_data[src_offset]);
+                auto currVal = type_convert<AccDataType>(in_data[src_offset]);
 
                 PreUnaryOp(currVal);
 
@@ -346,14 +345,14 @@ class ReductionHost
 
             // scale the accumulated value
             if(!float_equal_one(alpha))
-                accuVal *= static_cast<AccDataType>(alpha);
+                accuVal *= type_convert<AccDataType>(alpha);
 
             // scale the prior dst value and add it to the accumulated value
             if(!float_equal_zero(beta))
-                accuVal += static_cast<AccDataType>(out_data[0]) * static_cast<AccDataType>(beta);
+                accuVal += type_convert<AccDataType>(out_data[0]) * type_convert<AccDataType>(beta);
 
             // store the reduced value to dst location
-            out_data[0] = static_cast<OutDataType>(accuVal);
+            out_data[0] = type_convert<OutDataType>(accuVal);
         }
         else
         {
@@ -392,7 +391,7 @@ class ReductionHost
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
-                    auto currVal = static_cast<AccDataType>(in_data[src_offset]);
+                    auto currVal = type_convert<AccDataType>(in_data[src_offset]);
 
                     PreUnaryOp(currVal);
 
@@ -403,15 +402,15 @@ class ReductionHost
 
                 // scale the accumulated value
                 if(!float_equal_one(alpha))
-                    accuVal *= static_cast<AccDataType>(alpha);
+                    accuVal *= type_convert<AccDataType>(alpha);
 
                 // scale the prior dst value and add it to the accumulated value
                 if(!float_equal_zero(beta))
-                    accuVal += static_cast<AccDataType>(out_data[dst_offset]) *
-                               static_cast<AccDataType>(beta);
+                    accuVal += type_convert<AccDataType>(out_data[dst_offset]) *
+                               type_convert<AccDataType>(beta);
 
                 // store the reduced value to dst location
-                out_data[dst_offset] = static_cast<OutDataType>(accuVal);
+                out_data[dst_offset] = type_convert<OutDataType>(accuVal);
             };
         };
     }; // end of RunImpl_no_indices()
