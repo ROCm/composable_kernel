@@ -25,7 +25,7 @@ using ck::ReduceTensorIndices_t;
 using ck::ReduceTensorOp_t;
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
-                                       {"toReduceDims", required_argument, nullptr, 'R'},
+                                       {"reduceDims", required_argument, nullptr, 'R'},
                                        {"reduceOp", required_argument, nullptr, 'O'},
                                        {"compType", required_argument, nullptr, 'C'},
                                        {"outType", required_argument, nullptr, 'W'},
@@ -93,9 +93,9 @@ typedef enum
     appDouble   = 6,
 } appDataType_t;
 
-static void check_reduce_dims(const int rank, const std::vector<int>& toReduceDims)
+static void check_reduce_dims(const int rank, const std::vector<int>& reduceDims)
 {
-    for(auto dim : toReduceDims)
+    for(auto dim : reduceDims)
     {
         if(dim < 0 || dim >= rank)
             throw std::runtime_error("Invalid dimension index specified for Reducing");
@@ -103,7 +103,7 @@ static void check_reduce_dims(const int rank, const std::vector<int>& toReduceDi
 
     unsigned int flag = 0;
 
-    for(auto dim : toReduceDims)
+    for(auto dim : reduceDims)
     {
         if(flag & (0x1 << dim))
             throw std::runtime_error("All toReduce dimensions should be different!");
@@ -122,7 +122,7 @@ class AppArgs
 
     std::vector<size_t> inLengths;
     std::vector<size_t> outLengths;
-    std::vector<int> toReduceDims;
+    std::vector<int> reduceDims;
 
     std::vector<float> scales;
 
@@ -152,7 +152,7 @@ class AppArgs
         std::cout << "Usage of " << cmd << std::endl;
         std::cout << "--inLengths or -D, comma separated list of input tensor dimension lengths"
                   << std::endl;
-        std::cout << "--toReduceDims or -R, comma separated list of to-reduce dimensions"
+        std::cout << "--reduceDims or -R, comma separated list of to-reduce dimensions"
                   << std::endl;
         std::cout << "--reduceOp or -O, enum value indicating the reduction operations"
                   << std::endl;
@@ -201,7 +201,7 @@ class AppArgs
                 if(!optarg)
                     throw std::runtime_error("Invalid option format!");
 
-                toReduceDims = getTypeValuesFromString<int>(optarg);
+                reduceDims = getTypeValuesFromString<int>(optarg);
                 break;
             case 'O':
                 if(!optarg)
@@ -321,7 +321,7 @@ int profile_reduce(int argc, char* argv[])
 
     int rank = args.inLengths.size();
 
-    check_reduce_dims(rank, args.toReduceDims);
+    check_reduce_dims(rank, args.reduceDims);
 
     if(args.reduceOp == ReduceTensorOp_t::MUL || args.reduceOp == ReduceTensorOp_t::NORM1)
         throw std::runtime_error("MUL and NORM1 are not supported by composable kernel!");
@@ -345,7 +345,7 @@ int profile_reduce(int argc, char* argv[])
                                                                     args.do_dumpout,
                                                                     args.nrepeat,
                                                                     args.inLengths,
-                                                                    args.toReduceDims,
+                                                                    args.reduceDims,
                                                                     args.reduceOp,
                                                                     args.nanOpt,
                                                                     args.indicesOpt,
@@ -360,7 +360,7 @@ int profile_reduce(int argc, char* argv[])
                                                                args.do_dumpout,
                                                                args.nrepeat,
                                                                args.inLengths,
-                                                               args.toReduceDims,
+                                                               args.reduceDims,
                                                                args.reduceOp,
                                                                args.nanOpt,
                                                                args.indicesOpt,
@@ -378,7 +378,7 @@ int profile_reduce(int argc, char* argv[])
                                                     args.do_dumpout,
                                                     args.nrepeat,
                                                     args.inLengths,
-                                                    args.toReduceDims,
+                                                    args.reduceDims,
                                                     args.reduceOp,
                                                     args.nanOpt,
                                                     args.indicesOpt,
@@ -395,7 +395,7 @@ int profile_reduce(int argc, char* argv[])
                                                      args.do_dumpout,
                                                      args.nrepeat,
                                                      args.inLengths,
-                                                     args.toReduceDims,
+                                                     args.reduceDims,
                                                      args.reduceOp,
                                                      args.nanOpt,
                                                      args.indicesOpt,
@@ -410,7 +410,7 @@ int profile_reduce(int argc, char* argv[])
                                                       args.do_dumpout,
                                                       args.nrepeat,
                                                       args.inLengths,
-                                                      args.toReduceDims,
+                                                      args.reduceDims,
                                                       args.reduceOp,
                                                       args.nanOpt,
                                                       args.indicesOpt,
