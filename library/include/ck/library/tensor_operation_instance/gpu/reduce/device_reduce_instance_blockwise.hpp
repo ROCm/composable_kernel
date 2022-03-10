@@ -57,7 +57,7 @@ template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           int Rank,
-          int NumReduceDims,
+          int NumReduceDim,
           ReduceTensorOp_t ReduceOpId,
           NanPropagation_t NanOpt,
           ReduceTensorIndices_t IndicesOpt>
@@ -91,7 +91,7 @@ void add_device_reduce_instance_blockwise(
                                                                AccDataType,
                                                                OutDataType,
                                                                Rank,
-                                                               NumReduceDims,
+                                                               NumReduceDim,
                                                                ReduceOperation,
                                                                InElementwiseOperation,
                                                                AccElementwiseOperation,
@@ -112,20 +112,20 @@ void add_device_reduce_instance_blockwise(
     });
 };
 
-#define ADD_BLOCKWISE_INST_BY_TYPE(                                        \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDims) \
-    template void add_device_reduce_instance_blockwise<inT,                \
-                                                       compT,              \
-                                                       outT,               \
-                                                       Rank,               \
-                                                       NumReduceDims,      \
-                                                       ReduceOpId,         \
-                                                       NanOpt,             \
-                                                       IndicesOpt>(        \
+#define ADD_BLOCKWISE_INST_BY_TYPE(                                       \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim) \
+    template void add_device_reduce_instance_blockwise<inT,               \
+                                                       compT,             \
+                                                       outT,              \
+                                                       Rank,              \
+                                                       NumReduceDim,      \
+                                                       ReduceOpId,        \
+                                                       NanOpt,            \
+                                                       IndicesOpt>(       \
         std::vector<deviceReduceBlockWisePtrType<compT, ReduceOpId>> & device_op_instances)
 
 #define ADD_BLOCKWISE_INST_BY_ID(                                              \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDims)     \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)      \
     ADD_BLOCKWISE_INST_BY_TYPE(inT,                                            \
                                compT,                                          \
                                outT,                                           \
@@ -133,15 +133,15 @@ void add_device_reduce_instance_blockwise(
                                static_cast<NanPropagation_t>(NanOpt),          \
                                static_cast<ReduceTensorIndices_t>(IndicesOpt), \
                                Rank,                                           \
-                               NumReduceDims)
+                               NumReduceDim)
 
 #define ADD_BLOCKWISE_INST_REF_BY_TYPE(                                                            \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDims)                         \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                          \
     extern template void add_device_reduce_instance_blockwise<inT,                                 \
                                                               compT,                               \
                                                               outT,                                \
                                                               Rank,                                \
-                                                              NumReduceDims,                       \
+                                                              NumReduceDim,                        \
                                                               ReduceOpId,                          \
                                                               NanOpt,                              \
                                                               IndicesOpt>(                         \
@@ -152,7 +152,7 @@ void add_device_reduce_instance_blockwise(
         device_op_instances)
 
 #define ADD_BLOCKWISE_INST_REF_BY_ID(                                              \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDims)         \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)          \
     ADD_BLOCKWISE_INST_REF_BY_TYPE(inT,                                            \
                                    compT,                                          \
                                    outT,                                           \
@@ -160,7 +160,7 @@ void add_device_reduce_instance_blockwise(
                                    static_cast<NanPropagation_t>(NanOpt),          \
                                    static_cast<ReduceTensorIndices_t>(IndicesOpt), \
                                    Rank,                                           \
-                                   NumReduceDims)
+                                   NumReduceDim)
 
 } // namespace device_reduce_instance
 } // namespace device
