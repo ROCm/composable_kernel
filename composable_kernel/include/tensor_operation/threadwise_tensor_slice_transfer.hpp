@@ -552,7 +552,8 @@ struct ThreadwiseTensorSliceTransfer_v2
                     dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
                                              i * src_scalar_step_in_vector);
 
-                dst_buf(Number<dst_offset>{}) = src_vector.template AsType<SrcData>()[i];
+                dst_buf(Number<dst_offset>{}) =
+                    type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
             });
 
             constexpr auto move_on_dim = [&]() constexpr
