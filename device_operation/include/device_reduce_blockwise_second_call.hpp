@@ -46,7 +46,10 @@ struct DeviceReduceBlockWiseSecondCall
         "InDataType and AccDataType should be the same to use DEviceReduceBlockWiseSecondCall!");
 
     static constexpr index_t NumInvariantDims = Rank - NumReduceDims;
-    using InvariantDims = typename conditional<NumInvariantDims == 0,  Sequence<>, typename arithmetic_sequence_gen<0, NumInvariantDims, 1>::type >::type;
+    using InvariantDims =
+        typename conditional<NumInvariantDims == 0,
+                             Sequence<>,
+                             typename arithmetic_sequence_gen<0, NumInvariantDims, 1>::type>::type;
 
     static constexpr index_t dstDims = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
 
@@ -128,8 +131,8 @@ struct DeviceReduceBlockWiseSecondCall
             in_elementwise_op_  = in_elementwise_op;
             acc_elementwise_op_ = acc_elementwise_op;
 
-            alpha_ = static_cast<AccDataType>(alpha);
-            beta_  = static_cast<OutDataType>(beta);
+            alpha_ = type_convert<AccDataType>(alpha);
+            beta_  = type_convert<AccDataType>(beta);
 
             invariant_total_length = inLengths[0];
             reduce_total_length    = inLengths[1];
@@ -156,7 +159,7 @@ struct DeviceReduceBlockWiseSecondCall
         std::vector<int> outStrides_;
 
         AccDataType alpha_;
-        OutDataType beta_;
+        AccDataType beta_;
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
@@ -279,7 +282,7 @@ struct DeviceReduceBlockWiseSecondCall
                         const InElementwiseOperation& in_elementwise_op,
                         const AccElementwiseOperation& acc_elementwise_op) override
     {
-        (void) toReduceDims; 
+        (void)toReduceDims;
 
         return std::make_unique<Argument>(inLengths,
                                           inStrides,

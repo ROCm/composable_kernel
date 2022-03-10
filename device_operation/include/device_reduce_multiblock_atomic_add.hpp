@@ -175,8 +175,8 @@ struct DeviceReduceMultiBlockAtomicAdd
             in_elementwise_op_  = in_elementwise_op;
             acc_elementwise_op_ = acc_elementwise_op;
 
-            alpha_ = static_cast<AccDataType>(alpha);
-            beta_  = static_cast<OutDataType>(beta);
+            alpha_ = type_convert<AccDataType>(alpha);
+            beta_  = type_convert<AccDataType>(beta);
 
             std::tie(invariant_total_length, reduce_total_length) =
                 get_2d_lengths<Rank, ReduceDims>(inLengths_);
@@ -219,7 +219,7 @@ struct DeviceReduceMultiBlockAtomicAdd
         std::vector<int> outStrides_;
 
         AccDataType alpha_;
-        OutDataType beta_;
+        AccDataType beta_;
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;

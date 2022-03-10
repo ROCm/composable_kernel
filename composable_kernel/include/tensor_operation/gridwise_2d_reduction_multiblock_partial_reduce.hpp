@@ -32,6 +32,7 @@
 #include "reduction_functions_blockwise.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "cluster_descriptor.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 
@@ -119,8 +120,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
     static constexpr auto block_buf_desc_m_k = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MThreadClusterSize>{}, Number<KThreadClusterSize>{}));
 
-    template <typename T>
-    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -261,7 +261,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                                    AccDataType,
                                                    decltype(reduced_data_desc),
                                                    WorkspaceDesc_M_K,
-                                                   PassThroughOp<AccDataType>,
+                                                   PassThroughOp,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -273,7 +273,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_m_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<AccDataType>{});
+                    PassThroughOp{});
 
             threadwise_workspace_store.Run(reduced_data_desc,
                                            make_tuple(I0, I0),
@@ -450,7 +450,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                                    AccDataType,
                                                    decltype(reduced_data_desc),
                                                    WorkspaceDesc_M_K,
-                                                   PassThroughOp<AccDataType>,
+                                                   PassThroughOp,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -462,14 +462,14 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_m_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<AccDataType>{});
+                    PassThroughOp{});
 
             auto threadwise_workspace_idx_store =
                 ThreadwiseTensorSliceTransfer_v1r3<IndexDataType,
                                                    IndexDataType,
                                                    decltype(reduced_data_desc),
                                                    WorkspaceDesc_M_K,
-                                                   PassThroughOp<IndexDataType>,
+                                                   PassThroughOp,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -481,7 +481,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_m_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<IndexDataType>{});
+                    PassThroughOp{});
 
             threadwise_workspace_val_store.Run(reduced_data_desc,
                                                make_tuple(I0, I0),
