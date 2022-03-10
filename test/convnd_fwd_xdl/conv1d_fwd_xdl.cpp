@@ -137,11 +137,13 @@ int main()
     std::cout << "TestConv1DNWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
     res = TestConv1DNWCBF16Instances();
-    std::cout << "\nTestConv1DNWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv1DNWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE")
+              << std::endl;
     res = TestConv1DNWCF16Instances();
     std::cout << "\nTestConv1DNWCF16Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv1DNWCF32Instances();
     std::cout << "\nTestConv1DNWCF32Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv1DNWCInt8Instances();
-    std::cout << "\nTestConv1DNWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv1DNWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE")
+              << std::endl;
 }

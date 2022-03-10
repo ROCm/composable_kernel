@@ -88,7 +88,7 @@ bool TestConv2DNHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 }
 
 bool TestConv2DNHWCBF16Instances()
-{    
+{
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_fwd_instance::
         add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
@@ -96,7 +96,7 @@ bool TestConv2DNHWCBF16Instances()
 }
 
 bool TestConv2DNHWCF16Instances()
-{    
+{
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_fwd_instance::
         add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
@@ -104,7 +104,7 @@ bool TestConv2DNHWCF16Instances()
 }
 
 bool TestConv2DNHWCF32Instances()
-{    
+{
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_fwd_instance::
         add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
@@ -112,7 +112,7 @@ bool TestConv2DNHWCF32Instances()
 }
 
 bool TestConv2DNHWCInt8Instances()
-{    
+{
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_fwd_instance::
         add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
@@ -128,13 +128,16 @@ int main()
     std::cout << "TestConv2DNHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
     res = TestConv2DNHWCBF16Instances();
-    std::cout << "\nTestConv2DNHWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv2DNHWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE")
+              << std::endl;
     res = TestConv2DNHWCF16Instances();
     std::cout << "\nTestConv2DNHWCF16Instances ....." << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv2DNHWCF32Instances();
-    std::cout << "\nTestConv2DNHWCF32Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv2DNHWCF32Instances ..... " << (res ? "SUCCESS" : "FAILURE")
+              << std::endl;
     res = TestConv2DNHWCInt8Instances();
-    std::cout << "\nTestConv2DNHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    std::cout << "\nTestConv2DNHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE")
+              << std::endl;
 
     return 0;
 }
