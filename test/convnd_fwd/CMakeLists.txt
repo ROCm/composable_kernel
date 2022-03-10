@@ -1,0 +1,11 @@
+add_test_executable(test_conv1d_fwd conv1d_fwd.cpp)
+target_link_libraries(conv1d_fwd PRIVATE host_tensor)
+target_link_libraries(conv1d_fwd PRIVATE device_conv1d_fwd_instance)
+
+add_test_executable(test_conv2d_fwd conv2d_fwd.cpp)
+target_link_libraries(conv2d_fwd PRIVATE host_tensor)
+target_link_libraries(conv2d_fwd PRIVATE device_conv2d_fwd_instance)
+
+add_test_executable(test_conv3d_fwd conv3d_fwd.cpp)
+target_link_libraries(conv3d_fwd PRIVATE host_tensor)
+target_link_libraries(conv3d_fwd PRIVATE device_conv3d_fwd_instance)
