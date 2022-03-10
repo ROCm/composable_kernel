@@ -58,24 +58,24 @@ static auto make_tuple_from_array(const std::vector<int>& lengths, Number<arrayS
     return make_tuple_from_array_and_index_seq(lengths, index_seq);
 };
 
-template <index_t Rank, index_t NumReduceDims>
+template <index_t Rank, index_t NumReduceDim>
 static inline std::pair<std::vector<int>, std::vector<int>>
 shuffle_tensor_dimensions(const std::vector<int>& dimLengths,
                           const std::vector<int>& dimStrides,
-                          const std::vector<int>& toReduceDims)
+                          const std::vector<int>& reduceDims)
 {
     std::vector<int> newDimLengths;
     std::vector<int> newDimStrides;
 
     assert(Rank == dimLengths.size() && Rank == dimStrides.size() &&
-           NumReduceDims == toReduceDims.size());
+           NumReduceDim == reduceDims.size());
 
     int reduceFlag = 0;
 
-    // flag the bits for the toReduceDims
-    for(int i = 0; i < NumReduceDims; i++)
+    // flag the bits for the reduceDims
+    for(int i = 0; i < NumReduceDim; i++)
     {
-        reduceFlag |= 1 << toReduceDims[i];
+        reduceFlag |= 1 << reduceDims[i];
     };
 
     // collect invariant dimensions

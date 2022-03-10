@@ -121,7 +121,7 @@ struct DeviceReduceBlockWiseSecondCall
                  AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
-            : ineLengths_(inLengths),
+            : inLengths_(inLengths),
               inStrides_(inStrides),
               outLengths_(outLengths),
               outStrides_(outStrides),
