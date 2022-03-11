@@ -1,0 +1,1 @@
+add_example_executable(example_reduce_blockwise reduce_blockwise.cpp)
