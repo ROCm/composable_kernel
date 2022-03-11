@@ -609,7 +609,7 @@ struct sequence_map_inverse
 template <index_t... Xs, index_t... Ys>
 __host__ __device__ constexpr bool operator==(Sequence<Xs...>, Sequence<Ys...>)
 {
-    return (true && ... && (Xs == Ys));
+    return ((Xs == Ys) && ...);
 }
 
 template <index_t... Xs, index_t... Ys>
