@@ -1354,12 +1354,13 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                      ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 pad = 0 conv
-            if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
-                 arg.conv_filter_strides_[0] == 1 && arg.conv_filter_strides_[1] == 1 &&
-                 arg.input_left_pads_[0] == 0 && arg.input_left_pads_[1] == 0 &&
-                 arg.input_right_pads_[0] == 0 && arg.input_right_pads_[1] == 0))
+            for(int i = 0; i < NumDimSpatial; i++)
             {
-                return false;
+                if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
+                     arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
+                {
+                    return false;
+                }
             }
         }
 
