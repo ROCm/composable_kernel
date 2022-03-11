@@ -1,0 +1,1 @@
+add_example_executable(example_gemm_xdl_reduce_fp16 gemm_xdl_reduce_fp16.cpp)
