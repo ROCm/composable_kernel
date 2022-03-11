@@ -49,37 +49,6 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-auto PrepareGemmTensor(const ck::gemm_util::GemmParams& params)
-{
-    auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
-            }
-            else
-            {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
-            }
-        };
-
-    Tensor<ADataType> a_m_k(
-        f_host_tensor_descriptor(params.M, params.K, params.StrideA, ALayout{}));
-    Tensor<BDataType> b_k_n(
-        f_host_tensor_descriptor(params.K, params.N, params.StrideB, BLayout{}));
-    Tensor<CDataType> c_m_n_host_result(
-        f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
-    Tensor<CDataType> c_m_n_device_result(
-        f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
-
-    a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
-    b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-
-    return std::make_tuple(a_m_k, b_k_n, c_m_n_host_result, c_m_n_device_result);
-}
-
 bool TestGemm(DeviceGemmPtr_& gemmPtr)
 {
     // Arrange
@@ -91,7 +60,9 @@ bool TestGemm(DeviceGemmPtr_& gemmPtr)
     params.StrideB = 1024;
     params.StrideC = 1024;
 
-    auto host_tensors           = PrepareGemmTensor(params);
+    auto host_tensors = ck::gemm_util::
+        PrepareGemmTensor<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>{}(params);
+
     const Tensor<ADataType>& a  = std::get<0>(host_tensors);
     const Tensor<BDataType>& b  = std::get<1>(host_tensors);
     Tensor<CDataType>& c_host   = std::get<2>(host_tensors);
