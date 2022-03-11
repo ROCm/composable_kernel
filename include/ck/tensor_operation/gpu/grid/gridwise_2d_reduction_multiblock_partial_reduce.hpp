@@ -102,6 +102,12 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
 {
+    static_assert((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                      (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
+    static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockPartialReduce!");
+
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;

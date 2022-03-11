@@ -85,6 +85,11 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct GridwiseReduction_mk_to_m_multiblock_atomic_add
 {
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;

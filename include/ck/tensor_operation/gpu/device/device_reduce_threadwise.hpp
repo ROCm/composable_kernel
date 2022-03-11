@@ -36,6 +36,11 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, OutE
     static_assert((BlockSize == MThreadClusterSize) && (KThreadClusterSize == 1),
                   "Threadwise can only be called with KThreadClusterSize be 1 !");
 
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     using IndexDataType = int32_t;
 
     static constexpr bool BetaIsZero = NeedIndices;

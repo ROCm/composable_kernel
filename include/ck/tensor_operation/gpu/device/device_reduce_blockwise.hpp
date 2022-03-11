@@ -36,6 +36,11 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     using IndexDataType = int32_t;
 
     static constexpr bool BetaIsZero = NeedIndices;

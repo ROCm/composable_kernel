@@ -102,6 +102,11 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct GridwiseReduction_mk_to_m_threadwise
 {
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     using ThreadBufferDimAccessOrder =
         typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type;
 

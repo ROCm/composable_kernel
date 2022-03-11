@@ -37,6 +37,10 @@ struct DeviceReduceMultiBlockPartialReduce
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    static_assert((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                      (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockPartialReduce!");
 
     using IndexDataType = int32_t;

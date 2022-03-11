@@ -60,16 +60,18 @@ __global__ void kernel_reduce_blockwise(const InGridDesc_M_K in_grid_desc_m_k,
 {
     if constexpr(!NeedIndices)
     {
-        GridwiseReduction::Run(in_grid_desc_m_k,
-                               out_grid_desc_m,
-                               in_elementwise_op,
-                               acc_elementwise_op,
-                               alpha,
-                               p_in_global,
-                               beta,
-                               p_out_global,
-                               p_ws_indices_global,
-                               p_indices_global);
+        constexpr bool IsSecondCall = false;
+
+        GridwiseReduction::template Run<IsSecondCall>(in_grid_desc_m_k,
+                                                      out_grid_desc_m,
+                                                      in_elementwise_op,
+                                                      acc_elementwise_op,
+                                                      alpha,
+                                                      p_in_global,
+                                                      beta,
+                                                      p_out_global,
+                                                      p_ws_indices_global,
+                                                      p_indices_global);
     }
     else
     {
@@ -110,16 +112,18 @@ kernel_reduce_blockwise_second_call(const InGridDesc_M_K in_grid_desc_m_k,
 {
     if constexpr(!NeedIndices)
     {
-        GridwiseReduction::Run(in_grid_desc_m_k,
-                               out_grid_desc_m,
-                               in_elementwise_op,
-                               acc_elementwise_op,
-                               alpha,
-                               p_in_global,
-                               beta,
-                               p_out_global,
-                               p_ws_indices_global,
-                               p_indices_global);
+        constexpr bool IsSecondCall = true;
+
+        GridwiseReduction::template Run<IsSecondCall>(in_grid_desc_m_k,
+                                                      out_grid_desc_m,
+                                                      in_elementwise_op,
+                                                      acc_elementwise_op,
+                                                      alpha,
+                                                      p_in_global,
+                                                      beta,
+                                                      p_out_global,
+                                                      p_ws_indices_global,
+                                                      p_indices_global);
     }
     else
     {
@@ -157,6 +161,11 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct GridwiseReduction_mk_to_m_blockwise
 {
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
@@ -183,6 +192,7 @@ struct GridwiseReduction_mk_to_m_blockwise
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
+    template <bool IsSecondCall>
     __device__ static void Run(const InGridDesc_M_K& in_grid_desc_m_k,
                                const OutGridDesc_M& out_grid_desc_m,
                                const InElementwiseOperation& in_elementwise_op,
@@ -194,6 +204,12 @@ struct GridwiseReduction_mk_to_m_blockwise
                                const IndexDataType* const __restrict__ p_ws_indices_global,
                                IndexDataType* const __restrict__ p_indices_global)
     {
+        if constexpr(IsSecondCall)
+        {
+            static_assert(InSrcVectorDim == 1,
+                          "InSrcVectorDim must be 1 for BlockwiseSecondCall, please check!");
+        };
+
         using BlockwiseReduce = PartitionedBlockwiseReduction<AccDataType,
                                                               BlockSize,
                                                               ThreadClusterLengths_M_K,
@@ -636,6 +652,9 @@ struct GridwiseReduction_mk_to_m_blockwise
                            const IndexDataType* const __restrict__ p_ws_indices_global,
                            IndexDataType* const __restrict__ p_indices_global)
     {
+        static_assert(InSrcVectorDim == 1,
+                      "InSrcVectorDim must be 1 for BlockwiseSecondCall, please check!");
+
         using BlockwiseReduceWithIndex =
             PartitionedBlockwiseReductionWithIndex<AccDataType,
                                                    IndexDataType,
