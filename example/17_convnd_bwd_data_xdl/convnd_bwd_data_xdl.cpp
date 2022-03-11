@@ -85,7 +85,7 @@ using ReferenceConvBwdDataInstance =
 void PrintUseMsg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
-              << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
+              << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
               << "arg3: run kernel # of times (>1)\n"
               << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
@@ -245,6 +245,11 @@ int main(int argc, char* argv[])
     }
     else
     {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+        num_dim_spatial = std::stoi(argv[4]);
+        // check args number
         int conv_args     = 3 + num_dim_spatial * 6;
         int cmdline_nargs = conv_args + 5;
         if(cmdline_nargs != argc)
@@ -253,11 +258,7 @@ int main(int argc, char* argv[])
             exit(1);
         }
 
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
-        num_dim_spatial = std::stoi(argv[4]);
-        params          = ParseConvParams(num_dim_spatial, argv);
+        params = ParseConvParams(num_dim_spatial, argv);
     }
 
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
