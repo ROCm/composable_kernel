@@ -14,9 +14,11 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
+          typename FloatD,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename DGridDescriptor_MBlock_MPerBlock,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -26,27 +28,32 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_reduce_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
-                                           const FloatAB* __restrict__ p_b_grid,
-                                           FloatC* __restrict__ p_c_grid,
-                                           const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                           const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                           const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                           const AElementwiseOperation a_element_op,
-                                           const BElementwiseOperation b_element_op,
-                                           const CElementwiseOperation c_element_op,
-                                           const Block2CTileMap block_2_ctile_map)
+        kernel_gemm_reduce_xdl_cshuffle_v1(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            FloatD* __restrict__ p_d_grid,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const Block2CTileMap block_2_ctile_map)
 {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
                                                    p_b_grid,
                                                    p_c_grid,
+                                                   p_d_grid,
                                                    p_shared,
                                                    a_grid_desc_ak0_m_ak1,
                                                    b_grid_desc_bk0_n_bk1,
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                   d_grid_desc_mblock_mperblock,
                                                    a_element_op,
                                                    b_element_op,
                                                    c_element_op,
@@ -58,10 +65,12 @@ template <index_t BlockSize,
           typename FloatAcc,
           typename FloatCShuffle,
           typename FloatC,
+          typename FloatD,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
+          typename DGridDesc_M,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -294,6 +303,21 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         return c_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
+    __host__ __device__ static constexpr auto
+    MakeDGridDescriptor_MBlock_MPerBlock(const DGridDesc_M& d_grid_desc_m)
+    {
+        const auto M      = d_grid_desc_m.GetLength(I0);
+        const auto MBlock = M / MPerBlock;
+
+        const auto d_grid_desc_mblock_mperblock = transform_tensor_descriptor(
+            d_grid_desc_m,
+            make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{}))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1>{}));
+
+        return d_grid_desc_mblock_mperblock;
+    }
+
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
@@ -333,6 +357,9 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
 
+    using DGridDescriptor_MBlock_MPerBlock =
+        remove_cvref_t<decltype(MakeDGridDescriptor_MBlock_MPerBlock(DGridDesc_M{}))>;
+
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
@@ -340,11 +367,13 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
+                               FloatD* __restrict__ p_d_grid,
                                void* __restrict__ p_shared,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const DGridDescriptor_MBlock_MPerBlock& d_grid_desc_mblock_mperblock,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
@@ -655,6 +684,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
+#if 0
             // LDS c_reduce_block_desc_mperblock_nperblock
             constexpr auto c_reduce_block_desc_mperblock_nperblock = transform_tensor_descriptor(
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
@@ -668,7 +698,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
 
-#if 0
             // FIXME: hardcoded
             using CReduceThreadClusterLengths                    = Sequence<64, 4>{};
             using c_in_reduce_thread_lengths_mperblock_nperblock = Sequence<1, 16> {}

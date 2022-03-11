@@ -54,7 +54,7 @@ template <typename ADataType,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           index_t NumPrefetch = 1>
-struct DeviceGemmXdl_C_Shuffle_Reduce
+struct DeviceGemmReduce_Xdl_CShuffle
     : public DeviceGemmReduce<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
@@ -125,9 +125,16 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
         }
     }
 
+    // assume D is packed tensor
+    static auto MakeDGridDescriptor_M(index_t M)
+    {
+        return make_naive_tensor_descriptor_packed(make_tuple(M));
+    }
+
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using DGridDesc_M       = decltype(MakeDGridDescriptor_M(1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -136,10 +143,12 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
         AccDataType,
         CShuffleDataType,
         CDataType,
+        DDataType,
         InMemoryDataOperationEnum_t::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
+        DGridDesc_M,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
@@ -199,7 +208,9 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
+              d_grid_desc_m_{},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
+              d_grid_desc_mblock_mperblock_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -208,11 +219,12 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
               c_element_op_{c_element_op}
         {
             a_grid_desc_k0_m_k1_ =
-                DeviceGemmXdl_C_Shuffle_Reduce::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+                DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ =
-                DeviceGemmXdl_C_Shuffle_Reduce::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+                DeviceGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
             c_grid_desc_m_n_ =
-                DeviceGemmXdl_C_Shuffle_Reduce::MakeCGridDescriptor_M_N(M, N, StrideC);
+                DeviceGemmReduce_Xdl_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
+            d_grid_desc_m_ = DeviceGemmReduce_Xdl_CShuffle::MakeDGridDescriptor_M(M);
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
@@ -220,6 +232,9 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n_);
+
+                d_grid_desc_mblock_mperblock_ =
+                    GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
 
                 block_2_ctile_map_ =
                     GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
@@ -234,8 +249,10 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
+        DGridDesc_M d_grid_desc_m_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
+        typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -247,7 +264,7 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdl_C_Shuffle_Reduce::Argument;
+        using Argument = DeviceGemmReduce_Xdl_CShuffle::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -262,6 +279,9 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
 
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.d_grid_desc_m_{ " << arg.d_grid_desc_m_.GetLength(I0) << "}"
+                          << std::endl;
             }
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
@@ -288,10 +308,12 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Reduce::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Reduce::BGridDesc_K0_N_K1>,
+                    DDataType,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_K0_N_K1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
+                    remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -307,9 +329,11 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
+                                           arg.p_d_grid_,
                                            arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.d_grid_desc_mblock_mperblock_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -321,10 +345,12 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Reduce::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdl_C_Shuffle_Reduce::BGridDesc_K0_N_K1>,
+                    DDataType,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_K0_N_K1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
+                    remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -340,9 +366,11 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
+                                           arg.p_d_grid_,
                                            arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.d_grid_desc_mblock_mperblock_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -457,7 +485,7 @@ struct DeviceGemmXdl_C_Shuffle_Reduce
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmXdl_C_Shuffle_Reduce"
+        str << "DeviceGemmReduce_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
