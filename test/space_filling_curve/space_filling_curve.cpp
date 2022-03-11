@@ -95,13 +95,13 @@ void traverse_using_space_filling_curve()
                                          make_tuple(12, 2, 6),
                                          make_tuple(12, 0, 6));
 
-    constexpr index_t num_accesses = SpaceFillingCurve::GetNumOfAccess();
+    constexpr index_t num_access = SpaceFillingCurve::GetNumOfAccess();
 
-    static_assert(num_accesses == reduce_on_sequence(TensorLengths{} / ScalarsPerAccess{},
-                                                     math::multiplies{},
-                                                     Number<1>{}));
+    static_assert(num_access == reduce_on_sequence(TensorLengths{} / ScalarsPerAccess{},
+                                                   math::multiplies{},
+                                                   Number<1>{}));
 
-    static_for<1, num_accesses, 1>{}([&](auto i) {
+    static_for<1, num_access, 1>{}([&](auto i) {
         constexpr auto idx_curr = SpaceFillingCurve::GetIndex(i);
 
         static_assert(idx_curr[I0] == expected[i][I0]);
@@ -115,7 +115,7 @@ void traverse_using_space_filling_curve()
         static_assert(backward_step[I2] == expected_step[I2]);
     });
 
-    static_for<0, num_accesses - 1, 1>{}([&](auto i) {
+    static_for<0, num_access - 1, 1>{}([&](auto i) {
         constexpr auto idx_curr = SpaceFillingCurve::GetIndex(i);
 
         static_assert(idx_curr[I0] == expected[i][I0]);
