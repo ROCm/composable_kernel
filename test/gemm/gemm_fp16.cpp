@@ -28,8 +28,11 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
-void add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
-}
+void add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
+} // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -40,15 +43,14 @@ int main()
     using BDataType = ck::half_t;
     using CDataType = ck::half_t;
 
-    using ALayout = ck::tensor_layout::gemm::RowMajor;
-    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
-    using CLayout = ck::tensor_layout::gemm::RowMajor;
-
-    std::vector<DeviceGemmPtr_> gemmPtrs;
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(gemmPtrs);
+    using RowMajor    = ck::tensor_layout::gemm::RowMajor;
+    using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
     bool res = true;
+    std::vector<DeviceGemmPtr_> gemmPtrs;
+
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -56,9 +58,63 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
-                                       ALayout,
-                                       BLayout,
-                                       CLayout,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       ColumnMajor,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       RowMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       RowMajor,
+                                       ColumnMajor,
+                                       RowMajor,
                                        PassThrough,
                                        PassThrough,
                                        PassThrough>{}(gemmPtr);
