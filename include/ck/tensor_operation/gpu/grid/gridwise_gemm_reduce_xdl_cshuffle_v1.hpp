@@ -385,6 +385,8 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+        auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_d_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -684,7 +686,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
-#if 0
+#if 1
             // LDS c_reduce_block_desc_mperblock_nperblock
             constexpr auto c_reduce_block_desc_mperblock_nperblock = transform_tensor_descriptor(
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
@@ -698,9 +700,9 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
 
-            // FIXME: hardcoded
-            using CReduceThreadClusterLengths                    = Sequence<64, 4>{};
-            using c_in_reduce_thread_lengths_mperblock_nperblock = Sequence<1, 16> {}
+            // FIXME: hardcode
+            using CReduceThreadClusterLengths_MPerBlock_NPerBlock         = Sequence<64, 4>;
+            constexpr auto c_in_reduce_thread_lengths_mperblock_nperblock = Sequence<1, 16>{};
 
             // VGPR c_in_reduce_thread_desc_mperblock_nperblock
             constexpr auto c_in_reduce_thread_desc_mperblock_nperblock =
@@ -708,26 +710,28 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     sequence_to_tuple_of_number(c_in_reduce_thread_lengths_mperblock_nperblock));
 
             // VGPR c_out_reduce_thread_desc_mperblock
+            // FIXME: hardcode
             constexpr auto c_out_reduce_thread_desc_mperblock =
                 make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
-            // VGPR c_reduce_thread_desc_mblock_mperblock
+            // VGPR c_out_reduce_thread_desc_mblock_mperblock
+            // FIXME: hardcode
             constexpr auto c_out_reduce_thread_desc_mblock_mperblock =
                 make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}, Number<1>{}));
 
-            // global c_reduce_grid_desc_mblock_mperblock
-
             // TODO: this should be implemented as a blockwise reduction
-            // FIXME: hardcoded
-            auto c_in_reduce_thread_buf = make_static_buffer(
-                c_in_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
+            // FIXME: should use a different datatype?
+            auto c_in_reduce_thread_buf =
+                make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+                    c_in_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
-            auto c_out_thread_reduce_buf =
-                make_static_buffer(c_out_reduce_thread_desc_mperblock.GetElementSpaceSize());
+            auto c_out_reduce_thread_buf =
+                make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+                    c_out_reduce_thread_desc_mperblock.GetElementSpaceSize());
 
             // reduce: copy from LDS to VGPR
-            constexpr auto c_reduce_thread_cluster_desc =
-                make_cluster_descriptor(CReduceThreadClusterLengths{}, Sequence<1, 0>{});
+            constexpr auto c_reduce_thread_cluster_desc = make_cluster_descriptor(
+                CReduceThreadClusterLengths_MPerBlock_NPerBlock{}, Sequence<1, 0>{});
 
             const auto c_reduce_thread_cluster_idx =
                 c_reduce_thread_cluster_desc.CalculateBottomIndex(
@@ -736,36 +740,35 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             const auto c_reduce_thread_data_idx_begin =
                 c_reduce_thread_cluster_idx * c_in_reduce_thread_lengths_mperblock_nperblock;
 
-            auto c_reduce_thread_copy_lds_to_vgpr =
-                ThreadwiseTensorSliceTransfer_v2<FloatCShuffle,
-                                                 FloatCShuffle,
-                                                 decltype(c_reduce_block_desc_mperblock_nperblock),
-                                                 decltype(c_reduce_thread_desc_mperblock_nperblock),
-                                                 CThreadReduceLengths_MPerBlock_NPerBlock,
-                                                 Sequence<0, 1>,
-                                                 1,
-                                                 8,
-                                                 1,
-                                                 true>{c_in_reduce_thread_desc_mperblock_nperblock,
-                                                       c_reduce_thread_data_idx_begin};
+            auto c_reduce_thread_copy_lds_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
+                FloatCShuffle,
+                FloatCShuffle,
+                decltype(c_reduce_block_desc_mperblock_nperblock),
+                decltype(c_in_reduce_thread_desc_mperblock_nperblock),
+                decltype(c_in_reduce_thread_lengths_mperblock_nperblock),
+                Sequence<0, 1>,
+                1,
+                8, // FIXME: hardcoded
+                1,
+                true>{c_reduce_block_desc_mperblock_nperblock, c_reduce_thread_data_idx_begin};
 
             // reduce: copy from VGPR to global
             auto c_reduce_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                 FloatCShuffle,
-                FloatC,
+                FloatD,
                 decltype(c_out_reduce_thread_desc_mblock_mperblock),
-                decltype(c_out_reduce_grid_desc_mblock_mperblock),
+                decltype(d_grid_desc_mblock_mperblock),
                 ck::tensor_operation::element_wise::PassThrough,
-                Sequence<1, 1>, // FIXME: hardcoded
+                Sequence<1, 1>, // FIXME: hardcode
                 Sequence<0, 1>,
                 1,
-                1,
+                1, // FIXME: hardcode
                 InMemoryDataOperationEnum_t::AtomicAdd,
                 1,
-                true>{c_out_reduce_grid_desc_mblock_mperblock,
-                      make_multi_index(block_work_idx[I0],                  // mblock
-                                       c_reduce_thread_data_idx_begin[I0]), // mperblock
-                      ck::tensor_operation::element_wise::PassThrough{}};
+                false>{d_grid_desc_mblock_mperblock,
+                       make_multi_index(block_work_idx[I0],                  // mblock
+                                        c_reduce_thread_data_idx_begin[I0]), // mperblock
+                       ck::tensor_operation::element_wise::PassThrough{}};
 #endif
 
             constexpr auto mperblock_forward_step =
@@ -811,39 +814,48 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                             c_grid_desc_mblock_mperblock_nblock_nperblock,
                             c_grid_buf);
 
-#if 0
+#if 1
                         // reduce
                         {
                             // LDS to VGPR
                             c_reduce_thread_copy_lds_to_vgpr.Run(
-                                c_in_reduce_thread_desc_mperblock_nperblock,
+                                c_reduce_block_desc_mperblock_nperblock,
                                 c_shuffle_block_buf,
                                 c_in_reduce_thread_desc_mperblock_nperblock,
-                                make_tuple(I0, I0));
+                                make_tuple(I0, I0),
+                                c_in_reduce_thread_buf);
 
                             // reduce in VGPR
-                            // FIXME: hardcoded
+                            // loop over MPerBlock
+                            // FIXME: hardcode
                             static_for<0, 1, 1>{}([&](auto im) {
                                 // FIXME: Accumulator for reduction may use a different datatype?
                                 FloatCShuffle v = 0;
 
-                                // FIXME: hardcoded
+                                // loop over NPerBlock
+                                // FIXME: hardcode
                                 static_for<0, 16, 1>{}([&](auto in) {
-                                    v += c_in_reduce_thread_buf
-                                        [c_in_reduce_thread_desc_mperblock_nperblock
-                                             .CalculateOffset(make_tuple(im, in))];
+                                    constexpr index_t in_offset =
+                                        c_in_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
+                                            make_tuple(im, in));
+
+                                    v += c_in_reduce_thread_buf[Number<in_offset>{}];
                                 });
 
-                                c_out_reduce_thread_buf(im) = v;
+                                constexpr index_t out_offset =
+                                    c_out_reduce_thread_desc_mperblock.CalculateOffset(
+                                        make_tuple(im));
+
+                                c_out_reduce_thread_buf(Number<out_offset>{}) = v;
                             });
 
                             // VGPR to Global
-                            c_out_reduce_thread_desc_mblock_mperblock.Run(
+                            c_reduce_thread_copy_vgpr_to_global.Run(
                                 c_out_reduce_thread_desc_mblock_mperblock,
                                 make_tuple(I0, I0),
-                                c_out_reduce_thread_desc_mblock_mperblock,
-                                c_reduce_grid_desc_mblock_mperblock,
-                                c_grid_buf);
+                                c_out_reduce_thread_buf,
+                                d_grid_desc_mblock_mperblock,
+                                d_grid_buf);
                         }
 #endif
 
@@ -869,10 +881,11 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
                         c_grid_desc_mblock_mperblock_nblock_nperblock, mperblock_forward_step);
 
-#if 0
+#if 1
                     // reduce: move
                     c_reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                        c_reduce_grid_desc_mblock_mperblock, XXXXXXXXXXX);
+                        d_grid_desc_mblock_mperblock,
+                        make_multi_index(0, CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl));
 #endif
                 }
             });

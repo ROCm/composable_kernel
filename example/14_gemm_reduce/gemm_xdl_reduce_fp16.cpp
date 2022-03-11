@@ -45,15 +45,13 @@ using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
 
 // clang-format off
-#if 1
 using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_Xdl_CShuffle
 //######|AData| BData| CData| AccData| CShuffle| DData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
 //######| Type|  Type|  Type|    Type| DataType|  Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector|
 //######|     |      |      |        |         |      |        |        |        |   Operation|   Operation|   Operation|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock|
 //######|     |      |      |        |         |      |        |        |        |            |            |            |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        <  F16,   F16,   F16,     F32,      F16,   F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,           1,           1,               S<1, 32, 1, 8>,              8>;
+        <  F16,   F16,   F16,     F32,      F32,   F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,           1,           1,               S<1, 32, 1, 8>,              8>;
 //      <  F16,   F16,   F16,     F32,      F16,   F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,           2,           2,               S<1, 16, 1,16>,              8>;
-#endif
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
@@ -196,11 +194,11 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
-    d_m_device_buf.FromDevice(d_m_device_result.mData.data());
-
     if(do_verification)
     {
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+        d_m_device_buf.FromDevice(d_m_device_result.mData.data());
+
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
@@ -209,7 +207,18 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
+        for(int m = 0; m < M; ++m)
+        {
+            d_m_host_result(m) = 0;
+
+            for(int n = 0; n < N; ++n)
+            {
+                d_m_host_result(m) += c_m_n_host_result(m, n);
+            }
+        }
+
         check_error(c_m_n_host_result, c_m_n_device_result);
+        check_error(d_m_host_result, d_m_device_result);
     }
 
     return 0;
