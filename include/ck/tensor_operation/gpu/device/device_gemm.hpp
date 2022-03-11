@@ -62,6 +62,12 @@ struct DeviceGemm : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
+using DeviceGemmPtr = std::unique_ptr<
+    DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+
+template <typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation>
 struct DeviceGroupedGemm : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<GemmShape> gemm_shapes,
@@ -76,8 +82,8 @@ struct DeviceGroupedGemm : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceGemmPtr = std::unique_ptr<
-    DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+using DeviceGroupedGemmPtr = std::unique_ptr<
+    DeviceGroupedGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

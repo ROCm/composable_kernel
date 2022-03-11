@@ -331,19 +331,17 @@ struct DeviceGroupedGemmXdl
                 {
                     GemmShape_arg(i) = arg.GemmShape_[i];
 
-                    std::cout << "arg.a_grid_desc_k0_m_k1_{"
+                    std::cout << "group: " << i << " arg.a_grid_desc_k0_m_k1_{"
                               << GemmShape_arg[i].a_grid_desc_k0_m_k1_.GetLength(I0) << ", "
                               << GemmShape_arg[i].a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                              << GemmShape_arg[i].a_grid_desc_k0_m_k1_.GetLength(I2) << "}"
-                              << std::endl;
+                              << GemmShape_arg[i].a_grid_desc_k0_m_k1_.GetLength(I2) << "}";
 
-                    std::cout << "arg.b_grid_desc_k0_n_k1_{"
+                    std::cout << ", arg.b_grid_desc_k0_n_k1_{"
                               << GemmShape_arg[i].b_grid_desc_k0_n_k1_.GetLength(I0) << ", "
                               << GemmShape_arg[i].b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                              << GemmShape_arg[i].b_grid_desc_k0_n_k1_.GetLength(I2) << "}"
-                              << std::endl;
+                              << GemmShape_arg[i].b_grid_desc_k0_n_k1_.GetLength(I2) << "}";
 
-                    std::cout << "arg.c_grid_desc_m_n_{ "
+                    std::cout << ", arg.c_grid_desc_m_n_{ "
                               << GemmShape_arg[i].c_grid_desc_m_n_.GetLength(I0) << ", "
                               << GemmShape_arg[i].c_grid_desc_m_n_.GetLength(I1) << "}"
                               << std::endl;
