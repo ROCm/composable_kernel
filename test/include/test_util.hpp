@@ -57,8 +57,8 @@ check_err(const std::vector<T>& out,
 bool check_err(const std::vector<_Float16>& out,
                    const std::vector<_Float16>& ref,
                    const std::string& msg,
-                   _Float16 rtol = static_cast<_Float16>(1e-5),
-                   _Float16 atol = static_cast<_Float16>(1e-8))
+                   _Float16 rtol = static_cast<_Float16>(1e-3f),
+                   _Float16 atol = static_cast<_Float16>(1e-3f))
 {
     if(out.size() != ref.size())
     {

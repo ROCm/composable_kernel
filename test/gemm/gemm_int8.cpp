@@ -38,61 +38,16 @@ void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(std::vector
 } // namespace tensor_operation
 } // namespace ck
 
-namespace {
-
-using ADataType   = int8_t;
-using BDataType   = int8_t;
-using CDataType   = int8_t;
-using AccDataType = int32_t;
-
-using ALayout = ck::tensor_layout::gemm::RowMajor;
-using BLayout = ck::tensor_layout::gemm::ColumnMajor;
-using CLayout = ck::tensor_layout::gemm::RowMajor;
-
-bool TestGemm(DeviceGemmPtr_& gemmPtr)
-{
-    // Arrange
-    ck::gemm_util::GemmParams params;
-    params.M       = 1024;
-    params.N       = 1024;
-    params.K       = 1024;
-    params.StrideA = 1024;
-    params.StrideB = 1024;
-    params.StrideC = 1024;
-
-    auto host_tensors = ck::gemm_util::
-        PrepareGemmTensor<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>{}(params);
-
-    const Tensor<ADataType>& a  = std::get<0>(host_tensors);
-    const Tensor<BDataType>& b  = std::get<1>(host_tensors);
-    Tensor<CDataType>& c_host   = std::get<2>(host_tensors);
-    Tensor<CDataType>& c_device = std::get<3>(host_tensors);
-
-    auto a_element_op = PassThrough{};
-    auto b_element_op = PassThrough{};
-    auto c_element_op = PassThrough{};
-
-    using ReferenceGemmInstance = ck::tensor_operation::host::
-        ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
-    ck::gemm_util::RunHostGEMM<ReferenceGemmInstance>(
-        a, b, c_host, a_element_op, b_element_op, c_element_op);
-
-    // Act
-    ck::gemm_util::RunDeviceGEMM(
-        gemmPtr, params, a, b, c_device, a_element_op, b_element_op, c_element_op);
-
-    // Assert
-    bool res = test_util::check_err(c_device.mData, c_host.mData, "Error: incorrect results!");
-
-    std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-
-    return res;
-}
-
-} // anonymous namespace
-
 int main()
 {
+    using ADataType = int8_t;
+    using BDataType = int8_t;
+    using CDataType = int8_t;
+
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
     std::vector<DeviceGemmPtr_> gemmPtrs;
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(gemmPtrs);
@@ -101,7 +56,16 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= TestGemm(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       ALayout,
+                                       BLayout,
+                                       CLayout,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
