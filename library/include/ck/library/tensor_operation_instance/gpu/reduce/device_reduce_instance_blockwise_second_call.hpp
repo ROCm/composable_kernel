@@ -15,9 +15,7 @@ using reduce_configuration_2_instances_blockwise_second_call = std::tuple<
     // clang-format off
     // InSrcVectorDim | InSrcVectorSize | OutDstVectorSize | MThreadSliceSize | KThreadSliceSize
     ReductionConfiguration_2<1, 2, 1, 1, 2>,
-    ReductionConfiguration_2<1, 2, 2, 1, 2>,
-    ReductionConfiguration_2<1, 1, 1, 1, 3>,
-    ReductionConfiguration_2<1, 1, 2, 1, 3>
+    ReductionConfiguration_2<1, 1, 1, 1, 3>
     // clang-format on
     >;
 #else
