@@ -26,9 +26,6 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_grouped_gemm_xdlops_v2r3(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
             const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_desc_,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -41,18 +38,16 @@ __global__ void
 
 #if 1
     static_for<0, MaxGroupCount, 1>{}([&](auto i) {
-        if(block_id >= gemm_desc_[i].BlockStart && block_id < gemm_desc_[i].BlockEnd)
+        if(block_id >= gemm_desc_[i].BlockStart && block_id < gemm_desc_[i].BlockEnd &&
+           i < group_count)
         {
             auto group_id              = i;
             const index_t block_id_grp = block_id - gemm_desc_[group_id].BlockStart;
-            const index_t a_offset_grp = gemm_desc_[group_id].OffsetA;
-            const index_t b_offset_grp = gemm_desc_[group_id].OffsetB;
-            const index_t c_offset_grp = gemm_desc_[group_id].OffsetC;
 
             GridwiseGemm::template Run<HasMainK0BlockLoop>(
-                p_a_grid + a_offset_grp,
-                p_b_grid + b_offset_grp,
-                p_c_grid + c_offset_grp,
+                gemm_desc_[group_id].a_ptr,
+                gemm_desc_[group_id].b_ptr,
+                gemm_desc_[group_id].c_ptr,
                 p_shared,
                 gemm_desc_[group_id].a_grid_desc_k0_m_k1_,
                 gemm_desc_[group_id].b_grid_desc_k0_n_k1_,
