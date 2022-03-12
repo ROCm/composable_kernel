@@ -73,8 +73,6 @@ void profile_grouped_gemm_impl(int do_verification,
     std::vector<Tensor<BDataType>> b_k_n;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
 
-    // int A_size = 0, B_size = 0, C_size = 0;
-
     for(int i = 0; i < Ms.size(); i++)
     {
         a_m_k.push_back(
@@ -104,12 +102,7 @@ void profile_grouped_gemm_impl(int do_verification,
             b_k_n[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
         }
 
-        // set zero to c_device_buf
         c_m_n_device_results[i].GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
-
-        // A_size += a_m_k[i].mDesc.GetElementSpace();
-        // B_size += b_k_n[i].mDesc.GetElementSpace();
-        // C_size += c_m_n_device_results[i].mDesc.GetElementSpace();
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -125,85 +118,23 @@ void profile_grouped_gemm_impl(int do_verification,
 
     // }
 
-    // std::vector<DeviceMem> a_device_buf, b_device_buf, c_device_buf;
-
-    std::vector<void*> a_device_buf, b_device_buf, c_device_buf;
-    // DeviceMem a_device_buf_(sizeof(ADataType) * A_size);
-    // DeviceMem b_device_buf_(sizeof(BDataType) * B_size);
-    // DeviceMem c_device_buf_(sizeof(CDataType) * C_size);
-
-    // std::vector<ADataType> a_tensors_data;
-    // std::vector<BDataType> b_tensors_data;
-    // std::vector<CDataType> c_tensors_data;
+    using DeviceMemPtr = std::unique_ptr<DeviceMem>;
+    std::vector<DeviceMemPtr> a_device_buf, b_device_buf, c_device_buf;
 
     std::vector<GemmShape> gemm_shapes;
 
-    // A_size = 0;
-    // B_size = 0;
-    // C_size = 0;
-
     for(int i = 0; i < Ms.size(); i++)
     {
-        // a_tensors_data.insert(a_tensors_data.end(), a_m_k[i].mData.begin(),
-        // a_m_k[i].mData.end()); b_tensors_data.insert(b_tensors_data.end(),
-        // b_k_n[i].mData.begin(), b_k_n[i].mData.end());
-        // c_tensors_data.insert(c_tensors_data.end(), c_m_n_device_results[i].mData.begin(),
-        // c_m_n_device_results[i].mData.end());
+        a_device_buf.push_back(
+            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSize()));
+        b_device_buf.push_back(
+            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSize()));
+        c_device_buf.push_back(std::make_unique<DeviceMem>(
+            sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSize()));
 
-        void *a_device_buf_, *b_device_buf_, *c_device_buf_;
-        hipGetErrorString(hipMalloc(static_cast<void**>(&a_device_buf_),
-                                    sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
-        hipGetErrorString(hipMalloc(static_cast<void**>(&b_device_buf_),
-                                    sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace()));
-        hipGetErrorString(
-            hipMalloc(static_cast<void**>(&c_device_buf_),
-                      sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpace()));
-
-        // DeviceMem a_device_buf_(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace());
-        // DeviceMem b_device_buf_(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace());
-        // DeviceMem c_device_buf_(sizeof(CDataType) *
-        // c_m_n_device_results[i].mDesc.GetElementSpace());
-
-        hipGetErrorString(hipMemcpy(a_device_buf_,
-                                    a_m_k[i].mData.data(),
-                                    sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace(),
-                                    hipMemcpyHostToDevice));
-        hipGetErrorString(hipMemcpy(b_device_buf_,
-                                    b_k_n[i].mData.data(),
-                                    sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace(),
-                                    hipMemcpyHostToDevice));
-        hipGetErrorString(
-            hipMemcpy(c_device_buf_,
-                      c_m_n_device_results[i].mData.data(),
-                      sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpace(),
-                      hipMemcpyHostToDevice));
-
-        // a_device_buf_.ToDevice(a_m_k[i].mData.data());
-        // b_device_buf_.ToDevice(b_k_n[i].mData.data());
-        // c_device_buf_.ToDevice(c_m_n_device_results[i].mData.data());
-
-        a_device_buf.push_back(a_device_buf_);
-        b_device_buf.push_back(b_device_buf_);
-        c_device_buf.push_back(c_device_buf_);
-
-        // a_device_buf.push_back(a_device_buf_);
-        // b_device_buf.push_back(b_device_buf_);
-        // c_device_buf.push_back(c_device_buf_);
-
-        // gemm_shapes.push_back({Ms[i],
-        // Ns[i],
-        // Ks[i],
-        // StrideAs[i],
-        // StrideBs[i],
-        // StrideCs[i],
-        // a_device_buf[i].GetDeviceBuffer(),
-        // b_device_buf[i].GetDeviceBuffer(),
-        // c_device_buf[i].GetDeviceBuffer()});
-
-        // printf("%p %p %p\n",
-        // a_device_buf[i].GetDeviceBuffer(),
-        // b_device_buf[i].GetDeviceBuffer(),
-        // c_device_buf[i].GetDeviceBuffer());
+        a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
+        b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
+        c_device_buf[i]->ToDevice(c_m_n_device_results[i].mData.data());
 
         gemm_shapes.push_back({Ms[i],
                                Ns[i],
@@ -211,18 +142,10 @@ void profile_grouped_gemm_impl(int do_verification,
                                StrideAs[i],
                                StrideBs[i],
                                StrideCs[i],
-                               a_device_buf_,
-                               b_device_buf_,
-                               c_device_buf_});
-
-        // A_size += a_m_k[i].mDesc.GetElementSpace();
-        // B_size += b_k_n[i].mDesc.GetElementSpace();
-        // C_size += c_m_n_device_results[i].mDesc.GetElementSpace();
+                               a_device_buf[i]->GetDeviceBuffer(),
+                               b_device_buf[i]->GetDeviceBuffer(),
+                               c_device_buf[i]->GetDeviceBuffer()});
     }
-
-    // a_device_buf_.ToDevice(a_tensors_data.data());
-    // b_device_buf_.ToDevice(b_tensors_data.data());
-    // c_device_buf_.ToDevice(c_tensors_data.data());
 
     // add device GEMM instances
     std::vector<
@@ -328,16 +251,19 @@ void profile_grouped_gemm_impl(int do_verification,
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
-#if 0
-            std::size_t flop = std::size_t(2) * M * N * K;
+            std::size_t flop = 0, num_btype = 0;
+            for(int i = 0; i < gemm_shapes.size(); i++)
+            {
 
-            std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
+                flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
+
+                num_btype += sizeof(ADataType) * Ms[i] * Ks[i] + sizeof(BDataType) * Ks[i] * Ms[i] +
+                             sizeof(CDataType) * Ms[i] * Ns[i];
+            }
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
             float gb_per_sec = num_btype / 1.E6 / ave_time;
-
             std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
                       << gb_per_sec << " GB/s, " << gemm_name << std::endl;
 
@@ -348,33 +274,13 @@ void profile_grouped_gemm_impl(int do_verification,
                 best_ave_time   = ave_time;
                 best_gb_per_sec = gb_per_sec;
             }
-#endif
 
             if(do_verification)
             {
-                // c_tensors_data.resize(C_size);
-
-                // c_device_buf_.FromDevice(c_tensors_data.data());
-
-                // C_size = 0;
-                // for(int i = 0; i < gemm_shapes.size(); i++)
-                //{
-                // memcpy(c_m_n_device_results[i].mData.data(),
-                // c_tensors_data.data() + C_size,
-                // c_m_n_device_results[i].mDesc.GetElementSpace() * sizeof(CDataType));
-
-                // C_size += c_m_n_device_results[i].mDesc.GetElementSpace();
-                //}
-
                 for(int i = 0; i < gemm_shapes.size(); i++)
                 {
-                    hipGetErrorString(hipMemcpy(c_m_n_device_results[i].mData.data(),
-                                                c_device_buf[i],
-                                                sizeof(CDataType) *
-                                                    c_m_n_device_results[i].mDesc.GetElementSpace(),
-                                                hipMemcpyDeviceToHost));
 
-                    // hipGetErrorString(hipFree(c_device_buf[i]));
+                    c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
 
                     Tensor<CDataType> c_m_n_host_result(
                         f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{}));
@@ -402,16 +308,15 @@ void profile_grouped_gemm_impl(int do_verification,
 
                     if(do_log)
                     {
-                        // LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
-                        //<< std::endl;
-                        // LogRangeAsType<float>(std::cout << "b: ", b_k_n[i].mData, ",") <<
-                        // std::endl;
+                        LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(std::cout << "b: ", b_k_n[i].mData, ",") << std::endl;
                         LogRangeAsType<float>(
                             std::cout << "c_device: ", c_m_n_device_results[i].mData, ",")
                             << std::endl;
-                        // LogRangeAsType<float>(
-                        // std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                        //<< std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                            << std::endl;
                     }
                 }
             }

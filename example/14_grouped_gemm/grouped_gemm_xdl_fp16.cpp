@@ -161,7 +161,7 @@ int main(int argc, char* argv[])
         a_tensors_device.push_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize()));
         b_tensors_device.push_back(
-            std::make_unique<DeviceMem>(sizeof(BDataType) * a_tensors[i].mDesc.GetElementSize()));
+            std::make_unique<DeviceMem>(sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize()));
         c_tensors_device.push_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize()));
 

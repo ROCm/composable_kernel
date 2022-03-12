@@ -54,7 +54,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector,
           ck::index_t NumPrefetch   = 1,
-          ck::index_t MaxGroupCount = 5>
+          ck::index_t MaxGroupCount = 10>
 struct DeviceGroupedGemmXdl
     : public DeviceGroupedGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
