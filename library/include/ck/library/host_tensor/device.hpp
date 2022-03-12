@@ -12,6 +12,7 @@ struct DeviceMem
 {
     DeviceMem() = delete;
     DeviceMem(std::size_t mem_size);
+    DeviceMem(const DeviceMem& p);
     void* GetDeviceBuffer();
     void ToDevice(const void* p);
     void FromDevice(void* p);

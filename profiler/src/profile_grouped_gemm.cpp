@@ -26,7 +26,7 @@ enum GemmDataType
     INT8_INT8_INT8, // 3
 };
 
-std::vector<int> stringToArray(char *input)
+std::vector<int> stringToArray(char* input)
 {
     std::vector<int> out;
 
@@ -34,7 +34,8 @@ std::vector<int> stringToArray(char *input)
 
     std::string item;
 
-    while (std::getline(in, item, ',')) {
+    while(std::getline(in, item, ','))
+    {
         out.push_back(std::stoi(item));
     }
 
@@ -69,30 +70,33 @@ int profile_grouped_gemm(int argc, char* argv[])
     const auto Ms = stringToArray(argv[8]);
     const auto Ns = stringToArray(argv[9]);
     const auto Ks = stringToArray(argv[10]);
-    
 
     const auto StrideAs = stringToArray(argv[11]);
     const auto StrideBs = stringToArray(argv[12]);
     const auto StrideCs = stringToArray(argv[13]);
 
+    for(int i = 0; i < Ms.size(); i++)
+    {
+        std::cout << "M: " << Ms[i] << " N: " << Ns[i] << " K: " << Ks[i] << std::endl;
+    }
+
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
-                                        ck::half_t,
-                                        ck::half_t,
-                                        ck::tensor_layout::gemm::RowMajor,
-                                        ck::tensor_layout::gemm::RowMajor,
-                                        ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            Ms,
-            Ns,
-            Ks,
-            StrideAs,
-            StrideBs,
-            StrideCs);
+                                                ck::half_t,
+                                                ck::half_t,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
+                                                                                   init_method,
+                                                                                   do_log,
+                                                                                   nrepeat,
+                                                                                   Ms,
+                                                                                   Ns,
+                                                                                   Ks,
+                                                                                   StrideAs,
+                                                                                   StrideBs,
+                                                                                   StrideCs);
     }
 #if 0
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)

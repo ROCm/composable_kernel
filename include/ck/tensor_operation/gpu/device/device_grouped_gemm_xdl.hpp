@@ -242,7 +242,7 @@ struct DeviceGroupedGemmXdl
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(std::vector<GemmShape> gemm_shapes,
+        Argument(std::vector<GemmShape>& gemm_shapes,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
@@ -360,8 +360,7 @@ struct DeviceGroupedGemmXdl
 
                     if(GridwiseGemm::CalculateHasMainK0BlockLoop(K0) != has_main_k0_block_loop)
                     {
-                        throw std::runtime_error(
-                            "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
+                        throw std::runtime_error("wrong! not all gemm has_main_k0_block_loop");
                     }
                 }
             });
@@ -435,11 +434,17 @@ struct DeviceGroupedGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(arg.GemmShape_[0].a_grid_desc_k0_m_k1_,
-                                           arg.GemmShape_[0].b_grid_desc_k0_n_k1_,
-                                           arg.GemmShape_[0].c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+        bool isValid = true;
+        for(int i = 0; i < arg.GemmShape_.size(); i++)
+        {
+
+            isValid &= GridwiseGemm::CheckValidity(arg.GemmShape_[i].a_grid_desc_k0_m_k1_,
+                                                   arg.GemmShape_[i].b_grid_desc_k0_n_k1_,
+                                                   arg.GemmShape_[i].c_grid_desc_m_n_,
+                                                   arg.M01_,
+                                                   arg.N01_);
+        }
+        return isValid;
     }
 
     // polymorphic
@@ -459,7 +464,7 @@ struct DeviceGroupedGemmXdl
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<GemmShape> gemm_shapes,
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<GemmShape>& gemm_shapes,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,

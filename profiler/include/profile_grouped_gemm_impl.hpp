@@ -16,15 +16,19 @@ namespace tensor_operation {
 namespace device {
 namespace device_grouped_gemm_instance {
 
-using DeviceGroupedGemmNoOpPtr =
-    ck::tensor_operation::device::DeviceGroupedGemmPtr<ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough>;
+using DeviceGroupedGemmNoOpPtr = ck::tensor_operation::device::DeviceGroupedGemmPtr<
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough>;
 
-void add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
-//void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
-//void add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
-//void add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
+void add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(
+    std::vector<DeviceGroupedGemmNoOpPtr>&);
+// void
+// add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
+// void
+// add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
+// void
+// add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
 
 } // namespace device_grouped_gemm_instance
 } // namespace device
@@ -41,15 +45,15 @@ template <typename ADataType,
           typename BLayout,
           typename CLayout>
 void profile_grouped_gemm_impl(int do_verification,
-                       int init_method,
-                       bool do_log,
-                       int nrepeat,
-                       std::vector<int> Ms,
-                       std::vector<int> Ns,
-                       std::vector<int> Ks,
-                       std::vector<int> StrideAs,
-                       std::vector<int> StrideBs,
-                       std::vector<int> StrideCs)
+                               int init_method,
+                               bool do_log,
+                               int nrepeat,
+                               std::vector<int> Ms,
+                               std::vector<int> Ns,
+                               std::vector<int> Ks,
+                               std::vector<int> StrideAs,
+                               std::vector<int> StrideBs,
+                               std::vector<int> StrideCs)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -65,41 +69,48 @@ void profile_grouped_gemm_impl(int do_verification,
             }
         };
 
-
     std::vector<Tensor<ADataType>> a_m_k;
     std::vector<Tensor<BDataType>> b_k_n;
-    std::vector<Tensor<CDataType>> c_m_n;
+    std::vector<Tensor<CDataType>> c_m_n_device_results;
+
+    // int A_size = 0, B_size = 0, C_size = 0;
 
     for(int i = 0; i < Ms.size(); i++)
     {
-        a_m_k.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
-            Ms[i], Ks[i], StrideAs[i], ALayout{})));
-        b_k_n.push_back(Tensor<BDataType>(f_host_tensor_descriptor(
-            Ks[i], Ns[i], StrideBs[i], BLayout{})));
-        c_m_n.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            Ms[i], Ns[i], StrideCs[i], CLayout{})));
+        a_m_k.push_back(
+            Tensor<ADataType>(f_host_tensor_descriptor(Ms[i], Ks[i], StrideAs[i], ALayout{})));
+        b_k_n.push_back(
+            Tensor<BDataType>(f_host_tensor_descriptor(Ks[i], Ns[i], StrideBs[i], BLayout{})));
+
+        c_m_n_device_results.push_back(
+            Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
 
         std::cout << "a_m_k[" << i << "]:" << a_m_k[i].mDesc << std::endl;
         std::cout << "b_k_n[" << i << "]:" << b_k_n[i].mDesc << std::endl;
-        std::cout << "c_m_n[" << i << "]:" << c_m_n[i].mDesc << std::endl;
+
+        std::cout << "c_m_n_device_results[" << i << "]:" << c_m_n_device_results[i].mDesc
+                  << std::endl;
 
         std::size_t num_thread = std::thread::hardware_concurrency();
         switch(init_method)
         {
-            case 0: break;
-            case 1:
-                    a_m_k[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
-                    b_k_n[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
-                    break;
-            default:
-                    a_m_k[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
-                    b_k_n[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
+        case 0: break;
+        case 1:
+            a_m_k[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
+            b_k_n[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
+            break;
+        default:
+            a_m_k[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
+            b_k_n[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
         }
 
         // set zero to c_device_buf
-        c_m_n[i].GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
-    }
+        c_m_n_device_results[i].GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
 
+        // A_size += a_m_k[i].mDesc.GetElementSpace();
+        // B_size += b_k_n[i].mDesc.GetElementSpace();
+        // C_size += c_m_n_device_results[i].mDesc.GetElementSpace();
+    }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -114,28 +125,112 @@ void profile_grouped_gemm_impl(int do_verification,
 
     // }
 
-    std::vector<DeviceMem> a_device_buf, b_device_buf, c_device_buf;
-    //DeviceMem a_device_buf(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace());
-    //DeviceMem b_device_buf(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace());
-    //DeviceMem c_device_buf(sizeof(CDataType) * c_m_n[i].mDesc.GetElementSpace());
+    // std::vector<DeviceMem> a_device_buf, b_device_buf, c_device_buf;
+
+    std::vector<void*> a_device_buf, b_device_buf, c_device_buf;
+    // DeviceMem a_device_buf_(sizeof(ADataType) * A_size);
+    // DeviceMem b_device_buf_(sizeof(BDataType) * B_size);
+    // DeviceMem c_device_buf_(sizeof(CDataType) * C_size);
+
+    // std::vector<ADataType> a_tensors_data;
+    // std::vector<BDataType> b_tensors_data;
+    // std::vector<CDataType> c_tensors_data;
+
+    std::vector<GemmShape> gemm_shapes;
+
+    // A_size = 0;
+    // B_size = 0;
+    // C_size = 0;
 
     for(int i = 0; i < Ms.size(); i++)
     {
-        a_device_buf.push_back(DeviceMem(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
-        b_device_buf.push_back(DeviceMem(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace()));
-        c_device_buf.push_back(DeviceMem(sizeof(CDataType) * c_m_n[i].mDesc.GetElementSpace()));
+        // a_tensors_data.insert(a_tensors_data.end(), a_m_k[i].mData.begin(),
+        // a_m_k[i].mData.end()); b_tensors_data.insert(b_tensors_data.end(),
+        // b_k_n[i].mData.begin(), b_k_n[i].mData.end());
+        // c_tensors_data.insert(c_tensors_data.end(), c_m_n_device_results[i].mData.begin(),
+        // c_m_n_device_results[i].mData.end());
 
-        a_device_buf[i].ToDevice(a_m_k[i].mData.data());
-        b_device_buf[i].ToDevice(b_k_n[i].mData.data());
-        c_device_buf[i].ToDevice(c_m_n[i].mData.data());
+        void *a_device_buf_, *b_device_buf_, *c_device_buf_;
+        hipGetErrorString(hipMalloc(static_cast<void**>(&a_device_buf_),
+                                    sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
+        hipGetErrorString(hipMalloc(static_cast<void**>(&b_device_buf_),
+                                    sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace()));
+        hipGetErrorString(
+            hipMalloc(static_cast<void**>(&c_device_buf_),
+                      sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpace()));
+
+        // DeviceMem a_device_buf_(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace());
+        // DeviceMem b_device_buf_(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace());
+        // DeviceMem c_device_buf_(sizeof(CDataType) *
+        // c_m_n_device_results[i].mDesc.GetElementSpace());
+
+        hipGetErrorString(hipMemcpy(a_device_buf_,
+                                    a_m_k[i].mData.data(),
+                                    sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace(),
+                                    hipMemcpyHostToDevice));
+        hipGetErrorString(hipMemcpy(b_device_buf_,
+                                    b_k_n[i].mData.data(),
+                                    sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace(),
+                                    hipMemcpyHostToDevice));
+        hipGetErrorString(
+            hipMemcpy(c_device_buf_,
+                      c_m_n_device_results[i].mData.data(),
+                      sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpace(),
+                      hipMemcpyHostToDevice));
+
+        // a_device_buf_.ToDevice(a_m_k[i].mData.data());
+        // b_device_buf_.ToDevice(b_k_n[i].mData.data());
+        // c_device_buf_.ToDevice(c_m_n_device_results[i].mData.data());
+
+        a_device_buf.push_back(a_device_buf_);
+        b_device_buf.push_back(b_device_buf_);
+        c_device_buf.push_back(c_device_buf_);
+
+        // a_device_buf.push_back(a_device_buf_);
+        // b_device_buf.push_back(b_device_buf_);
+        // c_device_buf.push_back(c_device_buf_);
+
+        // gemm_shapes.push_back({Ms[i],
+        // Ns[i],
+        // Ks[i],
+        // StrideAs[i],
+        // StrideBs[i],
+        // StrideCs[i],
+        // a_device_buf[i].GetDeviceBuffer(),
+        // b_device_buf[i].GetDeviceBuffer(),
+        // c_device_buf[i].GetDeviceBuffer()});
+
+        // printf("%p %p %p\n",
+        // a_device_buf[i].GetDeviceBuffer(),
+        // b_device_buf[i].GetDeviceBuffer(),
+        // c_device_buf[i].GetDeviceBuffer());
+
+        gemm_shapes.push_back({Ms[i],
+                               Ns[i],
+                               Ks[i],
+                               StrideAs[i],
+                               StrideBs[i],
+                               StrideCs[i],
+                               a_device_buf_,
+                               b_device_buf_,
+                               c_device_buf_});
+
+        // A_size += a_m_k[i].mDesc.GetElementSpace();
+        // B_size += b_k_n[i].mDesc.GetElementSpace();
+        // C_size += c_m_n_device_results[i].mDesc.GetElementSpace();
     }
 
+    // a_device_buf_.ToDevice(a_tensors_data.data());
+    // b_device_buf_.ToDevice(b_tensors_data.data());
+    // c_device_buf_.ToDevice(c_tensors_data.data());
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_grouped_gemm_instance::DeviceGroupedGemmNoOpPtr> gemm_ptrs;
+    std::vector<
+        ck::tensor_operation::device::device_grouped_gemm_instance::DeviceGroupedGemmNoOpPtr>
+        gemm_ptrs;
 
     if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
-                      is_same<CDataType, half_t>::value)
+                 is_same<CDataType, half_t>::value)
     {
         if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
@@ -143,7 +238,6 @@ void profile_grouped_gemm_impl(int do_verification,
         {
             ck::tensor_operation::device::device_grouped_gemm_instance::
                 add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
-
         }
 #if 0
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
@@ -216,24 +310,15 @@ void profile_grouped_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-#if 0
+#if 1
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
         auto argument_ptr =
-            gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                          static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          M,
-                                          N,
-                                          K,
-                                          StrideA,
-                                          StrideB,
-                                          StrideC,
+            gemm_ptr->MakeArgumentPointer(gemm_shapes,
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
-                                          ck::tensor_operation::element_wise::PassThrough{},
-                                          KBatch);
+                                          ck::tensor_operation::element_wise::PassThrough{});
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
@@ -243,6 +328,7 @@ void profile_grouped_gemm_impl(int do_verification,
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
+#if 0
             std::size_t flop = std::size_t(2) * M * N * K;
 
             std::size_t num_btype =
@@ -262,54 +348,36 @@ void profile_grouped_gemm_impl(int do_verification,
                 best_ave_time   = ave_time;
                 best_gb_per_sec = gb_per_sec;
             }
+#endif
 
             if(do_verification)
             {
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+                // c_tensors_data.resize(C_size);
 
-                if constexpr(is_same<ADataType, ck::bhalf_t>::value &&
-                             is_same<BDataType, ck::bhalf_t>::value &&
-                             is_same<CDataType, ck::bhalf_t>::value)
+                // c_device_buf_.FromDevice(c_tensors_data.data());
+
+                // C_size = 0;
+                // for(int i = 0; i < gemm_shapes.size(); i++)
+                //{
+                // memcpy(c_m_n_device_results[i].mData.data(),
+                // c_tensors_data.data() + C_size,
+                // c_m_n_device_results[i].mDesc.GetElementSpace() * sizeof(CDataType));
+
+                // C_size += c_m_n_device_results[i].mDesc.GetElementSpace();
+                //}
+
+                for(int i = 0; i < gemm_shapes.size(); i++)
                 {
-                    Tensor<float> a_f32_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-                    Tensor<float> b_f32_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-                    Tensor<float> c_m_n_host_result(
-                        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-                    Tensor<float> c_m_n_device_f32_result(
-                        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+                    hipGetErrorString(hipMemcpy(c_m_n_device_results[i].mData.data(),
+                                                c_device_buf[i],
+                                                sizeof(CDataType) *
+                                                    c_m_n_device_results[i].mDesc.GetElementSpace(),
+                                                hipMemcpyDeviceToHost));
 
-                    bf16_to_f32_(a_m_k, a_f32_m_k);
-                    bf16_to_f32_(b_k_n, b_f32_k_n);
-                    bf16_to_f32_(c_m_n_device_result, c_m_n_device_f32_result);
+                    // hipGetErrorString(hipFree(c_device_buf[i]));
 
-                    using ReferenceGemmInstance = ck::tensor_operation::host::
-                        ReferenceGemm<float, float, float, AElementOp, BElementOp, CElementOp>;
-
-                    auto ref_gemm    = ReferenceGemmInstance{};
-                    auto ref_invoker = ref_gemm.MakeInvoker();
-
-                    auto ref_argument = ref_gemm.MakeArgument(a_f32_m_k,
-                                                              b_f32_k_n,
-                                                              c_m_n_host_result,
-                                                              a_element_op,
-                                                              b_element_op,
-                                                              c_element_op);
-
-                    ref_invoker.Run(ref_argument);
-
-                    check_error(c_m_n_host_result, c_m_n_device_f32_result);
-
-                    if(do_log)
-                    {
-                        LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                            << std::endl;
-                    }
-                }
-                else
-                {
                     Tensor<CDataType> c_m_n_host_result(
-                        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+                        f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{}));
 
                     using ReferenceGemmInstance =
                         ck::tensor_operation::host::ReferenceGemm<ADataType,
@@ -322,26 +390,29 @@ void profile_grouped_gemm_impl(int do_verification,
                     auto ref_gemm    = ReferenceGemmInstance{};
                     auto ref_invoker = ref_gemm.MakeInvoker();
 
-                    auto ref_argument = ref_gemm.MakeArgument(
-                        a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+                    auto ref_argument = ref_gemm.MakeArgument(a_m_k[i],
+                                                              b_k_n[i],
+                                                              c_m_n_host_result,
+                                                              a_element_op,
+                                                              b_element_op,
+                                                              c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    check_error(c_m_n_host_result, c_m_n_device_result);
+                    check_error(c_m_n_host_result, c_m_n_device_results[i]);
 
                     if(do_log)
                     {
+                        // LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
+                        //<< std::endl;
+                        // LogRangeAsType<float>(std::cout << "b: ", b_k_n[i].mData, ",") <<
+                        // std::endl;
                         LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                            std::cout << "c_device: ", c_m_n_device_results[i].mData, ",")
                             << std::endl;
+                        // LogRangeAsType<float>(
+                        // std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                        //<< std::endl;
                     }
-                }
-
-                if(do_log)
-                {
-                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                        << std::endl;
                 }
             }
         }

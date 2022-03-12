@@ -81,19 +81,17 @@ int main(int argc, char* argv[])
     // GEMM shape
     std::vector<ck::GemmShape> gemm_shapes;
 
-    int A_size = 0, B_size = 0, C_size = 0;
-
     for(int i = 0; i < group_count; i++)
     {
-        int M = 256 + 256 * i;
-        int N = 128 + 128 * i;
-        int K = 64 + 64 * i;
+        // int M = 256 + 256 * i;
+        // int N = 128 + 128 * i;
+        // int K = 64 + 64 * i;
 
-        gemm_shapes.push_back({M, N, K, K, K, N, nullptr, nullptr, nullptr});
+        int M = 3840;
+        int N = 1024;
+        int K = 4096;
 
-        A_size += gemm_shapes[i].M * gemm_shapes[i].K;
-        B_size += gemm_shapes[i].N * gemm_shapes[i].K;
-        C_size += gemm_shapes[i].M * gemm_shapes[i].N;
+        gemm_shapes.push_back({M, N, K, K, N, N, nullptr, nullptr, nullptr});
     }
 
     auto f_host_tensor_descriptor =
@@ -115,6 +113,10 @@ int main(int argc, char* argv[])
     std::vector<Tensor<CDataType>> c_host_tensors;
     std::vector<Tensor<CDataType>> c_device_tensors;
 
+    using DeviceMemPtr = std::unique_ptr<DeviceMem>;
+
+    std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, c_tensors_device;
+
     std::size_t flop = 0, num_btype = 0;
 
     for(int i = 0; i < gemm_shapes.size(); i++)
@@ -133,13 +135,10 @@ int main(int argc, char* argv[])
                   << std::endl;
 
         flop += std::size_t(2) * gemm_shapes[i].M * gemm_shapes[i].K * gemm_shapes[i].N;
-        num_btype += sizeof(ADataType) * gemm_shapes[i].M * gemm_shapes[i].K +
-                     sizeof(BDataType) * gemm_shapes[i].K * gemm_shapes[i].N +
-                     sizeof(CDataType) * gemm_shapes[i].M * gemm_shapes[i].N;
-    }
+        num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
+                     sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize() +
+                     sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize();
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
-    {
         switch(init_method)
         {
         case 0: break;
@@ -157,37 +156,22 @@ int main(int argc, char* argv[])
         }
     }
 
-    DeviceMem a_tensors_device_buf(sizeof(ADataType) * A_size);
-    DeviceMem b_tensors_device_buf(sizeof(BDataType) * B_size);
-    DeviceMem c_tensors_device_buf(sizeof(CDataType) * C_size);
-
-    std::vector<ADataType> a_tensors_data, b_tensors_data, c_tensors_data;
-
-    A_size = 0;
-    B_size = 0;
-    C_size = 0;
-
     for(int i = 0; i < gemm_shapes.size(); i++)
     {
-        a_tensors_data.insert(
-            a_tensors_data.end(), a_tensors[i].mData.begin(), a_tensors[i].mData.end());
-        b_tensors_data.insert(
-            b_tensors_data.end(), b_tensors[i].mData.begin(), b_tensors[i].mData.end());
+        a_tensors_device.push_back(
+            std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize()));
+        b_tensors_device.push_back(
+            std::make_unique<DeviceMem>(sizeof(BDataType) * a_tensors[i].mDesc.GetElementSize()));
+        c_tensors_device.push_back(std::make_unique<DeviceMem>(
+            sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize()));
 
-        gemm_shapes[i].p_a =
-            static_cast<ADataType*>(a_tensors_device_buf.GetDeviceBuffer()) + A_size;
-        gemm_shapes[i].p_b =
-            static_cast<BDataType*>(b_tensors_device_buf.GetDeviceBuffer()) + B_size;
-        gemm_shapes[i].p_c =
-            static_cast<CDataType*>(c_tensors_device_buf.GetDeviceBuffer()) + C_size;
+        a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
+        b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
 
-        A_size += gemm_shapes[i].M * gemm_shapes[i].K;
-        B_size += gemm_shapes[i].N * gemm_shapes[i].K;
-        C_size += gemm_shapes[i].M * gemm_shapes[i].N;
+        gemm_shapes[i].p_a = a_tensors_device[i]->GetDeviceBuffer();
+        gemm_shapes[i].p_b = b_tensors_device[i]->GetDeviceBuffer();
+        gemm_shapes[i].p_c = c_tensors_device[i]->GetDeviceBuffer();
     }
-
-    a_tensors_device_buf.ToDevice(a_tensors_data.data());
-    b_tensors_device_buf.ToDevice(b_tensors_data.data());
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
@@ -214,24 +198,11 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c_tensors_data.resize(C_size);
-
-    c_tensors_device_buf.FromDevice(c_tensors_data.data());
-
-    C_size = 0;
-    for(int i = 0; i < gemm_shapes.size(); i++)
-    {
-        memcpy(c_device_tensors[i].mData.data(),
-               c_tensors_data.data() + C_size,
-               c_device_tensors[i].mData.size() * sizeof(CDataType));
-
-        C_size += gemm_shapes[i].M * gemm_shapes[i].N;
-    }
-
     if(do_verification)
     {
         for(int i = 0; i < gemm_shapes.size(); i++)
         {
+            c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
             auto ref_gemm    = ReferenceGemmInstance{};
             auto ref_invoker = ref_gemm.MakeInvoker();
 

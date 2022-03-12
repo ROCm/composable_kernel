@@ -5,6 +5,12 @@ DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
     hipGetErrorString(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
 }
 
+DeviceMem::DeviceMem(const DeviceMem& p) : mpDeviceBuf(p.mpDeviceBuf), mMemSize(p.mMemSize)
+{
+    // hipGetErrorString(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+    // hipGetErrorString(hipMemcpy(mpDeviceBuf, p.mpDeviceBuf, mMemSize, hipMemcpyDeviceToDevice));
+}
+
 void* DeviceMem::GetDeviceBuffer() { return mpDeviceBuf; }
 
 void DeviceMem::ToDevice(const void* p)
