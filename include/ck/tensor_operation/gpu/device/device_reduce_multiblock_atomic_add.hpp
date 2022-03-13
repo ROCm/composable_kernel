@@ -47,15 +47,10 @@ struct DeviceReduceMultiBlockAtomicAdd
     using IndexDataType = int32_t;
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
-    using InvariantDims =
-        typename conditional<NumInvariantDim == 0,
-                             Sequence<>,
-                             typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type>::type;
-    using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
 
-    static constexpr index_t srcDims    = Rank;
-    static constexpr index_t dstDims    = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
-    static constexpr bool reduceAllDims = (InvariantDims::Size() == 0);
+    static constexpr index_t numSrcDim = Rank;
+    static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
+    static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
     static constexpr bool support_AtomicAdd =
         std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value;
@@ -72,18 +67,18 @@ struct DeviceReduceMultiBlockAtomicAdd
                                     int blkGroupSize,
                                     int kBlockTileIterations)
     {
-        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
-        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
+        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
+        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
 
         const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
         const auto in_grid_desc_m_k = [&]() {
-            if constexpr(reduceAllDims)
+            if constexpr(reduceAllDim)
             {
                 const auto one_dim_inDesc = transform_tensor_descriptor(
                     inDesc,
                     make_tuple(make_merge_transform(tupleSrcLengths)),
-                    make_tuple(typename arithmetic_sequence_gen<0, srcDims, 1>::type{}),
+                    make_tuple(typename arithmetic_sequence_gen<0, numSrcDim, 1>::type{}),
                     make_tuple(Sequence<0>{}));
 
                 return transform_tensor_descriptor(one_dim_inDesc,
@@ -94,6 +89,9 @@ struct DeviceReduceMultiBlockAtomicAdd
             }
             else
             {
+                using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
+                using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
+
                 const auto reduceDimLengths =
                     make_tuple_from_array_and_index_seq(inLengths, ReduceDims{});
                 const auto invariantDimLengths =
@@ -128,15 +126,15 @@ struct DeviceReduceMultiBlockAtomicAdd
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
                                     const std::vector<int>& outStrides)
     {
-        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
-        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
+        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
+        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
 
         auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
         auto out_grid_desc_m = transform_tensor_descriptor(
             outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, dstDims, 1>::type{}),
+            make_tuple(typename arithmetic_sequence_gen<0, numDstDim, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
         const auto outerLen = out_grid_desc_m.GetLength(Number<0>{});
@@ -339,18 +337,22 @@ struct DeviceReduceMultiBlockAtomicAdd
 
         if constexpr(InSrcVectorDim == 0)
         {
-            if constexpr(InvariantDims::Size() == 0)
+            if constexpr(NumInvariantDim == 0)
+            {
                 return (false);
+            }
+            else
+            {
+                if(pArg->inStrides_[NumInvariantDim - 1] != 1)
+                    return (false);
 
-            if(pArg->inStrides_[InvariantDims::At(InvariantDims::Size() - 1)] != 1)
-                return (false);
-
-            if(pArg->invariant_lowest_length % InSrcVectorSize != 0)
-                return (false);
+                if(pArg->invariant_lowest_length % InSrcVectorSize != 0)
+                    return (false);
+            };
         }
         else
         {
-            if(pArg->inStrides_[ReduceDims::At(ReduceDims::Size() - 1)] != 1)
+            if(pArg->inStrides_[Rank - 1] != 1)
                 return (false);
 
             if(pArg->reduce_lowest_length % InSrcVectorSize != 0)

@@ -50,12 +50,8 @@ struct DeviceReduceBlockWiseSecondCall
         "InDataType and AccDataType should be the same to use DEviceReduceBlockWiseSecondCall!");
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
-    using InvariantDims =
-        typename conditional<NumInvariantDim == 0,
-                             Sequence<>,
-                             typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type>::type;
 
-    static constexpr index_t dstDims = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
+    static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
 
     static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
@@ -88,15 +84,15 @@ struct DeviceReduceBlockWiseSecondCall
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
                                     const std::vector<int>& outStrides)
     {
-        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
-        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
+        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
+        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
 
         auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
         auto out_grid_desc_m = transform_tensor_descriptor(
             outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, dstDims, 1>::type{}),
+            make_tuple(typename arithmetic_sequence_gen<0, numDstDim, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
         const auto outerLen = out_grid_desc_m.GetLength(Number<0>{});
