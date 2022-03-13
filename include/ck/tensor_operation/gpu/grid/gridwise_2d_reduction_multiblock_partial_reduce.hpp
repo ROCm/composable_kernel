@@ -23,8 +23,8 @@
  * SOFTWARE.
  *
  *******************************************************************************/
-#ifndef CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_TWO_CALL_HPP
-#define CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_TWO_CALL_HPP
+#ifndef CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_PARTIAL_REDUCE_HPP
+#define CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_PARTIAL_REDUCE_HPP
 
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
@@ -244,9 +244,6 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
             reducedTiles++;
         } while(reducedTiles < num_k_block_tile_iteration);
 
-        constexpr auto reduced_data_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
-
         // Each block executes multiple parallel reductions on the LDS, and due to the using of
         // vector_load, each block/thread is involved into multiple invarirant dimensions.
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
@@ -259,6 +256,9 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
 
             BlockwiseReduce::Reduce(block_reduce_buf, accu_value_buf(I));
         });
+
+        constexpr auto reduced_data_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
 
         if(thread_k_cluster_id == 0)
         {
