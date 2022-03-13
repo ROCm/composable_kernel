@@ -10,6 +10,8 @@ if [ -n $PRECISION ] && [ "$PRECISION" = "--half" -o "$PRECISION" = "--bf16" ]; 
    ACCTYPE="-C 1"
 elif [ -n $PRECISION ] && [ "$PRECISION" = "--int8" ]; then
    ACCTYPE="-C 2"
+fi
+
 
 driver="./bin/ckProfiler"
 
