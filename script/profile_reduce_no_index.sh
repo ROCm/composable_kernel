@@ -32,6 +32,7 @@ fi
 for op in $Operations; do
     set -x
     #######        datatype   layout          reduce dims  op     acctype   verify  init  repeats
+    $driver reduce $PRECISION -D 64,4,280,82  -R 0,1,2,3   -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT
     $driver reduce $PRECISION -D 64,4,280,82  -R 0         -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT
     $driver reduce $PRECISION -D 64,4,280,82  -R 1         -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT
     $driver reduce $PRECISION -D 64,4,280,82  -R 2         -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT

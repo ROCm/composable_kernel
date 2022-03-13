@@ -20,34 +20,43 @@ struct ReduceDescription
 };
 
 using reduce_description_instances = std::tuple<ReduceDescription<4, 3, 0, 0, 0>, // for ADD
+                                                ReduceDescription<4, 4, 0, 0, 0>,
                                                 ReduceDescription<4, 1, 0, 0, 0>,
                                                 ReduceDescription<2, 1, 0, 0, 0>,
 
                                                 ReduceDescription<4, 3, 5, 0, 0>, // for AVG
+                                                ReduceDescription<4, 4, 5, 0, 0>,
                                                 ReduceDescription<4, 1, 5, 0, 0>,
                                                 ReduceDescription<2, 1, 5, 0, 0>,
 
                                                 ReduceDescription<4, 3, 7, 0, 0>, // for NORM2
+                                                ReduceDescription<4, 4, 7, 0, 0>,
                                                 ReduceDescription<4, 1, 7, 0, 0>,
                                                 ReduceDescription<2, 1, 7, 0, 0>,
 
                                                 ReduceDescription<4, 3, 2, 0, 0>, // for MIN
+                                                ReduceDescription<4, 4, 2, 0, 0>,
                                                 ReduceDescription<4, 1, 2, 0, 0>,
                                                 ReduceDescription<2, 1, 2, 0, 0>,
                                                 ReduceDescription<4, 3, 3, 0, 0>, // for MAX
+                                                ReduceDescription<4, 4, 3, 0, 0>,
                                                 ReduceDescription<4, 1, 3, 0, 0>,
                                                 ReduceDescription<2, 1, 3, 0, 0>,
                                                 ReduceDescription<4, 3, 4, 0, 0>, // for AMAX
+                                                ReduceDescription<4, 4, 4, 0, 0>,
                                                 ReduceDescription<4, 1, 4, 0, 0>,
                                                 ReduceDescription<2, 1, 4, 0, 0>,
 
                                                 ReduceDescription<4, 3, 2, 0, 1>, // for MIN
+                                                ReduceDescription<4, 4, 2, 0, 1>,
                                                 ReduceDescription<4, 1, 2, 0, 1>,
                                                 ReduceDescription<2, 1, 2, 0, 1>,
                                                 ReduceDescription<4, 3, 3, 0, 1>, // for MAX
+                                                ReduceDescription<4, 4, 3, 0, 1>,
                                                 ReduceDescription<4, 1, 3, 0, 1>,
                                                 ReduceDescription<2, 1, 3, 0, 1>,
                                                 ReduceDescription<4, 3, 4, 0, 1>, // for AMAX
+                                                ReduceDescription<4, 4, 4, 0, 1>,
                                                 ReduceDescription<4, 1, 4, 0, 1>,
                                                 ReduceDescription<2, 1, 4, 0, 1>>;
 
