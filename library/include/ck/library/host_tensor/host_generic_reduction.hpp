@@ -131,7 +131,7 @@ class ReductionHost
     ReductionHost(HostTensorDescriptor& inDesc,
                   HostTensorDescriptor& outDesc,
                   const std::vector<int>& invariantDims_,
-                  const std::vector<int>& toReduceDims_)
+                  const std::vector<int>& reduceDims_)
     {
         this->inLengths  = to_int_vector(inDesc.GetLengths());
         this->outLengths = to_int_vector(outDesc.GetLengths());
@@ -139,15 +139,15 @@ class ReductionHost
         this->outStrides = to_int_vector(outDesc.GetStrides());
 
         this->invariantDims = invariantDims_;
-        this->toReduceDims  = toReduceDims_;
+        this->reduceDims    = reduceDims_;
 
         assert(this->inLengths.size() == this->outLengths.size());
-        assert(!this->toReduceDims.empty());
+        assert(!this->reduceDims.empty());
 
         for(const auto dim : this->invariantDims)
             this->invariantLengths.push_back(this->inLengths[dim]);
 
-        for(const auto dim : this->toReduceDims)
+        for(const auto dim : this->reduceDims)
             toReduceLengths.push_back(this->inLengths[dim]);
 
         this->reduceAllDims = this->invariantDims.empty();
@@ -174,7 +174,7 @@ class ReductionHost
     std::vector<int> toReduceLengths;
 
     std::vector<int> invariantDims;
-    std::vector<int> toReduceDims;
+    std::vector<int> reduceDims;
 
     bool reduceAllDims;
 
@@ -269,8 +269,8 @@ class ReductionHost
                 for(const auto& index_2 : indexes_2)
                 {
                     // generate the part of src index belonging to toReduce dims
-                    for(int k = 0; k < toReduceDims.size(); k++)
-                        src_index[toReduceDims[k]] = index_2[k];
+                    for(int k = 0; k < reduceDims.size(); k++)
+                        src_index[reduceDims[k]] = index_2[k];
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 
@@ -386,8 +386,8 @@ class ReductionHost
                 for(const auto& index_2 : indexes_2)
                 {
                     // generate the part of src index belonging to toReduce dims
-                    for(int k = 0; k < toReduceDims.size(); k++)
-                        src_index[toReduceDims[k]] = index_2[k];
+                    for(int k = 0; k < reduceDims.size(); k++)
+                        src_index[reduceDims[k]] = index_2[k];
 
                     auto src_offset = get_offset_from_index(this->inStrides, src_index);
 

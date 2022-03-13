@@ -65,18 +65,20 @@ struct DeviceReduceBlockWiseSecondCall
         const auto in_grid_desc_m_k =
             make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
-        const auto outerLen = in_grid_desc_m_k.GetLength(Number<0>{});
-        const auto innerLen = in_grid_desc_m_k.GetLength(Number<1>{});
+        const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
 
-        const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
-        const auto inPad_K = math::integer_least_multiple(innerLen, K_BlockTileSize) - innerLen;
+        const auto inPad_M =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
+        const auto inPad_K =
+            math::integer_least_multiple(reduceLength, K_BlockTileSize) - reduceLength;
 
-        auto in_grid_desc_m_k_padded =
-            transform_tensor_descriptor(in_grid_desc_m_k,
-                                        make_tuple(make_right_pad_transform(outerLen, inPad_M),
-                                                   make_right_pad_transform(innerLen, inPad_K)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+        auto in_grid_desc_m_k_padded = transform_tensor_descriptor(
+            in_grid_desc_m_k,
+            make_tuple(make_right_pad_transform(invariantLength, inPad_M),
+                       make_right_pad_transform(reduceLength, inPad_K)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         return (in_grid_desc_m_k_padded);
     };
@@ -95,15 +97,16 @@ struct DeviceReduceBlockWiseSecondCall
             make_tuple(typename arithmetic_sequence_gen<0, numDstDim, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
-        const auto outerLen = out_grid_desc_m.GetLength(Number<0>{});
+        const auto invariantLength = out_grid_desc_m.GetLength(Number<0>{});
 
-        const auto outPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
+        const auto outPad =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
 
-        auto out_grid_desc_m_padded =
-            transform_tensor_descriptor(out_grid_desc_m,
-                                        make_tuple(make_right_pad_transform(outerLen, outPad)),
-                                        make_tuple(Sequence<0>{}),
-                                        make_tuple(Sequence<0>{}));
+        auto out_grid_desc_m_padded = transform_tensor_descriptor(
+            out_grid_desc_m,
+            make_tuple(make_right_pad_transform(invariantLength, outPad)),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0>{}));
         return (out_grid_desc_m_padded);
     };
 

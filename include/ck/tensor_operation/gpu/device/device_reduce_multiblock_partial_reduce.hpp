@@ -138,32 +138,35 @@ struct DeviceReduceMultiBlockPartialReduce
             }
         }();
 
-        const auto outerLen = in_grid_desc_m_k.GetLength(Number<0>{});
-        const auto innerLen = in_grid_desc_m_k.GetLength(Number<1>{});
+        const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
 
         const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
-        const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
-        const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
+        const auto inPad_M =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
+        const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
 
-        auto in_grid_desc_m_k_padded =
-            transform_tensor_descriptor(in_grid_desc_m_k,
-                                        make_tuple(make_right_pad_transform(outerLen, inPad_M),
-                                                   make_right_pad_transform(innerLen, inPad_K)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+        auto in_grid_desc_m_k_padded = transform_tensor_descriptor(
+            in_grid_desc_m_k,
+            make_tuple(make_right_pad_transform(invariantLength, inPad_M),
+                       make_right_pad_transform(reduceLength, inPad_K)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeWorkspace2dDescriptor(int outerLen, int blkGroupSize)
+    static auto MakeWorkspace2dDescriptor(int invariantLength, int blkGroupSize)
     {
-        auto ws_desc_m_k = make_naive_tensor_descriptor_packed(make_tuple(outerLen, blkGroupSize));
+        auto ws_desc_m_k =
+            make_naive_tensor_descriptor_packed(make_tuple(invariantLength, blkGroupSize));
 
-        const auto wsPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
+        const auto wsPad =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
 
         auto ws_desc_m_k_padded =
             transform_tensor_descriptor(ws_desc_m_k,
-                                        make_tuple(make_right_pad_transform(outerLen, wsPad),
+                                        make_tuple(make_right_pad_transform(invariantLength, wsPad),
                                                    make_pass_through_transform(blkGroupSize)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
