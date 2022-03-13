@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
 
     auto reduce = DeviceReduceInstance{};
 
-    auto wsSizeInBytes = reduce.GetWorkspaceSizeInBytes(i_inLengths);
+    auto wsSizeInBytes = reduce.GetWorkspaceSizeInBytes(i_inLengths, reduceDims);
 
     DeviceMem ws_dev(wsSizeInBytes);
 

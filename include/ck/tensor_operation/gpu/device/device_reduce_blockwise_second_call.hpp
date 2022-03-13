@@ -272,19 +272,19 @@ struct DeviceReduceBlockWiseSecondCall
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int>& inLengths,
-                        const std::vector<int>& inStrides,
-                        const std::vector<int>& outLengths,
-                        const std::vector<int>& outStrides,
-                        const std::vector<int>& reduceDims,
+    MakeArgumentPointer(const std::vector<int> inLengths,
+                        const std::vector<int> inStrides,
+                        const std::vector<int> outLengths,
+                        const std::vector<int> outStrides,
+                        const std::vector<int> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
                         void* out_dev,
                         void* out_indices_dev,
                         void* workspace_dev,
-                        const InElementwiseOperation& in_elementwise_op,
-                        const AccElementwiseOperation& acc_elementwise_op) override
+                        const InElementwiseOperation in_elementwise_op,
+                        const AccElementwiseOperation acc_elementwise_op) override
     {
         (void)reduceDims;
 

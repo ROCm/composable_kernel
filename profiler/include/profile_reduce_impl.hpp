@@ -325,6 +325,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                              IndicesOpt>(reduce0_ptrs);
 
         if constexpr(use_atomic_add)
+        {
             add_device_reduce_instance_multiblock_atomic_add<InDataType,
                                                              AccDataType,
                                                              OutDataType,
@@ -333,7 +334,9 @@ void profile_reduce_impl_impl(bool do_verification,
                                                              ReduceOpId,
                                                              NanOpt,
                                                              IndicesOpt>(reduce0_ptrs);
+        }
         else
+        {
             add_device_reduce_instance_multiblock_partial_reduce<InDataType,
                                                                  AccDataType,
                                                                  OutDataType,
@@ -342,9 +345,11 @@ void profile_reduce_impl_impl(bool do_verification,
                                                                  ReduceOpId,
                                                                  NanOpt,
                                                                  IndicesOpt>(reduce1_ptrs);
+        };
 
         // used for secondary reduction
         if constexpr(!use_atomic_add)
+        {
             add_device_reduce_instance_blockwise_second_call<AccDataType,
                                                              AccDataType,
                                                              OutDataType,
@@ -353,6 +358,7 @@ void profile_reduce_impl_impl(bool do_verification,
                                                              ReduceOpId,
                                                              NanOpt,
                                                              IndicesOpt>(reduce2_ptrs);
+        };
 
         if(reduce0_ptrs.empty() && reduce1_ptrs.empty())
         {
@@ -382,7 +388,7 @@ void profile_reduce_impl_impl(bool do_verification,
 
         for(auto& reduce_ptr : reduce0_ptrs)
         {
-            auto wsSizeInBytes = reduce_ptr->GetWorkspaceSizeInBytes(i_inLengths);
+            auto wsSizeInBytes = reduce_ptr->GetWorkspaceSizeInBytes(i_inLengths, reduceDims);
 
             DeviceMem ws_dev(wsSizeInBytes);
 
@@ -467,7 +473,7 @@ void profile_reduce_impl_impl(bool do_verification,
 
         for(auto& reduce_ptr : reduce1_ptrs)
         {
-            auto wsSizeInBytes = reduce_ptr->GetWorkspaceSizeInBytes(i_inLengths);
+            auto wsSizeInBytes = reduce_ptr->GetWorkspaceSizeInBytes(i_inLengths, reduceDims);
 
             DeviceMem ws_dev(wsSizeInBytes);
 

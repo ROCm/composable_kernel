@@ -153,19 +153,19 @@ struct DeviceReduceMultiBlockAtomicAdd
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int>& inLengths,
-                 const std::vector<int>& inStrides,
-                 const std::vector<int>& outLengths,
-                 const std::vector<int>& outStrides,
-                 const std::vector<int>& reduceDims,
+        Argument(const std::vector<int> inLengths,
+                 const std::vector<int> inStrides,
+                 const std::vector<int> outLengths,
+                 const std::vector<int> outStrides,
+                 const std::vector<int> reduceDims,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
                  IndexDataType* out_indices_dev,
                  AccDataType* workspace_dev,
-                 const InElementwiseOperation& in_elementwise_op,
-                 const AccElementwiseOperation& acc_elementwise_op)
+                 const InElementwiseOperation in_elementwise_op,
+                 const AccElementwiseOperation acc_elementwise_op)
             : outLengths_{outLengths},
               outStrides_{outStrides},
               in_dev_{in_dev},
@@ -176,21 +176,21 @@ struct DeviceReduceMultiBlockAtomicAdd
             (void)out_indices_dev;
             (void)workspace_dev;
 
-            std::tie(inLengths_, inStrides_) =
-                shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, inStrides, reduceDims);
+            inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
+            inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
             alpha_ = type_convert<AccDataType>(alpha);
             beta_  = type_convert<AccDataType>(beta);
 
             std::tie(invariant_total_length, reduce_total_length) =
-                get_2d_lengths<Rank, ReduceDims>(inLengths_);
+                get_2d_lengths<Rank, NumReduceDim>(inLengths_);
 
-            if constexpr(InvariantDims::Size() == 0)
+            if constexpr(NumInvariantDim == 0)
                 invariant_lowest_length = 1;
             else
-                invariant_lowest_length = inLengths_[InvariantDims::At(InvariantDims::Size() - 1)];
+                invariant_lowest_length = inLengths_[NumInvariantDim - 1];
 
-            reduce_lowest_length = inLengths_[ReduceDims::At(ReduceDims::Size() - 1)];
+            reduce_lowest_length = inLengths_[Rank - 1];
 
             int iterations = 1;
             while(true)
@@ -376,19 +376,19 @@ struct DeviceReduceMultiBlockAtomicAdd
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int>& inLengths,
-                        const std::vector<int>& inStrides,
-                        const std::vector<int>& outLengths,
-                        const std::vector<int>& outStrides,
-                        const std::vector<int>& reduceDims,
+    MakeArgumentPointer(const std::vector<int> inLengths,
+                        const std::vector<int> inStrides,
+                        const std::vector<int> outLengths,
+                        const std::vector<int> outStrides,
+                        const std::vector<int> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
                         void* out_dev,
                         void* out_indices_dev,
                         void* workspace_dev,
-                        const InElementwiseOperation& in_elementwise_op,
-                        const AccElementwiseOperation& acc_elementwise_op) override
+                        const InElementwiseOperation in_elementwise_op,
+                        const AccElementwiseOperation acc_elementwise_op) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
