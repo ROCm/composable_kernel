@@ -1,4 +1,4 @@
-# Instructions for ```gemm_xdl``` Example
+# Instructions for ```pool2d_fwd``` Example
 
 ## Docker script
 ```bash
@@ -13,7 +13,7 @@ rocm/tensorflow:rocm4.3.1-tf2.6-dev                                          \
 /bin/bash
 ```
 
-## Build ```gemm_xdl```
+## Build ```pool2d_fwd```
 ```bash
 mkdir build && cd build
 ```
@@ -30,27 +30,26 @@ cmake                                                                  \
 ```
 
 ```bash
- make -j gemm_xdl
+ make -j pool2d_fwd
 ```
 
-## Run ```gemm_xdl```
+## Run ```pool2d_fwd```
 ```bash
 #arg1: verification (0=no, 1=yes)
 #arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 #arg3: run kernel # of times (>1)
-./example/gemm_xdl 0 1 5
+#arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, RightPx
+./example/pool2d_fwd 1 1 10
 ```
 
-Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
+Result 
 ```
-a_m_k: dim 2, lengths {3840, 4096}, strides {4096, 1}
-b_k_n: dim 2, lengths {4096, 4096}, strides {1, 4096}
-c_m_n: dim 2, lengths {3840, 4096}, strides {4096, 1}
-arg.a_grid_desc_k0_m_k1_{512, 3840, 8}
-arg.b_grid_desc_k0_n_k1_{512, 4096, 8}
-arg.c_grid_desc_m_n_{ 3840, 4096}
-launch_and_time_kernel: grid_dim {480, 1, 1}, block_dim {256, 1, 1}
+in_n_c_hi_wi: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
+out_n_c_ho_wo: dim 4, lengths {128, 192, 36, 36}, strides {248832, 1, 6912, 192}
+launch_and_time_kernel: grid_dim {124416, 1, 1}, block_dim {64, 1, 1} 
 Warm up
-Start running 5 times...
-Perf: 1.19685 ms, 107.657 TFlops, 78.8501 GB/s
+Start running 10 times...
+Perf: 0.415453 ms, 1.37996 TFlops, 749.726 GB/s
+error: 0
+max_diff: 0, 1, 1
 ```
