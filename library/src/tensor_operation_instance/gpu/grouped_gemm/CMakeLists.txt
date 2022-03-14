@@ -1,9 +1,9 @@
 # device_grouped_gemm_instance
 set(DEVICE_GROUPED_GEMM_INSTANCE_SOURCE
    device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instance.cpp;
-   #device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instance.cpp;
-   #device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instance.cpp;
-   #device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instance.cpp;
+   device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instance.cpp;
+   device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instance.cpp;
+   device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instance.cpp;
 )
 
 add_library(device_grouped_gemm_instance SHARED ${DEVICE_GROUPED_GEMM_INSTANCE_SOURCE}) 

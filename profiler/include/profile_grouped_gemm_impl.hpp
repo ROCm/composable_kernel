@@ -23,12 +23,12 @@ using DeviceGroupedGemmNoOpPtr = ck::tensor_operation::device::DeviceGroupedGemm
 
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(
     std::vector<DeviceGroupedGemmNoOpPtr>&);
-// void
-// add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
-// void
-// add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
-// void
-// add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGroupedGemmNoOpPtr>&);
+void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
+    std::vector<DeviceGroupedGemmNoOpPtr>&);
+void add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(
+    std::vector<DeviceGroupedGemmNoOpPtr>&);
+void add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(
+    std::vector<DeviceGroupedGemmNoOpPtr>&);
 
 } // namespace device_grouped_gemm_instance
 } // namespace device
@@ -167,65 +167,27 @@ void profile_grouped_gemm_impl(int do_verification,
             ck::tensor_operation::device::device_grouped_gemm_instance::
                 add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
         }
-#if 0
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            if(KBatch > 1)
-            {
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
-            }
-            else
-            {
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
-
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
-
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
-            }
+            ck::tensor_operation::device::device_grouped_gemm_instance::
+                add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            if(KBatch > 1)
-            {
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
-            }
-            else
-            {
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
-
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
-            }
+            ck::tensor_operation::device::device_grouped_gemm_instance::
+                add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            if(KBatch > 1)
-            {
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
-            }
-            else
-            {
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
-
-                ck::tensor_operation::device::device_grouped_gemm_instance::
-                    add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
-            }
+            ck::tensor_operation::device::device_grouped_gemm_instance::
+                add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
         }
-#endif
     }
 
     if(gemm_ptrs.size() <= 0)
@@ -238,7 +200,6 @@ void profile_grouped_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-#if 1
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
@@ -330,11 +291,10 @@ void profile_grouped_gemm_impl(int do_verification,
             std::cout << "does not support this GEMM problem" << std::endl;
         }
     }
-#endif
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
-}
+} // namespace profiler
 
 } // namespace profiler
 } // namespace ck
