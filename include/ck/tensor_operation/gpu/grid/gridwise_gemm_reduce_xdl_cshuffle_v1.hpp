@@ -686,7 +686,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
-#if 1
             // LDS c_reduce_block_desc_mperblock_nperblock
             constexpr auto c_reduce_block_desc_mperblock_nperblock = transform_tensor_descriptor(
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
@@ -769,7 +768,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                        make_multi_index(block_work_idx[I0],                  // mblock
                                         c_reduce_thread_data_idx_begin[I0]), // mperblock
                        ck::tensor_operation::element_wise::PassThrough{}};
-#endif
 
             constexpr auto mperblock_forward_step =
                 make_multi_index(0, CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl, 0, 0);
