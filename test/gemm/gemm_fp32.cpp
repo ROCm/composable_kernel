@@ -32,10 +32,11 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
-void add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
-void add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
-void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
-void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
+
 } // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation
@@ -54,7 +55,7 @@ int main()
     std::vector<DeviceGemmPtr_> gemmPtrs;
 
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -72,7 +73,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -90,7 +91,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -108,7 +109,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {

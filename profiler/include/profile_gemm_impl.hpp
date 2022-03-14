@@ -45,6 +45,11 @@ void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNo
 void add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -127,11 +132,6 @@ void profile_gemm_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    // if(do_verification)
-    // {
-
-    // }
-
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
@@ -159,6 +159,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
             }
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
@@ -174,6 +177,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
             }
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -189,6 +195,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
             }
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -204,6 +213,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
             }
         }
     }
