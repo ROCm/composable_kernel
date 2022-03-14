@@ -26,7 +26,7 @@ enum GemmDataType
     INT8_INT8_INT8, // 3
 };
 
-std::vector<int> stringToArray(char* input)
+std::vector<int> argToIntArray(char* input)
 {
     std::vector<int> out;
 
@@ -56,7 +56,8 @@ int profile_grouped_gemm(int argc, char* argv[])
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");
         printf("arg7: run kernel # of times (>1)\n");
-        printf("arg8 to 13: Ms, Ns, Ks, StrideAs, StrideBs, StrideCs\n");
+        printf("arg8 to 13: Ms, Ns, Ks, StrideAs, StrideBs, StrideCs (e.g., 256,256 128,128 64,64 "
+               "64,64 64,64 128,128)\n");
         exit(1);
     }
 
@@ -67,13 +68,13 @@ int profile_grouped_gemm(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[6]);
     const int nrepeat          = std::stoi(argv[7]);
 
-    const auto Ms = stringToArray(argv[8]);
-    const auto Ns = stringToArray(argv[9]);
-    const auto Ks = stringToArray(argv[10]);
+    const auto Ms = argToIntArray(argv[8]);
+    const auto Ns = argToIntArray(argv[9]);
+    const auto Ks = argToIntArray(argv[10]);
 
-    const auto StrideAs = stringToArray(argv[11]);
-    const auto StrideBs = stringToArray(argv[12]);
-    const auto StrideCs = stringToArray(argv[13]);
+    const auto StrideAs = argToIntArray(argv[11]);
+    const auto StrideBs = argToIntArray(argv[12]);
+    const auto StrideCs = argToIntArray(argv[13]);
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
