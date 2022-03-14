@@ -72,8 +72,9 @@ message(STATUS "Build with HIP ${HIP_VERSION}")
 
 
 rocm_create_package(
-    NAME CK-${CK_BACKEND}
+    NAME composablekernel
     DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
+    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
     LDCONFIG
 )
 
@@ -245,3 +246,25 @@ add_subdirectory(library)
 add_subdirectory(example)
 add_subdirectory(test)
 add_subdirectory(profiler)
+
+#Create an interface target for the include only files and call it "coposablekernels"
+include(CMakePackageConfigHelpers)
+
+set(version 1.0.0)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
+    VERSION "${version}"
+    COMPATIBILITY AnyNewerVersion
+)
+
+configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in 
+        "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel 
+        NO_CHECK_REQUIRED_COMPONENTS_MACRO
+)
+
+install(FILES 
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel 
+)

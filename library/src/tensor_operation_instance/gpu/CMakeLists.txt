@@ -28,3 +28,82 @@ add_subdirectory(conv2d_fwd_bias_relu_add)
 add_subdirectory(conv2d_fwd_bias_relu_atomic_add)
 add_subdirectory(conv2d_bwd_data)
 add_subdirectory(reduce)
+
+add_library(device_operations STATIC 
+    $<TARGET_OBJECTS:device_conv1d_fwd_instance> 
+    $<TARGET_OBJECTS:device_batched_gemm_instance> 
+    $<TARGET_OBJECTS:device_conv2d_bwd_data_instance> 
+    $<TARGET_OBJECTS:device_conv2d_fwd_instance> 
+    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_instance> 
+    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
+    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_atomic_add_instance>
+    $<TARGET_OBJECTS:device_gemm_instance>
+    $<TARGET_OBJECTS:device_gemm_bias_relu_instance>
+    $<TARGET_OBJECTS:device_gemm_bias_relu_add_instance>
+    $<TARGET_OBJECTS:device_gemm_bias2d_instance>
+    $<TARGET_OBJECTS:device_reduce_instance>
+)
+add_library(composablekernels::device_operations ALIAS device_operations)
+set(DEV_OPS_INC_DIRS 
+    ${PROJECT_SOURCE_DIR}/include/ck
+    ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor
+    ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/device
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/grid
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/block
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
+    ${PROJECT_SOURCE_DIR}/external/include/half
+)
+# target_include_directories(device_operations PUBLIC 
+#             $<INSTALL_INTERFACE:${DEV_OPS_INC_DIRS}>
+# )
+
+target_compile_features(device_operations PUBLIC)
+set_target_properties(device_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(device_operations PUBLIC 
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/utility>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_description>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/problem_transform>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/device>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/grid>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/block>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/warp>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/thread>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/element>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host_tensor>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/reduce>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/half>
+)
+
+#once new arches are enabled make this an option on the main cmake file
+# and pass down here to be exported
+
+target_compile_definitions(device_operations 
+PUBLIC -DCK_AMD_GPU_GFX908
+PRIVATE -amdgpu-target=gfx908
+PRIVATE -O3
+)
+# install(TARGETS device_operations LIBRARY DESTINATION lib)
+install(TARGETS device_operations
+        EXPORT device_operationsTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT device_operationsTargets 
+        FILE composable_kerneldevice_operationsTargets.cmake 
+        NAMESPACE composable_kernel::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)

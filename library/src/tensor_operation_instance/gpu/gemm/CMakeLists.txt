@@ -25,10 +25,7 @@ set(DEVICE_GEMM_INSTANCE_SOURCE
    device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instance.cpp;
 )
 
-add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE}) 
-
-target_compile_features(device_gemm_instance PUBLIC)
+add_library(device_gemm_instance OBJECT ${DEVICE_GEMM_INSTANCE_SOURCE}) 
 set_target_properties(device_gemm_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-install(TARGETS device_gemm_instance LIBRARY DESTINATION lib)
 
 clang_tidy_check(device_gemm_instance)

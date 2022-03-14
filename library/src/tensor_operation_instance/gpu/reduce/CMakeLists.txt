@@ -25,9 +25,7 @@ set(DEVICE_REDUCE_INSTANCE_SOURCE
    device_reduce_instance_multiblock_partial_reduce_f64_f64_f64.cpp;
 )
 
-add_library(device_reduce_instance SHARED ${DEVICE_REDUCE_INSTANCE_SOURCE}) 
-target_compile_features(device_reduce_instance PUBLIC)
+add_library(device_reduce_instance OBJECT ${DEVICE_REDUCE_INSTANCE_SOURCE}) 
 set_target_properties(device_reduce_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-install(TARGETS device_reduce_instance LIBRARY DESTINATION lib) 
 
 clang_tidy_check(device_reduce_instance)
