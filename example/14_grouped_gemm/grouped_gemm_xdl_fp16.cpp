@@ -83,15 +83,11 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < group_count; i++)
     {
-        // int M = 256 + 256 * i;
-        // int N = 128 + 128 * i;
-        // int K = 64 + 64 * i;
+        int M = 256 + 256 * i;
+        int N = 128 + 128 * i;
+        int K = 64 + 64 * i;
 
-        int M = 3840;
-        int N = 1024;
-        int K = 4096;
-
-        gemm_shapes.push_back({M, N, K, K, N, N, nullptr, nullptr, nullptr});
+        gemm_shapes.push_back({M, N, K, K, K, N, nullptr, nullptr, nullptr});
     }
 
     auto f_host_tensor_descriptor =

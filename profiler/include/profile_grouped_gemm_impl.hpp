@@ -69,6 +69,12 @@ void profile_grouped_gemm_impl(int do_verification,
             }
         };
 
+    if(!(Ms.size() == Ns.size() && Ns.size() == Ks.size() && Ks.size() == StrideAs.size() &&
+         StrideAs.size() == StrideBs.size() && StrideBs.size() == StrideCs.size()))
+    {
+        throw std::runtime_error("wrong! inconsistent Ms, Ns, Ks, StrideA/B/Cs size\n");
+    }
+
     std::vector<Tensor<ADataType>> a_m_k;
     std::vector<Tensor<BDataType>> b_k_n;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
@@ -83,11 +89,9 @@ void profile_grouped_gemm_impl(int do_verification,
         c_m_n_device_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
 
-        std::cout << "a_m_k[" << i << "]:" << a_m_k[i].mDesc << std::endl;
-        std::cout << "b_k_n[" << i << "]:" << b_k_n[i].mDesc << std::endl;
-
-        std::cout << "c_m_n_device_results[" << i << "]:" << c_m_n_device_results[i].mDesc
-                  << std::endl;
+        std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n[" << i
+                  << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
+                  << "]:" << c_m_n_device_results[i].mDesc << std::endl;
 
         std::size_t num_thread = std::thread::hardware_concurrency();
         switch(init_method)
@@ -129,6 +133,7 @@ void profile_grouped_gemm_impl(int do_verification,
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSize()));
         b_device_buf.push_back(
             std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSize()));
+
         c_device_buf.push_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSize()));
 
@@ -254,10 +259,9 @@ void profile_grouped_gemm_impl(int do_verification,
             std::size_t flop = 0, num_btype = 0;
             for(int i = 0; i < gemm_shapes.size(); i++)
             {
-
                 flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
 
-                num_btype += sizeof(ADataType) * Ms[i] * Ks[i] + sizeof(BDataType) * Ks[i] * Ms[i] +
+                num_btype += sizeof(ADataType) * Ms[i] * Ks[i] + sizeof(BDataType) * Ks[i] * Ns[i] +
                              sizeof(CDataType) * Ms[i] * Ns[i];
             }
 

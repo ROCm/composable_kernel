@@ -75,11 +75,6 @@ int profile_grouped_gemm(int argc, char* argv[])
     const auto StrideBs = stringToArray(argv[12]);
     const auto StrideCs = stringToArray(argv[13]);
 
-    for(int i = 0; i < Ms.size(); i++)
-    {
-        std::cout << "M: " << Ms[i] << " N: " << Ns[i] << " K: " << Ks[i] << std::endl;
-    }
-
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
