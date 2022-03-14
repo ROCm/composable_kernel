@@ -10,6 +10,7 @@
 #include "blockwise_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
+#include "tensor_space_filling_curve.hpp"
 
 namespace ck {
 

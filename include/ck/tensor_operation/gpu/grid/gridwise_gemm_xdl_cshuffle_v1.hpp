@@ -655,70 +655,59 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
-            constexpr auto mperblock_forward_step =
-                make_multi_index(0, CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl, 0, 0);
-            constexpr auto nperblock_forward_step =
-                make_multi_index(0, 0, 0, CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl);
-            constexpr auto nperblock_backward_step =
-                make_multi_index(0, 0, 0, -CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl);
+            // space filling curve for threadwise C in VGPR
+            constexpr auto sfc_c_vgpr =
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                  Sequence<CShuffleMXdlPerWavePerShuffle,
+                                           CShuffleNXdlPerWavePerShuffle,
+                                           1,
+                                           1,
+                                           M2,
+                                           1,
+                                           M4,
+                                           1>>{};
 
-            static_for<0, MXdlPerWave, CShuffleMXdlPerWavePerShuffle>{}([&](auto mxdlperwave_iter) {
-                constexpr auto mxdlperwave = mxdlperwave_iter;
+            // space filling curve for shuffled blockwise C in global mem
+            constexpr auto sfc_c_global =
+                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
+                                  Sequence<0, 2, 1, 3>,
+                                  Sequence<1,
+                                           CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                                           1,
+                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
-                static_for<0, NXdlPerWave, CShuffleNXdlPerWavePerShuffle>{}(
-                    [&](auto nxdlperwave_iter) {
-                        constexpr bool nxdlperwave_forward_sweep =
-                            (mxdlperwave % (2 * CShuffleMXdlPerWavePerShuffle) == 0);
+            constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
 
-                        constexpr index_t nxdlperwave_value =
-                            nxdlperwave_forward_sweep
-                                ? nxdlperwave_iter
-                                : (NXdlPerWave - nxdlperwave_iter - CShuffleNXdlPerWavePerShuffle);
+            static_assert(num_access == sfc_c_global.GetNumOfAccess(), "wrong!");
 
-                        constexpr auto nxdlperwave = Number<nxdlperwave_value>{};
+            static_for<0, num_access, 1>{}([&](auto access_id) {
+                // make sure it's safe to write to LDS
+                block_sync_lds();
 
-                        // make sure it's safe to do ds_write
-                        block_sync_lds();
+                // each thread write its data from VGPR to LDS
+                c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                              sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                              c_thread_buf,
+                                              c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                              c_shuffle_block_buf);
 
-                        // VGPR to LDS
-                        c_thread_copy_vgpr_to_lds.Run(
-                            c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                            make_tuple(mxdlperwave, nxdlperwave, I0, I0, I0, I0, I0, I0),
-                            c_thread_buf,
-                            c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                            c_shuffle_block_buf);
+                // make sure it's safe to read from LDS
+                block_sync_lds();
 
-                        // make sure it's safe to do ds_read
-                        block_sync_lds();
+                // each block copy its data from LDS to global
+                c_shuffle_block_copy_lds_to_global.Run(
+                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                    c_shuffle_block_buf,
+                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                    c_grid_buf);
 
-                        // LDS to global
-                        c_shuffle_block_copy_lds_to_global.Run(
-                            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                            c_shuffle_block_buf,
-                            c_grid_desc_mblock_mperblock_nblock_nperblock,
-                            c_grid_buf);
-
-                        // move on nxdlperwave dimension
-                        if constexpr(nxdlperwave_forward_sweep &&
-                                     (nxdlperwave < NXdlPerWave - CShuffleNXdlPerWavePerShuffle))
-                        {
-                            c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
-                                c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                nperblock_forward_step);
-                        }
-                        else if constexpr((!nxdlperwave_forward_sweep) && (nxdlperwave > 0))
-                        {
-                            c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
-                                c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                nperblock_backward_step);
-                        }
-                    });
-
-                // move on mxdlperwave dimension
-                if constexpr(mxdlperwave < MXdlPerWave - CShuffleMXdlPerWavePerShuffle)
+                if constexpr(access_id < num_access - 1)
                 {
+                    constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
+
                     c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
-                        c_grid_desc_mblock_mperblock_nblock_nperblock, mperblock_forward_step);
+                        c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
                 }
             });
         }

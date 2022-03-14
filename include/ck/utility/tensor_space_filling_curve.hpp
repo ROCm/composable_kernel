@@ -140,6 +140,15 @@ struct SpaceFillingCurve
         }();
         return idx_md;
     }
+
+    // FIXME: rename this function
+    template <index_t AccessIdx1d>
+    static __device__ __host__ constexpr auto GetIndexTupleOfNumber(Number<AccessIdx1d>)
+    {
+        constexpr auto idx = GetIndex(Number<AccessIdx1d>{});
+
+        return generate_tuple([&](auto i) { return Number<idx[i]>{}; }, Number<nDim>{});
+    }
 };
 
 } // namespace ck
