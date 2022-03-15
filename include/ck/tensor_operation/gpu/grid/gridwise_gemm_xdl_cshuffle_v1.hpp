@@ -151,11 +151,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
+        // lds max alignment
+        constexpr auto max_lds_align = math::lcm(AK1, BK1);
+
         constexpr auto a_block_space_size_aligned =
-            math::integer_least_multiple(a_block_desc_ak0_m_ak1.GetElementSpaceSize(), AK1);
+            math::integer_least_multiple(a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         constexpr auto b_block_space_size_aligned =
-            math::integer_least_multiple(b_block_desc_bk0_n_bk1.GetElementSpaceSize(), BK1);
+            math::integer_least_multiple(b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
