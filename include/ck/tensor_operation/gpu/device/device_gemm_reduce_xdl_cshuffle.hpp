@@ -16,8 +16,9 @@ namespace device {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename AccDataType,
+          typename GemmAccDataType,
           typename CShuffleDataType,
+          typename ReduceAccDataType,
           typename DDataType,
           typename ALayout,
           typename BLayout,
@@ -25,6 +26,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -41,19 +43,21 @@ template <typename ADataType,
           ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
-          bool ABlockLdsAddExtraM,
+          bool ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
           ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
-          bool BBlockLdsAddExtraN,
+          bool BBlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          index_t NumPrefetch = 1>
+          typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
+          index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
+          index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>
 struct DeviceGemmReduce_Xdl_CShuffle
     : public DeviceGemmReduce<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -138,11 +142,11 @@ struct DeviceGemmReduce_Xdl_CShuffle
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
-        BlockSize,
         ADataType, // TODO: distinguish A/B datatype
-        AccDataType,
+        GemmAccDataType,
         CShuffleDataType,
         CDataType,
+        ReduceAccDataType,
         DDataType,
         InMemoryDataOperationEnum_t::Set,
         AGridDesc_K0_M_K1,
@@ -152,6 +156,8 @@ struct DeviceGemmReduce_Xdl_CShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
+        NumGemmKPrefetchStage,
+        BlockSize,
         MPerBlock,
         NPerBlock,
         KPerBlock,
@@ -168,7 +174,7 @@ struct DeviceGemmReduce_Xdl_CShuffle
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false,
-        ABlockLdsAddExtraM,
+        ABlockLdsExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -176,12 +182,14 @@ struct DeviceGemmReduce_Xdl_CShuffle
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
         false,
-        BBlockLdsAddExtraN,
+        BBlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        NumPrefetch>;
+        CReduceThreadClusterLengths_MPerBlock_NPerBlock,
+        CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
+        CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>;
 
     // Argument
     struct Argument : public BaseArgument
