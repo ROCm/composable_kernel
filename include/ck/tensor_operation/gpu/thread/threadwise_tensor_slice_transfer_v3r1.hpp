@@ -271,7 +271,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         static_ford<SliceLengths>{}([&](auto idx) {
             // convert from SrcData to DstData here
             dst_thread_scratch_(idx) =
-                type_convert<DstData>(src_thread_scratch_tuple[thread_scratch_id][idx]);
+                type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
         });
 #else
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
