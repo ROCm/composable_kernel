@@ -25,6 +25,15 @@ using DeviceConvBwdDataNoOpPtr =
                          ck::tensor_operation::element_wise::PassThrough,
                          ck::tensor_operation::element_wise::PassThrough>;
 
+void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(
@@ -32,6 +41,15 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+
+void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 
 } // namespace device_conv2d_bwd_data_instance
@@ -86,7 +104,7 @@ ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     ck::conv_util::ConvParams params;
-    int arg_idx = 5;
+    int arg_idx = 6;
 
     params.num_dim_spatial = num_dim_spatial;
     params.N               = std::stoi(argv[arg_idx++]);
@@ -193,29 +211,89 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     }
 }
 
-void GetDeviceConvBwdDataOpPtr(float, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+void GetDeviceConvBwdDataOpPtr(F32, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
-    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+    switch (num_dim_spatial)
+    {
+    case 1:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
+        break;
+    case 2:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
         add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
+        break;
+    case 3:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
+        break;
+    default:
+        break;
+    }
 }
-void GetDeviceConvBwdDataOpPtr(F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+void GetDeviceConvBwdDataOpPtr(F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
-    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+    switch (num_dim_spatial)
+    {
+    case 1:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
+        break;
+    case 2:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
         add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+        break;
+    case 3:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
+        break;
+    default:
+        break;
+    }
 }
-void GetDeviceConvBwdDataOpPtr(BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+void GetDeviceConvBwdDataOpPtr(BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
-    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+    switch (num_dim_spatial)
+    {
+    case 1:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
+        break;
+    case 2:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
         add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
+        break;
+    case 3:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
+        break;
+    default:
+        break;
+    }
 }
-void GetDeviceConvBwdDataOpPtr(INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+void GetDeviceConvBwdDataOpPtr(INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
-    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+    switch (num_dim_spatial)
+    {
+    case 1:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
+        break;
+    case 2:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
         add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
+        break;
+    case 3:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
+        break;
+    default:
+        break;
+    }
 }
 int main(int argc, char* argv[])
 {
-    int data_type        = 2;
+    int data_type        = 1;
     bool do_verification = 0;
     int init_method      = 0;
     int nrepeat          = 5;
@@ -223,21 +301,23 @@ int main(int argc, char* argv[])
 
     ck::conv_util::ConvParams params;
 
-    if(argc == 4)
+    if(argc == 5)
     {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        data_type       = std::stoi(argv[1]);
+        do_verification = std::stoi(argv[2]);
+        init_method     = std::stoi(argv[3]);
+        nrepeat         = std::stoi(argv[4]);
     }
     else
     {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
-        num_dim_spatial = std::stoi(argv[4]);
+        data_type       = std::stoi(argv[1]);
+        do_verification = std::stoi(argv[2]);
+        init_method     = std::stoi(argv[3]);
+        nrepeat         = std::stoi(argv[4]);
+        num_dim_spatial = std::stoi(argv[5]);
         // check args number
         int conv_args     = 3 + num_dim_spatial * 6;
-        int cmdline_nargs = conv_args + 5;
+        int cmdline_nargs = conv_args + 6;
         if(cmdline_nargs != argc)
         {
             PrintUseMsg();
@@ -364,7 +444,7 @@ int main(int argc, char* argv[])
 
         // add device Conv instances
         std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
-        GetDeviceConvBwdDataOpPtr(InDataType{}, conv_ptrs);
+        GetDeviceConvBwdDataOpPtr(InDataType{}, conv_ptrs, num_dim_spatial);
 
         if(conv_ptrs.size() <= 0)
         {
