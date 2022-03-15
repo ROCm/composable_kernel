@@ -53,9 +53,8 @@ __global__ void
                                                    block_2_ctile_map);
 }
 
-template <index_t BlockSize,
-          typename FloatAB,
-          typename FloatAcc,
+template <typename FloatAB,
+          typename FloatGemmAcc,
           typename FloatCShuffle,
           typename FloatC,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
@@ -65,6 +64,8 @@ template <index_t BlockSize,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          index_t NumGemmKPrefetchStage,
+          index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -81,7 +82,7 @@ template <index_t BlockSize,
           index_t ABlockTransferSrcScalarPerVector,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
-          bool ABlockLdsExtraM,
+          index_t ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_BK0_N_BK1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
@@ -89,12 +90,11 @@ template <index_t BlockSize,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
-          bool BBlockLdsExtraN,
+          index_t BBlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          index_t NumPrefetch = 1>
+          index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -114,46 +114,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
-        constexpr auto max_lds_align = AK1;
-
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(AK0, Number<MPerBlock>{}, AK1),
-                    make_tuple(Number<MPerBlock + 1>{} * AK1, AK1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(AK0, Number<MPerBlock>{}, AK1), max_lds_align);
-            }
-        }();
-
-        return a_block_desc_ak0_m_ak1;
+        return make_naive_tensor_descriptor(
+            make_tuple(AK0, Number<MPerBlock>{}, AK1),
+            make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1, AK1, I1));
     }
 
     __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
-        constexpr auto max_lds_align = BK1;
-
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_bk0_n_bk1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(BK0, Number<NPerBlock>{}, BK1),
-                    make_tuple(Number<NPerBlock + 1>{} * BK1, BK1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(BK0, Number<NPerBlock>{}, BK1), max_lds_align);
-            }
-        }();
-
-        return b_block_desc_bk0_n_bk1;
+        return make_naive_tensor_descriptor(
+            make_tuple(BK0, Number<NPerBlock>{}, BK1),
+            make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1, BK1, I1));
     }
 
     __host__ __device__ static constexpr auto
@@ -223,12 +195,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
             return false;
 
-        // check NumPrefetch
-        if constexpr(NumPrefetch == 1)
+        // check NumGemmKPrefetchStage
+        if constexpr(NumGemmKPrefetchStage == 1)
         {
             // 1-stage prefetch always supported
         }
-        else if constexpr(NumPrefetch == 2)
+        else if constexpr(NumGemmKPrefetchStage == 2)
         {
             // 2-stage prefetch currently only support even number of K0 loop
             // TODO: add support for odd number of K0 loop
@@ -270,7 +242,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     // TODO move this function into GEMM-pipeline class
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = ((K0 * AK1) / (NumPrefetch * KPerBlock)) > 1;
+        const bool has_main_k0_block_loop = ((K0 * AK1) / (NumGemmKPrefetchStage * KPerBlock)) > 1;
 
         return has_main_k0_block_loop;
     }
@@ -400,7 +372,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                               1,
                                               AThreadTransferSrcResetCoordinateAfterRun,
                                               true,
-                                              NumPrefetch>(
+                                              NumGemmKPrefetchStage>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -431,7 +403,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                               1,
                                               BThreadTransferSrcResetCoordinateAfterRun,
                                               true,
-                                              NumPrefetch>(
+                                              NumGemmKPrefetchStage>(
                 b_grid_desc_bk0_n_bk1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b_element_op,
@@ -452,7 +424,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
-                                                                FloatAcc,
+                                                                FloatGemmAcc,
                                                                 decltype(a_block_desc_ak0_m_ak1),
                                                                 decltype(b_block_desc_bk0_n_bk1),
                                                                 MPerXdl,
@@ -493,7 +465,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                     remove_cvref_t<decltype(b_block_slice_copy_step)>,
                                     remove_cvref_t<decltype(blockwise_gemm)>,
                                     remove_cvref_t<decltype(c_thread_buf)>,
-                                    NumPrefetch,
+                                    NumGemmKPrefetchStage,
                                     HasMainK0BlockLoop>{};
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
@@ -599,7 +571,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
             // VGPR to LDS
             auto c_thread_copy_vgpr_to_lds =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatAcc,
+                ThreadwiseTensorSliceTransfer_v1r3<FloatGemmAcc,
                                                    FloatCShuffle,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
