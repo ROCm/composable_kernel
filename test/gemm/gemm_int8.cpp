@@ -32,7 +32,10 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
 void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
 }
 } // namespace device
 } // namespace tensor_operation
@@ -44,15 +47,14 @@ int main()
     using BDataType = int8_t;
     using CDataType = int8_t;
 
-    using ALayout = ck::tensor_layout::gemm::RowMajor;
-    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
-    using CLayout = ck::tensor_layout::gemm::RowMajor;
+    using RowMajor    = ck::tensor_layout::gemm::RowMajor;
+    using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
     std::vector<DeviceGemmPtr_> gemmPtrs;
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(gemmPtrs);
-
     bool res = true;
+
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -60,9 +62,63 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
-                                       ALayout,
-                                       BLayout,
-                                       CLayout,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       ColumnMajor,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       RowMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       RowMajor,
+                                       ColumnMajor,
+                                       RowMajor,
                                        PassThrough,
                                        PassThrough,
                                        PassThrough>{}(gemmPtr);
