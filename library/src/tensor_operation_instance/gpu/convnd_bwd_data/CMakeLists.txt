@@ -8,10 +8,10 @@ set(DEVICE_CONVND_BWD_DATA_INSTANCE_SOURCE
    device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
    device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instance.cpp;
    device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instance.cpp;
- #  device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instance.cpp;
- #  device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instance.cpp;
- #  device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instance.cpp;
- #  device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instance.cpp;
+   device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instance.cpp;
+   device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instance.cpp;
+   device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instance.cpp;
+   device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instance.cpp;
 ) 
 
 add_library(device_convnd_bwd_data_instance SHARED ${DEVICE_CONVND_BWD_DATA_INSTANCE_SOURCE})

@@ -1,5 +1,6 @@
 #include "config.hpp"
 #include "device.hpp"
+#include "conv_utils.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "host_conv.hpp"
@@ -42,6 +43,11 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
+using DeviceConvBwdDataNoOpPtr =
+    ck::tensor_operation::device::device_conv2d_bwd_data_instance::DeviceConvBwdDataNoOpPtr;
+using DeviceConvBwdDataBasePtr =
+    ck::tensor_operation::device::DeviceConvBwdDataPtr<InElementOp, WeiElementOp, OutElementOp>;
+
 template <typename T>
 static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 {
@@ -59,66 +65,186 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
     return true;
 }
 
+void PrintUseMsg()
+{
+    std::cout << "arg1: verification (0=no, 1=yes)\n"
+              << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
+              << "arg3: run kernel # of times (>1)\n"
+              << "arg4: N spatial dimensions (default 2)\n"
+              << "Following arguments (depending on number of spatial dims):\n"
+              << " N, K, C, \n"
+              << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
+              << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
+              << " <strides>, (ie Sy, Sx for 2D)\n"
+              << " <dilations>, (ie Dy, Dx for 2D)\n"
+              << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
+              << " <right padding>, (ie RightPy, RightPx for 2D)\n"
+              << std::endl;
+}
+
+ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
+{
+    // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
+    ck::conv_util::ConvParams params;
+    int arg_idx = 5;
+
+    params.num_dim_spatial = num_dim_spatial;
+    params.N               = std::stoi(argv[arg_idx++]);
+    params.K               = std::stoi(argv[arg_idx++]);
+    params.C               = std::stoi(argv[arg_idx++]);
+
+    params.filter_spatial_lengths.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        params.filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+    }
+    params.input_spatial_lengths.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        params.input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+    }
+    params.conv_filter_strides.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        params.conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
+    }
+    params.conv_filter_dilations.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        params.conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
+    }
+    params.input_left_pads.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        params.input_left_pads[i] = std::stoi(argv[arg_idx++]);
+    }
+    params.input_right_pads.resize(num_dim_spatial);
+    for(int i = 0; i < num_dim_spatial; ++i)
+    {
+        params.input_right_pads[i] = std::stoi(argv[arg_idx++]);
+    }
+
+    return params;
+}
+
+HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                  int num_dim_spatial = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWC{});
+    }
+    case 2: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
+    }
+    case 1: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                    int num_dim_spatial = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KZYXC{});
+    }
+    case 2: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KYXC{});
+    }
+    case 1: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KXC{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
+HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                   int num_dim_spatial = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWK{});
+    }
+    case 2: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWK{});
+    }
+    case 1: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWK{});
+    }
+
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
+void GetDeviceConvBwdDataOpPtr(float, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+{
+    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
+}
+void GetDeviceConvBwdDataOpPtr(F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+{
+    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+}
+void GetDeviceConvBwdDataOpPtr(BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+{
+    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
+}
+void GetDeviceConvBwdDataOpPtr(INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs)
+{
+    ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
+}
 int main(int argc, char* argv[])
 {
-    int data_type   = 0;
-    int init_method = 0;
+    int data_type        = 2;
+    bool do_verification = 0;
+    int init_method      = 0;
+    int nrepeat          = 5;
+    int num_dim_spatial  = 2;
 
-    // Conv shape
-    ck::index_t N               = 128;
-    ck::index_t K               = 256;
-    ck::index_t C               = 192;
-    ck::index_t Y               = 3;
-    ck::index_t X               = 3;
-    ck::index_t Hi              = 71;
-    ck::index_t Wi              = 71;
-    ck::index_t conv_stride_h   = 2;
-    ck::index_t conv_stride_w   = 2;
-    ck::index_t conv_dilation_h = 1;
-    ck::index_t conv_dilation_w = 1;
-    ck::index_t in_left_pad_h   = 1;
-    ck::index_t in_left_pad_w   = 1;
-    ck::index_t in_right_pad_h  = 1;
-    ck::index_t in_right_pad_w  = 1;
+    ck::conv_util::ConvParams params;
 
-    if(argc == 1)
+    if(argc == 4)
     {
-        data_type   = 1;
-        init_method = 1;
-    }
-    else if(argc == 3)
-    {
-        data_type   = std::stoi(argv[1]);
-        init_method = std::stoi(argv[2]);
-    }
-    else if(argc == 18)
-    {
-        data_type   = std::stoi(argv[1]);
-        init_method = std::stoi(argv[2]);
-
-        N               = std::stoi(argv[3]);
-        K               = std::stoi(argv[4]);
-        C               = std::stoi(argv[5]);
-        Y               = std::stoi(argv[6]);
-        X               = std::stoi(argv[7]);
-        Hi              = std::stoi(argv[8]);
-        Wi              = std::stoi(argv[9]);
-        conv_stride_h   = std::stoi(argv[10]);
-        conv_stride_w   = std::stoi(argv[11]);
-        conv_dilation_h = std::stoi(argv[12]);
-        conv_dilation_w = std::stoi(argv[13]);
-        in_left_pad_h   = std::stoi(argv[14]);
-        in_left_pad_w   = std::stoi(argv[15]);
-        in_right_pad_h  = std::stoi(argv[16]);
-        in_right_pad_w  = std::stoi(argv[17]);
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
     }
     else
     {
-        printf("arg1: data type (0=fp32, 1=fp16, 2= bfp16, 3= int8_t )\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3 to 17: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
-               "RightPx\n");
-        exit(1);
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+        num_dim_spatial = std::stoi(argv[4]);
+        // check args number
+        int conv_args     = 3 + num_dim_spatial * 6;
+        int cmdline_nargs = conv_args + 5;
+        if(cmdline_nargs != argc)
+        {
+            PrintUseMsg();
+            exit(1);
+        }
+
+        params = ParseConvParams(num_dim_spatial, argv);
     }
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type) {
@@ -126,38 +252,33 @@ int main(int argc, char* argv[])
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
 
-        using ReferenceConvBwdInstance =
-            ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                             WeiDataType,
-                                                             OutDataType,
-                                                             InElementOp,
-                                                             WeiElementOp,
-                                                             OutElementOp>;
+        std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
+                                            static_cast<std::size_t>(params.C)};
+        input_dims.insert(std::end(input_dims),
+                          std::begin(params.input_spatial_lengths),
+                          std::end(params.input_spatial_lengths));
 
-        const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
-        const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
+        std::vector<std::size_t> filter_dims{static_cast<std::size_t>(params.K),
+                                             static_cast<std::size_t>(params.C)};
+        filter_dims.insert(std::end(filter_dims),
+                           std::begin(params.filter_spatial_lengths),
+                           std::end(params.filter_spatial_lengths));
 
-        const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
-        const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
+        const std::vector<ck::index_t>& output_spatial_lengths = params.GetOutputSpatialLengths();
+        std::vector<std::size_t> output_dims{static_cast<std::size_t>(params.N),
+                                             static_cast<std::size_t>(params.K)};
+        output_dims.insert(std::end(output_dims),
+                           std::begin(output_spatial_lengths),
+                           std::end(output_spatial_lengths));
 
-        const std::vector<ck::index_t> input_spatial_lengths{{Hi, Wi}};
-        const std::vector<ck::index_t> filter_spatial_lengths{{Y, X}};
-        const std::vector<ck::index_t> output_spatial_lengths{{Ho, Wo}};
-        const std::vector<ck::index_t> conv_filter_strides{{conv_stride_h, conv_stride_w}};
-        const std::vector<ck::index_t> conv_filter_dilations{{conv_dilation_h, conv_dilation_w}};
-        const std::vector<ck::index_t> input_left_pads{{in_left_pad_h, in_left_pad_w}};
-        const std::vector<ck::index_t> input_right_pads{{in_right_pad_h, in_right_pad_w}};
-
-        auto f_host_tensor_descriptor =
-            [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, 1, W * C_, C_}));
-            };
-
-        Tensor<OutDataType> out_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo));
-        Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X));
-        Tensor<InDataType> in_n_c_hi_wi_host_result(f_host_tensor_descriptor(N, C, Hi, Wi));
-        Tensor<InDataType> in_n_c_hi_wi_device_result(f_host_tensor_descriptor(N, C, Hi, Wi));
+        Tensor<InDataType> in_n_c_hi_wi_host_result(
+            GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+        Tensor<InDataType> in_n_c_hi_wi_device_result(
+            GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+        Tensor<WeiDataType> wei_k_c_y_x(
+            GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
+        Tensor<OutDataType> out_n_k_ho_wo(
+            GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
 
         std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
         std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
@@ -183,62 +304,67 @@ int main(int argc, char* argv[])
         out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
         wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
-        in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{5});
-        in_device_buf.ToDevice(in_n_c_hi_wi_device_result.mData.data());
-
         // get host result
         {
-            auto ref_conv    = ReferenceConvBwdInstance{};
-            auto ref_invoker = ref_conv.MakeInvoker();
+            auto RunReference = [&](auto& ref_conv) {
+                auto ref_invoker = ref_conv.MakeInvoker();
 
-            auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
-                                                      wei_k_c_y_x,
-                                                      out_n_k_ho_wo,
-                                                      conv_filter_strides,
-                                                      conv_filter_dilations,
-                                                      input_left_pads,
-                                                      input_right_pads,
-                                                      InElementOp{},
-                                                      WeiElementOp{},
-                                                      OutElementOp{});
-            ref_invoker.Run(ref_argument);
+                auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
+                                                          wei_k_c_y_x,
+                                                          out_n_k_ho_wo,
+                                                          params.conv_filter_strides,
+                                                          params.conv_filter_dilations,
+                                                          params.input_left_pads,
+                                                          params.input_right_pads,
+                                                          InElementOp{},
+                                                          WeiElementOp{},
+                                                          OutElementOp{});
+                ref_invoker.Run(ref_argument);
+            };
+            switch(num_dim_spatial)
+            {
+            case 3: {
+                auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                                                 WeiDataType,
+                                                                                 OutDataType,
+                                                                                 InElementOp,
+                                                                                 WeiElementOp,
+                                                                                 OutElementOp,
+                                                                                 3>();
+                RunReference(ref_conv);
+                break;
+            }
+            case 2: {
+                auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                                                 WeiDataType,
+                                                                                 OutDataType,
+                                                                                 InElementOp,
+                                                                                 WeiElementOp,
+                                                                                 OutElementOp,
+                                                                                 2>();
+                RunReference(ref_conv);
+                break;
+            }
+            case 1: {
+                auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                                                 WeiDataType,
+                                                                                 OutDataType,
+                                                                                 InElementOp,
+                                                                                 WeiElementOp,
+                                                                                 OutElementOp,
+                                                                                 1>();
+                RunReference(ref_conv);
+                break;
+            }
+            default: {
+                throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+            }
+            }
         }
-
-        using PassThrough              = ck::tensor_operation::element_wise::PassThrough;
-        using DeviceConvBwdDataNoOpPtr = ck::tensor_operation::device::
-            DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>;
 
         // add device Conv instances
         std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
-
-        if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, float> &&
-                     ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
-                     ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
-        {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-                add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
-        }
-        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::half_t> &&
-                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
-                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
-        {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-                add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
-        }
-        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ushort>)
-        {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-                add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
-        }
-        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, int8_t> &&
-                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, int8_t> &&
-                          ck::is_same_v<ck::remove_cv_t<OutDataType>, int8_t>)
-        {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-                add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
-        }
+        GetDeviceConvBwdDataOpPtr(InDataType{}, conv_ptrs);
 
         if(conv_ptrs.size() <= 0)
         {
@@ -253,16 +379,16 @@ int main(int argc, char* argv[])
                 static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                 static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                 static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                N,
-                K,
-                C,
-                input_spatial_lengths,
-                filter_spatial_lengths,
+                params.N,
+                params.K,
+                params.C,
+                params.input_spatial_lengths,
+                params.filter_spatial_lengths,
                 output_spatial_lengths,
-                conv_filter_strides,
-                conv_filter_dilations,
-                input_left_pads,
-                input_right_pads,
+                params.conv_filter_strides,
+                params.conv_filter_dilations,
+                params.input_left_pads,
+                params.input_right_pads,
                 InElementOp{},
                 WeiElementOp{},
                 OutElementOp{});
