@@ -77,8 +77,9 @@ ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[], int
 
 int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
 {
-    int conv_args     = 3 + num_dim_spatial * 6;
-    int cmdline_nargs = conv_args + 11;
+    const int preParams = 10;
+    int conv_args       = 3 + num_dim_spatial * 6;
+    int cmdline_nargs   = conv_args + preParams;
     if(cmdline_nargs != argc)
     {
         printf("arg1: tensor operation (conv[1|2|3]d_bwd_data: BackwardConvolution)\n");
@@ -104,7 +105,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     const bool do_log          = std::stoi(argv[8]);
     const int nrepeat          = std::stoi(argv[9]);
 
-    ck::conv_util::ConvParams params = ParseConvParams(num_dim_spatial, argv, 11);
+    ck::conv_util::ConvParams params = ParseConvParams(num_dim_spatial, argv, preParams);
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type) {
         using InDataType  = decltype(input_type);

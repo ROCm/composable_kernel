@@ -100,11 +100,11 @@ void PrintUseMsg()
               << std::endl;
 }
 
-ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
+ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[], int arg_idx)
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     ck::conv_util::ConvParams params;
-    int arg_idx = 6;
+    ;
 
     params.num_dim_spatial = num_dim_spatial;
     params.N               = std::stoi(argv[arg_idx++]);
@@ -297,38 +297,36 @@ void GetDeviceConvBwdDataOpPtr(INT8,
 }
 int main(int argc, char* argv[])
 {
-    int data_type        = 1;
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
-    int num_dim_spatial  = 2;
+    int data_type       = 1;
+    int init_method     = 1;
+    int nrepeat         = 5;
+    int num_dim_spatial = 2;
 
     ck::conv_util::ConvParams params;
 
-    if(argc == 5)
+    if(argc == 4)
     {
-        data_type       = std::stoi(argv[1]);
-        do_verification = std::stoi(argv[2]);
-        init_method     = std::stoi(argv[3]);
-        nrepeat         = std::stoi(argv[4]);
+        data_type   = std::stoi(argv[1]);
+        init_method = std::stoi(argv[2]);
+        nrepeat     = std::stoi(argv[3]);
     }
     else
     {
         data_type       = std::stoi(argv[1]);
-        do_verification = std::stoi(argv[2]);
-        init_method     = std::stoi(argv[3]);
-        nrepeat         = std::stoi(argv[4]);
-        num_dim_spatial = std::stoi(argv[5]);
+        init_method     = std::stoi(argv[2]);
+        nrepeat         = std::stoi(argv[3]);
+        num_dim_spatial = std::stoi(argv[4]);
         // check args number
-        int conv_args     = 3 + num_dim_spatial * 6;
-        int cmdline_nargs = conv_args + 6;
+        const int preParams = 5;
+        int conv_args       = 3 + num_dim_spatial * 6;
+        int cmdline_nargs   = conv_args + preParams;
         if(cmdline_nargs != argc)
         {
             PrintUseMsg();
             exit(1);
         }
 
-        params = ParseConvParams(num_dim_spatial, argv);
+        params = ParseConvParams(num_dim_spatial, argv, preParams);
     }
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type) {
@@ -480,7 +478,7 @@ int main(int argc, char* argv[])
             if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 auto invoker_ptr = conv_ptr->MakeInvokerPointer();
-                invoker_ptr->Run(argument_ptr.get(), 1);
+                invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
                 in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
