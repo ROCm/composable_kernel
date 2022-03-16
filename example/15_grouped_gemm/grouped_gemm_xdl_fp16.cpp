@@ -168,11 +168,11 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < gemm_shapes.size(); i++)
     {
-        a_tensors_device.push_back(
+        a_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize()));
-        b_tensors_device.push_back(
+        b_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize()));
-        c_tensors_device.push_back(std::make_unique<DeviceMem>(
+        c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize()));
 
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
