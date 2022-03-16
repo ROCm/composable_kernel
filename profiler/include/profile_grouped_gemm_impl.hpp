@@ -69,10 +69,12 @@ void profile_grouped_gemm_impl(int do_verification,
             }
         };
 
-    if(!(Ms.size() == Ns.size() && Ns.size() == Ks.size() && Ks.size() == StrideAs.size() &&
-         StrideAs.size() == StrideBs.size() && StrideBs.size() == StrideCs.size()))
+    int group_count = Ms.size();
+
+    if(!(group_count == Ns.size() && group_count == Ks.size() && group_count == StrideAs.size() &&
+         group_count == StrideBs.size() && group_count == StrideCs.size()))
     {
-        throw std::runtime_error("wrong! inconsistent Ms, Ns, Ks, StrideA/B/Cs size\n");
+        throw std::runtime_error("wrong! inconsistent M/N/Ks, StrideA/B/Cs size\n");
     }
 
     std::vector<Tensor<ADataType>> a_m_k;
@@ -125,9 +127,22 @@ void profile_grouped_gemm_impl(int do_verification,
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
     std::vector<DeviceMemPtr> a_device_buf, b_device_buf, c_device_buf;
 
-    std::vector<GemmShape> gemm_shapes;
+    a_device_buf.reserve(group_count);
+    b_device_buf.reserve(group_count);
+    c_device_buf.reserve(group_count);
 
-    for(int i = 0; i < Ms.size(); i++)
+    std::vector<const void*> p_a, p_b;
+    std::vector<void*> p_c;
+
+    p_a.reserve(group_count);
+    p_b.reserve(group_count);
+    p_c.reserve(group_count);
+
+    std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
+
+    gemm_shapes.reserve(group_count);
+
+    for(int i = 0; i < group_count; i++)
     {
         a_device_buf.push_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSize()));
@@ -141,15 +156,11 @@ void profile_grouped_gemm_impl(int do_verification,
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
         c_device_buf[i]->ToDevice(c_m_n_device_results[i].mData.data());
 
-        gemm_shapes.push_back({Ms[i],
-                               Ns[i],
-                               Ks[i],
-                               StrideAs[i],
-                               StrideBs[i],
-                               StrideCs[i],
-                               a_device_buf[i]->GetDeviceBuffer(),
-                               b_device_buf[i]->GetDeviceBuffer(),
-                               c_device_buf[i]->GetDeviceBuffer()});
+        gemm_shapes.push_back({Ms[i], Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i]});
+
+        p_a.push_back(a_device_buf[i]->GetDeviceBuffer());
+        p_b.push_back(b_device_buf[i]->GetDeviceBuffer());
+        p_c.push_back(c_device_buf[i]->GetDeviceBuffer());
     }
 
     // add device GEMM instances
@@ -204,7 +215,10 @@ void profile_grouped_gemm_impl(int do_verification,
     for(auto& gemm_ptr : gemm_ptrs)
     {
         auto argument_ptr =
-            gemm_ptr->MakeArgumentPointer(gemm_shapes,
+            gemm_ptr->MakeArgumentPointer(p_a,
+                                          p_b,
+                                          p_c,
+                                          gemm_shapes,
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{});

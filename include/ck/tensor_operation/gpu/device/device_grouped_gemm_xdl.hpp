@@ -10,7 +10,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_grouped_gemm_xdlops_v2r3.hpp"
+#include "gridwise_gemm_xdlops_v2r3.hpp"
 #include "gemm_specialization.hpp"
 
 namespace ck {
@@ -182,7 +182,7 @@ struct DeviceGroupedGemmXdl
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGroupedGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
