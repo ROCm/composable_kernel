@@ -56,6 +56,9 @@ void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(
 
 namespace ck {
 namespace profiler {
+using DeviceConvBwdDataNoOpPtr =
+    ck::tensor_operation::device::device_conv2d_bwd_data_instance::DeviceConvBwdDataNoOpPtr;
+
 HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
                                                   int num_dim_spatial = 2)
 {
@@ -236,31 +239,26 @@ void profile_convnd_bwd_data_impl(int do_verification,
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
-    std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
-                                        static_cast<std::size_t>(params.C)};
-    input_dims.insert(std::end(input_dims),
-                      std::begin(params.input_spatial_lengths),
-                      std::end(params.input_spatial_lengths));
+    std::vector<std::size_t> input_dims{static_cast<std::size_t>(N), static_cast<std::size_t>(C)};
+    input_dims.insert(
+        std::end(input_dims), std::begin(input_spatial_lengths), std::end(input_spatial_lengths));
 
-    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(params.K),
-                                         static_cast<std::size_t>(params.C)};
+    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(K), static_cast<std::size_t>(C)};
     filter_dims.insert(std::end(filter_dims),
-                       std::begin(params.filter_spatial_lengths),
-                       std::end(params.filter_spatial_lengths));
+                       std::begin(filter_spatial_lengths),
+                       std::end(filter_spatial_lengths));
 
-    const std::vector<ck::index_t>& output_spatial_lengths = params.GetOutputSpatialLengths();
-    std::vector<std::size_t> output_dims{static_cast<std::size_t>(params.N),
-                                         static_cast<std::size_t>(params.K)};
+    std::vector<std::size_t> output_dims{static_cast<std::size_t>(N), static_cast<std::size_t>(K)};
     output_dims.insert(std::end(output_dims),
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
     Tensor<InDataType> in_n_c_hi_wi_host_result(
-        GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+        GetInputHostTensorDescriptor(input_dims, NDimSpatial));
     Tensor<InDataType> in_n_c_hi_wi_device_result(
-        GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
-    Tensor<WeiDataType> wei_k_c_y_x(GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
-    Tensor<OutDataType> out_n_k_ho_wo(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+        GetInputHostTensorDescriptor(input_dims, NDimSpatial));
+    Tensor<WeiDataType> wei_k_c_y_x(GetFiltersHostTensorDescriptor(filter_dims, NDimSpatial));
+    Tensor<OutDataType> out_n_k_ho_wo(GetOutputHostTensorDescriptor(output_dims, NDimSpatial));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
@@ -298,16 +296,16 @@ void profile_convnd_bwd_data_impl(int do_verification,
             auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
                                                       wei_k_c_y_x,
                                                       out_n_k_ho_wo,
-                                                      params.conv_filter_strides,
-                                                      params.conv_filter_dilations,
-                                                      params.input_left_pads,
-                                                      params.input_right_pads,
+                                                      conv_filter_strides,
+                                                      conv_filter_dilations,
+                                                      input_left_pads,
+                                                      input_right_pads,
                                                       InElementOp{},
                                                       WeiElementOp{},
                                                       OutElementOp{});
             ref_invoker.Run(ref_argument);
         };
-        switch(num_dim_spatial)
+        switch(NDimSpatial)
         {
         case 3: {
             auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
@@ -348,14 +346,9 @@ void profile_convnd_bwd_data_impl(int do_verification,
         }
     }
 
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-    using DeviceConvBwdDataNoOpPtr =
-        ck::tensor_operation::device::DeviceConvBwdDataPtr<PassThrough, PassThrough, PassThrough>;
-
     // add device Conv instances
     std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
-    GetDeviceConvBwdDataOpPtr(InDataType{}, conv_ptrs, num_dim_spatial);
+    GetDeviceConvBwdDataOpPtr(InDataType{}, conv_ptrs, NDimSpatial);
 
     if(conv_ptrs.size() <= 0)
     {
@@ -396,18 +389,16 @@ void profile_convnd_bwd_data_impl(int do_verification,
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
-            std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
+            std::size_t flop =
+                ck::conv_util::GetFlops(N, C, K, filter_spatial_lengths, output_spatial_lengths);
+            std::size_t num_btype = ck::conv_util::GetBtype<InDataType, WeiDataType, OutDataType>(
+                N, C, K, input_spatial_lengths, filter_spatial_lengths, output_spatial_lengths);
 
-            std::size_t num_btype = sizeof(InDataType) * (N * C * Hi * Wi) +
-                                    sizeof(WeiDataType) * (K * C * Y * X) +
-                                    sizeof(OutDataType) * (N * K * Ho * Wo);
-
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
+            float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
             float gb_per_sec = num_btype / 1.E6 / ave_time;
 
             std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                      << " GB/s, " << conv_name << std::endl;
+                      << " GB/s" << std::endl;
 
             if(tflops > best_tflops)
             {
