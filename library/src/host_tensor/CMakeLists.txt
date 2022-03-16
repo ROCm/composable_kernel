@@ -31,13 +31,6 @@ install(TARGETS host_tensor
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(DIRECTORY
-    ${PROJECT_SOURCE_DIR}/include/ck
-    ${PROJECT_SOURCE_DIR}/include/ck/utility
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
 install(EXPORT host_tensorTargets
     FILE composable_kernelhost_tensorTargets.cmake 
     NAMESPACE composable_kernel::

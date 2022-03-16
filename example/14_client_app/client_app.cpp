@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "client_app_impl.hpp"
-
 enum ConvDataType
 {
     F32_F32_F32,    // 0
@@ -84,13 +83,7 @@ int main(int argc, char* argv[])
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 
-    ck::app::profile_conv_fwd_impl<2,
-                                        float,
-                                        float,
-                                        float,
-                                        ck::tensor_layout::convolution::NHWC,
-                                        ck::tensor_layout::convolution::KYXC,
-                                        ck::tensor_layout::convolution::NHWK>(
+    ck::app::profile_conv_fwd_impl(
         do_verification,
         init_method,
         do_log,

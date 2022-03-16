@@ -11,6 +11,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
     ${PROJECT_SOURCE_DIR}/external/include/half
@@ -44,27 +45,13 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_reduce_instance>
 )
 add_library(composablekernels::device_operations ALIAS device_operations)
-set(DEV_OPS_INC_DIRS 
-    ${PROJECT_SOURCE_DIR}/include/ck
-    ${PROJECT_SOURCE_DIR}/include/ck/utility
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor
-    ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/device
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/grid
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/block
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
-    ${PROJECT_SOURCE_DIR}/external/include/half
-)
-# target_include_directories(device_operations PUBLIC 
-#             $<INSTALL_INTERFACE:${DEV_OPS_INC_DIRS}>
-# )
 
+
+set(DEV_OPS_INC_DIRS 
+    ${PROJECT_SOURCE_DIR}/include/ck/
+    ${PROJECT_SOURCE_DIR}/library/include/ck/
+    ${PROJECT_SOURCE_DIR}/external/include/
+)
 target_compile_features(device_operations PUBLIC)
 set_target_properties(device_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(device_operations PUBLIC 
@@ -80,9 +67,10 @@ target_include_directories(device_operations PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/thread>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/element>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host_tensor>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/reduce>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/half>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/half>
 )
 
 #once new arches are enabled make this an option on the main cmake file
@@ -101,7 +89,7 @@ install(TARGETS device_operations
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck)
 install(EXPORT device_operationsTargets 
         FILE composable_kerneldevice_operationsTargets.cmake 
         NAMESPACE composable_kernel::
