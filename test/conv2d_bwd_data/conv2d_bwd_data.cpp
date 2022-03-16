@@ -182,8 +182,8 @@ int main(int argc, char* argv[])
 
         out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
         wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
-
-        in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{5});
+        // reset input to zero
+        in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{0});
         in_device_buf.ToDevice(in_n_c_hi_wi_device_result.mData.data());
 
         // get host result
