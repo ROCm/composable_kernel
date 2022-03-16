@@ -211,84 +211,88 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     }
 }
 
-void GetDeviceConvBwdDataOpPtr(F32, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
+void GetDeviceConvBwdDataOpPtr(F32,
+                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
+                               int num_dim_spatial)
 {
-    switch (num_dim_spatial)
+    switch(num_dim_spatial)
     {
     case 1:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
+            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
         break;
     case 2:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
         break;
     case 3:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
+            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
         break;
-    default:
-        break;
+    default: break;
     }
 }
-void GetDeviceConvBwdDataOpPtr(F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
+void GetDeviceConvBwdDataOpPtr(F16,
+                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
+                               int num_dim_spatial)
 {
-    switch (num_dim_spatial)
+    switch(num_dim_spatial)
     {
     case 1:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
+            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
         break;
     case 2:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         break;
     case 3:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
+            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
         break;
-    default:
-        break;
+    default: break;
     }
 }
-void GetDeviceConvBwdDataOpPtr(BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
+void GetDeviceConvBwdDataOpPtr(BF16,
+                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
+                               int num_dim_spatial)
 {
-    switch (num_dim_spatial)
+    switch(num_dim_spatial)
     {
     case 1:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
+            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
         break;
     case 2:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
         break;
     case 3:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
+            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
         break;
-    default:
-        break;
+    default: break;
     }
 }
-void GetDeviceConvBwdDataOpPtr(INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
+void GetDeviceConvBwdDataOpPtr(INT8,
+                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
+                               int num_dim_spatial)
 {
-    switch (num_dim_spatial)
+    switch(num_dim_spatial)
     {
     case 1:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
+            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
         break;
     case 2:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
         break;
     case 3:
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-        add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
+            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
         break;
-    default:
-        break;
+    default: break;
     }
 }
 int main(int argc, char* argv[])

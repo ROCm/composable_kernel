@@ -31,7 +31,7 @@ set(PROFILER_SOURCE
     src/profile_conv_fwd_bias_relu.cpp
     src/profile_conv_fwd_bias_relu_add.cpp
     src/profile_conv_fwd_bias_relu_atomic_add.cpp
-    src/profile_conv_bwd_data.cpp
+    src/profile_convnd_bwd_data.cpp
     src/profile_reduce.cpp
 )
 
@@ -47,5 +47,5 @@ target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_atomic_add_instance)
-target_link_libraries(ckProfiler PRIVATE device_conv2d_bwd_data_instance)
+target_link_libraries(ckProfiler PRIVATE device_convnd_bwd_data_instance)
 target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
