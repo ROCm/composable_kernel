@@ -13,8 +13,10 @@ struct DeviceMem
     DeviceMem() = delete;
     DeviceMem(std::size_t mem_size);
     void* GetDeviceBuffer();
+    std::size_t GetBufferSize();
     void ToDevice(const void* p);
     void FromDevice(void* p);
+    void SetZero();
     ~DeviceMem();
 
     void* mpDeviceBuf;

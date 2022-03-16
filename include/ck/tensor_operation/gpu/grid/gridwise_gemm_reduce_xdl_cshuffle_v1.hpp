@@ -15,13 +15,14 @@ template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
           typename FloatD,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename DReduceOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename DGridDescriptor_MBlock_MPerBlock,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
           typename Block2CTileMap,
           bool HasMainK0BlockLoop>
 __global__ void
@@ -33,14 +34,15 @@ __global__ void
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
             FloatD* __restrict__ p_d_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const DReduceOperation d_reduce_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
             const DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -50,13 +52,14 @@ __global__ void
                                                    p_c_grid,
                                                    p_d_grid,
                                                    p_shared,
+                                                   a_element_op,
+                                                   b_element_op,
+                                                   c_element_op,
+                                                   d_reduce_op,
                                                    a_grid_desc_ak0_m_ak1,
                                                    b_grid_desc_bk0_n_bk1,
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                    d_grid_desc_mblock_mperblock,
-                                                   a_element_op,
-                                                   b_element_op,
-                                                   c_element_op,
                                                    block_2_ctile_map);
 }
 
@@ -66,14 +69,16 @@ template <typename FloatAB,
           typename FloatC,
           typename FloatReduceAcc,
           typename FloatD,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename DReduceOperation,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum_t DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
           typename DGridDesc_M,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -167,11 +172,11 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1, BK1);
 
-        constexpr auto a_block_space_size_aligned =
-            math::integer_least_multiple(a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto b_block_space_size_aligned =
-            math::integer_least_multiple(b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+        constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
@@ -342,20 +347,21 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
-    template <bool HasMainK0BlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainK0BlockLoop, typename Block2CTileMap>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
                                FloatD* __restrict__ p_d_grid,
                                void* __restrict__ p_shared,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CElementwiseOperation& c_element_op,
+                               const DReduceOperation& d_reduce_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const DGridDescriptor_MBlock_MPerBlock& d_grid_desc_mblock_mperblock,
-                               const AElementwiseOperation& a_element_op,
-                               const BElementwiseOperation& b_element_op,
-                               const CElementwiseOperation& c_element_op,
                                const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
@@ -753,7 +759,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 Sequence<0, 1>,
                 1,
                 CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
-                InMemoryDataOperationEnum_t::AtomicAdd,
+                DGlobalMemoryDataOperation,
                 1,
                 false>{d_grid_desc_mblock_mperblock,
                        make_multi_index(block_work_idx[I0],                  // mblock
@@ -819,20 +825,20 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                     // reduce in VGPR
                     static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        FloatReduceAcc v = 0; // FloatReduceAcc
+                        FloatReduceAcc r_acc = d_reduce_op.GetReduceZeroValue();
 
                         static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
                             constexpr index_t in_offset =
                                 c_in_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
                                     make_tuple(im, in));
 
-                            v += c_in_reduce_thread_buf[Number<in_offset>{}];
+                            d_reduce_op.Reduce(r_acc, c_in_reduce_thread_buf[Number<in_offset>{}]);
                         });
 
                         constexpr index_t out_offset =
                             c_out_reduce_thread_desc_mperblock.CalculateOffset(make_tuple(im));
 
-                        c_out_reduce_thread_buf(Number<out_offset>{}) = v;
+                        c_out_reduce_thread_buf(Number<out_offset>{}) = r_acc;
                     });
 
                     // VGPR to Global

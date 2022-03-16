@@ -13,19 +13,21 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
           typename BDataType,
           typename CDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename ReduceAccDataType,
           typename DDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename DReduceOperation,
+          GemmSpecialization_t GemmSpecialization,
           index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -58,37 +60,90 @@ template <typename ADataType,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>
-struct DeviceGemmReduce_Xdl_CShuffle
-    : public DeviceGemmReduce<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOperation,
+                                                               BElementwiseOperation,
+                                                               CElementwiseOperation,
+                                                               DReduceOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
+    static auto MakeAGridDescriptor_K0_M_K1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
-        assert(K % AK1 == 0);
-
-        const index_t K0 = K / AK1;
-
-        const auto a_grid_desc_m_k = [&]() {
+        const auto a_grid_desc_mraw_kraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
+                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
+                                                    make_tuple(StrideA, I1));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
+                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
+                                                    make_tuple(I1, StrideA));
             }
         }();
 
-        const auto a_grid_desc_k0_m_k1 = transform_tensor_descriptor(
-            a_grid_desc_m_k,
-            make_tuple(make_unmerge_transform(make_tuple(K0, AK1)), make_pass_through_transform(M)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto K = math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
 
-        return a_grid_desc_k0_m_k1;
+        const auto MPad = M - MRaw;
+        const auto KPad = K - KRaw;
+
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MKPadding ||
+                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        {
+            assert(K % AK1 == 0);
+
+            const auto AK0 = K / AK1;
+
+            const auto a_grid_desc_m_k =
+                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
+                                            make_tuple(make_right_pad_transform(MRaw, MPad),
+                                                       make_right_pad_transform(KRaw, KPad)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto a_grid_desc_ak0_m_ak1 =
+                transform_tensor_descriptor(a_grid_desc_m_k,
+                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                       make_pass_through_transform(M)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
+        else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
+                          GemmSpecialization == GemmSpecialization_t::MNPadding)
+        {
+            assert(KRaw % AK1 == 0);
+
+            const auto AK0 = KRaw / AK1;
+
+            const auto a_grid_desc_ak0_m_ak1 =
+                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
+                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                       make_right_pad_transform(MRaw, MPad)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
+        else
+        {
+            assert(KRaw % AK1 == 0);
+
+            const auto AK0 = KRaw / AK1;
+
+            const auto a_grid_desc_ak0_m_ak1 =
+                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
+                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                       make_pass_through_transform(MRaw)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
     }
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
@@ -148,14 +203,16 @@ struct DeviceGemmReduce_Xdl_CShuffle
         CDataType,
         ReduceAccDataType,
         DDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        DReduceOperation,
         InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum_t::AtomicAdd,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
         DGridDesc_M,
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -208,7 +265,8 @@ struct DeviceGemmReduce_Xdl_CShuffle
                  index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op)
+                 CElementwiseOperation c_element_op,
+                 DReduceOperation d_reduce_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -224,7 +282,8 @@ struct DeviceGemmReduce_Xdl_CShuffle
               N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              d_reduce_op_{d_reduce_op}
         {
             a_grid_desc_k0_m_k1_ =
                 DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
@@ -267,6 +326,7 @@ struct DeviceGemmReduce_Xdl_CShuffle
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        DReduceOperation d_reduce_op_;
     };
 
     // Invoker
@@ -317,14 +377,15 @@ struct DeviceGemmReduce_Xdl_CShuffle
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
                     DDataType,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
+                    DReduceOperation,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_K0_N_K1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
@@ -338,13 +399,14 @@ struct DeviceGemmReduce_Xdl_CShuffle
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
                                            arg.p_d_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.d_reduce_op_,
                                            arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.d_grid_desc_mblock_mperblock_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
                                            arg.block_2_ctile_map_);
             }
             else
@@ -354,14 +416,15 @@ struct DeviceGemmReduce_Xdl_CShuffle
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
                     DDataType,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
+                    DReduceOperation,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_K0_N_K1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
@@ -375,13 +438,14 @@ struct DeviceGemmReduce_Xdl_CShuffle
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
                                            arg.p_d_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.d_reduce_op_,
                                            arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.d_grid_desc_mblock_mperblock_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
                                            arg.block_2_ctile_map_);
             }
 
@@ -428,7 +492,8 @@ struct DeviceGemmReduce_Xdl_CShuffle
                              index_t StrideC,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             DReduceOperation d_reduce_op)
     {
         return Argument{p_a,
                         p_b,
@@ -444,7 +509,8 @@ struct DeviceGemmReduce_Xdl_CShuffle
                         1,
                         a_element_op,
                         b_element_op,
-                        c_element_op};
+                        c_element_op,
+                        d_reduce_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -462,7 +528,8 @@ struct DeviceGemmReduce_Xdl_CShuffle
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op,
+                                                      DReduceOperation d_reduce_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -478,7 +545,8 @@ struct DeviceGemmReduce_Xdl_CShuffle
                                           1,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op);
+                                          c_element_op,
+                                          d_reduce_op);
     }
 
     // polymorphic

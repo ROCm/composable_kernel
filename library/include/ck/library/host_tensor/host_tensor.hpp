@@ -341,13 +341,13 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
     {
         for(int i = 0; i < ref.mData.size(); ++i)
         {
-            error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
-            float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
+            error += std::abs(float(ref.mData[i]) - float(result.mData[i]));
+            float diff = std::abs(float(ref.mData[i]) - float(result.mData[i]));
             if(max_diff < diff)
             {
                 max_diff     = diff;
-                ref_value    = ref.mData[i];
-                result_value = result.mData[i];
+                ref_value    = float(ref.mData[i]);
+                result_value = float(result.mData[i]);
             }
         }
     }

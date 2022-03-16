@@ -8,7 +8,13 @@ namespace device {
 enum GemmSpecialization_t
 {
     Default,
+    MPadding,
+    NPadding,
+    KPadding,
     MNPadding,
+    MKPadding,
+    NKPadding,
+    MNKPadding,
 };
 
 } // namespace device
