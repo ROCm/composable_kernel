@@ -29,6 +29,12 @@ struct DeviceGemmBias : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
+template <typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation>
+using DeviceGemmBiasPtr = std::unique_ptr<
+    DeviceGemmBias<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
