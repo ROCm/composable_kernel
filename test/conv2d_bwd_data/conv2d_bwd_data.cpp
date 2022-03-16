@@ -225,9 +225,9 @@ int main(int argc, char* argv[])
             ck::tensor_operation::device::device_conv2d_bwd_data_instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
-        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ushort>)
+        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::bhalf_t>)
         {
             ck::tensor_operation::device::device_conv2d_bwd_data_instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
