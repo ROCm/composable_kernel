@@ -89,7 +89,7 @@ void profile_conv_fwd_impl(int do_verification,
 
         auto invoker_ptr = conv_ptr.MakeInvokerPointer();
 
-        //if(conv_ptr.IsSupportedArgument(argument_ptr.get()))
+        if(conv_ptr.IsSupportedArgument(argument_ptr.get()))
         {
             std::string conv_name = conv_ptr.GetTypeString();
 

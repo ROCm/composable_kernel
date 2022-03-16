@@ -136,6 +136,10 @@ struct DeviceConvFwdPtr_t::DeviceConvFwdPtrImpl
     {
         return el->GetTypeString();
     }
+    bool IsSupportedArgument(const DeviceConvFwdPtr_t::BaseArgument* arg)
+    {
+        return el->IsSupportedArgument(arg);
+    }
 
     ck::tensor_operation::device::DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough> el;
 };
@@ -169,10 +173,13 @@ std::string DeviceConvFwdPtr_t::GetTypeString()
 {
     return pImpl->GetTypeString();
 }
+bool DeviceConvFwdPtr_t::IsSupportedArgument(const DeviceConvFwdPtr_t::BaseArgument* arg_ptr)
+{
+    return pImpl->IsSupportedArgument(arg_ptr);
+}
 
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances_t(std::vector<DeviceConvFwdPtr_t>& instances)
 {
-    std::ignore = instances;
     using namespace ck::tensor_operation::device::device_conv2d_fwd_instance;
     std::vector<ck::tensor_operation::device::DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>> local_instances;
     add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(local_instances);

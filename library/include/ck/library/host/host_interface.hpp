@@ -31,6 +31,7 @@ struct DeviceConvFwdPtr_t
 				 std::vector<ck::index_t> input_right_pads); // in,wei and out element ops are ignored for now since even if we change them, they cant be linked
 	std::unique_ptr<BaseInvoker> MakeInvokerPointer(); // requires including BaseInvoker headers
 	std::string GetTypeString();
+	bool IsSupportedArgument(const BaseArgument* arg_ptr);
 };
 
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances_t(std::vector<DeviceConvFwdPtr_t>& instances);
