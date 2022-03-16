@@ -7,6 +7,7 @@
 #include <random>
 #include <stdexcept>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 #include "config.hpp"
@@ -131,7 +132,7 @@ auto GetHostTensors(const ck::conv_util::ConvParams& params, bool init = true)
             std::generate(
                 input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
         }
-        std::fill(weights.begin(), weights.end(), WeiDataType(0.5f));
+        std::fill(weights.begin(), weights.end(), WeiDataType(1.5f));
         std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
         std::fill(device_output.begin(), device_output.end(), OutDataType(0.f));
     }
@@ -260,11 +261,18 @@ bool RunConvInstances(const ck::conv_util::ConvParams& params,
 
         if(conv_ptr->IsSupportedArgument(argument.get()))
         {
+            float atol{1e-5f};
+            float rtol{1e-4f};
+            if constexpr (std::is_same_v<InDataType, ck::half_t>)
+            {
+                atol = 1e-4f;
+                rtol = 2.5e-3f;
+            }
             invoker->Run(argument.get());
             out_device_buf.FromDevice(output.mData.data());
             res = res &&
                   test::check_err(
-                      output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+                      output.mData, host_output.mData, "Error: incorrect results!", atol, rtol);
             hipGetErrorString(
                 hipMemset(out_device_buf.GetDeviceBuffer(), 0, out_device_buf.mMemSize));
         }
