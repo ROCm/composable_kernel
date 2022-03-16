@@ -244,7 +244,10 @@ struct DeviceGroupedGemmXdl
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(std::vector<GemmShape>& gemm_shapes,
+        Argument(std::vector<const void*> p_a,
+                 std::vector<const void*> p_b,
+                 std::vector<void*> p_c,
+                 std::vector<GemmShape>& gemm_shapes,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
@@ -256,12 +259,20 @@ struct DeviceGroupedGemmXdl
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            grid_size    = 0;
-            group_count_ = 0;
+            grid_size_ = 0;
+
+            group_count_ = static_cast<int>(gemm_shapes.size());
+
+            if(!(group_count_ == p_a.size() && group_count_ == p_b.size() &&
+                 group_count_ == p_c.size()))
+            {
+                throw std::runtime_error("wrong! group_count_ != P_a/b/c.size");
+            }
+
+            gemm_desc_kernel_arg_.reserve(group_count_);
 
             for(index_t i = 0; i < gemm_shapes.size(); i++)
             {
-                group_count_++;
                 const index_t M = gemm_shapes[i].M;
                 const index_t N = gemm_shapes[i].N;
                 const index_t K = gemm_shapes[i].K;
@@ -279,10 +290,10 @@ struct DeviceGroupedGemmXdl
 
                 const index_t grid_size_grp = GridwiseGemm::CalculateGridSize(c_grid_desc_m_n_);
 
-                const index_t BlockStart = grid_size;
-                const index_t BlockEnd   = grid_size + grid_size_grp;
+                const index_t BlockStart = grid_size_;
+                const index_t BlockEnd   = grid_size_ + grid_size_grp;
 
-                grid_size += grid_size_grp;
+                grid_size_ += grid_size_grp;
 
                 if(GridwiseGemm::CheckValidity(
                        a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
@@ -299,9 +310,9 @@ struct DeviceGroupedGemmXdl
                                           c_grid_desc_m_n_,
                                           c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                           block_2_ctile_map_,
-                                          static_cast<const ADataType*>(gemm_shapes[i].p_a),
-                                          static_cast<const BDataType*>(gemm_shapes[i].p_b),
-                                          static_cast<CDataType*>(gemm_shapes[i].p_c),
+                                          static_cast<const ADataType*>(p_a[i]),
+                                          static_cast<const BDataType*>(p_b[i]),
+                                          static_cast<CDataType*>(p_c[i]),
                                           BlockStart,
                                           BlockEnd});
                 }
@@ -318,7 +329,7 @@ struct DeviceGroupedGemmXdl
 
         std::vector<GemmDescKernelArg> gemm_desc_kernel_arg_;
 
-        index_t grid_size;
+        index_t grid_size_;
     };
 
     // Invoker
@@ -395,7 +406,7 @@ struct DeviceGroupedGemmXdl
 
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
-                                                  dim3(arg.grid_size),
+                                                  dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
                                                   gemm_desc_kernel_arg_arg,
@@ -419,7 +430,7 @@ struct DeviceGroupedGemmXdl
 
                 ave_time = launch_and_time_kernel(kernel,
                                                   nrepeat,
-                                                  dim3(arg.grid_size),
+                                                  dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
                                                   gemm_desc_kernel_arg_arg,
@@ -459,25 +470,31 @@ struct DeviceGroupedGemmXdl
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(std::vector<GemmShape> gemm_shapes,
+    static auto MakeArgument(std::vector<const void*> p_a,
+                             std::vector<const void*> p_b,
+                             std::vector<void*> p_c,
+                             std::vector<GemmShape> gemm_shapes,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op};
+        return Argument{p_a, p_b, p_c, gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<GemmShape>& gemm_shapes,
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*> p_a,
+                                                      std::vector<const void*> p_b,
+                                                      std::vector<void*> p_c,
+                                                      std::vector<GemmShape>& gemm_shapes,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(
-            gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op);
+            p_a, p_b, p_c, gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op);
     }
 
     // polymorphic

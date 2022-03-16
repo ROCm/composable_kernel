@@ -85,7 +85,6 @@ __global__ void
         c_element_op,
         gemm_desc_ptr[group_id].block_2_ctile_map_,
         block_id_grp);
-
 #endif
 }
 

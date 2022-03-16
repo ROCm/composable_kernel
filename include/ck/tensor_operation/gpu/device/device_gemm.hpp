@@ -8,6 +8,12 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+struct GemmShape
+{
+    ck::index_t M, N, K;
+    ck::index_t StrideA, StrideB, StrideC;
+};
+
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
@@ -70,7 +76,10 @@ template <typename AElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceGroupedGemm : public BaseOperator
 {
-    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<GemmShape>& gemm_shapes,
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*> p_a,
+                                                              std::vector<const void*> p_b,
+                                                              std::vector<void*> p_c,
+                                                              std::vector<GemmShape>& gemm_shapes,
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,
                                                               CElementwiseOperation c_element_op,

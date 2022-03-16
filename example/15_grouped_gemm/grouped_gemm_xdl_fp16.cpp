@@ -79,7 +79,11 @@ int main(int argc, char* argv[])
     int group_count = 4;
 
     // GEMM shape
-    std::vector<ck::GemmShape> gemm_shapes;
+    std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
+    std::vector<const void*> p_a, p_b;
+    std::vector<void*> p_c;
+
+    gemm_shapes.reserve(group_count);
 
     for(int i = 0; i < group_count; i++)
     {
@@ -87,7 +91,7 @@ int main(int argc, char* argv[])
         int N = 128 + 128 * i;
         int K = 64 + 64 * i;
 
-        gemm_shapes.push_back({M, N, K, K, K, N, nullptr, nullptr, nullptr});
+        gemm_shapes.push_back({M, N, K, K, K, N});
     }
 
     auto f_host_tensor_descriptor =
@@ -105,13 +109,23 @@ int main(int argc, char* argv[])
         };
 
     std::vector<Tensor<ADataType>> a_tensors;
+    ;
     std::vector<Tensor<BDataType>> b_tensors;
     std::vector<Tensor<CDataType>> c_host_tensors;
     std::vector<Tensor<CDataType>> c_device_tensors;
 
+    a_tensors.reserve(group_count);
+    b_tensors.reserve(group_count);
+    c_host_tensors.reserve(group_count);
+    c_device_tensors.reserve(group_count);
+
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
 
     std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, c_tensors_device;
+
+    a_tensors_device.reserve(group_count);
+    b_tensors_device.reserve(group_count);
+    c_tensors_device.reserve(group_count);
 
     std::size_t flop = 0, num_btype = 0;
 
@@ -164,9 +178,9 @@ int main(int argc, char* argv[])
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
 
-        gemm_shapes[i].p_a = a_tensors_device[i]->GetDeviceBuffer();
-        gemm_shapes[i].p_b = b_tensors_device[i]->GetDeviceBuffer();
-        gemm_shapes[i].p_c = c_tensors_device[i]->GetDeviceBuffer();
+        p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
+        p_b.push_back(b_tensors_device[i]->GetDeviceBuffer());
+        p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
     }
 
     auto a_element_op = AElementOp{};
@@ -174,9 +188,10 @@ int main(int argc, char* argv[])
     auto c_element_op = CElementOp{};
 
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(gemm_shapes, a_element_op, b_element_op, c_element_op);
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

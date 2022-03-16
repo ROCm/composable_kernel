@@ -177,12 +177,5 @@ enum ActivTypeEnum_t
 using index_t      = int32_t;
 using long_index_t = int64_t;
 
-struct GemmShape
-{
-    ck::index_t M, N, K;
-    ck::index_t StrideA, StrideB, StrideC;
-    void *p_a, *p_b, *p_c;
-};
-
 } // namespace ck
 #endif
