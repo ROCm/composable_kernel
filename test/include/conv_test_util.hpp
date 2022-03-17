@@ -131,8 +131,9 @@ auto GetHostTensors(const ck::conv_util::ConvParams& params, bool init = true)
             std::uniform_real_distribution<> dis(0.f, 1.f);
             std::generate(
                 input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
+            std::generate(
+                weights.begin(), weights.end(), [&dis, &gen]() { return WeiDataType(dis(gen)); });
         }
-        std::fill(weights.begin(), weights.end(), WeiDataType(1.5f));
         std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
         std::fill(device_output.begin(), device_output.end(), OutDataType(0.f));
     }
@@ -263,10 +264,10 @@ bool RunConvInstances(const ck::conv_util::ConvParams& params,
         {
             float atol{1e-5f};
             float rtol{1e-4f};
-            if constexpr (std::is_same_v<InDataType, ck::half_t>)
+            if constexpr(std::is_same_v<InDataType, ck::half_t>)
             {
                 atol = 1e-4f;
-                rtol = 2.5e-3f;
+                rtol = 2,5e-3f;
             }
             invoker->Run(argument.get());
             out_device_buf.FromDevice(output.mData.data());
