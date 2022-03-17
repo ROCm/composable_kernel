@@ -93,7 +93,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         if constexpr(GemmSpecialization == GemmSpecialization_t::MKPadding ||
                      GemmSpecialization == GemmSpecialization_t::MNKPadding)
         {
-            // pad both M and N
+            // pad both M and K
             assert(K % AK1 == 0);
 
             const auto AK0 = K / AK1;
