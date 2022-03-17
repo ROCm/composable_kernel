@@ -25,6 +25,13 @@ struct ReduceSum
     __host__ __device__ void Reduce(float& acc, float v) const { acc += v; }
 };
 
+struct ReduceSquareSum
+{
+    __host__ __device__ static constexpr float GetReduceZeroValue() { return float(0); }
+
+    __host__ __device__ void Reduce(float& acc, float v) const { acc += v * v; }
+};
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -46,7 +53,7 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-using DReduceOp  = ReduceSum;
+using DReduceOp  = ReduceSquareSum;
 
 static constexpr auto GemmSpecialization =
     ck::tensor_operation::device::GemmSpecialization_t::Default;
@@ -220,12 +227,14 @@ int main(int argc, char* argv[])
 
         for(int m = 0; m < M; ++m)
         {
-            d_m_host_result(m) = 0;
+            float r_acc = d_reduce_op.GetReduceZeroValue();
 
             for(int n = 0; n < N; ++n)
             {
-                d_m_host_result(m) += c_m_n_host_result(m, n);
+                d_reduce_op.Reduce(r_acc, c_m_n_host_result(m, n));
             }
+
+            d_m_host_result(m) = r_acc;
         }
 
         check_error(c_m_n_host_result, c_m_n_device_result);
