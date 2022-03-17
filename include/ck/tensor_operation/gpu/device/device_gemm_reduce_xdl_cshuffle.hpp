@@ -301,10 +301,10 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         {
             // pad M and N
             return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
-                                        make_tuple(make_right_pad_transform(MRaw, MPad),
-                                                   make_right_pad_transform(NRaw, NPad)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+                                               make_tuple(make_right_pad_transform(MRaw, MPad),
+                                                          make_right_pad_transform(NRaw, NPad)),
+                                               make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
         else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
                           GemmSpecialization == GemmSpecialization_t::MKPadding)
