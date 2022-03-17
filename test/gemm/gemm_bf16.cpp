@@ -136,7 +136,7 @@ bool TestGemm(DeviceGemmPtr_& gemmPtr)
     bf16_to_f32_(c_device_bf16, c_device_fp32);
 
     // Assert
-    bool res = test_util::check_err(
+    bool res = test::check_err(
         c_device_fp32.mData, c_host_fp32.mData, "Error: incorrect results!", 1e-2f, 1e-3f);
 
     std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;

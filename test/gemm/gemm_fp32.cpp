@@ -111,8 +111,8 @@ bool TestGemm(DeviceGemmPtr_& gemmPtr)
         gemmPtr, params, a, b, c_device, a_element_op, b_element_op, c_element_op);
 
     // Assert
-    bool res = test_util::check_err(
-        c_device.mData, c_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+    bool res =
+        test::check_err(c_device.mData, c_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
 
     std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
