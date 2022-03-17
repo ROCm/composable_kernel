@@ -23,7 +23,7 @@
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using DeviceGemmPtr_ =
+using DeviceGemmNoOpPtr =
     ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough>;
@@ -32,10 +32,10 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(std::vector<DeviceGemmPtr_>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(std::vector<DeviceGemmPtr_>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 }
 } // namespace device
 } // namespace tensor_operation
@@ -50,7 +50,7 @@ int main()
     using RowMajor    = ck::tensor_layout::gemm::RowMajor;
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
-    std::vector<DeviceGemmPtr_> gemmPtrs;
+    std::vector<DeviceGemmNoOpPtr> gemmPtrs;
     bool res = true;
 
     ck::tensor_operation::device::device_gemm_instance::
@@ -58,7 +58,7 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
                                        ADataType,
                                        BDataType,
                                        CDataType,
@@ -76,7 +76,7 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
                                        ADataType,
                                        BDataType,
                                        CDataType,
@@ -94,7 +94,7 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
                                        ADataType,
                                        BDataType,
                                        CDataType,
@@ -112,7 +112,7 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemm<DeviceGemmPtr_,
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
                                        ADataType,
                                        BDataType,
                                        CDataType,
