@@ -95,7 +95,7 @@ template <typename FloatAB,
           typename ABlockTransferSrcAccessOrder,
           index_t ABlockTransferSrcVectorDim,
           index_t ABlockTransferSrcScalarPerVector,
-          index_t ABlockTransferDstScalarPerVector_K1,
+          index_t ABlockTransferDstScalarPerVector_AK1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
           index_t ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_BK0_N_BK1,
@@ -103,7 +103,7 @@ template <typename FloatAB,
           typename BBlockTransferSrcAccessOrder,
           index_t BBlockTransferSrcVectorDim,
           index_t BBlockTransferSrcScalarPerVector,
-          index_t BBlockTransferDstScalarPerVector_K1,
+          index_t BBlockTransferDstScalarPerVector_BK1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
           index_t BBlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
@@ -166,7 +166,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     {
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // lds max alignment
@@ -194,9 +193,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                   const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                  const CGridDesc_M_N& c_grid_desc_m_n,
-                  index_t M01,
-                  index_t N01)
+                  const CGridDesc_M_N& c_grid_desc_m_n)
     {
         // static_assert(is_known_at_compile_time<remove_cv_t<decltype(AK1)>>::value &&
         //               is_known_at_compile_time<remove_cv_t<decltype(BK1)>>::value,
@@ -234,16 +231,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         {
             return false;
         }
-
-        // check M01, N01
-        constexpr auto M1 = Number<MPerBlock>{};
-        constexpr auto N1 = Number<NPerBlock>{};
-
-        const auto M0 = M / M1;
-        const auto N0 = N / N1;
-
-        if(!(M0 % M01 == 0 && N0 % N01 == 0))
-            return false;
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
@@ -304,7 +291,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
+    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);
@@ -314,6 +301,10 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         const auto M0 = M / M1;
         const auto N0 = N / N1;
+
+        // FIXME: remove
+        constexpr auto M01 = I1;
+        constexpr auto N01 = I1;
 
         const auto M00 = M0 / M01;
         const auto N00 = N0 / N01;
@@ -345,7 +336,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         remove_cvref_t<decltype(MakeDGridDescriptor_MBlock_MPerBlock(DGridDesc_M{}))>;
 
     using DefaultBlock2CTileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
+        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
 
     template <bool HasMainK0BlockLoop, typename Block2CTileMap>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
@@ -411,7 +402,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                               ABlockTransferSrcVectorDim,
                                               2,
                                               ABlockTransferSrcScalarPerVector,
-                                              ABlockTransferDstScalarPerVector_K1,
+                                              ABlockTransferDstScalarPerVector_AK1,
                                               1,
                                               1,
                                               AThreadTransferSrcResetCoordinateAfterRun,
@@ -442,7 +433,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                               BBlockTransferSrcVectorDim,
                                               2,
                                               BBlockTransferSrcScalarPerVector,
-                                              BBlockTransferDstScalarPerVector_K1,
+                                              BBlockTransferDstScalarPerVector_BK1,
                                               1,
                                               1,
                                               BThreadTransferSrcResetCoordinateAfterRun,

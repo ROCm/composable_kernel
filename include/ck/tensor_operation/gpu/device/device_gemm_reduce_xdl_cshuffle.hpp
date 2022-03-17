@@ -39,19 +39,19 @@ template <typename ALayout,
           ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
-          typename ABlockTransferThreadClusterLengths_K0_M_K1,
+          typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
           ck::index_t ABlockTransferSrcVectorDim,
           ck::index_t ABlockTransferSrcScalarPerVector,
-          ck::index_t ABlockTransferDstScalarPerVector_K1,
+          ck::index_t ABlockTransferDstScalarPerVector_AK1,
           bool ABlockLdsExtraM,
-          typename BBlockTransferThreadClusterLengths_K0_N_K1,
+          typename BBlockTransferThreadClusterLengths_BK0_N_BK1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
           ck::index_t BBlockTransferSrcVectorDim,
           ck::index_t BBlockTransferSrcScalarPerVector,
-          ck::index_t BBlockTransferDstScalarPerVector_K1,
+          ck::index_t BBlockTransferDstScalarPerVector_BK1,
           bool BBlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
@@ -156,7 +156,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         }
         else
         {
-            // no pad
+            // not pad M or K
             assert(KRaw % AK1 == 0);
 
             const auto AK0 = KRaw / AK1;
@@ -259,7 +259,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         }
         else
         {
-            // no pad
+            // not pad N or K
             assert(KRaw % BK1 == 0);
 
             const auto BK0 = KRaw / BK1;
@@ -275,28 +275,94 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         }
     }
 
-    static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
+    static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
     {
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+        const auto c_grid_desc_mraw_nraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(StrideC, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(I1, StrideC));
+            }
+        }();
+
+        const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto N = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+
+        const auto MPad = M - MRaw;
+        const auto NPad = N - NRaw;
+
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding ||
+                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
         {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
+            // pad M and N
+            transform_tensor_descriptor(c_grid_desc_mraw_nraw,
+                                        make_tuple(make_right_pad_transform(MRaw, MPad),
+                                                   make_right_pad_transform(NRaw, NPad)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
-        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+        else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
+                          GemmSpecialization == GemmSpecialization_t::MKPadding)
         {
-            return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
+            // pad M, but not N
+            transform_tensor_descriptor(
+                c_grid_desc_mraw_nraw,
+                make_tuple(make_right_pad_transform(MRaw, MPad), make_pass_through_transform(NRaw)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+        else if constexpr(GemmSpecialization == GemmSpecialization_t::NPadding ||
+                          GemmSpecialization == GemmSpecialization_t::NKPadding)
+        {
+            // pad N, but not M
+            transform_tensor_descriptor(
+                c_grid_desc_mraw_nraw,
+                make_tuple(make_pass_through_transform(MRaw), make_right_pad_transform(NRaw, NPad)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+        else
+        {
+            // not pad M or N
+            return c_grid_desc_mraw_nraw;
         }
     }
 
     // assume D is packed tensor
-    static auto MakeDGridDescriptor_M(index_t M)
+    static auto MakeDGridDescriptor_M(index_t MRaw)
     {
-        return make_naive_tensor_descriptor_packed(make_tuple(M));
+        const auto d_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
+
+        const auto M    = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto MPad = M - MRaw;
+
+        if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
+                     GemmSpecialization == GemmSpecialization_t::MNPadding ||
+                     GemmSpecialization == GemmSpecialization_t::MKPadding ||
+                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        {
+            // pad M
+            return transform_tensor_descriptor(d_grid_desc_mraw,
+                                               make_tuple(make_right_pad_transform(MRaw, MPad)),
+                                               make_tuple(Sequence<0>{}),
+                                               make_tuple(Sequence<0>{}));
+        }
+        else
+        {
+            // not pad M
+            return d_grid_desc_mraw;
+        }
     }
 
-    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-    using DGridDesc_M       = decltype(MakeDGridDescriptor_M(1));
+    using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
+    using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
+    using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using DGridDesc_M         = decltype(MakeDGridDescriptor_M(1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -312,8 +378,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         DReduceOperation,
         InMemoryDataOperationEnum_t::Set,
         InMemoryDataOperationEnum_t::AtomicAdd,
-        AGridDesc_K0_M_K1,
-        BGridDesc_K0_N_K1,
+        AGridDesc_AK0_M_AK1,
+        BGridDesc_BK0_N_BK1,
         CGridDesc_M_N,
         DGridDesc_M,
         NumGemmKPrefetchStage,
@@ -327,20 +393,20 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         NPerXDL,
         MXdlPerWave,
         NXdlPerWave,
-        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_K1,
+        ABlockTransferDstScalarPerVector_AK1,
         false,
         ABlockLdsExtraM,
-        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_K1,
+        BBlockTransferDstScalarPerVector_BK1,
         false,
         BBlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
@@ -358,14 +424,12 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
                  DDataType* p_d_grid,
-                 index_t M,
-                 index_t N,
-                 index_t K,
+                 index_t MRaw,
+                 index_t NRaw,
+                 index_t KRaw,
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideC,
-                 index_t M01,
-                 index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
@@ -374,30 +438,28 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               p_d_grid_{p_d_grid},
-              a_grid_desc_k0_m_k1_{},
-              b_grid_desc_k0_n_k1_{},
+              a_grid_desc_ak0_m_ak1_{},
+              b_grid_desc_bk0_n_bk1_{},
               c_grid_desc_m_n_{},
               d_grid_desc_m_{},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               d_grid_desc_mblock_mperblock_{},
               block_2_ctile_map_{},
-              M01_{M01},
-              N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
               d_reduce_op_{d_reduce_op}
         {
-            a_grid_desc_k0_m_k1_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB);
+            a_grid_desc_ak0_m_ak1_ =
+                DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA);
+            b_grid_desc_bk0_n_bk1_ =
+                DeviceGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB);
             c_grid_desc_m_n_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
-            d_grid_desc_m_ = DeviceGemmReduce_Xdl_CShuffle::MakeDGridDescriptor_M(M);
+                DeviceGemmReduce_Xdl_CShuffle::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
+            d_grid_desc_m_ = DeviceGemmReduce_Xdl_CShuffle::MakeDGridDescriptor_M(MRaw);
 
             if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+                   a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -406,8 +468,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                 d_grid_desc_mblock_mperblock_ =
                     GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
 
-                block_2_ctile_map_ =
-                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
             }
         }
 
@@ -416,16 +477,14 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
         DDataType* p_d_grid_;
-        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
-        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
+        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
+        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         DGridDesc_M d_grid_desc_m_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
-        index_t M01_;
-        index_t N01_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -440,13 +499,15 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         float Run(const Argument& arg, int nrepeat = 1)
         {
             {
-                std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
-                          << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
+                std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}" << std::endl;
 
-                std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
+                std::cout << "arg.b_grid_desc_bk0_n_bk1_{"
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I0) << ", "
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}" << std::endl;
 
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
@@ -455,11 +516,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                           << std::endl;
             }
 
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                            arg.b_grid_desc_k0_n_k1_,
-                                            arg.c_grid_desc_m_n_,
-                                            arg.M01_,
-                                            arg.N01_))
+            if(!GridwiseGemm::CheckValidity(
+                   arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
@@ -467,7 +525,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
+            const auto K0 = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
 
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
@@ -484,8 +542,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DReduceOperation,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_AK0_M_AK1>,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_BK0_N_BK1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
@@ -506,8 +564,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                            arg.b_element_op_,
                                            arg.c_element_op_,
                                            arg.d_reduce_op_,
-                                           arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.d_grid_desc_mblock_mperblock_,
                                            arg.block_2_ctile_map_);
@@ -523,8 +581,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DReduceOperation,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_AK0_M_AK1>,
+                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_BK0_N_BK1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
@@ -545,8 +603,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                            arg.b_element_op_,
                                            arg.c_element_op_,
                                            arg.d_reduce_op_,
-                                           arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.d_grid_desc_mblock_mperblock_,
                                            arg.block_2_ctile_map_);
@@ -570,11 +628,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+        return GridwiseGemm::CheckValidity(
+            arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_);
     }
 
     // polymorphic
@@ -587,9 +642,9 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                              const BDataType* p_b,
                              CDataType* p_c,
                              DDataType* p_d,
-                             index_t M,
-                             index_t N,
-                             index_t K,
+                             index_t MRaw,
+                             index_t NRaw,
+                             index_t KRaw,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
@@ -602,14 +657,12 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                         p_b,
                         p_c,
                         p_d,
-                        M,
-                        N,
-                        K,
+                        MRaw,
+                        NRaw,
+                        KRaw,
                         StrideA,
                         StrideB,
                         StrideC,
-                        1,
-                        1,
                         a_element_op,
                         b_element_op,
                         c_element_op,
@@ -623,9 +676,9 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                                       const void* p_b,
                                                       void* p_c,
                                                       void* p_d,
-                                                      index_t M,
-                                                      index_t N,
-                                                      index_t K,
+                                                      index_t MRaw,
+                                                      index_t NRaw,
+                                                      index_t KRaw,
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
@@ -638,14 +691,12 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
                                           static_cast<DDataType*>(p_d),
-                                          M,
-                                          N,
-                                          K,
+                                          MRaw,
+                                          NRaw,
+                                          KRaw,
                                           StrideA,
                                           StrideB,
                                           StrideC,
-                                          1,
-                                          1,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
