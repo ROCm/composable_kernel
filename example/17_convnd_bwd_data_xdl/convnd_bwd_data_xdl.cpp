@@ -236,6 +236,7 @@ int main(int argc, char* argv[])
     int num_dim_spatial  = 2;
 
     ck::conv_util::ConvParams params;
+    params.C = 128;
 
     if(argc == 4)
     {
