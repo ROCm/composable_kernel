@@ -2,6 +2,7 @@
 #define DEVICE_REDUCE_COMMON_HPP
 
 #include <vector>
+#include <cassert>
 
 #include "common_header.hpp"
 #include "reduction_enums.hpp"
@@ -40,23 +41,6 @@ constexpr bool belong()
     return (inside);
 };
 
-template <int Rank, typename ReduceDims, int start = 0>
-constexpr auto get_invariant_dims()
-{
-    static_assert(Rank <= 6, "bigger Rank size not supported!");
-
-    if constexpr(start >= Rank)
-        return Sequence<>{};
-    else
-    {
-        if constexpr(!belong<start, ReduceDims>())
-            return merge_sequences(Sequence<start>{},
-                                   get_invariant_dims<Rank, ReduceDims, start + 1>());
-        else
-            return get_invariant_dims<Rank, ReduceDims, start + 1>();
-    };
-};
-
 // helper functions using variadic template arguments
 template <index_t... Ns>
 static auto make_tuple_from_array_and_index_seq(const std::vector<int>& lengths, Sequence<Ns...>)
@@ -72,6 +56,45 @@ static auto make_tuple_from_array(const std::vector<int>& lengths, Number<arrayS
     constexpr auto index_seq = typename arithmetic_sequence_gen<0, arraySize, 1>::type{};
 
     return make_tuple_from_array_and_index_seq(lengths, index_seq);
+};
+
+template <index_t Rank, index_t NumReduceDim>
+static inline std::pair<std::vector<int>, std::vector<int>>
+shuffle_tensor_dimensions(const std::vector<int>& dimLengths,
+                          const std::vector<int>& dimStrides,
+                          const std::vector<int>& reduceDims)
+{
+    std::vector<int> newDimLengths;
+    std::vector<int> newDimStrides;
+
+    assert(Rank == dimLengths.size() && Rank == dimStrides.size() &&
+           NumReduceDim == reduceDims.size());
+
+    int reduceFlag = 0;
+
+    // flag the bits for the reduceDims
+    for(int i = 0; i < NumReduceDim; i++)
+    {
+        reduceFlag |= 1 << reduceDims[i];
+    };
+
+    // collect invariant dimensions
+    for(int i = 0; i < Rank; i++)
+        if((reduceFlag & (1 << i)) == 0)
+        {
+            newDimLengths.push_back(dimLengths[i]);
+            newDimStrides.push_back(dimStrides[i]);
+        };
+
+    // collect reduce dimensions
+    for(int i = 0; i < Rank; i++)
+        if((reduceFlag & (1 << i)) > 0)
+        {
+            newDimLengths.push_back(dimLengths[i]);
+            newDimStrides.push_back(dimStrides[i]);
+        };
+
+    return std::make_pair(newDimLengths, newDimStrides);
 };
 
 } // namespace device

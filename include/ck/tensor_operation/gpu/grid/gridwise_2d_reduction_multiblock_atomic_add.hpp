@@ -86,22 +86,34 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
 {
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
-    static constexpr auto buffer_1d_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<BlockSize>{}));
+    using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
 
-    using blockwise_reduce = PartitionedBlockwiseReductionOn1dBuffer<decltype(buffer_1d_desc),
-                                                                     AccDataType,
-                                                                     BlockSize,
-                                                                     MThreadClusterSize,
-                                                                     KThreadClusterSize,
-                                                                     reorder_thread_cluster,
-                                                                     ReduceOperation,
-                                                                     PropagateNan>;
+    using ThreadBufferDimAccessOrder =
+        typename conditional<reorder_thread_cluster, Sequence<1, 0>, Sequence<0, 1>>::type;
+
+    using ThreadClusterArrangeOrder =
+        typename conditional<reorder_thread_cluster, Sequence<1, 0>, Sequence<0, 1>>::type;
+
+    static constexpr auto thread_cluster_desc =
+        make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
+
+    // For laying out the threads to do reducing on LDS buffer, for LDS buffer, we always use the
+    // Dim_K as the fastest one
+    static constexpr auto block_buf_desc_m_k = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MThreadClusterSize>{}, Number<KThreadClusterSize>{}));
+
+    using BlockwiseReduce = PartitionedBlockwiseReduction<AccDataType,
+                                                          BlockSize,
+                                                          ThreadClusterLengths_M_K,
+                                                          ThreadClusterArrangeOrder,
+                                                          ReduceOperation,
+                                                          PropagateNan>;
 
     template <typename T>
     using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
 
     static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
 
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
@@ -145,12 +157,12 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         const index_t block_global_id = get_block_1d_id();
         const index_t blkgroup_id     = block_global_id / block_group_size;
         const index_t block_local_id  = block_global_id % block_group_size;
-        const index_t thread_m_cluster_id =
-            reorder_thread_cluster ? thread_local_id % MThreadClusterSize
-                                   : ((thread_local_id / KThreadClusterSize) % MThreadClusterSize);
-        const index_t thread_k_cluster_id =
-            reorder_thread_cluster ? ((thread_local_id / MThreadClusterSize) % KThreadClusterSize)
-                                   : thread_local_id % KThreadClusterSize;
+
+        const auto thread_cluster_idx =
+            thread_cluster_desc.CalculateBottomIndex(make_multi_index(thread_local_id));
+
+        const auto thread_m_cluster_id = thread_cluster_idx[I0];
+        const auto thread_k_cluster_id = thread_cluster_idx[I1];
 
         const index_t reduceSizePerBlock = K_BlockTileSize * num_k_block_tile_iteration;
 
@@ -158,17 +170,16 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         constexpr auto thread_buffer_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
 
-        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<
-            InDataType,
-            AccDataType,
-            InGridDesc_M_K,
-            decltype(thread_buffer_desc),
-            ThreadBufferLengths,
-            typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type,
-            InSrcVectorDim,
-            InSrcVectorSize,
-            1,
-            false>(
+        auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<InDataType,
+                                                                    AccDataType,
+                                                                    InGridDesc_M_K,
+                                                                    decltype(thread_buffer_desc),
+                                                                    ThreadBufferLengths,
+                                                                    ThreadBufferDimAccessOrder,
+                                                                    InSrcVectorDim,
+                                                                    InSrcVectorSize,
+                                                                    1,
+                                                                    false>(
             in_grid_desc_m_k,
             make_multi_index(blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
                              block_local_id * reduceSizePerBlock +
@@ -212,21 +223,14 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         // consistent reduced result for that invariant dimension. due to the using of vector_load,
         // each block/thread is involved into multiple invarirant dimensions.
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            if constexpr(reorder_thread_cluster)
-            {
-                block_reduce_buf(thread_k_cluster_id * MThreadClusterSize + thread_m_cluster_id) =
-                    accu_value_buf[I];
-            }
-            else
-                block_reduce_buf(thread_m_cluster_id * KThreadClusterSize + thread_k_cluster_id) =
-                    accu_value_buf[I];
+            block_reduce_buf(block_buf_desc_m_k.CalculateOffset(thread_cluster_idx)) =
+                accu_value_buf[I];
 
             accu_value_buf(I) = zeroVal;
 
             __syncthreads();
 
-            blockwise_reduce::Reduce(
-                block_reduce_buf, accu_value_buf(I), thread_m_cluster_id, thread_k_cluster_id);
+            BlockwiseReduce::Reduce(block_reduce_buf, accu_value_buf(I));
         });
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
