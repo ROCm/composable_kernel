@@ -62,7 +62,7 @@ set -- "${POSITIONAL[@]}" # restore positional parameters
 
 #--------------------------------------------------------------------------
 
-NUMACTL=numactl --cpunodebind=1 --membind=1
+# NUMACTL="numactl --cpunodebind=1 --membind=1"
 NUMACTL=
 # ENV_CONF=
 GPU=mi100
