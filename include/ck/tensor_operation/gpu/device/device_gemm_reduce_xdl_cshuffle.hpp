@@ -300,7 +300,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                      GemmSpecialization == GemmSpecialization_t::MNKPadding)
         {
             // pad M and N
-            transform_tensor_descriptor(c_grid_desc_mraw_nraw,
+            return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
                                         make_tuple(make_right_pad_transform(MRaw, MPad),
                                                    make_right_pad_transform(NRaw, NPad)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -310,7 +310,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                           GemmSpecialization == GemmSpecialization_t::MKPadding)
         {
             // pad M, but not N
-            transform_tensor_descriptor(
+            return transform_tensor_descriptor(
                 c_grid_desc_mraw_nraw,
                 make_tuple(make_right_pad_transform(MRaw, MPad), make_pass_through_transform(NRaw)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -320,7 +320,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                           GemmSpecialization == GemmSpecialization_t::NKPadding)
         {
             // pad N, but not M
-            transform_tensor_descriptor(
+            return transform_tensor_descriptor(
                 c_grid_desc_mraw_nraw,
                 make_tuple(make_pass_through_transform(MRaw), make_right_pad_transform(NRaw, NPad)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
