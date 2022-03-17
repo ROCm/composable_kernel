@@ -69,15 +69,15 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static auto MakeAGridDescriptor_K0_M_K1(index_t MRaw, index_t KRaw, index_t StrideA)
+    static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
                                                     make_tuple(StrideA, I1));
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
                                                     make_tuple(I1, StrideA));
@@ -93,6 +93,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         if constexpr(GemmSpecialization == GemmSpecialization_t::MKPadding ||
                      GemmSpecialization == GemmSpecialization_t::MNKPadding)
         {
+            // pad both M and N
             assert(K % AK1 == 0);
 
             const auto AK0 = K / AK1;
@@ -116,6 +117,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
                           GemmSpecialization == GemmSpecialization_t::MNPadding)
         {
+            // pad M, but not K
             assert(KRaw % AK1 == 0);
 
             const auto AK0 = KRaw / AK1;
@@ -129,8 +131,32 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
 
             return a_grid_desc_ak0_m_ak1;
         }
+        else if constexpr(GemmSpecialization == GemmSpecialization_t::KPadding ||
+                          GemmSpecialization == GemmSpecialization_t::NKPadding)
+        {
+            // pad K, but not M
+            assert(K % AK1 == 0);
+
+            const auto AK0 = K / AK1;
+
+            const auto a_grid_desc_m_k = transform_tensor_descriptor(
+                a_grid_desc_mraw_kraw,
+                make_tuple(make_pass_through_transform(MRaw), make_right_pad_transform(KRaw, KPad)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto a_grid_desc_ak0_m_ak1 =
+                transform_tensor_descriptor(a_grid_desc_m_k,
+                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                       make_pass_through_transform(MRaw)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
         else
         {
+            // no pad
             assert(KRaw % AK1 == 0);
 
             const auto AK0 = KRaw / AK1;
@@ -146,30 +172,107 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         }
     }
 
-    static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
+    static auto MakeBGridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB)
     {
-        assert(K % BK1 == 0);
-
-        const index_t K0 = K / BK1;
-
-        const auto b_grid_desc_k_n = [&]() {
+        const auto b_grid_desc_nraw_kraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(StrideB, I1));
+                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                                                    make_tuple(I1, StrideB));
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
+                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                                                    make_tuple(StrideB, I1));
             }
         }();
 
-        const auto b_grid_desc_k0_n_k1 = transform_tensor_descriptor(
-            b_grid_desc_k_n,
-            make_tuple(make_unmerge_transform(make_tuple(K0, BK1)), make_pass_through_transform(N)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        const auto N = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+        const auto K = math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
 
-        return b_grid_desc_k0_n_k1;
+        const auto NPad = N - NRaw;
+        const auto KPad = K - KRaw;
+
+        if constexpr(GemmSpecialization == GemmSpecialization_t::NKPadding ||
+                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        {
+            // pad both N and K
+            assert(K % BK1 == 0);
+
+            const auto BK0 = K / BK1;
+
+            const auto b_grid_desc_n_k =
+                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
+                                            make_tuple(make_right_pad_transform(NRaw, NPad),
+                                                       make_right_pad_transform(KRaw, KPad)),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto b_grid_desc_bk0_n_bk1 =
+                transform_tensor_descriptor(b_grid_desc_n_k,
+                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                       make_pass_through_transform(N)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
+        else if constexpr(GemmSpecialization == GemmSpecialization_t::NPadding ||
+                          GemmSpecialization == GemmSpecialization_t::MNPadding)
+        {
+            // pad N, but not K
+            assert(KRaw % BK1 == 0);
+
+            const auto BK0 = KRaw / BK1;
+
+            const auto b_grid_desc_bk0_n_bk1 =
+                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
+                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                       make_right_pad_transform(NRaw, NPad)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
+        else if constexpr(GemmSpecialization == GemmSpecialization_t::KPadding ||
+                          GemmSpecialization == GemmSpecialization_t::MKPadding)
+        {
+            // pad K, but not N
+            assert(K % BK1 == 0);
+
+            const auto BK0 = K / BK1;
+
+            const auto b_grid_desc_n_k = transform_tensor_descriptor(
+                b_grid_desc_nraw_kraw,
+                make_tuple(make_pass_through_transform(NRaw), make_right_pad_transform(KRaw, KPad)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto b_grid_desc_bk0_n_bk1 =
+                transform_tensor_descriptor(b_grid_desc_n_k,
+                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                       make_pass_through_transform(NRaw)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
+        else
+        {
+            // no pad
+            assert(KRaw % BK1 == 0);
+
+            const auto BK0 = KRaw / BK1;
+
+            const auto b_grid_desc_bk0_n_bk1 =
+                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
+                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                       make_pass_through_transform(NRaw)),
+                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
     }
 
     static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
@@ -190,8 +293,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         return make_naive_tensor_descriptor_packed(make_tuple(M));
     }
 
-    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
+    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
+    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
     using DGridDesc_M       = decltype(MakeDGridDescriptor_M(1));
 
@@ -286,9 +389,9 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
               d_reduce_op_{d_reduce_op}
         {
             a_grid_desc_k0_m_k1_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+                DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+                DeviceGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB);
             c_grid_desc_m_n_ =
                 DeviceGemmReduce_Xdl_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
             d_grid_desc_m_ = DeviceGemmReduce_Xdl_CShuffle::MakeDGridDescriptor_M(M);
