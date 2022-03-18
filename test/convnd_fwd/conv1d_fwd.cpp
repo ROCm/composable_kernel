@@ -5,7 +5,8 @@
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
-#include "conv_test_util.hpp"
+#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "host_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "check_err.hpp"
@@ -37,7 +38,7 @@ namespace {
 bool TestConv1DNWC()
 {
     bool res{true};
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 1;
     params.N                      = 2;
     params.K                      = 16;
@@ -49,18 +50,19 @@ bool TestConv1DNWC()
     params.input_left_pads        = std::vector<ck::index_t>{1};
     params.input_right_pads       = std::vector<ck::index_t>{1};
 
-    auto host_tensors            = test::conv::GetHostTensors<float,
-                                                   float,
-                                                   float,
-                                                   ck::tensor_layout::convolution::NWC,
-                                                   ck::tensor_layout::convolution::KXC,
-                                                   ck::tensor_layout::convolution::NWK>(params);
+    auto host_tensors =
+        ck::utils::conv::GetHostTensors<float,
+                                        float,
+                                        float,
+                                        ck::tensor_layout::convolution::NWC,
+                                        ck::tensor_layout::convolution::KXC,
+                                        ck::tensor_layout::convolution::NWK>(params);
     const Tensor<float>& input   = std::get<0>(host_tensors);
     const Tensor<float>& weights = std::get<1>(host_tensors);
     Tensor<float>& host_output   = std::get<2>(host_tensors);
     Tensor<float>& device_output = std::get<3>(host_tensors);
 
-    test::conv::RunReferenceConv<1>(params, input, weights, host_output);
+    ck::utils::conv::RunReferenceConvFwd<1>(params, input, weights, host_output);
     test::conv::RunConv<1>(params, input, weights, device_output);
     res = res &&
           ck::utils::check_err(
@@ -72,7 +74,7 @@ bool TestConv1DNWC()
 template <typename T>
 bool TestConv1DNWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 1;
     params.filter_spatial_lengths = std::vector<ck::index_t>{3};
     params.input_spatial_lengths  = std::vector<ck::index_t>{71};
@@ -81,19 +83,20 @@ bool TestConv1DNWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
     params.input_left_pads        = std::vector<ck::index_t>{1};
     params.input_right_pads       = std::vector<ck::index_t>{1};
 
-    auto host_tensors        = test::conv::GetHostTensors<T,
-                                                   T,
-                                                   T,
-                                                   ck::tensor_layout::convolution::NWC,
-                                                   ck::tensor_layout::convolution::KXC,
-                                                   ck::tensor_layout::convolution::NWK>(params);
+    auto host_tensors =
+        ck::utils::conv::GetHostTensors<T,
+                                        T,
+                                        T,
+                                        ck::tensor_layout::convolution::NWC,
+                                        ck::tensor_layout::convolution::KXC,
+                                        ck::tensor_layout::convolution::NWK>(params);
     const Tensor<T>& input   = std::get<0>(host_tensors);
     const Tensor<T>& weights = std::get<1>(host_tensors);
     Tensor<T>& host_output   = std::get<2>(host_tensors);
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
-    test::conv::RunReferenceConv<1>(params, input, weights, host_output);
-    return test::conv::RunConvInstances<1>(
+    ck::utils::conv::RunReferenceConvFwd<1>(params, input, weights, host_output);
+    return ck::utils::conv::RunConvInstances<1>(
         params, conv_ptrs, input, weights, device_output, host_output);
 }
 bool TestConv1DNWCBF16Instances()

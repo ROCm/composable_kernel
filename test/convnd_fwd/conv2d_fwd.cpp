@@ -6,7 +6,8 @@
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
-#include "conv_test_util.hpp"
+#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "host_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "check_err.hpp"
@@ -39,20 +40,20 @@ namespace {
 bool TestConv2DNHWC()
 {
     bool res{true};
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.N                     = 2;
     params.K                     = 16;
     params.C                     = 4;
     params.input_spatial_lengths = std::vector<ck::index_t>{16, 16};
     params.conv_filter_strides   = std::vector<ck::index_t>{1, 1};
 
-    auto host_tensors            = test::conv::GetHostTensors(params);
+    auto host_tensors            = ck::utils::conv::GetHostTensors(params);
     const Tensor<float>& input   = std::get<0>(host_tensors);
     const Tensor<float>& weights = std::get<1>(host_tensors);
     Tensor<float>& host_output   = std::get<2>(host_tensors);
     Tensor<float>& device_output = std::get<3>(host_tensors);
 
-    test::conv::RunReferenceConv<2>(params, input, weights, host_output);
+    ck::utils::conv::RunReferenceConvFwd<2>(params, input, weights, host_output);
     test::conv::RunConv<2>(params, input, weights, device_output);
     res = res &&
           ck::utils::check_err(
@@ -64,7 +65,7 @@ bool TestConv2DNHWC()
 template <typename T>
 bool TestConv2DNHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 2;
     params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3};
     params.input_spatial_lengths  = std::vector<ck::index_t>{71, 71};
@@ -73,19 +74,20 @@ bool TestConv2DNHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
     params.input_left_pads        = std::vector<ck::index_t>{1, 1};
     params.input_right_pads       = std::vector<ck::index_t>{1, 1};
 
-    auto host_tensors        = test::conv::GetHostTensors<T,
-                                                   T,
-                                                   T,
-                                                   ck::tensor_layout::convolution::NHWC,
-                                                   ck::tensor_layout::convolution::KYXC,
-                                                   ck::tensor_layout::convolution::NHWK>(params);
+    auto host_tensors =
+        ck::utils::conv::GetHostTensors<T,
+                                        T,
+                                        T,
+                                        ck::tensor_layout::convolution::NHWC,
+                                        ck::tensor_layout::convolution::KYXC,
+                                        ck::tensor_layout::convolution::NHWK>(params);
     const Tensor<T>& input   = std::get<0>(host_tensors);
     const Tensor<T>& weights = std::get<1>(host_tensors);
     Tensor<T>& host_output   = std::get<2>(host_tensors);
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
-    test::conv::RunReferenceConv<2>(params, input, weights, host_output);
-    return test::conv::RunConvInstances<2>(
+    ck::utils::conv::RunReferenceConvFwd<2>(params, input, weights, host_output);
+    return ck::utils::conv::RunConvInstances<2>(
         params, conv_ptrs, input, weights, device_output, host_output);
 }
 

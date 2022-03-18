@@ -3,7 +3,7 @@
 #include <numeric>
 #include <type_traits>
 #include "config.hpp"
-#include "conv_utils.hpp"
+#include "conv_fwd_util.hpp"
 #include "device.hpp"
 #include "device_tensor.hpp"
 #include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
@@ -116,7 +116,7 @@ void PrintUseMsg()
               << std::endl;
 }
 
-ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, int argc, char* argv[])
+ck::utils::conv::ConvParams ParseConvParams(int num_dim_spatial, int argc, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     int conv_args     = 3 + num_dim_spatial * 6;
@@ -127,7 +127,7 @@ ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, int argc, char* a
         exit(0);
     }
 
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     int arg_idx = 5;
 
     params.num_dim_spatial = num_dim_spatial;
@@ -177,13 +177,13 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWK{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWK{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWK{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWK{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWK{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWK{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -199,13 +199,13 @@ HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KZYXC{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KZYXC{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KYXC{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KYXC{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KXC{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KXC{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -221,13 +221,13 @@ HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWC{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWC{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWC{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWC{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -242,7 +242,7 @@ int main(int argc, char* argv[])
     int nrepeat          = 5;
     int num_dim_spatial  = 2;
 
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
 
     if(argc >= 5)
     {
@@ -334,15 +334,15 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker->Run(argument.get(), nrepeat);
 
-    std::size_t flop = ck::conv_util::GetFlops(
+    std::size_t flop = ck::utils::conv::GetFlops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
-    std::size_t num_btype =
-        ck::conv_util::GetBtype<InDataType, WeiDataType, OutDataType>(params.N,
-                                                                      params.C,
-                                                                      params.K,
-                                                                      params.input_spatial_lengths,
-                                                                      params.filter_spatial_lengths,
-                                                                      output_spatial_lengths);
+    std::size_t num_btype = ck::utils::conv::GetBtype<InDataType, WeiDataType, OutDataType>(
+        params.N,
+        params.C,
+        params.K,
+        params.input_spatial_lengths,
+        params.filter_spatial_lengths,
+        output_spatial_lengths);
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;

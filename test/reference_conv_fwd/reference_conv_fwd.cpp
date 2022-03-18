@@ -8,7 +8,7 @@
 
 #include "check_err.hpp"
 #include "config.hpp"
-#include "conv_utils.hpp"
+#include "conv_fwd_util.hpp"
 #include "element_wise_operation.hpp"
 #include "host_tensor.hpp"
 #include "reference_conv_fwd.hpp"
@@ -57,9 +57,9 @@ template <ck::index_t NDim,
           typename OutLayout     = ck::tensor_layout::convolution::NHWK,
           typename FillInputOp   = FillMonotonicSeq<InDataType>,
           typename FillWeightsOp = FillConstant<WeiDataType>>
-Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params,
-                                     const FillInputOp& fill_input_op     = FillInputOp{},
-                                     const FillWeightsOp& fill_weights_op = FillWeightsOp{0.5f})
+Tensor<OutDataType> RunReferenceConvFwd(const ck::utils::conv::ConvParams& params,
+                                        const FillInputOp& fill_input_op     = FillInputOp{},
+                                        const FillWeightsOp& fill_weights_op = FillWeightsOp{0.5f})
 {
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
                                         static_cast<std::size_t>(params.C)};
@@ -80,10 +80,10 @@ Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params,
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(ck::conv_util::GetHostTensorDescriptor(input_dims, InLayout{}));
-    Tensor<WeiDataType> weights(ck::conv_util::GetHostTensorDescriptor(filter_dims, WeiLayout{}));
+    Tensor<InDataType> input(ck::utils::conv::GetHostTensorDescriptor(input_dims, InLayout{}));
+    Tensor<WeiDataType> weights(ck::utils::conv::GetHostTensorDescriptor(filter_dims, WeiLayout{}));
     Tensor<OutDataType> host_output(
-        ck::conv_util::GetHostTensorDescriptor(output_dims, OutLayout{}));
+        ck::utils::conv::GetHostTensorDescriptor(output_dims, OutLayout{}));
 
     fill_input_op(input.begin(), input.end());
     fill_weights_op(weights.begin(), weights.end());
@@ -119,7 +119,7 @@ Tensor<OutDataType> RunReferenceConv(const ck::conv_util::ConvParams& params,
 bool TestConv2DNHWC()
 {
     bool res{true};
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.N                      = 1;
     params.K                      = 1;
     params.C                      = 2;
@@ -130,7 +130,7 @@ bool TestConv2DNHWC()
     params.input_left_pads        = std::vector<ck::index_t>{0, 0};
     params.input_right_pads       = std::vector<ck::index_t>{0, 0};
 
-    auto out_tensor = RunReferenceConv<2>(params);
+    auto out_tensor = RunReferenceConvFwd<2>(params);
     std::vector<std::size_t> ref_dims{1, 1, 4, 4};
     std::vector<float> ref_data{130.5,
                                 148.5,
@@ -163,7 +163,7 @@ bool TestConv2DNHWC()
     params.input_left_pads        = std::vector<ck::index_t>{1, 1};
     params.input_right_pads       = std::vector<ck::index_t>{1, 1};
 
-    out_tensor = RunReferenceConv<2>(params);
+    out_tensor = RunReferenceConvFwd<2>(params);
     ref_dims   = std::vector<std::size_t>{1, 2, 5, 5};
     ref_data   = std::vector<float>{
         210.,  210.,  327.,   327.,   351.,   351.,   375.,   375.,   399.,   399.,
@@ -182,7 +182,7 @@ bool TestConv2DNHWC()
 bool TestConv1DNWC()
 {
     bool res{true};
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 1;
     params.N                      = 1;
     params.K                      = 1;
@@ -194,13 +194,13 @@ bool TestConv1DNWC()
     params.input_left_pads        = std::vector<ck::index_t>{0};
     params.input_right_pads       = std::vector<ck::index_t>{0};
 
-    auto out_tensor = RunReferenceConv<1,
-                                       float,
-                                       float,
-                                       float,
-                                       ck::tensor_layout::convolution::NWC,
-                                       ck::tensor_layout::convolution::KXC,
-                                       ck::tensor_layout::convolution::NWK>(params);
+    auto out_tensor = RunReferenceConvFwd<1,
+                                          float,
+                                          float,
+                                          float,
+                                          ck::tensor_layout::convolution::NWC,
+                                          ck::tensor_layout::convolution::KXC,
+                                          ck::tensor_layout::convolution::NWK>(params);
     std::vector<std::size_t> ref_dims{1, 1, 4};
     std::vector<float> ref_data{7.5, 13.5, 19.5, 25.5};
     res = res && ck::utils::check_err(out_tensor.mDesc.GetLengths(),
@@ -219,13 +219,13 @@ bool TestConv1DNWC()
     params.input_left_pads        = std::vector<ck::index_t>{1};
     params.input_right_pads       = std::vector<ck::index_t>{1};
 
-    out_tensor = RunReferenceConv<1,
-                                  float,
-                                  float,
-                                  float,
-                                  ck::tensor_layout::convolution::NWC,
-                                  ck::tensor_layout::convolution::KXC,
-                                  ck::tensor_layout::convolution::NWK>(params);
+    out_tensor = RunReferenceConvFwd<1,
+                                     float,
+                                     float,
+                                     float,
+                                     ck::tensor_layout::convolution::NWC,
+                                     ck::tensor_layout::convolution::KXC,
+                                     ck::tensor_layout::convolution::NWK>(params);
     ref_dims   = std::vector<std::size_t>{1, 2, 5};
     ref_data   = std::vector<float>{9., 9., 19.5, 19.5, 31.5, 31.5, 43.5, 43.5, 55.5, 55.5};
     res        = res && ck::utils::check_err(out_tensor.mDesc.GetLengths(),
@@ -244,13 +244,13 @@ bool TestConv1DNWC()
     params.input_left_pads        = std::vector<ck::index_t>{1};
     params.input_right_pads       = std::vector<ck::index_t>{1};
 
-    auto out_tensor2 = RunReferenceConv<1,
-                                        float,
-                                        float,
-                                        float,
-                                        ck::tensor_layout::convolution::NWC,
-                                        ck::tensor_layout::convolution::KXC,
-                                        ck::tensor_layout::convolution::NWK>(
+    auto out_tensor2 = RunReferenceConvFwd<1,
+                                           float,
+                                           float,
+                                           float,
+                                           ck::tensor_layout::convolution::NWC,
+                                           ck::tensor_layout::convolution::KXC,
+                                           ck::tensor_layout::convolution::NWK>(
         params, FillMonotonicSeq<float>{0.f, 0.1f});
 
     ref_dims = std::vector<std::size_t>{2, 16, 16};
@@ -330,7 +330,7 @@ bool TestConv1DNWC()
 bool TestConv3DNCDHW()
 {
     bool res{true};
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 3;
     params.N                      = 1;
     params.K                      = 1;
@@ -342,13 +342,13 @@ bool TestConv3DNCDHW()
     params.input_left_pads        = std::vector<ck::index_t>{0, 0, 0};
     params.input_right_pads       = std::vector<ck::index_t>{0, 0, 0};
 
-    auto out_tensor = RunReferenceConv<3,
-                                       float,
-                                       float,
-                                       float,
-                                       ck::tensor_layout::convolution::NCDHW,
-                                       ck::tensor_layout::convolution::KCZYX,
-                                       ck::tensor_layout::convolution::NKDHW>(
+    auto out_tensor = RunReferenceConvFwd<3,
+                                          float,
+                                          float,
+                                          float,
+                                          ck::tensor_layout::convolution::NCDHW,
+                                          ck::tensor_layout::convolution::KCZYX,
+                                          ck::tensor_layout::convolution::NKDHW>(
         params, FillMonotonicSeq<float>{0.f, 0.1f});
     std::vector<std::size_t> ref_dims{1, 1, 4, 4, 4};
     std::vector<float> ref_data{
@@ -376,13 +376,13 @@ bool TestConv3DNCDHW()
     params.input_left_pads        = std::vector<ck::index_t>{0, 0, 0};
     params.input_right_pads       = std::vector<ck::index_t>{0, 0, 0};
 
-    out_tensor = RunReferenceConv<3,
-                                  float,
-                                  float,
-                                  float,
-                                  ck::tensor_layout::convolution::NCDHW,
-                                  ck::tensor_layout::convolution::KCZYX,
-                                  ck::tensor_layout::convolution::NKDHW>(
+    out_tensor = RunReferenceConvFwd<3,
+                                     float,
+                                     float,
+                                     float,
+                                     ck::tensor_layout::convolution::NCDHW,
+                                     ck::tensor_layout::convolution::KCZYX,
+                                     ck::tensor_layout::convolution::NKDHW>(
         params, FillMonotonicSeq<float>{0.f, 0.1f});
     ref_dims = std::vector<std::size_t>{1, 2, 4, 4, 4};
     ref_data = std::vector<float>{

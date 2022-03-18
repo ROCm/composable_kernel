@@ -6,7 +6,8 @@
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
-#include "conv_test_util.hpp"
+#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "host_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "check_err.hpp"
@@ -37,7 +38,7 @@ namespace {
 bool TestConv3DNDHWC()
 {
     bool res{true};
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 3;
     params.N                      = 2;
     params.K                      = 16;
@@ -49,18 +50,19 @@ bool TestConv3DNDHWC()
     params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
     params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
 
-    auto host_tensors            = test::conv::GetHostTensors<float,
-                                                   float,
-                                                   float,
-                                                   ck::tensor_layout::convolution::NDHWC,
-                                                   ck::tensor_layout::convolution::KZYXC,
-                                                   ck::tensor_layout::convolution::NDHWK>(params);
+    auto host_tensors =
+        ck::utils::conv::GetHostTensors<float,
+                                        float,
+                                        float,
+                                        ck::tensor_layout::convolution::NDHWC,
+                                        ck::tensor_layout::convolution::KZYXC,
+                                        ck::tensor_layout::convolution::NDHWK>(params);
     const Tensor<float>& input   = std::get<0>(host_tensors);
     const Tensor<float>& weights = std::get<1>(host_tensors);
     Tensor<float>& host_output   = std::get<2>(host_tensors);
     Tensor<float>& device_output = std::get<3>(host_tensors);
 
-    test::conv::RunReferenceConv<3>(params, input, weights, host_output);
+    ck::utils::conv::RunReferenceConvFwd<3>(params, input, weights, host_output);
     test::conv::RunConv<3>(params, input, weights, device_output);
     res = res &&
           ck::utils::check_err(
@@ -72,7 +74,7 @@ bool TestConv3DNDHWC()
 bool TestConv3DNDHWC2GBInput()
 {
     // >2GB Input
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 3;
     params.N                      = 2;
     params.K                      = 16;
@@ -85,12 +87,12 @@ bool TestConv3DNDHWC2GBInput()
     params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
 
     auto host_tensors =
-        test::conv::GetHostTensors<float,
-                                   float,
-                                   float,
-                                   ck::tensor_layout::convolution::NDHWC,
-                                   ck::tensor_layout::convolution::KZYXC,
-                                   ck::tensor_layout::convolution::NDHWK>(params, false);
+        ck::utils::conv::GetHostTensors<float,
+                                        float,
+                                        float,
+                                        ck::tensor_layout::convolution::NDHWC,
+                                        ck::tensor_layout::convolution::KZYXC,
+                                        ck::tensor_layout::convolution::NDHWK>(params, false);
     const Tensor<float>& input   = std::get<0>(host_tensors);
     const Tensor<float>& weights = std::get<1>(host_tensors);
     Tensor<float>& device_output = std::get<3>(host_tensors);
@@ -116,7 +118,7 @@ bool TestConv3DNDHWC2GBInput()
 bool TestConv3DNDHWC2GBFilters()
 {
     // >2GB Filters
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 3;
     params.N                      = 2;
     params.K                      = 16;
@@ -129,12 +131,12 @@ bool TestConv3DNDHWC2GBFilters()
     params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
 
     auto host_tensors =
-        test::conv::GetHostTensors<float,
-                                   float,
-                                   float,
-                                   ck::tensor_layout::convolution::NDHWC,
-                                   ck::tensor_layout::convolution::KZYXC,
-                                   ck::tensor_layout::convolution::NDHWK>(params, false);
+        ck::utils::conv::GetHostTensors<float,
+                                        float,
+                                        float,
+                                        ck::tensor_layout::convolution::NDHWC,
+                                        ck::tensor_layout::convolution::KZYXC,
+                                        ck::tensor_layout::convolution::NDHWK>(params, false);
     const Tensor<float>& input   = std::get<0>(host_tensors);
     const Tensor<float>& weights = std::get<1>(host_tensors);
     Tensor<float>& device_output = std::get<3>(host_tensors);
@@ -160,7 +162,7 @@ bool TestConv3DNDHWC2GBFilters()
 bool TestConv3DNDHWC2GBOutput()
 {
     // >2GB Output
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 3;
     params.N                      = 2;
     params.K                      = 16;
@@ -173,12 +175,12 @@ bool TestConv3DNDHWC2GBOutput()
     params.input_right_pads       = std::vector<ck::index_t>{2, 2, 2};
 
     auto host_tensors =
-        test::conv::GetHostTensors<float,
-                                   float,
-                                   float,
-                                   ck::tensor_layout::convolution::NDHWC,
-                                   ck::tensor_layout::convolution::KZYXC,
-                                   ck::tensor_layout::convolution::NDHWK>(params, false);
+        ck::utils::conv::GetHostTensors<float,
+                                        float,
+                                        float,
+                                        ck::tensor_layout::convolution::NDHWC,
+                                        ck::tensor_layout::convolution::KZYXC,
+                                        ck::tensor_layout::convolution::NDHWK>(params, false);
     const Tensor<float>& input   = std::get<0>(host_tensors);
     const Tensor<float>& weights = std::get<1>(host_tensors);
     Tensor<float>& device_output = std::get<3>(host_tensors);
@@ -204,7 +206,7 @@ bool TestConv3DNDHWC2GBOutput()
 template <typename T>
 bool TestConv3DNDHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.N                      = 64;
     params.num_dim_spatial        = 3;
     params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 2};
@@ -214,19 +216,20 @@ bool TestConv3DNDHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs
     params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
     params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
 
-    auto host_tensors        = test::conv::GetHostTensors<T,
-                                                   T,
-                                                   T,
-                                                   ck::tensor_layout::convolution::NDHWC,
-                                                   ck::tensor_layout::convolution::KZYXC,
-                                                   ck::tensor_layout::convolution::NDHWK>(params);
+    auto host_tensors =
+        ck::utils::conv::GetHostTensors<T,
+                                        T,
+                                        T,
+                                        ck::tensor_layout::convolution::NDHWC,
+                                        ck::tensor_layout::convolution::KZYXC,
+                                        ck::tensor_layout::convolution::NDHWK>(params);
     const Tensor<T>& input   = std::get<0>(host_tensors);
     const Tensor<T>& weights = std::get<1>(host_tensors);
     Tensor<T>& host_output   = std::get<2>(host_tensors);
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
-    test::conv::RunReferenceConv<3>(params, input, weights, host_output);
-    return test::conv::RunConvInstances<3>(
+    ck::utils::conv::RunReferenceConvFwd<3>(params, input, weights, host_output);
+    return ck::utils::conv::RunConvInstances<3>(
         params, conv_ptrs, input, weights, device_output, host_output);
 }
 

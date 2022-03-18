@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "config.hpp"
-#include "conv_utils.hpp"
+#include "conv_fwd_util.hpp"
 #include "tensor_layout.hpp"
 #include "check_err.hpp"
 
@@ -18,7 +18,7 @@ bool TestConvParams_GetOutputSpatialLengths()
     // stride {2,2},
     // dilations {1,1},
     // padding {{1,1}, {1,1}}
-    ck::conv_util::ConvParams conv_params;
+    ck::utils::conv::ConvParams conv_params;
     std::vector<ck::index_t> out_spatial_len = conv_params.GetOutputSpatialLengths();
     res                                      = ck::utils::check_err(out_spatial_len,
                                std::vector<ck::index_t>{36, 36},
@@ -143,31 +143,31 @@ bool TestGetHostTensorDescriptor()
     bool res{true};
     namespace tl = ck::tensor_layout::convolution;
     std::vector<std::size_t> dims{2, 3, 4, 5};
-    HostTensorDescriptor h = ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
+    HostTensorDescriptor h = ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWC{});
     res =
         ck::utils::check_err(h.GetLengths(), {2, 3, 4, 5}, "Error: wrong NHWC dimensions lengths!");
     res = ck::utils::check_err(
         h.GetStrides(), {3 * 4 * 5, 1, 3 * 5, 3}, "Error: wrong NHWC dimensions strides!");
 
-    h = ck::conv_util::GetHostTensorDescriptor(dims, tl::NCHW{});
+    h = ck::utils::conv::GetHostTensorDescriptor(dims, tl::NCHW{});
     res =
         ck::utils::check_err(h.GetLengths(), {2, 3, 4, 5}, "Error: wrong NCHW dimensions lengths!");
     res = ck::utils::check_err(
         h.GetStrides(), {3 * 4 * 5, 4 * 5, 5, 1}, "Error: wrong NCHW dimensions strides!");
 
     dims = std::vector<std::size_t>{2, 3, 4};
-    h    = ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
+    h    = ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWC{});
     res  = ck::utils::check_err(h.GetLengths(), {2, 3, 4}, "Error: wrong NWC dimensions lengths!");
     res =
         ck::utils::check_err(h.GetStrides(), {3 * 4, 1, 3}, "Error: wrong NWC dimensions strides!");
 
-    h   = ck::conv_util::GetHostTensorDescriptor(dims, tl::NCW{});
+    h   = ck::utils::conv::GetHostTensorDescriptor(dims, tl::NCW{});
     res = ck::utils::check_err(h.GetLengths(), {2, 3, 4}, "Error: wrong NCW dimensions lengths!");
     res =
         ck::utils::check_err(h.GetStrides(), {3 * 4, 4, 1}, "Error: wrong NCW dimensions strides!");
 
     dims = std::vector<std::size_t>{2, 3, 4, 5, 6};
-    h    = ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWC{});
+    h    = ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWC{});
     res  = ck::utils::check_err(h.GetLengths(), dims, "Error: wrong NDHWC dimensions lengths!");
     res  = ck::utils::check_err(h.GetStrides(),
                                {3 * 4 * 5 * 6, // N
@@ -177,7 +177,7 @@ bool TestGetHostTensorDescriptor()
                                 3},            // W
                                "Error: wrong NDHWC dimensions strides!");
 
-    h   = ck::conv_util::GetHostTensorDescriptor(dims, tl::NCDHW{});
+    h   = ck::utils::conv::GetHostTensorDescriptor(dims, tl::NCDHW{});
     res = ck::utils::check_err(h.GetLengths(), dims, "Error: wrong NCDHW dimensions lengths!");
     res = ck::utils::check_err(h.GetStrides(),
                                {3 * 4 * 5 * 6, // N
