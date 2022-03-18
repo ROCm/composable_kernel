@@ -4,20 +4,22 @@
 #include <cstdlib>
 #include <cstring>
 
-int profile_gemm(int, char*[]);
-int profile_batched_gemm(int, char*[]);
-int profile_gemm_bias_2d(int, char*[]);
-int profile_gemm_bias_relu(int, char*[]);
-int profile_gemm_bias_relu_add(int, char*[]);
-int profile_conv_fwd(int, char*[]);
-int profile_conv_fwd_bias_relu(int, char*[]);
-int profile_conv_fwd_bias_relu_add(int, char*[]);
-int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
-int profile_conv_bwd_data(int, char*[]);
-int profile_reduce(int, char*[]);
+// int profile_gemm(int, char*[]);
+// int profile_gemm_bias_2d(int, char*[]);
+// int profile_gemm_bias_relu(int, char*[]);
+// int profile_gemm_bias_relu_add(int, char*[]);
+int profile_gemm_reduce(int, char*[]);
+// int profile_batched_gemm(int, char*[]);
+// int profile_conv_fwd(int, char*[]);
+// int profile_conv_fwd_bias_relu(int, char*[]);
+// int profile_conv_fwd_bias_relu_add(int, char*[]);
+// int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
+// int profile_conv_bwd_data(int, char*[]);
+// int profile_reduce(int, char*[]);
 
 int main(int argc, char* argv[])
 {
+#if 0
     if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
@@ -34,6 +36,12 @@ int main(int argc, char* argv[])
     {
         return profile_gemm_bias_relu_add(argc, argv);
     }
+#endif
+    if(strcmp(argv[1], "gemm_reduce") == 0)
+    {
+        return profile_gemm_reduce(argc, argv);
+    }
+#if 0
     else if(strcmp(argv[1], "batched_gemm") == 0)
     {
         return profile_batched_gemm(argc, argv);
@@ -62,6 +70,7 @@ int main(int argc, char* argv[])
     {
         return profile_reduce(argc, argv);
     }
+#endif
     else
     {
         // clang-format off
@@ -69,12 +78,13 @@ int main(int argc, char* argv[])
                "                        gemm_bias_2d: GEMM+Bias(2D)\n"
                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
                "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
+               "                        gemm_reduce: GEMM+Reduce\n"
                "                        conv_fwd: ForwardConvolution\n"
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
                "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
                "                        conv_bwd: BackwardConvolution\n"
-               "                        reduce: REDUCE\n");
+               "                        reduce: Reduce\n");
         // clang-format on
 
         return 0;

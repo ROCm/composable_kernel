@@ -8,6 +8,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_reduce_xdl_cshuffle_v1.hpp"
+#include "gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {

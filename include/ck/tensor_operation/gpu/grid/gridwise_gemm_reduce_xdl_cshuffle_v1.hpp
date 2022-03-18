@@ -675,6 +675,11 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
 
+            static_assert(CReduceThreadClusterLengths_MPerBlock_NPerBlock::At(I0) *
+                                  CReduceThreadClusterLengths_MPerBlock_NPerBlock::At(I1) ==
+                              BlockSize,
+                          "wrong!");
+
             static_assert((CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl) %
                                       CReduceThreadClusterLengths_MPerBlock_NPerBlock::At(I0) ==
                                   0 &&

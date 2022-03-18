@@ -16,21 +16,7 @@
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
-#include "reduction_enums.hpp"
-
-struct ReduceSum
-{
-    __host__ __device__ static constexpr float GetReduceZeroValue() { return float(0); }
-
-    __host__ __device__ void Reduce(float& acc, float v) const { acc += v; }
-};
-
-struct ReduceSquareSum
-{
-    __host__ __device__ static constexpr float GetReduceZeroValue() { return float(0); }
-
-    __host__ __device__ void Reduce(float& acc, float v) const { acc += v * v; }
-};
+#include "element_wise_reduce_operation.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -53,7 +39,7 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-using DReduceOp  = ReduceSquareSum;
+using DReduceOp  = ck::tensor_operation::element_wise::ReduceSquareSum;
 
 static constexpr auto GemmSpecialization =
     ck::tensor_operation::device::GemmSpecialization_t::Default;
