@@ -9,7 +9,7 @@
 #include "conv_test_util.hpp"
 #include "host_tensor.hpp"
 #include "tensor_layout.hpp"
-#include "test_util.hpp"
+#include "check_err.hpp"
 
 // Forward declarations for conv instances.
 using DeviceConvFwdNoOpPtr =
@@ -55,7 +55,7 @@ bool TestConv2DNHWC()
     test::conv::RunReferenceConv<2>(params, input, weights, host_output);
     test::conv::RunConv<2>(params, input, weights, device_output);
     res = res &&
-          test::check_err(
+          ck::utils::check_err(
               device_output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
 
     return res;

@@ -6,6 +6,7 @@
 #include <tuple>
 #include <vector>
 
+#include "check_err.hpp"
 #include "gemm_util.hpp"
 #include "config.hpp"
 #include "print.hpp"
@@ -19,7 +20,6 @@
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
-#include "test_util.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -136,7 +136,7 @@ bool TestGemm(DeviceGemmPtr_& gemmPtr)
     bf16_to_f32_(c_device_bf16, c_device_fp32);
 
     // Assert
-    bool res = test::check_err(
+    bool res = ck::utils::check_err(
         c_device_fp32.mData, c_host_fp32.mData, "Error: incorrect results!", 1e-2f, 1e-3f);
 
     std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;

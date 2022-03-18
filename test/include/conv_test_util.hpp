@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "check_err.hpp"
 #include "config.hpp"
 #include "conv_utils.hpp"
 #include "device.hpp"
@@ -19,7 +20,6 @@
 #include "host_tensor.hpp"
 #include "reference_conv_fwd.hpp"
 #include "tensor_layout.hpp"
-#include "test_util.hpp"
 
 namespace {
 
@@ -267,12 +267,12 @@ bool RunConvInstances(const ck::conv_util::ConvParams& params,
             if constexpr(std::is_same_v<InDataType, ck::half_t>)
             {
                 atol = 1e-4f;
-                rtol = 2,5e-3f;
+                rtol = 2.5e-3f;
             }
             invoker->Run(argument.get());
             out_device_buf.FromDevice(output.mData.data());
             res = res &&
-                  test::check_err(
+                  ck::utils::check_err(
                       output.mData, host_output.mData, "Error: incorrect results!", atol, rtol);
             hipGetErrorString(
                 hipMemset(out_device_buf.GetDeviceBuffer(), 0, out_device_buf.mMemSize));

@@ -9,7 +9,7 @@
 #include "conv_test_util.hpp"
 #include "host_tensor.hpp"
 #include "tensor_layout.hpp"
-#include "test_util.hpp"
+#include "check_err.hpp"
 
 // Forward declarations for conv instances.
 using DeviceConvFwdNoOpPtr =
@@ -63,7 +63,7 @@ bool TestConv3DNDHWC()
     test::conv::RunReferenceConv<3>(params, input, weights, host_output);
     test::conv::RunConv<3>(params, input, weights, device_output);
     res = res &&
-          test::check_err(
+          ck::utils::check_err(
               device_output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
 
     return res;
@@ -205,14 +205,14 @@ template <typename T>
 bool TestConv3DNDHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
     ck::conv_util::ConvParams params;
-    params.N = 64;
-    params.num_dim_spatial = 3;
-    params.filter_spatial_lengths        = std::vector<ck::index_t>{3, 3, 2};
-    params.input_spatial_lengths         = std::vector<ck::index_t>{32, 32, 2};
-    params.conv_filter_strides           = std::vector<ck::index_t>{2, 2, 2};
-    params.conv_filter_dilations         = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads               = std::vector<ck::index_t>{1, 1, 1};
-    params.input_right_pads              = std::vector<ck::index_t>{1, 1, 1};
+    params.N                      = 64;
+    params.num_dim_spatial        = 3;
+    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 2};
+    params.input_spatial_lengths  = std::vector<ck::index_t>{32, 32, 2};
+    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2, 2};
+    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
+    params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
 
     auto host_tensors        = test::conv::GetHostTensors<T,
                                                    T,
