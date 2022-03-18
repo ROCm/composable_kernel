@@ -85,7 +85,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 
 void PrintUseMsg()
 {
-    std::cout << "arg1: verification (0=no, 1=yes)\n"
+    std::cout << "arg1: data type (0=float, 1=fp16, 2=bf16, 3=int8)\n"
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
               << "arg3: run kernel # of times (>1)\n"
               << "arg4: N spatial dimensions (default 2)\n"
