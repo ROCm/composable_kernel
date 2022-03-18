@@ -1,4 +1,4 @@
-# Instructions for ```gemm_xdl``` Example
+# Instructions
 
 ## Docker script
 ```bash
@@ -13,7 +13,7 @@ rocm/tensorflow:rocm4.3.1-tf2.6-dev                                          \
 /bin/bash
 ```
 
-## Build ```gemm_xdl```
+## Build Example
 ```bash
 mkdir build && cd build
 ```
@@ -30,15 +30,15 @@ cmake                                                                  \
 ```
 
 ```bash
- make -j gemm_xdl
+ make -j example_gemm_xdl_fp16
 ```
 
-## Run ```gemm_xdl```
+## Run Example
 ```bash
 #arg1: verification (0=no, 1=yes)
 #arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 #arg3: run kernel # of times (>1)
-./example/gemm_xdl 0 1 5
+./bin/example_gemm_xdl_fp16 0 1 5
 ```
 
 Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
