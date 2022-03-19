@@ -486,7 +486,8 @@ int main(int argc, char* argv[])
 
                 if(!check_out(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result))
                 {
-                    std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
+                    std::cout << "Fail Info: " << conv_ptr->GetTypeString() << " data_type: " << data_type << std::endl;
+                    check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
                     success = false;
                 }
                 else
@@ -502,11 +503,11 @@ int main(int argc, char* argv[])
 
         if(success)
         {
-            std::cout << "test conv2d bwd : Pass" << std::endl;
+            std::cout << "test convnd bwd : Pass" << std::endl;
         }
         else
         {
-            std::cout << "test conv2d bwd: Fail " << std::endl;
+            std::cout << "test convnd bwd: Fail " << std::endl;
         }
     };
 

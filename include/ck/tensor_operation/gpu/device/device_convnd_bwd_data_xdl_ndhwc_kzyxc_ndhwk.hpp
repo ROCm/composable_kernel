@@ -1522,7 +1522,12 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             << NPerBlock << ", "
             << K0PerBlock
             << ">";
-        // clang-format on
+        if constexpr(ConvBackwardDataSpecialization ==
+                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0){
+            
+            str<< " Filter1x1Stride1Pad0";
+        }
+        
 
         return str.str();
     }
