@@ -2,7 +2,7 @@
 #include "device_reduce.hpp"
 #include "device_reduce_instance.hpp"
 #include "reduction_enums.hpp"
-#include "host_generic_reduction.hpp"
+#include "host_reduction.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -380,7 +380,14 @@ void profile_reduce_impl_impl(bool do_verification,
             using hOutType  = typename type_mapping<OutDataType>::outDataType;
             using hCompType = typename type_mapping<AccDataType>::outDataType;
 
-            ReductionHost<hInType, hCompType, hOutType, ReduceOpId, PropagateNan, NeedIndices>
+            ReductionHost<hInType,
+                          hCompType,
+                          hOutType,
+                          ReduceOpId,
+                          Rank,
+                          NumReduceDim,
+                          PropagateNan,
+                          NeedIndices>
                 hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
             hostReduce.Run(alpha,

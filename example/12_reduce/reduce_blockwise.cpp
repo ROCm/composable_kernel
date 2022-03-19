@@ -13,7 +13,7 @@
 #include "device_base.hpp"
 #include "device_reduce_blockwise.hpp"
 #include "host_reduce_util.hpp"
-#include "host_generic_reduction.hpp"
+#include "host_reduction.hpp"
 
 #include "reduction_enums.hpp"
 #include "reduction_operator_mapping.hpp"
@@ -299,7 +299,14 @@ int main(int argc, char* argv[])
 
     if(args.do_verification)
     {
-        ReductionHost<InDataType, AccDataType, OutDataType, ReduceOpId, PropagateNan, NeedIndices>
+        ReductionHost<InDataType,
+                      AccDataType,
+                      OutDataType,
+                      ReduceOpId,
+                      Rank,
+                      NumReduceDim,
+                      PropagateNan,
+                      NeedIndices>
             hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
         hostReduce.Run(
