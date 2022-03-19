@@ -244,7 +244,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         nrepeat         = std::stoi(argv[3]);
     }
-    else
+    else if(argc > 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -260,6 +260,11 @@ int main(int argc, char* argv[])
         }
 
         params = ParseConvParams(num_dim_spatial, argv);
+    }
+    else if(argc != 1)
+    {
+        PrintUseMsg();
+        exit(1);
     }
 
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),

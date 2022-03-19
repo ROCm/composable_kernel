@@ -328,6 +328,11 @@ int main(int argc, char* argv[])
 
         params = ParseConvParams(num_dim_spatial, argv, preParams);
     }
+    else if(argc != 1)
+    {
+        PrintUseMsg();
+        return 1;
+    }
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type) {
         using InDataType  = decltype(input_type);
@@ -486,7 +491,8 @@ int main(int argc, char* argv[])
 
                 if(!check_out(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result))
                 {
-                    std::cout << "Fail Info: " << conv_ptr->GetTypeString() << " data_type: " << data_type << std::endl;
+                    std::cout << "Fail Info: " << conv_ptr->GetTypeString()
+                              << " data_type: " << data_type << std::endl;
                     check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
                     success = false;
                 }
