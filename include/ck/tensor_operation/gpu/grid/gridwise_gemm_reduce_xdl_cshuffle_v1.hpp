@@ -18,7 +18,7 @@ template <typename GridwiseGemm,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename DReduceOperation,
+          typename D0ReduceOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -33,11 +33,11 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            FloatD* __restrict__ p_d_grid,
+            FloatD* __restrict__ p_d0_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
-            const DReduceOperation d_reduce_op,
+            const D0ReduceOperation d0_reduce_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -50,12 +50,12 @@ __global__ void
     GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
                                                    p_b_grid,
                                                    p_c_grid,
-                                                   p_d_grid,
+                                                   p_d0_grid,
                                                    p_shared,
                                                    a_element_op,
                                                    b_element_op,
                                                    c_element_op,
-                                                   d_reduce_op,
+                                                   d0_reduce_op,
                                                    a_grid_desc_ak0_m_ak1,
                                                    b_grid_desc_bk0_n_bk1,
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -72,7 +72,7 @@ template <typename FloatAB,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename DReduceOperation,
+          typename D0ReduceOperation,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           InMemoryDataOperationEnum_t DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -342,12 +342,12 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
-                               FloatD* __restrict__ p_d_grid,
+                               FloatD* __restrict__ p_d0_grid,
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
-                               const DReduceOperation& d_reduce_op,
+                               const D0ReduceOperation& d0_reduce_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -362,7 +362,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_d_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
+            p_d0_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -821,14 +821,14 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                     // reduce in VGPR
                     static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        FloatReduceAcc r_acc = d_reduce_op.GetReduceZeroValue();
+                        FloatReduceAcc r_acc = d0_reduce_op.GetReduceZeroValue();
 
                         static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
                             constexpr index_t in_offset =
                                 c_in_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
                                     make_tuple(im, in));
 
-                            d_reduce_op.Reduce(r_acc, c_in_reduce_thread_buf[Number<in_offset>{}]);
+                            d0_reduce_op.Reduce(r_acc, c_in_reduce_thread_buf[Number<in_offset>{}]);
                         });
 
                         constexpr index_t out_offset =

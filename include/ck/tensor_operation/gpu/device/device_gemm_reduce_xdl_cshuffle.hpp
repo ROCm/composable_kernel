@@ -27,7 +27,7 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename DReduceOperation,
+          typename D0ReduceOperation,
           GemmSpecialization_t GemmSpecialization,
           index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
@@ -64,7 +64,7 @@ template <typename ALayout,
 struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOperation,
                                                                BElementwiseOperation,
                                                                CElementwiseOperation,
-                                                               DReduceOperation>
+                                                               D0ReduceOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -376,7 +376,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        DReduceOperation,
+        D0ReduceOperation,
         InMemoryDataOperationEnum_t::Set,
         InMemoryDataOperationEnum_t::AtomicAdd,
         AGridDesc_AK0_M_AK1,
@@ -424,7 +424,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
-                 DDataType* p_d_grid,
+                 DDataType* p_d0_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -434,11 +434,11 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
-                 DReduceOperation d_reduce_op)
+                 D0ReduceOperation d0_reduce_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              p_d_grid_{p_d_grid},
+              p_d0_grid_{p_d0_grid},
               a_grid_desc_ak0_m_ak1_{},
               b_grid_desc_bk0_n_bk1_{},
               c_grid_desc_m_n_{},
@@ -449,7 +449,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
-              d_reduce_op_{d_reduce_op}
+              d0_reduce_op_{d0_reduce_op}
         {
             a_grid_desc_ak0_m_ak1_ =
                 DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA);
@@ -477,7 +477,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        DDataType* p_d_grid_;
+        DDataType* p_d0_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -489,7 +489,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        DReduceOperation d_reduce_op_;
+        D0ReduceOperation d0_reduce_op_;
     };
 
     // Invoker
@@ -542,7 +542,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    DReduceOperation,
+                    D0ReduceOperation,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_AK0_M_AK1>,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_BK0_N_BK1>,
                     remove_reference_t<
@@ -560,11 +560,11 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_d_grid_,
+                                           arg.p_d0_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
-                                           arg.d_reduce_op_,
+                                           arg.d0_reduce_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
@@ -581,7 +581,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    DReduceOperation,
+                    D0ReduceOperation,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_AK0_M_AK1>,
                     remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_BK0_N_BK1>,
                     remove_reference_t<
@@ -599,11 +599,11 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_d_grid_,
+                                           arg.p_d0_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
-                                           arg.d_reduce_op_,
+                                           arg.d0_reduce_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
@@ -642,7 +642,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              CDataType* p_c,
-                             DDataType* p_d,
+                             DDataType* p_d0,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -652,12 +652,12 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
-                             DReduceOperation d_reduce_op)
+                             D0ReduceOperation d0_reduce_op)
     {
         return Argument{p_a,
                         p_b,
                         p_c,
-                        p_d,
+                        p_d0,
                         MRaw,
                         NRaw,
                         KRaw,
@@ -667,7 +667,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                         a_element_op,
                         b_element_op,
                         c_element_op,
-                        d_reduce_op};
+                        d0_reduce_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -676,7 +676,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       void* p_c,
-                                                      void* p_d,
+                                                      void* p_d0,
                                                       index_t MRaw,
                                                       index_t NRaw,
                                                       index_t KRaw,
@@ -686,12 +686,12 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
-                                                      DReduceOperation d_reduce_op) override
+                                                      D0ReduceOperation d0_reduce_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
-                                          static_cast<DDataType*>(p_d),
+                                          static_cast<DDataType*>(p_d0),
                                           MRaw,
                                           NRaw,
                                           KRaw,
@@ -701,7 +701,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
-                                          d_reduce_op);
+                                          d0_reduce_op);
     }
 
     // polymorphic
