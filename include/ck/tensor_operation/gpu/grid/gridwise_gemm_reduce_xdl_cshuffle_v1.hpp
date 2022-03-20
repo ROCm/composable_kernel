@@ -19,6 +19,7 @@ template <typename GridwiseGemm,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename D0ReduceOperation,
+          typename D1ReduceOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -34,10 +35,12 @@ __global__ void
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
             FloatD* __restrict__ p_d0_grid,
+            FloatD* __restrict__ p_d1_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
             const D0ReduceOperation d0_reduce_op,
+            const D1ReduceOperation d1_reduce_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -51,11 +54,13 @@ __global__ void
                                                    p_b_grid,
                                                    p_c_grid,
                                                    p_d0_grid,
+                                                   p_d1_grid,
                                                    p_shared,
                                                    a_element_op,
                                                    b_element_op,
                                                    c_element_op,
                                                    d0_reduce_op,
+                                                   d1_reduce_op,
                                                    a_grid_desc_ak0_m_ak1,
                                                    b_grid_desc_bk0_n_bk1,
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -73,6 +78,7 @@ template <typename FloatAB,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename D0ReduceOperation,
+          typename D1ReduceOperation,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           InMemoryDataOperationEnum_t DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -343,11 +349,13 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
                                FloatD* __restrict__ p_d0_grid,
+                               FloatD* __restrict__ p_d1_grid,
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
                                const D0ReduceOperation& d0_reduce_op,
+                               const D1ReduceOperation& d1_reduce_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -361,8 +369,10 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-        auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_d0_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
+        auto d1_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            p_d1_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
@@ -696,30 +706,31 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 (CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl) /
                 CReduceThreadClusterLengths_MPerBlock_NPerBlock::At(I1);
 
-            constexpr auto c_in_reduce_thread_lengths_mperblock_nperblock =
+            constexpr auto c_reduce_thread_lengths_mperblock_nperblock =
                 Sequence<mreduce_per_thread, nreduce_per_thread>{};
 
-            // VGPR c_in_reduce_thread_desc_mperblock_nperblock
-            constexpr auto c_in_reduce_thread_desc_mperblock_nperblock =
+            // VGPR c_reduce_thread_desc_mperblock_nperblock
+            constexpr auto c_reduce_thread_desc_mperblock_nperblock =
                 make_naive_tensor_descriptor_packed(
                     make_tuple(Number<mreduce_per_thread>{}, Number<nreduce_per_thread>{}));
 
-            // VGPR c_out_reduce_thread_desc_mperblock
-            constexpr auto c_out_reduce_thread_desc_mperblock =
+            // VGPR d_reduce_thread_desc_mperblock
+            constexpr auto d_reduce_thread_desc_mperblock =
                 make_naive_tensor_descriptor_packed(make_tuple(Number<mreduce_per_thread>{}));
 
-            // VGPR c_out_reduce_thread_desc_mblock_mperblock
-            constexpr auto c_out_reduce_thread_desc_mblock_mperblock =
+            // VGPR d_reduce_thread_desc_mblock_mperblock
+            constexpr auto d_reduce_thread_desc_mblock_mperblock =
                 make_naive_tensor_descriptor_packed(make_tuple(I1, Number<mreduce_per_thread>{}));
 
             // TODO: this should be implemented as a blockwise reduction
-            auto c_in_reduce_thread_buf =
-                make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
-                    c_in_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
+            auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+                c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
-            auto c_out_reduce_thread_buf =
-                make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
-                    c_out_reduce_thread_desc_mperblock.GetElementSpaceSize());
+            auto d0_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+                d_reduce_thread_desc_mperblock.GetElementSpaceSize());
+
+            auto d1_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+                d_reduce_thread_desc_mperblock.GetElementSpaceSize());
 
             // reduce: threadwise copy from LDS to VGPR
             constexpr auto c_reduce_thread_cluster_desc = make_cluster_descriptor(
@@ -730,14 +741,14 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     make_multi_index(get_thread_local_1d_id()));
 
             const auto c_reduce_thread_data_idx_begin =
-                c_reduce_thread_cluster_idx * c_in_reduce_thread_lengths_mperblock_nperblock;
+                c_reduce_thread_cluster_idx * c_reduce_thread_lengths_mperblock_nperblock;
 
             auto c_reduce_thread_copy_lds_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
                 FloatCShuffle,
                 FloatCShuffle,
                 decltype(c_reduce_block_desc_mperblock_nperblock),
-                decltype(c_in_reduce_thread_desc_mperblock_nperblock),
-                decltype(c_in_reduce_thread_lengths_mperblock_nperblock),
+                decltype(c_reduce_thread_desc_mperblock_nperblock),
+                decltype(c_reduce_thread_lengths_mperblock_nperblock),
                 Sequence<0, 1>,
                 1,
                 CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
@@ -745,10 +756,10 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 true>{c_reduce_block_desc_mperblock_nperblock, c_reduce_thread_data_idx_begin};
 
             // reduce: copy from VGPR to global
-            auto c_reduce_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
+            auto d0_reduce_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                 FloatCShuffle,
                 FloatD,
-                decltype(c_out_reduce_thread_desc_mblock_mperblock),
+                decltype(d_reduce_thread_desc_mblock_mperblock),
                 decltype(d_grid_desc_mblock_mperblock),
                 ck::tensor_operation::element_wise::PassThrough,
                 Sequence<1, mreduce_per_thread>,
@@ -761,6 +772,8 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                        make_multi_index(block_work_idx[I0],                  // mblock
                                         c_reduce_thread_data_idx_begin[I0]), // mperblock
                        ck::tensor_operation::element_wise::PassThrough{}};
+
+            auto d1_reduce_thread_copy_vgpr_to_global = d0_reduce_thread_copy_vgpr_to_global;
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
@@ -811,50 +824,63 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                 // reduce
                 {
-                    // LDS to VGPR
-                    c_reduce_thread_copy_lds_to_vgpr.Run(
-                        c_reduce_block_desc_mperblock_nperblock,
-                        c_shuffle_block_buf,
-                        c_in_reduce_thread_desc_mperblock_nperblock,
-                        make_tuple(I0, I0),
-                        c_in_reduce_thread_buf);
+                    // copy from LDS to VGPR
+                    c_reduce_thread_copy_lds_to_vgpr.Run(c_reduce_block_desc_mperblock_nperblock,
+                                                         c_shuffle_block_buf,
+                                                         c_reduce_thread_desc_mperblock_nperblock,
+                                                         make_tuple(I0, I0),
+                                                         c_reduce_thread_buf);
 
                     // reduce in VGPR
                     static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        FloatReduceAcc r_acc = d0_reduce_op.GetReduceZeroValue();
+                        FloatReduceAcc d0_acc = d0_reduce_op.GetReduceZeroValue();
+                        FloatReduceAcc d1_acc = d1_reduce_op.GetReduceZeroValue();
 
                         static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr index_t in_offset =
-                                c_in_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in));
+                            constexpr auto offset =
+                                Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
+                                    make_tuple(im, in))>{};
 
-                            d0_reduce_op.Reduce(r_acc, c_in_reduce_thread_buf[Number<in_offset>{}]);
+                            d0_reduce_op.Reduce(d0_acc, c_reduce_thread_buf[offset]);
+                            d1_reduce_op.Reduce(d1_acc, c_reduce_thread_buf[offset]);
                         });
 
                         constexpr index_t out_offset =
-                            c_out_reduce_thread_desc_mperblock.CalculateOffset(make_tuple(im));
+                            d_reduce_thread_desc_mperblock.CalculateOffset(make_tuple(im));
 
-                        c_out_reduce_thread_buf(Number<out_offset>{}) = r_acc;
+                        d0_thread_buf(Number<out_offset>{}) = d0_acc;
+                        d1_thread_buf(Number<out_offset>{}) = d1_acc;
                     });
 
-                    // VGPR to Global
-                    c_reduce_thread_copy_vgpr_to_global.Run(
-                        c_out_reduce_thread_desc_mblock_mperblock,
-                        make_tuple(I0, I0),
-                        c_out_reduce_thread_buf,
-                        d_grid_desc_mblock_mperblock,
-                        d_grid_buf);
+                    // copy from VGPR to Global
+                    d0_reduce_thread_copy_vgpr_to_global.Run(d_reduce_thread_desc_mblock_mperblock,
+                                                             make_tuple(I0, I0),
+                                                             d0_thread_buf,
+                                                             d_grid_desc_mblock_mperblock,
+                                                             d0_grid_buf);
+
+                    d1_reduce_thread_copy_vgpr_to_global.Run(d_reduce_thread_desc_mblock_mperblock,
+                                                             make_tuple(I0, I0),
+                                                             d1_thread_buf,
+                                                             d_grid_desc_mblock_mperblock,
+                                                             d1_grid_buf);
                 }
 
                 if constexpr(access_id < num_access - 1)
                 {
                     constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
 
+                    // move on C
                     c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
                         c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
 
-                    // reduce: move
-                    c_reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                    // move on D0
+                    d0_reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
+                        d_grid_desc_mblock_mperblock,
+                        make_tuple(c_global_step[I0], c_global_step[I1]));
+
+                    // move on D1
+                    d1_reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
                         d_grid_desc_mblock_mperblock,
                         make_tuple(c_global_step[I0], c_global_step[I1]));
                 }

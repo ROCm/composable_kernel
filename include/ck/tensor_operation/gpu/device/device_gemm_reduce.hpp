@@ -9,13 +9,15 @@ namespace device {
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename DReduceOperation>
+          typename D0ReduceOperation,
+          typename D1ReduceOperation>
 struct DeviceGemmReduce : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                               const void* p_b,
                                                               void* p_c,
-                                                              void* p_d,
+                                                              void* p_d0,
+                                                              void* p_d1,
                                                               ck::index_t M,
                                                               ck::index_t N,
                                                               ck::index_t K,
@@ -25,7 +27,8 @@ struct DeviceGemmReduce : public BaseOperator
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,
                                                               CElementwiseOperation c_element_op,
-                                                              DReduceOperation d_reduce_op) = 0;
+                                                              D0ReduceOperation d0_reduce_op,
+                                                              D1ReduceOperation d1_reduce_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
@@ -33,11 +36,13 @@ struct DeviceGemmReduce : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename DReduceOperation>
+          typename D0ReduceOperation,
+          typename D1ReduceOperation>
 using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<AElementwiseOperation,
                                                              BElementwiseOperation,
                                                              CElementwiseOperation,
-                                                             DReduceOperation>>;
+                                                             D0ReduceOperation,
+                                                             D1ReduceOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
