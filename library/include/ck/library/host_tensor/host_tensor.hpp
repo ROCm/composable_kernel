@@ -312,8 +312,6 @@ HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> s
 
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
-float bf16_to_f32_(ck::bhalf_t src_val);
-
 void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
 
 #endif
