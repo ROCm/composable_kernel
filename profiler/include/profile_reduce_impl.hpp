@@ -416,7 +416,8 @@ void profile_reduce_impl_impl(bool do_verification,
                 if(NeedIndices)
                 {
                     out_indices_dev.FromDevice(out_indices.mData.data());
-                    check_indices(out_indices_ref, out_indices);
+                    ck::utils::conv::check_err(out_indices.mData, out_indices_ref.mData);
+                    ;
                 };
 
                 if(do_log)
@@ -530,7 +531,8 @@ void profile_reduce_impl_impl(bool do_verification,
                     if(NeedIndices)
                     {
                         out_indices_dev.FromDevice(out_indices.mData.data());
-                        check_indices(out_indices_ref, out_indices);
+                        ck::utils::conv::check_err(out_indices.mData, out_indices_ref.mData);
+                        ;
                     };
 
                     if(do_log)
