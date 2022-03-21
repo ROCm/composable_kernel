@@ -291,6 +291,72 @@ auto GetHostTensors(const ConvParams& params, bool init = true)
     return std::make_tuple(input, weights, host_output, device_output);
 }
 
+HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                   int num_dim_spatial = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWK{});
+    }
+    case 2: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWK{});
+    }
+    case 1: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWK{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
+HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                    int num_dim_spatial = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KZYXC{});
+    }
+    case 2: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KYXC{});
+    }
+    case 1: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KXC{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
+HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
+                                                  int num_dim_spatial = 2)
+{
+    namespace tl = ck::tensor_layout::convolution;
+
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWC{});
+    }
+    case 2: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWC{});
+    }
+    case 1: {
+        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWC{});
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
 template <ck::index_t NDim,
           typename InDataType  = float,
           typename WeiDataType = float,
