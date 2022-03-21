@@ -358,12 +358,12 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         out_dev.FromDevice(out.mData.data());
-        ck::utils::conv::check_err(out.mData, out_ref.mData);
+        ck::utils::check_err(out.mData, out_ref.mData);
 
         if(NeedIndices)
         {
             out_indices_dev.FromDevice(out_indices.mData.data());
-            ck::utils::conv::check_err(out_indices.mData, out_indices_ref.mData);
+            ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
             ;
         };
     };

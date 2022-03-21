@@ -519,7 +519,7 @@ int main(int argc, char* argv[])
                                          make_tuple(in_right_pad_h, in_right_pad_w),
                                          layout);
 
-        ck::utils::conv::check_err(wei_device.mData, wei_host.mData);
+        ck::utils::check_err(wei_device.mData, wei_host.mData);
 
         if(do_log)
         {

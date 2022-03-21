@@ -402,7 +402,7 @@ void profile_gemm_impl(int do_verification,
 
                     ref_invoker.Run(ref_argument);
 
-                    ck::utils::conv::check_err(c_m_n_device_f32_result.mData,
+                    ck::utils::check_err(c_m_n_device_f32_result.mData,
                                                c_m_n_host_result.mData);
 
                     if(do_log)
@@ -432,7 +432,7 @@ void profile_gemm_impl(int do_verification,
                         a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    ck::utils::conv::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+                    ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
 
                     if(do_log)
                     {

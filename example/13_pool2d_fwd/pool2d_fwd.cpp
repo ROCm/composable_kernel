@@ -301,13 +301,13 @@ int main(int argc, char* argv[])
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        ck::utils::conv::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
+        ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
 
         if constexpr(NeedIndices)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            //          ck::utils::conv::check_err(out_indices_n_c_ho_wo_device.mData,
+            //          ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
             //          out_indices_n_c_ho_wo_host.mData);;
         };
     }

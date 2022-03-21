@@ -475,7 +475,7 @@ int main(int argc, char* argv[])
                                        make_tuple(in_right_pad_h, in_right_pad_w),
                                        layout);
 
-        ck::utils::conv::check_err(in_device.mData, in_host.mData);
+        ck::utils::check_err(in_device.mData, in_host.mData);
 
         if(do_log)
         {

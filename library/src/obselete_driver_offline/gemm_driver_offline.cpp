@@ -443,7 +443,7 @@ int main(int argc, char* argv[])
     {
         host_gemm(a, b, c_host, layout);
 
-        ck::utils::conv::check_err(c_device.mData, c_host.mData);
+        ck::utils::check_err(c_device.mData, c_host.mData);
 
         if(do_log)
         {

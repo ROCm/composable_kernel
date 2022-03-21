@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        ck::utils::conv::check_err(c_m_n_device_f32_result.mData, c_m_n_host_result.mData);
+        ck::utils::check_err(c_m_n_device_f32_result.mData, c_m_n_host_result.mData);
     }
 
     return 0;

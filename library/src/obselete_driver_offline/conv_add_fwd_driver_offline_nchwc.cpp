@@ -403,7 +403,7 @@ int main(int argc, char* argv[])
                                           make_tuple(in_right_pad_h, in_right_pad_w),
                                           activ_type);
 
-        ck::utils::conv::check_err(add_device.mData, add_host.mData);
+        ck::utils::check_err(add_device.mData, add_host.mData);
 
         if(do_log)
         {
