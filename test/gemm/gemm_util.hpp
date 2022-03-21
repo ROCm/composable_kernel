@@ -160,6 +160,10 @@ struct TestGemm
 
     auto operator()(DeviceGemmPtr_& gemmPtr)
     {
+        std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
+                  << ", CLayout = " << CLayout{}.name << std::endl;
+        std::cout << gemmPtr->GetTypeString() << std::endl;
+
         // Arrange
         ck::gemm_util::GemmParams params;
         params.M       = 1024;
