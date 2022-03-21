@@ -15,6 +15,18 @@ void add_device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances(std::vector<D
 void add_device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gmk_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_batched_gemm_instance
 } // namespace device
@@ -154,6 +166,70 @@ void profile_batched_gemm_impl(int do_verification,
         {
             ck::tensor_operation::device::device_batched_gemm_instance::
                 add_device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instances(gemm_ptrs);
+        }
+    }
+    else if constexpr(is_same<ADataType, float>::value && is_same<BDataType, float>::value &&
+                      is_same<CDataType, float>::value)
+    {
+        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gmk_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instances(gemm_ptrs);
+        }
+    }
+    else if constexpr(is_same<ADataType, int8_t>::value && is_same<BDataType, int8_t>::value &&
+                      is_same<CDataType, int8_t>::value)
+    {
+        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(gemm_ptrs);
         }
     }
 
