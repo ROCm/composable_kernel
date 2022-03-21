@@ -317,7 +317,7 @@ float bf16_to_f32_(ck::bhalf_t src_val);
 void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
 
 template <typename T>
-void check_error(const Tensor<T>& ref, const Tensor<T>& result)
+float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float error     = 0;
     float max_diff  = -1;
@@ -354,6 +354,7 @@ void check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     std::cout << "error: " << error << std::endl;
     std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
+    return max_diff;
 }
 
 template <typename T>
