@@ -223,6 +223,35 @@ struct DeviceGroupedGemmXdl
         CThreadTransferDstScalarPerVector,
         NumPrefetch>;
 
+    struct GroupedGemmBlock2CTileMap
+    {
+        GroupedGemmBlock2CTileMap()
+        {
+            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1);
+            BlockStart_        = -1;
+        }
+
+        GroupedGemmBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n,
+                                  index_t M01,
+                                  index_t N01,
+                                  ck::index_t BlockStart)
+        {
+            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, M01, N01);
+            BlockStart_        = BlockStart;
+        }
+
+        template <typename TopIdx>
+        __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
+        {
+            return block_2_ctile_map_.CalculateBottomIndex(
+                make_multi_index(idx_top[I0] - BlockStart_));
+        }
+
+        private:
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        ck::index_t BlockStart_;
+    };
+
     struct GemmDescKernelArg
     {
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
@@ -232,21 +261,21 @@ struct DeviceGroupedGemmXdl
         typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
 
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        GroupedGemmBlock2CTileMap grouped_gemm_block_2_ctile_map_;
 
         const ADataType* a_ptr;
         const BDataType* b_ptr;
         CDataType* c_ptr;
 
-        ck::index_t BlockStart, BlockEnd;
+        ck::index_t BlockStart_, BlockEnd_;
     };
 
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(std::vector<const void*> p_a,
-                 std::vector<const void*> p_b,
-                 std::vector<void*> p_c,
+        Argument(std::vector<const void*>& p_a,
+                 std::vector<const void*>& p_b,
+                 std::vector<void*>& p_c,
                  std::vector<GemmShape>& gemm_shapes,
                  index_t M01,
                  index_t N01,
@@ -301,15 +330,15 @@ struct DeviceGroupedGemmXdl
                     const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
 
-                    const auto block_2_ctile_map_ =
-                        GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                    const auto grouped_gemm_block_2_ctile_map_ =
+                        GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, BlockStart);
 
                     gemm_desc_kernel_arg_.push_back(
                         GemmDescKernelArg{a_grid_desc_k0_m_k1_,
                                           b_grid_desc_k0_n_k1_,
                                           c_grid_desc_m_n_,
                                           c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                          block_2_ctile_map_,
+                                          grouped_gemm_block_2_ctile_map_,
                                           static_cast<const ADataType*>(p_a[i]),
                                           static_cast<const BDataType*>(p_b[i]),
                                           static_cast<CDataType*>(p_c[i]),
@@ -470,9 +499,9 @@ struct DeviceGroupedGemmXdl
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(std::vector<const void*> p_a,
-                             std::vector<const void*> p_b,
-                             std::vector<void*> p_c,
+    static auto MakeArgument(std::vector<const void*>& p_a,
+                             std::vector<const void*>& p_b,
+                             std::vector<void*>& p_c,
                              std::vector<GemmShape> gemm_shapes,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -484,9 +513,9 @@ struct DeviceGroupedGemmXdl
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*> p_a,
-                                                      std::vector<const void*> p_b,
-                                                      std::vector<void*> p_c,
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
+                                                      std::vector<const void*>& p_b,
+                                                      std::vector<void*>& p_c,
                                                       std::vector<GemmShape>& gemm_shapes,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,

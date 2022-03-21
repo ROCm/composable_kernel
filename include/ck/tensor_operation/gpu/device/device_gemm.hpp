@@ -76,9 +76,9 @@ template <typename AElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceGroupedGemm : public BaseOperator
 {
-    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*> p_a,
-                                                              std::vector<const void*> p_b,
-                                                              std::vector<void*> p_c,
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
+                                                              std::vector<const void*>& p_b,
+                                                              std::vector<void*>& p_c,
                                                               std::vector<GemmShape>& gemm_shapes,
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,

@@ -80,11 +80,10 @@ __global__ void
 
 #if 1
     static_for<0, MaxGroupCount, 1>{}([&](auto i) {
-        if(block_id >= gemm_desc_[i].BlockStart && block_id < gemm_desc_[i].BlockEnd &&
+        if(block_id >= gemm_desc_[i].BlockStart_ && block_id < gemm_desc_[i].BlockEnd_ &&
            i < group_count)
         {
-            auto group_id              = i;
-            const index_t block_id_grp = block_id - gemm_desc_[group_id].BlockStart;
+            auto group_id = i;
 
             GridwiseGemm::template Run<HasMainK0BlockLoop>(
                 gemm_desc_[group_id].a_ptr,
@@ -97,8 +96,7 @@ __global__ void
                 a_element_op,
                 b_element_op,
                 c_element_op,
-                gemm_desc_[group_id].block_2_ctile_map_,
-                block_id_grp);
+                gemm_desc_[group_id].grouped_gemm_block_2_ctile_map_);
         }
     });
 #else
@@ -426,8 +424,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
         const CElementwiseOperation& c_element_op,
-        const Block2CTileMap& block_2_ctile_map,
-        ck::index_t block_id = get_block_1d_id())
+        const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
@@ -440,7 +437,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         // divide block work by [M, N]
         const auto block_work_idx =
-            block_2_ctile_map.CalculateBottomIndex(make_multi_index(block_id));
+            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
