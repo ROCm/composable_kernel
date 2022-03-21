@@ -189,7 +189,7 @@ int main(int argc, char* argv[])
     int nrepeat          = 5;
     int num_dim_spatial  = 2;
 
-    ConvParams params;
+    ck::utils::conv::ConvParams params;
 
     if(argc >= 5)
     {
