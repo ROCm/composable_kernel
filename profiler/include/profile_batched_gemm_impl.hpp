@@ -1,4 +1,6 @@
 #pragma once
+
+#include "check_err.hpp"
 #include "reference_batched_gemm.hpp"
 
 namespace ck {
@@ -218,7 +220,7 @@ void profile_batched_gemm_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
 
-                check_error(c_g_m_n_host_result, c_g_m_n_device_result);
+                ck::utils::check_err(c_g_m_n_device_result.mData, c_g_m_n_host_result.mData);
 
                 if(do_log)
                 {

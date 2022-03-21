@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <getopt.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -356,7 +358,7 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         out_dev.FromDevice(out.mData.data());
-        check_error(out_ref, out);
+        ck::utils::conv::check_err(out.mData, out_ref.mData);
 
         if(NeedIndices)
         {

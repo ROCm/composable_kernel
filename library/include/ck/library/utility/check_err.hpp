@@ -21,9 +21,9 @@ typename std::enable_if<std::is_floating_point<T>::value && !std::is_same<T, hal
                         bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
-          const std::string& msg,
-          double rtol = 1e-5,
-          double atol = 1e-8)
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-5,
+          double atol            = 1e-8)
 {
     if(out.size() != ref.size())
     {

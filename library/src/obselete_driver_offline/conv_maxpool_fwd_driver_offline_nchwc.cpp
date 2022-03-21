@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -397,8 +399,8 @@ int main(int argc, char* argv[])
                                               make_tuple(in_right_pad_h, in_right_pad_w),
                                               activ_type);
 
-        check_error(out_host, out_device);
-        check_error(max_host, max_device);
+        ck::utils::conv::check_err(out_device.mData, out_host.mData);
+        ck::utils::conv::check_err(max_device.mData, max_host.mData);
 
         if(do_log)
         {

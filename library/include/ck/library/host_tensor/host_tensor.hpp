@@ -317,46 +317,6 @@ float bf16_to_f32_(ck::bhalf_t src_val);
 void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
 
 template <typename T>
-void check_error(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    float error     = 0;
-    float max_diff  = -1;
-    float ref_value = 0, result_value = 0;
-
-    if constexpr(std::is_same<ck::bhalf_t, T>::value)
-    {
-        for(int i = 0; i < ref.mData.size(); ++i)
-        {
-            error += std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
-            float diff = std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
-            if(max_diff < diff)
-            {
-                max_diff     = diff;
-                ref_value    = bf16_to_f32_(ref.mData[i]);
-                result_value = bf16_to_f32_(result.mData[i]);
-            }
-        }
-    }
-    else
-    {
-        for(int i = 0; i < ref.mData.size(); ++i)
-        {
-            error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
-            float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-            if(max_diff < diff)
-            {
-                max_diff     = diff;
-                ref_value    = ref.mData[i];
-                result_value = result.mData[i];
-            }
-        }
-    }
-
-    std::cout << "error: " << error << std::endl;
-    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
-}
-
-template <typename T>
 void check_indices(const Tensor<T>& ref, const Tensor<T>& result)
 {
     bool has_error  = false;

@@ -1,4 +1,6 @@
 #pragma once
+
+#include "check_err.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_instance.hpp"
 #include "reduction_enums.hpp"
@@ -409,7 +411,7 @@ void profile_reduce_impl_impl(bool do_verification,
             if(do_verification)
             {
                 out_dev.FromDevice(out.mData.data());
-                check_error(out_ref, out);
+                ck::utils::conv::check_err(out.mData, out_ref.mData);
 
                 if(NeedIndices)
                 {
@@ -523,7 +525,7 @@ void profile_reduce_impl_impl(bool do_verification,
                 if(do_verification)
                 {
                     out_dev.FromDevice(out.mData.data());
-                    check_error(out_ref, out);
+                    ck::utils::conv::check_err(out.mData, out_ref.mData);
 
                     if(NeedIndices)
                     {

@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -242,6 +244,7 @@ int main(int argc, char* argv[])
 
         in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-        check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+        ck::utils::conv::check_err(in_n_c_hi_wi_device_result.mData,
+                                   in_n_c_hi_wi_host_result.mData);
     }
 }

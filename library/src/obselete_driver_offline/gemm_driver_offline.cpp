@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -441,7 +443,7 @@ int main(int argc, char* argv[])
     {
         host_gemm(a, b, c_host, layout);
 
-        check_error(c_host, c_device);
+        ck::utils::conv::check_err(c_device.mData, c_host.mData);
 
         if(do_log)
         {
