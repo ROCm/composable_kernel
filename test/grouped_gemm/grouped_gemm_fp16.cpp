@@ -173,13 +173,6 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
     auto argument_ptr = groupedGemmPtr->MakeArgumentPointer(
         p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
 
-    if(!groupedGemmPtr->IsSupportedArgument(argument_ptr.get()))
-    {
-        throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
-    }
-
     invoker_ptr->Run(argument_ptr.get());
 
     for(int i = 0; i < gemm_shapes.size(); i++)
