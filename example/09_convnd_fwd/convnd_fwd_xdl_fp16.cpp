@@ -17,13 +17,17 @@
 
 namespace {
 
-using InDataType  = float;
-using WeiDataType = float;
-using OutDataType = float;
+using InDataType  = ck::half_t;
+using WeiDataType = ck::half_t;
+using OutDataType = ck::half_t;
 using AccDataType = float;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
+
+using InLayout  = ck::tensor_layout::convolution::NHWC;
+using WeiLayout = ck::tensor_layout::convolution::KYXC;
+using OutLayout = ck::tensor_layout::convolution::NHWK;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -49,31 +53,30 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         ConvFwdDefault,     // ConvForwardSpecialization
         NumDimSpatial,      // NumDimSpatial
         256,                // BlockSize
-        256,                // MPerBlock
-        128,                // NPerBlock
+        128,                // MPerBlock
+        256,                // NPerBlock
         4,                  // K0PerBlock
-        4,                  // K1
-        32,                 // MPerXDL
-        32,                 // NPerXDL
-        4,                  // MXdlPerWave
-        2,                  // NXdlPerWave
+        8,                  // K1
+        32,                 // MPerXdl
+        32,                 // NPerXdl
+        2,                  // MXdlPerWave
+        4,                  // NXdlPerWave
         S<4, 64, 1>,        // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,         // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,         // ABlockTransferSrcAccessOrder
         2,                  // ABlockTransferSrcVectorDim
-        4,                  // ABlockTransferSrcScalarPerVector
-        4,                  // ABlockTransferDstScalarPerVector_K1
+        8,                  // ABlockTransferSrcScalarPerVector
+        8,                  // ABlockTransferDstScalarPerVector_K1
         true,               // ABlockLdsAddExtraM
         S<4, 64, 1>,        // BBlockTransferThreadClusterLengths_K0_N_K1
         S<1, 0, 2>,         // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,         // BBlockTransferSrcAccessOrder
         2,                  // BBlockTransferSrcVectorDim
-        4,                  // BBlockTransferSrcScalarPerVector
-        4,                  // BBlockTransferDstScalarPerVector_K1
-        true,               // BBlockTransferAddExtraN
+        8,                  // BBlockTransferSrcScalarPerVector
+        8,                  // BBlockTransferDstScalarPerVector_K1
+        true,               // BBlockLdsAddExtraN
         7,                  // CThreadTransferSrcDstVectorDim
         1>;                 // CThreadTransferDstScalarPerVector
-// clang-format on
 
 template <ck::index_t NumDimSpatial>
 using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
@@ -278,13 +281,13 @@ int main(int argc, char* argv[])
 
     std::size_t flop = GetFlops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
-    std::size_t num_btype =
-        GetBtype<InDataType, WeiDataType, OutDataType>(params.N,
-                                                       params.C,
-                                                       params.K,
-                                                       params.input_spatial_lengths,
-                                                       params.filter_spatial_lengths,
-                                                       output_spatial_lengths);
+    std::size_t num_btype = GetBtype<InDataType, WeiDataType, OutDataType>(
+        params.N,
+        params.C,
+        params.K,
+        params.input_spatial_lengths,
+        params.filter_spatial_lengths,
+        output_spatial_lengths);
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
