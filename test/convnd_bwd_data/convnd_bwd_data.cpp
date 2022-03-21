@@ -371,12 +371,24 @@ int main(int argc, char* argv[])
         std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
         std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo.mDesc << std::endl;
 
+        auto f_generate_tensor_value = [](auto desc, auto type) {
+            using dataType = decltype(type);
+
+            if(std::is_same<dataType, int8_t>::value)
+            {
+                desc.GenerateTensorValue(GeneratorTensor_2<int8_t>{-2, 2});
+            }
+            else
+            {
+                desc.GenerateTensorValue(GeneratorTensor_3<dataType>{-0.02, 0.02});
+            }
+        };
         switch(init_method)
         {
         case 0: break;
         case 1:
-            out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+            f_generate_tensor_value(out_n_k_ho_wo, OutDataType{});
+            f_generate_tensor_value(wei_k_c_y_x, WeiDataType{});
             break;
         default:
             out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});

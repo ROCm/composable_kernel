@@ -301,8 +301,8 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.2, 0.2});
+        wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.2, 0.2});
         break;
     default:
         out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
