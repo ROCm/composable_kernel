@@ -31,10 +31,6 @@ using DeviceConvFwdNoOpPtr =
                                                    ck::tensor_operation::element_wise::PassThrough,
                                                    ck::tensor_operation::element_wise::PassThrough>;
 
-using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-
 /**
  * @brief      Calculate number of FLOPs for Convolution
  *
@@ -128,6 +124,39 @@ struct ConvParams
     {
     }
 
+    ConvParams(ck::index_t n_dim,
+               ck::index_t n_batch,
+               ck::index_t n_out_channels,
+               ck::index_t n_in_channels,
+               const std::vector<ck::index_t>& filters_len,
+               const std::vector<ck::index_t>& input_len,
+               const std::vector<ck::index_t>& strides,
+               const std::vector<ck::index_t>& dilations,
+               const std::vector<ck::index_t>& left_pads,
+               const std::vector<ck::index_t>& right_pads)
+        : num_dim_spatial(n_dim),
+          N(n_batch),
+          K(n_out_channels),
+          C(n_in_channels),
+          filter_spatial_lengths(filters_len),
+          input_spatial_lengths(input_len),
+          conv_filter_strides(strides),
+          conv_filter_dilations(dilations),
+          input_left_pads(left_pads),
+          input_right_pads(right_pads)
+    {
+        if(filter_spatial_lengths.size() != num_dim_spatial ||
+           input_spatial_lengths.size() != num_dim_spatial ||
+           conv_filter_strides.size() != num_dim_spatial ||
+           conv_filter_dilations.size() != num_dim_spatial ||
+           input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
+        {
+            throw(std::runtime_error(
+                "ConvParams::GetOutputSpatialLengths: "
+                "parameter size is different from number of declared dimensions!"));
+        }
+    }
+
     ck::index_t num_dim_spatial;
     ck::index_t N;
     ck::index_t K;
@@ -144,6 +173,17 @@ struct ConvParams
 
     std::vector<ck::index_t> GetOutputSpatialLengths() const
     {
+        if(filter_spatial_lengths.size() != num_dim_spatial ||
+           input_spatial_lengths.size() != num_dim_spatial ||
+           conv_filter_strides.size() != num_dim_spatial ||
+           conv_filter_dilations.size() != num_dim_spatial ||
+           input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
+        {
+            throw(std::runtime_error(
+                "ConvParams::GetOutputSpatialLengths: "
+                "parameter size is different from number of declared dimensions!"));
+        }
+
         std::vector<ck::index_t> out_spatial_len(num_dim_spatial, 0);
         for(ck::index_t i = 0; i < num_dim_spatial; ++i)
         {
@@ -366,12 +406,13 @@ void RunReferenceConvFwd(const ConvParams& params,
                          const Tensor<WeiDataType>& weights,
                          Tensor<OutDataType>& output)
 {
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
                                                                  WeiDataType,
                                                                  OutDataType,
-                                                                 InElementOp,
-                                                                 WeiElementOp,
-                                                                 OutElementOp,
+                                                                 PassThrough,
+                                                                 PassThrough,
+                                                                 PassThrough,
                                                                  NDim>();
     auto ref_invoker  = ref_conv.MakeInvoker();
     auto ref_argument = ref_conv.MakeArgument(input,
@@ -381,9 +422,9 @@ void RunReferenceConvFwd(const ConvParams& params,
                                               params.conv_filter_dilations,
                                               params.input_left_pads,
                                               params.input_right_pads,
-                                              InElementOp{},
-                                              WeiElementOp{},
-                                              OutElementOp{});
+                                              PassThrough{},
+                                              PassThrough{},
+                                              PassThrough{});
 
     ref_invoker.Run(ref_argument);
 }
@@ -399,6 +440,8 @@ void RunConvFwd(const ConvParams& params,
                 const Tensor<WeiDataType>& weights,
                 Tensor<OutDataType>& output)
 {
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weights.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpace());
@@ -422,9 +465,9 @@ void RunConvFwd(const ConvParams& params,
                                       params.conv_filter_dilations,
                                       params.input_left_pads,
                                       params.input_right_pads,
-                                      InElementOp{},
-                                      WeiElementOp{},
-                                      OutElementOp{});
+                                      PassThrough{},
+                                      PassThrough{},
+                                      PassThrough{});
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -448,6 +491,8 @@ bool RunConvInstances(const ConvParams& params,
                       Tensor<OutDataType>& output,
                       const Tensor<OutDataType>& host_output)
 {
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weights.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpace());
@@ -474,9 +519,9 @@ bool RunConvInstances(const ConvParams& params,
             params.conv_filter_dilations,
             params.input_left_pads,
             params.input_right_pads,
-            InElementOp{},
-            WeiElementOp{},
-            OutElementOp{});
+            PassThrough{},
+            PassThrough{},
+            PassThrough{});
 
         if(conv_ptr->IsSupportedArgument(argument.get()))
         {
