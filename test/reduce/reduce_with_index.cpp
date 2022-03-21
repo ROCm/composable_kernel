@@ -62,11 +62,11 @@ template <typename InDataType,
           typename OutDataType,
           int Rank,
           int NumReduceDim>
-bool test_reduce_no_index(int init_method,
-                          const std::vector<size_t>& inLengths,
-                          const std::vector<int>& reduceDims,
-                          float alpha,
-                          float beta)
+bool test_reduce_with_index_impl(int init_method,
+                                 const std::vector<size_t>& inLengths,
+                                 const std::vector<int>& reduceDims,
+                                 float alpha,
+                                 float beta)
 {
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::device_reduce_instance;
@@ -544,89 +544,123 @@ class SimpleAppArgs
     };
 };
 
+bool test_reduce_with_index(int data_type,
+                            int init_method,
+                            std::vector<int> reduceDims,
+                            std::vector<size_t> inLengths,
+                            float alpha,
+                            float beta)
+{
+    bool result = true;
+
+    if(data_type == 0)
+    {
+        switch(reduceDims.size())
+        {
+        case 1:
+            result = test_reduce_with_index_impl<float, float, float, Rank, 1>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 3:
+            result = test_reduce_with_index_impl<float, float, float, Rank, 3>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 4:
+            result = test_reduce_with_index_impl<float, float, float, Rank, 4>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        };
+    }
+    else if(data_type == 1)
+    {
+        switch(reduceDims.size())
+        {
+        case 1:
+            result = test_reduce_with_index_impl<ck::half_t, ck::half_t, ck::half_t, Rank, 1>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 3:
+            result = test_reduce_with_index_impl<ck::half_t, ck::half_t, ck::half_t, Rank, 3>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 4:
+            result = test_reduce_with_index_impl<ck::half_t, ck::half_t, ck::half_t, Rank, 4>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        };
+    }
+    else if(data_type == 3)
+    {
+        switch(reduceDims.size())
+        {
+        case 1:
+            result = test_reduce_with_index_impl<int8_t, int8_t, int8_t, Rank, 1>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 3:
+            result = test_reduce_with_index_impl<int8_t, int8_t, int8_t, Rank, 3>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 4:
+            result = test_reduce_with_index_impl<int8_t, int8_t, int8_t, Rank, 4>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        };
+    }
+    else if(data_type == 5)
+    {
+        switch(reduceDims.size())
+        {
+        case 1:
+            result = test_reduce_with_index_impl<ck::bhalf_t, float, ck::bhalf_t, Rank, 1>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 3:
+            result = test_reduce_with_index_impl<ck::bhalf_t, float, ck::bhalf_t, Rank, 3>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        case 4:
+            result = test_reduce_with_index_impl<ck::bhalf_t, float, ck::bhalf_t, Rank, 4>(
+                init_method, inLengths, reduceDims, alpha, beta);
+            break;
+        };
+    }
+
+    return (result);
+};
+
 int main(int argc, char* argv[])
 {
     SimpleAppArgs args;
 
-    if(args.processArgs(argc, argv) < 0)
-    {
-        throw std::runtime_error(
-            "Invalid input arguments, test_reduce_with_index could not be executed!");
-    };
-
     bool result = true;
 
-    if(args.data_type == 0)
+    if(argc == 1)
     {
-        switch(args.reduceDims.size())
-        {
-        case 1:
-            result = test_reduce_no_index<float, float, float, Rank, 1>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 3:
-            result = test_reduce_no_index<float, float, float, Rank, 3>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 4:
-            result = test_reduce_no_index<float, float, float, Rank, 4>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        };
+        int data_type   = 1;
+        int init_method = 2;
+        std::vector<size_t> inLengths{64, 4, 280, 80};
+        std::vector<std::vector<int>> v_reduceDims{
+            {0, 1, 2, 3}, {0, 1, 2}, {1, 2, 3}, {0, 1, 3}, {0, 2, 3}, {0}, {1}, {2}, {3}};
+
+        for(auto& reduceDims : v_reduceDims)
+            result = result && test_reduce_with_index(
+                                   data_type, init_method, reduceDims, inLengths, 1.0f, 0.0f);
     }
-    else if(args.data_type == 1)
+    else
     {
-        switch(args.reduceDims.size())
+        if(args.processArgs(argc, argv) < 0)
         {
-        case 1:
-            result = test_reduce_no_index<ck::half_t, ck::half_t, ck::half_t, Rank, 1>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 3:
-            result = test_reduce_no_index<ck::half_t, ck::half_t, ck::half_t, Rank, 3>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 4:
-            result = test_reduce_no_index<ck::half_t, ck::half_t, ck::half_t, Rank, 4>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
+            throw std::runtime_error(
+                "Invalid input arguments, test_reduce_with_index could not be executed!");
         };
-    }
-    else if(args.data_type == 3)
-    {
-        switch(args.reduceDims.size())
-        {
-        case 1:
-            result = test_reduce_no_index<int8_t, int8_t, int8_t, Rank, 1>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 3:
-            result = test_reduce_no_index<int8_t, int8_t, int8_t, Rank, 3>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 4:
-            result = test_reduce_no_index<int8_t, int8_t, int8_t, Rank, 4>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        };
-    }
-    else if(args.data_type == 5)
-    {
-        switch(args.reduceDims.size())
-        {
-        case 1:
-            result = test_reduce_no_index<ck::bhalf_t, float, ck::bhalf_t, Rank, 1>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 3:
-            result = test_reduce_no_index<ck::bhalf_t, float, ck::bhalf_t, Rank, 3>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        case 4:
-            result = test_reduce_no_index<ck::bhalf_t, float, ck::bhalf_t, Rank, 4>(
-                args.init_method, args.inLengths, args.reduceDims, args.scales[0], args.scales[1]);
-            break;
-        };
+
+        result = test_reduce_with_index(args.data_type,
+                                        args.init_method,
+                                        args.reduceDims,
+                                        args.inLengths,
+                                        args.scales[0],
+                                        args.scales[1]);
     }
 
     std::cout << "test_reduce_with_index ..... " << (result ? "SUCCESS" : "FAILURE") << std::endl;
