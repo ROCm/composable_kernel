@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <half.hpp>
 #include <iostream>
 #include <iomanip>
 #include <iterator>
@@ -61,11 +62,11 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, bhalf_t>::value || std::is_same<T, half_t>::value,
-                        bool>::type
+typename std::enable_if<std::is_same<T, bhalf_t>::value || std::is_same<T, half_t>::value ||
+                        std::is_same<T, half_float::half>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
-          const std::string& msg,
+          const std::string& msg = "Error: Incorrect results!",
           double rtol = 1e-5,
           double atol = 1e-8)
 {
@@ -110,7 +111,7 @@ template <typename T>
 typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, bhalf_t>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
-          const std::string& msg,
+          const std::string& msg = "Error: Incorrect results!",
           double = 0,
           double = 0)
 {
