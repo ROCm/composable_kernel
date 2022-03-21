@@ -236,7 +236,7 @@ void profile_gemm_reduce_impl(int do_verification,
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // warm up
-            invoker.Run(argument);
+            invoker_ptr->Run(argument_ptr.get());
 
             // timing
             KernelTimer timer;
@@ -246,10 +246,10 @@ void profile_gemm_reduce_impl(int do_verification,
             for(int i = 0; i < nrepeat; ++i)
             {
                 // init DO, D1 to 0
-                d0_m_device_buf.SetZero();
-                d1_m_device_buf.SetZero();
+                d0_device_buf.SetZero();
+                d1_device_buf.SetZero();
 
-                invoker.Run(argument);
+                invoker_ptr->Run(argument_ptr.get());
             }
 
             timer.End();
