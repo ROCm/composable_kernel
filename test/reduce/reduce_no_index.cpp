@@ -37,16 +37,16 @@ static inline std::vector<int> get_invariant_dims(const std::vector<int>& reduce
 };
 
 // map the data type used by the GPU kernels to the corresponding type used by the host codes
-template <typename inDataType>
+template <typename InType>
 struct type_mapping
 {
-    using outDataType = inDataType;
+    using OutType = InType;
 };
 
 template <>
 struct type_mapping<ck::half_t>
 {
-    using outDataType = half_float::half;
+    using OutType = half_float::half;
 };
 
 constexpr int Rank = 4;
@@ -105,20 +105,21 @@ bool test_reduce_no_index(int init_method,
 
     switch(init_method)
     {
-    case 0:
-        in.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
-        if(beta != 0.0f)
-            out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
-        break;
+    case 0: break;
     case 1:
+        in.GenerateTensorValue(GeneratorTensor_1<InDataType>{1}, num_thread);
+        if(beta != 0.0f)
+            out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{1}, num_thread);
+        break;
+    case 2:
         in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
         if(beta != 0.0f)
             out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
         if(beta != 0.0f)
-            out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 5}, num_thread);
+            out_ref.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
     }
 
     if(beta != 0.0f)
@@ -224,13 +225,13 @@ bool test_reduce_no_index(int init_method,
 
     bool result = true;
 
-    using hInType   = typename type_mapping<InDataType>::outDataType;
-    using hOutType  = typename type_mapping<OutDataType>::outDataType;
-    using hCompType = typename type_mapping<AccDataType>::outDataType;
+    using hInDataType  = typename type_mapping<InDataType>::OutType;
+    using hOutDataType = typename type_mapping<OutDataType>::OutType;
+    using hAccDataType = typename type_mapping<AccDataType>::OutType;
 
-    ReductionHost<hInType,
-                  hCompType,
-                  hOutType,
+    ReductionHost<hInDataType,
+                  hAccDataType,
+                  hOutDataType,
                   ReduceOpId,
                   Rank,
                   NumReduceDim,
@@ -239,9 +240,9 @@ bool test_reduce_no_index(int init_method,
         hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
     hostReduce.Run(alpha,
-                   reinterpret_cast<const hInType*>(in.mData.data()),
+                   reinterpret_cast<const hInDataType*>(in.mData.data()),
                    beta,
-                   reinterpret_cast<hOutType*>(out_ref.mData.data()),
+                   reinterpret_cast<hOutDataType*>(out_ref.mData.data()),
                    nullptr);
 
     const auto i_inLengths  = to_int_vector(inLengths);
@@ -472,7 +473,9 @@ class SimpleAppArgs
         std::cout << "--scales or -S, comma separated two float values for alpha and beta"
                   << std::endl;
         std::cout << "Arg1 -- data type (0: fp16, 1: fp32, 3: int8, 5: bp16, 6: fp64)" << std::endl;
-        std::cout << "Arg2 -- init method" << std::endl;
+        std::cout << "Arg2 -- init method(0=no init, 1=single integer value, 2=scope integer "
+                     "value, 3=decimal value)"
+                  << std::endl;
     };
 
     int processArgs(int argc, char* argv[])

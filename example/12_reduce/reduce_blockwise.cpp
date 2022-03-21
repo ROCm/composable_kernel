@@ -21,13 +21,13 @@
 using namespace ck;
 using namespace ck::tensor_operation::device;
 
-using InDataType  = half_float::half;
-using OutDataType = half_float::half;
+using InDataType  = ck::half_t;
+using OutDataType = ck::half_t;
 using AccDataType = float;
 
-using kInDataType  = ck::half_t;
-using kOutDataType = ck::half_t;
-using kAccDataType = float;
+using hInDataType  = half_float::half;
+using hOutDataType = half_float::half;
+using hAccDataType = float;
 
 constexpr int Rank         = 4;
 constexpr int NumReduceDim = 3;
@@ -43,9 +43,9 @@ using InElementwiseOperation =
 using AccElementwiseOperation =
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
 
-using DeviceReduceInstance = DeviceReduceBlockWise<kInDataType,
-                                                   kAccDataType,
-                                                   kOutDataType,
+using DeviceReduceInstance = DeviceReduceBlockWise<InDataType,
+                                                   AccDataType,
+                                                   OutDataType,
                                                    Rank,
                                                    NumReduceDim,
                                                    ReduceOperation,
@@ -135,6 +135,10 @@ class SimpleAppArgs
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
                      "comparing with the host-based reduction"
                   << std::endl;
+        std::cout << "Arg1 -- init method (0=no init, 1=single integer value, 2=scope integer "
+                     "value, 3=decimal value)"
+                  << std::endl;
+        std::cout << "Arg2 -- number of repeats to run the kernel" << std::endl;
     };
 
     int processArgs(int argc, char* argv[])
@@ -263,20 +267,21 @@ int main(int argc, char* argv[])
     {
         switch(args.init_method)
         {
-        case 0:
-            in.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
-            if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{}, num_thread);
-            break;
+        case 0: break;
         case 1:
+            in.GenerateTensorValue(GeneratorTensor_1<InDataType>{1}, num_thread);
+            if(beta != 0.0f)
+                out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{1}, num_thread);
+            break;
+        case 2:
             in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             if(beta != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             break;
         default:
-            in.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 5}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
             if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 5}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
         }
 
         if(beta != 0.0f)
@@ -299,9 +304,9 @@ int main(int argc, char* argv[])
 
     if(args.do_verification)
     {
-        ReductionHost<InDataType,
-                      AccDataType,
-                      OutDataType,
+        ReductionHost<hInDataType,
+                      hAccDataType,
+                      hOutDataType,
                       ReduceOpId,
                       Rank,
                       NumReduceDim,
@@ -309,8 +314,11 @@ int main(int argc, char* argv[])
                       NeedIndices>
             hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-        hostReduce.Run(
-            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
+        hostReduce.Run(alpha,
+                       reinterpret_cast<const hInDataType*>(in.mData.data()),
+                       beta,
+                       reinterpret_cast<hOutDataType*>(out_ref.mData.data()),
+                       out_indices_ref.mData.data());
     };
 
     const auto i_inLengths  = to_int_vector(args.inLengths);
