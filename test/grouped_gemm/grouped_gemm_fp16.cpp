@@ -121,8 +121,6 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
     b_tensors_device.reserve(group_count);
     c_tensors_device.reserve(group_count);
 
-    std::size_t flop = 0, num_btype = 0;
-
     for(int i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors.emplace_back(Tensor<ADataType>(f_host_tensor_descriptor(
@@ -133,10 +131,6 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
             gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
         c_device_tensors.emplace_back(Tensor<CDataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
-
-        // std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
-        //<< " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc
-        //<< std::endl;
 
         flop += std::size_t(2) * gemm_shapes[i].M * gemm_shapes[i].K * gemm_shapes[i].N;
         num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
