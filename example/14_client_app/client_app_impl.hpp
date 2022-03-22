@@ -3,19 +3,41 @@
 #include "host_interface.hpp"
 
 
-struct DeviceMem
-{
-    float* ptr_mem=nullptr;
-    int size;
-    DeviceMem(int _size): size(_size){}
-    float* GetDeviceBuffer()
-    {
-        return ptr_mem;
-    }
-};
 
 namespace ck {
 namespace app {
+struct DeviceMem
+{
+    DeviceMem() = delete;
+    DeviceMem(std::size_t mem_size);
+    void* GetDeviceBuffer();
+    void ToDevice(const void* p);
+    void FromDevice(void* p);
+    ~DeviceMem();
+
+    void* mpDeviceBuf;
+    std::size_t mMemSize;
+};
+
+DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
+{
+    hipGetErrorString(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+}
+
+void* DeviceMem::GetDeviceBuffer() { return mpDeviceBuf; }
+
+void DeviceMem::ToDevice(const void* p)
+{
+    hipGetErrorString(
+        hipMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, hipMemcpyHostToDevice));
+}
+
+void DeviceMem::FromDevice(void* p)
+{
+    hipGetErrorString(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
+}
+
+DeviceMem::~DeviceMem() { hipGetErrorString(hipFree(mpDeviceBuf)); }
 
 void profile_conv_fwd_impl(int do_verification,
                            int init_method,
@@ -49,9 +71,9 @@ void profile_conv_fwd_impl(int do_verification,
     using InDataType = float;
     using OutDataType = float;
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_sz);
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_sz);
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_sz);
+    app::DeviceMem in_device_buf(sizeof(InDataType) * in_sz);
+    app::DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_sz);
+    app::DeviceMem out_device_buf(sizeof(OutDataType) * out_sz);
     // data is already on device!
 
 
