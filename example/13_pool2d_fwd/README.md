@@ -36,7 +36,7 @@ cmake                                                                  \
 ## Run ```pool2d_fwd```
 ```bash
 #arg1: verification (0=no, 1=yes)
-#arg2: initialization (0=no init, 1=integer value, 2=decimal value)
+#arg2: initialization (0=no init, 1=single integer value, 2=scope integer value, 3=decimal value)
 #arg3: run kernel # of times (>1)
 #arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, RightPx
 ./example/pool2d_fwd 1 1 10
