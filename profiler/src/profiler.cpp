@@ -10,6 +10,7 @@ int profile_gemm_bias_relu(int, char*[]);
 int profile_gemm_bias_relu_add(int, char*[]);
 int profile_gemm_reduce(int, char*[]);
 int profile_batched_gemm(int, char*[]);
+int profile_grouped_gemm(int, char*[]);
 int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
@@ -43,6 +44,10 @@ int main(int argc, char* argv[])
     {
         return profile_batched_gemm(argc, argv);
     }
+    else if(strcmp(argv[1], "grouped_gemm") == 0)
+    {
+        profile_grouped_gemm(argc, argv);
+    }
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
         return profile_conv_fwd(argc, argv);
@@ -75,6 +80,7 @@ int main(int argc, char* argv[])
                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
                "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
                "                        gemm_reduce: GEMM+Reduce\n"
+               "                        grouped_gemm: Grouped Gemm\n"
                "                        conv_fwd: ForwardConvolution\n"
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
