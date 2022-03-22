@@ -42,6 +42,8 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
+void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_i32_instances(
+    std::vector<DeviceConvBwdDataNoOpPtr>&);
 
 void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
@@ -295,6 +297,19 @@ void GetDeviceConvBwdDataOpPtr(INT8,
     default: break;
     }
 }
+void GetDeviceConvBwdDataOpPtr(int32_t,
+                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
+                               int num_dim_spatial)
+{
+    switch(num_dim_spatial)
+    {
+    case 2:
+        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_i32_instances(conv_ptrs);
+        break;
+    default: break;
+    }
+}
 int main(int argc, char* argv[])
 {
     int data_type       = 1;
@@ -372,24 +387,12 @@ int main(int argc, char* argv[])
         std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
         std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo.mDesc << std::endl;
 
-        auto f_generate_tensor_value = [](auto& desc, auto type) {
-            using dataType = decltype(type);
-
-            if(std::is_same<dataType, int8_t>::value || std::is_same<dataType, int32_t>::value)
-            {
-                desc.GenerateTensorValue(GeneratorTensor_2<dataType>{-5, 5});
-            }
-            else
-            {
-                desc.GenerateTensorValue(GeneratorTensor_3<dataType>{-0.02, 0.02});
-            }
-        };
         switch(init_method)
         {
         case 0: break;
         case 1:
-            f_generate_tensor_value(out_n_k_ho_wo, OutDataType{});
-            f_generate_tensor_value(wei_k_c_y_x, WeiDataType{});
+            out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
             break;
         default:
             out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
