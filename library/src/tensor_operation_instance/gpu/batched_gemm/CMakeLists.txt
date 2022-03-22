@@ -4,6 +4,10 @@ set(DEVICE_BATCHED_GEMM_INSTANCE_SOURCE
    device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instance.cpp;
    device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instance.cpp;
    device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instance.cpp;
+   device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gkn_gmn_instance.cpp;
+   device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instance.cpp;
+   device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instance.cpp;
+   device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gnk_gmn_instance.cpp;
    device_batched_gemm_xdl_f32_f32_f32_gmk_gkn_gmn_instance.cpp;
    device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instance.cpp;
    device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instance.cpp;
