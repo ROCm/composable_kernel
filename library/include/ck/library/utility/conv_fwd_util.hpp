@@ -315,6 +315,8 @@ auto GetHostTensors(const ConvParams& params, bool init = true)
             std::uniform_int_distribution<> dis(-5, 5);
             std::generate(
                 input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
+            std::generate(
+                weights.begin(), weights.end(), [&dis, &gen]() { return WeiDataType(dis(gen)); });
         }
         else
         {
