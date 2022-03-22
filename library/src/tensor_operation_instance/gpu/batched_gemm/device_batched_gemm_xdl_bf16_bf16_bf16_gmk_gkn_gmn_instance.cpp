@@ -10,7 +10,7 @@ namespace device {
 namespace device_batched_gemm_instance {
 
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -38,12 +38,7 @@ using device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gkn_gmn_instances = std::tuple<
         DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    32,   256,     4,  8,   32,   32,    1,    4,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,      true,               7,               1>,
         DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    32,   128,     4,  8,   32,   32,    1,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,      true,               7,               1>,
         DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    32,    64,     4,  8,   32,   32,    1,    1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,      true,               7,               1>,
-        DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,    64,    32,    32,     4,  8,   32,   32,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,      true,               7,               1>,
-        DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    16,   256,     4,  8,   16,   16,    1,    8,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,      true,               7,               1>,
-        DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    16,   128,     4,  8,   16,   16,    1,    4,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,      true,               7,               1>,
-        DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    16,    64,     4,  8,   16,   16,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,      true,               7,               1>,
-        DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,   128,    16,    32,     4,  8,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,               7,               1>,
-        DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,    64,    16,    16,     4,  8,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,      true,               7,               1>
+        DeviceBatchedGemmXdl< BF16,  BF16,  BF16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,    64,    32,    32,     4,  8,   32,   32,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,      true,               7,               1>
     // clang-format on
     >;
 
@@ -58,4 +53,3 @@ void add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gkn_gmn_instances(
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-

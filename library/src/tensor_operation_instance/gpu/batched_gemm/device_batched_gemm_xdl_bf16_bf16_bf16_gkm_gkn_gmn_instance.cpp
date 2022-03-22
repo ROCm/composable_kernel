@@ -10,7 +10,7 @@ namespace device {
 namespace device_batched_gemm_instance {
 
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -21,7 +21,7 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 // Compilation parameters for a[k, m] * b[k, n] = c[m, n]
-using device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances = std::tuple<
+using device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances = std::tuple<
     // clang-format off
         //##########|        AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
         //##########|         Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
@@ -38,15 +38,14 @@ using device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances = std::tuple<
     // clang-format on
     >;
 
-void add_device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances(
+void add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances(
     std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances{});
+                                   device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances{});
 }
 
 } // namespace device_batched_gemm_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-

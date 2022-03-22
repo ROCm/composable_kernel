@@ -10,7 +10,7 @@ namespace device {
 namespace device_batched_gemm_instance {
 
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -54,4 +54,3 @@ void add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances(
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
