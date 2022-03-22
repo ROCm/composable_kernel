@@ -15,7 +15,7 @@
 #include "device_batched_gemm_xdl.hpp"
 #include "profile_batched_gemm_impl.hpp"
 
-enum GemmMatrixLayout
+enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
     MK_NK_MN, // 1
@@ -27,7 +27,7 @@ enum GemmMatrixLayout
     KM_NK_NM, // 7
 };
 
-enum GemmDataType
+enum struct GemmDataType
 {
     F32_F32_F32, // 0
     F16_F16_F16, // 1
@@ -51,8 +51,8 @@ int profile_batched_gemm(int argc, char* argv[])
         exit(1);
     }
 
-    const int data_type        = static_cast<GemmDataType>(std::stoi(argv[2]));
-    const int layout           = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
+    const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
+    const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);

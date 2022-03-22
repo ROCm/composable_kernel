@@ -5,7 +5,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-enum GemmSpecialization_t
+enum struct GemmSpecialization_t
 {
     Default,
     MPadding,

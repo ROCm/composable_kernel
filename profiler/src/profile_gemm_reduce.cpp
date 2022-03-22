@@ -8,7 +8,7 @@
 
 int profile_gemm_reduce(int argc, char* argv[])
 {
-    enum GemmMatrixLayout_t
+    enum struct GemmMatrixLayout_t
     {
         MK_KN_MN, // 0
         MK_NK_MN, // 1
@@ -16,7 +16,7 @@ int profile_gemm_reduce(int argc, char* argv[])
         KM_NK_MN, // 3
     };
 
-    enum GemmReduceDataType_t
+    enum struct GemmReduceDataType_t
     {
         F32_F32_F32_F32_F32, // 0
         F16_F16_F16_F32_F32, // 1
@@ -39,8 +39,8 @@ int profile_gemm_reduce(int argc, char* argv[])
         exit(1);
     }
 
-    const int data_type        = static_cast<GemmReduceDataType_t>(std::stoi(argv[2]));
-    const int layout           = static_cast<GemmMatrixLayout_t>(std::stoi(argv[3]));
+    const auto data_type       = static_cast<GemmReduceDataType_t>(std::stoi(argv[2]));
+    const auto layout          = static_cast<GemmMatrixLayout_t>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);

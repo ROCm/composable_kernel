@@ -159,14 +159,14 @@
 
 namespace ck {
 
-enum InMemoryDataOperationEnum_t
+enum struct InMemoryDataOperationEnum_t
 {
     Set,
     AtomicAdd,
     Add
 };
 
-enum ActivTypeEnum_t
+enum struct ActivTypeEnum_t
 {
     None,
     LeakyRelu,

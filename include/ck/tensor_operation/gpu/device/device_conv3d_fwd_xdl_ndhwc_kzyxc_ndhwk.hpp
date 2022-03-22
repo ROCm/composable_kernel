@@ -210,12 +210,16 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
         {
-            static_assert(ConvForwardSpecialization == -1, "Not implemented!");
+            static_assert(ConvForwardSpecialization ==
+                              ConvolutionForwardSpecialization_t::UnDefined,
+                          "Not implemented!");
         }
         else if constexpr(ConvForwardSpecialization ==
                           ConvolutionForwardSpecialization_t::Filter1x1Pad0)
         {
-            static_assert(ConvForwardSpecialization == -1, "Not implemented!");
+            static_assert(ConvForwardSpecialization ==
+                              ConvolutionForwardSpecialization_t::UnDefined,
+                          "Not implemented!");
         }
         else
         {

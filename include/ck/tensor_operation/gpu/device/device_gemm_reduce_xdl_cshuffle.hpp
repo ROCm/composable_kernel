@@ -68,6 +68,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                                                D0ReduceOperation,
                                                                D1ReduceOperation>
 {
+    using DeviceOp = DeviceGemmReduce_Xdl_CShuffle;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -458,13 +460,10 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
               d0_reduce_op_{d0_reduce_op},
               d1_reduce_op_{d1_reduce_op}
         {
-            a_grid_desc_ak0_m_ak1_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA);
-            b_grid_desc_bk0_n_bk1_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB);
-            c_grid_desc_m_n_ =
-                DeviceGemmReduce_Xdl_CShuffle::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
-            d_grid_desc_m_ = DeviceGemmReduce_Xdl_CShuffle::MakeDGridDescriptor_M(MRaw);
+            a_grid_desc_ak0_m_ak1_ = DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA);
+            b_grid_desc_bk0_n_bk1_ = DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB);
+            c_grid_desc_m_n_       = DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
+            d_grid_desc_m_         = DeviceOp::MakeDGridDescriptor_M(MRaw);
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_))
@@ -504,7 +503,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmReduce_Xdl_CShuffle::Argument;
+        using Argument = DeviceOp::Argument;
 
         float Run(const Argument& arg, int /* nrepeat */ = 1)
         {
@@ -553,8 +552,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     CElementwiseOperation,
                     D0ReduceOperation,
                     D1ReduceOperation,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_AK0_M_AK1>,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_BK0_N_BK1>,
+                    remove_reference_t<DeviceOp::AGridDesc_AK0_M_AK1>,
+                    remove_reference_t<DeviceOp::BGridDesc_BK0_N_BK1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
@@ -593,8 +592,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     CElementwiseOperation,
                     D0ReduceOperation,
                     D1ReduceOperation,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::AGridDesc_AK0_M_AK1>,
-                    remove_reference_t<DeviceGemmReduce_Xdl_CShuffle::BGridDesc_BK0_N_BK1>,
+                    remove_reference_t<DeviceOp::AGridDesc_AK0_M_AK1>,
+                    remove_reference_t<DeviceOp::BGridDesc_BK0_N_BK1>,
                     remove_reference_t<
                         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
