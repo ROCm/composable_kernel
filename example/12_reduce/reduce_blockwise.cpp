@@ -25,9 +25,9 @@ using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 using AccDataType = float;
 
-using hInDataType  = half_float::half;
-using hOutDataType = half_float::half;
-using hAccDataType = float;
+using HostInDataType  = half_float::half;
+using HostOutDataType = half_float::half;
+using HostAccDataType = float;
 
 constexpr int Rank         = 4;
 constexpr int NumReduceDim = 3;
@@ -298,15 +298,15 @@ int main(int argc, char* argv[])
     if(beta != 0.0f)
         out_dev.ToDevice(out.mData.data());
 
-    size_t indicesSizeInBytes = NeedIndices ? out.mDesc.GetElementSize() * sizeof(int) : 0;
+    size_t indicesSizeInBytes = NeedIndices ? out.mDesc.GetElementSize() * sizeof(int32_t) : 0;
 
     DeviceMem out_indices_dev(indicesSizeInBytes);
 
     if(args.do_verification)
     {
-        ReductionHost<hInDataType,
-                      hAccDataType,
-                      hOutDataType,
+        ReductionHost<HostInDataType,
+                      HostAccDataType,
+                      HostOutDataType,
                       ReduceOpId,
                       Rank,
                       NumReduceDim,
@@ -315,9 +315,9 @@ int main(int argc, char* argv[])
             hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
         hostReduce.Run(alpha,
-                       reinterpret_cast<const hInDataType*>(in.mData.data()),
+                       reinterpret_cast<const HostInDataType*>(in.mData.data()),
                        beta,
-                       reinterpret_cast<hOutDataType*>(out_ref.mData.data()),
+                       reinterpret_cast<HostOutDataType*>(out_ref.mData.data()),
                        out_indices_ref.mData.data());
     };
 

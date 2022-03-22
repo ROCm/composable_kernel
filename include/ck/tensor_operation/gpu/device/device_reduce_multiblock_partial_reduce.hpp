@@ -56,8 +56,8 @@ struct DeviceReduceMultiBlockPartialReduce
 
     static constexpr int MaxBlockGroupSize = 256;
 
-    size_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
-                                   const std::vector<int> reduceDims) override
+    long_index_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
+                                         const std::vector<int> reduceDims) override
     {
         size_t invariant_total_length;
         size_t reduce_total_length;
@@ -82,9 +82,9 @@ struct DeviceReduceMultiBlockPartialReduce
         int blkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
-        size_t workspace_size = invariant_total_length * blkGroupSize;
+        long_index_t workspace_size = invariant_total_length * blkGroupSize;
 
-        size_t wsSizeInBytes =
+        long_index_t wsSizeInBytes =
             !NeedIndices
                 ? workspace_size * sizeof(AccDataType)
                 : workspace_size * (sizeof(AccDataType) + sizeof(int32_t)) + 64 + sizeof(int);

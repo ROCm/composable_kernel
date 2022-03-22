@@ -233,8 +233,8 @@ void profile_reduce_impl_impl(bool do_verification,
 
         Tensor<OutDataType> out_ref(outLengths);
         Tensor<OutDataType> out(outLengths);
-        Tensor<int> out_indices_ref(outLengths);
-        Tensor<int> out_indices(outLengths);
+        Tensor<int32_t> out_indices_ref(outLengths);
+        Tensor<int32_t> out_indices(outLengths);
 
         auto inStrides  = in.mDesc.GetStrides();
         auto outStrides = out.mDesc.GetStrides();
@@ -378,13 +378,13 @@ void profile_reduce_impl_impl(bool do_verification,
 
         if(do_verification)
         {
-            using hInDataType  = typename type_mapping<InDataType>::OutType;
-            using hOutDataType = typename type_mapping<OutDataType>::OutType;
-            using hAccDataType = typename type_mapping<AccDataType>::OutType;
+            using HostInDataType  = typename type_mapping<InDataType>::OutType;
+            using HostOutDataType = typename type_mapping<OutDataType>::OutType;
+            using HostAccDataType = typename type_mapping<AccDataType>::OutType;
 
-            ReductionHost<hInDataType,
-                          hAccDataType,
-                          hOutDataType,
+            ReductionHost<HostInDataType,
+                          HostAccDataType,
+                          HostOutDataType,
                           ReduceOpId,
                           Rank,
                           NumReduceDim,
@@ -393,9 +393,9 @@ void profile_reduce_impl_impl(bool do_verification,
                 hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
             hostReduce.Run(alpha,
-                           reinterpret_cast<const hInDataType*>(in.mData.data()),
+                           reinterpret_cast<const HostInDataType*>(in.mData.data()),
                            beta,
-                           reinterpret_cast<hOutDataType*>(out_ref.mData.data()),
+                           reinterpret_cast<HostOutDataType*>(out_ref.mData.data()),
                            out_indices_ref.mData.data());
         };
 

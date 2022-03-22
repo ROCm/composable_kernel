@@ -16,8 +16,8 @@ namespace device {
 template <typename InElementwiseOperation, typename AccElementwiseOperation>
 struct DeviceReduce : public BaseOperator
 {
-    virtual size_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
-                                           const std::vector<int> reduceDims)
+    virtual long_index_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
+                                                 const std::vector<int> reduceDims)
     {
         (void)inLengths;
         (void)reduceDims;

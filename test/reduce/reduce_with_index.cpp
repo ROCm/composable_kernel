@@ -86,8 +86,8 @@ bool test_reduce_with_index_impl(int init_method,
 
     Tensor<OutDataType> out_ref(outLengths);
     Tensor<OutDataType> out(outLengths);
-    Tensor<int> out_indices_ref(outLengths);
-    Tensor<int> out_indices(outLengths);
+    Tensor<int32_t> out_indices_ref(outLengths);
+    Tensor<int32_t> out_indices(outLengths);
 
     // only used when the OutDataType is bhalf_t
     Tensor<float> out_ref_fp32(outLengths);
@@ -209,13 +209,13 @@ bool test_reduce_with_index_impl(int init_method,
 
     bool result = true;
 
-    using hInDataType  = typename type_mapping<InDataType>::OutType;
-    using hOutDataType = typename type_mapping<OutDataType>::OutType;
-    using hAccDataType = typename type_mapping<AccDataType>::OutType;
+    using HostInDataType  = typename type_mapping<InDataType>::OutType;
+    using HostOutDataType = typename type_mapping<OutDataType>::OutType;
+    using HostAccDataType = typename type_mapping<AccDataType>::OutType;
 
-    ReductionHost<hInDataType,
-                  hAccDataType,
-                  hOutDataType,
+    ReductionHost<HostInDataType,
+                  HostAccDataType,
+                  HostOutDataType,
                   ReduceOpId,
                   Rank,
                   NumReduceDim,
@@ -224,9 +224,9 @@ bool test_reduce_with_index_impl(int init_method,
         hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
     hostReduce.Run(alpha,
-                   reinterpret_cast<const hInDataType*>(in.mData.data()),
+                   reinterpret_cast<const HostInDataType*>(in.mData.data()),
                    beta,
-                   reinterpret_cast<hOutDataType*>(out_ref.mData.data()),
+                   reinterpret_cast<HostOutDataType*>(out_ref.mData.data()),
                    out_indices_ref.mData.data());
 
     const auto i_inLengths  = to_int_vector(inLengths);
