@@ -40,22 +40,6 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
     return os;
 }
 
-#if 0
-enum struct DataType_t
-{
-    Half  = 0,
-    Float = 1,
-};
-
-template <typename T>
-struct DataType;
-
-template <>
-struct DataType<float> : std::integral_constant<DataType_t, DataType_t::Float>
-{
-};
-#endif
-
 template <typename F, typename T, std::size_t... Is>
 auto call_f_unpack_args_impl(F f, T args, std::index_sequence<Is...>)
 {
