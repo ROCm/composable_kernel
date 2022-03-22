@@ -77,6 +77,7 @@ using ReferenceConvBwdDataInstance =
     ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                      WeiDataType,
                                                      OutDataType,
+                                                     AccDataType,
                                                      InElementOp,
                                                      WeiElementOp,
                                                      OutElementOp,

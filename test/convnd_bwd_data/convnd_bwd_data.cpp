@@ -450,14 +450,14 @@ int main(int argc, char* argv[])
                 break;
             }
             case 1: {
-                auto ref_conv =
-                    ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                     WeiDataType,
-                                                                     OutDataType,
-                                                                     AccDataType InElementOp,
-                                                                     WeiElementOp,
-                                                                     OutElementOp,
-                                                                     1>();
+                auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                                                 WeiDataType,
+                                                                                 OutDataType,
+                                                                                 AccDataType,
+                                                                                 InElementOp,
+                                                                                 WeiElementOp,
+                                                                                 OutElementOp,
+                                                                                 1>();
                 RunReference(ref_conv);
                 break;
             }
