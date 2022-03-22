@@ -124,9 +124,18 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     }
     }
 }
-void GetDeviceConvBwdDataOpPtr(F32,
+template <typename InDataType, typename WeiDataType, typename OutDataType>
+void GetDeviceConvBwdDataOpPtr(InDataType,
+                               WeiDataType,
+                               OutDataType,
                                std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
                                int num_dim_spatial)
+{
+    static_assert(0, "can not find device conv bwd data");
+}
+template <F32, F32, F32>
+void GetDeviceConvBwdDataOpPtr(
+    F32, F32, F32, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
@@ -145,9 +154,9 @@ void GetDeviceConvBwdDataOpPtr(F32,
     default: break;
     }
 }
-void GetDeviceConvBwdDataOpPtr(F16,
-                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
-                               int num_dim_spatial)
+template <F16, F16, F16>
+void GetDeviceConvBwdDataOpPtr(
+    F16, F16, F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
@@ -166,9 +175,9 @@ void GetDeviceConvBwdDataOpPtr(F16,
     default: break;
     }
 }
-void GetDeviceConvBwdDataOpPtr(BF16,
-                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
-                               int num_dim_spatial)
+template <BF16, BF16, BF16>
+void GetDeviceConvBwdDataOpPtr(
+    BF16, BF16, BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
@@ -187,9 +196,9 @@ void GetDeviceConvBwdDataOpPtr(BF16,
     default: break;
     }
 }
-void GetDeviceConvBwdDataOpPtr(INT8,
-                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
-                               int num_dim_spatial)
+template <INT8, INT8, INT8>
+void GetDeviceConvBwdDataOpPtr(
+    INT8, INT8, INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
@@ -352,7 +361,7 @@ void profile_convnd_bwd_data_impl(int do_verification,
 
     // add device Conv instances
     std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
-    GetDeviceConvBwdDataOpPtr(InDataType{}, conv_ptrs, NDimSpatial);
+    GetDeviceConvBwdDataOpPtr(InDataType{}, WeiDataType{}, OutDataType{}, conv_ptrs, NDimSpatial);
 
     if(conv_ptrs.size() <= 0)
     {
