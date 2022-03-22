@@ -50,7 +50,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm_reduce_impl(int do_verification,
+bool profile_gemm_reduce_impl(int do_verification,
                               int init_method,
                               bool do_log,
                               int nrepeat,
@@ -61,6 +61,8 @@ void profile_gemm_reduce_impl(int do_verification,
                               int StrideB,
                               int StrideC)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
@@ -101,10 +103,12 @@ void profile_gemm_reduce_impl(int do_verification,
     {
     case 0: break;
     case 1:
+        std::srand(0);
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
         break;
     default:
+        std::srand(0);
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
@@ -284,9 +288,13 @@ void profile_gemm_reduce_impl(int do_verification,
                 d0_device_buf.FromDevice(d0_m_device_result.mData.data());
                 d1_device_buf.FromDevice(d1_m_device_result.mData.data());
 
-                check_error(c_m_n_host_result, c_m_n_device_result);
-                check_error(d0_m_host_result, d0_m_device_result);
-                check_error(d1_m_host_result, d1_m_device_result);
+                float c_error  = check_error(c_m_n_host_result, c_m_n_device_result);
+                float d0_error = check_error(d0_m_host_result, d0_m_device_result);
+                float d1_error = check_error(d1_m_host_result, d1_m_device_result);
+
+                pass = pass && (c_error < 1E-6);
+                pass = pass && (d0_error < 1E-6);
+                pass = pass && (d1_error < 1E-6);
 
                 if(do_log)
                 {
@@ -315,6 +323,8 @@ void profile_gemm_reduce_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+
+    return pass;
 }
 
 } // namespace profiler
