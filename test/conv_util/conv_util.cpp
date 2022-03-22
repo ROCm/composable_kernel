@@ -65,7 +65,7 @@ bool TestConvParams_GetOutputSpatialLengths()
     res             = ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{36}, "Error: ConvParams 1D.");
 
-    conv_params.conv_filter_strides = std::vector<ck::index_t>{1, 1};
+    conv_params.conv_filter_strides = std::vector<ck::index_t>{1};
     out_spatial_len                 = conv_params.GetOutputSpatialLengths();
     res                             = ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{71}, "Error: ConvParams 1D stride {1}.");
