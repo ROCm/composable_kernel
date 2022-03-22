@@ -106,10 +106,10 @@ check_err(const std::vector<T>& out,
 }
 
 bool check_err(const std::vector<_Float16>& out,
-                   const std::vector<_Float16>& ref,
-                   const std::string& msg,
-                   _Float16 rtol = static_cast<_Float16>(1e-3f),
-                   _Float16 atol = static_cast<_Float16>(1e-3f))
+               const std::vector<_Float16>& ref,
+               const std::string& msg,
+               _Float16 rtol = static_cast<_Float16>(1e-3f),
+               _Float16 atol = static_cast<_Float16>(1e-3f))
 {
     if(out.size() != ref.size())
     {
@@ -120,14 +120,14 @@ bool check_err(const std::vector<_Float16>& out,
     }
 
     bool res{true};
-    int err_count = 0;
-    double err         = 0;
-    double max_err     = std::numeric_limits<_Float16>::min();
+    int err_count  = 0;
+    double err     = 0;
+    double max_err = std::numeric_limits<_Float16>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         double out_ = double(out[i]);
         double ref_ = double(ref[i]);
-        err = std::abs(out_ - ref_);
+        err         = std::abs(out_ - ref_);
         if(err > atol + rtol * std::abs(ref_) || !std::isfinite(out_) || !std::isfinite(ref_))
         {
             max_err = err > max_err ? err : max_err;

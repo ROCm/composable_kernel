@@ -205,14 +205,14 @@ template <typename T>
 bool TestConv3DNDHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
     ck::conv_util::ConvParams params;
-    params.N = 64;
-    params.num_dim_spatial = 3;
-    params.filter_spatial_lengths        = std::vector<ck::index_t>{3, 3, 2};
-    params.input_spatial_lengths         = std::vector<ck::index_t>{32, 32, 2};
-    params.conv_filter_strides           = std::vector<ck::index_t>{2, 2, 2};
-    params.conv_filter_dilations         = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads               = std::vector<ck::index_t>{1, 1, 1};
-    params.input_right_pads              = std::vector<ck::index_t>{1, 1, 1};
+    params.N                      = 64;
+    params.num_dim_spatial        = 3;
+    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 2};
+    params.input_spatial_lengths  = std::vector<ck::index_t>{32, 32, 2};
+    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2, 2};
+    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
+    params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
 
     auto host_tensors        = test::conv::GetHostTensors<T,
                                                    T,
