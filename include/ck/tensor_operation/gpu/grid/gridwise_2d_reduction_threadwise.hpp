@@ -31,6 +31,7 @@
 #include "reduction_operator.hpp"
 #include "reduction_functions_accumulate.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 
@@ -50,7 +51,7 @@ __global__ void kernel_reduce_threadwise(const InGridDesc_M_K in_grid_desc_m_k,
                                          const AccElementwiseOperation acc_elementwise_op,
                                          AccDataType alpha,
                                          const InDataType* const __restrict__ p_in_global,
-                                         OutDataType beta,
+                                         AccDataType beta,
                                          OutDataType* const __restrict__ p_out_global,
                                          IndexDataType* const __restrict__ p_indices_global)
 {
@@ -101,11 +102,15 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct GridwiseReduction_mk_to_m_threadwise
 {
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     using ThreadBufferDimAccessOrder =
         typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type;
 
-    template <typename T>
-    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     static constexpr auto I0 = Number<0>{};
 
@@ -115,7 +120,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                const AccElementwiseOperation& acc_elementwise_op,
                                AccDataType alpha,
                                const InDataType* const __restrict__ p_in_global,
-                               OutDataType beta,
+                               AccDataType beta,
                                OutDataType* const __restrict__ p_out_global,
                                IndexDataType* const __restrict__ p_indices_global)
     {
@@ -228,7 +233,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                         priorDstValue_buf);
 
                 static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                    accu_value_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
+                    accu_value_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I]) * beta;
                 });
             };
         };
@@ -238,7 +243,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                OutDataType,
                                                decltype(reduced_data_desc),
                                                OutGridDesc_M,
-                                               PassThroughOp<AccDataType>,
+                                               PassThroughOp,
                                                Sequence<MThreadSliceSize>,
                                                Sequence<0>,
                                                0,
@@ -248,7 +253,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                false>(
                 out_grid_desc_m,
                 make_multi_index(thread_global_1d_id * MThreadSliceSize),
-                PassThroughOp<AccDataType>{});
+                PassThroughOp{});
 
         threadwise_dst_store.Run(
             reduced_data_desc, make_tuple(I0), accu_value_buf, out_grid_desc_m, dst_global_buf);
@@ -260,7 +265,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                           const AccElementwiseOperation& acc_elementwise_op,
                                           AccDataType alpha,
                                           const InDataType* const __restrict__ p_in_global,
-                                          OutDataType beta,
+                                          AccDataType beta,
                                           OutDataType* const __restrict__ p_out_global,
                                           IndexDataType* const __restrict__ p_indices_global)
     {
@@ -387,7 +392,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                         priorDstValue_buf);
 
                 static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                    accu_value_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I] * beta);
+                    accu_value_buf(I) += type_convert<AccDataType>(priorDstValue_buf[I]) * beta;
                 });
             };
         };
@@ -397,7 +402,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                OutDataType,
                                                decltype(reduced_data_desc),
                                                OutGridDesc_M,
-                                               PassThroughOp<AccDataType>,
+                                               PassThroughOp,
                                                Sequence<MThreadSliceSize>,
                                                Sequence<0>,
                                                0,
@@ -407,14 +412,14 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                false>(
                 out_grid_desc_m,
                 make_multi_index(thread_global_1d_id * MThreadSliceSize),
-                PassThroughOp<AccDataType>{});
+                PassThroughOp{});
 
         auto threadwise_dst_idx_store =
             ThreadwiseTensorSliceTransfer_v1r3<IndexDataType,
                                                IndexDataType,
                                                decltype(reduced_data_desc),
                                                OutGridDesc_M,
-                                               PassThroughOp<IndexDataType>,
+                                               PassThroughOp,
                                                Sequence<MThreadSliceSize>,
                                                Sequence<0>,
                                                0,
@@ -424,7 +429,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                false>(
                 out_grid_desc_m,
                 make_multi_index(thread_global_1d_id * MThreadSliceSize),
-                PassThroughOp<IndexDataType>{});
+                PassThroughOp{});
 
         threadwise_dst_val_store.Run(
             reduced_data_desc, make_tuple(I0), accu_value_buf, out_grid_desc_m, out_global_val_buf);
