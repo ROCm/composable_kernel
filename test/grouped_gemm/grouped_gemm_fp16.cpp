@@ -132,11 +132,6 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
         c_device_tensors.emplace_back(Tensor<CDataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
 
-        flop += std::size_t(2) * gemm_shapes[i].M * gemm_shapes[i].K * gemm_shapes[i].N;
-        num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
-                     sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize() +
-                     sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize();
-
         a_tensors[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
