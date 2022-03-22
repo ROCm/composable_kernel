@@ -23,8 +23,8 @@
  * SOFTWARE.
  *
  *******************************************************************************/
-#ifndef CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_TWO_CALL_HPP
-#define CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_TWO_CALL_HPP
+#ifndef CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_PARTIAL_REDUCE_HPP
+#define CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_PARTIAL_REDUCE_HPP
 
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
@@ -32,6 +32,7 @@
 #include "reduction_functions_blockwise.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "cluster_descriptor.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 
@@ -101,6 +102,12 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
 {
+    static_assert((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                      (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
+    static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockPartialReduce!");
+
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
@@ -119,8 +126,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
     static constexpr auto block_buf_desc_m_k = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MThreadClusterSize>{}, Number<KThreadClusterSize>{}));
 
-    template <typename T>
-    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -238,9 +244,6 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
             reducedTiles++;
         } while(reducedTiles < num_k_block_tile_iteration);
 
-        constexpr auto reduced_data_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
-
         // Each block executes multiple parallel reductions on the LDS, and due to the using of
         // vector_load, each block/thread is involved into multiple invarirant dimensions.
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
@@ -254,6 +257,9 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
             BlockwiseReduce::Reduce(block_reduce_buf, accu_value_buf(I));
         });
 
+        constexpr auto reduced_data_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
+
         if(thread_k_cluster_id == 0)
         {
             auto threadwise_workspace_store =
@@ -261,7 +267,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                                    AccDataType,
                                                    decltype(reduced_data_desc),
                                                    WorkspaceDesc_M_K,
-                                                   PassThroughOp<AccDataType>,
+                                                   PassThroughOp,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -273,7 +279,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_m_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<AccDataType>{});
+                    PassThroughOp{});
 
             threadwise_workspace_store.Run(reduced_data_desc,
                                            make_tuple(I0, I0),
@@ -450,7 +456,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                                                    AccDataType,
                                                    decltype(reduced_data_desc),
                                                    WorkspaceDesc_M_K,
-                                                   PassThroughOp<AccDataType>,
+                                                   PassThroughOp,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -462,14 +468,14 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_m_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<AccDataType>{});
+                    PassThroughOp{});
 
             auto threadwise_workspace_idx_store =
                 ThreadwiseTensorSliceTransfer_v1r3<IndexDataType,
                                                    IndexDataType,
                                                    decltype(reduced_data_desc),
                                                    WorkspaceDesc_M_K,
-                                                   PassThroughOp<IndexDataType>,
+                                                   PassThroughOp,
                                                    Sequence<MThreadSliceSize, 1>,
                                                    Sequence<0, 1>,
                                                    1,
@@ -481,7 +487,7 @@ struct GridwiseReduction_mk_to_mk_multiblock_partial_reduce
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                          thread_m_cluster_id * MThreadSliceSize,
                                      block_local_id),
-                    PassThroughOp<IndexDataType>{});
+                    PassThroughOp{});
 
             threadwise_workspace_val_store.Run(reduced_data_desc,
                                                make_tuple(I0, I0),

@@ -37,6 +37,10 @@ struct SpaceFillingCurve
 
     __host__ __device__ static constexpr index_t GetNumOfAccess()
     {
+        static_assert(TensorLengths::Size() == ScalarsPerAccess::Size());
+        static_assert(TensorLengths{} % ScalarsPerAccess{} ==
+                      typename uniform_sequence_gen<TensorLengths::Size(), 0>::type{});
+
         return reduce_on_sequence(TensorLengths{}, math::multiplies{}, Number<1>{}) /
                ScalarPerVector;
     }

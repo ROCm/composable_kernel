@@ -12,38 +12,30 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// template <typename preUnaryOpType, typename posUnaryOpType>
-// using DeviceReducePtr = std::unique_ptr<DeviceReduce<preUnaryOpType, posUnaryOpType>>;
-
-template <int Rank, typename ReduceDims>
+// here, inLengths[] is already shuffled so that lengths of invariant dims are included before those
+// of reduce dims
+template <int Rank, int NumReduceDim>
 std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
 {
     static_assert(Rank <= 6, "bigger Rank size not supported!");
 
-    size_t tensor_total_length = 1;
-    size_t reduce_total_length = 1;
+    size_t invariant_total_length = 1;
+    size_t reduce_total_length    = 1;
 
-    static_for<0, ReduceDims::Size(), 1>{}(
-        [&](auto i) { reduce_total_length *= inLengths[ReduceDims::At(i)]; });
+    constexpr int NumInvariantDim = Rank - NumReduceDim;
 
-    static_for<0, Rank, 1>{}([&](auto i) { tensor_total_length *= inLengths[i.value]; });
+    for(int i = NumInvariantDim; i < Rank; i++)
+        reduce_total_length *= inLengths[i];
 
-    return std::make_pair(tensor_total_length / reduce_total_length, reduce_total_length);
-};
+    for(int i = 0; i < NumInvariantDim; i++)
+        invariant_total_length *= inLengths[i];
 
-template <int x, typename Seq>
-constexpr bool belong()
-{
-    bool inside = false;
-
-    static_for<0, Seq::Size(), 1>{}([&](auto i) { inside = (inside || (x == Seq::At(i))); });
-
-    return (inside);
+    return std::make_pair(invariant_total_length, reduce_total_length);
 };
 
 // helper functions using variadic template arguments
 template <index_t... Ns>
-static auto make_tuple_from_array_and_index_seq(const std::vector<int>& lengths, Sequence<Ns...>)
+auto make_tuple_from_array_and_index_seq(const std::vector<int>& lengths, Sequence<Ns...>)
 {
     return make_tuple(static_cast<index_t>(lengths[Ns])...);
 };
@@ -59,16 +51,12 @@ static auto make_tuple_from_array(const std::vector<int>& lengths, Number<arrayS
 };
 
 template <index_t Rank, index_t NumReduceDim>
-static inline std::pair<std::vector<int>, std::vector<int>>
-shuffle_tensor_dimensions(const std::vector<int>& dimLengths,
-                          const std::vector<int>& dimStrides,
-                          const std::vector<int>& reduceDims)
+std::vector<int> shuffle_tensor_dimensions(const std::vector<int>& origLengthsStrides,
+                                           const std::vector<int>& reduceDims)
 {
-    std::vector<int> newDimLengths;
-    std::vector<int> newDimStrides;
+    std::vector<int> newLengthsStrides;
 
-    assert(Rank == dimLengths.size() && Rank == dimStrides.size() &&
-           NumReduceDim == reduceDims.size());
+    assert(Rank == origLengthsStrides.size() && NumReduceDim == reduceDims.size());
 
     int reduceFlag = 0;
 
@@ -82,19 +70,17 @@ shuffle_tensor_dimensions(const std::vector<int>& dimLengths,
     for(int i = 0; i < Rank; i++)
         if((reduceFlag & (1 << i)) == 0)
         {
-            newDimLengths.push_back(dimLengths[i]);
-            newDimStrides.push_back(dimStrides[i]);
+            newLengthsStrides.push_back(origLengthsStrides[i]);
         };
 
     // collect reduce dimensions
     for(int i = 0; i < Rank; i++)
         if((reduceFlag & (1 << i)) > 0)
         {
-            newDimLengths.push_back(dimLengths[i]);
-            newDimStrides.push_back(dimStrides[i]);
+            newLengthsStrides.push_back(origLengthsStrides[i]);
         };
 
-    return std::make_pair(newDimLengths, newDimStrides);
+    return newLengthsStrides;
 };
 
 } // namespace device
