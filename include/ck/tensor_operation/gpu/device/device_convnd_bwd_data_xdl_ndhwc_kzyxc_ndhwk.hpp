@@ -97,13 +97,13 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                                     std::vector<ck::index_t> conv_filter_dilations,
                                                     std::vector<ck::index_t> input_left_pads,
                                                     std::vector<ck::index_t> input_right_pads,
-                                                    std::vector<ck::index_t> tildas)
+                                                    std::vector<ck::index_t> tildes)
     {
         using namespace ck;
 
-        const index_t i_ztilda = tildas[0];
-        const index_t i_ytilda = tildas[1];
-        const index_t i_xtilda = tildas[2];
+        const index_t i_ztilde = tildes[0];
+        const index_t i_ytilde = tildes[1];
+        const index_t i_xtilde = tildes[2];
 
         const index_t Di = input_spatial_lengths[0];
         const index_t Hi = input_spatial_lengths[1];
@@ -201,44 +201,44 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const auto GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
 
-            const auto ZTilda = ConvStrideD / GcdStrideDilationD;
-            const auto YTilda = ConvStrideH / GcdStrideDilationH;
-            const auto XTilda = ConvStrideW / GcdStrideDilationW;
+            const auto ZTilde = ConvStrideD / GcdStrideDilationD;
+            const auto YTilde = ConvStrideH / GcdStrideDilationH;
+            const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
-            const auto ZDot = math::integer_divide_ceil(Z, ZTilda);
-            const auto YDot = math::integer_divide_ceil(Y, YTilda);
-            const auto XDot = math::integer_divide_ceil(X, XTilda);
+            const auto ZDot = math::integer_divide_ceil(Z, ZTilde);
+            const auto YDot = math::integer_divide_ceil(Y, YTilde);
+            const auto XDot = math::integer_divide_ceil(X, XTilde);
 
-            const auto DTilda =
+            const auto DTilde =
                 Do + math::integer_divide_ceil(ConvDilationD * (Z - I1), ConvStrideD);
-            const auto HTilda =
+            const auto HTilde =
                 Ho + math::integer_divide_ceil(ConvDilationH * (Y - I1), ConvStrideH);
-            const auto WTilda =
+            const auto WTilde =
                 Wo + math::integer_divide_ceil(ConvDilationW * (X - I1), ConvStrideW);
 
-            // only work on HTilda and WTilda that contribute to non-padding area of input tensor
-            const auto IDTildaSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadD - ConvDilationD * (ZTilda - I1)), ConvStrideD);
-            const auto IHTildaSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadH - ConvDilationH * (YTilda - I1)), ConvStrideH);
-            const auto IWTildaSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadW - ConvDilationW * (XTilda - I1)), ConvStrideW);
+            // only work on HTilde and WTilde that contribute to non-padding area of input tensor
+            const auto IDTildeSliceBegin = math::integer_divide_floor(
+                math::max(I0, InLeftPadD - ConvDilationD * (ZTilde - I1)), ConvStrideD);
+            const auto IHTildeSliceBegin = math::integer_divide_floor(
+                math::max(I0, InLeftPadH - ConvDilationH * (YTilde - I1)), ConvStrideH);
+            const auto IWTildeSliceBegin = math::integer_divide_floor(
+                math::max(I0, InLeftPadW - ConvDilationW * (XTilde - I1)), ConvStrideW);
 
-            const auto IDTildaSliceEnd = math::min(
-                DTilda, math::integer_divide_ceil(InLeftPadD + Di - I1, ConvStrideD) + I1);
-            const auto IHTildaSliceEnd = math::min(
-                HTilda, math::integer_divide_ceil(InLeftPadH + Hi - I1, ConvStrideH) + I1);
-            const auto IWTildaSliceEnd = math::min(
-                WTilda, math::integer_divide_ceil(InLeftPadW + Wi - I1, ConvStrideW) + I1);
+            const auto IDTildeSliceEnd = math::min(
+                DTilde, math::integer_divide_ceil(InLeftPadD + Di - I1, ConvStrideD) + I1);
+            const auto IHTildeSliceEnd = math::min(
+                HTilde, math::integer_divide_ceil(InLeftPadH + Hi - I1, ConvStrideH) + I1);
+            const auto IWTildeSliceEnd = math::min(
+                WTilde, math::integer_divide_ceil(InLeftPadW + Wi - I1, ConvStrideW) + I1);
 
-            const auto DTildaSlice = IDTildaSliceEnd - IDTildaSliceBegin;
-            const auto HTildaSlice = IHTildaSliceEnd - IHTildaSliceBegin;
-            const auto WTildaSlice = IWTildaSliceEnd - IWTildaSliceBegin;
+            const auto DTildeSlice = IDTildeSliceEnd - IDTildeSliceBegin;
+            const auto HTildeSlice = IHTildeSliceEnd - IHTildeSliceBegin;
+            const auto WTildeSlice = IWTildeSliceEnd - IWTildeSliceBegin;
 
             // GemmK is different for each GEMM
-            const auto ZDotSlice = math::integer_divide_ceil(Z - i_ztilda, ZTilda);
-            const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilda, YTilda);
-            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilda, XTilda);
+            const auto ZDotSlice = math::integer_divide_ceil(Z - i_ztilde, ZTilde);
+            const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
+            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
 
             // A: output tensor
             const auto out_n_dop_hop_wop_k_grid_desc = transform_tensor_descriptor(
@@ -253,16 +253,16 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 make_tuple(
                     Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
-            const auto out_n_zdot_dtilda_ydot_htilda_xdot_wtilda_k_grid_desc =
+            const auto out_n_zdot_dtilde_ydot_htilde_xdot_wtilde_k_grid_desc =
                 transform_tensor_descriptor(
                     out_n_dop_hop_wop_k_grid_desc,
                     make_tuple(
                         make_pass_through_transform(N),
-                        make_embed_transform(make_tuple(ZDot, DTilda),
+                        make_embed_transform(make_tuple(ZDot, DTilde),
                                              make_tuple(-ConvDilationD / GcdStrideDilationD, I1)),
-                        make_embed_transform(make_tuple(YDot, HTilda),
+                        make_embed_transform(make_tuple(YDot, HTilde),
                                              make_tuple(-ConvDilationH / GcdStrideDilationH, I1)),
-                        make_embed_transform(make_tuple(XDot, WTilda),
+                        make_embed_transform(make_tuple(XDot, WTilde),
                                              make_tuple(-ConvDilationW / GcdStrideDilationW, I1)),
                         make_pass_through_transform(K)),
                     make_tuple(
@@ -274,16 +274,16 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                Sequence<7>{}));
 
             const auto
-                out_n_zdotslice_dtildaslice_ydotslice_htildaslice_xdotslice_wtildaslice_k0_k1_grid_desc =
+                out_n_zdotslice_dtildeslice_ydotslice_htildeslice_xdotslice_wtildeslice_k0_k1_grid_desc =
                     transform_tensor_descriptor(
-                        out_n_zdot_dtilda_ydot_htilda_xdot_wtilda_k_grid_desc,
+                        out_n_zdot_dtilde_ydot_htilde_xdot_wtilde_k_grid_desc,
                         make_tuple(make_pass_through_transform(N),
                                    make_slice_transform(ZDot, I0, ZDotSlice),
-                                   make_slice_transform(DTilda, IDTildaSliceBegin, DTildaSlice),
+                                   make_slice_transform(DTilde, IDTildeSliceBegin, DTildeSlice),
                                    make_slice_transform(YDot, I0, YDotSlice),
-                                   make_slice_transform(HTilda, IHTildaSliceBegin, HTildaSlice),
+                                   make_slice_transform(HTilde, IHTildeSliceBegin, HTildeSlice),
                                    make_slice_transform(XDot, I0, XDotSlice),
-                                   make_slice_transform(WTilda, IWTildaSliceBegin, WTildaSlice),
+                                   make_slice_transform(WTilde, IWTildeSliceBegin, WTildeSlice),
                                    make_unmerge_transform(make_tuple(K0, K1))),
                         make_tuple(Sequence<0>{},
                                    Sequence<1>{},
@@ -303,25 +303,25 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                    Sequence<7, 8>{}));
 
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_n_zdotslice_dtildaslice_ydotslice_htildaslice_xdotslice_wtildaslice_k0_k1_grid_desc,
+                out_n_zdotslice_dtildeslice_ydotslice_htildeslice_xdotslice_wtildeslice_k0_k1_grid_desc,
                 make_tuple(
                     make_merge_transform(make_tuple(ZDotSlice, YDotSlice, XDotSlice, K0)),
-                    make_merge_transform(make_tuple(N, DTildaSlice, HTildaSlice, WTildaSlice)),
+                    make_merge_transform(make_tuple(N, DTildeSlice, HTildeSlice, WTildeSlice)),
                     make_pass_through_transform(K1)),
                 make_tuple(Sequence<1, 3, 5, 7>{}, Sequence<0, 2, 4, 6>{}, Sequence<8>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
             // B weight tensor
-            const auto wei_k_zdot_ztilda_ydot_ytilda_xdot_xtilda_c_grid_desc =
+            const auto wei_k_zdot_ztilde_ydot_ytilde_xdot_xtilde_c_grid_desc =
                 transform_tensor_descriptor(
                     wei_k_z_y_x_c_grid_desc,
                     make_tuple(
                         make_pass_through_transform(K),
-                        make_embed_transform(make_tuple(ZDot, ZTilda),
+                        make_embed_transform(make_tuple(ZDot, ZTilde),
                                              make_tuple(ConvStrideD / GcdStrideDilationD, I1)),
-                        make_embed_transform(make_tuple(YDot, YTilda),
+                        make_embed_transform(make_tuple(YDot, YTilde),
                                              make_tuple(ConvStrideH / GcdStrideDilationH, I1)),
-                        make_embed_transform(make_tuple(XDot, XTilda),
+                        make_embed_transform(make_tuple(XDot, XTilde),
                                              make_tuple(ConvStrideW / GcdStrideDilationW, I1)),
                         make_pass_through_transform(C)),
                     make_tuple(
@@ -333,14 +333,14 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                Sequence<7>{}));
 
             const auto wei_k0_k1_zdotslice_ydotslice_xdotslice_c_grid_desc =
-                transform_tensor_descriptor(wei_k_zdot_ztilda_ydot_ytilda_xdot_xtilda_c_grid_desc,
+                transform_tensor_descriptor(wei_k_zdot_ztilde_ydot_ytilde_xdot_xtilde_c_grid_desc,
                                             make_tuple(make_unmerge_transform(make_tuple(K0, K1)),
                                                        make_slice_transform(ZDot, I0, ZDotSlice),
                                                        make_slice_transform(YDot, I0, YDotSlice),
                                                        make_slice_transform(XDot, I0, XDotSlice),
-                                                       make_freeze_transform(i_ztilda),
-                                                       make_freeze_transform(i_ytilda),
-                                                       make_freeze_transform(i_xtilda),
+                                                       make_freeze_transform(i_ztilde),
+                                                       make_freeze_transform(i_ytilde),
+                                                       make_freeze_transform(i_xtilde),
                                                        make_pass_through_transform(C)),
                                             make_tuple(Sequence<0>{},
                                                        Sequence<1>{},
@@ -380,15 +380,15 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 make_tuple(
                     Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
-            const auto in_n_ztilda_dtilda_ytilda_htilda_xtilda_wtilda_c_grid_desc =
+            const auto in_n_ztilde_dtilde_ytilde_htilde_xtilde_wtilde_c_grid_desc =
                 transform_tensor_descriptor(
                     in_n_dip_hip_wip_c_grid_desc,
                     make_tuple(make_pass_through_transform(N),
-                               make_embed_transform(make_tuple(ZTilda, DTilda),
+                               make_embed_transform(make_tuple(ZTilde, DTilde),
                                                     make_tuple(ConvDilationD, ConvStrideD)),
-                               make_embed_transform(make_tuple(YTilda, HTilda),
+                               make_embed_transform(make_tuple(YTilde, HTilde),
                                                     make_tuple(ConvDilationH, ConvStrideH)),
-                               make_embed_transform(make_tuple(XTilda, WTilda),
+                               make_embed_transform(make_tuple(XTilde, WTilde),
                                                     make_tuple(ConvDilationW, ConvStrideW)),
                                make_pass_through_transform(C)),
                     make_tuple(
@@ -399,16 +399,16 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                Sequence<5, 6>{},
                                Sequence<7>{}));
 
-            const auto in_n_dtildaslice_htildaslice_wtildaslice_c_grid_desc =
+            const auto in_n_dtildeslice_htildeslice_wtildeslice_c_grid_desc =
                 transform_tensor_descriptor(
-                    in_n_ztilda_dtilda_ytilda_htilda_xtilda_wtilda_c_grid_desc,
+                    in_n_ztilde_dtilde_ytilde_htilde_xtilde_wtilde_c_grid_desc,
                     make_tuple(make_pass_through_transform(N),
-                               make_freeze_transform(i_ztilda),
-                               make_slice_transform(DTilda, IDTildaSliceBegin, DTildaSlice),
-                               make_freeze_transform(i_ytilda),
-                               make_slice_transform(HTilda, IHTildaSliceBegin, HTildaSlice),
-                               make_freeze_transform(i_xtilda),
-                               make_slice_transform(WTilda, IWTildaSliceBegin, WTildaSlice),
+                               make_freeze_transform(i_ztilde),
+                               make_slice_transform(DTilde, IDTildeSliceBegin, DTildeSlice),
+                               make_freeze_transform(i_ytilde),
+                               make_slice_transform(HTilde, IHTildeSliceBegin, HTildeSlice),
+                               make_freeze_transform(i_xtilde),
+                               make_slice_transform(WTilde, IWTildeSliceBegin, WTildeSlice),
                                make_pass_through_transform(C)),
                     make_tuple(Sequence<0>{},
                                Sequence<1>{},
@@ -428,9 +428,9 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                Sequence<4>{}));
 
             const auto in_gemmm_gemmn_grid_desc = transform_tensor_descriptor(
-                in_n_dtildaslice_htildaslice_wtildaslice_c_grid_desc,
+                in_n_dtildeslice_htildeslice_wtildeslice_c_grid_desc,
                 make_tuple(
-                    make_merge_transform(make_tuple(N, DTildaSlice, HTildaSlice, WTildaSlice)),
+                    make_merge_transform(make_tuple(N, DTildeSlice, HTildeSlice, WTildeSlice)),
                     make_pass_through_transform(C)),
                 make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<4>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -454,11 +454,11 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                                     std::vector<ck::index_t> conv_filter_dilations,
                                                     std::vector<ck::index_t> input_left_pads,
                                                     std::vector<ck::index_t> input_right_pads,
-                                                    std::vector<ck::index_t> tildas)
+                                                    std::vector<ck::index_t> tildes)
     {
         using namespace ck;
 
-        index_t i_xtilda = tildas[0];
+        index_t i_xtilde = tildes[0];
 
         const index_t Wi            = input_spatial_lengths[0];
         const index_t Wo            = output_spatial_lengths[0];
@@ -521,24 +521,24 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
 
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
 
-            const auto XTilda = ConvStrideW / GcdStrideDilationW;
+            const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
-            const auto XDot = math::integer_divide_ceil(X, XTilda);
+            const auto XDot = math::integer_divide_ceil(X, XTilde);
 
-            const auto WTilda =
+            const auto WTilde =
                 Wo + math::integer_divide_ceil(ConvDilationW * (X - I1), ConvStrideW);
 
-            // only work on HTilda and WTilda that contribute to non-padding area of input tensor
-            const auto IWTildaSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadW - ConvDilationW * (XTilda - I1)), ConvStrideW);
+            // only work on HTilde and WTilde that contribute to non-padding area of input tensor
+            const auto IWTildeSliceBegin = math::integer_divide_floor(
+                math::max(I0, InLeftPadW - ConvDilationW * (XTilde - I1)), ConvStrideW);
 
-            const auto IWTildaSliceEnd = math::min(
-                WTilda, math::integer_divide_ceil(InLeftPadW + Wi - I1, ConvStrideW) + I1);
+            const auto IWTildeSliceEnd = math::min(
+                WTilde, math::integer_divide_ceil(InLeftPadW + Wi - I1, ConvStrideW) + I1);
 
-            const auto WTildaSlice = IWTildaSliceEnd - IWTildaSliceBegin;
+            const auto WTildeSlice = IWTildeSliceEnd - IWTildeSliceBegin;
 
             // GemmK is different for each GEMM
-            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilda, XTilda);
+            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
 
             // A: output tensor
             const auto out_n_wop_k_grid_desc = transform_tensor_descriptor(
@@ -549,48 +549,48 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-            const auto out_n_xdot_wtilda_k_grid_desc = transform_tensor_descriptor(
+            const auto out_n_xdot_wtilde_k_grid_desc = transform_tensor_descriptor(
                 out_n_wop_k_grid_desc,
                 make_tuple(
                     make_pass_through_transform(N),
-                    make_embed_transform(make_tuple(XDot, WTilda),
+                    make_embed_transform(make_tuple(XDot, WTilde),
                                          make_tuple(-ConvDilationW / GcdStrideDilationW, I1)),
                     make_pass_through_transform(K)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
 
-            const auto out_n_xdotslice_wtildaslice_k0_k1_grid_desc = transform_tensor_descriptor(
-                out_n_xdot_wtilda_k_grid_desc,
+            const auto out_n_xdotslice_wtildeslice_k0_k1_grid_desc = transform_tensor_descriptor(
+                out_n_xdot_wtilde_k_grid_desc,
                 make_tuple(make_pass_through_transform(N),
                            make_slice_transform(XDot, I0, XDotSlice),
-                           make_slice_transform(WTilda, IWTildaSliceBegin, WTildaSlice),
+                           make_slice_transform(WTilde, IWTildeSliceBegin, WTildeSlice),
                            make_unmerge_transform(make_tuple(K0, K1))),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3, 4>{}));
 
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_n_xdotslice_wtildaslice_k0_k1_grid_desc,
+                out_n_xdotslice_wtildeslice_k0_k1_grid_desc,
                 make_tuple(make_merge_transform(make_tuple(XDotSlice, K0)),
-                           make_merge_transform(make_tuple(N, WTildaSlice)),
+                           make_merge_transform(make_tuple(N, WTildeSlice)),
                            make_pass_through_transform(K1)),
                 make_tuple(Sequence<1, 3>{}, Sequence<0, 2>{}, Sequence<4>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
             // B weight tensor
-            const auto wei_k_xdot_xtilda_c_grid_desc = transform_tensor_descriptor(
+            const auto wei_k_xdot_xtilde_c_grid_desc = transform_tensor_descriptor(
                 wei_k_x_c_grid_desc,
                 make_tuple(make_pass_through_transform(K),
-                           make_embed_transform(make_tuple(XDot, XTilda),
+                           make_embed_transform(make_tuple(XDot, XTilde),
                                                 make_tuple(ConvStrideW / GcdStrideDilationW, I1)),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
 
             const auto wei_k0_k1_xdotslice_c_grid_desc = transform_tensor_descriptor(
-                wei_k_xdot_xtilda_c_grid_desc,
+                wei_k_xdot_xtilde_c_grid_desc,
                 make_tuple(make_unmerge_transform(make_tuple(K0, K1)),
                            make_slice_transform(XDot, I0, XDotSlice),
-                           make_freeze_transform(i_xtilda),
+                           make_freeze_transform(i_xtilde),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<>{}, Sequence<3>{}));
@@ -612,27 +612,27 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-            const auto in_n_xtilda_wtilda_c_grid_desc = transform_tensor_descriptor(
+            const auto in_n_xtilde_wtilde_c_grid_desc = transform_tensor_descriptor(
                 in_n_wip_c_grid_desc,
                 make_tuple(make_pass_through_transform(N),
-                           make_embed_transform(make_tuple(XTilda, WTilda),
+                           make_embed_transform(make_tuple(XTilde, WTilde),
                                                 make_tuple(ConvDilationW, ConvStrideW)),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
 
-            const auto in_n_wtildaslice_c_grid_desc = transform_tensor_descriptor(
-                in_n_xtilda_wtilda_c_grid_desc,
+            const auto in_n_wtildeslice_c_grid_desc = transform_tensor_descriptor(
+                in_n_xtilde_wtilde_c_grid_desc,
                 make_tuple(make_pass_through_transform(N),
-                           make_freeze_transform(i_xtilda),
-                           make_slice_transform(WTilda, IWTildaSliceBegin, WTildaSlice),
+                           make_freeze_transform(i_xtilde),
+                           make_slice_transform(WTilde, IWTildeSliceBegin, WTildeSlice),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<>{}, Sequence<1>{}, Sequence<2>{}));
 
             const auto in_gemmm_gemmn_grid_desc = transform_tensor_descriptor(
-                in_n_wtildaslice_c_grid_desc,
-                make_tuple(make_merge_transform(make_tuple(N, WTildaSlice)),
+                in_n_wtildeslice_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N, WTildeSlice)),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -655,12 +655,12 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                                     std::vector<ck::index_t> conv_filter_dilations,
                                                     std::vector<ck::index_t> input_left_pads,
                                                     std::vector<ck::index_t> input_right_pads,
-                                                    std::vector<ck::index_t> tildas)
+                                                    std::vector<ck::index_t> tildes)
     {
         using namespace ck;
 
-        index_t i_ytilda = tildas[0];
-        index_t i_xtilda = tildas[1];
+        index_t i_ytilde = tildes[0];
+        index_t i_xtilde = tildes[1];
 
         const index_t Hi = input_spatial_lengths[0];
         const index_t Wi = input_spatial_lengths[1];
@@ -739,34 +739,34 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const auto GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
 
-            const auto YTilda = ConvStrideH / GcdStrideDilationH;
-            const auto XTilda = ConvStrideW / GcdStrideDilationW;
+            const auto YTilde = ConvStrideH / GcdStrideDilationH;
+            const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
-            const auto YDot = math::integer_divide_ceil(Y, YTilda);
-            const auto XDot = math::integer_divide_ceil(X, XTilda);
+            const auto YDot = math::integer_divide_ceil(Y, YTilde);
+            const auto XDot = math::integer_divide_ceil(X, XTilde);
 
-            const auto HTilda =
+            const auto HTilde =
                 Ho + math::integer_divide_ceil(ConvDilationH * (Y - I1), ConvStrideH);
-            const auto WTilda =
+            const auto WTilde =
                 Wo + math::integer_divide_ceil(ConvDilationW * (X - I1), ConvStrideW);
 
-            // only work on HTilda and WTilda that contribute to non-padding area of input tensor
-            const auto IHTildaSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadH - ConvDilationH * (YTilda - I1)), ConvStrideH);
-            const auto IWTildaSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadW - ConvDilationW * (XTilda - I1)), ConvStrideW);
+            // only work on HTilde and WTilde that contribute to non-padding area of input tensor
+            const auto IHTildeSliceBegin = math::integer_divide_floor(
+                math::max(I0, InLeftPadH - ConvDilationH * (YTilde - I1)), ConvStrideH);
+            const auto IWTildeSliceBegin = math::integer_divide_floor(
+                math::max(I0, InLeftPadW - ConvDilationW * (XTilde - I1)), ConvStrideW);
 
-            const auto IHTildaSliceEnd = math::min(
-                HTilda, math::integer_divide_ceil(InLeftPadH + Hi - I1, ConvStrideH) + I1);
-            const auto IWTildaSliceEnd = math::min(
-                WTilda, math::integer_divide_ceil(InLeftPadW + Wi - I1, ConvStrideW) + I1);
+            const auto IHTildeSliceEnd = math::min(
+                HTilde, math::integer_divide_ceil(InLeftPadH + Hi - I1, ConvStrideH) + I1);
+            const auto IWTildeSliceEnd = math::min(
+                WTilde, math::integer_divide_ceil(InLeftPadW + Wi - I1, ConvStrideW) + I1);
 
-            const auto HTildaSlice = IHTildaSliceEnd - IHTildaSliceBegin;
-            const auto WTildaSlice = IWTildaSliceEnd - IWTildaSliceBegin;
+            const auto HTildeSlice = IHTildeSliceEnd - IHTildeSliceBegin;
+            const auto WTildeSlice = IWTildeSliceEnd - IWTildeSliceBegin;
 
             // GemmK is different for each GEMM
-            const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilda, YTilda);
-            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilda, XTilda);
+            const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
+            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
 
             // A: output tensor
             const auto out_n_hop_wop_k_grid_desc = transform_tensor_descriptor(
@@ -778,26 +778,26 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
-            const auto out_n_ydot_htilda_xdot_wtilda_k_grid_desc = transform_tensor_descriptor(
+            const auto out_n_ydot_htilde_xdot_wtilde_k_grid_desc = transform_tensor_descriptor(
                 out_n_hop_wop_k_grid_desc,
                 make_tuple(
                     make_pass_through_transform(N),
-                    make_embed_transform(make_tuple(YDot, HTilda),
+                    make_embed_transform(make_tuple(YDot, HTilde),
                                          make_tuple(-ConvDilationH / GcdStrideDilationH, I1)),
-                    make_embed_transform(make_tuple(XDot, WTilda),
+                    make_embed_transform(make_tuple(XDot, WTilde),
                                          make_tuple(-ConvDilationW / GcdStrideDilationW, I1)),
                     make_pass_through_transform(K)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-            const auto out_n_ydotslice_htildaslice_xdotslice_wtildaslice_k0_k1_grid_desc =
+            const auto out_n_ydotslice_htildeslice_xdotslice_wtildeslice_k0_k1_grid_desc =
                 transform_tensor_descriptor(
-                    out_n_ydot_htilda_xdot_wtilda_k_grid_desc,
+                    out_n_ydot_htilde_xdot_wtilde_k_grid_desc,
                     make_tuple(make_pass_through_transform(N),
                                make_slice_transform(YDot, I0, YDotSlice),
-                               make_slice_transform(HTilda, IHTildaSliceBegin, HTildaSlice),
+                               make_slice_transform(HTilde, IHTildeSliceBegin, HTildeSlice),
                                make_slice_transform(XDot, I0, XDotSlice),
-                               make_slice_transform(WTilda, IWTildaSliceBegin, WTildaSlice),
+                               make_slice_transform(WTilde, IWTildeSliceBegin, WTildeSlice),
                                make_unmerge_transform(make_tuple(K0, K1))),
                     make_tuple(Sequence<0>{},
                                Sequence<1>{},
@@ -813,32 +813,32 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                Sequence<5, 6>{}));
 
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                out_n_ydotslice_htildaslice_xdotslice_wtildaslice_k0_k1_grid_desc,
+                out_n_ydotslice_htildeslice_xdotslice_wtildeslice_k0_k1_grid_desc,
                 make_tuple(make_merge_transform(make_tuple(YDotSlice, XDotSlice, K0)),
-                           make_merge_transform(make_tuple(N, HTildaSlice, WTildaSlice)),
+                           make_merge_transform(make_tuple(N, HTildeSlice, WTildeSlice)),
                            make_pass_through_transform(K1)),
                 make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}, Sequence<6>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
             // B weight tensor
-            const auto wei_k_ydot_ytilda_xdot_xtilda_c_grid_desc = transform_tensor_descriptor(
+            const auto wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc = transform_tensor_descriptor(
                 wei_k_y_x_c_grid_desc,
                 make_tuple(make_pass_through_transform(K),
-                           make_embed_transform(make_tuple(YDot, YTilda),
+                           make_embed_transform(make_tuple(YDot, YTilde),
                                                 make_tuple(ConvStrideH / GcdStrideDilationH, I1)),
-                           make_embed_transform(make_tuple(XDot, XTilda),
+                           make_embed_transform(make_tuple(XDot, XTilde),
                                                 make_tuple(ConvStrideW / GcdStrideDilationW, I1)),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
             const auto wei_k0_k1_ydotslice_xdotslice_c_grid_desc =
-                transform_tensor_descriptor(wei_k_ydot_ytilda_xdot_xtilda_c_grid_desc,
+                transform_tensor_descriptor(wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc,
                                             make_tuple(make_unmerge_transform(make_tuple(K0, K1)),
                                                        make_slice_transform(YDot, I0, YDotSlice),
                                                        make_slice_transform(XDot, I0, XDotSlice),
-                                                       make_freeze_transform(i_ytilda),
-                                                       make_freeze_transform(i_xtilda),
+                                                       make_freeze_transform(i_ytilde),
+                                                       make_freeze_transform(i_xtilde),
                                                        make_pass_through_transform(C)),
                                             make_tuple(Sequence<0>{},
                                                        Sequence<1>{},
@@ -871,24 +871,24 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
-            const auto in_n_ytilda_htilda_xtilda_wtilda_c_grid_desc = transform_tensor_descriptor(
+            const auto in_n_ytilde_htilde_xtilde_wtilde_c_grid_desc = transform_tensor_descriptor(
                 in_n_hip_wip_c_grid_desc,
                 make_tuple(make_pass_through_transform(N),
-                           make_embed_transform(make_tuple(YTilda, HTilda),
+                           make_embed_transform(make_tuple(YTilde, HTilde),
                                                 make_tuple(ConvDilationH, ConvStrideH)),
-                           make_embed_transform(make_tuple(XTilda, WTilda),
+                           make_embed_transform(make_tuple(XTilde, WTilde),
                                                 make_tuple(ConvDilationW, ConvStrideW)),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-            const auto in_n_htildaslice_wtildaslice_c_grid_desc = transform_tensor_descriptor(
-                in_n_ytilda_htilda_xtilda_wtilda_c_grid_desc,
+            const auto in_n_htildeslice_wtildeslice_c_grid_desc = transform_tensor_descriptor(
+                in_n_ytilde_htilde_xtilde_wtilde_c_grid_desc,
                 make_tuple(make_pass_through_transform(N),
-                           make_freeze_transform(i_ytilda),
-                           make_slice_transform(HTilda, IHTildaSliceBegin, HTildaSlice),
-                           make_freeze_transform(i_xtilda),
-                           make_slice_transform(WTilda, IWTildaSliceBegin, WTildaSlice),
+                           make_freeze_transform(i_ytilde),
+                           make_slice_transform(HTilde, IHTildeSliceBegin, HTildeSlice),
+                           make_freeze_transform(i_xtilde),
+                           make_slice_transform(WTilde, IWTildeSliceBegin, WTildeSlice),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0>{},
                            Sequence<1>{},
@@ -904,8 +904,8 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                            Sequence<3>{}));
 
             const auto in_gemmm_gemmn_grid_desc = transform_tensor_descriptor(
-                in_n_htildaslice_wtildaslice_c_grid_desc,
-                make_tuple(make_merge_transform(make_tuple(N, HTildaSlice, WTildaSlice)),
+                in_n_htildeslice_wtildeslice_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N, HTildeSlice, WTildeSlice)),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -1043,13 +1043,13 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const index_t ConvStrideW     = conv_filter_strides_[0];
             const index_t ConvDilationW   = conv_filter_dilations_[0];
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
-            const auto XTilda             = ConvStrideW / GcdStrideDilationW;
+            const auto XTilde             = ConvStrideW / GcdStrideDilationW;
 
-            for(index_t i_xtilda = 0; i_xtilda < XTilda; ++i_xtilda)
+            for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
             {
                 // check slice is valid
                 const index_t X      = filter_spatial_lengths_[0];
-                const auto XDotSlice = math::integer_divide_ceil(X - i_xtilda, XTilda);
+                const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
                 if(XDotSlice <= 0)
                 {
                     continue;
@@ -1067,7 +1067,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         conv_filter_dilations_,
                         input_left_pads_,
                         input_right_pads_,
-                        {i_xtilda});
+                        {i_xtilde});
                 a_grid_desc_k0_m_k1_container_.push_back(descs[I0]);
                 b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                 c_grid_desc_m_n_container_.push_back(descs[I2]);
@@ -1094,18 +1094,18 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const auto GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
 
-            const auto YTilda = ConvStrideH / GcdStrideDilationH;
-            const auto XTilda = ConvStrideW / GcdStrideDilationW;
+            const auto YTilde = ConvStrideH / GcdStrideDilationH;
+            const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
-            for(index_t i_ytilda = 0; i_ytilda < YTilda; ++i_ytilda)
+            for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
             {
-                for(index_t i_xtilda = 0; i_xtilda < XTilda; ++i_xtilda)
+                for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
                 {
                     // check slice is valid
                     const index_t Y      = filter_spatial_lengths_[0];
                     const index_t X      = filter_spatial_lengths_[1];
-                    const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilda, YTilda);
-                    const auto XDotSlice = math::integer_divide_ceil(X - i_xtilda, XTilda);
+                    const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
+                    const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
                     if(YDotSlice * XDotSlice <= 0)
                     {
                         continue;
@@ -1123,7 +1123,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                             conv_filter_dilations_,
                             input_left_pads_,
                             input_right_pads_,
-                            {i_ytilda, i_xtilda});
+                            {i_ytilde, i_xtilde});
                     a_grid_desc_k0_m_k1_container_.push_back(descs[I0]);
                     b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                     c_grid_desc_m_n_container_.push_back(descs[I2]);
@@ -1154,23 +1154,23 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const auto GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
 
-            const auto ZTilda = ConvStrideD / GcdStrideDilationD;
-            const auto YTilda = ConvStrideH / GcdStrideDilationH;
-            const auto XTilda = ConvStrideW / GcdStrideDilationW;
+            const auto ZTilde = ConvStrideD / GcdStrideDilationD;
+            const auto YTilde = ConvStrideH / GcdStrideDilationH;
+            const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
-            for(index_t i_ztilda = 0; i_ztilda < ZTilda; ++i_ztilda)
+            for(index_t i_ztilde = 0; i_ztilde < ZTilde; ++i_ztilde)
             {
-                for(index_t i_ytilda = 0; i_ytilda < YTilda; ++i_ytilda)
+                for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
                 {
-                    for(index_t i_xtilda = 0; i_xtilda < XTilda; ++i_xtilda)
+                    for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
                     {
                         // check slice is valid
                         const index_t Z      = filter_spatial_lengths_[0];
                         const index_t Y      = filter_spatial_lengths_[1];
                         const index_t X      = filter_spatial_lengths_[2];
-                        const auto ZDotSlice = math::integer_divide_ceil(Z - i_ztilda, ZTilda);
-                        const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilda, YTilda);
-                        const auto XDotSlice = math::integer_divide_ceil(X - i_xtilda, XTilda);
+                        const auto ZDotSlice = math::integer_divide_ceil(Z - i_ztilde, ZTilde);
+                        const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
+                        const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
                         if(ZDotSlice * YDotSlice * XDotSlice <= 0)
                         {
                             continue;
@@ -1188,7 +1188,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                                conv_filter_dilations_,
                                                input_left_pads_,
                                                input_right_pads_,
-                                               {i_ztilda, i_ytilda, i_xtilda});
+                                               {i_ztilde, i_ytilde, i_xtilde});
                         a_grid_desc_k0_m_k1_container_.push_back(descs[I0]);
                         b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                         c_grid_desc_m_n_container_.push_back(descs[I2]);

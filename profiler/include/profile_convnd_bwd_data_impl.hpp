@@ -125,15 +125,13 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     }
 }
 template <typename InDataType, typename WeiDataType, typename OutDataType>
-void GetDeviceConvBwdDataOpPtr(InDataType,
-                               WeiDataType,
-                               OutDataType,
-                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
-                               int num_dim_spatial)
+void GetDeviceConvBwdDataOpPtr(
+    InDataType, WeiDataType, OutDataType, std::vector<DeviceConvBwdDataNoOpPtr>&, int)
 {
-    static_assert(0, "can not find device conv bwd data");
+    std::cout << "can not find device conv bwd data" << std::endl;
+    exit(1);
 }
-template <F32, F32, F32>
+template <>
 void GetDeviceConvBwdDataOpPtr(
     F32, F32, F32, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
@@ -154,7 +152,7 @@ void GetDeviceConvBwdDataOpPtr(
     default: break;
     }
 }
-template <F16, F16, F16>
+template <>
 void GetDeviceConvBwdDataOpPtr(
     F16, F16, F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
@@ -175,7 +173,7 @@ void GetDeviceConvBwdDataOpPtr(
     default: break;
     }
 }
-template <BF16, BF16, BF16>
+template <>
 void GetDeviceConvBwdDataOpPtr(
     BF16, BF16, BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
@@ -196,7 +194,7 @@ void GetDeviceConvBwdDataOpPtr(
     default: break;
     }
 }
-template <INT8, INT8, INT8>
+template <>
 void GetDeviceConvBwdDataOpPtr(
     INT8, INT8, INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
