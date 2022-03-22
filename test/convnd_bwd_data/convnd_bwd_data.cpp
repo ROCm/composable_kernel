@@ -334,10 +334,11 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    auto Run = [&](auto input_type, auto wei_type, auto out_type) {
+    auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
         using InDataType  = decltype(input_type);
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
+        using AccDataType = decltype(acc_type);
 
         std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
                                             static_cast<std::size_t>(params.C)};
@@ -374,9 +375,9 @@ int main(int argc, char* argv[])
         auto f_generate_tensor_value = [](auto& desc, auto type) {
             using dataType = decltype(type);
 
-            if(std::is_same<dataType, int8_t>::value)
+            if(std::is_same<dataType, int8_t>::value || std::is_same<dataType, int32_t>::value)
             {
-                desc.GenerateTensorValue(GeneratorTensor_2<int8_t>{-2, 2});
+                desc.GenerateTensorValue(GeneratorTensor_2<dataType>{-5, 5});
             }
             else
             {
@@ -428,6 +429,7 @@ int main(int argc, char* argv[])
                 auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                  WeiDataType,
                                                                                  OutDataType,
+                                                                                 AccDataType,
                                                                                  InElementOp,
                                                                                  WeiElementOp,
                                                                                  OutElementOp,
@@ -439,6 +441,7 @@ int main(int argc, char* argv[])
                 auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                  WeiDataType,
                                                                                  OutDataType,
+                                                                                 AccDataType,
                                                                                  InElementOp,
                                                                                  WeiElementOp,
                                                                                  OutElementOp,
@@ -447,13 +450,14 @@ int main(int argc, char* argv[])
                 break;
             }
             case 1: {
-                auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                                 WeiDataType,
-                                                                                 OutDataType,
-                                                                                 InElementOp,
-                                                                                 WeiElementOp,
-                                                                                 OutElementOp,
-                                                                                 1>();
+                auto ref_conv =
+                    ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                                     WeiDataType,
+                                                                     OutDataType,
+                                                                     AccDataType InElementOp,
+                                                                     WeiElementOp,
+                                                                     OutElementOp,
+                                                                     1>();
                 RunReference(ref_conv);
                 break;
             }
@@ -505,7 +509,7 @@ int main(int argc, char* argv[])
                 {
                     std::cout << "Fail Info: " << conv_ptr->GetTypeString()
                               << " data_type: " << data_type << std::endl;
-                    check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+
                     success = false;
                 }
                 else
@@ -517,6 +521,7 @@ int main(int argc, char* argv[])
             {
                 std::cout << "Not support Info: " << conv_ptr->GetTypeString() << std::endl;
             }
+            check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
         }
 
         if(success)
@@ -531,19 +536,23 @@ int main(int argc, char* argv[])
 
     if(data_type == 0)
     {
-        Run(F32(), F32(), F32());
+        Run(F32(), F32(), F32(), F32());
     }
     else if(data_type == 1)
     {
-        Run(F16(), F16(), F16());
+        Run(F16(), F16(), F16(), F32());
     }
     else if(data_type == 2)
     {
-        Run(BF16(), BF16(), BF16());
+        Run(BF16(), BF16(), BF16(), F32());
     }
     else if(data_type == 3)
     {
-        Run(INT8(), INT8(), INT8());
+        Run(INT8(), INT8(), INT8(), int32_t());
+    }
+    else if(data_type == 4)
+    {
+        Run(int32_t(), int32_t(), int32_t(), int32_t());
     }
     else
     {

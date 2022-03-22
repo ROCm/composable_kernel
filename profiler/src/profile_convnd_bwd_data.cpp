@@ -107,10 +107,11 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
 
     ck::conv_util::ConvParams params = ParseConvParams(num_dim_spatial, argv, preParams);
 
-    auto Run = [&](auto input_type, auto wei_type, auto out_type) {
+    auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
         using InDataType  = decltype(input_type);
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
+        using AccDataType = decltype(acc_type);
 
         switch(num_dim_spatial)
         {
@@ -119,6 +120,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                                                        InDataType,
                                                        WeiDataType,
                                                        OutDataType,
+                                                       AccDataType,
                                                        ck::tensor_layout::convolution::NHWC,
                                                        ck::tensor_layout::convolution::KYXC,
                                                        ck::tensor_layout::convolution::NHWK>(
@@ -143,6 +145,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                                                        InDataType,
                                                        WeiDataType,
                                                        OutDataType,
+                                                       AccDataType,
                                                        ck::tensor_layout::convolution::NHWC,
                                                        ck::tensor_layout::convolution::KYXC,
                                                        ck::tensor_layout::convolution::NHWK>(
@@ -167,6 +170,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                                                        InDataType,
                                                        WeiDataType,
                                                        OutDataType,
+                                                       AccDataType,
                                                        ck::tensor_layout::convolution::NHWC,
                                                        ck::tensor_layout::convolution::KYXC,
                                                        ck::tensor_layout::convolution::NHWK>(
@@ -192,22 +196,22 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     if(data_type == ConvDataType::F32_F32_F32 && in_layout == ConvInputLayout::NHWC &&
        wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(float{}, float{}, float{});
+        Run(float{}, float{}, float{}, float{});
     }
     else if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
             wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(ck::half_t{}, ck::half_t{}, ck::half_t{});
+        Run(ck::half_t{}, ck::half_t{}, ck::half_t{}, float{});
     }
     else if(data_type == ConvDataType::BF16_BF16_BF16 && in_layout == ConvInputLayout::NHWC &&
             wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{});
+        Run(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{}, float{});
     }
     else if(data_type == ConvDataType::INT8_INT8_INT8 && in_layout == ConvInputLayout::NHWC &&
             wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(int8_t{}, int8_t{}, int8_t{});
+        Run(int8_t{}, int8_t{}, int8_t{}, int32_t{});
     }
     else
     {

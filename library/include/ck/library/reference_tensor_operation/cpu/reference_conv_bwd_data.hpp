@@ -14,6 +14,7 @@ namespace host {
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
+          typename AccDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
@@ -75,7 +76,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                     std::size_t X  = arg.weight_.mDesc.GetLengths()[2];
                     std::size_t Wo = arg.output_.mDesc.GetLengths()[2];
 
-                    float v_acc = 0;
+                    AccDataType v_acc = 0;
 
                     for(int x = 0; x < X; ++x)
                     {
@@ -87,13 +88,14 @@ struct ReferenceConvBwdData : public device::BaseOperator
                             {
                                 for(int k = 0; k < K; ++k)
                                 {
-                                    float v_out = 0;
-                                    float v_wei = 0;
+                                    AccDataType v_out = 0;
+                                    AccDataType v_wei = 0;
 
                                     arg.out_element_op_(
-                                        v_out, ck::type_convert<float>(arg.output_(n, k, wo)));
+                                        v_out,
+                                        ck::type_convert<AccDataType>(arg.output_(n, k, wo)));
                                     arg.wei_element_op_(
-                                        v_wei, ck::type_convert<float>(arg.weight_(k, c, x)));
+                                        v_wei, ck::type_convert<AccDataType>(arg.weight_(k, c, x)));
 
                                     v_acc += v_out * v_wei;
                                 }
@@ -124,7 +126,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                     std::size_t Ho = arg.output_.mDesc.GetLengths()[2];
                     std::size_t Wo = arg.output_.mDesc.GetLengths()[3];
 
-                    float v_acc = 0;
+                    AccDataType v_acc = 0;
 
                     for(int y = 0; y < Y; ++y)
                     {
@@ -145,14 +147,14 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                         {
                                             for(int k = 0; k < K; ++k)
                                             {
-                                                float v_out = 0;
-                                                float v_wei = 0;
+                                                AccDataType v_out = 0;
+                                                AccDataType v_wei = 0;
 
                                                 arg.out_element_op_(v_out,
-                                                                    ck::type_convert<float>(
+                                                                    ck::type_convert<AccDataType>(
                                                                         arg.output_(n, k, ho, wo)));
                                                 arg.wei_element_op_(v_wei,
-                                                                    ck::type_convert<float>(
+                                                                    ck::type_convert<AccDataType>(
                                                                         arg.weight_(k, c, y, x)));
 
                                                 v_acc += v_out * v_wei;
@@ -164,7 +166,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                         }
                     }
 
-                    float v_in;
+                    AccDataType v_in;
                     arg.in_element_op_(v_in, v_acc);
                     arg.input_(n, c, hi, wi) = ck::type_convert<InDataType>(v_in);
                 };
@@ -190,7 +192,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                     std::size_t Ho = arg.output_.mDesc.GetLengths()[3];
                     std::size_t Wo = arg.output_.mDesc.GetLengths()[4];
 
-                    float v_acc = 0;
+                    AccDataType v_acc = 0;
 
                     for(int z = 0; z < Z; ++z)
                     {
@@ -220,16 +222,17 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                     {
                                                         for(int k = 0; k < K; ++k)
                                                         {
-                                                            float v_out = 0;
-                                                            float v_wei = 0;
+                                                            AccDataType v_out = 0;
+                                                            AccDataType v_wei = 0;
 
                                                             arg.out_element_op_(
                                                                 v_out,
-                                                                ck::type_convert<float>(arg.output_(
-                                                                    n, k, do_, ho, wo)));
+                                                                ck::type_convert<AccDataType>(
+                                                                    arg.output_(
+                                                                        n, k, do_, ho, wo)));
                                                             arg.wei_element_op_(
                                                                 v_wei,
-                                                                ck::type_convert<float>(
+                                                                ck::type_convert<AccDataType>(
                                                                     arg.weight_(k, c, z, y, x)));
 
                                                             v_acc += v_out * v_wei;
@@ -244,7 +247,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                         }
                     }
 
-                    float v_in;
+                    AccDataType v_in;
                     arg.in_element_op_(v_in, v_acc);
                     arg.input_(n, c, di, hi, wi) = ck::type_convert<InDataType>(v_in);
                 };
