@@ -66,22 +66,22 @@ static inline bool float_equal_zero(half_float::half x)
     return x == static_cast<half_float::half>(0.0f);
 };
 
-template <typename compType, ReduceTensorOp_t ReduceOpId>
-__host__ static inline std::function<void(compType&)> PreUnaryOpFn(int)
+template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
+__host__ static inline std::function<void(AccDataType&)> PreUnaryOpFn(int)
 {
     using std::abs;
 
     if constexpr(ReduceOpId == ReduceTensorOp_t::NORM1)
     {
-        return ([&](compType& a_) { a_ = abs(a_); });
+        return ([&](AccDataType& a_) { a_ = abs(a_); });
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::NORM2)
     {
-        return ([&](compType& a_) { a_ = a_ * a_; });
+        return ([&](AccDataType& a_) { a_ = a_ * a_; });
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::AMAX)
     {
-        return ([&](compType& a_) { a_ = abs(a_); });
+        return ([&](AccDataType& a_) { a_ = abs(a_); });
     }
     else
     {
@@ -90,23 +90,23 @@ __host__ static inline std::function<void(compType&)> PreUnaryOpFn(int)
         // ReduceTensorOp_t::MUL:
         // ReduceTensorOp_t::MIN:
         // ReduceTensorOp_t::MAX:
-        return ([&](compType&) {});
+        return ([&](AccDataType&) {});
     };
 };
 
-template <typename compType, ReduceTensorOp_t ReduceOpId>
-__host__ static inline std::function<void(compType&)> PosUnaryOpFn(int divider)
+template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
+__host__ static inline std::function<void(AccDataType&)> PosUnaryOpFn(int32_t divider)
 {
     using std::sqrt;
 
     if constexpr(ReduceOpId == ReduceTensorOp_t::NORM2)
     {
-        return ([&](compType& a_) { a_ = sqrt(a_); });
+        return ([&](AccDataType& a_) { a_ = sqrt(a_); });
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::AVG)
     {
-        return ([&, divider](compType& a_) {
-            a_ = a_ / static_cast<compType>(static_cast<float>(divider));
+        return ([&, divider](AccDataType& a_) {
+            a_ = a_ / static_cast<AccDataType>(static_cast<float>(divider));
         });
     }
     else
@@ -117,44 +117,44 @@ __host__ static inline std::function<void(compType&)> PosUnaryOpFn(int divider)
         // ReduceTensorOp_t::MIN:
         // ReduceTensorOp_t::MAX:
         // ReduceTensorOp_t::AMAX:
-        return ([&](compType&) {});
+        return ([&](AccDataType&) {});
     }
 };
 
-template <typename compType, ReduceTensorOp_t ReduceOpId>
-__host__ static inline std::function<void(compType&, compType)> ReduceOpFn()
+template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
+__host__ static inline std::function<void(AccDataType&, AccDataType)> ReduceOpFn()
 {
     if constexpr(ReduceOpId == ReduceTensorOp_t::ADD || ReduceOpId == ReduceTensorOp_t::AVG ||
                  ReduceOpId == ReduceTensorOp_t::NORM1 || ReduceOpId == ReduceTensorOp_t::NORM2)
     {
-        return ([&](compType& a_, compType b_) { a_ = a_ + b_; });
+        return ([&](AccDataType& a_, AccDataType b_) { a_ = a_ + b_; });
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::MUL)
     {
-        return ([&](compType& a_, compType b_) { a_ = a_ * b_; });
+        return ([&](AccDataType& a_, AccDataType b_) { a_ = a_ * b_; });
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::MIN)
     {
-        return ([&](compType& a_, compType b_) {
+        return ([&](AccDataType& a_, AccDataType b_) {
             if(a_ > b_)
                 a_ = b_;
         });
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::MAX || ReduceOpId == ReduceTensorOp_t::AMAX)
     {
-        return ([&](compType& a_, compType b_) {
+        return ([&](AccDataType& a_, AccDataType b_) {
             if(a_ < b_)
                 a_ = b_;
         });
     }
 };
 
-template <typename compType, ReduceTensorOp_t ReduceOpId>
-__host__ static inline std::function<void(compType&, compType, bool& changed)> ReduceOpFn2()
+template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
+__host__ static inline std::function<void(AccDataType&, AccDataType, bool& changed)> ReduceOpFn2()
 {
     if constexpr(ReduceOpId == ReduceTensorOp_t::MIN)
     {
-        return ([&](compType& a_, compType b_, bool& changed) {
+        return ([&](AccDataType& a_, AccDataType b_, bool& changed) {
             if(a_ > b_)
             {
                 a_      = b_;
@@ -166,7 +166,7 @@ __host__ static inline std::function<void(compType&, compType, bool& changed)> R
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::MAX || ReduceOpId == ReduceTensorOp_t::AMAX)
     {
-        return ([&](compType& a_, compType b_, bool& changed) {
+        return ([&](AccDataType& a_, AccDataType b_, bool& changed) {
             if(a_ < b_)
             {
                 a_      = b_;
@@ -183,28 +183,28 @@ __host__ static inline std::function<void(compType&, compType, bool& changed)> R
         // ReduceTensorOp_t::AVG:
         // ReduceTensorOp_t::NORM1:
         // ReduceTensorOp_t::NORM2:
-        return (std::function<void(compType&, compType, bool&)>{});
+        return (std::function<void(AccDataType&, AccDataType, bool&)>{});
     };
 };
 
-template <typename compType, ReduceTensorOp_t ReduceOpId>
-__host__ static inline compType ReduceOpZeroVal()
+template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
+__host__ static inline AccDataType ReduceOpZeroVal()
 {
     if constexpr(ReduceOpId == ReduceTensorOp_t::MUL)
     {
-        return (static_cast<compType>(1.0f));
+        return (static_cast<AccDataType>(1.0f));
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::MIN)
     {
-        return (std::numeric_limits<compType>::max());
+        return (std::numeric_limits<AccDataType>::max());
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::MAX)
     {
-        return (std::numeric_limits<compType>::lowest());
+        return (std::numeric_limits<AccDataType>::lowest());
     }
     else if constexpr(ReduceOpId == ReduceTensorOp_t::AMAX)
     {
-        return (static_cast<compType>(0.0f));
+        return (static_cast<AccDataType>(0.0f));
     }
     else
     {
@@ -212,14 +212,15 @@ __host__ static inline compType ReduceOpZeroVal()
         // ReduceTensorOp_t::AVG
         // ReduceTensorOp_t::NORM1
         // ReduceTensorOp_t::NORM2
-        return (static_cast<compType>(0.0f));
+        return (static_cast<AccDataType>(0.0f));
     };
 };
 
-template <typename compType, bool PropagateNan>
-__host__ static inline void binop_with_nan_check(std::function<void(compType&, compType)> opReduce,
-                                                 compType& accuVal,
-                                                 compType currVal)
+template <typename AccDataType, bool PropagateNan>
+__host__ static inline void
+binop_with_nan_check(std::function<void(AccDataType&, AccDataType)> opReduce,
+                     AccDataType& accuVal,
+                     AccDataType currVal)
 {
     using std::isnan;
 
@@ -236,11 +237,11 @@ __host__ static inline void binop_with_nan_check(std::function<void(compType&, c
     };
 };
 
-template <typename compType, bool PropagateNan>
+template <typename AccDataType, bool PropagateNan>
 __host__ static inline void
-binop_with_nan_check2(std::function<void(compType&, compType, bool&)> opReduce,
-                      compType& accuVal,
-                      compType currVal,
+binop_with_nan_check2(std::function<void(AccDataType&, AccDataType, bool&)> opReduce,
+                      AccDataType& accuVal,
+                      AccDataType currVal,
                       int& accuIndex,
                       int currIndex)
 {
