@@ -112,7 +112,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                     float v_out;
 
                     arg.out_element_op_(v_out, v_acc);
-                    arg.output_(n, k, wo) = v_out;
+                    arg.output_(n, k, wo) = ck::type_convert<OutDataType>(v_out);
                 };
 
                 make_ParallelTensorFunctor(f_ncw,
