@@ -79,7 +79,7 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
     {
         int M = 256 + 256 * i;
         int N = 128 + 128 * i;
-        int K = 64 + 64 * i;
+        int K = 128 + 64 * i;
 
         int AStride = std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value ? K : M;
         int BStride = std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value ? N : K;
