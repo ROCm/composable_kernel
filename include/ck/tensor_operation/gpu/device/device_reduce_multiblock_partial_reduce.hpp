@@ -37,31 +37,35 @@ struct DeviceReduceMultiBlockPartialReduce
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    static_assert((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                      (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     static_assert(OutDstVectorSize == 1, "OutDstVectorSize must be 1 for MultiBlockPartialReduce!");
 
     using IndexDataType = int32_t;
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
-    using InvariantDims =
-        typename conditional<NumInvariantDim == 0,
-                             Sequence<>,
-                             typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type>::type;
-    using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
 
-    static constexpr index_t srcDims    = Rank;
-    static constexpr index_t dstDims    = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
-    static constexpr bool reduceAllDims = (InvariantDims::Size() == 0);
+    static constexpr index_t numSrcDim = Rank;
+    static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
+    static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
     static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    size_t GetWorkspaceSizeInBytes(const std::vector<int>& inLengths) override
+    static constexpr int MaxBlockGroupSize = 256;
+
+    long_index_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
+                                         const std::vector<int> reduceDims) override
     {
         size_t invariant_total_length;
         size_t reduce_total_length;
 
+        auto inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
+
         std::tie(invariant_total_length, reduce_total_length) =
-            get_2d_lengths<Rank, ReduceDims>(inLengths);
+            get_2d_lengths<Rank, NumReduceDim>(inLengths_);
 
         int iterations = 1;
         while(true)
@@ -69,8 +73,7 @@ struct DeviceReduceMultiBlockPartialReduce
             int testBlkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                                    (K_BlockTileSize * iterations);
 
-            // we want the blkGroupSize be not more than 128
-            if(testBlkGroupSize <= 128)
+            if(testBlkGroupSize <= MaxBlockGroupSize)
                 break;
 
             iterations++;
@@ -79,11 +82,12 @@ struct DeviceReduceMultiBlockPartialReduce
         int blkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
-        size_t workspace_size = invariant_total_length * blkGroupSize;
+        long_index_t workspace_size = invariant_total_length * blkGroupSize;
 
-        size_t wsSizeInBytes =
-            !NeedIndices ? workspace_size * sizeof(AccDataType)
-                         : workspace_size * (sizeof(AccDataType) + sizeof(int)) + 64 + sizeof(int);
+        long_index_t wsSizeInBytes =
+            !NeedIndices
+                ? workspace_size * sizeof(AccDataType)
+                : workspace_size * (sizeof(AccDataType) + sizeof(int32_t)) + 64 + sizeof(int);
 
         return (wsSizeInBytes);
     };
@@ -95,18 +99,18 @@ struct DeviceReduceMultiBlockPartialReduce
                                     int blkGroupSize,
                                     int kBlockTileIterations)
     {
-        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
-        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
+        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
+        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
 
         const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
         const auto in_grid_desc_m_k = [&]() {
-            if constexpr(reduceAllDims)
+            if constexpr(reduceAllDim)
             {
                 const auto one_dim_inDesc = transform_tensor_descriptor(
                     inDesc,
                     make_tuple(make_merge_transform(tupleSrcLengths)),
-                    make_tuple(typename arithmetic_sequence_gen<0, srcDims, 1>::type{}),
+                    make_tuple(typename arithmetic_sequence_gen<0, numSrcDim, 1>::type{}),
                     make_tuple(Sequence<0>{}));
 
                 return transform_tensor_descriptor(one_dim_inDesc,
@@ -117,6 +121,9 @@ struct DeviceReduceMultiBlockPartialReduce
             }
             else
             {
+                using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
+                using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
+
                 const auto reduceDimLengths =
                     make_tuple_from_array_and_index_seq(inLengths, ReduceDims{});
                 const auto invariantDimLengths =
@@ -131,32 +138,35 @@ struct DeviceReduceMultiBlockPartialReduce
             }
         }();
 
-        const auto outerLen = in_grid_desc_m_k.GetLength(Number<0>{});
-        const auto innerLen = in_grid_desc_m_k.GetLength(Number<1>{});
+        const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
 
         const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
-        const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
-        const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
+        const auto inPad_M =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
+        const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
 
-        auto in_grid_desc_m_k_padded =
-            transform_tensor_descriptor(in_grid_desc_m_k,
-                                        make_tuple(make_right_pad_transform(outerLen, inPad_M),
-                                                   make_right_pad_transform(innerLen, inPad_K)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+        auto in_grid_desc_m_k_padded = transform_tensor_descriptor(
+            in_grid_desc_m_k,
+            make_tuple(make_right_pad_transform(invariantLength, inPad_M),
+                       make_right_pad_transform(reduceLength, inPad_K)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeWorkspace2dDescriptor(int outerLen, int blkGroupSize)
+    static auto MakeWorkspace2dDescriptor(int invariantLength, int blkGroupSize)
     {
-        auto ws_desc_m_k = make_naive_tensor_descriptor_packed(make_tuple(outerLen, blkGroupSize));
+        auto ws_desc_m_k =
+            make_naive_tensor_descriptor_packed(make_tuple(invariantLength, blkGroupSize));
 
-        const auto wsPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
+        const auto wsPad =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
 
         auto ws_desc_m_k_padded =
             transform_tensor_descriptor(ws_desc_m_k,
-                                        make_tuple(make_right_pad_transform(outerLen, wsPad),
+                                        make_tuple(make_right_pad_transform(invariantLength, wsPad),
                                                    make_pass_through_transform(blkGroupSize)),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -166,19 +176,19 @@ struct DeviceReduceMultiBlockPartialReduce
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int>& inLengths,
-                 const std::vector<int>& inStrides,
-                 const std::vector<int>& outLengths,
-                 const std::vector<int>& outStrides,
-                 const std::vector<int>& reduceDims,
+        Argument(const std::vector<int> inLengths,
+                 const std::vector<int> inStrides,
+                 const std::vector<int> outLengths,
+                 const std::vector<int> outStrides,
+                 const std::vector<int> reduceDims,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
                  IndexDataType* out_indices_dev,
                  AccDataType* workspace_dev,
-                 const InElementwiseOperation& in_elementwise_op,
-                 const AccElementwiseOperation& acc_elementwise_op)
+                 const InElementwiseOperation in_elementwise_op,
+                 const AccElementwiseOperation acc_elementwise_op)
             : outLengths_{outLengths},
               outStrides_{outStrides},
               in_dev_{in_dev},
@@ -188,21 +198,21 @@ struct DeviceReduceMultiBlockPartialReduce
               in_elementwise_op_{in_elementwise_op},
               acc_elementwise_op_{acc_elementwise_op}
         {
-            std::tie(inLengths_, inStrides_) =
-                shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, inStrides, reduceDims);
+            inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
+            inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
-            alpha_ = static_cast<AccDataType>(alpha);
-            beta_  = static_cast<OutDataType>(beta);
+            alpha_ = type_convert<AccDataType>(alpha);
+            beta_  = type_convert<AccDataType>(beta);
 
             std::tie(invariant_total_length, reduce_total_length) =
-                get_2d_lengths<Rank, ReduceDims>(inLengths_);
+                get_2d_lengths<Rank, NumReduceDim>(inLengths_);
 
-            if constexpr(InvariantDims::Size() == 0)
+            if constexpr(NumInvariantDim == 0)
                 invariant_lowest_length = 1;
             else
-                invariant_lowest_length = inLengths_[InvariantDims::At(InvariantDims::Size() - 1)];
+                invariant_lowest_length = inLengths_[NumInvariantDim - 1];
 
-            reduce_lowest_length = inLengths_[ReduceDims::At(ReduceDims::Size() - 1)];
+            reduce_lowest_length = inLengths_[Rank - 1];
 
             int iterations = 1;
             while(true)
@@ -210,8 +220,7 @@ struct DeviceReduceMultiBlockPartialReduce
                 int testBlkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                                        (K_BlockTileSize * iterations);
 
-                // we want the blkGroupSize be not more than 128
-                if(testBlkGroupSize <= 128)
+                if(testBlkGroupSize <= MaxBlockGroupSize)
                     break;
 
                 iterations++;
@@ -241,7 +250,7 @@ struct DeviceReduceMultiBlockPartialReduce
         std::vector<int> outStrides_;
 
         AccDataType alpha_;
-        OutDataType beta_;
+        AccDataType beta_;
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
@@ -337,18 +346,22 @@ struct DeviceReduceMultiBlockPartialReduce
 
         if constexpr(InSrcVectorDim == 0)
         {
-            if constexpr(InvariantDims::Size() == 0)
+            if constexpr(NumInvariantDim == 0)
+            {
                 return (false);
+            }
+            else
+            {
+                if(pArg->inStrides_[NumInvariantDim - 1] != 1)
+                    return (false);
 
-            if(pArg->inStrides_[InvariantDims::At(InvariantDims::Size() - 1)] != 1)
-                return (false);
-
-            if(pArg->invariant_lowest_length % InSrcVectorSize != 0)
-                return (false);
+                if(pArg->invariant_lowest_length % InSrcVectorSize != 0)
+                    return (false);
+            };
         }
         else
         {
-            if(pArg->inStrides_[ReduceDims::At(ReduceDims::Size() - 1)] != 1)
+            if(pArg->inStrides_[Rank - 1] != 1)
                 return (false);
 
             if(pArg->reduce_lowest_length % InSrcVectorSize != 0)
@@ -371,19 +384,19 @@ struct DeviceReduceMultiBlockPartialReduce
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int>& inLengths,
-                        const std::vector<int>& inStrides,
-                        const std::vector<int>& outLengths,
-                        const std::vector<int>& outStrides,
-                        const std::vector<int>& reduceDims,
+    MakeArgumentPointer(const std::vector<int> inLengths,
+                        const std::vector<int> inStrides,
+                        const std::vector<int> outLengths,
+                        const std::vector<int> outStrides,
+                        const std::vector<int> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
                         void* out_dev,
                         void* out_indices_dev,
                         void* workspace_dev,
-                        const InElementwiseOperation& in_elementwise_op,
-                        const AccElementwiseOperation& acc_elementwise_op) override
+                        const InElementwiseOperation in_elementwise_op,
+                        const AccElementwiseOperation acc_elementwise_op) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,

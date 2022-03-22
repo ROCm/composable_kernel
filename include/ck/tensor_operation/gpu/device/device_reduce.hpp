@@ -16,9 +16,11 @@ namespace device {
 template <typename InElementwiseOperation, typename AccElementwiseOperation>
 struct DeviceReduce : public BaseOperator
 {
-    virtual size_t GetWorkspaceSizeInBytes(const std::vector<int>& inLengths)
+    virtual long_index_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
+                                                 const std::vector<int> reduceDims)
     {
         (void)inLengths;
+        (void)reduceDims;
 
         return (0);
     };
@@ -32,19 +34,19 @@ struct DeviceReduce : public BaseOperator
     };
 
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int>& inLengths,
-                        const std::vector<int>& inStrides,
-                        const std::vector<int>& outLengths,
-                        const std::vector<int>& outStrides,
-                        const std::vector<int>& reduceDims,
+    MakeArgumentPointer(const std::vector<int> inLengths,
+                        const std::vector<int> inStrides,
+                        const std::vector<int> outLengths,
+                        const std::vector<int> outStrides,
+                        const std::vector<int> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
                         void* out_dev,
                         void* out_indices_dev,
                         void* workspace_dev,
-                        const InElementwiseOperation& in_elementwise_op,
-                        const AccElementwiseOperation& acc_elementwise_op) = 0;
+                        const InElementwiseOperation in_elementwise_op,
+                        const AccElementwiseOperation acc_elementwise_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

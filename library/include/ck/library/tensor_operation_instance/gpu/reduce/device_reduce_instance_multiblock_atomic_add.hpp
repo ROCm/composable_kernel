@@ -17,7 +17,6 @@ using reduce_configuration_2_instances_multiblock_atomic_add = std::tuple<
     ReductionConfiguration_2<0, 2, 2, 2, 1>,
     ReductionConfiguration_2<0, 1, 1, 2, 1>,
     ReductionConfiguration_2<1, 2, 1, 1, 2>,
-    ReductionConfiguration_2<1, 2, 2, 1, 2>,
     ReductionConfiguration_2<0, 1, 1, 3, 1>,
     ReductionConfiguration_2<1, 1, 1, 1, 3>
     // clang-format on

@@ -37,7 +37,7 @@ cmake                                                                  \
 ```bash
 # -D <xxx> : input 4-d tensor lengths
 # -v <x> :   verification (0=no, 1=yes)
-#arg1: initialization (0=no init, 1=integer value, 2=decimal value)
+#arg1: initialization (0=no init, 1=single integer value, 2=scope integer value, 3=decimal value)
 #arg2: run kernel # of times (>1)
 ./bin/reduce_blockwise -D 16,64,32,960 -v 1 1 10
 ```

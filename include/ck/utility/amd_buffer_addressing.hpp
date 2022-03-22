@@ -637,19 +637,19 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
         }
         else if constexpr(N == 2)
         {
-            llvm_amdgcn_raw_buffer_store_fp16x2(src_thread_data,
-                                                dst_wave_buffer_resource,
-                                                dst_thread_addr_offset,
-                                                dst_wave_addr_offset,
-                                                0);
+            llvm_amdgcn_raw_buffer_store_i16x2(src_thread_data,
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset,
+                                               0);
         }
         else if constexpr(N == 4)
         {
-            llvm_amdgcn_raw_buffer_store_fp16x4(src_thread_data,
-                                                dst_wave_buffer_resource,
-                                                dst_thread_addr_offset,
-                                                dst_wave_addr_offset,
-                                                0);
+            llvm_amdgcn_raw_buffer_store_i16x4(src_thread_data,
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset,
+                                               0);
         }
         else if constexpr(N == 8)
         {
