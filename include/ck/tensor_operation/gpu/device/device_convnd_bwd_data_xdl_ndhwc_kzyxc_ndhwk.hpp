@@ -66,8 +66,6 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
     // TODO make A/B datatype different
     using ABDataType = InDataType;
 
-    static constexpr index_t NDimSpatial = 2;
-
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -85,7 +83,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
     static auto
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
@@ -442,7 +440,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
 
     } // function end
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
     static auto
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
@@ -643,7 +641,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         }
 
     } // function end
-    template <ck::index_t NDim, typename std::enable_if<NDim == 2, bool>::type = false>
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
     static auto
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
@@ -1037,7 +1035,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             CreateABCDesc<NumDimSpatial>();
         }
 
-        template <ck::index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
+        template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
         void CreateABCDesc()
         {
             const index_t ConvStrideW     = conv_filter_strides_[0];
@@ -1045,10 +1043,11 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
             const auto XTilde             = ConvStrideW / GcdStrideDilationW;
 
+            const index_t X = filter_spatial_lengths_[0];
+
             for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
             {
                 // check slice is valid
-                const index_t X      = filter_spatial_lengths_[0];
                 const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
                 if(XDotSlice <= 0)
                 {
@@ -1082,7 +1081,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 }
             }
         }
-        template <ck::index_t NDim, typename std::enable_if<NDim == 2, bool>::type = false>
+        template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
         void CreateABCDesc()
         {
             const index_t ConvStrideH = conv_filter_strides_[0];
@@ -1097,13 +1096,13 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const auto YTilde = ConvStrideH / GcdStrideDilationH;
             const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
+            const index_t Y = filter_spatial_lengths_[0];
+            const index_t X = filter_spatial_lengths_[1];
             for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
             {
                 for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
                 {
                     // check slice is valid
-                    const index_t Y      = filter_spatial_lengths_[0];
-                    const index_t X      = filter_spatial_lengths_[1];
                     const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
                     const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
                     if(YDotSlice * XDotSlice <= 0)
@@ -1139,7 +1138,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 }
             }
         }
-        template <ck::index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
+        template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
         void CreateABCDesc()
         {
             const index_t ConvStrideD = conv_filter_strides_[0];
@@ -1158,6 +1157,9 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             const auto YTilde = ConvStrideH / GcdStrideDilationH;
             const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
+            const index_t Z = filter_spatial_lengths_[0];
+            const index_t Y = filter_spatial_lengths_[1];
+            const index_t X = filter_spatial_lengths_[2];
             for(index_t i_ztilde = 0; i_ztilde < ZTilde; ++i_ztilde)
             {
                 for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
@@ -1165,9 +1167,6 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                     for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
                     {
                         // check slice is valid
-                        const index_t Z      = filter_spatial_lengths_[0];
-                        const index_t Y      = filter_spatial_lengths_[1];
-                        const index_t X      = filter_spatial_lengths_[2];
                         const auto ZDotSlice = math::integer_divide_ceil(Z - i_ztilde, ZTilde);
                         const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
                         const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
