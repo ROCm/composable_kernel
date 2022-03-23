@@ -2,6 +2,31 @@
 
 #include "host_interface.hpp"
 
+enum ConvDataType
+{
+    F32_F32_F32,    // 0
+    F16_F16_F16,    // 1
+    BF16_BF16_BF16, // 2
+    INT8_INT8_INT8, // 3
+};
+
+enum ConvInputLayout
+{
+    NCHW, // 0
+    NHWC, // 1
+};
+
+enum ConvWeightLayout
+{
+    KCYX, // 0
+    KYXC, // 1
+};
+
+enum ConvOutputLayout
+{
+    NKHW, // 0
+    NHWK, // 1
+};
 
 
 namespace ck {
@@ -43,6 +68,7 @@ void profile_conv_fwd_impl(int do_verification,
                            int init_method,
                            bool do_log,
                            int nrepeat,
+                           ConvDataType data_type,
                            ck::index_t N,
                            ck::index_t K,
                            ck::index_t C,
@@ -63,9 +89,9 @@ void profile_conv_fwd_impl(int do_verification,
     const ck::index_t Ho = output_spatial_lengths[0];
     const ck::index_t Wo = output_spatial_lengths[1];
 
-    const auto in_sz = 1000;
-    const auto wei_sz = 1000;
-    const auto out_sz = 1000;
+    const auto in_sz = N * C * Hi * Wi;
+    const auto wei_sz = K * C * Y * X;
+    const auto out_sz = N * K * Ho * Wo;
 
     using WeiDataType = float;
     using InDataType = float;
@@ -79,8 +105,19 @@ void profile_conv_fwd_impl(int do_verification,
 
     // add device Conv instances
     std::vector<DeviceConvFwdPtr_t> conv_ptrs;
-
-    add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances_t(conv_ptrs);
+    if(data_type == F16_F16_F16)
+    {
+        add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances_t(conv_ptrs);
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances_t(conv_ptrs);
+    }
+    else if(data_type == BF16_BF16_BF16)
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances_t(conv_ptrs);
+    else if(data_type == F32_F32_F32)
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances_t(conv_ptrs);
+    else if(data_type == INT8_INT8_INT8)
+        add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances_t(conv_ptrs);
+    else
+        throw std::runtime_error("wrong! Invalid data type");
     if(conv_ptrs.empty())
     {
         throw std::runtime_error("wrong! no device Conv instance found");

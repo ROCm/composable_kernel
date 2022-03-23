@@ -35,3 +35,7 @@ struct DeviceConvFwdPtr_t
 };
 
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances_t(std::vector<DeviceConvFwdPtr_t>& instances);
+void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances_t(std::vector<DeviceConvFwdPtr_t>& instances);
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances_t(std::vector<DeviceConvFwdPtr_t>& instances);
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances_t(std::vector<DeviceConvFwdPtr_t>& instances);
+void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances_t(std::vector<DeviceConvFwdPtr_t>& instances);

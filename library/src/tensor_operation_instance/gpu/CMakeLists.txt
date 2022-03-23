@@ -43,6 +43,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_gemm_bias_relu_add_instance>
     $<TARGET_OBJECTS:device_gemm_bias2d_instance>
     $<TARGET_OBJECTS:device_reduce_instance>
+    device_conv2d.cpp
 )
 add_library(composablekernels::device_operations ALIAS device_operations)
 
@@ -77,7 +78,9 @@ target_include_directories(device_operations PUBLIC
 # and pass down here to be exported
 
 target_compile_definitions(device_operations 
-PUBLIC -DCK_AMD_GPU_GFX908
+PUBLIC -DCK_AMD_GPU_GFX908)
+
+target_compile_options(device_operations
 PRIVATE -amdgpu-target=gfx908
 PRIVATE -O3
 )

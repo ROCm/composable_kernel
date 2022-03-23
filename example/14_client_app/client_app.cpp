@@ -7,31 +7,6 @@
 #include <vector>
 
 #include "client_app_impl.hpp"
-enum ConvDataType
-{
-    F32_F32_F32,    // 0
-    F16_F16_F16,    // 1
-    BF16_BF16_BF16, // 2
-    INT8_INT8_INT8, // 3
-};
-
-enum ConvInputLayout
-{
-    NCHW, // 0
-    NHWC, // 1
-};
-
-enum ConvWeightLayout
-{
-    KCYX, // 0
-    KYXC, // 1
-};
-
-enum ConvOutputLayout
-{
-    NKHW, // 0
-    NHWK, // 1
-};
 
 int main(int argc, char* argv[])
 {
@@ -51,7 +26,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    const int data_type        = static_cast<ConvDataType>(std::stoi(argv[2]));
+    const ConvDataType data_type        = static_cast<ConvDataType>(std::stoi(argv[2]));
     const int in_layout        = static_cast<ConvInputLayout>(std::stoi(argv[3]));
     const int wei_layout       = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
     const int out_layout       = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
@@ -88,6 +63,7 @@ int main(int argc, char* argv[])
         init_method,
         do_log,
         nrepeat,
+        data_type,
         N,
         K,
         C,
