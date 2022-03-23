@@ -492,11 +492,11 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                     std::cout << "wei: ";
                     show_data_nhwc_layout(wei_k_c_y_x);
                     std::cout << std::endl;
-                    
+
                     std::cout << "out_host  : ";
                     show_data_nhwc_layout(in_n_c_hi_wi_host_result);
                     std::cout << std::endl;
-                    
+
                     std::cout << "out_device: ";
                     show_data_nhwc_layout(in_n_c_hi_wi_device_result);
                     std::cout << std::endl;

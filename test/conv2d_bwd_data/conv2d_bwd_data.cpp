@@ -121,15 +121,17 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    auto Run = [&](auto input_type, auto wei_type, auto out_type) {
+    auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
         using InDataType  = decltype(input_type);
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
+        using AccDataType = decltype(acc_type);
 
         using ReferenceConvBwdInstance =
             ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                              WeiDataType,
                                                              OutDataType,
+                                                             AccDataType,
                                                              InElementOp,
                                                              WeiElementOp,
                                                              OutElementOp>;
@@ -302,19 +304,19 @@ int main(int argc, char* argv[])
 
     if(data_type == 0)
     {
-        Run(F32(), F32(), F32());
+        Run(F32(), F32(), F32(), F32());
     }
     else if(data_type == 1)
     {
-        Run(F16(), F16(), F16());
+        Run(F16(), F16(), F16(), F32());
     }
     else if(data_type == 2)
     {
-        Run(BF16(), BF16(), BF16());
+        Run(BF16(), BF16(), BF16(), F32());
     }
     else if(data_type == 3)
     {
-        Run(INT8(), INT8(), INT8());
+        Run(INT8(), INT8(), INT8(), int());
     }
     else
     {
