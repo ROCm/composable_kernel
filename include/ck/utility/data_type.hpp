@@ -935,7 +935,7 @@ __host__ __device__ Y type_convert(X x)
 
 // convert bfp16 to fp32
 template <>
-__host__ __device__ float type_convert<float, bhalf_t>(bhalf_t x)
+inline __host__ __device__ float type_convert<float, bhalf_t>(bhalf_t x)
 {
     union
     {
@@ -948,7 +948,7 @@ __host__ __device__ float type_convert<float, bhalf_t>(bhalf_t x)
 
 // convert fp32 to bfp16
 template <>
-__host__ __device__ bhalf_t type_convert<bhalf_t, float>(float x)
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, float>(float x)
 {
     union
     {

@@ -399,15 +399,16 @@ int profile_reduce(int argc, char* argv[])
     else if(args.use_int8)
     {
         if(!args.compType_assigned)
-            args.compTypeId = appInt8;
+            args.compTypeId = appDataType_t::appInt8;
 
-        if(args.outType_assigned && (args.outTypeId != appInt8 && args.outTypeId != appInt32))
-            args.outTypeId = appInt32;
+        if(args.outType_assigned &&
+           (args.outTypeId != appDataType_t::appInt8 && args.outTypeId != appDataType_t::appInt32))
+            args.outTypeId = appDataType_t::appInt32;
 
         if(!args.outType_assigned)
-            args.outTypeId = appInt8;
+            args.outTypeId = appDataType_t::appInt8;
 
-        if(args.compTypeId == appInt8)
+        if(args.compTypeId == appDataType_t::appInt8)
         {
             profile_reduce_impl<int8_t, int8_t, int8_t>(args.do_verification,
                                                         args.init_method,
@@ -422,7 +423,7 @@ int profile_reduce(int argc, char* argv[])
                                                         args.scales[0],
                                                         args.scales[1]);
         }
-        else if(args.compTypeId == appInt32)
+        else if(args.compTypeId == appDataType_t::appInt32)
         {
             profile_reduce_impl<int8_t, int32_t, int8_t>(args.do_verification,
                                                          args.init_method,
@@ -442,11 +443,12 @@ int profile_reduce(int argc, char* argv[])
     }
     else if(args.use_bf16)
     {
-        if(args.outType_assigned && (args.outTypeId != appBFloat16 && args.outTypeId != appFloat))
-            args.outTypeId = appFloat;
+        if(args.outType_assigned && (args.outTypeId != appDataType_t::appBFloat16 &&
+                                     args.outTypeId != appDataType_t::appFloat))
+            args.outTypeId = appDataType_t::appFloat;
 
         if(!args.outType_assigned)
-            args.outTypeId = appBFloat16;
+            args.outTypeId = appDataType_t::appBFloat16;
 
         profile_reduce_impl<ck::bhalf_t, float, ck::bhalf_t>(args.do_verification,
                                                              args.init_method,
