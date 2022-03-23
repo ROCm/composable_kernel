@@ -218,6 +218,47 @@ void get_device_conv_bwd_data_op_ptr(
     }
 }
 
+template <typename T>
+static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
+{
+    float max_diff = 1e-6;
+
+    for(int i = 0; i < ref.mData.size(); ++i)
+    {
+        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
+        if(max_diff < diff)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+template <typename DataType>
+void show_data_nhwc_layout(Tensor<DataType>& nhwc)
+{
+    std::cout << "[";
+    for(int n = 0; n < nhwc.mDesc.GetLengths()[0]; n++)
+    {
+        std::cout << "[";
+        for(int hi = 0; hi < nhwc.mDesc.GetLengths()[2]; hi++)
+        {
+            std::cout << "[";
+            for(int wi = 0; wi < nhwc.mDesc.GetLengths()[3]; wi++)
+            {
+                std::cout << "[";
+                for(int c = 0; c < nhwc.mDesc.GetLengths()[1]; c++)
+                {
+                    std::cout << static_cast<float>(nhwc(n, c, hi, wi)) << "  ";
+                }
+                std::cout << "]";
+            }
+            std::cout << "]";
+        }
+        std::cout << "]";
+    }
+    std::cout << "]";
+}
+
 template <int NDimSpatial,
           typename InDataType,
           typename WeiDataType,
@@ -377,6 +418,7 @@ bool profile_convnd_bwd_data_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device Conv instances
+    bool success = true;
     for(auto& conv_ptr : conv_ptrs)
     {
         auto argument_ptr = conv_ptr->MakeArgumentPointer(
@@ -428,20 +470,36 @@ bool profile_convnd_bwd_data_impl(int do_verification,
             {
                 in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
+                if(!check_out(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result))
+                {
+                    std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
+
+                    success = false;
+                }
+                else
+                {
+                    std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
+                }
+
                 check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "in : ", out_n_k_ho_wo.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "out_host  : ", in_n_c_hi_wi_host_result.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "out_device: ", in_n_c_hi_wi_device_result.mData, ",")
-                        << std::endl;
+                    std::cout << "in : ";
+                    show_data_nhwc_layout(out_n_k_ho_wo);
+                    std::cout << std::endl;
+
+                    std::cout << "wei: ";
+                    show_data_nhwc_layout(wei_k_c_y_x);
+                    std::cout << std::endl;
+                    
+                    std::cout << "out_host  : ";
+                    show_data_nhwc_layout(in_n_c_hi_wi_host_result);
+                    std::cout << std::endl;
+                    
+                    std::cout << "out_device: ";
+                    show_data_nhwc_layout(in_n_c_hi_wi_device_result);
+                    std::cout << std::endl;
                 }
             }
         }
@@ -449,7 +507,7 @@ bool profile_convnd_bwd_data_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
-    return true;
+    return success;
 }
 
 } // namespace profiler
