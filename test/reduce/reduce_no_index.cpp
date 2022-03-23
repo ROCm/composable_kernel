@@ -289,13 +289,13 @@ bool test_reduce_no_index_impl(int init_method,
         {
             reduce_util::to_f32_vector(out, out_fp32);
             reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-            single_result = test_util::check_err(
+            single_result = test::check_err(
                 out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
         }
         else
         {
             single_result =
-                test_util::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
+                test::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
         };
 
         if(!single_result)
@@ -376,13 +376,13 @@ bool test_reduce_no_index_impl(int init_method,
             {
                 reduce_util::to_f32_vector(out, out_fp32);
                 reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-                single_result = test_util::check_err(
+                single_result = test::check_err(
                     out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
             }
             else
             {
                 single_result =
-                    test_util::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
+                    test::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
             };
 
             if(!single_result)
