@@ -468,8 +468,7 @@ void profile_gemm_impl(int do_verification,
 
                     ref_invoker.Run(ref_argument);
 
-                    ck::utils::check_err(c_m_n_device_f32_result.mData,
-                                               c_m_n_host_result.mData);
+                    ck::utils::check_err(c_m_n_device_f32_result.mData, c_m_n_host_result.mData);
 
                     if(do_log)
                     {

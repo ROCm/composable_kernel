@@ -381,7 +381,8 @@ void profile_batched_gemm_impl(int do_verification,
                 {
 
                     bf16_to_f32_(c_g_m_n_device_result, *c_f32_g_m_n_device_result);
-                    ck::utils::check_err((*c_f32_g_m_n_device_result).mData, (*c_f32_g_m_n_host_result).mData);
+                    ck::utils::check_err((*c_f32_g_m_n_device_result).mData,
+                                         (*c_f32_g_m_n_host_result).mData);
                 }
                 else
                 {

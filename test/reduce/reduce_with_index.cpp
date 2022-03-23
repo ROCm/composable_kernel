@@ -286,8 +286,8 @@ bool test_reduce_with_index_impl(int init_method,
         {
             out_indices_dev.FromDevice(out_indices.mData.data());
             single_result = single_result && ck::utils::check_err(out_indices_ref.mData,
-                                                             out_indices.mData,
-                                                             "Error: incorrect index result!");
+                                                                  out_indices.mData,
+                                                                  "Error: incorrect index result!");
         };
 
         if(!single_result)
@@ -382,9 +382,10 @@ bool test_reduce_with_index_impl(int init_method,
             if(NeedIndices)
             {
                 out_indices_dev.FromDevice(out_indices.mData.data());
-                single_result = single_result && ck::utils::check_err(out_indices_ref.mData,
-                                                                 out_indices.mData,
-                                                                 "Error: incorrect index result!");
+                single_result =
+                    single_result && ck::utils::check_err(out_indices_ref.mData,
+                                                          out_indices.mData,
+                                                          "Error: incorrect index result!");
             };
 
             if(!single_result)
