@@ -3,12 +3,15 @@
 PRECISION=
 ##PRECISION=--half
 ##PRECISION=--double
+##PRECISION=--int8
+##PRECISION=--bf16
 
-if test -n $PRECISION && test "$PRECISION" = "--half"; then 
+if [ -n $PRECISION ] && [ "$PRECISION" = "--half" -o "$PRECISION" = "--bf16" ]; then
    ACCTYPE="-C 1"
-else
-   ACCTYPE=""
+elif [ -n $PRECISION ] && [ "$PRECISION" = "--int8" ]; then
+   ACCTYPE="-C 2"
 fi
+
 
 driver="./bin/ckProfiler"
 
@@ -20,10 +23,16 @@ NREPEAT=$3
 #### 0 - ADD,  5 - AVG,  7 - NORM2
 Operations="0 5 7"
 
+#### 0 - ADD,  5 - AVG,    for int8, no NORM2 supported
+if [ -n $PRECISION ] && [ "$PRECISION" = "--int8" ]; then
+   Operations=5
+fi
+
 ## for generic validation
 for op in $Operations; do
     set -x
     #######        datatype   layout          reduce dims  op     acctype   verify  init  repeats
+    $driver reduce $PRECISION -D 64,4,280,82  -R 0,1,2,3   -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT
     $driver reduce $PRECISION -D 64,4,280,82  -R 0         -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT
     $driver reduce $PRECISION -D 64,4,280,82  -R 1         -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT
     $driver reduce $PRECISION -D 64,4,280,82  -R 2         -O $op $ACCTYPE  $VERIFY $INIT $NREPEAT

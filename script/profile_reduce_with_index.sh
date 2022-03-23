@@ -3,6 +3,8 @@
 PRECISION=
 ##PRECISION=--half
 ##PRECISION=--double
+##PRECISION=--int8
+##PRECISION=--bf16
 
 driver="./bin/ckProfiler"
 
@@ -18,6 +20,7 @@ for op in $Operations; do
     for use_idx in 0 1; do
         set -x
         #######        datatype   layout          reduce dims  op     use index    verify  init  repeats
+        $driver reduce $PRECISION -D 64,4,280,82  -R 0,1,2,3   -O $op -I $use_idx  $VERIFY $INIT $NREPEAT
         $driver reduce $PRECISION -D 64,4,280,82  -R 0         -O $op -I $use_idx  $VERIFY $INIT $NREPEAT
         $driver reduce $PRECISION -D 64,4,280,82  -R 1         -O $op -I $use_idx  $VERIFY $INIT $NREPEAT
         $driver reduce $PRECISION -D 64,4,280,82  -R 2         -O $op -I $use_idx  $VERIFY $INIT $NREPEAT
