@@ -1,4 +1,3 @@
-<<<<<<< HEAD:library/include/ck/library/utility/check_err.hpp
 #ifndef CHECK_ERR_HPP
 #define CHECK_ERR_HPP
 
@@ -62,14 +61,13 @@ check_err(const std::vector<T>& out,
     return res;
 }
 
-
 template <typename T>
 typename std::enable_if<std::is_same<T, bhalf_t>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
-          double rtol = 1e-3,
-          double atol = 1e-3)
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
 {
     if(out.size() != ref.size())
     {
@@ -80,15 +78,15 @@ check_err(const std::vector<T>& out,
     }
 
     bool res{true};
-    int err_count  = 0;
-    double err     = 0;
+    int err_count = 0;
+    double err    = 0;
     // TODO: This is a hack. We should have proper specialization for bhalf_t data type.
     double max_err = std::numeric_limits<float>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         double o = type_convert<float>(out[i]);
         double r = type_convert<float>(ref[i]);
-        err     = std::abs(o - r);
+        err      = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -110,12 +108,13 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, half_t>::value || std::is_same<T, half_float::half>::value, bool>::type
+typename std::enable_if<std::is_same<T, half_t>::value || std::is_same<T, half_float::half>::value,
+                        bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
-          double rtol = 1e-3,
-          double atol = 1e-3)
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
 {
     if(out.size() != ref.size())
     {
@@ -133,7 +132,7 @@ check_err(const std::vector<T>& out,
     {
         double o = type_convert<float>(out[i]);
         double r = type_convert<float>(ref[i]);
-        err     = std::abs(o - r);
+        err      = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -159,8 +158,8 @@ typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, bhalf_t>:
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
-          double = 0,
-          double = 0)
+          double                 = 0,
+          double                 = 0)
 {
     if(out.size() != ref.size())
     {
