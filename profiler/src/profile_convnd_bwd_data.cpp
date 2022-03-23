@@ -31,7 +31,7 @@ enum ConvOutputLayout
     NKHW, // 0
     NHWK, // 1
 };
-ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[], int arg_idx)
+ck::conv_util::ConvParams parse_conv_params(int num_dim_spatial, char* argv[], int arg_idx)
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     ck::conv_util::ConvParams params;
@@ -93,7 +93,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
         printf("arg9: run kernel # of times (>1)\n");
         printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
-        exit(1);
+        return 1;
     }
 
     const int data_type        = static_cast<ConvDataType>(std::stoi(argv[2]));
@@ -105,7 +105,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     const bool do_log          = std::stoi(argv[8]);
     const int nrepeat          = std::stoi(argv[9]);
 
-    ck::conv_util::ConvParams params = ParseConvParams(num_dim_spatial, argv, preParams);
+    ck::conv_util::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
         using InDataType  = decltype(input_type);
@@ -121,9 +121,9 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                                                        WeiDataType,
                                                        OutDataType,
                                                        AccDataType,
-                                                       ck::tensor_layout::convolution::NHWC,
-                                                       ck::tensor_layout::convolution::KYXC,
-                                                       ck::tensor_layout::convolution::NHWK>(
+                                                       ck::tensor_layout::convolution::NWC,
+                                                       ck::tensor_layout::convolution::KXC,
+                                                       ck::tensor_layout::convolution::NWK>(
                 do_verification,
                 init_method,
                 do_log,
@@ -171,9 +171,9 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                                                        WeiDataType,
                                                        OutDataType,
                                                        AccDataType,
-                                                       ck::tensor_layout::convolution::NHWC,
-                                                       ck::tensor_layout::convolution::KYXC,
-                                                       ck::tensor_layout::convolution::NHWK>(
+                                                       ck::tensor_layout::convolution::NDHWC,
+                                                       ck::tensor_layout::convolution::KZYXC,
+                                                       ck::tensor_layout::convolution::NDHWK>(
                 do_verification,
                 init_method,
                 do_log,
@@ -215,8 +215,9 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     }
     else
     {
-        throw std::runtime_error("wrong! this Conv data_type & layout is not implemented");
+        std::cout << "wrong! this Conv data_type & layout is not implemented" << std::endl;
+        return 1;
     }
 
-    return 1;
+    return 0;
 }

@@ -59,64 +59,66 @@ namespace profiler {
 using DeviceConvBwdDataNoOpPtr =
     ck::tensor_operation::device::device_conv2d_bwd_data_instance::DeviceConvBwdDataNoOpPtr;
 
-HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                  int num_dim_spatial = 2)
+template <typename InLayout>
+HostTensorDescriptor get_input_host_tensor_descriptor(const std::vector<std::size_t>& dims,
+                                                      int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWC{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, InLayout{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, InLayout{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, InLayout{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
     }
     }
 }
-HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                    int num_dim_spatial = 2)
+template <typename WeiLayout>
+HostTensorDescriptor get_filters_host_tensor_descriptor(const std::vector<std::size_t>& dims,
+                                                        int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KZYXC{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, WeiLayout{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KYXC{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, WeiLayout{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KXC{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, WeiLayout{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
     }
     }
 }
-
-HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                   int num_dim_spatial = 2)
+template <typename OutLayout>
+HostTensorDescriptor get_output_host_ensor_descriptor(const std::vector<std::size_t>& dims,
+                                                      int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWK{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, OutLayout{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWK{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, OutLayout{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWK{});
+        return ck::conv_util::GetHostTensorDescriptor(dims, OutLayout{});
     }
 
     default: {
@@ -125,14 +127,14 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     }
 }
 template <typename InDataType, typename WeiDataType, typename OutDataType>
-void GetDeviceConvBwdDataOpPtr(
+void get_device_conv_bwd_data_op_ptr(
     InDataType, WeiDataType, OutDataType, std::vector<DeviceConvBwdDataNoOpPtr>&, int)
 {
     std::cout << "can not find device conv bwd data" << std::endl;
     exit(1);
 }
 template <>
-void GetDeviceConvBwdDataOpPtr(
+void get_device_conv_bwd_data_op_ptr(
     F32, F32, F32, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
@@ -153,7 +155,7 @@ void GetDeviceConvBwdDataOpPtr(
     }
 }
 template <>
-void GetDeviceConvBwdDataOpPtr(
+void get_device_conv_bwd_data_op_ptr(
     F16, F16, F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
@@ -174,7 +176,7 @@ void GetDeviceConvBwdDataOpPtr(
     }
 }
 template <>
-void GetDeviceConvBwdDataOpPtr(
+void get_device_conv_bwd_data_op_ptr(
     BF16, BF16, BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
@@ -195,7 +197,7 @@ void GetDeviceConvBwdDataOpPtr(
     }
 }
 template <>
-void GetDeviceConvBwdDataOpPtr(
+void get_device_conv_bwd_data_op_ptr(
     INT8, INT8, INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
 {
     switch(num_dim_spatial)
@@ -224,7 +226,7 @@ template <int NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-void profile_convnd_bwd_data_impl(int do_verification,
+bool profile_convnd_bwd_data_impl(int do_verification,
                                   int init_method,
                                   bool do_log,
                                   int nrepeat,
@@ -262,11 +264,13 @@ void profile_convnd_bwd_data_impl(int do_verification,
                        std::end(output_spatial_lengths));
 
     Tensor<InDataType> in_n_c_hi_wi_host_result(
-        GetInputHostTensorDescriptor(input_dims, NDimSpatial));
+        get_input_host_tensor_descriptor<InLayout>(input_dims, NDimSpatial));
     Tensor<InDataType> in_n_c_hi_wi_device_result(
-        GetInputHostTensorDescriptor(input_dims, NDimSpatial));
-    Tensor<WeiDataType> wei_k_c_y_x(GetFiltersHostTensorDescriptor(filter_dims, NDimSpatial));
-    Tensor<OutDataType> out_n_k_ho_wo(GetOutputHostTensorDescriptor(output_dims, NDimSpatial));
+        get_input_host_tensor_descriptor<InLayout>(input_dims, NDimSpatial));
+    Tensor<WeiDataType> wei_k_c_y_x(
+        get_filters_host_tensor_descriptor<WeiLayout>(filter_dims, NDimSpatial));
+    Tensor<OutDataType> out_n_k_ho_wo(
+        get_output_host_ensor_descriptor<OutLayout>(output_dims, NDimSpatial));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
@@ -359,7 +363,8 @@ void profile_convnd_bwd_data_impl(int do_verification,
 
     // add device Conv instances
     std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
-    GetDeviceConvBwdDataOpPtr(InDataType{}, WeiDataType{}, OutDataType{}, conv_ptrs, NDimSpatial);
+    get_device_conv_bwd_data_op_ptr(
+        InDataType{}, WeiDataType{}, OutDataType{}, conv_ptrs, NDimSpatial);
 
     if(conv_ptrs.size() <= 0)
     {
@@ -444,6 +449,7 @@ void profile_convnd_bwd_data_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
+    return true;
 }
 
 } // namespace profiler
