@@ -1,3 +1,4 @@
+<<<<<<< HEAD:library/include/ck/library/utility/check_err.hpp
 #ifndef CHECK_ERR_HPP
 #define CHECK_ERR_HPP
 
@@ -61,14 +62,14 @@ check_err(const std::vector<T>& out,
     return res;
 }
 
+
 template <typename T>
-typename std::enable_if<std::is_same<T, bhalf_t>::value || std::is_same<T, half_t>::value ||
-                        std::is_same<T, half_float::half>::value, bool>::type
+typename std::enable_if<std::is_same<T, bhalf_t>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
-          double rtol = 1e-5,
-          double atol = 1e-8)
+          double rtol = 1e-3,
+          double atol = 1e-3)
 {
     if(out.size() != ref.size())
     {
@@ -81,11 +82,57 @@ check_err(const std::vector<T>& out,
     bool res{true};
     int err_count  = 0;
     double err     = 0;
-    double max_err = type_convert<float>(NumericLimits<T>::Min());
+    // TODO: This is a hack. We should have proper specialization for bhalf_t data type.
+    double max_err = std::numeric_limits<float>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        float o = type_convert<float>(out[i]);
-        float r = type_convert<float>(ref[i]);
+        double o = type_convert<float>(out[i]);
+        double r = type_convert<float>(ref[i]);
+        err     = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        {
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count < 5)
+            {
+                std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
+                          << i << "]: " << o << " != " << r << std::endl
+                          << msg << std::endl;
+            }
+            res = false;
+        }
+    }
+    if(!res)
+    {
+        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+    }
+    return res;
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<T, half_t>::value || std::is_same<T, half_float::half>::value, bool>::type
+check_err(const std::vector<T>& out,
+          const std::vector<T>& ref,
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol = 1e-3,
+          double atol = 1e-3)
+{
+    if(out.size() != ref.size())
+    {
+        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl
+                  << msg << std::endl;
+        return false;
+    }
+
+    bool res{true};
+    int err_count  = 0;
+    double err     = 0;
+    double max_err = std::numeric_limits<T>::min();
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        double o = type_convert<float>(out[i]);
+        double r = type_convert<float>(ref[i]);
         err     = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {

@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 namespace device_conv2d_bwd_data_instance {
 
-using BF16 = ushort;
+using BF16 = ck::bhalf_t;
 using F32  = float;
 
 template <ck::index_t... Is>
