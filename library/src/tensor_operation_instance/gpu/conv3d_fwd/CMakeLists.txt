@@ -1,0 +1,13 @@
+# device_conv3d_fwd_instance
+set(DEVICE_CONV3D_FWD_INSTANCE_SOURCE
+   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f32_instance.cpp;
+   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f16_instance.cpp;
+   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instance.cpp;
+   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_int8_instance.cpp;
+)
+add_library(device_conv3d_fwd_instance SHARED ${DEVICE_CONV3D_FWD_INSTANCE_SOURCE}) 
+target_compile_features(device_conv3d_fwd_instance PUBLIC)
+set_target_properties(device_conv3d_fwd_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_conv3d_fwd_instance LIBRARY DESTINATION lib) 
+
+clang_tidy_check(device_conv3d_fwd_instance)

@@ -228,7 +228,7 @@ HostTensorDescriptor GetHostTensorDescriptor(const std::vector<std::size_t>& dim
         return HostTensorDescriptor(
             dims,
             std::vector<std::size_t>{
-                C * dims[2] * dims[3] * dims[4], 1, dims[3] * dims[4] * C, dims[4] * C, C});
+                C * dims[2] * dims[3] * dims[4], 1, C * dims[3] * dims[4], C * dims[4], C});
     }
 
     std::stringstream err_msg;
