@@ -466,7 +466,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
 #endif
-
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
@@ -708,7 +707,8 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << getConvFwdSpecializationStr(ConvForwardSpecialization)
             << ">";
         // clang-format on
 
