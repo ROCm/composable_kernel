@@ -19,10 +19,10 @@ inline std::string getConvFwdSpecializationStr(const ConvolutionForwardSpecializ
 {
     switch(s)
     {
-    case Default: return "Default";
-    case Filter1x1Pad0: return "Filter1x1Pad0";
-    case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
-    case OddC: return "OddC";
+    case ConvolutionForwardSpecialization_t::Default: return "Default";
+    case ConvolutionForwardSpecialization_t::Filter1x1Pad0: return "Filter1x1Pad0";
+    case ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
+    case ConvolutionForwardSpecialization_t::OddC: return "OddC";
     default: return "Unrecognized specialization!";
     }
 }
