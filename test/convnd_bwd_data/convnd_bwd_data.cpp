@@ -42,8 +42,6 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_i32_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
 
 void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
@@ -106,7 +104,6 @@ ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[], int
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     ck::conv_util::ConvParams params;
-    ;
 
     params.num_dim_spatial = num_dim_spatial;
     params.N               = std::stoi(argv[arg_idx++]);
@@ -297,19 +294,7 @@ void GetDeviceConvBwdDataOpPtr(INT8,
     default: break;
     }
 }
-void GetDeviceConvBwdDataOpPtr(int32_t,
-                               std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs,
-                               int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 2:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
-            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_i32_instances(conv_ptrs);
-        break;
-    default: break;
-    }
-}
+
 int main(int argc, char* argv[])
 {
     int data_type       = 1;
@@ -552,10 +537,6 @@ int main(int argc, char* argv[])
     else if(data_type == 3)
     {
         Run(INT8(), INT8(), INT8(), int32_t());
-    }
-    else if(data_type == 4)
-    {
-        Run(int32_t(), int32_t(), int32_t(), int32_t());
     }
     else
     {
