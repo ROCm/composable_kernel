@@ -14,9 +14,9 @@ namespace host {
 //
 // @brief      Reference implementation for forward convolution.
 //
-// @paragraph Supported tensor layouts. Input tensor supports NCHiWi data layout.
-//             Weights tensor supports KCYX data layout. Output tensor supports
-//             NKHoWo data layout.
+// @paragraph  Supports both NCHW as well as NHWC formats (and their respective
+//             counterparts for weight and output) as long as tensor descriptor
+//             lengths is in NCHW.
 //
 // @tparam     InDataType               Input tensor data type.
 // @tparam     WeiDataType              Weights tensor data type.
@@ -100,9 +100,9 @@ struct ReferenceConvFwd : public device::BaseOperator
                                 float v_wei;
 
                                 arg.in_element_op_(v_in,
-                                                   static_cast<const float>(arg.input_(n, c, wi)));
+                                                   ck::type_convert<float>(arg.input_(n, c, wi)));
                                 arg.wei_element_op_(v_wei,
-                                                    static_cast<const float>(arg.weight_(k, c, x)));
+                                                    ck::type_convert<float>(arg.weight_(k, c, x)));
 
                                 v_acc += v_in * v_wei;
                             }
@@ -112,7 +112,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                     float v_out;
 
                     arg.out_element_op_(v_out, v_acc);
-                    arg.output_(n, k, wo) = v_out;
+                    arg.output_(n, k, wo) = ck::type_convert<OutDataType>(v_out);
                 };
 
                 make_ParallelTensorFunctor(f_ncw,
@@ -165,6 +165,61 @@ struct ReferenceConvFwd : public device::BaseOperator
                                            arg.output_.mDesc.GetLengths()[1],
                                            arg.output_.mDesc.GetLengths()[2],
                                            arg.output_.mDesc.GetLengths()[3])(
+                    std::thread::hardware_concurrency());
+
+                return 0;
+            }
+            else if constexpr(NumDimSpatial == 3)
+            {
+                auto f_nchw = [&](auto n, auto k, auto d_o, auto ho, auto wo) {
+                    float v_acc = 0;
+
+                    for(int c = 0; c < arg.weight_.mDesc.GetLengths()[1]; ++c)
+                    {
+                        for(int z = 0; z < arg.weight_.mDesc.GetLengths()[2]; ++z)
+                        {
+                            int di = d_o * arg.conv_strides_[0] + z * arg.conv_dilations_[0] -
+                                     arg.in_left_pads_[0];
+                            for(int y = 0; y < arg.weight_.mDesc.GetLengths()[3]; ++y)
+                            {
+                                int hi = ho * arg.conv_strides_[1] + y * arg.conv_dilations_[1] -
+                                         arg.in_left_pads_[1];
+                                for(int x = 0; x < arg.weight_.mDesc.GetLengths()[4]; ++x)
+                                {
+                                    int wi = wo * arg.conv_strides_[2] +
+                                             x * arg.conv_dilations_[2] - arg.in_left_pads_[2];
+                                    if(di >= 0 && di < arg.input_.mDesc.GetLengths()[2] &&
+                                       hi >= 0 && hi < arg.input_.mDesc.GetLengths()[3] &&
+                                       wi >= 0 && wi < arg.input_.mDesc.GetLengths()[4])
+                                    {
+                                        float v_in;
+                                        float v_wei;
+
+                                        arg.in_element_op_(
+                                            v_in,
+                                            ck::type_convert<float>(arg.input_(n, c, di, hi, wi)));
+                                        arg.wei_element_op_(
+                                            v_wei,
+                                            ck::type_convert<float>(arg.weight_(k, c, z, y, x)));
+                                        v_acc += v_in * v_wei;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    float v_out;
+
+                    arg.out_element_op_(v_out, v_acc);
+                    arg.output_(n, k, d_o, ho, wo) = ck::type_convert<OutDataType>(v_out);
+                };
+
+                make_ParallelTensorFunctor(f_nchw,
+                                           arg.output_.mDesc.GetLengths()[0],
+                                           arg.output_.mDesc.GetLengths()[1],
+                                           arg.output_.mDesc.GetLengths()[2],
+                                           arg.output_.mDesc.GetLengths()[3],
+                                           arg.output_.mDesc.GetLengths()[4])(
                     std::thread::hardware_concurrency());
 
                 return 0;
