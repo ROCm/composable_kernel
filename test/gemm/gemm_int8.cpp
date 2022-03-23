@@ -32,11 +32,15 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-}
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+} // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
