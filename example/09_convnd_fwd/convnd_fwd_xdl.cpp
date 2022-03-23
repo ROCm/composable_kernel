@@ -84,6 +84,9 @@ DeviceConvFwdBasePtr GetConvInstance(int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
+    case 3: {
+        return std::make_unique<DeviceConvNDFwdInstance<3>>();
+    }
     case 2: {
         return std::make_unique<DeviceConvNDFwdInstance<2>>();
     }
@@ -173,6 +176,9 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
 
     switch(num_dim_spatial)
     {
+    case 3: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWK{});
+    }
     case 2: {
         return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWK{});
     }
@@ -192,6 +198,9 @@ HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_
 
     switch(num_dim_spatial)
     {
+    case 3: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KZYXC{});
+    }
     case 2: {
         return ck::conv_util::GetHostTensorDescriptor(dims, tl::KYXC{});
     }
@@ -211,6 +220,9 @@ HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>
 
     switch(num_dim_spatial)
     {
+    case 3: {
+        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWC{});
+    }
     case 2: {
         return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
     }
@@ -360,6 +372,11 @@ int main(int argc, char* argv[])
 
         switch(num_dim_spatial)
         {
+        case 3: {
+            auto ref_conv = ReferenceConvNDFwdInstance<3>();
+            verify_f(ref_conv);
+            break;
+        }
         case 2: {
             auto ref_conv = ReferenceConvNDFwdInstance<2>();
             verify_f(ref_conv);
