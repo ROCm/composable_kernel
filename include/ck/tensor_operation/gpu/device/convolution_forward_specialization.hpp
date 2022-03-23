@@ -11,7 +11,6 @@ enum struct ConvolutionForwardSpecialization_t
     Filter1x1Pad0,
     Filter1x1Stride1Pad0,
     OddC,
-    UnDefined,
 };
 
 } // namespace device

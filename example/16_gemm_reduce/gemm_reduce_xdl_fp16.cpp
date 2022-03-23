@@ -153,14 +153,14 @@ int main(int argc, char* argv[])
         break;
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
-    DeviceMem d0_m_device_buf(sizeof(DDataType) * d0_m_device_result.mDesc.GetElementSpace());
-    DeviceMem d1_m_device_buf(sizeof(DDataType) * d1_m_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem d0_device_buf(sizeof(DDataType) * d0_m_device_result.mDesc.GetElementSpace());
+    DeviceMem d1_device_buf(sizeof(DDataType) * d1_m_device_result.mDesc.GetElementSpace());
 
-    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    a_device_buf.ToDevice(a_m_k.mData.data());
+    b_device_buf.ToDevice(b_k_n.mData.data());
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
@@ -171,11 +171,11 @@ int main(int argc, char* argv[])
     // do GEMM
     auto gemm     = DeviceGemmReduceInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<DDataType*>(d0_m_device_buf.GetDeviceBuffer()),
-                                      static_cast<DDataType*>(d1_m_device_buf.GetDeviceBuffer()),
+    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                      static_cast<DDataType*>(d0_device_buf.GetDeviceBuffer()),
+                                      static_cast<DDataType*>(d1_device_buf.GetDeviceBuffer()),
                                       M,
                                       N,
                                       K,
@@ -199,22 +199,26 @@ int main(int argc, char* argv[])
     invoker.Run(argument);
 
     // timing
-    KernelTimer timer;
-
-    timer.Start();
+    float total_time = 0;
 
     for(int i = 0; i < nrepeat; ++i)
     {
         // init DO, D1 to 0
-        d0_m_device_buf.SetZero();
-        d1_m_device_buf.SetZero();
+        d0_device_buf.SetZero();
+        d1_device_buf.SetZero();
+
+        KernelTimer timer;
+
+        timer.Start();
 
         invoker.Run(argument);
+
+        timer.End();
+
+        total_time += timer.GetElapsedTime();
     }
 
-    timer.End();
-
-    float ave_time = timer.GetElapsedTime() / nrepeat;
+    float ave_time = total_time / nrepeat;
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
@@ -229,9 +233,9 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
-        d0_m_device_buf.FromDevice(d0_m_device_result.mData.data());
-        d1_m_device_buf.FromDevice(d1_m_device_result.mData.data());
+        c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+        d0_device_buf.FromDevice(d0_m_device_result.mData.data());
+        d1_device_buf.FromDevice(d1_m_device_result.mData.data());
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();

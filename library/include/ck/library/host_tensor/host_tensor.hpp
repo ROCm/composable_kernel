@@ -305,43 +305,47 @@ void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
 template <typename T>
 float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
-    float error     = 0;
-    float max_diff  = -1;
-    float ref_value = 0, result_value = 0;
+    float l1_error       = 0;
+    float linf_error     = -1;
+    float linf_rel_error = -1;
 
-    if constexpr(std::is_same<ck::bhalf_t, T>::value)
+    float linf_ref_value = 0, linf_result_value = 0;
+    float linf_rel_ref_value = 0, linf_rel_result_value = 0;
+
+    constexpr float eps = 1e-10;
+
+    for(int i = 0; i < ref.mData.size(); ++i)
     {
-        for(int i = 0; i < ref.mData.size(); ++i)
+        float ref_v    = ck::type_convert<float>(ref.mData[i]);
+        float result_v = ck::type_convert<float>(result.mData[i]);
+
+        float diff     = std::abs(ref_v - result_v);
+        float rel_diff = diff / std::max(std::abs(ref_v), eps);
+
+        l1_error += diff;
+
+        if(linf_error < diff)
         {
-            error += std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
-            float diff = std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
-            if(max_diff < diff)
-            {
-                max_diff     = diff;
-                ref_value    = bf16_to_f32_(ref.mData[i]);
-                result_value = bf16_to_f32_(result.mData[i]);
-            }
+            linf_error        = diff;
+            linf_ref_value    = ref_v;
+            linf_result_value = result_v;
+        }
+
+        if(linf_rel_error < rel_diff)
+        {
+            linf_rel_error        = rel_diff;
+            linf_rel_ref_value    = ref_v;
+            linf_rel_result_value = result_v;
         }
     }
-    else
-    {
-        for(int i = 0; i < ref.mData.size(); ++i)
-        {
-            error += std::abs(float(ref.mData[i]) - float(result.mData[i]));
-            float diff = std::abs(float(ref.mData[i]) - float(result.mData[i]));
-            if(max_diff < diff)
-            {
-                max_diff     = diff;
-                ref_value    = float(ref.mData[i]);
-                result_value = float(result.mData[i]);
-            }
-        }
-    }
 
-    std::cout << "error: " << error << std::endl;
-    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
+    std::cout << "Absolute Error L1 Norm (sum of abs diff): " << l1_error << std::endl;
+    std::cout << "Absolute Error L-inf Norm (max abs diff): " << linf_error << ", ref "
+              << linf_ref_value << ", result " << linf_result_value << std::endl;
+    std::cout << "Relative Error L-inf Norm (max relative abs diff): " << linf_rel_error << ", ref "
+              << linf_rel_ref_value << ", result " << linf_rel_result_value << std::endl;
 
-    return max_diff;
+    return linf_error;
 }
 
 template <typename T>

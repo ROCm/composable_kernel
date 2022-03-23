@@ -447,10 +447,10 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
               p_c_grid_{p_c_grid},
               p_d0_grid_{p_d0_grid},
               p_d1_grid_{p_d1_grid},
-              a_grid_desc_ak0_m_ak1_{},
-              b_grid_desc_bk0_n_bk1_{},
-              c_grid_desc_m_n_{},
-              d_grid_desc_m_{},
+              a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
+              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
+              c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
+              d_grid_desc_m_{DeviceOp::MakeDGridDescriptor_M(MRaw)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               d_grid_desc_mblock_mperblock_{},
               block_2_ctile_map_{},
@@ -460,11 +460,6 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
               d0_reduce_op_{d0_reduce_op},
               d1_reduce_op_{d1_reduce_op}
         {
-            a_grid_desc_ak0_m_ak1_ = DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA);
-            b_grid_desc_bk0_n_bk1_ = DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB);
-            c_grid_desc_m_n_       = DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
-            d_grid_desc_m_         = DeviceOp::MakeDGridDescriptor_M(MRaw);
-
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_))
             {
@@ -530,8 +525,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
             if(!GridwiseGemm::CheckValidity(
                    arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
             {
-                throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
@@ -552,12 +546,11 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     CElementwiseOperation,
                     D0ReduceOperation,
                     D1ReduceOperation,
-                    remove_reference_t<DeviceOp::AGridDesc_AK0_M_AK1>,
-                    remove_reference_t<DeviceOp::BGridDesc_BK0_N_BK1>,
-                    remove_reference_t<
-                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    DeviceOp::AGridDesc_AK0_M_AK1,
+                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
                 launch_kernel(kernel,
@@ -592,12 +585,11 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     CElementwiseOperation,
                     D0ReduceOperation,
                     D1ReduceOperation,
-                    remove_reference_t<DeviceOp::AGridDesc_AK0_M_AK1>,
-                    remove_reference_t<DeviceOp::BGridDesc_BK0_N_BK1>,
-                    remove_reference_t<
-                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    remove_reference_t<typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock>,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    DeviceOp::AGridDesc_AK0_M_AK1,
+                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
                 launch_kernel(kernel,

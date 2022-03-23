@@ -243,9 +243,7 @@ bool profile_gemm_reduce_impl(int do_verification,
             invoker_ptr->Run(argument_ptr.get());
 
             // timing
-            KernelTimer timer;
-
-            timer.Start();
+            float total_time = 0;
 
             for(int i = 0; i < nrepeat; ++i)
             {
@@ -253,12 +251,18 @@ bool profile_gemm_reduce_impl(int do_verification,
                 d0_device_buf.SetZero();
                 d1_device_buf.SetZero();
 
+                KernelTimer timer;
+
+                timer.Start();
+
                 invoker_ptr->Run(argument_ptr.get());
+
+                timer.End();
+
+                total_time += timer.GetElapsedTime();
             }
 
-            timer.End();
-
-            float ave_time = timer.GetElapsedTime() / nrepeat;
+            float ave_time = total_time / nrepeat;
 
             std::string gemm_name = gemm_ptr->GetTypeString();
 
