@@ -19,7 +19,6 @@ int profile_grouped_gemm(int, char*[]);
 
 int main(int argc, char* argv[])
 {
-#if 0
     if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
@@ -86,7 +85,4 @@ int main(int argc, char* argv[])
 
         return 0;
     }
-#else
-    profile_grouped_gemm(argc, argv);
-#endif
 }
