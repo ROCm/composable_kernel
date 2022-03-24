@@ -134,4 +134,6 @@ int main()
     }
 
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+
+    return static_cast<int>(!res);
 }
