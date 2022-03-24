@@ -105,11 +105,11 @@ check_err(const std::vector<T>& out,
     return res;
 }
 
-bool check_err(const std::vector<_Float16>& out,
-               const std::vector<_Float16>& ref,
+bool check_err(const std::vector<ck::half_t>& out,
+               const std::vector<ck::half_t>& ref,
                const std::string& msg,
-               _Float16 rtol = static_cast<_Float16>(1e-3f),
-               _Float16 atol = static_cast<_Float16>(1e-3f))
+               ck::half_t rtol = static_cast<ck::half_t>(1e-3f),
+               ck::half_t atol = static_cast<ck::half_t>(1e-3f))
 {
     if(out.size() != ref.size())
     {
@@ -122,7 +122,7 @@ bool check_err(const std::vector<_Float16>& out,
     bool res{true};
     int err_count  = 0;
     double err     = 0;
-    double max_err = std::numeric_limits<_Float16>::min();
+    double max_err = std::numeric_limits<ck::half_t>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         double out_ = double(out[i]);
