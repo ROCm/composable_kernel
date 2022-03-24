@@ -19,24 +19,20 @@ RUN sh -c "echo deb https://apt.kitware.com/ubuntu/ bionic main | tee -a /etc/ap
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
-    sshpass \
     build-essential \
     cmake-data=3.15.1-0kitware1 \
     cmake=3.15.1-0kitware1 \
     curl \
-    doxygen \
     g++ \
     gdb \
     git \
     hip-rocclr \
     jq \
-    lcov \
     libelf-dev \
     libncurses5-dev \
     libnuma-dev \
     libpthread-stubs0-dev \
     llvm-amdgpu \
-    miopengemm \
     pkg-config \
     python \
     python3 \
@@ -45,23 +41,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python-pip \
     python3-pip \
     software-properties-common \
-    sqlite3 \
     wget \
     rocm-dev \
     rocm-device-libs \
-    rocm-opencl \
-    rocm-opencl-dev \
     rocm-cmake \
-    rocblas \
     vim \
     zlib1g-dev \
     openssh-server \
-    kmod \
-    mysql-client && \
+    kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# RUN pip3 install --default-timeout=100000 -r requirements.txt
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
@@ -91,5 +80,3 @@ ADD rbuild.ini /rbuild.ini
 ADD dev-requirements.txt dev-requirements.txt
 RUN rbuild prepare -s develop -d $PREFIX
 RUN groupadd -f render
-# RUN cget install -f min-requirements.txt
-# RUN CXXFLAGS='-isystem $PREFIX/include' cget install -f ./mlir-requirements.txt
