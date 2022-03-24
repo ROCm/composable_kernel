@@ -113,5 +113,5 @@ int main()
     }
 
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-    return res;
+    return res ? 0 : 1;
 }
