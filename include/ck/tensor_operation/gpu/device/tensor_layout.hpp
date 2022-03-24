@@ -84,7 +84,8 @@ struct NKHW : public BaseTensorLayout
 {
     static constexpr const char* name = "NKHW";
 };
-// 3d
+
+// 3D Conv
 struct NDHWC : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWC";
