@@ -1,6 +1,4 @@
-#ifndef CK_FLOAT_TYPE_AMD_HPP
-#define CK_FLOAT_TYPE_AMD_HPP
-
+#pragma once
 #include "statically_indexed_array.hpp"
 
 namespace ck {
@@ -937,7 +935,7 @@ __host__ __device__ Y type_convert(X x)
 
 // convert bfp16 to fp32
 template <>
-inline __host__ __device__ float type_convert(bhalf_t x)
+inline __host__ __device__ float type_convert<float, bhalf_t>(bhalf_t x)
 {
     union
     {
@@ -950,7 +948,7 @@ inline __host__ __device__ float type_convert(bhalf_t x)
 
 // convert fp32 to bfp16
 template <>
-inline __host__ __device__ bhalf_t type_convert(float x)
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, float>(float x)
 {
     union
     {
@@ -1090,4 +1088,3 @@ struct NumericLimits<half_t>
 };
 
 } // namespace ck
-#endif
