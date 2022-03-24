@@ -129,4 +129,5 @@ int main()
     }
 
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+    return res;
 }
