@@ -9,7 +9,7 @@
 
 namespace ck {
 
-enum AddressSpaceEnum_t
+enum struct AddressSpaceEnum_t
 {
     Generic,
     Global,

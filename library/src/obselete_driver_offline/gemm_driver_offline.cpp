@@ -30,7 +30,7 @@
 #define USE_GEMM_XDL_KM_KN_NM 0
 #define USE_GEMM_XDL_KM_NK_NM 0
 
-enum GemmMatrixLayout
+enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
     MK_NK_MN, // 1
@@ -42,7 +42,7 @@ enum GemmMatrixLayout
     KM_NK_NM  // 7
 };
 
-enum GemmAlgo
+enum struct GemmAlgo
 {
     Xdl_MK_KN_MN, // 0
     Xdl_MK_NK_MN, // 1

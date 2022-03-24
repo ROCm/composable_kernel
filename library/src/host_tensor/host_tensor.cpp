@@ -64,6 +64,8 @@ void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream
     os << "}" << std::endl;
 }
 
+#if 1
+// FIXME: remove
 float bf16_to_f32_(ck::bhalf_t src_val)
 {
     union
@@ -74,8 +76,10 @@ float bf16_to_f32_(ck::bhalf_t src_val)
     return u.fp32;
 }
 
+// FIXME: remove
 void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst)
 {
     for(int i = 0; i < src.mData.size(); ++i)
         dst.mData[i] = bf16_to_f32_(src.mData[i]);
 }
+#endif
