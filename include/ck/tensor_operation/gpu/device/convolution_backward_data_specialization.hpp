@@ -5,7 +5,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-enum ConvolutionBackwardDataSpecialization_t
+enum struct ConvolutionBackwardDataSpecialization_t
 {
     Default,
     Filter1x1Stride1Pad0,

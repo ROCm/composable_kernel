@@ -4,9 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
-#include "device_base.hpp"
-#include "device_gemm.hpp"
-#include "device_gemm_xdl.hpp"
+#include "device_gemm_bias.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"

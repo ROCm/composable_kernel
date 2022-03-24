@@ -26,6 +26,7 @@ set(PROFILER_SOURCE
     src/profile_gemm_bias_2d.cpp
     src/profile_gemm_bias_relu.cpp
     src/profile_gemm_bias_relu_add.cpp
+    src/profile_gemm_reduce.cpp
     src/profile_batched_gemm.cpp
     src/profile_conv_fwd.cpp
     src/profile_conv_fwd_bias_relu.cpp
@@ -39,6 +40,7 @@ set(PROFILER_SOURCE
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
+target_link_libraries(ckProfiler PRIVATE device_gemm_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias2d_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias_relu_instance)

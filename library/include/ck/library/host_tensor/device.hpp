@@ -13,8 +13,10 @@ struct DeviceMem
     DeviceMem() = delete;
     DeviceMem(std::size_t mem_size);
     void* GetDeviceBuffer();
+    std::size_t GetBufferSize();
     void ToDevice(const void* p);
     void FromDevice(void* p);
+    void SetZero();
     ~DeviceMem();
 
     void* mpDeviceBuf;
@@ -48,7 +50,6 @@ template <typename... Args, typename F>
 float launch_and_time_kernel(
     F kernel, int nrepeat, dim3 grid_dim, dim3 block_dim, std::size_t lds_byte, Args... args)
 {
-#if 1
     KernelTimer timer;
 
     printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
@@ -78,13 +79,6 @@ float launch_and_time_kernel(
 
     timer.End();
 
-    // std::this_thread::sleep_for (std::chrono::microseconds(10));
-
     return timer.GetElapsedTime() / nrepeat;
-#else
-    launch_kernel(kernel, grid_dim, block_dim, lds_byte, args...);
-
-    return 0;
-#endif
 }
 #endif

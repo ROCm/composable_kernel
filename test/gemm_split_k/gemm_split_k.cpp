@@ -12,7 +12,7 @@
 #include "tensor_layout.hpp"
 #include "device_gemm_xdl_splitk.hpp"
 
-enum GemmMatrixLayout
+enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
     MK_NK_MN, // 1
@@ -59,7 +59,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 
 struct gemmArgs
 {
-    int layout;
+    GemmMatrixLayout layout;
     int M;
     int N;
     int K;
@@ -216,13 +216,13 @@ int main(int argc, char* argv[])
     std::vector<gemmArgs> test_cases;
     if(argc == 1)
     {
-        test_cases = {{0, 3, 3, 3, 3, 3, 3, 1}};
+        test_cases = {{GemmMatrixLayout::MK_KN_MN, 3, 3, 3, 3, 3, 3, 1}};
         // JD: Populate with more and meaningful
         return 0;
     }
     else if(argc == 9)
     {
-        const int layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
+        const auto layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
 
         const int M = std::stoi(argv[2]);
         const int N = std::stoi(argv[3]);

@@ -6,25 +6,25 @@
 #include <half.hpp>
 #include "profile_conv_fwd_bias_relu_atomic_add_impl.hpp"
 
-enum ConvDataType
+enum struct ConvDataType
 {
     F32_F32_F32, // 0
     F16_F16_F16, // 1
 };
 
-enum ConvInputLayout
+enum struct ConvInputLayout
 {
     NCHW, // 0
     NHWC, // 1
 };
 
-enum ConvWeightLayout
+enum struct ConvWeightLayout
 {
     KCYX, // 0
     KYXC, // 1
 };
 
-enum ConvOutputLayout
+enum struct ConvOutputLayout
 {
     NKHW, // 0
     NHWK, // 1
@@ -49,10 +49,10 @@ int profile_conv_fwd_bias_relu_atomic_add(int argc, char* argv[])
         exit(1);
     }
 
-    const int data_type        = static_cast<ConvDataType>(std::stoi(argv[2]));
-    const int in_layout        = static_cast<ConvInputLayout>(std::stoi(argv[3]));
-    const int wei_layout       = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
-    const int out_layout       = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
+    const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
+    const auto in_layout       = static_cast<ConvInputLayout>(std::stoi(argv[3]));
+    const auto wei_layout      = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
+    const auto out_layout      = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
     const bool do_verification = std::stoi(argv[6]);
     const int init_method      = std::stoi(argv[7]);
     const bool do_log          = std::stoi(argv[8]);
