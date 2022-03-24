@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -44,24 +46,6 @@ using AccDataType = float;
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
-
-template <typename T>
-static bool check_err(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    float max_diff = 1e-2;
-
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        if(max_diff < diff)
-        {
-            std::cout << double(ref.mData[i]) << "," << double(result.mData[i]) << std::endl;
-            return false;
-        }
-    }
-
-    return true;
-}
 
 bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 {
@@ -182,7 +166,7 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 
         ref_invoker.Run(ref_argument);
 
-        bool res = check_err(c_device_tensors[i], c_host_tensors[i]);
+        bool res = ck::utils::check_err(c_host_tensors[i].mData, c_device_tensors[i].mData);
 
         std::cout << "group_id: " << i << (res ? " SUCCESS" : " FAILURE") << std::endl;
 

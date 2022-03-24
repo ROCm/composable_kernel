@@ -6,7 +6,6 @@
 #include <tuple>
 #include <vector>
 
-#include "check_err.hpp"
 #include "gemm_util.hpp"
 #include "config.hpp"
 #include "print.hpp"

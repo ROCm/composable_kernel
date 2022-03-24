@@ -11,7 +11,6 @@
 #include "device_tensor.hpp"
 #include "device_batched_gemm_xdl.hpp"
 #include "element_wise_operation.hpp"
-#include "test_util.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
