@@ -89,9 +89,6 @@ Tensor<OutDataType> RunReferenceConvFwd(const ck::utils::conv::ConvParams& param
     fill_weights_op(weights.begin(), weights.end());
     std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
 
-    // std::cout <<"input: " << input.mDesc << std::endl << input.mData << std::endl;
-    // std::cout <<"weight: " << weights.mDesc << std::endl << weights.mData << std::endl;
-
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
                                                                  WeiDataType,
                                                                  OutDataType,

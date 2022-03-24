@@ -40,20 +40,6 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
     return os;
 }
 
-typedef enum
-{
-    Half  = 0,
-    Float = 1,
-} DataType_t;
-
-template <typename T>
-struct DataType;
-
-template <>
-struct DataType<float> : std::integral_constant<DataType_t, DataType_t::Float>
-{
-};
-
 template <typename F, typename T, std::size_t... Is>
 auto call_f_unpack_args_impl(F f, T args, std::index_sequence<Is...>)
 {
@@ -312,6 +298,79 @@ HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> s
 
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
+#if 1
+// FIXME: remove
 void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
+#endif
+
+template <typename T>
+float check_error(const Tensor<T>& ref, const Tensor<T>& result)
+{
+    float l1_error       = 0;
+    float linf_error     = -1;
+    float linf_rel_error = -1;
+
+    float linf_ref_value = 0, linf_result_value = 0;
+    float linf_rel_ref_value = 0, linf_rel_result_value = 0;
+
+    constexpr float eps = 1e-10;
+
+    for(int i = 0; i < ref.mData.size(); ++i)
+    {
+        float ref_v    = ck::type_convert<float>(ref.mData[i]);
+        float result_v = ck::type_convert<float>(result.mData[i]);
+
+        float diff     = std::abs(ref_v - result_v);
+        float rel_diff = diff / std::max(std::abs(ref_v), eps);
+
+        l1_error += diff;
+
+        if(linf_error < diff)
+        {
+            linf_error        = diff;
+            linf_ref_value    = ref_v;
+            linf_result_value = result_v;
+        }
+
+        if(linf_rel_error < rel_diff)
+        {
+            linf_rel_error        = rel_diff;
+            linf_rel_ref_value    = ref_v;
+            linf_rel_result_value = result_v;
+        }
+    }
+
+    std::cout << "Absolute Error L1 Norm (sum of abs diff): " << l1_error << std::endl;
+    std::cout << "Absolute Error L-inf Norm (max abs diff): " << linf_error << ", ref "
+              << linf_ref_value << ", result " << linf_result_value << std::endl;
+    std::cout << "Relative Error L-inf Norm (max relative abs diff): " << linf_rel_error << ", ref "
+              << linf_rel_ref_value << ", result " << linf_rel_result_value << std::endl;
+
+    return linf_error;
+}
+
+template <typename T>
+void check_indices(const Tensor<T>& ref, const Tensor<T>& result)
+{
+    bool has_error  = false;
+    int error_count = 0;
+
+    for(int i = 0; i < ref.mData.size(); ++i)
+    {
+        if(ref.mData[i] != result.mData[i])
+        {
+            std::cerr << std::endl
+                      << "Indices different at position " << i << " (ref: " << ref.mData[i]
+                      << ", result: " << result.mData[i] << ")" << std::endl;
+            has_error = true;
+            error_count++;
+            if(error_count == 20)
+                break;
+        };
+    }
+
+    if(!has_error)
+        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
+}
 
 #endif
