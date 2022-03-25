@@ -320,11 +320,12 @@ int main()
     if(pass)
     {
         std::cout << "test convnd bwd : Pass" << std::endl;
+	return 0;
     }
     else
     {
         std::cout << "test convnd bwd: Fail " << std::endl;
+	return -1;
     }
 
-    return 0;
 }

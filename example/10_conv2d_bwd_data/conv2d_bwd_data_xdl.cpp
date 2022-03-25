@@ -68,6 +68,7 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
 using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                   WeiDataType,
                                                                                   OutDataType,
+                                                                                  AccDataType,
                                                                                   InElementOp,
                                                                                   WeiElementOp,
                                                                                   OutElementOp>;
