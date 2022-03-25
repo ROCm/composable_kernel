@@ -295,33 +295,33 @@ int main(int argc, char* argv[])
         if(success)
         {
             std::cout << "test conv2d bwd : Pass" << std::endl;
+            return 0;
         }
         else
         {
             std::cout << "test conv2d bwd: Fail " << std::endl;
+            return -1;
         }
     };
 
     if(data_type == 0)
     {
-        Run(F32(), F32(), F32(), F32());
+        return Run(F32(), F32(), F32(), F32());
     }
     else if(data_type == 1)
     {
-        Run(F16(), F16(), F16(), F32());
+        return Run(F16(), F16(), F16(), F32());
     }
     else if(data_type == 2)
     {
-        Run(BF16(), BF16(), BF16(), F32());
+        return Run(BF16(), BF16(), BF16(), F32());
     }
     else if(data_type == 3)
     {
-        Run(INT8(), INT8(), INT8(), int());
+        return Run(INT8(), INT8(), INT8(), int());
     }
     else
     {
         return 1;
     }
-
-    return 0;
 }
