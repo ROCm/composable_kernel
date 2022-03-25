@@ -61,7 +61,7 @@ struct PartitionedBlockwiseReduction
     using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
 
     template <typename BufferType>
-    __device__ static void Reduce(BufferType& block_buffer, AccDataType& accuData)
+    __device__ static void Reduce(BufferType& work_buffer, AccDataType& in_out_value)
     {
         constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
 
@@ -70,6 +70,10 @@ struct PartitionedBlockwiseReduction
 
         const auto thread_m_cluster_id = thread_cluster_idx[Number<0>{}];
         const auto thread_k_cluster_id = thread_cluster_idx[Number<1>{}];
+
+        work_buffer(block_buf_desc_m_k.CalculateOffset(thread_cluster_idx)) = in_out_value;
+
+        __syncthreads();
 
         static_for<0, cluster_len_shift, 1>{}([&](auto I) {
             constexpr index_t indOffset = 1 << (cluster_len_shift - 1 - I());
@@ -80,10 +84,10 @@ struct PartitionedBlockwiseReduction
                 index_t offset2 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx +
                                                                      make_tuple(0, indOffset));
 
-                AccDataType opData1 = type_convert<AccDataType>(block_buffer[offset1]);
-                AccDataType opData2 = type_convert<AccDataType>(block_buffer[offset2]);
+                AccDataType opData1 = work_buffer[offset1];
+                AccDataType opData2 = work_buffer[offset2];
                 Accumulation::Calculate(opData1, opData2);
-                block_buffer(offset1) = type_convert<AccDataType>(opData1);
+                work_buffer(offset1) = opData1;
             }
 
             __syncthreads();
@@ -91,7 +95,7 @@ struct PartitionedBlockwiseReduction
 
         index_t offset = block_buf_desc_m_k.CalculateOffset(make_tuple(thread_m_cluster_id, 0));
 
-        accuData = type_convert<AccDataType>(block_buffer[offset]);
+        in_out_value = work_buffer[offset];
     };
 };
 
@@ -123,10 +127,10 @@ struct PartitionedBlockwiseReductionWithIndex
 
     // This interface accumulates on both data values and indices
     template <typename BufferType, typename IdxBufferType>
-    __device__ static void Reduce(BufferType& block_val_buffer,
-                                  IdxBufferType& block_idx_buffer,
-                                  AccDataType& accuData,
-                                  IndexDataType& accuIndex)
+    __device__ static void Reduce(BufferType& work_val_buffer,
+                                  IdxBufferType& work_idx_buffer,
+                                  AccDataType& in_out_value,
+                                  IndexDataType& in_out_index)
     {
         constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
 
@@ -135,6 +139,11 @@ struct PartitionedBlockwiseReductionWithIndex
 
         const auto thread_m_cluster_id = thread_cluster_idx[Number<0>{}];
         const auto thread_k_cluster_id = thread_cluster_idx[Number<1>{}];
+
+        work_val_buffer(block_buf_desc_m_k.CalculateOffset(thread_cluster_idx)) = in_out_value;
+        work_idx_buffer(block_buf_desc_m_k.CalculateOffset(thread_cluster_idx)) = in_out_index;
+
+        __syncthreads();
 
         static_for<0, cluster_len_shift, 1>{}([&](auto I) {
             constexpr index_t indOffset = 1 << I();
@@ -145,14 +154,14 @@ struct PartitionedBlockwiseReductionWithIndex
                 index_t offset2 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx +
                                                                      make_tuple(0, indOffset));
 
-                AccDataType opData1      = type_convert<AccDataType>(block_val_buffer[offset1]);
-                AccDataType opData2      = type_convert<AccDataType>(block_val_buffer[offset2]);
-                IndexDataType currIndex1 = block_idx_buffer[offset1];
-                IndexDataType currIndex2 = block_idx_buffer[offset2];
+                AccDataType opData1      = work_val_buffer[offset1];
+                AccDataType opData2      = work_val_buffer[offset2];
+                IndexDataType currIndex1 = work_idx_buffer[offset1];
+                IndexDataType currIndex2 = work_idx_buffer[offset2];
 
                 Accumulation::Calculate(opData1, opData2, currIndex1, currIndex2);
-                block_val_buffer(offset1) = type_convert<AccDataType>(opData1);
-                block_idx_buffer(offset1) = currIndex1;
+                work_val_buffer(offset1) = opData1;
+                work_idx_buffer(offset1) = currIndex1;
             }
 
             __syncthreads();
@@ -160,9 +169,9 @@ struct PartitionedBlockwiseReductionWithIndex
 
         index_t offset = block_buf_desc_m_k.CalculateOffset(make_tuple(thread_m_cluster_id, 0));
 
-        accuData  = type_convert<AccDataType>(block_val_buffer[offset]);
-        accuIndex = block_idx_buffer[offset];
-    }
+        in_out_value = work_val_buffer[offset];
+        in_out_index = work_idx_buffer[offset];
+    };
 };
 
 }; // end of namespace ck
