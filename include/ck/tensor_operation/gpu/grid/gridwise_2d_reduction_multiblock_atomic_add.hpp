@@ -109,11 +109,6 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
     using ThreadReduceDstDesc_M =
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
-    // For laying out the threads to do reducing on LDS buffer, for LDS buffer, we always use the
-    // Dim_K as the fastest one
-    static constexpr auto block_buf_desc_m_k = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<MThreadClusterSize>{}, Number<KThreadClusterSize>{}));
-
     using BlockwiseReduce = PartitionedBlockwiseReduction<AccDataType,
                                                           BlockSize,
                                                           ThreadClusterLengths_M_K,

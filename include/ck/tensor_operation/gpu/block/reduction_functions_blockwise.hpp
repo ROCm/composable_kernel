@@ -36,6 +36,13 @@
 
 namespace ck {
 
+// clang-format off
+// Assume:
+//  1) work_buffer is LDS allocated outside as workspace, does not include any in/out data
+//  2) work_buffer has AccDataType elements, and space size is no less than BlockSize
+//  3) in_out_value is the input data in vgpr from each thread
+//  4) in_out_value is the over-written reduced output in vgpr for each thread
+// clang-format on
 template <typename AccDataType,
           index_t BlockSize,
           typename ThreadClusterLengths_M_K,
@@ -99,6 +106,13 @@ struct PartitionedBlockwiseReduction
     };
 };
 
+// clang-format off
+// Assume:
+//  1) work_val_buffer/work_idx_buffer is LDS allocated outside as workspace, does not include any in/out data
+//  2) work_val_buffer/work_idx_buffer has AccDataType/IndexDataType elements, and space size is no less than BlockSize
+//  3) in_out_value/in_out_index is the input data in vgpr from each thread
+//  4) in_out_value/in_out_index is the over-written reduced output in vgpr for each thread
+// clang-format on
 template <typename AccDataType,
           typename IndexDataType,
           index_t BlockSize,

@@ -185,11 +185,6 @@ struct GridwiseReduction_mk_to_m_blockwise
     using ThreadReduceDstDesc_M =
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
-    // For laying out the threads to do reducing on LDS buffer, for LDS buffer, we always use the
-    // Dim_K as the fastest one
-    static constexpr auto block_buf_desc_m_k = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<MThreadClusterSize>{}, Number<KThreadClusterSize>{}));
-
     using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     static constexpr auto I0 = Number<0>{};
