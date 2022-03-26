@@ -1,0 +1,1 @@
+add_test_executable(test_cpu_gemm_uk cpu_gemm_uk.cpp)

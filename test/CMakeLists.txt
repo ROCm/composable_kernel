@@ -10,6 +10,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/thread
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
@@ -39,3 +40,4 @@ add_subdirectory(gemm_split_k)
 add_subdirectory(conv2d_fwd)
 add_subdirectory(convnd_fwd)
 add_subdirectory(conv2d_bwd_data)
+add_subdirectory(cpu_ukernel)
