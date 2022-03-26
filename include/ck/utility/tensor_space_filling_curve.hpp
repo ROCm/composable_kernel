@@ -37,6 +37,10 @@ struct SpaceFillingCurve
 
     __host__ __device__ static constexpr index_t GetNumOfAccess()
     {
+        static_assert(TensorLengths::Size() == ScalarsPerAccess::Size());
+        static_assert(TensorLengths{} % ScalarsPerAccess{} ==
+                      typename uniform_sequence_gen<TensorLengths::Size(), 0>::type{});
+
         return reduce_on_sequence(TensorLengths{}, math::multiplies{}, Number<1>{}) /
                ScalarPerVector;
     }
@@ -139,6 +143,15 @@ struct SpaceFillingCurve
                    ScalarsPerAccess{};
         }();
         return idx_md;
+    }
+
+    // FIXME: rename this function
+    template <index_t AccessIdx1d>
+    static __device__ __host__ constexpr auto GetIndexTupleOfNumber(Number<AccessIdx1d>)
+    {
+        constexpr auto idx = GetIndex(Number<AccessIdx1d>{});
+
+        return generate_tuple([&](auto i) { return Number<idx[i]>{}; }, Number<nDim>{});
     }
 };
 

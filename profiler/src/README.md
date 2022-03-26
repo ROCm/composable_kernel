@@ -67,8 +67,8 @@ Best Perf: 1.1933 ms, 107.977 TFlops, 79.0848 GB/s
 #arg8: print matrix value (0=no, 1=yes)
 #arg9: run kernel # of times (>1)
 #arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx
- #####################   op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
- ./profiler/ckProfiler conv         1          1            1           1       1     1    0       5  128  256  192 3 3   71   71     2 2       1 1      1 1       1 1
+ #####################   op     datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
+ ./profiler/ckProfiler conv_fwd        1          1            1           1       1     1    0       5  128  256  192 3 3   71   71     2 2       1 1      1 1       1 1
 ```
 
 Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)

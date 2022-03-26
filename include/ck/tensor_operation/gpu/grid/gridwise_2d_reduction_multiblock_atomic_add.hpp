@@ -32,6 +32,7 @@
 #include "reduction_functions_blockwise.hpp"
 
 #include "threadwise_tensor_slice_transfer.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 
@@ -84,6 +85,11 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct GridwiseReduction_mk_to_m_multiblock_atomic_add
 {
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
@@ -109,8 +115,7 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                                                           ReduceOperation,
                                                           PropagateNan>;
 
-    template <typename T>
-    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -249,7 +254,7 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                                                    OutDataType,
                                                    decltype(reduced_data_desc),
                                                    OutGridDesc_M,
-                                                   PassThroughOp<AccDataType>,
+                                                   PassThroughOp,
                                                    Sequence<MThreadSliceSize>,
                                                    Sequence<0>,
                                                    0,
@@ -260,7 +265,7 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                     out_grid_desc_m,
                     make_multi_index(blkgroup_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize),
-                    PassThroughOp<AccDataType>{});
+                    PassThroughOp{});
 
             threadwise_dst_store.Run(
                 reduced_data_desc, make_tuple(I0), accu_value_buf, out_grid_desc_m, out_global_buf);

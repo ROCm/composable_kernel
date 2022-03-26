@@ -7,7 +7,7 @@
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
-#include "device_gemm.hpp"
+#include "device_gemm_bias.hpp"
 #include "reference_gemm_bias_2d.hpp"
 
 namespace ck {

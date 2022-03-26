@@ -85,6 +85,7 @@ struct NKHW : public BaseTensorLayout
     static constexpr const char* name = "NKHW";
 };
 
+// 3D Conv
 struct NDHWC : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWC";
@@ -98,6 +99,21 @@ struct KZYXC : public BaseTensorLayout
 struct NDHWK : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWK";
+};
+
+struct NCDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NCDHW";
+};
+
+struct KCZYX : public BaseTensorLayout
+{
+    static constexpr const char* name = "KCZYX";
+};
+
+struct NKDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NKDHW";
 };
 
 } // namespace convolution

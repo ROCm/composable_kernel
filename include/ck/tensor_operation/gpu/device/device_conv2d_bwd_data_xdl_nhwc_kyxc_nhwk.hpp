@@ -459,6 +459,16 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             {
                 for(index_t i_xtilda = 0; i_xtilda < XTilda; ++i_xtilda)
                 {
+                    // check slice is valid
+                    const index_t Y      = filter_spatial_lengths_[0];
+                    const index_t X      = filter_spatial_lengths_[1];
+                    const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilda, YTilda);
+                    const auto XDotSlice = math::integer_divide_ceil(X - i_xtilda, XTilda);
+                    if(YDotSlice * XDotSlice <= 0)
+                    {
+                        continue;
+                    }
+
                     const auto descs = DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
                         N,
                         K,

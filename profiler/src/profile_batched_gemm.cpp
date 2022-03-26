@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
@@ -15,7 +16,7 @@
 #include "device_batched_gemm_xdl.hpp"
 #include "profile_batched_gemm_impl.hpp"
 
-enum GemmMatrixLayout
+enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
     MK_NK_MN, // 1
@@ -27,10 +28,12 @@ enum GemmMatrixLayout
     KM_NK_NM, // 7
 };
 
-enum GemmDataType
+enum struct GemmDataType
 {
-    F32_F32_F32, // 0
-    F16_F16_F16, // 1
+    F32_F32_F32,    // 0
+    F16_F16_F16,    // 1
+    BF16_BF16_BF16, // 2
+    INT8_INT8_INT8, // 3
 };
 
 int profile_batched_gemm(int argc, char* argv[])
@@ -38,7 +41,7 @@ int profile_batched_gemm(int argc, char* argv[])
     if(!(argc == 15))
     {
         printf("arg1: tensor operation (batched_gemm: Batched GEMM)\n");
-        printf("arg2: data type (0: fp32; 1: fp16)\n");
+        printf("arg2: data type (0: fp32; 1: fp16, 2: bf16, 3: int8)\n");
         printf("arg3: matrix layout (0: A[g, m, k] * B[g, k, n] = C[g, m, n];\n");
         printf("                     1: A[g, m, k] * B[g, n, k] = C[g, m, n];\n");
         printf("                     2: A[g, k, m] * B[g, k, n] = C[g, m, n];\n");
@@ -51,8 +54,8 @@ int profile_batched_gemm(int argc, char* argv[])
         exit(1);
     }
 
-    const int data_type        = static_cast<GemmDataType>(std::stoi(argv[2]));
-    const int layout           = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
+    const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
+    const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);
@@ -145,6 +148,241 @@ int profile_batched_gemm(int argc, char* argv[])
             (StrideA < 0) ? M : StrideA,
             (StrideB < 0) ? K : StrideB,
             (StrideC < 0) ? N : StrideC);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? K : StrideA,
+            (StrideB < 0) ? N : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? K : StrideA,
+            (StrideB < 0) ? K : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? M : StrideA,
+            (StrideB < 0) ? N : StrideB,
+            (StrideC < 0) ? N : StrideC);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::bhalf_t,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? M : StrideA,
+            (StrideB < 0) ? K : StrideB,
+            (StrideC < 0) ? N : StrideC);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<float,
+                                                float,
+                                                float,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? K : StrideA,
+            (StrideB < 0) ? N : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<float,
+                                                float,
+                                                float,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? K : StrideA,
+            (StrideB < 0) ? K : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<float,
+                                                float,
+                                                float,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? M : StrideA,
+            (StrideB < 0) ? N : StrideB,
+            (StrideC < 0) ? N : StrideC);
+    }
+    else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<float,
+                                                float,
+                                                float,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? M : StrideA,
+            (StrideB < 0) ? K : StrideB,
+            (StrideC < 0) ? N : StrideC);
+    }
+    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                int8_t,
+                                                int8_t,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? K : StrideA,
+            (StrideB < 0) ? N : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
+    }
+    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                int8_t,
+                                                int8_t,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? K : StrideA,
+            (StrideB < 0) ? K : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
+    }
+    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                int8_t,
+                                                int8_t,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? M : StrideA,
+            (StrideB < 0) ? N : StrideB,
+            (StrideC < 0) ? N : StrideC);
+    }
+    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                int8_t,
+                                                int8_t,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::ColumnMajor,
+                                                ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? M : StrideA,
+            (StrideB < 0) ? K : StrideB,
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
     }
     else
     {
