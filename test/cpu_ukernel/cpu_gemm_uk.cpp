@@ -29,6 +29,20 @@
 // #define ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(FA, FB, FC, TA, TB, NT)  \
 //     ck::cpu::ThreadwiseGemmAvx2_MxN_6x16<FA, FB, FC,  6, 16,  TA,  TB,  NT>
 
+#define ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(FA, FB, FC, TA, TB, NT)   \
+    ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 4, 24, TA, TB, NT>,     \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 3, 24, TA, TB, NT>, \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 2, 24, TA, TB, NT>, \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 1, 24, TA, TB, NT>, \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 4, 16, TA, TB, NT>, \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 3, 16, TA, TB, NT>, \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 2, 16, TA, TB, NT>, \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 1, 16, TA, TB, NT>, \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 4, 8, TA, TB, NT>,  \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 3, 8, TA, TB, NT>,  \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 2, 8, TA, TB, NT>,  \
+        ck::cpu::ThreadwiseGemmAvx2_MxN_4x24<FA, FB, FC, 1, 8, TA, TB, NT>
+
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
@@ -42,6 +56,17 @@ using thread_gemm_avx2_mxn_6x16_instances = std::tuple<
     ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(float, float, float, ALayout, BLayout, false)
 
     // ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(float, float, float,    Row,    Col, false)
+    // clang-format on
+    >;
+
+template <typename ALayout, typename BLayout>
+using thread_gemm_avx2_mxn_4x24_instances = std::tuple<
+    // clang-format off
+    //                                        FloatA FloatB FloatC  ALayout  BLayout NTStore
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false)
     // clang-format on
     >;
 
@@ -336,15 +361,11 @@ void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
     ref_cpu_gemm_uk<data_type, ALayout, BLayout>(mat_a, mat_b, mat_c_ref, alpha, m, n, k);
 
     using thread_gemm_instance = thread_gemm_avx2_mxn_6x16_instances<ALayout, BLayout>;
+    // using thread_gemm_instance = thread_gemm_avx2_mxn_4x24_instances<ALayout, BLayout>;
     bool found                 = false;
 
     ck::static_for<0, std::tuple_size_v<thread_gemm_instance>, 1>{}([&](auto i) {
         using uk_type = std::tuple_element_t<i, thread_gemm_instance>;
-        // if constexpr(!std::is_same<typename uk_type::ALayout_, ALayout>::value ||
-        //              !std::is_same<typename uk_type::BLayout_, BLayout>::value)
-        // {
-        //     return;
-        // }
         if(m % uk_type::Mr_ != 0 || n % uk_type::Nr_ != 0)
             return;
         if((m != uk_type::Mr_ && std::is_same<typename uk_type::ALayout_, Col>::value) ||
