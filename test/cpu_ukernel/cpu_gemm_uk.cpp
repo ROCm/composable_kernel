@@ -218,6 +218,74 @@ void test_ukernel(ukenrel_t uk,
     param.ldc   = n * sizeof(float);
     param.alpha = alpha;
 
+    auto invoke_uk = [&]() {
+        if constexpr(std::is_same<Row, ALayout>::value && std::is_same<Row, BLayout>::value)
+        {
+            assert(m % uk.Mr_ == 0 && n == uk.Nr_);
+            data_type* p_a = mat_a;
+            float* p_c     = mat_c;
+            param.p_a      = p_a;
+            param.p_c      = p_c;
+            for(uint32_t i_m = 0; i_m < m; i_m += uk.Mr_)
+            {
+                uk.Run(&param);
+                p_a += uk.Mr_ * k;
+                p_c += uk.Mr_ * n;
+                param.p_a = p_a;
+                param.p_c = p_c;
+            }
+        }
+        else if constexpr(std::is_same<Row, ALayout>::value && std::is_same<Col, BLayout>::value)
+        {
+            assert(m % uk.Mr_ == 0 && n % uk.Nr_ == 0);
+            data_type* p_a = mat_a;
+            // data_type* p_b = mat_b;
+            float* p_c = mat_c;
+            param.p_a  = p_a;
+            param.p_b  = mat_b;
+            param.p_c  = p_c;
+            for(uint32_t i_m = 0; i_m < m; i_m += uk.Mr_)
+            {
+                float* p_c_n = p_c;
+                float* p_b_n = mat_b;
+                for(uint32_t i_n = 0; i_n < n; i_n += uk.Nr_)
+                {
+                    uk.Run(&param);
+                    p_b_n += uk.Nr_ * k; // Nr_/8*k*8
+                    p_c_n += uk.Nr_;
+                    param.p_b = p_b_n;
+                    param.p_c = p_c_n;
+                }
+                p_a += uk.Mr_ * k;
+                p_c += uk.Mr_ * n;
+                param.p_a = p_a;
+                param.p_b = mat_b;
+                param.p_c = p_c;
+            }
+        }
+        else if constexpr(std::is_same<Col, ALayout>::value && std::is_same<Row, BLayout>::value)
+        {
+            assert(m == uk.Mr_ && n == uk.Nr_);
+            uk.Run(&param);
+        }
+        else
+        {
+            assert(m % uk.Mr_ == 0 && n % uk.Nr_ == 0);
+            data_type* p_b = mat_b;
+            float* p_c     = mat_c;
+            param.p_b      = p_b;
+            param.p_c      = p_c;
+            for(uint32_t i_n = 0; i_n < n; i_n += uk.Nr_)
+            {
+                uk.Run(&param);
+                p_b += uk.Nr_ * k; // Nr_/8*k*8
+                p_c += uk.Nr_;
+                param.p_b = p_b;
+                param.p_c = p_c;
+            }
+        }
+    };
+
     printf("gemm_uk_%dx%d_%c%c: ", uk.Mr_, uk.Nr_, ALayout::name[0], BLayout::name[0]);
     fflush(stdout);
     // printf("%s: ", typeid(uk).name());fflush(stdout);
@@ -227,13 +295,13 @@ void test_ukernel(ukenrel_t uk,
 
     for(int i = 0; i < (repeat / 5); i++)
     {
-        uk.Run(&param);
+        invoke_uk();
     }
 
     auto t0 = std::chrono::high_resolution_clock::now();
     for(int i = 0; i < repeat; i++)
     {
-        uk.Run(&param);
+        invoke_uk();
     }
     auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -243,7 +311,7 @@ void test_ukernel(ukenrel_t uk,
     double gflops = static_cast<double>(2 * m * n * k) * 1e-3 / us;
 
     memset(mat_c, 0, m * n * sizeof(float));
-    uk.Run(&param);
+    invoke_uk();
 
     printf("m:%u, n:%u, k:%u, alpha:%f, cost:%lfus, GFLOPS:%lf, ", m, n, k, alpha, us, gflops);
     fflush(stdout);
@@ -274,7 +342,11 @@ void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
         {
             return;
         }
-        if(uk_type::Mr_ != m || uk_type::Nr_ != n)
+        if(m % uk_type::Mr_ != 0 || n % uk_type::Nr_ != 0)
+            return;
+        if((m != uk_type::Mr_ && std::is_same<typename uk_type::ALayout_, Col>::value) ||
+           (n != uk_type::Nr_ && std::is_same<typename uk_type::BLayout_, Row>::value))
+            // only k is the fast changing dim of A/B can we do muldiplt m, n
             return;
 
         test_ukernel<data_type, ALayout, BLayout>(uk_type{}, mat_a, mat_b, mat_c, alpha, m, n, k);
