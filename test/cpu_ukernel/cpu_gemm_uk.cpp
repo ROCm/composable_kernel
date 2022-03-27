@@ -7,6 +7,7 @@
 #include <tuple>
 #include <memory>
 #include <chrono>
+#include <half.hpp>
 #include "config.hpp"
 #include "print.hpp"
 #include "cpuid.hpp"
@@ -26,7 +27,7 @@
         ck::cpu::ThreadwiseGemmAvx2_MxN_6x16<FA, FB, FC, 2, 8, TA, TB, NT>,  \
         ck::cpu::ThreadwiseGemmAvx2_MxN_6x16<FA, FB, FC, 1, 8, TA, TB, NT>
 
-// #define ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(FA, FB, FC, TA, TB, NT)  \
+//#define ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(FA, FB, FC, TA, TB, NT)  \
 //     ck::cpu::ThreadwiseGemmAvx2_MxN_6x16<FA, FB, FC,  6, 16,  TA,  TB,  NT>
 
 #define ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(FA, FB, FC, TA, TB, NT)   \
@@ -46,16 +47,22 @@
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
+// using AType = half_float::half;
+// using BType = half_float::half;
+using AType = float;
+using BType = float;
+using CType = float;
+
 template <typename ALayout, typename BLayout>
 using thread_gemm_avx2_mxn_6x16_instances = std::tuple<
     // clang-format off
     //                                        FloatA FloatB FloatC  ALayout  BLayout NTStore
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(float, float, float, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(float, float, float, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(float, float, float, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(float, float, float, ALayout, BLayout, false)
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false)
 
-    // ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(float, float, float,    Row,    Col, false)
+    // ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(AType, BType, CType,    ALayout,    BLayout, false)
     // clang-format on
     >;
 
@@ -63,10 +70,10 @@ template <typename ALayout, typename BLayout>
 using thread_gemm_avx2_mxn_4x24_instances = std::tuple<
     // clang-format off
     //                                        FloatA FloatB FloatC  ALayout  BLayout NTStore
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE(float, float, float, ALayout, BLayout, false)
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false)
     // clang-format on
     >;
 
@@ -175,14 +182,9 @@ bool valid_vector(const float* ref, const float* rhs, uint32_t elem)
     return err == 0;
 }
 
-template <typename data_type, typename ALayout, typename BLayout>
-void ref_cpu_gemm_uk(const data_type* a,
-                     const data_type* b,
-                     float* c,
-                     float alpha,
-                     uint32_t m,
-                     uint32_t n,
-                     uint32_t k)
+template <typename FloatA, typename FloatB, typename ALayout, typename BLayout>
+void ref_cpu_gemm_uk(
+    const FloatA* a, const FloatB* b, float* c, float alpha, uint32_t m, uint32_t n, uint32_t k)
 {
     auto a_offset = [&](uint32_t im, uint32_t ik) {
         if constexpr(std::is_same<Row, ALayout>::value)
@@ -216,7 +218,8 @@ void ref_cpu_gemm_uk(const data_type* a,
             float acc = .0f;
             for(uint32_t ik = 0; ik < k; ik++)
             {
-                acc += a[a_offset(im, ik)] * b[b_offset(ik, in)];
+                acc += static_cast<float>(a[a_offset(im, ik)]) *
+                       static_cast<float>(b[b_offset(ik, in)]);
             }
             acc *= alpha;
             c[c_offset(im, in)] = acc;
@@ -224,10 +227,10 @@ void ref_cpu_gemm_uk(const data_type* a,
     }
 }
 
-template <typename data_type, typename ALayout, typename BLayout, typename ukenrel_t>
+template <typename FloatA, typename FloatB, typename ALayout, typename BLayout, typename ukenrel_t>
 void test_ukernel(ukenrel_t uk,
-                  data_type* mat_a,
-                  data_type* mat_b,
+                  FloatA* mat_a,
+                  FloatB* mat_b,
                   float* mat_c,
                   float alpha,
                   uint32_t m,
@@ -239,8 +242,8 @@ void test_ukernel(ukenrel_t uk,
     param.p_b   = mat_b;
     param.p_c   = mat_c;
     param.Kr    = k;
-    param.lda   = (std::is_same<Row, ALayout>::value ? k : m) * sizeof(data_type);
-    param.ldb   = (std::is_same<Row, BLayout>::value ? n : k * 8) * sizeof(data_type);
+    param.lda   = (std::is_same<Row, ALayout>::value ? k : m) * sizeof(FloatA);
+    param.ldb   = (std::is_same<Row, BLayout>::value ? n : k * 8) * sizeof(FloatB);
     param.ldc   = n * sizeof(float);
     param.alpha = alpha;
 
@@ -248,10 +251,10 @@ void test_ukernel(ukenrel_t uk,
         if constexpr(std::is_same<Row, ALayout>::value && std::is_same<Row, BLayout>::value)
         {
             assert(m % uk.Mr_ == 0 && n == uk.Nr_);
-            data_type* p_a = mat_a;
-            float* p_c     = mat_c;
-            param.p_a      = p_a;
-            param.p_c      = p_c;
+            FloatA* p_a = mat_a;
+            float* p_c  = mat_c;
+            param.p_a   = p_a;
+            param.p_c   = p_c;
             for(uint32_t i_m = 0; i_m < m; i_m += uk.Mr_)
             {
                 uk.Run(&param);
@@ -264,15 +267,15 @@ void test_ukernel(ukenrel_t uk,
         else if constexpr(std::is_same<Row, ALayout>::value && std::is_same<Col, BLayout>::value)
         {
             assert(m % uk.Mr_ == 0 && n % uk.Nr_ == 0);
-            data_type* p_a = mat_a;
-            float* p_c     = mat_c;
-            param.p_a      = p_a;
-            param.p_b      = mat_b;
-            param.p_c      = p_c;
+            FloatA* p_a = mat_a;
+            float* p_c  = mat_c;
+            param.p_a   = p_a;
+            param.p_b   = mat_b;
+            param.p_c   = p_c;
             for(uint32_t i_m = 0; i_m < m; i_m += uk.Mr_)
             {
-                float* p_c_n = p_c;
-                float* p_b_n = mat_b;
+                float* p_c_n  = p_c;
+                FloatB* p_b_n = mat_b;
                 for(uint32_t i_n = 0; i_n < n; i_n += uk.Nr_)
                 {
                     uk.Run(&param);
@@ -296,10 +299,10 @@ void test_ukernel(ukenrel_t uk,
         else
         {
             assert(m % uk.Mr_ == 0 && n % uk.Nr_ == 0);
-            data_type* p_b = mat_b;
-            float* p_c     = mat_c;
-            param.p_b      = p_b;
-            param.p_c      = p_c;
+            FloatB* p_b = mat_b;
+            float* p_c  = mat_c;
+            param.p_b   = p_b;
+            param.p_c   = p_c;
             for(uint32_t i_n = 0; i_n < n; i_n += uk.Nr_)
             {
                 uk.Run(&param);
@@ -343,14 +346,12 @@ void test_ukernel(ukenrel_t uk,
 }
 
 // implement small ukernel on L1
-template <typename data_type, typename ALayout, typename BLayout>
+template <typename FloatA, typename FloatB, typename ALayout, typename BLayout>
 void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
 {
-    data_type* mat_a =
-        reinterpret_cast<data_type*>(__aligned_malloc(m * k * sizeof(data_type), 32));
-    data_type* mat_b =
-        reinterpret_cast<data_type*>(__aligned_malloc(k * n * sizeof(data_type), 32));
-    float* mat_c = reinterpret_cast<float*>(__aligned_malloc(m * n * sizeof(float), 32));
+    FloatA* mat_a = reinterpret_cast<FloatA*>(__aligned_malloc(m * k * sizeof(FloatA), 32));
+    FloatB* mat_b = reinterpret_cast<FloatB*>(__aligned_malloc(k * n * sizeof(FloatB), 32));
+    float* mat_c  = reinterpret_cast<float*>(__aligned_malloc(m * n * sizeof(float), 32));
 
     float* mat_c_ref = reinterpret_cast<float*>(__aligned_malloc(m * n * sizeof(float), 32));
     memset(mat_c_ref, 0, m * n * sizeof(float));
@@ -358,11 +359,11 @@ void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
     rand_vector(mat_a, m * k);
     rand_vector(mat_b, k * n);
 
-    ref_cpu_gemm_uk<data_type, ALayout, BLayout>(mat_a, mat_b, mat_c_ref, alpha, m, n, k);
+    ref_cpu_gemm_uk<FloatA, FloatB, ALayout, BLayout>(mat_a, mat_b, mat_c_ref, alpha, m, n, k);
 
     using thread_gemm_instance = thread_gemm_avx2_mxn_6x16_instances<ALayout, BLayout>;
     // using thread_gemm_instance = thread_gemm_avx2_mxn_4x24_instances<ALayout, BLayout>;
-    bool found                 = false;
+    bool found = false;
 
     ck::static_for<0, std::tuple_size_v<thread_gemm_instance>, 1>{}([&](auto i) {
         using uk_type = std::tuple_element_t<i, thread_gemm_instance>;
@@ -376,7 +377,8 @@ void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
         if(found)
             return;
 
-        test_ukernel<data_type, ALayout, BLayout>(uk_type{}, mat_a, mat_b, mat_c, alpha, m, n, k);
+        test_ukernel<FloatA, FloatB, ALayout, BLayout>(
+            uk_type{}, mat_a, mat_b, mat_c, alpha, m, n, k);
 
         bool is_valid = valid_vector(mat_c_ref, mat_c, m * n);
         printf("vald:%s\n", is_valid ? "y" : "n");
@@ -406,8 +408,8 @@ int main(int argc, char** argv)
         alpha = std::atof(argv[4]);
     }
     dump_cache_hierarchy();
-    test_cpu_ukernel<float, Row, Row>(alpha, m, n, k);
-    test_cpu_ukernel<float, Row, Col>(alpha, m, n, k);
-    test_cpu_ukernel<float, Col, Row>(alpha, m, n, k);
-    test_cpu_ukernel<float, Col, Col>(alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Row, Row>(alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Row, Col>(alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Col, Row>(alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Col, Col>(alpha, m, n, k);
 }
