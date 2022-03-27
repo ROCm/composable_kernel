@@ -216,5 +216,5 @@ int main()
 
     std::cout << "TestGroupedGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
-    return res;
+    return res ? 0 : 1;
 }
