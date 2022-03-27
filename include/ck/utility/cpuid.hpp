@@ -76,13 +76,18 @@ static inline cpuid_vendor cpuid_query_vendor()
     {
         return cpuid_vendor_intel;
     }
-    if(r.ebx == 0x68747541U /*Auth*/ && r.edx == 0x74656273U /*enti*/ &&
+    if(r.ebx == 0x68747541U /*Auth*/ && r.edx == 0x69746E65U /*enti*/ &&
        r.ecx == 0x444D4163U /*cAMD*/)
     {
         return cpuid_vendor_amd;
     }
-    if(r.ebx == 0x69444D41U /*AMDi*/ && r.edx == 0x69746E65U /*sbet*/ &&
+    if(r.ebx == 0x69444D41U /*AMDi*/ && r.edx == 0x74656273U /*sbet*/ &&
        r.ecx == 0x21726574U /*ter */)
+    {
+        return cpuid_vendor_amd;
+    }
+    if(r.ebx == 0x20444D41U /*AMD */ && r.edx == 0x45425349U /*ISBE*/ &&
+       r.ecx == 0x52455454U /*TTER*/)
     {
         return cpuid_vendor_amd;
     }
@@ -94,6 +99,7 @@ static inline cpuid_cache_hierarchy cpuid_query_cache()
     cpuid_cache_hierarchy cache_hierarchy;
     cpuid_vendor vendor    = cpuid_query_vendor();
     uint32_t leaf_cache_id = vendor == cpuid_vendor_amd ? 0x8000001d : 0x4;
+    printf("leaf_cache_id:%u, vendor:%d\n", leaf_cache_id, vendor);
 
     for(uint32_t ecx_idx = 0;; ecx_idx++)
     {
