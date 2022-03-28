@@ -694,7 +694,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       D0ReduceOperation d0_reduce_op,
-                                                      D1ReduceOperation d1_reduce_op) override
+                                                      D1ReduceOperation d1_reduce_op,
+                                                      index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),

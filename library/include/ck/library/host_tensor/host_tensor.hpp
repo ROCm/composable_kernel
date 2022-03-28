@@ -73,10 +73,10 @@ struct HostTensorDescriptor
     HostTensorDescriptor() = delete;
 
     template <typename X>
-    HostTensorDescriptor(std::vector<X> lens);
+    HostTensorDescriptor(const std::vector<X>& lens);
 
     template <typename X, typename Y>
-    HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides);
+    HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides);
 
     void CalculateStrides();
 
@@ -285,13 +285,13 @@ struct Tensor
 };
 
 template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens) : mLens(lens)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens)
 {
     this->CalculateStrides();
 }
 
 template <typename X, typename Y>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides)
     : mLens(lens), mStrides(strides)
 {
 }

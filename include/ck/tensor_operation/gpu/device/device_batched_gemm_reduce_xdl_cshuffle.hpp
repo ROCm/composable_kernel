@@ -34,7 +34,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_reduce_xdl_cshuffle_v1(
+        kernel_batched_gemm_reduce_xdl_cshuffle_v1(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
@@ -89,7 +89,6 @@ __global__ void
                                                    d_grid_desc_mblock_mperblock,
                                                    block_2_ctile_map);
 }
-
 
 template <typename ALayout,
           typename BLayout,
@@ -497,7 +496,11 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                      index_t BatchStrideC,
                                      index_t BatchStrideD0,
                                      index_t BatchStrideD1)
-            : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
+              BatchStrideC_(BatchStrideC),
+              BatchStrideD0_(BatchStrideD0),
+              BatchStrideD1_(BatchStrideD1)
         {
         }
 
@@ -588,6 +591,9 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
         CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>;
 
+    using Block2CTileMap =
+        decltype(Block2CTileMapMaker{1}.MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+
     // Argument
     struct Argument : public BaseArgument
     {
@@ -620,6 +626,11 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
               d_grid_desc_m_{DeviceOp::MakeDGridDescriptor_M(MRaw)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               d_grid_desc_mblock_mperblock_{},
+              compute_base_ptr_of_batch_{a_grid_desc_ak0_m_ak1_.GetElementSpaceSize(),
+                                         b_grid_desc_bk0_n_bk1_.GetElementSpaceSize(),
+                                         c_grid_desc_m_n_.GetElementSpaceSize(),
+                                         d_grid_desc_m_.GetElementSpaceSize(),
+                                         d_grid_desc_m_.GetElementSpaceSize()},
               block_2_ctile_map_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -637,7 +648,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                 d_grid_desc_mblock_mperblock_ =
                     GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
+                block_2_ctile_map_ =
+                    Block2CTileMapMaker{BatchCount}.MakeBlock2CTileMap(c_grid_desc_m_n_, 1, 1);
             }
         }
 
@@ -655,7 +667,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+        Block2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -741,6 +754,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                               arg.b_grid_desc_bk0_n_bk1_,
                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                               arg.d_grid_desc_mblock_mperblock_,
+                              arg.compute_base_ptr_of_batch_,
                               arg.block_2_ctile_map_);
             }
             else
@@ -782,6 +796,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                               arg.b_grid_desc_bk0_n_bk1_,
                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                               arg.d_grid_desc_mblock_mperblock_,
+                              arg.compute_base_ptr_of_batch_,
                               arg.block_2_ctile_map_);
             }
 
@@ -810,7 +825,15 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
     // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
-        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
+        auto casted_p_arg = dynamic_cast<const Argument*>(p_arg);
+        if(casted_p_arg == nullptr)
+        {
+            return false;
+        }
+        else
+        {
+            return IsSupportedArgument(*casted_p_arg);
+        }
     }
 
     static auto MakeArgument(const ADataType* p_a,
@@ -828,7 +851,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
                              D0ReduceOperation d0_reduce_op,
-                             D1ReduceOperation d1_reduce_op)
+                             D1ReduceOperation d1_reduce_op,
+                             index_t BatchCount)
     {
         return Argument{p_a,
                         p_b,
@@ -845,7 +869,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                         b_element_op,
                         c_element_op,
                         d0_reduce_op,
-                        d1_reduce_op};
+                        d1_reduce_op,
+                        BatchCount};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -866,7 +891,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       D0ReduceOperation d0_reduce_op,
-                                                      D1ReduceOperation d1_reduce_op) override
+                                                      D1ReduceOperation d1_reduce_op,
+                                                      index_t BatchCount) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -883,7 +909,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                           b_element_op,
                                           c_element_op,
                                           d0_reduce_op,
-                                          d1_reduce_op);
+                                          d1_reduce_op,
+                                          BatchCount);
     }
 
     // polymorphic
