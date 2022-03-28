@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
-    ck::index_t BatchCount = 1;
+    ck::index_t BatchCount = 2;
 
     if(argc == 1)
     {
