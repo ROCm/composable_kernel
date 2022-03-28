@@ -163,6 +163,10 @@
 #define CK_WORKAROUND_GITHUB_135 1
 #endif
 
+#ifndef CK_USE_X86_INLINE_ASM
+#define CK_USE_X86_INLINE_ASM 1
+#endif
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum_t
