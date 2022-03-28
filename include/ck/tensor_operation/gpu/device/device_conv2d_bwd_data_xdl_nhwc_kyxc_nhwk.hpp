@@ -533,7 +533,6 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            nrepeat        = 1;
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
