@@ -139,9 +139,9 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
     Tensor<DDataType> d0_g_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>(BatchCount, M)));
+        HostTensorDescriptor(std::vector<std::size_t>(static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M))));
     Tensor<DDataType> d1_g_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>(BatchCount, M)));
+        HostTensorDescriptor(std::vector<std::size_t>(static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M))));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
@@ -266,7 +266,6 @@ int main(int argc, char* argv[])
 
                 for(int n = 0; n < N; ++n)
                 {
-                    // printf("%d, %d, %d\n", batch, m, n);
                     d0_reduce_op.Reduce(d0_acc, c_g_m_n_host_result(batch, m, n));
                     d1_reduce_op.Reduce(d1_acc, c_g_m_n_host_result(batch, m, n));
                 }

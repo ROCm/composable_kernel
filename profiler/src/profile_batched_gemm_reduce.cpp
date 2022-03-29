@@ -4,9 +4,10 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
 #include "profile_batched_gemm_reduce_impl.hpp"
 
-int profile_gemm_reduce(int argc, char* argv[])
+int profile_batched_gemm_reduce(int argc, char* argv[])
 {
     enum struct GemmMatrixLayout_t
     {
@@ -22,7 +23,7 @@ int profile_gemm_reduce(int argc, char* argv[])
         F16_F16_F16_F32_F32, // 1
     };
 
-    if(!(argc == 14 || argc == 15))
+    if(!(argc == 15 || argc == 16))
     {
         printf("arg1: tensor operation (batched_gemm: BatchedGEMM+Reduce)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
@@ -54,6 +55,8 @@ int profile_gemm_reduce(int argc, char* argv[])
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
 
+    const int BatchCount = std::stoi(argv[14]);
+
     if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
        layout == GemmMatrixLayout_t::MK_KN_MN)
     {
@@ -73,7 +76,8 @@ int profile_gemm_reduce(int argc, char* argv[])
             K,
             (StrideA < 0) ? K : StrideA,
             (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
     }
     else if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
             layout == GemmMatrixLayout_t::MK_NK_MN)
@@ -94,7 +98,8 @@ int profile_gemm_reduce(int argc, char* argv[])
             K,
             (StrideA < 0) ? K : StrideA,
             (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
     }
     else if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
             layout == GemmMatrixLayout_t::KM_KN_MN)
@@ -115,7 +120,8 @@ int profile_gemm_reduce(int argc, char* argv[])
             K,
             (StrideA < 0) ? M : StrideA,
             (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
     }
     else if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
             layout == GemmMatrixLayout_t::KM_NK_MN)
@@ -136,7 +142,8 @@ int profile_gemm_reduce(int argc, char* argv[])
             K,
             (StrideA < 0) ? M : StrideA,
             (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+            (StrideC < 0) ? N : StrideC,
+            BatchCount);
     }
     else
     {

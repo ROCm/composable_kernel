@@ -10,7 +10,7 @@
 #include "element_wise_operation.hpp"
 #include "element_wise_reduce_operation.hpp"
 #include "device_gemm_reduce.hpp"
-#include "reference_gemm.hpp"
+#include "reference_batched_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -60,7 +60,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                                       int K,
                                       int StrideA,
                                       int StrideB,
-                                      int StrideC)
+                                      int StrideC,
+                                      int BatchCount)
 {
     bool pass = true;
 
@@ -93,16 +94,16 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<DDataType> d0_g_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>(BatchCount, M)));
-    Tensor<DDataType> d1_g_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>(BatchCount, M)));
+    Tensor<DDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<DDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
-    std::cout << "d0_m: " << d0_g_m_host_result.mDesc << std::endl;
-    std::cout << "d1_m: " << d1_g_m_host_result.mDesc << std::endl;
+    std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
+    std::cout << "d0_g_m: " << d0_g_m_host_result.mDesc << std::endl;
+    std::cout << "d1_g_m: " << d1_g_m_host_result.mDesc << std::endl;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
     switch(init_method)
@@ -158,7 +159,6 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
                 for(int n = 0; n < N; ++n)
                 {
-                    // printf("%d, %d, %d\n", batch, m, n);
                     d0_reduce_op.Reduce(d0_acc, c_g_m_n_host_result(batch, m, n));
                     d1_reduce_op.Reduce(d1_acc, c_g_m_n_host_result(batch, m, n));
                 }
