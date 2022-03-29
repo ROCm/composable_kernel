@@ -5,13 +5,10 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
-#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
 #include "device_batched_gemm_reduce_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_batched_gemm.hpp"
@@ -72,7 +69,7 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
-    ck::index_t BatchCount = 2;
+    ck::index_t BatchCount = 4;
 
     if(argc == 1)
     {
@@ -139,9 +136,9 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
     Tensor<DDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M))));
+        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
     Tensor<DDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M))));
+        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;

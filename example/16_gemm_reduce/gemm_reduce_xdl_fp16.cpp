@@ -5,13 +5,10 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
-#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
 #include "device_gemm_reduce_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
