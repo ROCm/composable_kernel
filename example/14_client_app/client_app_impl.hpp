@@ -152,7 +152,7 @@ void profile_conv_fwd_impl(int do_verification,
         {
             std::string conv_name = conv_ptr.GetTypeString();
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat, nullptr);
 
             std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 

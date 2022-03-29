@@ -259,7 +259,7 @@ struct DeviceReduceMultiBlockPartialReduce
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr)
         {
             const auto in_grid_desc_m_k = DeviceReduceMultiBlockPartialReduce::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
@@ -304,6 +304,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                               dim3(arg.gridSize),
                                               dim3(BlockSize),
                                               0,
+                        stream_id,
                                               in_grid_desc_m_k,
                                               ws_desc_m_k,
                                               arg.in_elementwise_op_,
@@ -317,9 +318,9 @@ struct DeviceReduceMultiBlockPartialReduce
             return (avg_time);
         };
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id);
         };
     };
 

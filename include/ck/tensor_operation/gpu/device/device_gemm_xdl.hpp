@@ -290,7 +290,7 @@ struct DeviceGemmXdl
     {
         using Argument = DeviceGemmXdl::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr)
         {
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -343,6 +343,7 @@ struct DeviceGemmXdl
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
+                        stream_id,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
@@ -374,6 +375,7 @@ struct DeviceGemmXdl
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
+                        stream_id,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
@@ -390,9 +392,9 @@ struct DeviceGemmXdl
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id);
         }
     };
 

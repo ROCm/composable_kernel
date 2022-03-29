@@ -91,7 +91,7 @@ struct ReferenceGemmBiasActivationAdd : public device::BaseOperator
             return 0;
         }
 
-        float Run(const device::BaseArgument* p_arg, int) override
+        float Run(const device::BaseArgument* p_arg, int, hipStream_t) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }

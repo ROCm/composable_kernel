@@ -22,7 +22,7 @@ struct BaseInvoker
     BaseInvoker(const BaseInvoker&) = default;
     BaseInvoker& operator=(const BaseInvoker&) = default;
 
-    virtual float Run(const BaseArgument*, int = 1){return -1;}
+    virtual float Run(const BaseArgument*, int = 1, hipStream_t = nullptr){return -1;}
 
     virtual ~BaseInvoker() {}
 };

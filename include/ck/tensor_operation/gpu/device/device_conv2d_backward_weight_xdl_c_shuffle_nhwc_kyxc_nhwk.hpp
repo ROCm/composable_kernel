@@ -414,7 +414,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                       << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr)
         {
             ShowInfo(arg);
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
@@ -444,6 +444,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                                                dim3(grid_size),
                                                dim3(BlockSize),
                                                0,
+                                               stream_id,
                                                arg.p_a_grid_,
                                                arg.p_b_grid_,
                                                arg.p_c_grid_,
@@ -468,6 +469,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                                   dim3(grid_size),
                                   dim3(BlockSize),
                                   0,
+                        stream_id,
                                   arg.p_a_grid_,
                                   arg.p_b_grid_,
                                   arg.p_c_grid_,
@@ -559,9 +561,9 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id);
         }
     };
 

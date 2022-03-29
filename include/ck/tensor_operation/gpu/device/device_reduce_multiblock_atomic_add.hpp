@@ -234,7 +234,7 @@ struct DeviceReduceMultiBlockAtomicAdd
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr)
         {
             const auto in_grid_desc_m_k = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
@@ -290,6 +290,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                               dim3(arg.gridSize_pre),
                               dim3(BlockSize),
                               0,
+                        stream_id,
                               out_grid_desc_m,
                               arg.out_dev_,
                               static_cast<OutDataType>(0.0f));
@@ -298,6 +299,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                               dim3(arg.gridSize),
                               dim3(BlockSize),
                               0,
+                        stream_id,
                               in_grid_desc_m_k,
                               out_grid_desc_m,
                               arg.in_elementwise_op_,
@@ -316,9 +318,9 @@ struct DeviceReduceMultiBlockAtomicAdd
             return (avg_time);
         };
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id);
         };
     };
 
