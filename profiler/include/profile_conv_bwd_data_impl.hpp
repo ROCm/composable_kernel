@@ -11,7 +11,7 @@
 
 using F16  = ck::half_t;
 using F32  = float;
-using BF16 = ushort;
+using BF16 = ck::bhalf_t;
 using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
@@ -42,6 +42,7 @@ template <int NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
+          typename AccDataType,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
@@ -123,6 +124,7 @@ void profile_conv_bwd_data_impl(int do_verification,
             ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                              WeiDataType,
                                                              OutDataType,
+                                                             AccDataType,
                                                              InElementOp,
                                                              WeiElementOp,
                                                              OutElementOp>;
@@ -172,9 +174,9 @@ void profile_conv_bwd_data_impl(int do_verification,
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
             add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
     }
-    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ushort> &&
-                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, ushort> &&
-                      ck::is_same_v<ck::remove_cv_t<OutDataType>, ushort>)
+    else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::bhalf_t> &&
+                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::bhalf_t> &&
+                      ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::bhalf_t>)
     {
         ck::tensor_operation::device::device_conv2d_bwd_data_instance::
             add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);

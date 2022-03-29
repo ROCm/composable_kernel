@@ -7,6 +7,8 @@ DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
 
 void* DeviceMem::GetDeviceBuffer() { return mpDeviceBuf; }
 
+std::size_t DeviceMem::GetBufferSize() { return mMemSize; }
+
 void DeviceMem::ToDevice(const void* p)
 {
     hipGetErrorString(
@@ -17,6 +19,8 @@ void DeviceMem::FromDevice(void* p)
 {
     hipGetErrorString(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
 }
+
+void DeviceMem::SetZero() { hipGetErrorString(hipMemset(mpDeviceBuf, 0, mMemSize)); }
 
 DeviceMem::~DeviceMem() { hipGetErrorString(hipFree(mpDeviceBuf)); }
 

@@ -1,0 +1,10 @@
+set(DEVICE_GEMM_REDUCE_INSTANCE_SOURCE
+    device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instance.cpp
+    device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instance.cpp
+    device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_kn_mn_instance.cpp
+    device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instance.cpp
+)
+
+add_instance_library(device_gemm_reduce_instance ${DEVICE_GEMM_REDUCE_INSTANCE_SOURCE})
+install(TARGETS device_gemm_reduce_instance LIBRARY DESTINATION lib)
+clang_tidy_check(device_gemm_reduce_instance)

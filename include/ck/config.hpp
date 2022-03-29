@@ -136,9 +136,15 @@
 // tuning parameter
 #define CK_WORKAROUND_SWDEV_325164 1
 
+// workaround for verification failure ConvNd forward
+// https://github.com/ROCmSoftwarePlatform/composable_kernel/issues/135
+#ifndef CK_WORKAROUND_GITHUB_135
+#define CK_WORKAROUND_GITHUB_135 1
+#endif
+
 namespace ck {
 
-enum InMemoryDataOperationEnum_t
+enum struct InMemoryDataOperationEnum_t
 {
     Set,
     AtomicAdd,
@@ -146,7 +152,7 @@ enum InMemoryDataOperationEnum_t
 };
 
 // TODO: no longer needed, remove this
-enum ActivTypeEnum_t
+enum struct ActivTypeEnum_t
 {
     None,
     LeakyRelu,

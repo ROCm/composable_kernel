@@ -16,6 +16,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
     ${PROJECT_SOURCE_DIR}/test/include
+    ${PROJECT_SOURCE_DIR}/profiler/include
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
@@ -36,6 +37,8 @@ add_subdirectory(conv_util)
 add_subdirectory(reference_conv_fwd)
 add_subdirectory(gemm)
 add_subdirectory(gemm_split_k)
-add_subdirectory(conv2d_fwd)
+add_subdirectory(gemm_reduce)
+add_subdirectory(batched_gemm)
+add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
-add_subdirectory(conv2d_bwd_data)
+add_subdirectory(reduce)

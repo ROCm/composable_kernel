@@ -10,6 +10,7 @@
 #include "blockwise_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
+#include "tensor_space_filling_curve.hpp"
 
 namespace ck {
 
@@ -657,6 +658,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                      n_thread_data_on_block_idx[I2]),
                     ck::tensor_operation::element_wise::PassThrough{}};
 
+            // LDS to global
             auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r1<
                 BlockSize,                  // index_t BlockSize,
                 CElementwiseOperation,      // ElementwiseOperation,

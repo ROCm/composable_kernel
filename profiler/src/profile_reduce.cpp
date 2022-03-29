@@ -34,6 +34,8 @@ static struct option long_options[] = {{"inLengths", required_argument, nullptr,
                                        {"scales", required_argument, nullptr, 'S'},
                                        {"half", no_argument, nullptr, '?'},
                                        {"double", no_argument, nullptr, '?'},
+                                       {"int8", no_argument, nullptr, '?'},
+                                       {"bf16", no_argument, nullptr, '?'},
                                        {"dumpout", required_argument, nullptr, 'o'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"log", required_argument, nullptr, 'l'},
@@ -82,7 +84,7 @@ static std::vector<T> getTypeValuesFromString(const char* cstr_values)
     return (values);
 }
 
-typedef enum
+enum struct appDataType_t
 {
     appHalf     = 0,
     appFloat    = 1,
@@ -91,7 +93,7 @@ typedef enum
     appInt8x4   = 4,
     appBFloat16 = 5,
     appDouble   = 6,
-} appDataType_t;
+};
 
 static void check_reduce_dims(const int rank, const std::vector<int>& reduceDims)
 {
@@ -119,6 +121,8 @@ class AppArgs
     public:
     bool use_half   = false;
     bool use_double = false;
+    bool use_int8   = false;
+    bool use_bf16   = false;
 
     std::vector<size_t> inLengths;
     std::vector<size_t> outLengths;
@@ -127,8 +131,8 @@ class AppArgs
     std::vector<float> scales;
 
     ReduceTensorOp_t reduceOp = ReduceTensorOp_t::ADD;
-    appDataType_t compTypeId  = appFloat;
-    appDataType_t outTypeId   = appFloat;
+    appDataType_t compTypeId  = appDataType_t::appFloat;
+    appDataType_t outTypeId   = appDataType_t::appFloat;
 
     bool compType_assigned = false;
     bool outType_assigned  = false;
@@ -169,6 +173,8 @@ class AppArgs
                   << std::endl;
         std::cout << "--half, use fp16 for the input and output tensor data types" << std::endl;
         std::cout << "--double, use fp64 for the input and output tensor data types" << std::endl;
+        std::cout << "--int8, use int8 for the input and output tensor data types" << std::endl;
+        std::cout << "--bf16, use bfloat16 for the input and output tensor data types" << std::endl;
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
                      "comparing with the host-based reduction"
                   << std::endl;
@@ -267,6 +273,10 @@ class AppArgs
                     use_half = true;
                 else if(std::string(long_options[option_index].name) == "double")
                     use_double = true;
+                else if(std::string(long_options[option_index].name) == "int8")
+                    use_int8 = true;
+                else if(std::string(long_options[option_index].name) == "bf16")
+                    use_bf16 = true;
                 else if(std::string(long_options[option_index].name) == "help")
                 {
                     show_usage(argv[0]);
@@ -329,15 +339,16 @@ int profile_reduce(int argc, char* argv[])
     if(args.use_half)
     {
         if(!args.compType_assigned)
-            args.compTypeId = appHalf;
+            args.compTypeId = appDataType_t::appHalf;
 
-        if(args.outType_assigned && (args.outTypeId != appHalf && args.outTypeId != appFloat))
-            args.outTypeId = appFloat;
+        if(args.outType_assigned &&
+           (args.outTypeId != appDataType_t::appHalf && args.outTypeId != appDataType_t::appFloat))
+            args.outTypeId = appDataType_t::appFloat;
 
         if(!args.outType_assigned)
-            args.outTypeId = appHalf;
+            args.outTypeId = appDataType_t::appHalf;
 
-        if(args.compTypeId == appHalf)
+        if(args.compTypeId == appDataType_t::appHalf)
         {
             profile_reduce_impl<ck::half_t, ck::half_t, ck::half_t>(args.do_verification,
                                                                     args.init_method,
@@ -352,7 +363,7 @@ int profile_reduce(int argc, char* argv[])
                                                                     args.scales[0],
                                                                     args.scales[1]);
         }
-        else if(args.compTypeId == appFloat)
+        else if(args.compTypeId == appDataType_t::appFloat)
         {
             profile_reduce_impl<ck::half_t, float, ck::half_t>(args.do_verification,
                                                                args.init_method,
@@ -385,9 +396,76 @@ int profile_reduce(int argc, char* argv[])
                                                     args.scales[0],
                                                     args.scales[1]);
     }
+    else if(args.use_int8)
+    {
+        if(!args.compType_assigned)
+            args.compTypeId = appDataType_t::appInt8;
+
+        if(args.outType_assigned &&
+           (args.outTypeId != appDataType_t::appInt8 && args.outTypeId != appDataType_t::appInt32))
+            args.outTypeId = appDataType_t::appInt32;
+
+        if(!args.outType_assigned)
+            args.outTypeId = appDataType_t::appInt8;
+
+        if(args.compTypeId == appDataType_t::appInt8)
+        {
+            profile_reduce_impl<int8_t, int8_t, int8_t>(args.do_verification,
+                                                        args.init_method,
+                                                        args.do_log,
+                                                        args.do_dumpout,
+                                                        args.nrepeat,
+                                                        args.inLengths,
+                                                        args.reduceDims,
+                                                        args.reduceOp,
+                                                        args.nanOpt,
+                                                        args.indicesOpt,
+                                                        args.scales[0],
+                                                        args.scales[1]);
+        }
+        else if(args.compTypeId == appDataType_t::appInt32)
+        {
+            profile_reduce_impl<int8_t, int32_t, int8_t>(args.do_verification,
+                                                         args.init_method,
+                                                         args.do_log,
+                                                         args.do_dumpout,
+                                                         args.nrepeat,
+                                                         args.inLengths,
+                                                         args.reduceDims,
+                                                         args.reduceOp,
+                                                         args.nanOpt,
+                                                         args.indicesOpt,
+                                                         args.scales[0],
+                                                         args.scales[1]);
+        }
+        else
+            throw std::runtime_error("Invalid compType assignment!");
+    }
+    else if(args.use_bf16)
+    {
+        if(args.outType_assigned && (args.outTypeId != appDataType_t::appBFloat16 &&
+                                     args.outTypeId != appDataType_t::appFloat))
+            args.outTypeId = appDataType_t::appFloat;
+
+        if(!args.outType_assigned)
+            args.outTypeId = appDataType_t::appBFloat16;
+
+        profile_reduce_impl<ck::bhalf_t, float, ck::bhalf_t>(args.do_verification,
+                                                             args.init_method,
+                                                             args.do_log,
+                                                             args.do_dumpout,
+                                                             args.nrepeat,
+                                                             args.inLengths,
+                                                             args.reduceDims,
+                                                             args.reduceOp,
+                                                             args.nanOpt,
+                                                             args.indicesOpt,
+                                                             args.scales[0],
+                                                             args.scales[1]);
+    }
     else
     {
-        if(args.compTypeId == appFloat)
+        if(args.compTypeId == appDataType_t::appFloat)
         {
             profile_reduce_impl<float, float, float>(args.do_verification,
                                                      args.init_method,
@@ -402,7 +480,7 @@ int profile_reduce(int argc, char* argv[])
                                                      args.scales[0],
                                                      args.scales[1]);
         }
-        else if(args.compTypeId == appDouble)
+        else if(args.compTypeId == appDataType_t::appDouble)
         {
             profile_reduce_impl<float, double, float>(args.do_verification,
                                                       args.init_method,

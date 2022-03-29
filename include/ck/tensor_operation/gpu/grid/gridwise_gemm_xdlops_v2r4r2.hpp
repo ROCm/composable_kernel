@@ -277,14 +277,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
-        constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-        constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
+        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(I1,
-                       Number<CShuffleMRepeatPerShuffle * MWaves * MPerXDL>{},
+                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXDL>{},
                        I1,
-                       Number<CShuffleNRepeatPerShuffle * NWaves * NPerXDL>{}));
+                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXDL>{}));
     }
 
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
@@ -539,8 +539,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         // output: register to global memory
         {
-            constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-            constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+            constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
+            constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
 
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
                 blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
@@ -564,8 +564,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 static_cast<FloatC*>(p_shared_block),
                 c_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-            static_assert(M1 == MWaves, "");
-            static_assert(N1 == NWaves, "");
+            static_assert(M1 == MWave, "");
+            static_assert(N1 == NWave, "");
             static_assert(M2 * M3 * M4 == MPerXDL, "");
             static_assert(N2 == NPerXDL, "");
 
@@ -646,14 +646,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                      n_thread_data_on_block_idx[I2]),
                     ck::tensor_operation::element_wise::PassThrough{}};
 
+            // LDS to global
             auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r1<
                 BlockSize,                  // index_t BlockSize,
                 CElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
-                         CShuffleMRepeatPerShuffle * MWaves * MPerXDL,
+                         CShuffleMRepeatPerShuffle * MWave * MPerXDL,
                          1,
-                         CShuffleNRepeatPerShuffle * NWaves * NPerXDL>, // BlockSliceLengths,
+                         CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
                 CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 FloatC,               // typename SrcData,
@@ -672,11 +673,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                  c_element_op};
 
             constexpr auto mxdlperwave_forward_step =
-                make_multi_index(0, CShuffleMRepeatPerShuffle * MWaves * MPerXDL, 0, 0);
+                make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXDL, 0, 0);
             constexpr auto nxdlperwave_forward_step =
-                make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWaves * NPerXDL);
+                make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXDL);
             constexpr auto nxdlperwave_backward_step =
-                make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWaves * NPerXDL);
+                make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXDL);
 
             static_for<0, MRepeat, CShuffleMRepeatPerShuffle>{}([&](auto mxdlperwave_iter) {
                 constexpr auto mxdlperwave = mxdlperwave_iter;
