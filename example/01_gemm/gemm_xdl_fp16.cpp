@@ -173,22 +173,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // warm up
-    invoker.Run(argument);
-
-    // timing
-    KernelTimer timer;
-
-    timer.Start();
-
-    for(int i = 0; i < nrepeat; ++i)
-    {
-        invoker.Run(argument);
-    }
-
-    timer.End();
-
-    float ave_time = timer.GetElapsedTime() / nrepeat;
+    float ave_time = invoker.Run(argument, nrepeat);
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
