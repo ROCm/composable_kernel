@@ -352,4 +352,3 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
 } // namespace profiler
 } // namespace ck
-

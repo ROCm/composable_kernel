@@ -291,7 +291,8 @@ HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(l
 }
 
 template <typename X, typename Y>
-HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
+                                           const std::vector<Y>& strides)
     : mLens(lens), mStrides(strides)
 {
 }

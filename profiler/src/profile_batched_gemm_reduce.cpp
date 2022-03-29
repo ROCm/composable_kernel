@@ -152,4 +152,3 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
 
     return 1;
 }
-

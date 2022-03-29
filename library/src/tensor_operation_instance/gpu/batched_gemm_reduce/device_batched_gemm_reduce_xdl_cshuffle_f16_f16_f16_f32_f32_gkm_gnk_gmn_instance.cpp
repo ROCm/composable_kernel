@@ -59,7 +59,8 @@ void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_in
         instances)
 {
     add_device_operation_instances(
-        instances, device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances{});
+        instances,
+        device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances{});
 }
 
 } // namespace device_gemm_instance
