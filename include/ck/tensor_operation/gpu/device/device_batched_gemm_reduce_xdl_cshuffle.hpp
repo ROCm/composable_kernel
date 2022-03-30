@@ -14,6 +14,82 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename FloatD,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          typename D0ReduceOperation,
+          typename D1ReduceOperation,
+          typename AGridDesc_AK0_M_AK1,
+          typename BGridDesc_BK0_N_BK1,
+          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename DGridDescriptor_MBlock_MPerBlock,
+          typename ComputeBasePrtOfBatch,
+          typename Block2CTileMap,
+          bool HasMainK0BlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_batched_gemm_reduce_xdl_cshuffle_v1(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            FloatD* __restrict__ p_d0_grid,
+            FloatD* __restrict__ p_d1_grid,
+            const index_t batch_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const D0ReduceOperation d0_reduce_op,
+            const D1ReduceOperation d1_reduce_op,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock,
+            const ComputeBasePrtOfBatch compute_base_ptr_of_batch_,
+            const Block2CTileMap block_2_ctile_map)
+{
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+
+    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
+    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetBBasePtr(g_idx)));
+    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
+
+    const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetD0BasePtr(g_idx)));
+    const long_index_t d1_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetD1BasePtr(g_idx)));
+
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid + a_batch_offset,
+                                                   p_b_grid + b_batch_offset,
+                                                   p_c_grid + c_batch_offset,
+                                                   p_d0_grid + d0_batch_offset,
+                                                   p_d1_grid + d1_batch_offset,
+                                                   p_shared,
+                                                   a_element_op,
+                                                   b_element_op,
+                                                   c_element_op,
+                                                   d0_reduce_op,
+                                                   d1_reduce_op,
+                                                   a_grid_desc_ak0_m_ak1,
+                                                   b_grid_desc_bk0_n_bk1,
+                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                   d_grid_desc_mblock_mperblock,
+                                                   block_2_ctile_map);
+}
+
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -62,13 +138,13 @@ template <typename ALayout,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>
-struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOperation,
-                                                               BElementwiseOperation,
-                                                               CElementwiseOperation,
-                                                               D0ReduceOperation,
-                                                               D1ReduceOperation>
+struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOperation,
+                                                                      BElementwiseOperation,
+                                                                      CElementwiseOperation,
+                                                                      D0ReduceOperation,
+                                                                      D1ReduceOperation>
 {
-    using DeviceOp = DeviceGemmReduce_Xdl_CShuffle;
+    using DeviceOp = DeviceBatchedGemmReduce_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -369,6 +445,92 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
     using DGridDesc_M         = decltype(MakeDGridDescriptor_M(1));
 
+    static constexpr auto MakeBlock2CTileMap(index_t batch_count,
+                                             const CGridDesc_M_N& c_grid_desc_m_n,
+                                             index_t M01,
+                                             index_t N01)
+    {
+        const auto M = c_grid_desc_m_n.GetLength(I0);
+        const auto N = c_grid_desc_m_n.GetLength(I1);
+
+        constexpr auto M1 = Number<MPerBlock>{};
+        constexpr auto N1 = Number<NPerBlock>{};
+
+        const auto M0 = M / M1;
+        const auto N0 = N / N1;
+
+        const auto M00 = M0 / M01;
+        const auto N00 = N0 / N01;
+
+        const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_insert_transform(batch_count),
+                           make_unmerge_transform(make_tuple(M00, M01)),
+                           make_unmerge_transform(make_tuple(N00, N01))),
+                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
+
+        const auto globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(batch_count, M00, N00, M01, N01))),
+                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                make_tuple(Sequence<0>{}));
+
+        const auto globalblockid_to_m0_n0_block_cluster_adaptor =
+            chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
+                                  globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
+
+        return globalblockid_to_m0_n0_block_cluster_adaptor;
+    }
+
+    struct ComputeBasePtrOfStridedBatch
+    {
+        ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
+                                     index_t BatchStrideB,
+                                     index_t BatchStrideC,
+                                     index_t BatchStrideD0,
+                                     index_t BatchStrideD1)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
+              BatchStrideC_(BatchStrideC),
+              BatchStrideD0_(BatchStrideD0),
+              BatchStrideD1_(BatchStrideD1)
+        {
+        }
+
+        __host__ __device__ constexpr long_index_t GetABasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideA_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideB_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideC_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetD0BasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideD0_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetD1BasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideD1_);
+        }
+
+        private:
+        index_t BatchStrideA_;
+        index_t BatchStrideB_;
+        index_t BatchStrideC_;
+        index_t BatchStrideD0_;
+        index_t BatchStrideD1_;
+    };
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
         ADataType, // TODO: distinguish A/B datatype
@@ -423,6 +585,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
         CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>;
 
+    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, CGridDesc_M_N{}, 1, 1));
+
     // Argument
     struct Argument : public BaseArgument
     {
@@ -441,18 +605,25 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
                  D0ReduceOperation d0_reduce_op,
-                 D1ReduceOperation d1_reduce_op)
+                 D1ReduceOperation d1_reduce_op,
+                 index_t BatchCount)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               p_d0_grid_{p_d0_grid},
               p_d1_grid_{p_d1_grid},
+              BatchCount_(BatchCount),
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
               d_grid_desc_m_{DeviceOp::MakeDGridDescriptor_M(MRaw)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               d_grid_desc_mblock_mperblock_{},
+              compute_base_ptr_of_batch_{a_grid_desc_ak0_m_ak1_.GetElementSpaceSize(),
+                                         b_grid_desc_bk0_n_bk1_.GetElementSpaceSize(),
+                                         c_grid_desc_m_n_.GetElementSpaceSize(),
+                                         d_grid_desc_m_.GetElementSpaceSize(),
+                                         d_grid_desc_m_.GetElementSpaceSize()},
               block_2_ctile_map_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -470,7 +641,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                 d_grid_desc_mblock_mperblock_ =
                     GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
 
-                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
+                block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount, c_grid_desc_m_n_, 1, 1);
             }
         }
 
@@ -480,6 +651,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         CDataType* p_c_grid_;
         DDataType* p_d0_grid_;
         DDataType* p_d1_grid_;
+        index_t BatchCount_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -487,7 +659,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+        Block2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -504,6 +677,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         {
 #if 0
             {
+                std::cout << "arg.BatchCount_ = " << arg.BatchCount_ << std::endl;
+
                 std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
@@ -528,7 +703,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size =
+                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
 
             const auto K0 = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
 
@@ -536,7 +712,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_reduce_xdl_cshuffle_v1<
+                const auto kernel = kernel_batched_gemm_reduce_xdl_cshuffle_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -550,7 +726,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
+                    ComputeBasePtrOfStridedBatch,
+                    remove_reference_t<Block2CTileMap>,
                     true>;
 
                 launch_kernel(kernel,
@@ -562,6 +739,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                               arg.p_c_grid_,
                               arg.p_d0_grid_,
                               arg.p_d1_grid_,
+                              arg.BatchCount_,
                               arg.a_element_op_,
                               arg.b_element_op_,
                               arg.c_element_op_,
@@ -571,11 +749,12 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                               arg.b_grid_desc_bk0_n_bk1_,
                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                               arg.d_grid_desc_mblock_mperblock_,
+                              arg.compute_base_ptr_of_batch_,
                               arg.block_2_ctile_map_);
             }
             else
             {
-                const auto kernel = kernel_gemm_reduce_xdl_cshuffle_v1<
+                const auto kernel = kernel_batched_gemm_reduce_xdl_cshuffle_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -589,7 +768,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
+                    ComputeBasePtrOfStridedBatch,
+                    remove_reference_t<Block2CTileMap>,
                     false>;
 
                 launch_kernel(kernel,
@@ -601,6 +781,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                               arg.p_c_grid_,
                               arg.p_d0_grid_,
                               arg.p_d1_grid_,
+                              arg.BatchCount_,
                               arg.a_element_op_,
                               arg.b_element_op_,
                               arg.c_element_op_,
@@ -610,6 +791,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                               arg.b_grid_desc_bk0_n_bk1_,
                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                               arg.d_grid_desc_mblock_mperblock_,
+                              arg.compute_base_ptr_of_batch_,
                               arg.block_2_ctile_map_);
             }
 
@@ -638,7 +820,15 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
     // polymorphic
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
-        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
+        auto casted_p_arg = dynamic_cast<const Argument*>(p_arg);
+        if(casted_p_arg == nullptr)
+        {
+            return false;
+        }
+        else
+        {
+            return IsSupportedArgument(*casted_p_arg);
+        }
     }
 
     static auto MakeArgument(const ADataType* p_a,
@@ -656,7 +846,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
                              D0ReduceOperation d0_reduce_op,
-                             D1ReduceOperation d1_reduce_op)
+                             D1ReduceOperation d1_reduce_op,
+                             index_t BatchCount)
     {
         return Argument{p_a,
                         p_b,
@@ -673,7 +864,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                         b_element_op,
                         c_element_op,
                         d0_reduce_op,
-                        d1_reduce_op};
+                        d1_reduce_op,
+                        BatchCount};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -695,7 +887,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                                       CElementwiseOperation c_element_op,
                                                       D0ReduceOperation d0_reduce_op,
                                                       D1ReduceOperation d1_reduce_op,
-                                                      index_t /* KBatch */ = 1) override
+                                                      index_t BatchCount) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -712,7 +904,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
                                           b_element_op,
                                           c_element_op,
                                           d0_reduce_op,
-                                          d1_reduce_op);
+                                          d1_reduce_op,
+                                          BatchCount);
     }
 
     // polymorphic
@@ -727,7 +920,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmReduce_Xdl_CShuffle"
+        str << "DeviceBatchedGemmReduce_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
