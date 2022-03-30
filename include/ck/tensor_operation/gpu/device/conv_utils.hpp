@@ -108,6 +108,28 @@ struct ConvParams
           input_right_pads(2, 1)
     {
     }
+    ConvParams(ck::index_t n_dim_spatial,
+               ck::index_t n,
+               ck::index_t k,
+               ck::index_t c,
+               std::vector<ck::index_t> filter_lengths,
+               std::vector<ck::index_t> input_lengths,
+               std::vector<ck::index_t> conv_strides,
+               std::vector<ck::index_t> conv_dilations,
+               std::vector<ck::index_t> left_pads,
+               std::vector<ck::index_t> right_pads)
+        : num_dim_spatial(n_dim_spatial),
+          N(n),
+          K(k),
+          C(c),
+          filter_spatial_lengths(filter_lengths),
+          input_spatial_lengths(input_lengths),
+          conv_filter_strides(conv_strides),
+          conv_filter_dilations(conv_dilations),
+          input_left_pads(left_pads),
+          input_right_pads(right_pads)
+    {
+    }
 
     ck::index_t num_dim_spatial;
     ck::index_t N;
@@ -206,7 +228,7 @@ HostTensorDescriptor GetHostTensorDescriptor(const std::vector<std::size_t>& dim
         return HostTensorDescriptor(
             dims,
             std::vector<std::size_t>{
-                C * dims[2] * dims[3] * dims[4], 1, C * dims[3] * dims[4], C * dims[4], C});
+                C * dims[2] * dims[3] * dims[4], 1, dims[3] * dims[4] * C, dims[4] * C, C});
     }
 
     std::stringstream err_msg;
