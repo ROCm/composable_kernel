@@ -93,7 +93,7 @@ void profile_batched_gemm_impl(int do_verification,
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
     std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;

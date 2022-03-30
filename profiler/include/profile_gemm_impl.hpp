@@ -120,7 +120,7 @@ void profile_gemm_impl(int do_verification,
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;
@@ -408,6 +408,10 @@ void profile_gemm_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // re-init C to zero before profiling next kernel
+            c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
+            c_device_buf.ToDevice(c_m_n_device_result.mData.data());
+
             std::string gemm_name = gemm_ptr->GetTypeString();
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
