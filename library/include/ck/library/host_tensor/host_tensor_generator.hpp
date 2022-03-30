@@ -1,7 +1,8 @@
-#ifndef HOST_TENSOR_GENERATOR_HPP
-#define HOST_TENSOR_GENERATOR_HPP
+#pragma once
 
 #include <cmath>
+#include <numeric>
+
 #include "config.hpp"
 
 template <typename T>
@@ -147,5 +148,3 @@ struct GeneratorTensor_Sequential
         return dims[Dim];
     }
 };
-
-#endif
