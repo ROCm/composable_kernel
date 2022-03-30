@@ -234,7 +234,15 @@ void profile_conv_bwd_weight_impl(int do_verification,
             {
                 wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
-                check_error(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
+                float max_error = check_error(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
+                if(max_error < 1e-5)
+                {
+                    std::cout << "conv2d bwd weight: Pass" << std::endl;
+                }
+                else
+                {
+                    std::cout << "conv2d bwd weight: Fail" << std::endl;
+                }
 
                 if(do_log)
                 {
