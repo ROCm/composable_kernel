@@ -6,8 +6,9 @@
 #include <sstream>
 #include <tuple>
 #include <memory>
-#include <chrono>
 #include <half.hpp>
+#include "host_tensor.hpp"
+#include "device.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "cpuid.hpp"
@@ -128,24 +129,6 @@ void dump_cache_hierarchy()
     }
 }
 
-void* __aligned_malloc(size_t required_bytes, size_t alignment)
-{
-    if(alignment == 0 || (alignment & (alignment - 1))) // check pow of 2
-        return nullptr;
-    void* p1;  // original block
-    void** p2; // aligned block
-    int offset = alignment - 1 + sizeof(void*);
-    if((p1 = malloc(required_bytes + offset)) == nullptr)
-    {
-        return nullptr;
-    }
-    p2     = reinterpret_cast<void**>((reinterpret_cast<size_t>(p1) + offset) & ~(alignment - 1));
-    p2[-1] = p1;
-    return p2;
-}
-
-void __aligned_free(void* p) { free((reinterpret_cast<void**>(p))[-1]); }
-
 template <typename T>
 void rand_vector(T* v, int elem)
 {
@@ -186,30 +169,35 @@ template <typename FloatA, typename FloatB, typename ALayout, typename BLayout>
 void ref_cpu_gemm_uk(
     const FloatA* a, const FloatB* b, float* c, float alpha, uint32_t m, uint32_t n, uint32_t k)
 {
-    auto a_offset = [&](uint32_t im, uint32_t ik) {
-        if constexpr(std::is_same<Row, ALayout>::value)
-        {
-            return im * k + ik;
-        }
-        else
-        {
-            return ik * m + im;
-        }
-    };
+    auto f_host_2d_tensor_descriptor =
+        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            if(std::is_same<decltype(layout), Row>::value)
+            {
+                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                            std::vector<std::size_t>({stride, 1}));
+            }
+            else
+            {
+                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                            std::vector<std::size_t>({1, stride}));
+            }
+        };
 
-    auto b_offset = [&](uint32_t ik, uint32_t in) {
-        if constexpr(std::is_same<Row, BLayout>::value)
-        {
-            return ik * n + in;
-        }
-        else
-        {
-            // n*k*n8
-            return (in / 8) * k * 8 + ik * 8 + in % 8;
-        }
-    };
+    auto f_host_vectored_tensor_descriptor =
+        [](std::size_t row, std::size_t col, std::size_t vec, std::size_t stride) {
+            // only valid in row major. stride is for each row, contains vector size
+            return HostTensorDescriptor(std::vector<std::size_t>({row, col, vec}),
+                                        std::vector<std::size_t>({stride, vec, 1}));
+        };
 
-    auto c_offset = [&](uint32_t im, uint32_t in) { return im * n + in; };
+    std::size_t lda = std::is_same<Row, ALayout>::value ? k : m;     // in unit of element
+    std::size_t ldb = std::is_same<Row, BLayout>::value ? n : k * 8; // in unit of element
+    std::size_t ldc = n;
+    HostTensorDescriptor a_m_k = f_host_2d_tensor_descriptor(m, n, lda, ALayout{});
+    HostTensorDescriptor b_k_n = std::is_same<Row, BLayout>::value
+                                     ? f_host_2d_tensor_descriptor(k, n, ldb, BLayout{})
+                                     : f_host_vectored_tensor_descriptor(n / 8, k, 8, ldb);
+    HostTensorDescriptor c_m_n = f_host_2d_tensor_descriptor(m, n, ldc, Row{});
 
     for(uint32_t im = 0; im < m; im++)
     {
@@ -218,11 +206,14 @@ void ref_cpu_gemm_uk(
             float acc = .0f;
             for(uint32_t ik = 0; ik < k; ik++)
             {
-                acc += static_cast<float>(a[a_offset(im, ik)]) *
-                       static_cast<float>(b[b_offset(ik, in)]);
+                acc += static_cast<float>(a[a_m_k.GetOffsetFromMultiIndex(im, ik)]) *
+                       (std::is_same<Row, BLayout>::value
+                            ? static_cast<float>(b[b_k_n.GetOffsetFromMultiIndex(ik, in)])
+                            : static_cast<float>(
+                                  b[b_k_n.GetOffsetFromMultiIndex(in / 8, ik, in % 8)]));
             }
             acc *= alpha;
-            c[c_offset(im, in)] = acc;
+            c[c_m_n.GetOffsetFromMultiIndex(im, in)] = acc;
         }
     }
 }
@@ -326,17 +317,17 @@ void test_ukernel(ukenrel_t uk,
         invoke_uk();
     }
 
-    auto t0 = std::chrono::high_resolution_clock::now();
+    WallTimer timer;
+
+    timer.Start();
     for(int i = 0; i < repeat; i++)
     {
         invoke_uk();
     }
-    auto t1 = std::chrono::high_resolution_clock::now();
+    timer.End();
 
-    double us = static_cast<double>(
-                    std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count()) /
-                repeat;
-    double gflops = static_cast<double>(2 * m * n * k) * 1e-3 / us;
+    float us     = timer.GetElapsedTime() * 1e3 / repeat;
+    float gflops = static_cast<float>(2 * m * n * k) * 1e-3 / us;
 
     memset(mat_c, 0, m * n * sizeof(float));
     invoke_uk();
@@ -349,21 +340,28 @@ void test_ukernel(ukenrel_t uk,
 template <typename FloatA, typename FloatB, typename ALayout, typename BLayout>
 void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
 {
-    FloatA* mat_a = reinterpret_cast<FloatA*>(__aligned_malloc(m * k * sizeof(FloatA), 32));
-    FloatB* mat_b = reinterpret_cast<FloatB*>(__aligned_malloc(k * n * sizeof(FloatB), 32));
-    float* mat_c  = reinterpret_cast<float*>(__aligned_malloc(m * n * sizeof(float), 32));
 
-    float* mat_c_ref = reinterpret_cast<float*>(__aligned_malloc(m * n * sizeof(float), 32));
-    memset(mat_c_ref, 0, m * n * sizeof(float));
+    DeviceAlignedMemCPU a_mem(m * k * sizeof(FloatA), 32);
+    DeviceAlignedMemCPU b_mem(k * n * sizeof(FloatB), 32);
+    DeviceAlignedMemCPU c_mem(m * n * sizeof(float), 32);
+    DeviceAlignedMemCPU c_mem_ref(m * n * sizeof(float), 32);
 
-    rand_vector(mat_a, m * k);
-    rand_vector(mat_b, k * n);
+    c_mem_ref.SetZero();
+    rand_vector(reinterpret_cast<FloatA*>(a_mem.mpDeviceBuf), m * k);
+    rand_vector(reinterpret_cast<FloatB*>(b_mem.mpDeviceBuf), k * n);
 
-    ref_cpu_gemm_uk<FloatA, FloatB, ALayout, BLayout>(mat_a, mat_b, mat_c_ref, alpha, m, n, k);
+    ref_cpu_gemm_uk<FloatA, FloatB, ALayout, BLayout>(
+        reinterpret_cast<FloatA*>(a_mem.mpDeviceBuf),
+        reinterpret_cast<FloatB*>(b_mem.mpDeviceBuf),
+        reinterpret_cast<float*>(c_mem_ref.mpDeviceBuf),
+        alpha,
+        m,
+        n,
+        k);
 
-    using thread_gemm_instance = thread_gemm_avx2_mxn_6x16_instances<ALayout, BLayout>;
-    // using thread_gemm_instance = thread_gemm_avx2_mxn_4x24_instances<ALayout, BLayout>;
-    bool found = false;
+    // using thread_gemm_instance = thread_gemm_avx2_mxn_6x16_instances<ALayout, BLayout>;
+    using thread_gemm_instance = thread_gemm_avx2_mxn_4x24_instances<ALayout, BLayout>;
+    bool found                 = false;
 
     ck::static_for<0, std::tuple_size_v<thread_gemm_instance>, 1>{}([&](auto i) {
         using uk_type = std::tuple_element_t<i, thread_gemm_instance>;
@@ -377,24 +375,27 @@ void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
         if(found)
             return;
 
-        test_ukernel<FloatA, FloatB, ALayout, BLayout>(
-            uk_type{}, mat_a, mat_b, mat_c, alpha, m, n, k);
+        test_ukernel<FloatA, FloatB, ALayout, BLayout>(uk_type{},
+                                                       reinterpret_cast<FloatA*>(a_mem.mpDeviceBuf),
+                                                       reinterpret_cast<FloatB*>(b_mem.mpDeviceBuf),
+                                                       reinterpret_cast<float*>(c_mem.mpDeviceBuf),
+                                                       alpha,
+                                                       m,
+                                                       n,
+                                                       k);
 
-        bool is_valid = valid_vector(mat_c_ref, mat_c, m * n);
+        bool is_valid = valid_vector(reinterpret_cast<float*>(c_mem_ref.mpDeviceBuf),
+                                     reinterpret_cast<float*>(c_mem.mpDeviceBuf),
+                                     m * n);
         printf("vald:%s\n", is_valid ? "y" : "n");
         found = true;
     });
-
-    __aligned_free(mat_a);
-    __aligned_free(mat_b);
-    __aligned_free(mat_c);
-    __aligned_free(mat_c_ref);
 }
 
 int main(int argc, char** argv)
 {
-    int m       = 6;
-    int n       = 16;
+    int m       = 4;
+    int n       = 24;
     int k       = 64;
     float alpha = 1.0f;
     if(argc > 3)

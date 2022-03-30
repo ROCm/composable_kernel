@@ -23,6 +23,20 @@ struct DeviceMem
     std::size_t mMemSize;
 };
 
+struct DeviceAlignedMemCPU
+{
+    DeviceAlignedMemCPU() = delete;
+    DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment);
+    void* GetDeviceBuffer();
+    std::size_t GetBufferSize();
+    void SetZero();
+    ~DeviceAlignedMemCPU();
+
+    void* mpDeviceBuf;
+    std::size_t mMemSize;
+    std::size_t mAlignment;
+};
+
 struct KernelTimerImpl;
 
 struct KernelTimer
@@ -34,6 +48,19 @@ struct KernelTimer
     float GetElapsedTime() const;
 
     std::unique_ptr<KernelTimerImpl> impl;
+};
+
+struct WallTimerImpl;
+
+struct WallTimer
+{
+    WallTimer();
+    ~WallTimer();
+    void Start();
+    void End();
+    float GetElapsedTime() const;
+
+    std::unique_ptr<WallTimerImpl> impl;
 };
 
 using device_stream_t = hipStream_t;

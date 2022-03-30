@@ -1,1 +1,2 @@
 add_test_executable(test_cpu_gemm_uk cpu_gemm_uk.cpp)
+target_link_libraries(test_cpu_gemm_uk PRIVATE host_tensor)

@@ -1,3 +1,4 @@
+#include <chrono>
 #include "device.hpp"
 
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
@@ -23,6 +24,30 @@ void DeviceMem::FromDevice(void* p)
 void DeviceMem::SetZero() { hipGetErrorString(hipMemset(mpDeviceBuf, 0, mMemSize)); }
 
 DeviceMem::~DeviceMem() { hipGetErrorString(hipFree(mpDeviceBuf)); }
+
+DeviceAlignedMemCPU::DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment)
+    : mMemSize(mem_size), mAlignment(alignment)
+{
+    assert(!(alignment == 0 || (alignment & (alignment - 1)))); // check pow of 2
+
+    void* p1;
+    void** p2;
+    int offset = alignment - 1 + sizeof(void*);
+    p1         = malloc(mem_size + offset);
+    assert(p1 != nullptr);
+
+    p2     = reinterpret_cast<void**>((reinterpret_cast<size_t>(p1) + offset) & ~(alignment - 1));
+    p2[-1] = p1;
+    mpDeviceBuf = reinterpret_cast<void*>(p2);
+}
+
+void* DeviceAlignedMemCPU::GetDeviceBuffer() { return mpDeviceBuf; }
+
+std::size_t DeviceAlignedMemCPU::GetBufferSize() { return mMemSize; }
+
+void DeviceAlignedMemCPU::SetZero() { memset(mpDeviceBuf, 0, mMemSize); }
+
+DeviceAlignedMemCPU::~DeviceAlignedMemCPU() { free((reinterpret_cast<void**>(mpDeviceBuf))[-1]); }
 
 struct KernelTimerImpl
 {
@@ -69,3 +94,30 @@ void KernelTimer::Start() { impl->Start(); }
 void KernelTimer::End() { impl->End(); }
 
 float KernelTimer::GetElapsedTime() const { return impl->GetElapsedTime(); }
+
+struct WallTimerImpl
+{
+    void Start() { mStart = std::chrono::high_resolution_clock::now(); }
+
+    void End() { mStop = std::chrono::high_resolution_clock::now(); }
+
+    float GetElapsedTime() const
+    {
+        return static_cast<float>(
+                   std::chrono::duration_cast<std::chrono::microseconds>(mStop - mStart).count()) *
+               1e-3;
+    }
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> mStart;
+    std::chrono::time_point<std::chrono::high_resolution_clock> mStop;
+};
+
+WallTimer::WallTimer() : impl(new WallTimerImpl()) {}
+
+WallTimer::~WallTimer() {}
+
+void WallTimer::Start() { impl->Start(); }
+
+void WallTimer::End() { impl->End(); }
+
+float WallTimer::GetElapsedTime() const { return impl->GetElapsedTime(); }
