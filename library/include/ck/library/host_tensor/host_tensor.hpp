@@ -349,28 +349,4 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
     return linf_error;
 }
 
-template <typename T>
-void check_indices(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    bool has_error  = false;
-    int error_count = 0;
-
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        if(ref.mData[i] != result.mData[i])
-        {
-            std::cerr << std::endl
-                      << "Indices different at position " << i << " (ref: " << ref.mData[i]
-                      << ", result: " << result.mData[i] << ")" << std::endl;
-            has_error = true;
-            error_count++;
-            if(error_count == 20)
-                break;
-        };
-    }
-
-    if(!has_error)
-        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
-}
-
 #endif
