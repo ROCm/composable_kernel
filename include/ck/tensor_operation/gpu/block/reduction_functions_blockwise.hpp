@@ -26,10 +26,7 @@
 #ifndef CK_REDUCTION_FUNCTIONS_BLOCKWISE_HPP
 #define CK_REDUCTION_FUNCTIONS_BLOCKWISE_HPP
 
-#include "data_type.hpp"
-
 #include "reduction_common.hpp"
-#include "reduction_operator.hpp"
 #include "reduction_functions_accumulate.hpp"
 
 #include "cluster_descriptor.hpp"
@@ -38,7 +35,7 @@ namespace ck {
 
 // clang-format off
 // Assume:
-//  1) work_buffer is LDS allocated outside as workspace, does not include any in/out data
+//  1) work_buffer is buffer (typically LDS) allocated outside as workspace, does not include any in/out data
 //  2) work_buffer has AccDataType elements, and space size is no less than BlockSize
 //  3) in_out_value is the input data in vgpr from each thread
 //  4) in_out_value is the over-written reduced output in vgpr for each thread
@@ -70,6 +67,9 @@ struct PartitionedBlockwiseReduction
     template <typename BufferType>
     __device__ static void Reduce(BufferType& work_buffer, AccDataType& in_out_value)
     {
+        static_assert(is_same<typename BufferType::type, AccDataType>{},
+                      "Buffer data type should be consistent as AccDataType!");
+
         constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
 
         const auto thread_cluster_idx =
@@ -108,7 +108,7 @@ struct PartitionedBlockwiseReduction
 
 // clang-format off
 // Assume:
-//  1) work_val_buffer/work_idx_buffer is LDS allocated outside as workspace, does not include any in/out data
+//  1) work_val_buffer/work_idx_buffer is buffer (typically LDS) allocated outside as workspace, does not include any in/out data
 //  2) work_val_buffer/work_idx_buffer has AccDataType/IndexDataType elements, and space size is no less than BlockSize
 //  3) in_out_value/in_out_index is the input data in vgpr from each thread
 //  4) in_out_value/in_out_index is the over-written reduced output in vgpr for each thread
@@ -146,6 +146,11 @@ struct PartitionedBlockwiseReductionWithIndex
                                   AccDataType& in_out_value,
                                   IndexDataType& in_out_index)
     {
+        static_assert(is_same<typename BufferType::type, AccDataType>{},
+                      "Buffer data type should be consistent as AccDataType!");
+        static_assert(is_same<typename IdxBufferType::type, IndexDataType>{},
+                      "Buffer data type should be consistent as IndexDataType!");
+
         constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
 
         const auto thread_cluster_idx =

@@ -26,13 +26,7 @@
 #ifndef CK_REDUCTION_FUNCTIONS_THREADWISE_HPP
 #define CK_REDUCTION_FUNCTIONS_THREADWISE_HPP
 
-#include "data_type.hpp"
-
-#include "reduction_common.hpp"
-#include "reduction_operator.hpp"
 #include "reduction_functions_accumulate.hpp"
-
-#include "cluster_descriptor.hpp"
 
 namespace ck {
 
