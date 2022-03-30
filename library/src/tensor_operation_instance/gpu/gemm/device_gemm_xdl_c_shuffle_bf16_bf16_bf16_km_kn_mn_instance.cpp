@@ -23,7 +23,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
 
 // Compilation parameters for a[k, m] * b[k, n] = c[m, n]
-using device_gemm_xdl_c_shuffle_Bf16_Bf16_Bf16_km_kn_mn_instances = std::tuple<
+using device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances = std::tuple<
     // clang-format off
         //#####################| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
         //#####################|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
@@ -52,7 +52,7 @@ void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances(
     std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_gemm_xdl_c_shuffle_Bf16_Bf16_Bf16_km_kn_mn_instances{});
+                                   device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances{});
 }
 
 } // namespace device_gemm_instance
