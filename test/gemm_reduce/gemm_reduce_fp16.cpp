@@ -1,10 +1,4 @@
-#include <algorithm>
-#include <cstdlib>
-#include <half.hpp>
 #include <iostream>
-#include <numeric>
-#include <tuple>
-#include <vector>
 
 #include "profile_gemm_reduce_impl.hpp"
 

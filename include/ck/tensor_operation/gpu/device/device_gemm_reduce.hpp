@@ -28,7 +28,8 @@ struct DeviceGemmReduce : public BaseOperator
                                                               BElementwiseOperation b_element_op,
                                                               CElementwiseOperation c_element_op,
                                                               D0ReduceOperation d0_reduce_op,
-                                                              D1ReduceOperation d1_reduce_op) = 0;
+                                                              D1ReduceOperation d1_reduce_op,
+                                                              ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
