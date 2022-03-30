@@ -100,7 +100,6 @@ struct NDHWK : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWK";
 };
-
 struct NCDHW : public BaseTensorLayout
 {
     static constexpr const char* name = "NCDHW";
