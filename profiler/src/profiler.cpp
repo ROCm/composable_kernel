@@ -17,6 +17,7 @@ int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
 int profile_convnd_bwd_data(int, char*[], int);
 int profile_reduce(int, char*[]);
+int profile_batched_gemm_reduce(int, char*[]);
 
 int main(int argc, char* argv[])
 {
@@ -43,6 +44,10 @@ int main(int argc, char* argv[])
     else if(strcmp(argv[1], "batched_gemm") == 0)
     {
         return profile_batched_gemm(argc, argv);
+    }
+    else if(strcmp(argv[1], "batched_gemm_reduce") == 0)
+    {
+        return profile_batched_gemm_reduce(argc, argv);
     }
     else if(strcmp(argv[1], "grouped_gemm") == 0)
     {
