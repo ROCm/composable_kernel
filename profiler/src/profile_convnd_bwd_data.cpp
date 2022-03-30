@@ -32,10 +32,10 @@ enum ConvOutputLayout
     NKHW, // 0
     NHWK, // 1
 };
-ck::conv_util::ConvParams parse_conv_params(int num_dim_spatial, char* argv[], int arg_idx)
+ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[], int arg_idx)
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
 
     params.num_dim_spatial = num_dim_spatial;
     params.N               = std::stoi(argv[arg_idx++]);
@@ -106,7 +106,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     const bool do_log          = std::stoi(argv[8]);
     const int nrepeat          = std::stoi(argv[9]);
 
-    ck::conv_util::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
+    ck::utils::conv::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
         using InDataType  = decltype(input_type);
