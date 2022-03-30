@@ -53,9 +53,12 @@ template <typename InDataType,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
 struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public DeviceConvWrw<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
+    : public DeviceConvBwdWeight<InElementwiseOperation,
+                                 WeiElementwiseOperation,
+                                 OutElementwiseOperation>
 {
-    using DeviceOp = DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
+    using DeviceOp =
+        DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
     using ADataType = OutDataType;
     using BDataType = InDataType;
@@ -67,8 +70,6 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
     // TODO make A/B datatype different
     using ABDataType = InDataType;
-
-    static constexpr index_t NDimSpatial = 2;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
