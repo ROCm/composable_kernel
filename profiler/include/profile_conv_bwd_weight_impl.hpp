@@ -37,7 +37,7 @@ template <int NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-void profile_conv_bwd_weight_impl(int do_verification,
+bool profile_conv_bwd_weight_impl(int do_verification,
                                   int init_method,
                                   bool do_log,
                                   int nrepeat,
@@ -175,6 +175,7 @@ void profile_conv_bwd_weight_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device Conv instances
+    bool pass = true;
     for(auto& conv_ptr : conv_ptrs)
     {
         // using atomic, so need to reset input
@@ -237,7 +238,8 @@ void profile_conv_bwd_weight_impl(int do_verification,
                 float max_error = check_error(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
                 if(max_error < 1e-5)
                 {
-                    std::cout << "conv2d bwd weight: Pass" << std::endl;
+                    std::cout << "conv2d bwd weight: Pass "  <<" Tuning info:" << conv_ptr->GetTypeString() << std::endl;
+                    pass = false;
                 }
                 else
                 {
@@ -263,6 +265,8 @@ void profile_conv_bwd_weight_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
+    
+    return pass;
 }
 
 } // namespace profiler
