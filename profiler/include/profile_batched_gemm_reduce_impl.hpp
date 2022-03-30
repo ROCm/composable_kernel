@@ -24,16 +24,16 @@ using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePt
     ck::tensor_operation::element_wise::ReduceSum,
     ck::tensor_operation::element_wise::ReduceSquareSum>;
 
-void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
 
-void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gnk_gmn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
 
-void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_kn_mn_instances(
+void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gkn_gmn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
 
-void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances(
+void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
 
 } // namespace device_gemm_instance
@@ -190,7 +190,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instances(
                     gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
@@ -198,7 +198,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gnk_gmn_instances(
                     gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -206,7 +206,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_kn_mn_instances(
+                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gkn_gmn_instances(
                     gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -214,7 +214,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances(
+                add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_instances(
                     gemm_ptrs);
         }
     }
