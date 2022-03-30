@@ -89,6 +89,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
                                                  float,
                                                  float,
                                                  float,
+                                                 float,
                                                  ck::tensor_layout::convolution::NHWC,
                                                  ck::tensor_layout::convolution::KYXC,
                                                  ck::tensor_layout::convolution::NHWK>(
@@ -114,6 +115,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
                                                  ck::half_t,
                                                  ck::half_t,
                                                  ck::half_t,
+                                                 float,
                                                  ck::tensor_layout::convolution::NHWC,
                                                  ck::tensor_layout::convolution::KYXC,
                                                  ck::tensor_layout::convolution::NHWK>(
@@ -139,6 +141,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
                                                  uint16_t,
                                                  uint16_t,
                                                  uint16_t,
+                                                 float,
                                                  ck::tensor_layout::convolution::NHWC,
                                                  ck::tensor_layout::convolution::KYXC,
                                                  ck::tensor_layout::convolution::NHWK>(
@@ -164,6 +167,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
                                                  int8_t,
                                                  int8_t,
                                                  int8_t,
+                                                 int32_t,
                                                  ck::tensor_layout::convolution::NHWC,
                                                  ck::tensor_layout::convolution::KYXC,
                                                  ck::tensor_layout::convolution::NHWK>(

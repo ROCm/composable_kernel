@@ -49,7 +49,7 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 
 bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 {
-    int group_count = 4;
+    int group_count = rand() % 10 + 1;
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
@@ -60,9 +60,9 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 
     for(int i = 0; i < group_count; i++)
     {
-        int M = 256 + 256 * i;
-        int N = 128 + 128 * i;
-        int K = 128 + 64 * i;
+        int M = 256 + 256 * (rand() % 10);
+        int N = 256 + 256 * (rand() % 10);
+        int K = 128 + 128 * (rand() % 10);
 
         int AStride = std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value ? K : M;
         int BStride = std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value ? N : K;
@@ -115,8 +115,8 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
         c_device_tensors.emplace_back(Tensor<CDataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
 
-        a_tensors[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        a_tensors[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
     }
 
     for(int i = 0; i < gemm_shapes.size(); i++)
@@ -164,6 +164,11 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
                                                   b_element_op,
                                                   c_element_op);
 
+        if(!groupedGemmPtr->IsSupportedArgument(argument_ptr.get()))
+        {
+            return false;
+        }
+
         ref_invoker.Run(ref_argument);
 
         bool res = ck::utils::check_err(c_host_tensors[i].mData, c_device_tensors[i].mData);
@@ -193,4 +198,6 @@ int main()
     }
 
     std::cout << "TestGroupedGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
+
+    return res ? 0 : 1;
 }
