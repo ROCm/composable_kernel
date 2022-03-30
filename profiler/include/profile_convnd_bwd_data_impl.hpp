@@ -12,7 +12,7 @@
 
 using F16  = ck::half_t;
 using F32  = float;
-using BF16 = ushort;
+using BF16 = ck::bhalf_t;
 using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
