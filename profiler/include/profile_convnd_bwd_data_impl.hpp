@@ -274,13 +274,13 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                                   ck::index_t N,
                                   ck::index_t K,
                                   ck::index_t C,
-                                  std::vector<ck::index_t> input_spatial_lengths,
-                                  std::vector<ck::index_t> filter_spatial_lengths,
-                                  std::vector<ck::index_t> output_spatial_lengths,
-                                  std::vector<ck::index_t> conv_filter_strides,
-                                  std::vector<ck::index_t> conv_filter_dilations,
-                                  std::vector<ck::index_t> input_left_pads,
-                                  std::vector<ck::index_t> input_right_pads)
+                                  const std::vector<ck::index_t>& input_spatial_lengths,
+                                  const std::vector<ck::index_t>& filter_spatial_lengths,
+                                  const std::vector<ck::index_t>& output_spatial_lengths,
+                                  const std::vector<ck::index_t>& conv_filter_strides,
+                                  const std::vector<ck::index_t>& conv_filter_dilations,
+                                  const std::vector<ck::index_t>& input_left_pads,
+                                  const std::vector<ck::index_t>& input_right_pads)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -358,48 +358,16 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                                                       OutElementOp{});
             ref_invoker.Run(ref_argument);
         };
-        switch(NDimSpatial)
-        {
-        case 3: {
-            auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                             WeiDataType,
-                                                                             OutDataType,
-                                                                             AccDataType,
-                                                                             InElementOp,
-                                                                             WeiElementOp,
-                                                                             OutElementOp,
-                                                                             3>();
-            RunReference(ref_conv);
-            break;
-        }
-        case 2: {
-            auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                             WeiDataType,
-                                                                             OutDataType,
-                                                                             AccDataType,
-                                                                             InElementOp,
-                                                                             WeiElementOp,
-                                                                             OutElementOp,
-                                                                             2>();
-            RunReference(ref_conv);
-            break;
-        }
-        case 1: {
-            auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                                             WeiDataType,
-                                                                             OutDataType,
-                                                                             AccDataType,
-                                                                             InElementOp,
-                                                                             WeiElementOp,
-                                                                             OutElementOp,
-                                                                             1>();
-            RunReference(ref_conv);
-            break;
-        }
-        default: {
-            throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-        }
-        }
+
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+                                                                         WeiDataType,
+                                                                         OutDataType,
+                                                                         AccDataType,
+                                                                         InElementOp,
+                                                                         WeiElementOp,
+                                                                         OutElementOp,
+                                                                         NDimSpatial>();
+        RunReference(ref_conv);
     }
 
     // add device Conv instances
