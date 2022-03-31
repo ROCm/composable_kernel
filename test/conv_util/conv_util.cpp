@@ -193,5 +193,5 @@ int main(void)
               << std::endl;
     res = TestGetHostTensorDescriptor();
     std::cout << "TestGetHostTensorDescriptor ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-    return 0;
+    return res ? 0 : 1;
 }
