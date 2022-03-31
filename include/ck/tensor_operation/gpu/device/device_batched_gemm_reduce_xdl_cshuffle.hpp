@@ -105,7 +105,7 @@ template <typename ALayout,
           typename CElementwiseOperation,
           typename D0ReduceOperation,
           typename D1ReduceOperation,
-          GemmSpecialization_t GemmSpecialization,
+          GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -171,8 +171,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         const auto MPad = M - MRaw;
         const auto KPad = K - KRaw;
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MKPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad both M and K
             assert(K % AK1 == 0);
@@ -195,8 +195,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
 
             return a_grid_desc_ak0_m_ak1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MNPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                          GemmSpec == GemmSpecialization::MNPadding)
         {
             // pad M, but not K
             assert(KRaw % AK1 == 0);
@@ -212,8 +212,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
 
             return a_grid_desc_ak0_m_ak1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::KPadding ||
-                          GemmSpecialization == GemmSpecialization_t::NKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
+                          GemmSpec == GemmSpecialization::NKPadding)
         {
             // pad K, but not M
             assert(K % AK1 == 0);
@@ -274,8 +274,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         const auto NPad = N - NRaw;
         const auto KPad = K - KRaw;
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::NKPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad both N and K
             assert(K % BK1 == 0);
@@ -298,8 +298,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
 
             return b_grid_desc_bk0_n_bk1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::NPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MNPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::NPadding ||
+                          GemmSpec == GemmSpecialization::MNPadding)
         {
             // pad N, but not K
             assert(KRaw % BK1 == 0);
@@ -315,8 +315,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
 
             return b_grid_desc_bk0_n_bk1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::KPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
+                          GemmSpec == GemmSpecialization::MKPadding)
         {
             // pad K, but not N
             assert(K % BK1 == 0);
@@ -377,8 +377,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         const auto MPad = M - MRaw;
         const auto NPad = N - NRaw;
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad M and N
             return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
@@ -387,8 +387,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                                make_tuple(Sequence<0>{}, Sequence<1>{}),
                                                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                          GemmSpec == GemmSpecialization::MKPadding)
         {
             // pad M, but not N
             return transform_tensor_descriptor(
@@ -397,8 +397,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::NPadding ||
-                          GemmSpecialization == GemmSpecialization_t::NKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::NPadding ||
+                          GemmSpec == GemmSpecialization::NKPadding)
         {
             // pad N, but not M
             return transform_tensor_descriptor(
@@ -422,10 +422,10 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         const auto M    = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
         const auto MPad = M - MRaw;
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MKPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                     GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad M
             return transform_tensor_descriptor(d_grid_desc_mraw,
@@ -544,8 +544,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         CElementwiseOperation,
         D0ReduceOperation,
         D1ReduceOperation,
-        InMemoryDataOperationEnum_t::Set,
-        InMemoryDataOperationEnum_t::AtomicAdd,
+        InMemoryDataOperationEnum::Set,
+        InMemoryDataOperationEnum::AtomicAdd,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
         CGridDesc_M_N,

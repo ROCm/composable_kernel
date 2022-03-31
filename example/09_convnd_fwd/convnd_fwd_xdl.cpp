@@ -26,7 +26,7 @@ using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 using DeviceConvFwdBasePtr =
     ck::tensor_operation::device::DeviceConvFwdPtr<InElementOp, WeiElementOp, OutElementOp>;

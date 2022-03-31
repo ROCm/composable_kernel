@@ -16,10 +16,10 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdDataDefault =
-    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
 static constexpr auto ConvBwdDataFilter1x1Stride1Pad0 =
-    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0;
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0;
 
 // Compilation parameters for in[n, hi, wi, c] * wei[k, y, x, c] = out[n, ho, wo, k]
 using device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances = std::tuple<

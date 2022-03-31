@@ -10,7 +10,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <ck::ReduceTensorOp_t ReduceOpId>
+template <ck::ReduceTensorOp ReduceOpId>
 struct DevicePool2dFwd : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -29,7 +29,7 @@ struct DevicePool2dFwd : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <ck::ReduceTensorOp_t ReduceOpId>
+template <ck::ReduceTensorOp ReduceOpId>
 using DevicePool2dFwdPtr = std::unique_ptr<DevicePool2dFwd<ReduceOpId>>;
 
 } // namespace device

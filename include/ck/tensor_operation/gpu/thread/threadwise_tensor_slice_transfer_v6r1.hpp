@@ -29,7 +29,7 @@ template <typename SrcData,
           typename DimAccessOrder,
           index_t VectorDim,
           index_t ScalarPerVector,
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           bool SrcResetCoordinateAfterRun,
           bool DstResetCoordinateAfterRun>
 struct ThreadwiseTensorSliceTransfer_v6r1

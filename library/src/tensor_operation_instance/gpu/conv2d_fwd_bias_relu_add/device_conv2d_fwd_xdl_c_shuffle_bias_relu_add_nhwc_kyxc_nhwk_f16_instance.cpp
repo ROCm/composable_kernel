@@ -19,16 +19,16 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddReluAdd  = ck::tensor_operation::element_wise::AddReluAdd;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 static constexpr auto ConvFwd1x1P0 =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Pad0;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0;
 
 static constexpr auto ConvFwd1x1S1P0 =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
 
 static constexpr auto ConvFwdOddC =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::OddC;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
 
 // arbitrary conv
 using device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances = std::tuple<

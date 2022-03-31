@@ -9,7 +9,7 @@
 
 int profile_batched_gemm_reduce(int argc, char* argv[])
 {
-    enum struct GemmMatrixLayout_t
+    enum struct GemmMatrixLayout
     {
         MK_KN_MN, // 0
         MK_NK_MN, // 1
@@ -17,7 +17,7 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
         KM_NK_MN, // 3
     };
 
-    enum struct GemmReduceDataType_t
+    enum struct GemmReduceDataType
     {
         F32_F32_F32_F32_F32, // 0
         F16_F16_F16_F32_F32, // 1
@@ -40,8 +40,8 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
         exit(1);
     }
 
-    const auto data_type       = static_cast<GemmReduceDataType_t>(std::stoi(argv[2]));
-    const auto layout          = static_cast<GemmMatrixLayout_t>(std::stoi(argv[3]));
+    const auto data_type       = static_cast<GemmReduceDataType>(std::stoi(argv[2]));
+    const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);
@@ -57,8 +57,7 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
 
     const int BatchCount = std::stoi(argv[14]);
 
-    if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
-       layout == GemmMatrixLayout_t::MK_KN_MN)
+    if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_batched_gemm_reduce_impl<ck::half_t,
                                                        ck::half_t,
@@ -79,8 +78,8 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
             (StrideC < 0) ? N : StrideC,
             BatchCount);
     }
-    else if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
-            layout == GemmMatrixLayout_t::MK_NK_MN)
+    else if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 &&
+            layout == GemmMatrixLayout::MK_NK_MN)
     {
         ck::profiler::profile_batched_gemm_reduce_impl<ck::half_t,
                                                        ck::half_t,
@@ -101,8 +100,8 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
             (StrideC < 0) ? N : StrideC,
             BatchCount);
     }
-    else if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
-            layout == GemmMatrixLayout_t::KM_KN_MN)
+    else if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 &&
+            layout == GemmMatrixLayout::KM_KN_MN)
     {
         ck::profiler::profile_batched_gemm_reduce_impl<ck::half_t,
                                                        ck::half_t,
@@ -123,8 +122,8 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
             (StrideC < 0) ? N : StrideC,
             BatchCount);
     }
-    else if(data_type == GemmReduceDataType_t::F16_F16_F16_F32_F32 &&
-            layout == GemmMatrixLayout_t::KM_NK_MN)
+    else if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 &&
+            layout == GemmMatrixLayout::KM_NK_MN)
     {
         ck::profiler::profile_batched_gemm_reduce_impl<ck::half_t,
                                                        ck::half_t,

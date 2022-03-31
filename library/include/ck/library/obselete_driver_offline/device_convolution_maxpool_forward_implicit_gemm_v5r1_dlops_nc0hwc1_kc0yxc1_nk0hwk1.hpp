@@ -6,7 +6,7 @@
 template <typename TInWei,
           typename TAcc,
           typename TOut,
-          ck::ActivTypeEnum_t activ_type,
+          ck::ActivTypeEnum activ_type,
           typename InLengths,
           typename WeiLengths,
           typename MaxLengths,

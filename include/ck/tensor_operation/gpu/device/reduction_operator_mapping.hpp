@@ -37,11 +37,11 @@ namespace ck {
 // The boolean member "indexable" are also provided in reduce_binary_operactor for
 // easier checking by the upper-layer codes in the kernels.
 
-template <typename T, ReduceTensorOp_t Op>
+template <typename T, ReduceTensorOp Op>
 struct reduce_binary_operator;
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::ADD>
+struct reduce_binary_operator<T, ReduceTensorOp::ADD>
 {
     using opType   = reduce::Add<T>;
     using dataType = T;
@@ -50,7 +50,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::ADD>
 };
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::MUL>
+struct reduce_binary_operator<T, ReduceTensorOp::MUL>
 {
     using opType   = reduce::Mul<T>;
     using dataType = T;
@@ -59,7 +59,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::MUL>
 };
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::MIN>
+struct reduce_binary_operator<T, ReduceTensorOp::MIN>
 {
     using opType   = reduce::Min<T>;
     using dataType = T;
@@ -68,7 +68,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::MIN>
 };
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::MAX>
+struct reduce_binary_operator<T, ReduceTensorOp::MAX>
 {
     using opType   = reduce::Max<T>;
     using dataType = T;
@@ -77,7 +77,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::MAX>
 };
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::AMAX>
+struct reduce_binary_operator<T, ReduceTensorOp::AMAX>
 {
     using opType   = reduce::AMax<T>;
     using dataType = T;
@@ -86,7 +86,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::AMAX>
 };
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::AVG>
+struct reduce_binary_operator<T, ReduceTensorOp::AVG>
 {
     using opType   = reduce::Add<T>;
     using dataType = T;
@@ -95,7 +95,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::AVG>
 };
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::NORM1>
+struct reduce_binary_operator<T, ReduceTensorOp::NORM1>
 {
     using opType   = reduce::Add<T>;
     using dataType = T;
@@ -104,7 +104,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::NORM1>
 };
 
 template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp_t::NORM2>
+struct reduce_binary_operator<T, ReduceTensorOp::NORM2>
 {
     using opType   = reduce::Add<T>;
     using dataType = T;
@@ -115,7 +115,7 @@ struct reduce_binary_operator<T, ReduceTensorOp_t::NORM2>
 // The templated struct reduce_unary_operator maps the enum Ids of Reduce operators to two unary
 // functor classes.
 // The two unary functors are called before and afer the Reduction is executed respectively
-template <typename T, ReduceTensorOp_t Op, bool IsFirstReduce, bool IsLastReduce>
+template <typename T, ReduceTensorOp Op, bool IsFirstReduce, bool IsLastReduce>
 struct reduce_unary_operator
 {
     using InElementwiseOperation  = tensor_operation::element_wise::UnaryIdentic<T, T>;
@@ -123,42 +123,42 @@ struct reduce_unary_operator
 };
 
 template <typename T, bool IsFirstReduce>
-struct reduce_unary_operator<T, ReduceTensorOp_t::AVG, IsFirstReduce, true>
+struct reduce_unary_operator<T, ReduceTensorOp::AVG, IsFirstReduce, true>
 {
     using InElementwiseOperation  = tensor_operation::element_wise::UnaryIdentic<T, T>;
     using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T, true>;
 };
 
 template <typename T, bool IsLastReduce>
-struct reduce_unary_operator<T, ReduceTensorOp_t::NORM1, true, IsLastReduce>
+struct reduce_unary_operator<T, ReduceTensorOp::NORM1, true, IsLastReduce>
 {
     using InElementwiseOperation  = tensor_operation::element_wise::UnaryAbs<T, T>;
     using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T>;
 };
 
 template <typename T, bool IsLastReduce>
-struct reduce_unary_operator<T, ReduceTensorOp_t::AMAX, true, IsLastReduce>
+struct reduce_unary_operator<T, ReduceTensorOp::AMAX, true, IsLastReduce>
 {
     using InElementwiseOperation  = tensor_operation::element_wise::UnaryAbs<T, T>;
     using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T>;
 };
 
 template <typename T>
-struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, true, false>
+struct reduce_unary_operator<T, ReduceTensorOp::NORM2, true, false>
 {
     using InElementwiseOperation  = tensor_operation::element_wise::UnarySquare<T, T>;
     using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T>;
 };
 
 template <typename T>
-struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, true, true>
+struct reduce_unary_operator<T, ReduceTensorOp::NORM2, true, true>
 {
     using InElementwiseOperation  = tensor_operation::element_wise::UnarySquare<T, T>;
     using AccElementwiseOperation = tensor_operation::element_wise::UnarySqrt<T, T>;
 };
 
 template <typename T>
-struct reduce_unary_operator<T, ReduceTensorOp_t::NORM2, false, true>
+struct reduce_unary_operator<T, ReduceTensorOp::NORM2, false, true>
 {
     using InElementwiseOperation  = tensor_operation::element_wise::UnaryIdentic<T, T>;
     using AccElementwiseOperation = tensor_operation::element_wise::UnarySqrt<T, T>;

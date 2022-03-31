@@ -4,7 +4,7 @@
 namespace ck {
 
 // StaticTensor for Scalar
-template <AddressSpaceEnum_t AddressSpace,
+template <AddressSpaceEnum AddressSpace,
           typename T,
           typename TensorDesc,
           bool InvalidElementUseNumericalZeroValue,
@@ -80,7 +80,7 @@ struct StaticTensor
 };
 
 // StaticTensor for vector
-template <AddressSpaceEnum_t AddressSpace,
+template <AddressSpaceEnum AddressSpace,
           typename S,
           index_t ScalarPerVector,
           typename TensorDesc,
@@ -245,7 +245,7 @@ struct StaticTensorTupleOfVectorBuffer
     S ignored_element_scalar_;
 };
 
-template <AddressSpaceEnum_t AddressSpace,
+template <AddressSpaceEnum AddressSpace,
           typename T,
           typename TensorDesc,
           typename enable_if<TensorDesc::IsKnownAtCompileTime(), bool>::type = false>
@@ -255,7 +255,7 @@ __host__ __device__ constexpr auto make_static_tensor(TensorDesc)
 }
 
 template <
-    AddressSpaceEnum_t AddressSpace,
+    AddressSpaceEnum AddressSpace,
     typename T,
     typename TensorDesc,
     typename X,

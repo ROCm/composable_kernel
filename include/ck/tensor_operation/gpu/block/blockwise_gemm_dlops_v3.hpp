@@ -119,7 +119,7 @@ struct BlockwiseGemmDlops_km_kn_m0m1n0n1_v3
         constexpr auto a_block_mtx = ABlockDesc_E1_K1_E2{};
 
         // thread A buffer for GEMM
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize(), true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, FloatA, a_thread_mtx_.GetElementSpaceSize(), true>
             a_thread_buf;
 
         constexpr auto threadwise_gemm = ThreadwiseGemmDlops_km_kn_mn_v3<FloatA,
