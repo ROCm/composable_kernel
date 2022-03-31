@@ -422,5 +422,5 @@ int main(void)
     std::cout << "TestConv1DNHWC ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     res = TestConv3DNCDHW();
     std::cout << "TestConv3DNCDHW ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-    return 0;
+    return res ? 0 : 1;
 }
