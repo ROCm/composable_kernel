@@ -129,7 +129,6 @@ struct DeviceBatchedGemmXdl
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
             {
-                // return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, M));
                 return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
             }
         }();
@@ -159,7 +158,6 @@ struct DeviceBatchedGemmXdl
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
-                // return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, K));
                 return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
             }
         }();
@@ -185,7 +183,6 @@ struct DeviceBatchedGemmXdl
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
             {
-                // return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, M));
                 return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
             }
         }();
@@ -365,8 +362,6 @@ struct DeviceBatchedGemmXdl
 
                 block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount, c_grid_desc_m_n_, M01, N01);
             }
-            printf("b_k0_n_k1.GetElementSpaceSize() = %d\n", b_grid_desc_k0_n_k1_.GetElementSpaceSize());
-            printf("b_k0_n_k1.GetElementSize() = %d\n", b_grid_desc_k0_n_k1_.GetElementSize());
         }
 
         //  private:
