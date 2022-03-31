@@ -101,7 +101,7 @@ bool test_reduce_no_index_impl(int init_method,
     size_t invariant_total_length = out.mDesc.GetElementSize();
     size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {

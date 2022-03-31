@@ -36,7 +36,7 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            const index_t num_batches,
+            const index_t batch_count,
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -47,7 +47,7 @@ __global__ void
             const Block2CTileMap block_2_ctile_map)
 {
     const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
+        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
@@ -203,49 +203,43 @@ struct DeviceBatchedGemmXdl
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
-    struct Block2CTileMapMaker
+    static constexpr auto MakeBlock2CTileMap(index_t batch_count,
+                                             const CGridDesc_M_N& c_grid_desc_m_n,
+                                             index_t M01,
+                                             index_t N01)
     {
-        Block2CTileMapMaker(index_t num_batches) : num_batches_(num_batches) {}
+        const auto M = c_grid_desc_m_n.GetLength(I0);
+        const auto N = c_grid_desc_m_n.GetLength(I1);
 
-        __host__ __device__ constexpr auto
-        MakeBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
-        {
-            const auto M = c_grid_desc_m_n.GetLength(I0);
-            const auto N = c_grid_desc_m_n.GetLength(I1);
+        constexpr auto M1 = Number<MPerBlock>{};
+        constexpr auto N1 = Number<NPerBlock>{};
 
-            constexpr auto M1 = Number<MPerBlock>{};
-            constexpr auto N1 = Number<NPerBlock>{};
+        const auto M0 = M / M1;
+        const auto N0 = N / N1;
 
-            const auto M0 = M / M1;
-            const auto N0 = N / N1;
+        const auto M00 = M0 / M01;
+        const auto N00 = N0 / N01;
 
-            const auto M00 = M0 / M01;
-            const auto N00 = N0 / N01;
+        const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_insert_transform(batch_count),
+                           make_unmerge_transform(make_tuple(M00, M01)),
+                           make_unmerge_transform(make_tuple(N00, N01))),
+                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
 
-            const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_insert_transform(num_batches_),
-                               make_unmerge_transform(make_tuple(M00, M01)),
-                               make_unmerge_transform(make_tuple(N00, N01))),
-                    make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
+        const auto globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(batch_count, M00, N00, M01, N01))),
+                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                make_tuple(Sequence<0>{}));
 
-            const auto globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(num_batches_, M00, N00, M01, N01))),
-                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                    make_tuple(Sequence<0>{}));
+        const auto globalblockid_to_m0_n0_block_cluster_adaptor =
+            chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
+                                  globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
 
-            const auto globalblockid_to_m0_n0_block_cluster_adaptor =
-                chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                      globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
-
-            return globalblockid_to_m0_n0_block_cluster_adaptor;
-        }
-
-        private:
-        index_t num_batches_;
-    };
+        return globalblockid_to_m0_n0_block_cluster_adaptor;
+    }
 
     struct ComputeBasePtrOfStridedBatch
     {
@@ -320,8 +314,7 @@ struct DeviceBatchedGemmXdl
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using Block2CTileMap =
-        decltype(Block2CTileMapMaker{1}.MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, CGridDesc_M_N{}, 1, 1));
 
     // Argument
     struct Argument : public BaseArgument
@@ -367,8 +360,7 @@ struct DeviceBatchedGemmXdl
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
 
-                block_2_ctile_map_ =
-                    Block2CTileMapMaker{BatchCount}.MakeBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+                block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount, c_grid_desc_m_n_, M01, N01);
             }
         }
 
