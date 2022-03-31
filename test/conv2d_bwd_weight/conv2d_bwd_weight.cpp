@@ -111,12 +111,16 @@ int main(int argc, char* argv[])
             exit(1);
         }
 
-        const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
-        const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
-
-        const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
-        const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-
+        ck::conv_util::ConvParams param{2,
+                                        N,
+                                        K,
+                                        C,
+                                        {Y, X},
+                                        {Hi, Wi},
+                                        {conv_stride_h, conv_stride_w},
+                                        {conv_dilation_h, conv_dilation_w},
+                                        {in_left_pad_h, in_left_pad_w},
+                                        {in_right_pad_h, in_right_pad_w}};
         if(data_type == 1)
         {
             pass = ck::profiler::profile_conv_bwd_weight_impl<2,
@@ -130,16 +134,16 @@ int main(int argc, char* argv[])
                 init_method,
                 0,
                 1,
-                N,
-                K,
-                C,
-                std::vector<ck::index_t>{Hi, Wi},
-                std::vector<ck::index_t>{Y, X},
-                std::vector<ck::index_t>{Ho, Wo},
-                std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
-                std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
-                std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
-                std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w},
+                param.N,
+                param.K,
+                param.C,
+                param.input_spatial_lengths,
+                param.filter_spatial_lengths,
+                param.GetOutputSpatialLengths(),
+                param.conv_filter_strides,
+                param.conv_filter_dilations,
+                param.input_left_pads,
+                param.input_right_pads,
                 split_k);
         }
         else
