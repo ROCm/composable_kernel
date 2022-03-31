@@ -277,7 +277,7 @@ struct ReductionHost
                 out_indices[dst_offset] = accuIndex;
             };
 
-            std::size_t num_thread = std::thread::hardware_concurrency();
+            std::size_t num_thread = 1;
             std::size_t work_per_thread =
                 (invariant_dim_indexes.size() + num_thread - 1) / num_thread;
 
@@ -374,7 +374,7 @@ struct ReductionHost
                 out_data[dst_offset] = type_convert<OutDataType>(accuVal);
             };
 
-            std::size_t num_thread = std::thread::hardware_concurrency();
+            std::size_t num_thread = 1;
             std::size_t work_per_thread =
                 (invariant_dim_indexes.size() + num_thread - 1) / num_thread;
 

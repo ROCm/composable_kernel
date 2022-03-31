@@ -163,7 +163,7 @@ struct ParallelTensorFunctor
         return indices;
     }
 
-    void operator()(std::size_t num_thread = std::thread::hardware_concurrency()) const
+    void operator()(std::size_t num_thread = 1) const
     {
         std::size_t work_per_thread = (mN1d + num_thread - 1) / num_thread;
 
@@ -213,7 +213,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
     template <typename G>
-    void GenerateTensorValue(G g, std::size_t num_thread = std::thread::hardware_concurrency())
+    void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
         switch(mDesc.GetNumOfDimension())
         {
