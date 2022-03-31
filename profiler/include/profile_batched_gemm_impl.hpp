@@ -1,5 +1,13 @@
 #pragma once
+
 #include <memory>
+
+#include "config.hpp"
+#include "element_wise_operation.hpp"
+#include "tensor_layout.hpp"
+#include "device.hpp"
+#include "host_tensor_generator.hpp"
+#include "device_gemm.hpp"
 #include "reference_batched_gemm.hpp"
 
 namespace ck {
@@ -51,7 +59,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_batched_gemm_impl(int do_verification,
+bool profile_batched_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
                                int nrepeat,
@@ -63,6 +71,8 @@ void profile_batched_gemm_impl(int do_verification,
                                int StrideC,
                                int BatchCount = 1)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
@@ -93,7 +103,7 @@ void profile_batched_gemm_impl(int do_verification,
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
     std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;
@@ -378,12 +388,14 @@ void profile_batched_gemm_impl(int do_verification,
                 {
 
                     bf16_to_f32_(c_g_m_n_device_result, *c_f32_g_m_n_device_result);
-                    check_error(*c_f32_g_m_n_host_result, *c_f32_g_m_n_device_result);
+                    float err = check_error(*c_f32_g_m_n_host_result, *c_f32_g_m_n_device_result);
+                    pass      = pass && (err < 1E-6);
                 }
                 else
                 {
 
-                    check_error(c_g_m_n_host_result, c_g_m_n_device_result);
+                    float err = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
+                    pass      = pass && (err < 1E-6);
                 }
 
                 if(do_log)
@@ -407,6 +419,8 @@ void profile_batched_gemm_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+
+    return pass;
 }
 
 } // namespace profiler

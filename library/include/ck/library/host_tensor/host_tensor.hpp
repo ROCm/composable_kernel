@@ -73,10 +73,10 @@ struct HostTensorDescriptor
     HostTensorDescriptor() = delete;
 
     template <typename X>
-    HostTensorDescriptor(std::vector<X> lens);
+    HostTensorDescriptor(const std::vector<X>& lens);
 
     template <typename X, typename Y>
-    HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides);
+    HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides);
 
     void CalculateStrides();
 
@@ -163,7 +163,7 @@ struct ParallelTensorFunctor
         return indices;
     }
 
-    void operator()(std::size_t num_thread = std::thread::hardware_concurrency()) const
+    void operator()(std::size_t num_thread = 1) const
     {
         std::size_t work_per_thread = (mN1d + num_thread - 1) / num_thread;
 
@@ -213,7 +213,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
     template <typename G>
-    void GenerateTensorValue(G g, std::size_t num_thread = std::thread::hardware_concurrency())
+    void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
         switch(mDesc.GetNumOfDimension())
         {
@@ -285,13 +285,14 @@ struct Tensor
 };
 
 template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens) : mLens(lens)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens)
 {
     this->CalculateStrides();
 }
 
 template <typename X, typename Y>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
+                                           const std::vector<Y>& strides)
     : mLens(lens), mStrides(strides)
 {
 }

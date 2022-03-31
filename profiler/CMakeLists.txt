@@ -36,6 +36,7 @@ set(PROFILER_SOURCE
     src/profile_reduce.cpp
     src/profile_grouped_gemm.cpp
     src/profile_conv_bwd_weight.cpp
+    src/profile_batched_gemm_reduce.cpp
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
@@ -56,3 +57,4 @@ target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_grouped_gemm_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_bwd_weight_instance)
+target_link_libraries(ckProfiler PRIVATE device_batched_gemm_reduce_instance)
