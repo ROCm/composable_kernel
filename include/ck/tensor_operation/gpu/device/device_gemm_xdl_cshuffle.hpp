@@ -8,6 +8,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdl_cshuffle_v1.hpp"
+#include "tensor_operation/gpu/device/gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -434,7 +435,7 @@ struct DeviceGemm_Xdl_CShuffle
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int /* nrepeat */ = 1)
+        float Run(const Argument& arg, int nrepeat = 1)
         {
 #if 0
             {
@@ -465,6 +466,8 @@ struct DeviceGemm_Xdl_CShuffle
 
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
+            float ave_time = 0;
+
             if(has_main_k0_block_loop)
             {
                 const auto kernel = kernel_gemm_xdl_cshuffle_v1<
@@ -480,20 +483,42 @@ struct DeviceGemm_Xdl_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
-                launch_kernel(kernel,
-                              dim3(grid_size),
-                              dim3(BlockSize),
-                              0,
-                              arg.p_a_grid_,
-                              arg.p_b_grid_,
-                              arg.p_c_grid_,
-                              arg.a_element_op_,
-                              arg.b_element_op_,
-                              arg.c_element_op_,
-                              arg.a_grid_desc_ak0_m_ak1_,
-                              arg.b_grid_desc_bk0_n_bk1_,
-                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                              arg.block_2_ctile_map_);
+                if(nrepeat == 0)
+                {
+                    launch_kernel(kernel,
+                                  dim3(grid_size),
+                                  dim3(BlockSize),
+                                  0,
+                                  arg.p_a_grid_,
+                                  arg.p_b_grid_,
+                                  arg.p_c_grid_,
+                                  arg.a_element_op_,
+                                  arg.b_element_op_,
+                                  arg.c_element_op_,
+                                  arg.a_grid_desc_ak0_m_ak1_,
+                                  arg.b_grid_desc_bk0_n_bk1_,
+                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                  arg.block_2_ctile_map_);
+                }
+                else
+                {
+                    ave_time =
+                        launch_and_time_kernel(kernel,
+                                               nrepeat,
+                                               dim3(grid_size),
+                                               dim3(BlockSize),
+                                               0,
+                                               arg.p_a_grid_,
+                                               arg.p_b_grid_,
+                                               arg.p_c_grid_,
+                                               arg.a_element_op_,
+                                               arg.b_element_op_,
+                                               arg.c_element_op_,
+                                               arg.a_grid_desc_ak0_m_ak1_,
+                                               arg.b_grid_desc_bk0_n_bk1_,
+                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                               arg.block_2_ctile_map_);
+                }
             }
             else
             {
@@ -510,23 +535,45 @@ struct DeviceGemm_Xdl_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
-                launch_kernel(kernel,
-                              dim3(grid_size),
-                              dim3(BlockSize),
-                              0,
-                              arg.p_a_grid_,
-                              arg.p_b_grid_,
-                              arg.p_c_grid_,
-                              arg.a_element_op_,
-                              arg.b_element_op_,
-                              arg.c_element_op_,
-                              arg.a_grid_desc_ak0_m_ak1_,
-                              arg.b_grid_desc_bk0_n_bk1_,
-                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                              arg.block_2_ctile_map_);
+                if(nrepeat == 0)
+                {
+                    launch_kernel(kernel,
+                                  dim3(grid_size),
+                                  dim3(BlockSize),
+                                  0,
+                                  arg.p_a_grid_,
+                                  arg.p_b_grid_,
+                                  arg.p_c_grid_,
+                                  arg.a_element_op_,
+                                  arg.b_element_op_,
+                                  arg.c_element_op_,
+                                  arg.a_grid_desc_ak0_m_ak1_,
+                                  arg.b_grid_desc_bk0_n_bk1_,
+                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                  arg.block_2_ctile_map_);
+                }
+                else
+                {
+                    ave_time =
+                        launch_and_time_kernel(kernel,
+                                               nrepeat,
+                                               dim3(grid_size),
+                                               dim3(BlockSize),
+                                               0,
+                                               arg.p_a_grid_,
+                                               arg.p_b_grid_,
+                                               arg.p_c_grid_,
+                                               arg.a_element_op_,
+                                               arg.b_element_op_,
+                                               arg.c_element_op_,
+                                               arg.a_grid_desc_ak0_m_ak1_,
+                                               arg.b_grid_desc_bk0_n_bk1_,
+                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                               arg.block_2_ctile_map_);
+                }
             }
 
-            return 0;
+            return ave_time;
         }
 
         // polymorphic
