@@ -6,9 +6,9 @@
 #include "hip/hip_fp16.h"
 #endif
 
-// "Constant" address space for kernel parameter
-// FIXME: rename to CK_CONSTANT_ADDRESS_SPACE
-#define CONSTANT __attribute__((address_space(4)))
+// constant address space for kernel parameter
+// https://llvm.org/docs/AMDGPUUsage.html#address-spaces
+#define CK_CONSTANT_ADDRESS_SPACE __attribute__((address_space(4)))
 
 // launch bounds
 #define CK_USE_LAUNCH_BOUNDS 1
