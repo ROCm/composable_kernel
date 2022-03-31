@@ -120,7 +120,6 @@ HostTensorDescriptor get_output_host_ensor_descriptor(const std::vector<std::siz
     case 1: {
         return ck::conv_util::GetHostTensorDescriptor(dims, OutLayout{});
     }
-
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
     }
