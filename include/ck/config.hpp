@@ -140,7 +140,7 @@
 
 namespace ck {
 
-enum struct InMemoryDataOperationEnum_t
+enum struct InMemoryDataOperationEnum
 {
     Set,
     AtomicAdd,
@@ -148,7 +148,7 @@ enum struct InMemoryDataOperationEnum_t
 };
 
 // TODO: no longer needed, remove this
-enum struct ActivTypeEnum_t
+enum struct ActivTypeEnum
 {
     None,
     LeakyRelu,

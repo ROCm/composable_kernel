@@ -6,7 +6,7 @@
 
 namespace ck {
 
-template <AddressSpaceEnum_t BufferAddressSpace,
+template <AddressSpaceEnum BufferAddressSpace,
           typename T,
           typename ElementSpaceSize,
           bool InvalidElementUseNumericalZeroValue>
@@ -32,7 +32,7 @@ struct DynamicBuffer
     {
     }
 
-    __host__ __device__ static constexpr AddressSpaceEnum_t GetAddressSpace()
+    __host__ __device__ static constexpr AddressSpaceEnum GetAddressSpace()
     {
         return BufferAddressSpace;
     }
@@ -61,7 +61,7 @@ struct DynamicBuffer
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
-        if constexpr(GetAddressSpace() == AddressSpaceEnum_t::Global && use_amd_buffer_addressing)
+        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
@@ -105,22 +105,22 @@ struct DynamicBuffer
         }
     }
 
-    template <InMemoryDataOperationEnum_t Op,
+    template <InMemoryDataOperationEnum Op,
               typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
     __host__ __device__ void Update(index_t i, bool is_valid_element, const X& x)
     {
-        if constexpr(Op == InMemoryDataOperationEnum_t::Set)
+        if constexpr(Op == InMemoryDataOperationEnum::Set)
         {
             this->template Set<X>(i, is_valid_element, x);
         }
-        else if constexpr(Op == InMemoryDataOperationEnum_t::AtomicAdd)
+        else if constexpr(Op == InMemoryDataOperationEnum::AtomicAdd)
         {
             this->template AtomicAdd<X>(i, is_valid_element, x);
         }
-        else if constexpr(Op == InMemoryDataOperationEnum_t::Add)
+        else if constexpr(Op == InMemoryDataOperationEnum::Add)
         {
             auto tmp = this->template Get<X>(i, is_valid_element);
             this->template Set<X>(i, is_valid_element, x + tmp);
@@ -155,14 +155,14 @@ struct DynamicBuffer
         bool constexpr workaround_int8_ds_write_issue = false;
 #endif
 
-        if constexpr(GetAddressSpace() == AddressSpaceEnum_t::Global && use_amd_buffer_addressing)
+        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
             amd_buffer_store<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, element_space_size_);
         }
-        else if constexpr(GetAddressSpace() == AddressSpaceEnum_t::Lds &&
+        else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
                           is_same<typename scalar_type<remove_cvref_t<T>>::type, int8_t>::value &&
                           workaround_int8_ds_write_issue)
         {
@@ -288,7 +288,7 @@ struct DynamicBuffer
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X need to be multiple T");
 
-        static_assert(GetAddressSpace() == AddressSpaceEnum_t::Global, "only support global mem");
+        static_assert(GetAddressSpace() == AddressSpaceEnum::Global, "only support global mem");
 
 #if CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
@@ -328,14 +328,14 @@ struct DynamicBuffer
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return true; }
 };
 
-template <AddressSpaceEnum_t BufferAddressSpace, typename T, typename ElementSpaceSize>
+template <AddressSpaceEnum BufferAddressSpace, typename T, typename ElementSpaceSize>
 __host__ __device__ constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
 {
     return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true>{p, element_space_size};
 }
 
 template <
-    AddressSpaceEnum_t BufferAddressSpace,
+    AddressSpaceEnum BufferAddressSpace,
     typename T,
     typename ElementSpaceSize,
     typename X,
