@@ -71,7 +71,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
         {
             if constexpr(NumDimSpatial == 1)
             {
-                auto f_nchw = [&](auto n, auto c, auto wi) {
+                auto f_ncw = [&](auto n, auto c, auto wi) {
                     std::size_t K  = arg.weight_.mDesc.GetLengths()[0];
                     std::size_t X  = arg.weight_.mDesc.GetLengths()[2];
                     std::size_t Wo = arg.output_.mDesc.GetLengths()[2];
@@ -108,7 +108,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                     arg.input_(n, c, wi) = ck::type_convert<InDataType>(v_in);
                 };
 
-                make_ParallelTensorFunctor(f_nchw,
+                make_ParallelTensorFunctor(f_ncw,
                                            arg.input_.mDesc.GetLengths()[0],
                                            arg.input_.mDesc.GetLengths()[1],
                                            arg.input_.mDesc.GetLengths()[2])(
@@ -182,7 +182,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
             }
             else if constexpr(NumDimSpatial == 3)
             {
-                auto f_nchw = [&](auto n, auto c, auto di, auto hi, auto wi) {
+                auto f_ncdhw = [&](auto n, auto c, auto di, auto hi, auto wi) {
                     std::size_t K = arg.weight_.mDesc.GetLengths()[0];
                     std::size_t Z = arg.weight_.mDesc.GetLengths()[2];
                     std::size_t Y = arg.weight_.mDesc.GetLengths()[3];
@@ -252,7 +252,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                     arg.input_(n, c, di, hi, wi) = ck::type_convert<InDataType>(v_in);
                 };
 
-                make_ParallelTensorFunctor(f_nchw,
+                make_ParallelTensorFunctor(f_ncdhw,
                                            arg.input_.mDesc.GetLengths()[0],
                                            arg.input_.mDesc.GetLengths()[1],
                                            arg.input_.mDesc.GetLengths()[2],
