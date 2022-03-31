@@ -41,7 +41,7 @@ int test_self()
             param.conv_filter_dilations,
             param.input_left_pads,
             param.input_right_pads,
-            4);
+            2);
     }
     return pass;
 }
@@ -73,77 +73,80 @@ int main(int argc, char* argv[])
     {
         pass = test_self();
     }
-    else if(argc == 3)
-    {
-        data_type   = std::stoi(argv[1]);
-        init_method = std::stoi(argv[2]);
-    }
-    else if(argc == 19)
-    {
-        data_type   = std::stoi(argv[1]);
-        init_method = std::stoi(argv[2]);
-
-        N               = std::stoi(argv[3]);
-        K               = std::stoi(argv[4]);
-        C               = std::stoi(argv[5]);
-        Y               = std::stoi(argv[6]);
-        X               = std::stoi(argv[7]);
-        Hi              = std::stoi(argv[8]);
-        Wi              = std::stoi(argv[9]);
-        conv_stride_h   = std::stoi(argv[10]);
-        conv_stride_w   = std::stoi(argv[11]);
-        conv_dilation_h = std::stoi(argv[12]);
-        conv_dilation_w = std::stoi(argv[13]);
-        in_left_pad_h   = std::stoi(argv[14]);
-        in_left_pad_w   = std::stoi(argv[15]);
-        in_right_pad_h  = std::stoi(argv[16]);
-        in_right_pad_w  = std::stoi(argv[17]);
-        split_k         = std::stoi(argv[18]);
-    }
     else
     {
-        printf("arg1: data type (0=fp32, 1=fp16, 2= bfp16, 3= int8_t )\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3 to 17: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
-               "RightPx\n");
-        exit(1);
-    }
+        if(argc == 3)
+        {
+            data_type   = std::stoi(argv[1]);
+            init_method = std::stoi(argv[2]);
+        }
+        else if(argc == 19)
+        {
+            data_type   = std::stoi(argv[1]);
+            init_method = std::stoi(argv[2]);
 
-    const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
-    const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
+            N               = std::stoi(argv[3]);
+            K               = std::stoi(argv[4]);
+            C               = std::stoi(argv[5]);
+            Y               = std::stoi(argv[6]);
+            X               = std::stoi(argv[7]);
+            Hi              = std::stoi(argv[8]);
+            Wi              = std::stoi(argv[9]);
+            conv_stride_h   = std::stoi(argv[10]);
+            conv_stride_w   = std::stoi(argv[11]);
+            conv_dilation_h = std::stoi(argv[12]);
+            conv_dilation_w = std::stoi(argv[13]);
+            in_left_pad_h   = std::stoi(argv[14]);
+            in_left_pad_w   = std::stoi(argv[15]);
+            in_right_pad_h  = std::stoi(argv[16]);
+            in_right_pad_w  = std::stoi(argv[17]);
+            split_k         = std::stoi(argv[18]);
+        }
+        else
+        {
+            printf("arg1: data type (0=fp32, 1=fp16, 2= bfp16, 3= int8_t )\n");
+            printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+            printf("arg3 to 17: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+                   "RightPx\n");
+            exit(1);
+        }
 
-    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
-    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
+        const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
+        const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
 
-    if(data_type == 1)
-    {
-        pass = ck::profiler::profile_conv_bwd_weight_impl<2,
-                                                   ck::half_t,
-                                                   ck::half_t,
-                                                   ck::half_t,
-                                                   ck::tensor_layout::convolution::NHWC,
-                                                   ck::tensor_layout::convolution::KYXC,
-                                                   ck::tensor_layout::convolution::NHWK>(
-            1,
-            init_method,
-            0,
-            1,
-            N,
-            K,
-            C,
-            std::vector<ck::index_t>{Hi, Wi},
-            std::vector<ck::index_t>{Y, X},
-            std::vector<ck::index_t>{Ho, Wo},
-            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
-            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
-            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
-            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w},
-            split_k);
-    }
-    else
-    {
-        std::cout << "Not support data type" << std::endl;
-        return 1;
+        const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
+        const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
+
+        if(data_type == 1)
+        {
+            pass = ck::profiler::profile_conv_bwd_weight_impl<2,
+                                                              ck::half_t,
+                                                              ck::half_t,
+                                                              ck::half_t,
+                                                              ck::tensor_layout::convolution::NHWC,
+                                                              ck::tensor_layout::convolution::KYXC,
+                                                              ck::tensor_layout::convolution::NHWK>(
+                1,
+                init_method,
+                0,
+                1,
+                N,
+                K,
+                C,
+                std::vector<ck::index_t>{Hi, Wi},
+                std::vector<ck::index_t>{Y, X},
+                std::vector<ck::index_t>{Ho, Wo},
+                std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
+                std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
+                std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
+                std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w},
+                split_k);
+        }
+        else
+        {
+            std::cout << "Not support data type" << std::endl;
+            return 1;
+        }
     }
 
     if(pass)
