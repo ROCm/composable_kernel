@@ -6,35 +6,35 @@
 
 namespace ck {
 
-template <DataTypeEnum_t DataTypeEnum>
+template <DataTypeEnum DataTypeEnum>
 struct get_datatype_from_enum;
 
 template <>
-struct get_datatype_from_enum<DataTypeEnum_t::Int8>
+struct get_datatype_from_enum<DataTypeEnum::Int8>
 {
     using type = int8_t;
 };
 
 template <>
-struct get_datatype_from_enum<DataTypeEnum_t::Int32>
+struct get_datatype_from_enum<DataTypeEnum::Int32>
 {
     using type = int32_t;
 };
 
 template <>
-struct get_datatype_from_enum<DataTypeEnum_t::Half>
+struct get_datatype_from_enum<DataTypeEnum::Half>
 {
     using type = half_t;
 };
 
 template <>
-struct get_datatype_from_enum<DataTypeEnum_t::Float>
+struct get_datatype_from_enum<DataTypeEnum::Float>
 {
     using type = float;
 };
 
 template <>
-struct get_datatype_from_enum<DataTypeEnum_t::Double>
+struct get_datatype_from_enum<DataTypeEnum::Double>
 {
     using type = double;
 };
@@ -45,31 +45,31 @@ struct get_datatype_enum_from_type;
 template <>
 struct get_datatype_enum_from_type<int8_t>
 {
-    static constexpr DataTypeEnum_t value = DataTypeEnum_t::Int8;
+    static constexpr DataTypeEnum value = DataTypeEnum::Int8;
 };
 
 template <>
 struct get_datatype_enum_from_type<int32_t>
 {
-    static constexpr DataTypeEnum_t value = DataTypeEnum_t::Int32;
+    static constexpr DataTypeEnum value = DataTypeEnum::Int32;
 };
 
 template <>
 struct get_datatype_enum_from_type<half_t>
 {
-    static constexpr DataTypeEnum_t value = DataTypeEnum_t::Half;
+    static constexpr DataTypeEnum value = DataTypeEnum::Half;
 };
 
 template <>
 struct get_datatype_enum_from_type<float>
 {
-    static constexpr DataTypeEnum_t value = DataTypeEnum_t::Float;
+    static constexpr DataTypeEnum value = DataTypeEnum::Float;
 };
 
 template <>
 struct get_datatype_enum_from_type<double>
 {
-    static constexpr DataTypeEnum_t value = DataTypeEnum_t::Double;
+    static constexpr DataTypeEnum value = DataTypeEnum::Double;
 };
 
 } // namespace ck

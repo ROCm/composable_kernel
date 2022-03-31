@@ -18,10 +18,10 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddRelu     = ck::tensor_operation::element_wise::AddRelu;
 
-static constexpr auto InMemoryAtomicAdd = ck::InMemoryDataOperationEnum_t::AtomicAdd;
+static constexpr auto InMemoryAtomicAdd = ck::InMemoryDataOperationEnum::AtomicAdd;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 using device_conv2d_fwd_xdl_c_shuffle_bias_relu_atomic_add_nhwc_kyxc_nhwk_f16_instances = std::tuple<
     // clang-format off

@@ -79,8 +79,8 @@ template <typename FloatAB,
           typename CElementwiseOperation,
           typename D0ReduceOperation,
           typename D1ReduceOperation,
-          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
-          InMemoryDataOperationEnum_t DGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
@@ -363,15 +363,15 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const DGridDescriptor_MBlock_MPerBlock& d_grid_desc_mblock_mperblock,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-        auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d0_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
-        auto d1_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto d1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d1_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
@@ -399,7 +399,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<AK0, MPerBlock, AK1>,
                                               ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                               ABlockTransferThreadClusterArrangeOrder,
@@ -430,7 +430,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<BK0, NPerBlock, BK1>,
                                               BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                               BBlockTransferThreadClusterArrangeOrder,
@@ -484,10 +484,10 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
@@ -563,7 +563,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
-            auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+            auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                 static_cast<FloatCShuffle*>(p_shared),
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
@@ -632,7 +632,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                                    7,
                                                    1,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    true>{
                     c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -723,13 +723,13 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 make_naive_tensor_descriptor_packed(make_tuple(I1, Number<mreduce_per_thread>{}));
 
             // TODO: this should be implemented as a blockwise reduction
-            auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+            auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatCShuffle>(
                 c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
-            auto d0_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+            auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatCShuffle>(
                 d_reduce_thread_desc_mperblock.GetElementSpaceSize());
 
-            auto d1_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatCShuffle>(
+            auto d1_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatCShuffle>(
                 d_reduce_thread_desc_mperblock.GetElementSpaceSize());
 
             // reduce: threadwise copy from LDS to VGPR

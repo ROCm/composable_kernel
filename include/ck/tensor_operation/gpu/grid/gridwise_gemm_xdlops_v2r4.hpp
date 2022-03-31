@@ -59,7 +59,7 @@ template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename ABK0MK1GridDesc,
           typename BBK0NK1GridDesc,
           typename CMNGridDesc,
@@ -316,11 +316,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                const CElementwiseOperation& c_element_op,
                                const CBlockClusterAdaptor& c_block_cluster_adaptor)
     {
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_b_k0_m_k1_grid_desc.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_b_k0_n_k1_grid_desc.GetElementSpaceSize());
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_m0_n0_m1_n1_m2_m3_m4_n2_grid_desc.GetElementSpaceSize());
 
         const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
@@ -410,7 +410,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<1, K0PerBlock, MPerBlock, K1>,
                                               ABlockTransferThreadClusterLengths_K0_M_K1,
                                               ABlockTransferThreadClusterArrangeOrder,
@@ -440,7 +440,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<1, K0PerBlock, NPerBlock, K1>,
                                               BBlockTransferThreadClusterLengths_K0_N_K1,
                                               BBlockTransferThreadClusterArrangeOrder,
@@ -497,9 +497,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         constexpr auto a_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_a_block, a_k0_m_k1_block_desc.GetElementSpaceSize());
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_b_block, b_k0_n_k1_block_desc.GetElementSpaceSize());
 
         // preload data into LDS

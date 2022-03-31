@@ -27,7 +27,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          GemmSpecialization_t GemmSpecialization,
+          GemmSpecialization GemmSpec,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -81,7 +81,7 @@ struct DeviceGroupedGemmXdl
             }
         }();
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
         {
             const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
 
@@ -120,7 +120,7 @@ struct DeviceGroupedGemmXdl
             }
         }();
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
         {
             const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
 
@@ -155,7 +155,7 @@ struct DeviceGroupedGemmXdl
             }
         }();
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
         {
             const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
             const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
@@ -187,7 +187,7 @@ struct DeviceGroupedGemmXdl
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,

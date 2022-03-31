@@ -16,7 +16,7 @@ namespace ck {
 template <index_t BlockSize,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           typename BlockSliceLengths,
           typename ThreadClusterLengths,
           typename ThreadClusterArrangeOrder,

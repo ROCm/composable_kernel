@@ -23,7 +23,7 @@ using PassThrough     = ck::tensor_operation::element_wise::PassThrough;
 using ReduceSum       = ck::tensor_operation::element_wise::ReduceSum;
 using ReduceSquareSum = ck::tensor_operation::element_wise::ReduceSquareSum;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // c[m, n] = a[k, m] * b[k, n]
 // d0[m] = reduce0(c[m, n])

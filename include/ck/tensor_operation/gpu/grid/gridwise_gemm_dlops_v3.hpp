@@ -20,7 +20,7 @@ template <typename GridwiseGemm,
           typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
           typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
           bool HasMainE0BlockLoop,
-          ActivTypeEnum_t ActivType>
+          ActivTypeEnum ActivType>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -50,7 +50,7 @@ __global__ void
                                 c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
                                 cblockid_to_k_n_h_w_block_cluster_adaptor,
                                 integral_constant<bool, HasMainE0BlockLoop>{},
-                                integral_constant<ActivTypeEnum_t, ActivType>{});
+                                integral_constant<ActivTypeEnum, ActivType>{});
 }
 
 template <typename GridwiseGemm,
@@ -62,7 +62,7 @@ template <typename GridwiseGemm,
           typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
           typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
           bool HasMainE0BlockLoop,
-          ActivTypeEnum_t ActivType>
+          ActivTypeEnum ActivType>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -94,7 +94,7 @@ __global__ void
                                          d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                                          cblockid_to_k_n_h_w_block_cluster_adaptor,
                                          integral_constant<bool, HasMainE0BlockLoop>{},
-                                         integral_constant<ActivTypeEnum_t, ActivType>{});
+                                         integral_constant<ActivTypeEnum, ActivType>{});
 }
 
 template <typename GridwiseGemm,
@@ -106,7 +106,7 @@ template <typename GridwiseGemm,
           typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
           typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
           bool HasMainE0BlockLoop,
-          ActivTypeEnum_t ActivType>
+          ActivTypeEnum ActivType>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -140,14 +140,14 @@ __global__ void
                                        d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                                        cblockid_to_k_n_h_w_block_cluster_adaptor,
                                        integral_constant<bool, HasMainE0BlockLoop>{},
-                                       integral_constant<ActivTypeEnum_t, ActivType>{});
+                                       integral_constant<ActivTypeEnum, ActivType>{});
 }
 
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_E0_E1_K_E2,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
@@ -559,7 +559,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         constexpr auto bias_k0_k1_thread_desc =
             make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatC,
                      bias_k0_k1_thread_desc.GetElementSpaceSize(),
                      true>
@@ -602,10 +602,10 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         });
     }
 
-    template <typename CThreadBuff, typename CThreadDesc_K1_N_H2_W2, ActivTypeEnum_t activ_type_>
+    template <typename CThreadBuff, typename CThreadDesc_K1_N_H2_W2, ActivTypeEnum activ_type_>
     __device__ static void Activation(CThreadBuff& c_thread_buf,
                                       const CThreadDesc_K1_N_H2_W2&,
-                                      integral_constant<ActivTypeEnum_t, activ_type_>)
+                                      integral_constant<ActivTypeEnum, activ_type_>)
     {
         constexpr auto c_k1_n_h2_w2_thread_gemm_desc = CThreadDesc_K1_N_H2_W2{};
 
@@ -737,7 +737,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                                            I1,
                                                            Number<WoPerThread_2>{}));
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatC,
                      d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.GetElementSpaceSize(),
                      true>
@@ -783,7 +783,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             CThreadTransferSrcDstAccessOrder,
             CThreadTransferSrcDstVectorDim,
             CThreadTransferDstScalarPerVector,
-            InMemoryDataOperationEnum_t::Set,
+            InMemoryDataOperationEnum::Set,
             1,
             true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                   make_multi_index(k_block_work_id,
@@ -843,7 +843,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                                            I1,
                                                            Number<WoPerThreadx2>{}));
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatC,
                      d_k0_k1_n_h0_h1_hx_w0_w1_wx_thread_desc.GetElementSpaceSize(),
                      true>
@@ -874,7 +874,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             CThreadTransferSrcDstAccessOrder,
             CThreadTransferSrcDstVectorDim,
             CThreadTransferDstScalarPerVector,
-            InMemoryDataOperationEnum_t::Add,
+            InMemoryDataOperationEnum::Add,
             1,
             true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                   make_multi_index(k_block_work_id,
@@ -964,7 +964,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
-                                            InMemoryDataOperationEnum_t::Set,
+                                            InMemoryDataOperationEnum::Set,
                                             Sequence<I1, E1, I1, KPerBlock, E2>,
                                             ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2,
                                             ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2,
@@ -1023,11 +1023,11 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                    0,
                                    0));
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_shared_block, a_e0_e1_k0_k1_e2_block_copy_desc.GetElementSpaceSize());
 
         //// register allocation for output
-        // StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        // StaticBuffer<AddressSpaceEnum::Vgpr,
         // FloatAcc,
         // c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
         // true>
@@ -1050,7 +1050,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_global_step_hacks = BGlobalStepHacks{};
 
         // double regsiter buffer for b
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatAB,
                      b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_thread_copy_desc.GetElementSpaceSize(),
                      true>
@@ -1294,21 +1294,21 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const auto bias_k0_k1_grid_desc =
             MakeBiasK0K1GridDescriptor(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
 
-        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_global, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
-        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d_global, d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize());
-        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
         constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
 
         // register allocation for output
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatAcc,
                      c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
                      true>
@@ -1344,7 +1344,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
               typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
               typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
               bool HasMainE0BlockLoop,
-              ActivTypeEnum_t ActivType>
+              ActivTypeEnum ActivType>
     __device__ static void ConvBiasActiv(
         const FloatAB* __restrict__ p_a_global,
         const FloatAB* __restrict__ p_b_global,
@@ -1356,26 +1356,26 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
         const CBlockIdToBlockClusterAdaptor_K_N_H_W& cblockid_to_k_n_h_w_block_cluster_adaptor,
         integral_constant<bool, HasMainE0BlockLoop>,
-        integral_constant<ActivTypeEnum_t, ActivType>)
+        integral_constant<ActivTypeEnum, ActivType>)
     {
-        static constexpr auto activ_type = integral_constant<ActivTypeEnum_t, ActivType>{};
+        static constexpr auto activ_type = integral_constant<ActivTypeEnum, ActivType>{};
 
         const auto bias_k0_k1_grid_desc =
             MakeBiasK0K1GridDescriptor(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
 
-        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_global, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
-        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
         constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
 
         // register allocation for output
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatAcc,
                      c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
                      true>
@@ -1423,7 +1423,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
               typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
               typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
               bool HasMainE0BlockLoop,
-              ActivTypeEnum_t ActivType>
+              ActivTypeEnum ActivType>
     __device__ static void ConvBiasActivMaxpool(
         const FloatAB* __restrict__ p_a_global,
         const FloatAB* __restrict__ p_b_global,
@@ -1437,28 +1437,28 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx& d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
         const CBlockIdToBlockClusterAdaptor_K_N_H_W& cblockid_to_k_n_h_w_block_cluster_adaptor,
         integral_constant<bool, HasMainE0BlockLoop>,
-        integral_constant<ActivTypeEnum_t, ActivType>)
+        integral_constant<ActivTypeEnum, ActivType>)
     {
-        static constexpr auto activ_type = integral_constant<ActivTypeEnum_t, ActivType>{};
+        static constexpr auto activ_type = integral_constant<ActivTypeEnum, ActivType>{};
 
         const auto bias_k0_k1_grid_desc =
             MakeBiasK0K1GridDescriptor(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
 
-        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_global, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
-        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d_global, d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize());
-        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
         constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
 
         // register allocation for output
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatAcc,
                      c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
                      true>
@@ -1514,7 +1514,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
               typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
               typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
               bool HasMainE0BlockLoop,
-              ActivTypeEnum_t ActivType>
+              ActivTypeEnum ActivType>
     __device__ static void ConvBiasActivResizeAdd(
         const FloatAB* __restrict__ p_a_global,
         const FloatAB* __restrict__ p_b_global,
@@ -1527,26 +1527,26 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx& d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
         const CBlockIdToBlockClusterAdaptor_K_N_H_W& cblockid_to_k_n_h_w_block_cluster_adaptor,
         integral_constant<bool, HasMainE0BlockLoop>,
-        integral_constant<ActivTypeEnum_t, ActivType>)
+        integral_constant<ActivTypeEnum, ActivType>)
     {
-        static constexpr auto activ_type = integral_constant<ActivTypeEnum_t, ActivType>{};
+        static constexpr auto activ_type = integral_constant<ActivTypeEnum, ActivType>{};
 
         const auto bias_k0_k1_grid_desc =
             MakeBiasK0K1GridDescriptor(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
 
-        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto d_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d_global, d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc.GetElementSpaceSize());
-        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
         constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
 
         // register allocation for output
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatAcc,
                      c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
                      true>

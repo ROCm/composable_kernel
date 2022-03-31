@@ -3,7 +3,7 @@
 
 #include "common_header.hpp"
 
-#if CK_USE_DYNAMICALLY_INDEXED_MULTI_INDEX
+#if CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX
 #include "array_multi_index.hpp"
 #else
 #include "statically_indexed_array_multi_index.hpp"

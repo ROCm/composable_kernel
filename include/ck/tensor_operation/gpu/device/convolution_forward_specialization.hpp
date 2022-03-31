@@ -7,7 +7,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-enum struct ConvolutionForwardSpecialization_t
+enum struct ConvolutionForwardSpecialization
 {
     Default,
     Filter1x1Pad0,
@@ -15,14 +15,14 @@ enum struct ConvolutionForwardSpecialization_t
     OddC,
 };
 
-inline std::string getConvFwdSpecializationStr(const ConvolutionForwardSpecialization_t& s)
+inline std::string getConvFwdSpecializationStr(const ConvolutionForwardSpecialization& s)
 {
     switch(s)
     {
-    case ConvolutionForwardSpecialization_t::Default: return "Default";
-    case ConvolutionForwardSpecialization_t::Filter1x1Pad0: return "Filter1x1Pad0";
-    case ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
-    case ConvolutionForwardSpecialization_t::OddC: return "OddC";
+    case ConvolutionForwardSpecialization::Default: return "Default";
+    case ConvolutionForwardSpecialization::Filter1x1Pad0: return "Filter1x1Pad0";
+    case ConvolutionForwardSpecialization::Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
+    case ConvolutionForwardSpecialization::OddC: return "OddC";
     default: return "Unrecognized specialization!";
     }
 }

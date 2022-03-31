@@ -476,7 +476,7 @@ struct MfmaSelector
     template <>
     static constexpr auto GetMfma<bhalf_t, 32, 32>()
     {
-#if defined(CK_AMD_GPU_GFX90A)
+#if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_32x32x8bf16_1k;
 #else
         return MfmaInstr::mfma_f32_32x32x4bf16;
@@ -486,7 +486,7 @@ struct MfmaSelector
     template <>
     static constexpr auto GetMfma<bhalf_t, 16, 16>()
     {
-#if defined(CK_AMD_GPU_GFX90A)
+#if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
 #else
         return MfmaInstr::mfma_f32_16x16x8bf16;

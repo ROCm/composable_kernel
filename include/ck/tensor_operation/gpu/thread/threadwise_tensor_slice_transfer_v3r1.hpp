@@ -48,7 +48,7 @@ struct lambda_scalar_per_access_for_src_and_dst
 template <typename SliceLengths,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           typename SrcData,
           typename DstData,
           typename SrcDesc,
@@ -110,8 +110,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                             const SrcBuffer& src_buf,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
-                          SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
+        static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Global or
+                          SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
                       "wrong!");
 
         static_assert(
@@ -271,7 +271,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         static_ford<SliceLengths>{}([&](auto idx) {
             // convert from SrcData to DstData here
             dst_thread_scratch_(idx) =
-                type_convert<DstData>(src_thread_scratch_tuple[thread_scratch_id][idx]);
+                type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
         });
 #else
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
@@ -361,8 +361,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // TODO move this elsewhere
         TransferDataFromSrcThreadScratchToDstThreadScratch(thread_scratch_id);
 
-        static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
-                          DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
+        static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Global or
+                          DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
                       "wrong!");
 
         static_assert(
@@ -763,13 +763,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
-    using SrcThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
+    using SrcThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                                              SrcData,
                                                              SrcScalarPerVector,
                                                              decltype(src_thread_scratch_desc_),
                                                              true>;
 
-    using DstThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum_t::Vgpr,
+    using DstThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                                              DstData,
                                                              DstScalarPerVector,
                                                              decltype(dst_thread_scratch_desc_),

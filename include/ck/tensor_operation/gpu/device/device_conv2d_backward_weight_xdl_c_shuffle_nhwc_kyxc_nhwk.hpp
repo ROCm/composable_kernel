@@ -209,7 +209,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -250,7 +250,7 @@ struct DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::AtomicAdd,
+        InMemoryDataOperationEnum::AtomicAdd,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,

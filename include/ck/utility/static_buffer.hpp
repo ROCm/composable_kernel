@@ -6,7 +6,7 @@
 namespace ck {
 
 // static buffer for scalar
-template <AddressSpaceEnum_t AddressSpace,
+template <AddressSpaceEnum AddressSpace,
           typename T,
           index_t N,
           bool InvalidElementUseNumericalZeroValue> // TODO remove this bool, no longer needed
@@ -17,10 +17,7 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
 
     __host__ __device__ constexpr StaticBuffer() : base{} {}
 
-    __host__ __device__ static constexpr AddressSpaceEnum_t GetAddressSpace()
-    {
-        return AddressSpace;
-    }
+    __host__ __device__ static constexpr AddressSpaceEnum GetAddressSpace() { return AddressSpace; }
 
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 
@@ -42,7 +39,7 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
 };
 
 // static buffer for vector
-template <AddressSpaceEnum_t AddressSpace,
+template <AddressSpaceEnum AddressSpace,
           typename S,
           index_t NumOfVector,
           index_t ScalarPerVector,
@@ -59,10 +56,7 @@ struct StaticBufferTupleOfVector
 
     __host__ __device__ constexpr StaticBufferTupleOfVector() : base{} {}
 
-    __host__ __device__ static constexpr AddressSpaceEnum_t GetAddressSpace()
-    {
-        return AddressSpace;
-    }
+    __host__ __device__ static constexpr AddressSpaceEnum GetAddressSpace() { return AddressSpace; }
 
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 
@@ -158,7 +152,7 @@ struct StaticBufferTupleOfVector
     }
 };
 
-template <AddressSpaceEnum_t AddressSpace, typename T, index_t N>
+template <AddressSpaceEnum AddressSpace, typename T, index_t N>
 __host__ __device__ constexpr auto make_static_buffer(Number<N>)
 {
     return StaticBuffer<AddressSpace, T, N, true>{};
