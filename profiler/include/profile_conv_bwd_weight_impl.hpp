@@ -97,13 +97,9 @@ bool profile_conv_bwd_weight_impl(int do_verification,
         out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         break;
-    case 2:
+    default:
         out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{1});
-        break;
-    default:
-        out_n_k_ho_wo.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
-        in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{-0.5, 0.5});
     }
 
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
@@ -236,14 +232,15 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                 wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
                 float max_error = check_error(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
-                if(max_error < 1e-5)
+                if(max_error <= 8)
                 {
-                    std::cout << "conv2d bwd weight: Pass "  <<" Tuning info:" << conv_ptr->GetTypeString() << std::endl;
-                    pass = false;
+                    std::cout << "conv2d bwd weight: Pass " << std::endl;
                 }
                 else
                 {
-                    std::cout << "conv2d bwd weight: Fail" << std::endl;
+                    pass = false;
+                    std::cout << "conv2d bwd weight: Fail"
+                              << " Tuning info:" << conv_ptr->GetTypeString() << std::endl;
                 }
 
                 if(do_log)
@@ -265,7 +262,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
-    
+
     return pass;
 }
 

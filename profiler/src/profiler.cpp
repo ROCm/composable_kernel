@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
                "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
                "                        grouped_gemm: Grouped Gemm\n"
                "                        reduce: REDUCE\n"
-               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n"););
+               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
         // clang-format on
 
         return 0;
