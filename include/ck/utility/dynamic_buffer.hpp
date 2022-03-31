@@ -53,7 +53,7 @@ struct DynamicBuffer
         constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
-                      "wrong! X need to be multiple T");
+                      "wrong! X should contain multiple T");
 
 #if CK_USE_AMD_BUFFER_LOAD
         bool constexpr use_amd_buffer_addressing = true;
@@ -141,7 +141,7 @@ struct DynamicBuffer
         constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
-                      "wrong! X need to be multiple T");
+                      "wrong! X should contain multiple T");
 
 #if CK_USE_AMD_BUFFER_STORE
         bool constexpr use_amd_buffer_addressing = true;
@@ -286,7 +286,7 @@ struct DynamicBuffer
         constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
-                      "wrong! X need to be multiple T");
+                      "wrong! X should contain multiple T");
 
         static_assert(GetAddressSpace() == AddressSpaceEnum::Global, "only support global mem");
 
