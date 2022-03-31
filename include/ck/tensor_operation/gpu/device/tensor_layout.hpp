@@ -1,5 +1,4 @@
-#ifndef TENSOR_LAYOUT_HPP
-#define TENSOR_LAYOUT_HPP
+#pragma once
 
 namespace ck {
 namespace tensor_layout {
@@ -128,4 +127,3 @@ std::ostream& operator<<(std::ostream& os, const Layout&)
 
 } // namespace tensor_layout
 } // namespace ck
-#endif

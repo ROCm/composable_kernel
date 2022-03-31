@@ -1,5 +1,7 @@
 #pragma once
 #include <iostream>
+#include <vector>
+
 #include "device_base.hpp"
 
 namespace ck {
