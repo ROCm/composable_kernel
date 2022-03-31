@@ -79,7 +79,9 @@ struct GridwiseGemmPipeline_v1<1>
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
+#if !CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
                 block_sync_lds();
+#endif // !CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
 
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
