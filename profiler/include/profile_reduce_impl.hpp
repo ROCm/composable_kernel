@@ -242,7 +242,7 @@ void profile_reduce_impl_impl(bool do_verification,
         size_t invariant_total_length = out.mDesc.GetElementSize();
         size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
 
-        std::size_t num_thread = std::thread::hardware_concurrency();
+        std::size_t num_thread = 1;
 
         if(do_verification)
         {

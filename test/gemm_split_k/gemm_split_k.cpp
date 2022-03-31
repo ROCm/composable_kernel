@@ -120,7 +120,7 @@ int test_gemm(const gemmArgs& args)
         f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
 
     // init data
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     a_m_k.GenerateTensorValue(GeneratorTensor_2<float>{-5, 5}, num_thread);
     b_k_n.GenerateTensorValue(GeneratorTensor_2<float>{-5, 5}, num_thread);
     // set zero to c_device_buf

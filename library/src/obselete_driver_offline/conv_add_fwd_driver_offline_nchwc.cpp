@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
     print_array("ConvStrides", make_tuple(conv_stride_h, conv_stride_w));
     print_array("ConvDilations", make_tuple(conv_dilation_h, conv_dilation_w));
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {
