@@ -26,8 +26,7 @@
 #endif
 #endif
 
-// buffer resourse
-// wave size
+// buffer resourse, wave size
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
 #define CK_GPU_WAVE_SIZE -1
@@ -134,9 +133,7 @@
 
 // workaround for verification failure ConvNd forward
 // https://github.com/ROCmSoftwarePlatform/composable_kernel/issues/135
-#ifndef CK_WORKAROUND_GITHUB_135
 #define CK_WORKAROUND_GITHUB_135 1
-#endif
 
 namespace ck {
 
