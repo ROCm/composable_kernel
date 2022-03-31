@@ -25,7 +25,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ConvolutionBackwardDataSpecialization_t ConvBackwardDataSpecialization,
+          ConvolutionBackwardDataSpecialization ConvBackwardDataSpecialization,
           ck::index_t NumDimSpatial,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -116,7 +116,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         const auto in_n_wi_c_grid_desc = make_naive_tensor_descriptor_packed(make_tuple(N, Wi, C));
 
         if constexpr(ConvBackwardDataSpecialization ==
-                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
             // A: output tensor
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
@@ -336,7 +336,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
         if constexpr(ConvBackwardDataSpecialization ==
-                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
             // A: output tensor
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
@@ -618,7 +618,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             make_naive_tensor_descriptor_packed(make_tuple(N, Di, Hi, Wi, C));
 
         if constexpr(ConvBackwardDataSpecialization ==
-                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
             // A: output tensor
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
@@ -959,7 +959,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -1385,7 +1385,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
     static bool IsSupportedArgument(const Argument& arg)
     {
         if constexpr(ConvBackwardDataSpecialization ==
-                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 pad = 0 conv
             for(int i = 0; i < NumDimSpatial; i++)
@@ -1527,7 +1527,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             << K0PerBlock
             << ">";
         if constexpr(ConvBackwardDataSpecialization ==
-                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0){
+                     ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0){
             
             str<< " Filter1x1Stride1Pad0";
         }

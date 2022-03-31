@@ -171,7 +171,7 @@ void device_convolution_backward_weight_implicit_gemm_v4r4r2_xdlops_atomic_nchw_
                                 TIn,
                                 TAcc,
                                 TWei,
-                                InMemoryDataOperationEnum_t::AtomicAdd,
+                                InMemoryDataOperationEnum::AtomicAdd,
                                 decltype(out_gemmk0_gemmm_gemmk1_grid_desc),
                                 decltype(in_gemmk0_gemmn_gemmk1_grid_desc),
                                 decltype(wei_gemmm_gemmn_grid_desc),
