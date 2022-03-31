@@ -261,7 +261,7 @@ int main(int argc, char* argv[])
     float alpha = args.scales[0];
     float beta  = args.scales[1];
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     if(args.do_verification)
     {
