@@ -54,17 +54,18 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using AType = float;
 using BType = float;
 using CType = float;
+#define NTStore false
 
 template <typename ALayout, typename BLayout>
 using thread_gemm_avx2_mxn_6x16_instances = std::tuple<
     // clang-format off
     //                                        FloatA FloatB FloatC  ALayout  BLayout NTStore
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, false)
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore),
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore),
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore),
+    ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore)
 
-    // ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(AType, BType, CType,    ALayout,    BLayout, false)
+    // ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(AType, BType, CType,    ALayout,    BLayout, NTStore)
     // clang-format on
     >;
 
@@ -72,10 +73,10 @@ template <typename ALayout, typename BLayout>
 using thread_gemm_avx2_mxn_4x24_instances = std::tuple<
     // clang-format off
     //                                        FloatA FloatB FloatC  ALayout  BLayout NTStore
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false),
-    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, false)
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore),
+    ITERATE_THREAD_GEMM_AVX2_MXN_4X24_INSTANCE( AType, BType, CType, ALayout, BLayout, NTStore)
     // clang-format on
     >;
 
@@ -306,8 +307,10 @@ void test_ukernel(ukenrel_t uk,
 
 #pragma omp parallel reduction(+ : us)
     {
-        int tid          = omp_get_thread_num();
-        float* private_c = reinterpret_cast<float*>(malloc(m * n * sizeof(float)));
+        int tid = omp_get_thread_num();
+        DeviceAlignedMemCPU private_c_mem(m * n * sizeof(float), 32);
+        float* private_c = reinterpret_cast<float*>(private_c_mem.mpDeviceBuf);
+        // float * private_c    = mat_c + tid * m * n;
 
         ck::cpu::ThreadwiseGemmParam param;
         param.p_a   = mat_a;
@@ -343,7 +346,6 @@ void test_ukernel(ukenrel_t uk,
         invoke_uk(param, private_c);
 
         memcpy(mat_c + tid * m * n, private_c, m * n * sizeof(float));
-        free(private_c);
     }
 
     us = us / max_threads;
