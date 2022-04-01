@@ -44,7 +44,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+          ConvolutionForwardSpecialization ConvForwardSpecialization,
           ck::index_t NumDimSpatial,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -142,7 +142,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const index_t ConvStrideW = conv_filter_strides[0];
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
@@ -156,7 +156,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             const auto in_n_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Wi, C));
@@ -262,7 +262,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const index_t ConvStrideW = conv_filter_strides[1];
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
@@ -276,7 +276,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             const auto in_n_hi_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
@@ -348,6 +348,155 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                                        make_merge_transform(make_tuple(N, Ho, Wo))),
                                             make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}),
                                             make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
+                in_gemmk_gemmmraw_grid_desc,
+                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
+                           make_pass_through_transform(gemm_m)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            // in_gemmk0_gemmm_gemmk1_grid_desc
+            return transform_tensor_descriptor(
+                in_gemmk0_gemmmraw_gemmk1_grid_desc,
+                make_tuple(make_pass_through_transform(gemm_k0),
+                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                           make_pass_through_transform(GemmK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+        }
+    }
+
+    template <ck::index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
+    static auto GetInputTensorDescriptor(ck::index_t N,
+                                         ck::index_t C,
+                                         ck::index_t gemm_m,
+                                         ck::index_t gemm_k,
+                                         ck::index_t gemm_m_pad,
+                                         const std::vector<ck::index_t>& input_spatial_lengths,
+                                         const std::vector<ck::index_t>& filter_spatial_lengths,
+                                         const std::vector<ck::index_t>& output_spatial_lengths,
+                                         const std::vector<ck::index_t>& conv_filter_strides,
+                                         const std::vector<ck::index_t>& conv_filter_dilations,
+                                         const std::vector<ck::index_t>& input_left_pads,
+                                         const std::vector<ck::index_t>& input_right_pads)
+    {
+        const ck::index_t gemm_k0 = gemm_k / GemmK1Number;
+        const index_t Di          = input_spatial_lengths[0];
+        const index_t Hi          = input_spatial_lengths[1];
+        const index_t Wi          = input_spatial_lengths[2];
+
+        const index_t Do = output_spatial_lengths[0];
+        const index_t Ho = output_spatial_lengths[1];
+        const index_t Wo = output_spatial_lengths[2];
+
+        const index_t ConvStrideD = conv_filter_strides[0];
+        const index_t ConvStrideH = conv_filter_strides[1];
+        const index_t ConvStrideW = conv_filter_strides[2];
+
+        if constexpr(ConvForwardSpecialization ==
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        {
+            const auto in_gemmmraw_gemmk_grid_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
+
+            // in_gemmk0_gemmm_gemmk1_grid_desc
+            return transform_tensor_descriptor(
+                in_gemmmraw_gemmk_grid_desc,
+                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
+                           make_right_pad_transform(gemm_m, gemm_m_pad)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else if constexpr(ConvForwardSpecialization ==
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
+        {
+            const auto in_n_di_hi_wi_c_grid_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(N, Di, Hi, Wi, C));
+
+            const auto in_n_do_ho_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_di_hi_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_embed_transform(make_tuple(Do), make_tuple(ConvStrideD)),
+                           make_embed_transform(make_tuple(Ho), make_tuple(ConvStrideH)),
+                           make_embed_transform(make_tuple(Wo), make_tuple(ConvStrideW)),
+                           make_pass_through_transform(C)),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+            const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
+                in_n_do_ho_wo_c_grid_desc,
+                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
+                           make_merge_transform(make_tuple(N, Do, Ho, Wo))),
+                make_tuple(Sequence<4>{}, Sequence<0, 1, 2, 3>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+            // in_gemmk0_gemmm_gemmk1_grid_desc
+            return transform_tensor_descriptor(
+                in_gemmk0_gemmmraw_gemmk1_grid_desc,
+                make_tuple(make_pass_through_transform(gemm_k0),
+                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                           make_pass_through_transform(GemmK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+        }
+        else
+        {
+            const index_t Z = filter_spatial_lengths[0];
+            const index_t Y = filter_spatial_lengths[1];
+            const index_t X = filter_spatial_lengths[2];
+
+            const index_t ConvDilationD = conv_filter_dilations[0];
+            const index_t ConvDilationH = conv_filter_dilations[1];
+            const index_t ConvDilationW = conv_filter_dilations[2];
+
+            const index_t InLeftPadD = input_left_pads[0];
+            const index_t InLeftPadH = input_left_pads[1];
+            const index_t InLeftPadW = input_left_pads[2];
+
+            const index_t InRightPadD = input_right_pads[0];
+            const index_t InRightPadH = input_right_pads[1];
+            const index_t InRightPadW = input_right_pads[2];
+
+            const auto in_n_di_hi_wi_c_grid_desc =
+                make_naive_tensor_descriptor_packed(make_tuple(N, Di, Hi, Wi, C));
+
+            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
+                in_n_di_hi_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_pad_transform(Di, InLeftPadD, InRightPadD),
+                           make_pad_transform(Hi, InLeftPadH, InRightPadH),
+                           make_pad_transform(Wi, InLeftPadW, InRightPadW),
+                           make_pass_through_transform(C)),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+            const auto in_n_z_do_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N),
+                    make_embed_transform(make_tuple(Z, Do), make_tuple(ConvDilationD, ConvStrideD)),
+                    make_embed_transform(make_tuple(Y, Ho), make_tuple(ConvDilationH, ConvStrideH)),
+                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
+                    make_pass_through_transform(C)),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                make_tuple(Sequence<0>{},
+                           Sequence<1, 2>{},
+                           Sequence<3, 4>{},
+                           Sequence<5, 6>{},
+                           Sequence<7>{}));
+
+            const auto in_gemmk_gemmmraw_grid_desc = transform_tensor_descriptor(
+                in_n_z_do_y_ho_x_wo_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(Z, Y, X, C)),
+                           make_merge_transform(make_tuple(N, Do, Ho, Wo))),
+                make_tuple(Sequence<1, 3, 5, 7>{}, Sequence<0, 2, 4, 6>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
 
             const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmk_gemmmraw_grid_desc,
@@ -445,6 +594,13 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1});
     }
 
+    template <ck::index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
+    static auto GetABCGridDesc()
+    {
+        return MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
+            1, 1, 1, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1});
+    }
+
     using ABCGridDescs = decltype(GetABCGridDesc<NumDimSpatial>());
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
@@ -457,7 +613,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -593,6 +749,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
+#if 0
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
@@ -605,7 +762,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
-
+#endif
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
@@ -704,8 +861,24 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // Input tensors can't be bigger than 2GB each.
+        constexpr std::size_t GB2 = 2 * 1e9;
+
+        if(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() > GB2)
+        {
+            return false;
+        }
+        if(arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() > GB2)
+        {
+            return false;
+        }
+        if(arg.c_grid_desc_m_n_.GetElementSpaceSize() > GB2)
+        {
+            return false;
+        }
+
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 conv
             for(ck::index_t i = 0; i < NumDimSpatial; ++i)
@@ -718,7 +891,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             }
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // check if it's 1x1 conv
             for(ck::index_t i = 0; i < NumDimSpatial; ++i)
@@ -851,7 +1024,8 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << getConvFwdSpecializationStr(ConvForwardSpecialization)
             << ">";
         // clang-format on
 

@@ -303,14 +303,14 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
         const auto GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
         const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
 
-        const auto YTilda = ConvStrideH / GcdStrideDilationH;
-        const auto XTilda = ConvStrideW / GcdStrideDilationW;
+        const auto YTilde = ConvStrideH / GcdStrideDilationH;
+        const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
         float ave_time = 0;
 
-        for(index_t i_ytilda = 0; i_ytilda < YTilda; ++i_ytilda)
+        for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
         {
-            for(index_t i_xtilda = 0; i_xtilda < XTilda; ++i_xtilda)
+            for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
             {
                 const auto descs =
                     transform_backward_data_convolution_into_gemm_v4r1r2_nhwc_kyxc_nhwk(
@@ -321,8 +321,8 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
                         conv_dilations,
                         in_left_pads,
                         in_right_pads,
-                        i_ytilda,
-                        i_xtilda,
+                        i_ytilde,
+                        i_xtilde,
                         Number<GemmK1>{});
 
                 const auto out_gemmk0_gemmm_gemmk1_grid_desc = descs[I0];
@@ -338,7 +338,7 @@ void device_convolution_backward_data_implicit_gemm_v4r1r2_xdlops_nhwc_kyxc_nhwk
                         TInWei,
                         TAcc,
                         TOut,
-                        InMemoryDataOperationEnum_t::Set,
+                        InMemoryDataOperationEnum::Set,
                         decltype(out_gemmk0_gemmm_gemmk1_grid_desc),
                         decltype(wei_gemmk0_gemmn_gemmk1_grid_desc),
                         decltype(in_gemmm_gemmn_grid_desc),

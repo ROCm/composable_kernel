@@ -147,21 +147,18 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
         // LDS
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
-        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global, in_grid_desc_m_k.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
-        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_global, out_grid_desc_m.GetElementSpaceSize());
 
         auto reduce_work_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_reduce_work_buffer, BlockSize);
+            make_dynamic_buffer<AddressSpaceEnum::Lds>(p_reduce_work_buffer, BlockSize);
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     AccDataType,
-                     MThreadSliceSize * KThreadSliceSize,
-                     true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = zeroVal; });
 
@@ -254,7 +251,7 @@ struct GridwiseReduction_mk_to_m_multiblock_atomic_add
                                                    Sequence<0>,
                                                    0,
                                                    OutDstVectorSize,
-                                                   InMemoryDataOperationEnum_t::AtomicAdd,
+                                                   InMemoryDataOperationEnum::AtomicAdd,
                                                    1,
                                                    true>(
                     out_grid_desc_m,

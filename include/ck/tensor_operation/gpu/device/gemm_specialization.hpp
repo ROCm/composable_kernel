@@ -5,10 +5,16 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-enum GemmSpecialization_t
+enum struct GemmSpecialization
 {
     Default,
+    MPadding,
+    NPadding,
+    KPadding,
     MNPadding,
+    MKPadding,
+    NKPadding,
+    MNKPadding,
 };
 
 } // namespace device

@@ -27,7 +27,7 @@ template <ck::index_t BlockSize,
           ck::index_t ABlockTransferDstScalarPerVector_E2,
           ck::index_t BThreadTransferSrcScalarPerVector_E2,
           ck::index_t CThreadTransferDstScalarPerVector_K,
-          ck::ActivTypeEnum_t activ_type>
+          ck::ActivTypeEnum activ_type>
 struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1_outpad
 {
     template <typename... Wei,
@@ -260,7 +260,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             FloatAB,
             FloatAcc,
             FloatC,
-            InMemoryDataOperationEnum_t::Set,
+            InMemoryDataOperationEnum::Set,
             decltype(a_e0_e1_k_e2_grid_desc),
             decltype(b_e0_e1_n_ho_wo_e2_grid_desc),
             decltype(c_k_n_hop_wop_grid_desc),

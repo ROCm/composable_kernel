@@ -51,11 +51,11 @@ struct type_mapping<ck::half_t>
 
 constexpr int Rank = 4;
 
-constexpr ReduceTensorOp_t ReduceOpId      = ReduceTensorOp_t::AVG;
-constexpr NanPropagation_t NanOpt          = NanPropagation_t::PROPAGATE_NAN;
-constexpr bool PropagateNan                = false;
-constexpr ReduceTensorIndices_t IndicesOpt = ReduceTensorIndices_t::NO_INDICES;
-constexpr bool NeedIndices                 = false;
+constexpr ReduceTensorOp ReduceOpId      = ReduceTensorOp::AVG;
+constexpr NanPropagation NanOpt          = NanPropagation::PROPAGATE_NAN;
+constexpr bool PropagateNan              = false;
+constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::NO_INDICES;
+constexpr bool NeedIndices               = false;
 
 template <typename InDataType,
           typename AccDataType,
@@ -101,7 +101,7 @@ bool test_reduce_no_index_impl(int init_method,
     size_t invariant_total_length = out.mDesc.GetElementSize();
     size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {
@@ -289,13 +289,13 @@ bool test_reduce_no_index_impl(int init_method,
         {
             reduce_util::to_f32_vector(out, out_fp32);
             reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-            single_result = test_util::check_err(
+            single_result = test::check_err(
                 out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
         }
         else
         {
             single_result =
-                test_util::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
+                test::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
         };
 
         if(!single_result)
@@ -376,13 +376,13 @@ bool test_reduce_no_index_impl(int init_method,
             {
                 reduce_util::to_f32_vector(out, out_fp32);
                 reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-                single_result = test_util::check_err(
+                single_result = test::check_err(
                     out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
             }
             else
             {
                 single_result =
-                    test_util::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
+                    test::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
             };
 
             if(!single_result)

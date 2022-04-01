@@ -45,13 +45,13 @@ __global__ void kernel_buffer_set_value(const Grid1dBufferDescType grid_1d_buffe
 
     const index_t thread_global_id = block_global_id * BlockSize + thread_local_id;
 
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, DataType, 1, true> value_buf;
+    StaticBuffer<AddressSpaceEnum::Vgpr, DataType, 1, true> value_buf;
 
     value_buf(I0) = value;
 
     constexpr auto val_buff_desc = make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
-    auto global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_global, grid_1d_buffer_desc.GetElementSpaceSize());
 
     if(thread_global_id < grid_1d_buffer_desc.GetElementSize())
@@ -65,7 +65,7 @@ __global__ void kernel_buffer_set_value(const Grid1dBufferDescType grid_1d_buffe
                                                                    Sequence<0>,
                                                                    0,
                                                                    1,
-                                                                   InMemoryDataOperationEnum_t::Set,
+                                                                   InMemoryDataOperationEnum::Set,
                                                                    1,
                                                                    true>(
             grid_1d_buffer_desc, make_multi_index(thread_global_id), PassThroughOp{});

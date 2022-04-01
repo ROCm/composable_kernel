@@ -40,9 +40,9 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 // static constexpr auto GemmMNPadding =
-// ck::tensor_operation::device::GemmSpecialization_t::MNPadding;
+// ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmXdl
@@ -169,11 +169,11 @@ int main(int argc, char* argv[])
     for(int i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize()));
+            std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpace()));
         b_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize()));
+            std::make_unique<DeviceMem>(sizeof(BDataType) * b_tensors[i].mDesc.GetElementSpace()));
         c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize()));
+            sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSpace()));
 
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());

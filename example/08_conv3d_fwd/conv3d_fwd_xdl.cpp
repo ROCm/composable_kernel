@@ -37,7 +37,7 @@ using WeiLayout = ck::tensor_layout::convolution::KZYXC;
 using OutLayout = ck::tensor_layout::convolution::NDHWK;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 using DeviceConv3dFwdInstance = ck::tensor_operation::device::
     DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K<

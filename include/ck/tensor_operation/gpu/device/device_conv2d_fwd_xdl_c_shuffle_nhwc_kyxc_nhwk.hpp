@@ -26,7 +26,7 @@ template <
     typename InElementwiseOperation,
     typename WeiElementwiseOperation,
     typename OutElementwiseOperation,
-    ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+    ConvolutionForwardSpecialization ConvForwardSpecialization,
     ck::index_t BlockSize,
     ck::index_t MPerBlock,
     ck::index_t NPerBlock,
@@ -120,7 +120,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         const auto GemmMPad = GemmM - GemmMRaw;
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         { // 1x1, stride=1, pad=0
             const index_t GemmK = Y * X * C;
             assert(GemmK % GemmK1Number == 0);
@@ -165,7 +165,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                               out_gemmm_gemmn_grid_desc);
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         { // 1x1, pad=0
             const index_t GemmK = Y * X * C;
             assert(GemmK % GemmK1Number == 0);
@@ -226,7 +226,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                               wei_gemmk0_gemmn_gemmk1_grid_desc,
                               out_gemmm_gemmn_grid_desc);
         }
-        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization_t::OddC)
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::OddC)
         { // C = odd value
             const index_t GemmKRaw = Y * X * C;
             const index_t GemmK = math::integer_least_multiple(GemmKRaw, K0PerBlock * GemmK1Number);
@@ -424,7 +424,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         AccDataType,
         CDataType, // TODO: Add ShuffleType for DeviceConv2d
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -733,7 +733,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     static bool IsSupportedArgument(const Argument& arg)
     {
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
@@ -745,7 +745,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             }
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // check if it's 1x1 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
@@ -875,7 +875,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << getConvFwdSpecializationStr(ConvForwardSpecialization)
             << ">";
         // clang-format on
 

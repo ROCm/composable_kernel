@@ -95,7 +95,7 @@ void profile_grouped_gemm_impl(int do_verification,
                   << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
                   << "]:" << c_m_n_device_results[i].mDesc << std::endl;
 
-        std::size_t num_thread = std::thread::hardware_concurrency();
+        std::size_t num_thread = 1;
         switch(init_method)
         {
         case 0: break;
@@ -145,12 +145,12 @@ void profile_grouped_gemm_impl(int do_verification,
     for(int i = 0; i < group_count; i++)
     {
         a_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSize()));
+            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
         b_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSize()));
+            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace()));
 
         c_device_buf.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSize()));
+            sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpace()));
 
         a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());

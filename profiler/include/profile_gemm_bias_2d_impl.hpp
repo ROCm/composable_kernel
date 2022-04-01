@@ -7,7 +7,7 @@
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
-#include "device_gemm.hpp"
+#include "device_gemm_bias.hpp"
 #include "reference_gemm_bias_2d.hpp"
 
 namespace ck {
@@ -98,7 +98,7 @@ void profile_gemm_bias_2d_impl(int do_verification,
     std::cout << "c0_m_n: " << c0_m_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;

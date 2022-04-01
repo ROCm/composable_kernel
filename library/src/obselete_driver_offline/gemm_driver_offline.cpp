@@ -30,7 +30,7 @@
 #define USE_GEMM_XDL_KM_KN_NM 0
 #define USE_GEMM_XDL_KM_NK_NM 0
 
-enum GemmMatrixLayout
+enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
     MK_NK_MN, // 1
@@ -42,7 +42,7 @@ enum GemmMatrixLayout
     KM_NK_NM  // 7
 };
 
-enum GemmAlgo
+enum struct GemmAlgo
 {
     Xdl_MK_KN_MN, // 0
     Xdl_MK_NK_MN, // 1
@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
     ostream_HostTensorDescriptor(b.mDesc, std::cout << "b: ");
     ostream_HostTensorDescriptor(c_host.mDesc, std::cout << "c: ");
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {

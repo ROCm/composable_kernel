@@ -25,7 +25,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+          ConvolutionForwardSpecialization ConvForwardSpecialization,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -119,7 +119,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const index_t GemmK0 = GemmK / GemmK1Number;
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // A: input tensor
             const auto in_gemmmraw_gemmk_grid_desc =
@@ -159,7 +159,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                               out_gemmm_gemmn_grid_desc);
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // A: input tensor
             const auto in_n_hi_wi_c_grid_desc =
@@ -316,7 +316,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -466,7 +466,6 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
 #endif
-
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
@@ -566,7 +565,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     static bool IsSupportedArgument(const Argument& arg)
     {
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
@@ -578,7 +577,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             }
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // check if it's 1x1 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
@@ -708,7 +707,8 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << getConvFwdSpecializationStr(ConvForwardSpecialization)
             << ">";
         // clang-format on
 

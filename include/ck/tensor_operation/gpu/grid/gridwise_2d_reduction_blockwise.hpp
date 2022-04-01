@@ -232,21 +232,18 @@ struct GridwiseReduction_mk_to_m_blockwise
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
 
-        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global, in_grid_desc_m_k.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
-        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_global, out_grid_desc_m.GetElementSpaceSize());
 
         auto reduce_work_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_reduce_work_buffer, BlockSize);
+            make_dynamic_buffer<AddressSpaceEnum::Lds>(p_reduce_work_buffer, BlockSize);
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     AccDataType,
-                     MThreadSliceSize * KThreadSliceSize,
-                     true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = zeroVal; });
 
@@ -329,7 +326,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             {
                 if(!float_equal_zero{}(beta))
                 {
-                    StaticBuffer<AddressSpaceEnum_t::Vgpr, OutDataType, MThreadSliceSize, true>
+                    StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true>
                         priorDstValueBuf;
 
                     auto threadwise_dst_load =
@@ -369,7 +366,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    Sequence<0>,
                                                    0,
                                                    OutDstVectorSize,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    true>(
                     out_grid_desc_m,
@@ -415,33 +412,29 @@ struct GridwiseReduction_mk_to_m_blockwise
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
 
-        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global, in_grid_desc_m_k.GetElementSpaceSize(), type_convert<InDataType>(zeroVal));
-        auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_global, out_grid_desc_m.GetElementSpaceSize());
-        auto out_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto out_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_indices_global, out_grid_desc_m.GetElementSpaceSize());
 
         auto reduce_work_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_reduce_work_val_buffer, BlockSize);
+            make_dynamic_buffer<AddressSpaceEnum::Lds>(p_reduce_work_val_buffer, BlockSize);
         auto reduce_work_idx_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_reduce_work_idx_buffer, BlockSize);
+            make_dynamic_buffer<AddressSpaceEnum::Lds>(p_reduce_work_idx_buffer, BlockSize);
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     AccDataType,
-                     MThreadSliceSize * KThreadSliceSize,
-                     true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_val_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      IndexDataType,
                      MThreadSliceSize * KThreadSliceSize,
                      true>
             in_thread_idx_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, IndexDataType, MThreadSliceSize, true>
-            accu_index_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, IndexDataType, MThreadSliceSize, true> accu_index_buf;
 
         const auto toReduceLength = in_grid_desc_m_k.GetLength(Number<1>{});
 
@@ -550,7 +543,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             {
                 if(!float_equal_zero{}(beta))
                 {
-                    StaticBuffer<AddressSpaceEnum_t::Vgpr, OutDataType, MThreadSliceSize, true>
+                    StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true>
                         priorDstValueBuf;
 
                     auto threadwise_dst_load =
@@ -590,7 +583,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    Sequence<0>,
                                                    0,
                                                    OutDstVectorSize,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    false>(
                     out_grid_desc_m,
@@ -608,7 +601,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    Sequence<0>,
                                                    0,
                                                    OutDstVectorSize,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    false>(
                     out_grid_desc_m,
@@ -667,36 +660,32 @@ struct GridwiseReduction_mk_to_m_blockwise
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
 
         const auto src_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Global>(p_ws_values_global,
-                                                            in_grid_desc_m_k.GetElementSpaceSize(),
-                                                            type_convert<InDataType>(zeroVal));
-        const auto src_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+            make_dynamic_buffer<AddressSpaceEnum::Global>(p_ws_values_global,
+                                                          in_grid_desc_m_k.GetElementSpaceSize(),
+                                                          type_convert<InDataType>(zeroVal));
+        const auto src_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_ws_indices_global, in_grid_desc_m_k.GetElementSpaceSize());
-        auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_global, out_grid_desc_m.GetElementSpaceSize());
-        auto out_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto out_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_indices_global, out_grid_desc_m.GetElementSpaceSize());
 
         auto reduce_work_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_reduce_work_val_buffer, BlockSize);
+            make_dynamic_buffer<AddressSpaceEnum::Lds>(p_reduce_work_val_buffer, BlockSize);
         auto reduce_work_idx_buf =
-            make_dynamic_buffer<AddressSpaceEnum_t::Lds>(p_reduce_work_idx_buffer, BlockSize);
+            make_dynamic_buffer<AddressSpaceEnum::Lds>(p_reduce_work_idx_buffer, BlockSize);
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     AccDataType,
-                     MThreadSliceSize * KThreadSliceSize,
-                     true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_val_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      IndexDataType,
                      MThreadSliceSize * KThreadSliceSize,
                      true>
             in_thread_idx_buf;
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, IndexDataType, MThreadSliceSize, true>
-            accu_index_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, IndexDataType, MThreadSliceSize, true> accu_index_buf;
 
         const auto toReduceLength = in_grid_desc_m_k.GetLength(Number<1>{});
 
@@ -813,7 +802,7 @@ struct GridwiseReduction_mk_to_m_blockwise
             {
                 if(!float_equal_zero{}(beta))
                 {
-                    StaticBuffer<AddressSpaceEnum_t::Vgpr, OutDataType, MThreadSliceSize, true>
+                    StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true>
                         priorDstValueBuf;
 
                     auto threadwise_dst_load =
@@ -853,7 +842,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    Sequence<0>,
                                                    0,
                                                    OutDstVectorSize,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    true>(
                     out_grid_desc_m,
@@ -871,7 +860,7 @@ struct GridwiseReduction_mk_to_m_blockwise
                                                    Sequence<0>,
                                                    0,
                                                    OutDstVectorSize,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    true>(
                     out_grid_desc_m,
