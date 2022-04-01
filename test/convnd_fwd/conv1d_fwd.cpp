@@ -149,4 +149,6 @@ int main()
     res = TestConv1DNWCInt8Instances();
     std::cout << "\nTestConv1DNWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
+
+    return res ? 0 : 1;
 }

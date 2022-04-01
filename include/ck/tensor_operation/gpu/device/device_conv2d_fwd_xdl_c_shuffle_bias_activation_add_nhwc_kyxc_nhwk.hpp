@@ -27,7 +27,7 @@ template <
     typename InElementwiseOperation,
     typename WeiElementwiseOperation,
     typename OutElementwiseOperation,
-    ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+    ConvolutionForwardSpecialization ConvForwardSpecialization,
     ck::index_t BlockSize,
     ck::index_t MPerBlock,
     ck::index_t NPerBlock,
@@ -125,7 +125,7 @@ struct
         const auto GemmMPad = GemmM - GemmMRaw;
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         { // 1x1, stride=1, pad=0
             const index_t GemmK = Y * X * C;
             assert(GemmK % GemmK1Number == 0);
@@ -179,7 +179,7 @@ struct
                               resi_grid_desc_gemmm_gemmn);
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         { // 1x1, pad=0
             const index_t GemmK = Y * X * C;
             assert(GemmK % GemmK1Number == 0);
@@ -249,7 +249,7 @@ struct
                               bias_grid_desc_gemmm_gemmn,
                               resi_grid_desc_gemmm_gemmn);
         }
-        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization_t::OddC)
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::OddC)
         { // C = odd value
             const index_t GemmKRaw = Y * X * C;
             const index_t GemmK = math::integer_least_multiple(GemmKRaw, K0PerBlock * GemmK1Number);
@@ -466,7 +466,7 @@ struct
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -811,7 +811,7 @@ struct
     static bool IsSupportedArgument(const Argument& arg)
     {
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
@@ -823,7 +823,7 @@ struct
             }
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // check if it's 1x1 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&

@@ -293,5 +293,5 @@ int main()
     std::cout << "\nTestConv3DNDHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
 
-    return 0;
+    return res ? 0 : 1;
 }

@@ -31,7 +31,7 @@ template <typename Src0Data,
           typename DimAccessOrder,
           index_t VectorDim,
           index_t ScalarPerVector,
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           bool Src0ResetCoordinateAfterRun,
           bool Src1ResetCoordinateAfterRun,
           bool DstResetCoordinateAfterRun>

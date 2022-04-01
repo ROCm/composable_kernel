@@ -85,7 +85,7 @@ void profile_gemm_bias_relu_impl(int do_verification,
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
     std::cout << "c0_n: " << c0_n.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;

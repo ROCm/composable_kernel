@@ -51,11 +51,11 @@ struct type_mapping<ck::half_t>
 
 constexpr int Rank = 4;
 
-constexpr ReduceTensorOp_t ReduceOpId      = ReduceTensorOp_t::AMAX;
-constexpr NanPropagation_t NanOpt          = NanPropagation_t::PROPAGATE_NAN;
-constexpr bool PropagateNan                = false;
-constexpr ReduceTensorIndices_t IndicesOpt = ReduceTensorIndices_t::FLATTENED_INDICES;
-constexpr bool NeedIndices                 = true;
+constexpr ReduceTensorOp ReduceOpId      = ReduceTensorOp::AMAX;
+constexpr NanPropagation NanOpt          = NanPropagation::PROPAGATE_NAN;
+constexpr bool PropagateNan              = false;
+constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::FLATTENED_INDICES;
+constexpr bool NeedIndices               = true;
 
 template <typename InDataType,
           typename AccDataType,
@@ -99,7 +99,7 @@ bool test_reduce_with_index_impl(int init_method,
     size_t invariant_total_length = out.mDesc.GetElementSize();
     size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {

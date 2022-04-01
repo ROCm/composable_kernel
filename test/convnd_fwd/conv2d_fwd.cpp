@@ -145,5 +145,5 @@ int main()
     std::cout << "\nTestConv2DNHWCInt8Instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
 
-    return 0;
+    return res ? 0 : 1;
 }

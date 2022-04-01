@@ -15,7 +15,7 @@ namespace ck {
 // 3. Run() does not construct new tensor coordinate
 template <index_t BlockSize,
           typename ElementwiseOperation,
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           typename BlockSliceLengths,
           typename ThreadClusterLengths,
           typename ThreadClusterArrangeOrder,

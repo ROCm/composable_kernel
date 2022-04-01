@@ -44,7 +44,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+          ConvolutionForwardSpecialization ConvForwardSpecialization,
           ck::index_t NumDimSpatial,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -142,7 +142,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const index_t ConvStrideW = conv_filter_strides[0];
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
@@ -156,7 +156,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             const auto in_n_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Wi, C));
@@ -262,7 +262,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const index_t ConvStrideW = conv_filter_strides[1];
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
@@ -276,7 +276,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             const auto in_n_hi_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
@@ -395,7 +395,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         const index_t ConvStrideW = conv_filter_strides[2];
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
@@ -409,7 +409,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             const auto in_n_di_hi_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Di, Hi, Wi, C));
@@ -613,7 +613,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -878,7 +878,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         }
 
         if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 conv
             for(ck::index_t i = 0; i < NumDimSpatial; ++i)
@@ -891,7 +891,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             }
         }
         else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization_t::Filter1x1Pad0)
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // check if it's 1x1 conv
             for(ck::index_t i = 0; i < NumDimSpatial; ++i)
