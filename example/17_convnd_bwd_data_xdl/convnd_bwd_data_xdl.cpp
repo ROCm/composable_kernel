@@ -144,6 +144,25 @@ ck::utils::conv::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
     return params;
 }
 
+DeviceConvBwdDataBasePtr GetConvInstance(int num_dim_spatial)
+{
+    switch(num_dim_spatial)
+    {
+    case 3: {
+        return std::make_unique<DeviceConvNDBwdDataInstance<3>>();
+    }
+    case 2: {
+        return std::make_unique<DeviceConvNDBwdDataInstance<2>>();
+    }
+    case 1: {
+        return std::make_unique<DeviceConvNDBwdDataInstance<1>>();
+    }
+    default: {
+        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
+    }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     bool do_verification = 0;
