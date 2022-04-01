@@ -6,7 +6,7 @@
 #include <half.hpp>
 
 #include "config.hpp"
-#include "conv_utils.hpp"
+#include "conv_fwd_util.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -144,91 +144,6 @@ ck::utils::conv::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
     return params;
 }
 
-HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                  int num_dim_spatial = 2)
-{
-    namespace tl = ck::tensor_layout::convolution;
-
-    switch(num_dim_spatial)
-    {
-    case 3: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWC{});
-    }
-    case 2: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWC{});
-    }
-    case 1: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWC{});
-    }
-    default: {
-        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-    }
-    }
-}
-HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                    int num_dim_spatial = 2)
-{
-    namespace tl = ck::tensor_layout::convolution;
-
-    switch(num_dim_spatial)
-    {
-    case 3: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KZYXC{});
-    }
-    case 2: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KYXC{});
-    }
-    case 1: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KXC{});
-    }
-    default: {
-        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-    }
-    }
-}
-
-HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                   int num_dim_spatial = 2)
-{
-    namespace tl = ck::tensor_layout::convolution;
-
-    switch(num_dim_spatial)
-    {
-    case 3: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWK{});
-    }
-    case 2: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWK{});
-    }
-    case 1: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWK{});
-    }
-
-    default: {
-        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-    }
-    }
-}
-
-DeviceConvBwdDataBasePtr GetConvInstance(int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 3: {
-        return std::make_unique<DeviceConvNDBwdDataInstance<3>>();
-    }
-    case 2: {
-        return std::make_unique<DeviceConvNDBwdDataInstance<2>>();
-    }
-    case 1: {
-        return std::make_unique<DeviceConvNDBwdDataInstance<1>>();
-    }
-    default: {
-        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-    }
-    }
-}
-
 int main(int argc, char* argv[])
 {
     bool do_verification = 0;
@@ -288,11 +203,13 @@ int main(int argc, char* argv[])
                        std::end(output_spatial_lengths));
 
     Tensor<InDataType> in_n_c_hi_wi_host_result(
-        GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+        ck::utils::conv::GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
     Tensor<InDataType> in_n_c_hi_wi_device_result(
-        GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
-    Tensor<WeiDataType> wei_k_c_y_x(GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
-    Tensor<OutDataType> out_n_k_ho_wo(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+        ck::utils::conv::GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+    Tensor<WeiDataType> wei_k_c_y_x(
+        ck::utils::conv::GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
+    Tensor<OutDataType> out_n_k_ho_wo(
+        ck::utils::conv::GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
