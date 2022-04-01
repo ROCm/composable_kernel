@@ -109,5 +109,6 @@ int main(int argc, char* argv[])
                "                        reduce: REDUCE\n"
                "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
         // clang-format on
+    }
     return 0;
 }
