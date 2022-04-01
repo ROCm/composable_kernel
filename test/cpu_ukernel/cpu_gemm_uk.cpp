@@ -7,6 +7,7 @@
 #include <tuple>
 #include <memory>
 #include <half.hpp>
+#include <omp.h>
 #include "host_tensor.hpp"
 #include "device.hpp"
 #include "config.hpp"
@@ -228,22 +229,14 @@ void test_ukernel(ukenrel_t uk,
                   uint32_t n,
                   uint32_t k)
 {
-    ck::cpu::ThreadwiseGemmParam param;
-    param.p_a   = mat_a;
-    param.p_b   = mat_b;
-    param.p_c   = mat_c;
-    param.Kr    = k;
-    param.lda   = (std::is_same<Row, ALayout>::value ? k : m) * sizeof(FloatA);
-    param.ldb   = (std::is_same<Row, BLayout>::value ? n : k * 8) * sizeof(FloatB);
-    param.ldc   = n * sizeof(float);
-    param.alpha = alpha;
+    int max_threads = omp_get_max_threads();
 
-    auto invoke_uk = [&]() {
+    auto invoke_uk = [&](ck::cpu::ThreadwiseGemmParam& param, float* current_mat_c) {
         if constexpr(std::is_same<Row, ALayout>::value && std::is_same<Row, BLayout>::value)
         {
             assert(m % uk.Mr_ == 0 && n == uk.Nr_);
             FloatA* p_a = mat_a;
-            float* p_c  = mat_c;
+            float* p_c  = current_mat_c;
             param.p_a   = p_a;
             param.p_c   = p_c;
             for(uint32_t i_m = 0; i_m < m; i_m += uk.Mr_)
@@ -259,7 +252,7 @@ void test_ukernel(ukenrel_t uk,
         {
             assert(m % uk.Mr_ == 0 && n % uk.Nr_ == 0);
             FloatA* p_a = mat_a;
-            float* p_c  = mat_c;
+            float* p_c  = current_mat_c;
             param.p_a   = p_a;
             param.p_b   = mat_b;
             param.p_c   = p_c;
@@ -291,7 +284,7 @@ void test_ukernel(ukenrel_t uk,
         {
             assert(m % uk.Mr_ == 0 && n % uk.Nr_ == 0);
             FloatB* p_b = mat_b;
-            float* p_c  = mat_c;
+            float* p_c  = current_mat_c;
             param.p_b   = p_b;
             param.p_c   = p_c;
             for(uint32_t i_n = 0; i_n < n; i_n += uk.Nr_)
@@ -308,29 +301,54 @@ void test_ukernel(ukenrel_t uk,
     printf("gemm_uk_%dx%d_%c%c: ", uk.Mr_, uk.Nr_, ALayout::name[0], BLayout::name[0]);
     fflush(stdout);
     // printf("%s: ", typeid(uk).name());fflush(stdout);
-    memset(mat_c, 0, m * n * sizeof(float));
 
-    int repeat = 7e10 / (2 * m * n * k);
+    float us = .0f;
 
-    for(int i = 0; i < (repeat / 5); i++)
+#pragma omp parallel reduction(+ : us)
     {
-        invoke_uk();
+        int tid          = omp_get_thread_num();
+        float* private_c = reinterpret_cast<float*>(malloc(m * n * sizeof(float)));
+
+        ck::cpu::ThreadwiseGemmParam param;
+        param.p_a   = mat_a;
+        param.p_b   = mat_b;
+        param.p_c   = private_c;
+        param.Kr    = k;
+        param.lda   = (std::is_same<Row, ALayout>::value ? k : m) * sizeof(FloatA);
+        param.ldb   = (std::is_same<Row, BLayout>::value ? n : k * 8) * sizeof(FloatB);
+        param.ldc   = n * sizeof(float);
+        param.alpha = alpha;
+
+        memset(private_c, 0, m * n * sizeof(float));
+
+        int repeat = 7e10 / (2 * m * n * k);
+
+        for(int i = 0; i < (repeat / 5); i++)
+        {
+            invoke_uk(param, private_c);
+        }
+
+        WallTimer timer;
+
+        timer.Start();
+        for(int i = 0; i < repeat; i++)
+        {
+            invoke_uk(param, private_c);
+        }
+        timer.End();
+
+        us += timer.GetElapsedTime() * 1e3 / repeat;
+
+        memset(private_c, 0, m * n * sizeof(float));
+        invoke_uk(param, private_c);
+
+        memcpy(mat_c + tid * m * n, private_c, m * n * sizeof(float));
+        free(private_c);
     }
 
-    WallTimer timer;
+    us = us / max_threads;
 
-    timer.Start();
-    for(int i = 0; i < repeat; i++)
-    {
-        invoke_uk();
-    }
-    timer.End();
-
-    float us     = timer.GetElapsedTime() * 1e3 / repeat;
-    float gflops = static_cast<float>(2 * m * n * k) * 1e-3 / us;
-
-    memset(mat_c, 0, m * n * sizeof(float));
-    invoke_uk();
+    float gflops = static_cast<float>(2 * m * n * k * max_threads) * 1e-3 / us;
 
     printf("m:%u, n:%u, k:%u, alpha:%f, cost:%lfus, GFLOPS:%lf, ", m, n, k, alpha, us, gflops);
     fflush(stdout);
@@ -340,10 +358,11 @@ void test_ukernel(ukenrel_t uk,
 template <typename FloatA, typename FloatB, typename ALayout, typename BLayout>
 void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
 {
+    int max_threads = omp_get_max_threads();
 
     DeviceAlignedMemCPU a_mem(m * k * sizeof(FloatA), 32);
     DeviceAlignedMemCPU b_mem(k * n * sizeof(FloatB), 32);
-    DeviceAlignedMemCPU c_mem(m * n * sizeof(float), 32);
+    DeviceAlignedMemCPU c_mem(m * n * sizeof(float) * max_threads, 32);
     DeviceAlignedMemCPU c_mem_ref(m * n * sizeof(float), 32);
 
     c_mem_ref.SetZero();
@@ -409,6 +428,10 @@ int main(int argc, char** argv)
         alpha = std::atof(argv[4]);
     }
     dump_cache_hierarchy();
+    if(std::getenv("OMP_NUM_THREADS") == nullptr)
+        omp_set_num_threads(1);
+    printf("max threads:%d\n", omp_get_max_threads());
+
     test_cpu_ukernel<AType, BType, Row, Row>(alpha, m, n, k);
     test_cpu_ukernel<AType, BType, Row, Col>(alpha, m, n, k);
     test_cpu_ukernel<AType, BType, Col, Row>(alpha, m, n, k);
