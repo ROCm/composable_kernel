@@ -32,10 +32,10 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::AddRelu;
 
-static constexpr auto MemorySet = ck::InMemoryDataOperationEnum_t::Set;
+static constexpr auto MemorySet = ck::InMemoryDataOperationEnum::Set;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 // clang-format off
 using DeviceConvFwdInstance = ck::tensor_operation::device::

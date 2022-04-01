@@ -15,7 +15,7 @@ template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGlobalDesc,
           typename BGlobalDesc,
           typename CGlobalDesc,
@@ -84,11 +84,11 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         constexpr auto I2 = Number<2>{};
         constexpr auto I3 = Number<3>{};
 
-        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_global, a_e_k_global_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_global, b_e_n_ho_wo_global_desc.GetElementSpaceSize());
-        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_global, c_k_n_ho_wo_global_desc.GetElementSpaceSize());
 
         constexpr auto E = EPerBlock * 3 * 3;
@@ -181,7 +181,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         // A matrix blockwise copy
         auto a_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4<BlockSize,
-                                            InMemoryDataOperationEnum_t::Set,
+                                            InMemoryDataOperationEnum::Set,
                                             Sequence<E, KPerBlock>,
                                             ABlockTransferThreadSliceLengths_E_K,
                                             ABlockTransferThreadClusterLengths_E_K,
@@ -221,11 +221,11 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                 b_e_n_ho_wo_global_desc,
                 make_multi_index(0, 0, ho_thread_data_on_global, wo_thread_data_on_global));
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_shared_block, a_e_k_desc.GetElementSpaceSize());
 
         // register allocation for output
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatAcc,
                      c_k_n_ho_wo_thread_desc.GetElementSpaceSize(),
                      true>
@@ -250,7 +250,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             BGlobalMoveSliceWindowStepHacks{};
 
         // double regsiter buffer for b
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
+        StaticBuffer<AddressSpaceEnum::Vgpr,
                      FloatAB,
                      b_e_n_ho_wo_thread_desc.GetElementSpaceSize(),
                      true>

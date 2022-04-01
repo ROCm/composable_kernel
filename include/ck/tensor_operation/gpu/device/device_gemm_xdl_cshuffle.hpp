@@ -8,6 +8,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdl_cshuffle_v1.hpp"
+#include "tensor_operation/gpu/device/gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -24,7 +25,7 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          GemmSpecialization_t GemmSpecialization,
+          GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -84,8 +85,8 @@ struct DeviceGemm_Xdl_CShuffle
         const auto MPad = M - MRaw;
         const auto KPad = K - KRaw;
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MKPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad both M and K
             assert(K % AK1 == 0);
@@ -108,8 +109,8 @@ struct DeviceGemm_Xdl_CShuffle
 
             return a_grid_desc_ak0_m_ak1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MNPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                          GemmSpec == GemmSpecialization::MNPadding)
         {
             // pad M, but not K
             assert(KRaw % AK1 == 0);
@@ -125,8 +126,8 @@ struct DeviceGemm_Xdl_CShuffle
 
             return a_grid_desc_ak0_m_ak1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::KPadding ||
-                          GemmSpecialization == GemmSpecialization_t::NKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
+                          GemmSpec == GemmSpecialization::NKPadding)
         {
             // pad K, but not M
             assert(K % AK1 == 0);
@@ -187,8 +188,8 @@ struct DeviceGemm_Xdl_CShuffle
         const auto NPad = N - NRaw;
         const auto KPad = K - KRaw;
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::NKPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad both N and K
             assert(K % BK1 == 0);
@@ -211,8 +212,8 @@ struct DeviceGemm_Xdl_CShuffle
 
             return b_grid_desc_bk0_n_bk1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::NPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MNPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::NPadding ||
+                          GemmSpec == GemmSpecialization::MNPadding)
         {
             // pad N, but not K
             assert(KRaw % BK1 == 0);
@@ -228,8 +229,8 @@ struct DeviceGemm_Xdl_CShuffle
 
             return b_grid_desc_bk0_n_bk1;
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::KPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
+                          GemmSpec == GemmSpecialization::MKPadding)
         {
             // pad K, but not N
             assert(K % BK1 == 0);
@@ -290,8 +291,8 @@ struct DeviceGemm_Xdl_CShuffle
         const auto MPad = M - MRaw;
         const auto NPad = N - NRaw;
 
-        if constexpr(GemmSpecialization == GemmSpecialization_t::MNPadding ||
-                     GemmSpecialization == GemmSpecialization_t::MNKPadding)
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad M and N
             return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
@@ -300,8 +301,8 @@ struct DeviceGemm_Xdl_CShuffle
                                                make_tuple(Sequence<0>{}, Sequence<1>{}),
                                                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::MPadding ||
-                          GemmSpecialization == GemmSpecialization_t::MKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                          GemmSpec == GemmSpecialization::MKPadding)
         {
             // pad M, but not N
             return transform_tensor_descriptor(
@@ -310,8 +311,8 @@ struct DeviceGemm_Xdl_CShuffle
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
-        else if constexpr(GemmSpecialization == GemmSpecialization_t::NPadding ||
-                          GemmSpecialization == GemmSpecialization_t::NKPadding)
+        else if constexpr(GemmSpec == GemmSpecialization::NPadding ||
+                          GemmSpec == GemmSpecialization::NKPadding)
         {
             // pad N, but not M
             return transform_tensor_descriptor(
@@ -340,7 +341,7 @@ struct DeviceGemm_Xdl_CShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
         CGridDesc_M_N,
@@ -434,7 +435,7 @@ struct DeviceGemm_Xdl_CShuffle
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int /* nrepeat */ = 1)
+        float Run(const Argument& arg, int nrepeat = 1)
         {
 #if 0
             {
@@ -465,6 +466,8 @@ struct DeviceGemm_Xdl_CShuffle
 
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
+            float ave_time = 0;
+
             if(has_main_k0_block_loop)
             {
                 const auto kernel = kernel_gemm_xdl_cshuffle_v1<
@@ -480,20 +483,42 @@ struct DeviceGemm_Xdl_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
-                launch_kernel(kernel,
-                              dim3(grid_size),
-                              dim3(BlockSize),
-                              0,
-                              arg.p_a_grid_,
-                              arg.p_b_grid_,
-                              arg.p_c_grid_,
-                              arg.a_element_op_,
-                              arg.b_element_op_,
-                              arg.c_element_op_,
-                              arg.a_grid_desc_ak0_m_ak1_,
-                              arg.b_grid_desc_bk0_n_bk1_,
-                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                              arg.block_2_ctile_map_);
+                if(nrepeat == 0)
+                {
+                    launch_kernel(kernel,
+                                  dim3(grid_size),
+                                  dim3(BlockSize),
+                                  0,
+                                  arg.p_a_grid_,
+                                  arg.p_b_grid_,
+                                  arg.p_c_grid_,
+                                  arg.a_element_op_,
+                                  arg.b_element_op_,
+                                  arg.c_element_op_,
+                                  arg.a_grid_desc_ak0_m_ak1_,
+                                  arg.b_grid_desc_bk0_n_bk1_,
+                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                  arg.block_2_ctile_map_);
+                }
+                else
+                {
+                    ave_time =
+                        launch_and_time_kernel(kernel,
+                                               nrepeat,
+                                               dim3(grid_size),
+                                               dim3(BlockSize),
+                                               0,
+                                               arg.p_a_grid_,
+                                               arg.p_b_grid_,
+                                               arg.p_c_grid_,
+                                               arg.a_element_op_,
+                                               arg.b_element_op_,
+                                               arg.c_element_op_,
+                                               arg.a_grid_desc_ak0_m_ak1_,
+                                               arg.b_grid_desc_bk0_n_bk1_,
+                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                               arg.block_2_ctile_map_);
+                }
             }
             else
             {
@@ -510,23 +535,45 @@ struct DeviceGemm_Xdl_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
-                launch_kernel(kernel,
-                              dim3(grid_size),
-                              dim3(BlockSize),
-                              0,
-                              arg.p_a_grid_,
-                              arg.p_b_grid_,
-                              arg.p_c_grid_,
-                              arg.a_element_op_,
-                              arg.b_element_op_,
-                              arg.c_element_op_,
-                              arg.a_grid_desc_ak0_m_ak1_,
-                              arg.b_grid_desc_bk0_n_bk1_,
-                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                              arg.block_2_ctile_map_);
+                if(nrepeat == 0)
+                {
+                    launch_kernel(kernel,
+                                  dim3(grid_size),
+                                  dim3(BlockSize),
+                                  0,
+                                  arg.p_a_grid_,
+                                  arg.p_b_grid_,
+                                  arg.p_c_grid_,
+                                  arg.a_element_op_,
+                                  arg.b_element_op_,
+                                  arg.c_element_op_,
+                                  arg.a_grid_desc_ak0_m_ak1_,
+                                  arg.b_grid_desc_bk0_n_bk1_,
+                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                  arg.block_2_ctile_map_);
+                }
+                else
+                {
+                    ave_time =
+                        launch_and_time_kernel(kernel,
+                                               nrepeat,
+                                               dim3(grid_size),
+                                               dim3(BlockSize),
+                                               0,
+                                               arg.p_a_grid_,
+                                               arg.p_b_grid_,
+                                               arg.p_c_grid_,
+                                               arg.a_element_op_,
+                                               arg.b_element_op_,
+                                               arg.c_element_op_,
+                                               arg.a_grid_desc_ak0_m_ak1_,
+                                               arg.b_grid_desc_bk0_n_bk1_,
+                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                               arg.block_2_ctile_map_);
+                }
             }
 
-            return 0;
+            return ave_time;
         }
 
         // polymorphic

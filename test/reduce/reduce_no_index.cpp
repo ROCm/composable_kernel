@@ -51,11 +51,11 @@ struct type_mapping<ck::half_t>
 
 constexpr int Rank = 4;
 
-constexpr ReduceTensorOp_t ReduceOpId      = ReduceTensorOp_t::AVG;
-constexpr NanPropagation_t NanOpt          = NanPropagation_t::PROPAGATE_NAN;
-constexpr bool PropagateNan                = false;
-constexpr ReduceTensorIndices_t IndicesOpt = ReduceTensorIndices_t::NO_INDICES;
-constexpr bool NeedIndices                 = false;
+constexpr ReduceTensorOp ReduceOpId      = ReduceTensorOp::AVG;
+constexpr NanPropagation NanOpt          = NanPropagation::PROPAGATE_NAN;
+constexpr bool PropagateNan              = false;
+constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::NO_INDICES;
+constexpr bool NeedIndices               = false;
 
 template <typename InDataType,
           typename AccDataType,

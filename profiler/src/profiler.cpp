@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
                "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
                "                        gemm_reduce: GEMM+Reduce\n"
-               "                        grouped_gemm: Grouped Gemm\n"
+               "                        grouped_gemm: Grouped GEMM\n"
                "                        conv_fwd: ForwardConvolution\n"
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
@@ -106,11 +106,8 @@ int main(int argc, char* argv[])
                "                        conv1d_bwd_data: BackwardConvolution data 1 dim\n"
                "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
                "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
-               "                        grouped_gemm: Grouped Gemm\n"
                "                        reduce: REDUCE\n"
                "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
         // clang-format on
-
-        return 0;
-    }
+    return 0;
 }

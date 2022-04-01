@@ -25,7 +25,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ConvolutionBackwardDataSpecialization_t ConvBackwardDataSpecialization,
+          ConvolutionBackwardDataSpecialization ConvBackwardDataSpecialization,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -131,7 +131,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
         if constexpr(ConvBackwardDataSpecialization ==
-                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
             // A: output tensor
             const auto out_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
@@ -368,7 +368,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,
@@ -671,7 +671,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     static bool IsSupportedArgument(const Argument& arg)
     {
         if constexpr(ConvBackwardDataSpecialization ==
-                     ConvolutionBackwardDataSpecialization_t::Filter1x1Stride1Pad0)
+                     ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 pad = 0 conv
             if(!(arg.filter_spatial_lengths_[0] == 1 && arg.filter_spatial_lengths_[1] == 1 &&
