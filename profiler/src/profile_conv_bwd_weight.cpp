@@ -85,8 +85,34 @@ int profile_conv_bwd_weight(int argc, char* argv[])
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 
-    if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
+    if(data_type == ConvDataType::F32_F32_F32 && in_layout == ConvInputLayout::NHWC &&
        wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
+    {
+        ck::profiler::profile_conv_bwd_weight_impl<2,
+                                                   float,
+                                                   float,
+                                                   float,
+                                                   ck::tensor_layout::convolution::NHWC,
+                                                   ck::tensor_layout::convolution::KYXC,
+                                                   ck::tensor_layout::convolution::NHWK>(
+            do_verification,
+            init_method,
+            do_log,
+            nrepeat,
+            N,
+            K,
+            C,
+            std::vector<ck::index_t>{Hi, Wi},
+            std::vector<ck::index_t>{Y, X},
+            std::vector<ck::index_t>{Ho, Wo},
+            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
+            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
+            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
+            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w},
+            split_k);
+    }
+    else if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
+            wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
         ck::profiler::profile_conv_bwd_weight_impl<2,
                                                    ck::half_t,

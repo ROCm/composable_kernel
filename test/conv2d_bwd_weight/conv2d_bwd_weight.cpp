@@ -20,6 +20,31 @@ int test_self()
 
     for(auto& param : params)
     {
+        // f32
+        pass &= ck::profiler::profile_conv_bwd_weight_impl<2,
+                                                           float,
+                                                           float,
+                                                           float,
+                                                           ck::tensor_layout::convolution::NHWC,
+                                                           ck::tensor_layout::convolution::KYXC,
+                                                           ck::tensor_layout::convolution::NHWK>(
+            1, // do_verification,
+            1, // init_method,
+            0, // do_log,
+            1, // nrepeat,
+            param.N,
+            param.K,
+            param.C,
+            param.input_spatial_lengths,
+            param.filter_spatial_lengths,
+            param.GetOutputSpatialLengths(),
+            param.conv_filter_strides,
+            param.conv_filter_dilations,
+            param.input_left_pads,
+            param.input_right_pads,
+            2);
+
+        // fp16
         pass &= ck::profiler::profile_conv_bwd_weight_impl<2,
                                                            ck::half_t,
                                                            ck::half_t,
@@ -121,7 +146,32 @@ int main(int argc, char* argv[])
                                         {conv_dilation_h, conv_dilation_w},
                                         {in_left_pad_h, in_left_pad_w},
                                         {in_right_pad_h, in_right_pad_w}};
-        if(data_type == 1)
+        if(data_type == 0)
+        {
+            pass = ck::profiler::profile_conv_bwd_weight_impl<2,
+                                                              float,
+                                                              float,
+                                                              float,
+                                                              ck::tensor_layout::convolution::NHWC,
+                                                              ck::tensor_layout::convolution::KYXC,
+                                                              ck::tensor_layout::convolution::NHWK>(
+                1,
+                init_method,
+                0,
+                1,
+                param.N,
+                param.K,
+                param.C,
+                param.input_spatial_lengths,
+                param.filter_spatial_lengths,
+                param.GetOutputSpatialLengths(),
+                param.conv_filter_strides,
+                param.conv_filter_dilations,
+                param.input_left_pads,
+                param.input_right_pads,
+                split_k);
+        }
+        else if(data_type == 1)
         {
             pass = ck::profiler::profile_conv_bwd_weight_impl<2,
                                                               ck::half_t,

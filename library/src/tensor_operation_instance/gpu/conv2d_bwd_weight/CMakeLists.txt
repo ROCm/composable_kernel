@@ -1,6 +1,7 @@
 # device_conv2d_bwd_weight_instance
 set(DEVICE_CONV2D_BWD_WEIGHT_INSTANCE_SOURCE
    device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
+   device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
 )
 add_library(device_conv2d_bwd_weight_instance SHARED ${DEVICE_CONV2D_BWD_WEIGHT_INSTANCE_SOURCE}) 
 target_compile_features(device_conv2d_bwd_weight_instance PUBLIC)
