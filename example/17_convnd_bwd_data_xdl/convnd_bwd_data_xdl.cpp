@@ -145,7 +145,7 @@ ck::conv_util::ConvParams parse_conv_params(int num_dim_spatial, char* argv[])
 }
 
 HostTensorDescriptor get_input_host_tensor_descriptor(const std::vector<std::size_t>& dims,
-                                                  int num_dim_spatial = 2)
+                                                      int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
@@ -166,7 +166,7 @@ HostTensorDescriptor get_input_host_tensor_descriptor(const std::vector<std::siz
     }
 }
 HostTensorDescriptor get_filters_host_tensor_descriptor(const std::vector<std::size_t>& dims,
-                                                    int num_dim_spatial = 2)
+                                                        int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
@@ -188,7 +188,7 @@ HostTensorDescriptor get_filters_host_tensor_descriptor(const std::vector<std::s
 }
 
 HostTensorDescriptor get_output_host_tensor_descriptor(const std::vector<std::size_t>& dims,
-                                                   int num_dim_spatial = 2)
+                                                       int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
@@ -291,8 +291,10 @@ int main(int argc, char* argv[])
         get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
     Tensor<InDataType> in_n_c_hi_wi_device_result(
         get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
-    Tensor<WeiDataType> wei_k_c_y_x(get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
-    Tensor<OutDataType> out_n_k_ho_wo(get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
+    Tensor<WeiDataType> wei_k_c_y_x(
+        get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
+    Tensor<OutDataType> out_n_k_ho_wo(
+        get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
