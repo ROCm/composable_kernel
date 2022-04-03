@@ -1,0 +1,1 @@
+add_example_executable(example_gemm_softmax_xdl_fp16 gemm_softmax_xdl_fp16.cpp)
