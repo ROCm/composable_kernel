@@ -1,5 +1,4 @@
-#ifndef CONV_FWD_UTIL_HPP
-#define CONV_FWD_UTIL_HPP
+#pragma once
 
 #include <algorithm>
 #include <cstdlib>
@@ -19,6 +18,7 @@
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
 #include "host_tensor.hpp"
+#include "op_instance_engine.hpp"
 #include "reference_conv_fwd.hpp"
 #include "tensor_layout.hpp"
 
@@ -300,12 +300,10 @@ auto GetHostTensors(const ConvParams& params, bool init = true)
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(ck::utils::conv::GetHostTensorDescriptor(input_dims, InLayout{}));
-    Tensor<WeiDataType> weights(ck::utils::conv::GetHostTensorDescriptor(filter_dims, WeiLayout{}));
-    Tensor<OutDataType> host_output(
-        ck::utils::conv::GetHostTensorDescriptor(output_dims, OutLayout{}));
-    Tensor<OutDataType> device_output(
-        ck::utils::conv::GetHostTensorDescriptor(output_dims, OutLayout{}));
+    Tensor<InDataType> input(GetHostTensorDescriptor(input_dims, InLayout{}));
+    Tensor<WeiDataType> weights(GetHostTensorDescriptor(filter_dims, WeiLayout{}));
+    Tensor<OutDataType> host_output(GetHostTensorDescriptor(output_dims, OutLayout{}));
+    Tensor<OutDataType> device_output(GetHostTensorDescriptor(output_dims, OutLayout{}));
 
     if(init)
     {
@@ -482,8 +480,7 @@ void RunConvFwd(const ConvParams& params,
     out_device_buf.FromDevice(output.mData.data());
 }
 
-template <ck::index_t NDim,
-          typename InDataType  = float,
+template <typename InDataType  = float,
           typename WeiDataType = float,
           typename OutDataType = float>
 bool RunConvInstances(const ConvParams& params,
@@ -546,8 +543,185 @@ bool RunConvInstances(const ConvParams& params,
     return res;
 }
 
+template <typename T, class Enable = void>
+struct FillUniform;
+
+template <typename T>
+struct FillUniform<T, typename std::enable_if<std::is_integral<T>::value>::type>
+{
+    T a_ = T{-5};
+    T b_ = T{5};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::mt19937 gen{11939};
+        std::uniform_int_distribution<> dis{a_, b_};
+        std::generate(first, last, [&dis, &gen]() { return dis(gen); });
+    }
+};
+
+template <typename T>
+struct FillUniform<T, typename std::enable_if<std::is_floating_point<T>::value>::type>
+{
+    T a_ = T{0};
+    T b_ = T{1};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::mt19937 gen{11939};
+        std::uniform_real_distribution<> dis{a_, b_};
+        std::generate(first, last, [&dis, &gen]() { return dis(gen); });
+    }
+};
+
+template <typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InLayout    = ck::tensor_layout::convolution::NHWC,
+          typename WeiLayout   = ck::tensor_layout::convolution::KYXC,
+          typename OutLayout   = ck::tensor_layout::convolution::NHWK,
+          typename InElementwiseOp = ck::tensor_operation::element_wise::PassThrough,
+          typename WeiElementwiseOp = ck::tensor_operation::element_wise::PassThrough,
+          typename OutElementwiseOp = ck::tensor_operation::element_wise::PassThrough,
+          typename InputInitFun = FillUniform<InDataType>,
+          typename WeightsInitFun = FillUniform<WeiDataType>>
+class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, WeiDataType>
+{
+    using DeviceConvFwdOp = tensor_operation::device::DeviceConvFwd<InElementwiseOp, WeiElementwiseOp, OutElementwiseOp>;
+    using DeviceMemPtr   = std::unique_ptr<DeviceMem>;
+    using DeviceBuffers  = std::vector<DeviceMemPtr>;
+    using BaseType       = ck::utils::OpInstance<OutDataType, InDataType, WeiDataType>;
+    template <typename T>
+    using TensorPtr      = std::unique_ptr<Tensor<T>>;
+    using InTensorsTuple = std::tuple<TensorPtr<InDataType>, TensorPtr<WeiDataType>>;
+
+public:
+    ConvFwdOpInstance() = delete;
+    ConvFwdOpInstance(const ConvFwdOpInstance&) = default;
+    ConvFwdOpInstance& operator=(const ConvFwdOpInstance&) = default;
+
+    ConvFwdOpInstance(const ConvParams& params,
+                      const InputInitFun& input_init_f = InputInitFun{},
+                      const WeightsInitFun& weights_init_f = WeightsInitFun{})
+        : BaseType()
+        , m_params{params}
+        , m_output_spatial_lengths{params.GetOutputSpatialLengths()}
+        , m_input_init_f{input_init_f}
+        , m_weights_init_f{weights_init_f}
+    {
+    }
+
+    virtual ~ConvFwdOpInstance() override {};
+    
+    virtual InTensorsTuple getInputTensors() const override
+    {
+        std::cout << "ConvFwdOpInstance::getInputTensors()" << std::endl;
+        std::vector<std::size_t> input_dims{static_cast<std::size_t>(m_params.N),
+                                            static_cast<std::size_t>(m_params.C)};
+        input_dims.insert(std::end(input_dims),
+                          std::begin(m_params.input_spatial_lengths),
+                          std::end(m_params.input_spatial_lengths));
+
+        std::vector<std::size_t> filter_dims{static_cast<std::size_t>(m_params.K),
+                                             static_cast<std::size_t>(m_params.C)};
+        filter_dims.insert(std::end(filter_dims),
+                           std::begin(m_params.filter_spatial_lengths),
+                           std::end(m_params.filter_spatial_lengths));
+       
+        auto input = std::make_unique<Tensor<InDataType>>(GetHostTensorDescriptor(input_dims, InLayout{}));
+        auto weights = std::make_unique<Tensor<WeiDataType>>(GetHostTensorDescriptor(filter_dims, WeiLayout{}));
+
+        m_input_init_f(input->begin(), input->end());
+        m_weights_init_f(weights->begin(), weights->end());
+
+        return std::make_tuple(std::move(input), std::move(weights));
+    }
+
+    virtual TensorPtr<OutDataType> getOutputTensor() const override
+    {
+        std::vector<std::size_t> output_dims{static_cast<std::size_t>(m_params.N),
+                                             static_cast<std::size_t>(m_params.K)};
+        output_dims.insert(std::end(output_dims),
+                           std::begin(m_output_spatial_lengths),
+                           std::end(m_output_spatial_lengths));
+        auto output = std::make_unique<Tensor<OutDataType>>(GetHostTensorDescriptor(output_dims, OutLayout{}));
+        
+        std::fill(output->begin(), output->end(), OutDataType(0.f));
+        return output;
+    }
+
+    virtual std::unique_ptr<tensor_operation::device::BaseInvoker> makeInvokerPointer(
+        tensor_operation::device::BaseOperator* op_ptr) const override
+    {
+        static_assert(std::is_same_v<InElementwiseOp, ck::tensor_operation::element_wise::PassThrough>);
+        static_assert(std::is_same_v<OutElementwiseOp, ck::tensor_operation::element_wise::PassThrough>);
+        static_assert(std::is_same_v<WeiElementwiseOp, ck::tensor_operation::element_wise::PassThrough>);
+
+        auto conv_ptr = dynamic_cast<DeviceConvFwdOp*>(op_ptr);
+        if (!conv_ptr)
+        {
+            throw std::runtime_error("[ConvFwdOpInstance]: couldn't cast op_ptr to DeviceConvFwdNoOpPtr type!");
+        }
+        return conv_ptr->MakeInvokerPointer();
+    }
+
+    virtual std::unique_ptr<tensor_operation::device::BaseArgument> makeArgumentPointer(
+        tensor_operation::device::BaseOperator* op_ptr,
+        const DeviceBuffers& in_device_buffers,
+        const DeviceMemPtr& out_device_buffer) const override
+    {   
+        static_assert(std::is_same_v<InElementwiseOp, ck::tensor_operation::element_wise::PassThrough>);
+        static_assert(std::is_same_v<OutElementwiseOp, ck::tensor_operation::element_wise::PassThrough>);
+        static_assert(std::is_same_v<WeiElementwiseOp, ck::tensor_operation::element_wise::PassThrough>);
+        
+        auto conv_ptr = dynamic_cast<DeviceConvFwdOp*>(op_ptr);
+        if (!conv_ptr)
+        {
+            throw std::runtime_error("[ConvFwdOpInstance]: couldn't cast op_ptr to DeviceConvFwdNoOpPtr type!");
+        }
+
+        return conv_ptr->MakeArgumentPointer(
+                            static_cast<InDataType*>(in_device_buffers[0]->GetDeviceBuffer()),
+                            static_cast<WeiDataType*>(in_device_buffers[1]->GetDeviceBuffer()),
+                            static_cast<OutDataType*>(out_device_buffer->GetDeviceBuffer()),
+                            m_params.N,
+                            m_params.K,
+                            m_params.C,
+                            m_params.input_spatial_lengths,
+                            m_params.filter_spatial_lengths,
+                            m_output_spatial_lengths,
+                            m_params.conv_filter_strides,
+                            m_params.conv_filter_dilations,
+                            m_params.input_left_pads,
+                            m_params.input_right_pads,
+                            InElementwiseOp{},
+                            WeiElementwiseOp{},
+                            OutElementwiseOp{});
+    }
+
+    virtual std::size_t getFlops() const override
+    {
+        return GetFlops(m_params.N, m_params.C, m_params.K, m_params.filter_spatial_lengths,
+                        m_output_spatial_lengths);
+    }
+
+    virtual std::size_t getBtype() const override
+    {
+        return GetBtype<InDataType, WeiDataType, OutDataType>(m_params.N, m_params.C, m_params.K,
+                        m_params.input_spatial_lengths, m_params.filter_spatial_lengths,
+                        m_output_spatial_lengths);
+    }
+
+
+private:
+    const ConvParams& m_params;
+    const std::vector<ck::index_t> m_output_spatial_lengths;
+    const InputInitFun& m_input_init_f;
+    const WeightsInitFun& m_weights_init_f;
+};
+
 } // namespace conv
 } // namespace utils
 } // namespace ck
-
-#endif

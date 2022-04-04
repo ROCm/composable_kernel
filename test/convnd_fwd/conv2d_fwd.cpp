@@ -87,8 +87,30 @@ bool TestConv2DNHWCInstances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
     ck::utils::conv::RunReferenceConvFwd<2>(params, input, weights, host_output);
-    return ck::utils::conv::RunConvInstances<2>(
+    return ck::utils::conv::RunConvInstances(
         params, conv_ptrs, input, weights, device_output, host_output);
+}
+
+template <typename T>
+bool TestConv2DNHWCInstancesEngine(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
+{
+    ck::utils::conv::ConvParams params;
+    params.num_dim_spatial        = 2;
+    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3};
+    params.input_spatial_lengths  = std::vector<ck::index_t>{71, 71};
+    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2};
+    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1};
+    params.input_left_pads        = std::vector<ck::index_t>{1, 1};
+    params.input_right_pads       = std::vector<ck::index_t>{1, 1};
+
+    ck::utils::conv::ConvFwdOpInstance<T, T, T> conv_instance(params);
+    using namespace std::placeholders;
+
+    auto reference_conv_fwd_fun = 
+        std::bind(ck::utils::conv::RunReferenceConvFwd<2>, params, _1, _2, _3);
+    ck::utils::OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
+
+    return run_engine.test(conv_ptrs);
 }
 
 bool TestConv2DNHWCBF16Instances()
@@ -114,7 +136,8 @@ bool TestConv2DNHWCF32Instances()
     std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
     ck::tensor_operation::device::device_conv2d_fwd_instance::
         add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
-    return TestConv2DNHWCInstances<float>(conv_ptrs);
+    // return TestConv2DNHWCInstances<float>(conv_ptrs);
+    return TestConv2DNHWCInstancesEngine<float>(conv_ptrs);
 }
 
 bool TestConv2DNHWCInt8Instances()
