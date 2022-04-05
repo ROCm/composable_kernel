@@ -6,13 +6,13 @@
 #include <half.hpp>
 #include <vector>
 
-#include "conv_utils.hpp"
+#include "conv_fwd_util.hpp"
 #include "profile_conv_bwd_weight_impl.hpp"
 
 int test_self()
 {
     bool pass = true;
-    std::vector<ck::conv_util::ConvParams> params;
+    std::vector<ck::utils::conv::ConvParams> params;
 
     params.push_back({2, 128, 256, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
     params.push_back({2, 128, 256, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
@@ -136,16 +136,16 @@ int main(int argc, char* argv[])
             exit(1);
         }
 
-        ck::conv_util::ConvParams param{2,
-                                        N,
-                                        K,
-                                        C,
-                                        {Y, X},
-                                        {Hi, Wi},
-                                        {conv_stride_h, conv_stride_w},
-                                        {conv_dilation_h, conv_dilation_w},
-                                        {in_left_pad_h, in_left_pad_w},
-                                        {in_right_pad_h, in_right_pad_w}};
+        ck::utils::conv::ConvParams param{2,
+                                          N,
+                                          K,
+                                          C,
+                                          {Y, X},
+                                          {Hi, Wi},
+                                          {conv_stride_h, conv_stride_w},
+                                          {conv_dilation_h, conv_dilation_w},
+                                          {in_left_pad_h, in_left_pad_w},
+                                          {in_right_pad_h, in_right_pad_w}};
         if(data_type == 0)
         {
             pass = ck::profiler::profile_conv_bwd_weight_impl<2,

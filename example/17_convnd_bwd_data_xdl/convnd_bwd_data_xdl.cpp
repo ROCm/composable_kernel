@@ -99,7 +99,7 @@ void print_use_msg()
               << " <right padding>, (ie RightPy, RightPx for 2D)\n"
               << std::endl;
 }
-ck::conv_util::ConvParams parse_conv_params(int num_dim_spatial, char* argv[])
+ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     ck::utils::conv::ConvParams params;
