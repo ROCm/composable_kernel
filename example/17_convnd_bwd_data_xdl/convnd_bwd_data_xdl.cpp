@@ -83,7 +83,7 @@ using ReferenceConvBwdDataInstance =
                                                      OutElementOp,
                                                      NumDimSpatial>;
 
-void PrintUseMsg()
+void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
@@ -99,7 +99,7 @@ void PrintUseMsg()
               << " <right padding>, (ie RightPy, RightPx for 2D)\n"
               << std::endl;
 }
-ck::utils::conv::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
+ck::conv_util::ConvParams parse_conv_params(int num_dim_spatial, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     ck::utils::conv::ConvParams params;
@@ -144,7 +144,7 @@ ck::utils::conv::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
     return params;
 }
 
-DeviceConvBwdDataBasePtr GetConvInstance(int num_dim_spatial)
+DeviceConvBwdDataBasePtr get_conv_instance(int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
@@ -190,15 +190,15 @@ int main(int argc, char* argv[])
         int cmdline_nargs = conv_args + 5;
         if(cmdline_nargs != argc)
         {
-            PrintUseMsg();
+            print_use_msg();
             exit(1);
         }
 
-        params = ParseConvParams(num_dim_spatial, argv);
+        params = parse_conv_params(num_dim_spatial, argv);
     }
     else if(argc != 1)
     {
-        PrintUseMsg();
+        print_use_msg();
         exit(1);
     }
 
@@ -254,11 +254,10 @@ int main(int argc, char* argv[])
     out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
     // reset input to zero
-    in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{0});
-    in_device_buf.ToDevice(in_n_c_hi_wi_device_result.mData.data());
+    in_device_buf.SetZero();
 
     // do GEMM
-    auto conv    = GetConvInstance(num_dim_spatial);
+    auto conv    = get_conv_instance(num_dim_spatial);
     auto invoker = conv->MakeInvokerPointer();
     auto argument =
         conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),

@@ -1,13 +1,13 @@
-# Instructions for ```example_conv2d_wrw_xdl``` Example
+# Instructions for ```example_conv2d_bwd_weight_xdl``` Example
 
-## Run ```example_conv2d_wrw_xdl```
+## Run ```example_conv2d_bwd_weight_xdl```
 ```bash
 #arg1: verification (0=no, 1=yes)
 #arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 #arg3: run kernel # of times (>1)
 #arg4: is show log (0=no, 1=yes)
 #arg5 to 19: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx, split-k
-./example/conv2d_fwd_xdl 0 1 5 0 4
+./bin/example_conv2d_bwd_weight_xdl 0 1 5 0 4
 ```
 
 Result 

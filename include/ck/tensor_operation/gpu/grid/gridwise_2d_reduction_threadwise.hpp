@@ -30,6 +30,7 @@
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
 #include "reduction_functions_accumulate.hpp"
+#include "reduction_functions_threadwise.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "element_wise_operation.hpp"
 
@@ -110,6 +111,11 @@ struct GridwiseReduction_mk_to_m_threadwise
     using ThreadBufferDimAccessOrder =
         typename conditional<InSrcVectorDim == 0, Sequence<1, 0>, Sequence<0, 1>>::type;
 
+    using ThreadReduceSrcDesc_M_K = decltype(make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{})));
+    using ThreadReduceDstDesc_M =
+        decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
+
     using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     static constexpr auto I0 = Number<0>{};
@@ -124,9 +130,11 @@ struct GridwiseReduction_mk_to_m_threadwise
                                OutDataType* const __restrict__ p_out_global,
                                IndexDataType* const __restrict__ p_indices_global)
     {
-
-        using Accumulation =
-            detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
+        using ThreadwiseReduce = ThreadwiseReduction<AccDataType,
+                                                     ThreadReduceSrcDesc_M_K,
+                                                     ThreadReduceDstDesc_M,
+                                                     ReduceOperation,
+                                                     PropagateNan>;
 
         (void)p_indices_global;
 
@@ -175,19 +183,16 @@ struct GridwiseReduction_mk_to_m_threadwise
                                     make_tuple(I0, I0),
                                     in_thread_buf);
 
-            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
                 // do element-wise pre-reduction operation
-                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
-                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    in_elementwise_op(in_thread_buf(offset), in_thread_buf(offset));
-                });
-
-                // reduce on each thread-local slice
-                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
-                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    Accumulation::Calculate(accu_value_buf(I), in_thread_buf[offset]);
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                    in_elementwise_op(in_thread_buf(Number<offset>{}),
+                                      in_thread_buf(Number<offset>{}));
                 });
             });
+
+            ThreadwiseReduce::Reduce(in_thread_buf, accu_value_buf);
 
             threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
 
@@ -200,8 +205,7 @@ struct GridwiseReduction_mk_to_m_threadwise
             accu_value_buf(I) *= alpha;
         });
 
-        constexpr auto reduced_data_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
+        constexpr auto reduced_data_desc = ThreadReduceDstDesc_M{};
 
         if constexpr(!BetaIsZero)
         {
@@ -266,10 +270,13 @@ struct GridwiseReduction_mk_to_m_threadwise
                                           OutDataType* const __restrict__ p_out_global,
                                           IndexDataType* const __restrict__ p_indices_global)
     {
-        using AccumulationWithIndex = detail::AccumulateWithIndexAndNanCheck<PropagateNan,
-                                                                             ReduceOperation,
-                                                                             AccDataType,
-                                                                             IndexDataType>;
+        using ThreadwiseReduceWithIndex = ThreadwiseReductionWithIndex<AccDataType,
+                                                                       IndexDataType,
+                                                                       ThreadReduceSrcDesc_M_K,
+                                                                       ThreadReduceDstDesc_M,
+                                                                       ReduceOperation,
+                                                                       PropagateNan>;
+
         (void)acc_elementwise_op;
 
         const auto zeroVal = ReduceOperation::GetReductionZeroVal();
@@ -282,7 +289,13 @@ struct GridwiseReduction_mk_to_m_threadwise
             p_indices_global, out_grid_desc_m.GetElementSpaceSize());
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
-            in_thread_buf;
+            in_thread_val_buf;
+
+        StaticBuffer<AddressSpaceEnum::Vgpr,
+                     IndexDataType,
+                     MThreadSliceSize * KThreadSliceSize,
+                     true>
+            in_thread_idx_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, IndexDataType, MThreadSliceSize, true> accu_index_buf;
@@ -322,25 +335,22 @@ struct GridwiseReduction_mk_to_m_threadwise
                                     in_global_buf,
                                     thread_buffer_desc,
                                     make_tuple(I0, I0),
-                                    in_thread_buf);
+                                    in_thread_val_buf);
 
-            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
                 // do element-wise pre-reduction operation
-                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
-                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
 
-                    in_elementwise_op(in_thread_buf(offset), in_thread_buf(offset));
-                });
+                    in_thread_idx_buf(Number<offset>{}) = indexStart + iK();
 
-                // reduce on each thread-local slice
-                static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
-                    constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    AccumulationWithIndex::Calculate(accu_value_buf(I),
-                                                     in_thread_buf[offset],
-                                                     accu_index_buf(I),
-                                                     indexStart + J);
+                    in_elementwise_op(in_thread_val_buf(Number<offset>{}),
+                                      in_thread_val_buf(Number<offset>{}));
                 });
             });
+
+            ThreadwiseReduceWithIndex::Reduce(
+                in_thread_val_buf, in_thread_idx_buf, accu_value_buf, accu_index_buf);
 
             threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
 
@@ -355,8 +365,7 @@ struct GridwiseReduction_mk_to_m_threadwise
             accu_value_buf(I) *= alpha;
         });
 
-        constexpr auto reduced_data_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
+        constexpr auto reduced_data_desc = ThreadReduceDstDesc_M{};
 
         if constexpr(!BetaIsZero)
         {
