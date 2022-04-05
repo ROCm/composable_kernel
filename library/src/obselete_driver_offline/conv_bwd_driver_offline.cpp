@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -473,7 +475,7 @@ int main(int argc, char* argv[])
                                        make_tuple(in_right_pad_h, in_right_pad_w),
                                        layout);
 
-        check_error(in_host, in_device);
+        ck::utils::check_err(in_device.mData, in_host.mData);
 
         if(do_log)
         {

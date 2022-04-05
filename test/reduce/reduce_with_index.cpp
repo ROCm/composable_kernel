@@ -4,7 +4,7 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "host_reduction.hpp"
-#include "test_util.hpp"
+#include "check_err.hpp"
 #include "reduce_util.hpp"
 
 using namespace ck;
@@ -273,21 +273,21 @@ bool test_reduce_with_index_impl(int init_method,
         {
             reduce_util::to_f32_vector(out, out_fp32);
             reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-            single_result = test::check_err(
+            single_result = ck::utils::check_err(
                 out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
         }
         else
         {
             single_result =
-                test::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
+                ck::utils::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
         };
 
         if(NeedIndices)
         {
             out_indices_dev.FromDevice(out_indices.mData.data());
-            single_result = single_result && test::check_err(out_indices_ref.mData,
-                                                             out_indices.mData,
-                                                             "Error: incorrect index result!");
+            single_result = single_result && ck::utils::check_err(out_indices_ref.mData,
+                                                                  out_indices.mData,
+                                                                  "Error: incorrect index result!");
         };
 
         if(!single_result)
@@ -370,21 +370,22 @@ bool test_reduce_with_index_impl(int init_method,
             {
                 reduce_util::to_f32_vector(out, out_fp32);
                 reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-                single_result = test::check_err(
+                single_result = ck::utils::check_err(
                     out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
             }
             else
             {
                 single_result =
-                    test::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
+                    ck::utils::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
             };
 
             if(NeedIndices)
             {
                 out_indices_dev.FromDevice(out_indices.mData.data());
-                single_result = single_result && test::check_err(out_indices_ref.mData,
-                                                                 out_indices.mData,
-                                                                 "Error: incorrect index result!");
+                single_result =
+                    single_result && ck::utils::check_err(out_indices_ref.mData,
+                                                          out_indices.mData,
+                                                          "Error: incorrect index result!");
             };
 
             if(!single_result)

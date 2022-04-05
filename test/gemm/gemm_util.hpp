@@ -1,13 +1,13 @@
 #ifndef GEMM_UTILS_HPP
 #define GEMM_UTILS_HPP
 
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "reference_gemm.hpp"
 #include "tensor_layout.hpp"
-#include "test_util.hpp"
 
 namespace ck {
 namespace gemm_util {
@@ -202,20 +202,17 @@ struct TestGemm
         bool res = false;
         if(std::is_same<CDataType, float>::value)
         {
-            res = test::check_err(c_device.mData, c_host.mData, "Error: incorrect results!");
-
+            res = ck::utils::check_err(c_device.mData, c_host.mData);
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
         else if(std::is_same<CDataType, ck::half_t>::value)
         {
-            res = test::check_err(c_device.mData, c_host.mData, "Error: incorrect results!");
-
+            res = ck::utils::check_err(c_device.mData, c_host.mData);
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
         else if(std::is_same<CDataType, int8_t>::value)
         {
-            res = test::check_err(c_device.mData, c_host.mData, "Error: incorrect results!");
-
+            res = ck::utils::check_err(c_device.mData, c_host.mData);
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
 
@@ -330,9 +327,8 @@ struct TestGemmBF16
         bf16_to_f32_(c_device_bf16, c_device_fp32);
 
         // Assert
-        bool res = test::check_err(
+        bool res = ck::utils::check_err(
             c_device_fp32.mData, c_host_fp32.mData, "Error: incorrect results!", 1e-2f, 1e-3f);
-
         std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
         return res;

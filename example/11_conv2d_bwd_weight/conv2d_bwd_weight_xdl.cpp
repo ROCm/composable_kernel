@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -284,6 +286,6 @@ int main(int argc, char* argv[])
             LogRangeAsType<float>(std::cout << "wei_host  : ", wei_k_c_y_x_host_result.mData, ",")
                 << std::endl;
         }
-        check_error(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
+        ck::utils::check_err(wei_k_c_y_x_device_result.mData, wei_k_c_y_x_host_result.mData);
     }
 }

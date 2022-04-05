@@ -13,6 +13,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/utility
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
@@ -29,10 +30,8 @@ add_subdirectory(01_gemm)
 add_subdirectory(02_gemm_alpha_beta)
 add_subdirectory(03_gemm_bias_relu)
 add_subdirectory(04_gemm_bias_relu_add)
-add_subdirectory(05_conv2d_fwd)
 add_subdirectory(06_conv2d_fwd_bias_relu)
 add_subdirectory(07_conv2d_fwd_bias_relu_add)
-add_subdirectory(08_conv3d_fwd)
 add_subdirectory(09_convnd_fwd)
 add_subdirectory(10_conv2d_bwd_data)
 add_subdirectory(11_conv2d_bwd_weight)

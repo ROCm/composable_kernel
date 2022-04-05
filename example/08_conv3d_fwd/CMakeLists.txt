@@ -1,1 +1,0 @@
-add_example_executable(example_conv3d_fwd_xdl conv3d_fwd_xdl.cpp)

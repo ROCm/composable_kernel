@@ -1,7 +1,7 @@
 #pragma once
 #include "config.hpp"
 #include "device.hpp"
-#include "conv_utils.hpp"
+#include "conv_fwd_util.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "tensor_layout.hpp"
@@ -68,13 +68,13 @@ HostTensorDescriptor get_input_host_tensor_descriptor(const std::vector<std::siz
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, InLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, InLayout{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, InLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, InLayout{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, InLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, InLayout{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -90,13 +90,13 @@ HostTensorDescriptor get_filters_host_tensor_descriptor(const std::vector<std::s
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, WeiLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, WeiLayout{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, WeiLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, WeiLayout{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, WeiLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, WeiLayout{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -112,13 +112,13 @@ HostTensorDescriptor get_output_host_ensor_descriptor(const std::vector<std::siz
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, OutLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, OutLayout{});
     }
     case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, OutLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, OutLayout{});
     }
     case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, OutLayout{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, OutLayout{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -413,9 +413,10 @@ bool profile_convnd_bwd_data_impl(int do_verification,
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
             std::size_t flop =
-                ck::conv_util::GetFlops(N, C, K, filter_spatial_lengths, output_spatial_lengths);
-            std::size_t num_btype = ck::conv_util::GetBtype<InDataType, WeiDataType, OutDataType>(
-                N, C, K, input_spatial_lengths, filter_spatial_lengths, output_spatial_lengths);
+                ck::utils::conv::get_flops(N, C, K, filter_spatial_lengths, output_spatial_lengths);
+            std::size_t num_btype =
+                ck::utils::conv::get_btype<InDataType, WeiDataType, OutDataType>(
+                    N, C, K, input_spatial_lengths, filter_spatial_lengths, output_spatial_lengths);
 
             float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
             float gb_per_sec = num_btype / 1.E6 / ave_time;

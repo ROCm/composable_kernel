@@ -1,4 +1,6 @@
 #pragma once
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -253,7 +255,8 @@ void profile_conv_fwd_impl(int do_verification,
             {
                 out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
-                check_error(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result);
+                ck::utils::check_err(out_n_k_ho_wo_device_result.mData,
+                                     out_n_k_ho_wo_host_result.mData);
 
                 if(do_log)
                 {

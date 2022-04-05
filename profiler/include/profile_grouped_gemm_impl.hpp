@@ -1,5 +1,7 @@
 #pragma once
 #include <iomanip>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -283,7 +285,7 @@ void profile_grouped_gemm_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    check_error(c_m_n_host_result, c_m_n_device_results[i]);
+                    ck::utils::check_err(c_m_n_device_results[i].mData, c_m_n_host_result.mData);
 
                     if(do_log)
                     {

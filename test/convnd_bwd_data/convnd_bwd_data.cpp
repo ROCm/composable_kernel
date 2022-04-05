@@ -12,7 +12,7 @@ int main()
 {
     bool pass = true;
     // check 1d
-    std::vector<ck::conv_util::ConvParams> params;
+    std::vector<ck::utils::conv::ConvParams> params;
     params.push_back({1, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
     params.push_back({1, 128, 128, 256, {3}, {28}, {1}, {1}, {1}, {1}});
     params.push_back({1, 128, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
