@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <getopt.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -371,12 +373,13 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         out_dev.FromDevice(out.mData.data());
-        check_error(out_ref, out);
+        ck::utils::check_err(out.mData, out_ref.mData);
 
         if(NeedIndices)
         {
             out_indices_dev.FromDevice(out_indices.mData.data());
-            check_indices(out_indices_ref, out_indices);
+            ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+            ;
         };
     };
 }
