@@ -14,12 +14,8 @@ int main(int argc, char** argv)
     (void)argc;
     (void)argv;
 
-    {
-        traverse_using_space_filling_curve();
-        auto err = hipDeviceSynchronize();
-        (void)err;
-        assert(err == hipSuccess);
-    }
+    traverse_using_space_filling_curve();
+
     return 0;
 }
 

@@ -34,7 +34,7 @@ using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 using DeviceConvFwdBasePtr =
     ck::tensor_operation::device::DeviceConvFwdPtr<InElementOp, WeiElementOp, OutElementOp>;
@@ -87,7 +87,7 @@ using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<
                                                                                 OutElementOp,
                                                                                 NumDimSpatial>;
 
-DeviceConvFwdBasePtr GetConvInstance(int num_dim_spatial)
+DeviceConvFwdBasePtr get_conv_instance(int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
@@ -106,7 +106,7 @@ DeviceConvFwdBasePtr GetConvInstance(int num_dim_spatial)
     }
 }
 
-void PrintUseMsg()
+void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
@@ -123,14 +123,14 @@ void PrintUseMsg()
               << std::endl;
 }
 
-ck::utils::conv::ConvParams ParseConvParams(int num_dim_spatial, int argc, char* argv[])
+ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, int argc, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     int conv_args     = 3 + num_dim_spatial * 6;
     int cmdline_nargs = conv_args + 5;
     if(cmdline_nargs != argc)
     {
-        PrintUseMsg();
+        print_use_msg();
         exit(0);
     }
 
@@ -199,7 +199,7 @@ int main(int argc, char* argv[])
 
     if(argc >= 6)
     {
-        params = ParseConvParams(num_dim_spatial, argc, argv);
+        params = parse_conv_params(num_dim_spatial, argc, argv);
     }
 
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
@@ -221,10 +221,10 @@ int main(int argc, char* argv[])
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
-    Tensor<WeiDataType> weights(GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
-    Tensor<OutDataType> host_output(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
-    Tensor<OutDataType> device_output(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+    Tensor<InDataType> input(get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
+    Tensor<WeiDataType> weights(get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
+    Tensor<OutDataType> host_output(get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
+    Tensor<OutDataType> device_output(get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weights: " << weights.mDesc << std::endl;
@@ -250,7 +250,7 @@ int main(int argc, char* argv[])
     wei_device_buf.ToDevice(weights.mData.data());
 
     // do GEMM
-    auto conv    = GetConvInstance(num_dim_spatial);
+    auto conv    = get_conv_instance(num_dim_spatial);
     auto invoker = conv->MakeInvokerPointer();
     auto argument =
         conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
@@ -279,9 +279,9 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker->Run(argument.get(), nrepeat);
 
-    std::size_t flop = GetFlops(
+    std::size_t flop = get_flops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
-    std::size_t num_btype = GetBtype<InDataType, WeiDataType, OutDataType>(
+    std::size_t num_btype = get_btype<InDataType, WeiDataType, OutDataType>(
         params.N,
         params.C,
         params.K,

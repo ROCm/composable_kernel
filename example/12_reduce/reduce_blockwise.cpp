@@ -34,10 +34,10 @@ using HostAccDataType = float;
 constexpr int Rank         = 4;
 constexpr int NumReduceDim = 3;
 
-constexpr ReduceTensorOp_t ReduceOpId = ReduceTensorOp_t::NORM2;
-constexpr NanPropagation_t NanOpt     = NanPropagation_t::PROPAGATE_NAN;
-constexpr bool PropagateNan = (NanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
-constexpr ReduceTensorIndices_t IndicesOpt = ReduceTensorIndices_t::NO_INDICES;
+constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
+constexpr NanPropagation NanOpt     = NanPropagation::PROPAGATE_NAN;
+constexpr bool PropagateNan         = (NanOpt == NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
+constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::NO_INDICES;
 
 using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 using InElementwiseOperation =
@@ -212,11 +212,11 @@ int main(int argc, char* argv[])
         return (-1);
 
     constexpr bool op_support_indices =
-        (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||
-         ReduceOpId == ReduceTensorOp_t::AMAX);
+        (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
+         ReduceOpId == ReduceTensorOp::AMAX);
 
     constexpr bool NeedIndices =
-        (op_support_indices && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES));
+        (op_support_indices && (IndicesOpt != ReduceTensorIndices::NO_INDICES));
 
     // if input is half type, no reason to use float for indiced reduction operation and must use
     // float for non-indiced reduction operation for accuracy
@@ -232,7 +232,7 @@ int main(int argc, char* argv[])
 
     // indices option can only be used when it is really needed
     constexpr bool invalid_reduce_3 =
-        (!op_support_indices && IndicesOpt != ReduceTensorIndices_t::NO_INDICES);
+        (!op_support_indices && IndicesOpt != ReduceTensorIndices::NO_INDICES);
 
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3);
 
@@ -263,7 +263,7 @@ int main(int argc, char* argv[])
     float alpha = args.scales[0];
     float beta  = args.scales[1];
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     if(args.do_verification)
     {

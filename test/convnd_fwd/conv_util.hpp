@@ -20,7 +20,7 @@ using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 template <ck::index_t SpatialDims, typename InDataType, typename WeiDataType, typename OutDataType>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::
@@ -76,9 +76,12 @@ void RunConv(const ck::utils::conv::ConvParams& params,
              const Tensor<WeiDataType>& weights,
              Tensor<OutDataType>& output)
 {
-    ck::utils::conv::
-        RunConvFwd<NDim, InDataType, WeiDataType, OutDataType, DeviceConvNDFwdInstance>(
-            params, input, weights, output);
+    ck::utils::conv::run_convolution_forward<NDim,
+                                             InDataType,
+                                             WeiDataType,
+                                             OutDataType,
+                                             DeviceConvNDFwdInstance>(
+        params, input, weights, output);
 }
 
 } // namespace conv

@@ -34,8 +34,8 @@ using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 // clang-format off
-using DeviceConvWrWInstance = ck::tensor_operation::device::
-    DeviceConv2dWrWXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
+using DeviceConvBwdWeightInstance = ck::tensor_operation::device::
+    DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         InDataType,                       // InDataType
         WeiDataType,                      // WeiDataType
         OutDataType,                      // OutDataType
@@ -72,8 +72,8 @@ using DeviceConvWrWInstance = ck::tensor_operation::device::
         8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-using ReferenceConvWrwInstance = ck::tensor_operation::host::
-    ReferenceConvWrw<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
+using ReferenceConvBwdWeightInstance = ck::tensor_operation::host::
+    ReferenceConvBwdWeight<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -213,7 +213,7 @@ int main(int argc, char* argv[])
     wei_device_buf.ToDevice(wei_k_c_y_x_device_result.mData.data());
 
     // do GEMM
-    auto conv     = DeviceConvWrWInstance{};
+    auto conv     = DeviceConvBwdWeightInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                       static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
@@ -258,7 +258,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        auto ref_conv    = ReferenceConvWrwInstance{};
+        auto ref_conv    = ReferenceConvBwdWeightInstance{};
         auto ref_invoker = ref_conv.MakeInvoker();
 
         auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,

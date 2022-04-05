@@ -14,17 +14,20 @@ namespace host {
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
+          typename AccDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
+          typename OutElementwiseOperation,
+          ck::index_t NumDimSpatial                                                    = 2,
+          typename ck::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvBwdData : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
     {
-        Argument(Tensor<InDataType>& in_n_c_hi_wi,
-                 const Tensor<WeiDataType>& wei_k_c_y_x,
-                 const Tensor<OutDataType>& out_n_k_ho_wo,
+        Argument(Tensor<InDataType>& input,
+                 const Tensor<WeiDataType>& weight,
+                 const Tensor<OutDataType>& output,
                  std::vector<ck::index_t> conv_filter_strides,
                  std::vector<ck::index_t> conv_filter_dilations,
                  std::vector<ck::index_t> input_left_pads,
@@ -32,9 +35,9 @@ struct ReferenceConvBwdData : public device::BaseOperator
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
-            : in_n_c_hi_wi_{in_n_c_hi_wi},
-              wei_k_c_y_x_{wei_k_c_y_x},
-              out_n_k_ho_wo_{out_n_k_ho_wo},
+            : input_{input},
+              weight_{weight},
+              output_{output},
               conv_strides_{conv_filter_strides},
               conv_dilations_{conv_filter_dilations},
               in_left_pads_{input_left_pads},
@@ -45,9 +48,9 @@ struct ReferenceConvBwdData : public device::BaseOperator
         {
         }
 
-        Tensor<InDataType>& in_n_c_hi_wi_;
-        const Tensor<WeiDataType>& wei_k_c_y_x_;
-        const Tensor<OutDataType>& out_n_k_ho_wo_;
+        Tensor<InDataType>& input_;
+        const Tensor<WeiDataType>& weight_;
+        const Tensor<OutDataType>& output_;
 
         std::vector<index_t> conv_strides_;
         std::vector<index_t> conv_dilations_;
@@ -66,67 +69,199 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            auto f_nchw = [&](auto n, auto c, auto hi, auto wi) {
-                std::size_t K = arg.wei_k_c_y_x_.mDesc.GetLengths()[0];
-                std::size_t Y = arg.wei_k_c_y_x_.mDesc.GetLengths()[2];
-                std::size_t X = arg.wei_k_c_y_x_.mDesc.GetLengths()[3];
+            if constexpr(NumDimSpatial == 1)
+            {
+                auto f_ncw = [&](auto n, auto c, auto wi) {
+                    std::size_t K  = arg.weight_.mDesc.GetLengths()[0];
+                    std::size_t X  = arg.weight_.mDesc.GetLengths()[2];
+                    std::size_t Wo = arg.output_.mDesc.GetLengths()[2];
 
-                std::size_t Ho = arg.out_n_k_ho_wo_.mDesc.GetLengths()[2];
-                std::size_t Wo = arg.out_n_k_ho_wo_.mDesc.GetLengths()[3];
+                    AccDataType v_acc = 0;
 
-                float v_acc = 0;
-
-                for(int y = 0; y < Y; ++y)
-                {
-                    int h_tmp = hi + arg.in_left_pads_[0] - y * arg.conv_dilations_[0];
-                    if(h_tmp % arg.conv_strides_[0] == 0)
+                    for(int x = 0; x < X; ++x)
                     {
-                        int ho = h_tmp / arg.conv_strides_[0];
-                        if(ho >= 0 && ho < Ho)
+                        int w_tmp = wi + arg.in_left_pads_[0] - x * arg.conv_dilations_[0];
+                        if(w_tmp % arg.conv_strides_[0] == 0)
                         {
-                            for(int x = 0; x < X; ++x)
+                            int wo = w_tmp / arg.conv_strides_[0];
+                            if(wo >= 0 && wo < Wo)
                             {
-                                int w_tmp = wi + arg.in_left_pads_[1] - x * arg.conv_dilations_[1];
-                                if(w_tmp % arg.conv_strides_[1] == 0)
+                                for(int k = 0; k < K; ++k)
                                 {
-                                    int wo = w_tmp / arg.conv_strides_[1];
-                                    if(wo >= 0 && wo < Wo)
+                                    AccDataType v_out = 0;
+                                    AccDataType v_wei = 0;
+
+                                    arg.out_element_op_(
+                                        v_out,
+                                        ck::type_convert<AccDataType>(arg.output_(n, k, wo)));
+                                    arg.wei_element_op_(
+                                        v_wei, ck::type_convert<AccDataType>(arg.weight_(k, c, x)));
+
+                                    v_acc += v_out * v_wei;
+                                }
+                            }
+                        }
+                    }
+
+                    float v_in;
+                    arg.in_element_op_(v_in, v_acc);
+                    arg.input_(n, c, wi) = ck::type_convert<InDataType>(v_in);
+                };
+
+                make_ParallelTensorFunctor(f_ncw,
+                                           arg.input_.mDesc.GetLengths()[0],
+                                           arg.input_.mDesc.GetLengths()[1],
+                                           arg.input_.mDesc.GetLengths()[2])(
+                    std::thread::hardware_concurrency());
+
+                return 0;
+            }
+            else if constexpr(NumDimSpatial == 2)
+            {
+                auto f_nchw = [&](auto n, auto c, auto hi, auto wi) {
+                    std::size_t K = arg.weight_.mDesc.GetLengths()[0];
+                    std::size_t Y = arg.weight_.mDesc.GetLengths()[2];
+                    std::size_t X = arg.weight_.mDesc.GetLengths()[3];
+
+                    std::size_t Ho = arg.output_.mDesc.GetLengths()[2];
+                    std::size_t Wo = arg.output_.mDesc.GetLengths()[3];
+
+                    AccDataType v_acc = 0;
+
+                    for(int y = 0; y < Y; ++y)
+                    {
+                        int h_tmp = hi + arg.in_left_pads_[0] - y * arg.conv_dilations_[0];
+                        if(h_tmp % arg.conv_strides_[0] == 0)
+                        {
+                            int ho = h_tmp / arg.conv_strides_[0];
+                            if(ho >= 0 && ho < Ho)
+                            {
+                                for(int x = 0; x < X; ++x)
+                                {
+                                    int w_tmp =
+                                        wi + arg.in_left_pads_[1] - x * arg.conv_dilations_[1];
+                                    if(w_tmp % arg.conv_strides_[1] == 0)
                                     {
-                                        for(int k = 0; k < K; ++k)
+                                        int wo = w_tmp / arg.conv_strides_[1];
+                                        if(wo >= 0 && wo < Wo)
                                         {
-                                            float v_out = 0;
-                                            float v_wei = 0;
+                                            for(int k = 0; k < K; ++k)
+                                            {
+                                                AccDataType v_out = 0;
+                                                AccDataType v_wei = 0;
 
-                                            arg.out_element_op_(
-                                                v_out,
-                                                ck::type_convert<float>(
-                                                    arg.out_n_k_ho_wo_(n, k, ho, wo)));
-                                            arg.wei_element_op_(v_wei,
-                                                                ck::type_convert<float>(
-                                                                    arg.wei_k_c_y_x_(k, c, y, x)));
+                                                arg.out_element_op_(v_out,
+                                                                    ck::type_convert<AccDataType>(
+                                                                        arg.output_(n, k, ho, wo)));
+                                                arg.wei_element_op_(v_wei,
+                                                                    ck::type_convert<AccDataType>(
+                                                                        arg.weight_(k, c, y, x)));
 
-                                            v_acc += v_out * v_wei;
+                                                v_acc += v_out * v_wei;
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                float v_in;
-                arg.in_element_op_(v_in, v_acc);
-                arg.in_n_c_hi_wi_(n, c, hi, wi) = ck::type_convert<InDataType>(v_in);
-            };
+                    AccDataType v_in;
+                    arg.in_element_op_(v_in, v_acc);
+                    arg.input_(n, c, hi, wi) = ck::type_convert<InDataType>(v_in);
+                };
 
-            make_ParallelTensorFunctor(f_nchw,
-                                       arg.in_n_c_hi_wi_.mDesc.GetLengths()[0],
-                                       arg.in_n_c_hi_wi_.mDesc.GetLengths()[1],
-                                       arg.in_n_c_hi_wi_.mDesc.GetLengths()[2],
-                                       arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])(
-                std::thread::hardware_concurrency());
+                make_ParallelTensorFunctor(f_nchw,
+                                           arg.input_.mDesc.GetLengths()[0],
+                                           arg.input_.mDesc.GetLengths()[1],
+                                           arg.input_.mDesc.GetLengths()[2],
+                                           arg.input_.mDesc.GetLengths()[3])(
+                    std::thread::hardware_concurrency());
 
-            return 0;
+                return 0;
+            }
+            else if constexpr(NumDimSpatial == 3)
+            {
+                auto f_ncdhw = [&](auto n, auto c, auto di, auto hi, auto wi) {
+                    std::size_t K = arg.weight_.mDesc.GetLengths()[0];
+                    std::size_t Z = arg.weight_.mDesc.GetLengths()[2];
+                    std::size_t Y = arg.weight_.mDesc.GetLengths()[3];
+                    std::size_t X = arg.weight_.mDesc.GetLengths()[4];
+
+                    std::size_t Do = arg.output_.mDesc.GetLengths()[2];
+                    std::size_t Ho = arg.output_.mDesc.GetLengths()[3];
+                    std::size_t Wo = arg.output_.mDesc.GetLengths()[4];
+
+                    AccDataType v_acc = 0;
+
+                    for(int z = 0; z < Z; ++z)
+                    {
+                        int d_tmp = di + arg.in_left_pads_[0] - z * arg.conv_dilations_[0];
+                        if(d_tmp % arg.conv_strides_[0] == 0)
+                        {
+                            int do_ = d_tmp / arg.conv_strides_[0];
+                            if(do_ >= 0 && do_ < Do)
+                            {
+                                for(int y = 0; y < Y; ++y)
+                                {
+                                    int h_tmp =
+                                        hi + arg.in_left_pads_[1] - y * arg.conv_dilations_[1];
+                                    if(h_tmp % arg.conv_strides_[1] == 0)
+                                    {
+                                        int ho = h_tmp / arg.conv_strides_[1];
+                                        if(ho >= 0 && ho < Ho)
+                                        {
+                                            for(int x = 0; x < X; ++x)
+                                            {
+                                                int w_tmp = wi + arg.in_left_pads_[2] -
+                                                            x * arg.conv_dilations_[2];
+                                                if(w_tmp % arg.conv_strides_[2] == 0)
+                                                {
+                                                    int wo = w_tmp / arg.conv_strides_[2];
+                                                    if(wo >= 0 && wo < Wo)
+                                                    {
+                                                        for(int k = 0; k < K; ++k)
+                                                        {
+                                                            AccDataType v_out = 0;
+                                                            AccDataType v_wei = 0;
+
+                                                            arg.out_element_op_(
+                                                                v_out,
+                                                                ck::type_convert<AccDataType>(
+                                                                    arg.output_(
+                                                                        n, k, do_, ho, wo)));
+                                                            arg.wei_element_op_(
+                                                                v_wei,
+                                                                ck::type_convert<AccDataType>(
+                                                                    arg.weight_(k, c, z, y, x)));
+
+                                                            v_acc += v_out * v_wei;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    AccDataType v_in;
+                    arg.in_element_op_(v_in, v_acc);
+                    arg.input_(n, c, di, hi, wi) = ck::type_convert<InDataType>(v_in);
+                };
+
+                make_ParallelTensorFunctor(f_ncdhw,
+                                           arg.input_.mDesc.GetLengths()[0],
+                                           arg.input_.mDesc.GetLengths()[1],
+                                           arg.input_.mDesc.GetLengths()[2],
+                                           arg.input_.mDesc.GetLengths()[3],
+                                           arg.input_.mDesc.GetLengths()[4])(
+                    std::thread::hardware_concurrency());
+
+                return 0;
+            }
         }
 
         float Run(const device::BaseArgument* p_arg, int) override
@@ -143,9 +278,9 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
     bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
 
-    static auto MakeArgument(Tensor<InDataType>& in_n_c_hi_wi,
-                             const Tensor<WeiDataType>& wei_k_c_y_x,
-                             const Tensor<OutDataType>& out_n_k_ho_wo,
+    static auto MakeArgument(Tensor<InDataType>& input,
+                             const Tensor<WeiDataType>& weight,
+                             const Tensor<OutDataType>& output,
                              std::vector<ck::index_t> conv_filter_strides,
                              std::vector<ck::index_t> conv_filter_dilations,
                              std::vector<ck::index_t> input_left_pads,
@@ -154,9 +289,9 @@ struct ReferenceConvBwdData : public device::BaseOperator
                              WeiElementwiseOperation wei_element_op,
                              OutElementwiseOperation out_element_op)
     {
-        return Argument{in_n_c_hi_wi,
-                        wei_k_c_y_x,
-                        out_n_k_ho_wo,
+        return Argument{input,
+                        weight,
+                        output,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,

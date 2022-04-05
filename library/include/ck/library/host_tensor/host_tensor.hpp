@@ -73,10 +73,10 @@ struct HostTensorDescriptor
     HostTensorDescriptor() = delete;
 
     template <typename X>
-    HostTensorDescriptor(std::vector<X> lens);
+    HostTensorDescriptor(const std::vector<X>& lens);
 
     template <typename X, typename Y>
-    HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides);
+    HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides);
 
     void CalculateStrides();
 
@@ -163,7 +163,7 @@ struct ParallelTensorFunctor
         return indices;
     }
 
-    void operator()(std::size_t num_thread = std::thread::hardware_concurrency()) const
+    void operator()(std::size_t num_thread = 1) const
     {
         std::size_t work_per_thread = (mN1d + num_thread - 1) / num_thread;
 
@@ -213,7 +213,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
     template <typename G>
-    void GenerateTensorValue(G g, std::size_t num_thread = std::thread::hardware_concurrency())
+    void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
         switch(mDesc.GetNumOfDimension())
         {
@@ -285,13 +285,14 @@ struct Tensor
 };
 
 template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens) : mLens(lens)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens)
 {
     this->CalculateStrides();
 }
 
 template <typename X, typename Y>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
+                                           const std::vector<Y>& strides)
     : mLens(lens), mStrides(strides)
 {
 }
@@ -347,30 +348,6 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
               << linf_rel_ref_value << ", result " << linf_rel_result_value << std::endl;
 
     return linf_error;
-}
-
-template <typename T>
-void check_indices(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    bool has_error  = false;
-    int error_count = 0;
-
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        if(ref.mData[i] != result.mData[i])
-        {
-            std::cerr << std::endl
-                      << "Indices different at position " << i << " (ref: " << ref.mData[i]
-                      << ", result: " << result.mData[i] << ")" << std::endl;
-            has_error = true;
-            error_count++;
-            if(error_count == 20)
-                break;
-        };
-    }
-
-    if(!has_error)
-        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
 }
 
 #endif

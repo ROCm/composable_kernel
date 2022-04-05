@@ -29,7 +29,7 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdDefault =
-    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
 using DeviceConvBwdDataInstance = ck::tensor_operation::device::
     DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
@@ -40,7 +40,7 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
         InElementOp,    // InElementwiseOperation
         WeiElementOp,   // WeiElementwiseOperation
         OutElementOp,   // OutElementwiseOperation
-        ConvBwdDefault, // ConvolutionBackwardDataSpecialization_t
+        ConvBwdDefault, // ConvolutionBackwardDataSpecialization
         256,            // BlockSize
         128,            // MPerBlock
         128,            // NPerBlock
@@ -70,6 +70,7 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
 using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                   WeiDataType,
                                                                                   OutDataType,
+                                                                                  AccDataType,
                                                                                   InElementOp,
                                                                                   WeiElementOp,
                                                                                   OutElementOp>;

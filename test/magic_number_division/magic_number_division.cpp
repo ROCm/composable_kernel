@@ -7,7 +7,7 @@
 
 #include "check_err.hpp"
 #include "config.hpp"
-#include "print.hpp"
+#include "magic_division.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"

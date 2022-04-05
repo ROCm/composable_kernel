@@ -7,11 +7,9 @@
 
 #include "check_err.hpp"
 #include "config.hpp"
-#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"

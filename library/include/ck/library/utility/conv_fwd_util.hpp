@@ -43,11 +43,11 @@ using DeviceConvFwdNoOpPtr =
  *
  * @return     The number of flops.
  */
-std::size_t GetFlops(ck::index_t N,
-                     ck::index_t C,
-                     ck::index_t K,
-                     const std::vector<ck::index_t>& filter_spatial_lengths,
-                     const std::vector<ck::index_t>& output_spatial_lengths)
+std::size_t get_flops(ck::index_t N,
+                      ck::index_t C,
+                      ck::index_t K,
+                      const std::vector<ck::index_t>& filter_spatial_lengths,
+                      const std::vector<ck::index_t>& output_spatial_lengths)
 {
     // 2 * N * K * <output spatial lengths product> * C * <filter spatial lengths product>
     return static_cast<std::size_t>(2) * N * K *
@@ -81,12 +81,12 @@ std::size_t GetFlops(ck::index_t N,
 template <typename InDataType  = float,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType>
-std::size_t GetBtype(ck::index_t N,
-                     ck::index_t C,
-                     ck::index_t K,
-                     const std::vector<ck::index_t>& input_spatial_lengths,
-                     const std::vector<ck::index_t>& filter_spatial_lengths,
-                     const std::vector<ck::index_t>& output_spatial_lengths)
+std::size_t get_btype(ck::index_t N,
+                      ck::index_t C,
+                      ck::index_t K,
+                      const std::vector<ck::index_t>& input_spatial_lengths,
+                      const std::vector<ck::index_t>& filter_spatial_lengths,
+                      const std::vector<ck::index_t>& output_spatial_lengths)
 {
     // sizeof(InDataType) * (N * C * <input spatial lengths product>) +
     // sizeof(WeiDataType) * (K * C * <filter spatial lengths product>) +
@@ -211,8 +211,8 @@ struct ConvParams
  * @return     The host tensor descriptor object.
  */
 template <typename TensorLayout>
-HostTensorDescriptor GetHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                             const TensorLayout& layout)
+HostTensorDescriptor get_host_tensor_descriptor(const std::vector<std::size_t>& dims,
+                                                const TensorLayout& layout)
 {
     std::size_t C = dims[1];
     // 1D
@@ -279,7 +279,7 @@ template <typename InDataType  = float,
           typename InLayout    = ck::tensor_layout::convolution::NHWC,
           typename WeiLayout   = ck::tensor_layout::convolution::KYXC,
           typename OutLayout   = ck::tensor_layout::convolution::NHWK>
-auto GetHostTensors(const ConvParams& params, bool init = true)
+auto get_host_tensors(const ConvParams& params, bool init = true)
 {
     std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
                                         static_cast<std::size_t>(params.C)};
@@ -300,10 +300,10 @@ auto GetHostTensors(const ConvParams& params, bool init = true)
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(GetHostTensorDescriptor(input_dims, InLayout{}));
-    Tensor<WeiDataType> weights(GetHostTensorDescriptor(filter_dims, WeiLayout{}));
-    Tensor<OutDataType> host_output(GetHostTensorDescriptor(output_dims, OutLayout{}));
-    Tensor<OutDataType> device_output(GetHostTensorDescriptor(output_dims, OutLayout{}));
+    Tensor<InDataType> input(get_host_tensor_descriptor(input_dims, InLayout{}));
+    Tensor<WeiDataType> weights(get_host_tensor_descriptor(filter_dims, WeiLayout{}));
+    Tensor<OutDataType> host_output(get_host_tensor_descriptor(output_dims, OutLayout{}));
+    Tensor<OutDataType> device_output(get_host_tensor_descriptor(output_dims, OutLayout{}));
 
     if(init)
     {
@@ -331,21 +331,21 @@ auto GetHostTensors(const ConvParams& params, bool init = true)
     return std::make_tuple(input, weights, host_output, device_output);
 }
 
-HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                   int num_dim_spatial = 2)
+HostTensorDescriptor get_output_host_tensor_descriptor(const std::vector<std::size_t>& dims,
+                                                       int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWK{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::NDHWK{});
     }
     case 2: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWK{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::NHWK{});
     }
     case 1: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWK{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::NWK{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -353,21 +353,21 @@ HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t
     }
 }
 
-HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                    int num_dim_spatial = 2)
+HostTensorDescriptor get_filters_host_tensor_descriptor(const std::vector<std::size_t>& dims,
+                                                        int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KZYXC{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::KZYXC{});
     }
     case 2: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KYXC{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::KYXC{});
     }
     case 1: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::KXC{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::KXC{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -375,21 +375,21 @@ HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_
     }
 }
 
-HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                  int num_dim_spatial = 2)
+HostTensorDescriptor get_input_host_tensor_descriptor(const std::vector<std::size_t>& dims,
+                                                      int num_dim_spatial = 2)
 {
     namespace tl = ck::tensor_layout::convolution;
 
     switch(num_dim_spatial)
     {
     case 3: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NDHWC{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::NDHWC{});
     }
     case 2: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NHWC{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::NHWC{});
     }
     case 1: {
-        return ck::utils::conv::GetHostTensorDescriptor(dims, tl::NWC{});
+        return ck::utils::conv::get_host_tensor_descriptor(dims, tl::NWC{});
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -401,10 +401,10 @@ template <ck::index_t NDim,
           typename InDataType  = float,
           typename WeiDataType = float,
           typename OutDataType = float>
-void RunReferenceConvFwd(const ConvParams& params,
-                         const Tensor<InDataType>& input,
-                         const Tensor<WeiDataType>& weights,
-                         Tensor<OutDataType>& output)
+void run_reference_convolution_forward(const ConvParams& params,
+                                       const Tensor<InDataType>& input,
+                                       const Tensor<WeiDataType>& weights,
+                                       Tensor<OutDataType>& output)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
@@ -435,10 +435,10 @@ template <ck::index_t NDim,
           typename OutDataType = float,
           template <ck::index_t, typename, typename, typename>
           class DeviceConvNDFwdInstance>
-void RunConvFwd(const ConvParams& params,
-                const Tensor<InDataType>& input,
-                const Tensor<WeiDataType>& weights,
-                Tensor<OutDataType>& output)
+void run_convolution_forward(const ConvParams& params,
+                             const Tensor<InDataType>& input,
+                             const Tensor<WeiDataType>& weights,
+                             Tensor<OutDataType>& output)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -483,12 +483,12 @@ void RunConvFwd(const ConvParams& params,
 template <typename InDataType  = float,
           typename WeiDataType = float,
           typename OutDataType = float>
-bool RunConvInstances(const ConvParams& params,
-                      const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs,
-                      const Tensor<InDataType>& input,
-                      const Tensor<WeiDataType>& weights,
-                      Tensor<OutDataType>& output,
-                      const Tensor<OutDataType>& host_output)
+bool run_convolution_forward_instances(const ConvParams& params,
+                                       const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs,
+                                       const Tensor<InDataType>& input,
+                                       const Tensor<WeiDataType>& weights,
+                                       Tensor<OutDataType>& output,
+                                       const Tensor<OutDataType>& host_output)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 

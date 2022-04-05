@@ -1,5 +1,4 @@
-#ifndef TENSOR_LAYOUT_HPP
-#define TENSOR_LAYOUT_HPP
+#pragma once
 
 namespace ck {
 namespace tensor_layout {
@@ -100,7 +99,6 @@ struct NDHWK : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWK";
 };
-
 struct NCDHW : public BaseTensorLayout
 {
     static constexpr const char* name = "NCDHW";
@@ -129,4 +127,3 @@ std::ostream& operator<<(std::ostream& os, const Layout&)
 
 } // namespace tensor_layout
 } // namespace ck
-#endif

@@ -7,11 +7,9 @@
 
 #include "check_err.hpp"
 #include "config.hpp"
-#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"
@@ -44,7 +42,7 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
@@ -175,22 +173,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // warm up
-    invoker.Run(argument);
-
-    // timing
-    KernelTimer timer;
-
-    timer.Start();
-
-    for(int i = 0; i < nrepeat; ++i)
-    {
-        invoker.Run(argument);
-    }
-
-    timer.End();
-
-    float ave_time = timer.GetElapsedTime() / nrepeat;
+    float ave_time = invoker.Run(argument, nrepeat);
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =

@@ -46,7 +46,7 @@ using reduce_configuration_2_instances_multiblock_partial_reduce = std::tuple<
     >;
 #endif
 
-template <typename AccDataType, ReduceTensorOp_t ReduceOpId>
+template <typename AccDataType, ReduceTensorOp ReduceOpId>
 using deviceReduceMultiBlockPartialReducePtrType = DeviceReducePtr<
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::InElementwiseOperation,
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, false>::AccElementwiseOperation>;
@@ -56,9 +56,9 @@ template <typename InDataType,
           typename OutDataType,
           int Rank,
           int NumReduceDim,
-          ReduceTensorOp_t ReduceOpId,
-          NanPropagation_t NanOpt,
-          ReduceTensorIndices_t IndicesOpt>
+          ReduceTensorOp ReduceOpId,
+          NanPropagation NanOpt,
+          ReduceTensorIndices IndicesOpt>
 void add_device_reduce_instance_multiblock_partial_reduce(
     std::vector<deviceReduceMultiBlockPartialReducePtrType<AccDataType, ReduceOpId>>&
         device_op_instances)
@@ -72,11 +72,11 @@ void add_device_reduce_instance_multiblock_partial_reduce(
             AccElementwiseOperation;
 
     constexpr bool Indexable =
-        (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||
-         ReduceOpId == ReduceTensorOp_t::AMAX);
-    constexpr bool NeedIndices = Indexable && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES);
+        (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
+         ReduceOpId == ReduceTensorOp::AMAX);
+    constexpr bool NeedIndices = Indexable && (IndicesOpt != ReduceTensorIndices::NO_INDICES);
 
-    constexpr bool PropagateNan = (NanOpt == NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
+    constexpr bool PropagateNan = (NanOpt == NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
 
     static_for<0, std::tuple_size<reduce_configuration_1_instances>::value, 1>{}([&](auto i) {
         using cfg1 =
@@ -126,15 +126,15 @@ void add_device_reduce_instance_multiblock_partial_reduce(
         std::vector<deviceReduceMultiBlockPartialReducePtrType<compT, ReduceOpId>> & \
         device_op_instances)
 
-#define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_BY_ID(                                              \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                      \
-    ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_BY_TYPE(inT,                                            \
-                                               compT,                                          \
-                                               outT,                                           \
-                                               static_cast<ReduceTensorOp_t>(ReduceOpId),      \
-                                               static_cast<NanPropagation_t>(NanOpt),          \
-                                               static_cast<ReduceTensorIndices_t>(IndicesOpt), \
-                                               Rank,                                           \
+#define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_BY_ID(                                            \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                    \
+    ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_BY_TYPE(inT,                                          \
+                                               compT,                                        \
+                                               outT,                                         \
+                                               static_cast<ReduceTensorOp>(ReduceOpId),      \
+                                               static_cast<NanPropagation>(NanOpt),          \
+                                               static_cast<ReduceTensorIndices>(IndicesOpt), \
+                                               Rank,                                         \
                                                NumReduceDim)
 
 #define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_TYPE(                                      \
@@ -154,15 +154,15 @@ void add_device_reduce_instance_multiblock_partial_reduce(
                                 AccElementwiseOperation>> &                                  \
         device_op_instances)
 
-#define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_ID(                                              \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                          \
-    ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_TYPE(inT,                                            \
-                                                   compT,                                          \
-                                                   outT,                                           \
-                                                   static_cast<ReduceTensorOp_t>(ReduceOpId),      \
-                                                   static_cast<NanPropagation_t>(NanOpt),          \
-                                                   static_cast<ReduceTensorIndices_t>(IndicesOpt), \
-                                                   Rank,                                           \
+#define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_ID(                                            \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                        \
+    ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_TYPE(inT,                                          \
+                                                   compT,                                        \
+                                                   outT,                                         \
+                                                   static_cast<ReduceTensorOp>(ReduceOpId),      \
+                                                   static_cast<NanPropagation>(NanOpt),          \
+                                                   static_cast<ReduceTensorIndices>(IndicesOpt), \
+                                                   Rank,                                         \
                                                    NumReduceDim)
 
 } // namespace device_reduce_instance

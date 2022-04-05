@@ -97,7 +97,7 @@ void profile_grouped_gemm_impl(int do_verification,
                   << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
                   << "]:" << c_m_n_device_results[i].mDesc << std::endl;
 
-        std::size_t num_thread = std::thread::hardware_concurrency();
+        std::size_t num_thread = 1;
         switch(init_method)
         {
         case 0: break;

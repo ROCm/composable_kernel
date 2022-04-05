@@ -7,11 +7,9 @@
 
 #include "check_err.hpp"
 #include "config.hpp"
-#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"
@@ -55,9 +53,9 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     256,                    // BlockSize
     256,                    // MPerBlock
     128,                    // NPerBlock
-    32,                     // KPerBlock
-    8,                      // AK1
-    8,                      // BK1
+    64,                     // KPerBlock
+    16,                     // AK1
+    16,                     // BK1
     32,                     // MPerXDL
     32,                     // NPerXDL
     4,                      // MXdlPerWave
@@ -66,15 +64,15 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
     2,                      // ABlockTransferSrcVectorDim
-    8,                      // ABlockTransferSrcScalarPerVector
-    8,                      // ABlockTransferDstScalarPerVector_K1
+    16,                     // ABlockTransferSrcScalarPerVector
+    16,                     // ABlockTransferDstScalarPerVector_K1
     true,                   // ABlockLdsAddExtraM
     S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
     S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
     2,                      // BBlockTransferSrcVectorDim
-    8,                      // BBlockTransferSrcScalarPerVector
-    8,                      // BBlockTransferDstScalarPerVector_K1
+    16,                     // BBlockTransferSrcScalarPerVector
+    16,                     // BBlockTransferDstScalarPerVector_K1
     true,                   // BBlockLdsAddExtraN
     1,                      // CShuffleMXdlPerWavePerShuffle
     1,                      // CShuffleNXdlPerWavePerShuffle

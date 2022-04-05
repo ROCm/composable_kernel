@@ -75,14 +75,14 @@ calculate_convolution_flops(const InDesc&, const WeiDesc& wei_desc, const OutDes
 }
 
 template <typename T>
-inline auto activ(T v, const ck::ActivTypeEnum_t activ_type)
+inline auto activ(T v, const ck::ActivTypeEnum activ_type)
 {
     const T alpha = 0.3;
     switch(activ_type)
     {
-    case ck::ActivTypeEnum_t::None: return v;
-    case ck::ActivTypeEnum_t::LeakyRelu: return (v >= 0 ? v : alpha * v);
-    case ck::ActivTypeEnum_t::Sigmoid: return (1 / (1 + exp(-v)));
+    case ck::ActivTypeEnum::None: return v;
+    case ck::ActivTypeEnum::LeakyRelu: return (v >= 0 ? v : alpha * v);
+    case ck::ActivTypeEnum::Sigmoid: return (1 / (1 + exp(-v)));
     default: throw std::runtime_error("unsupported activ type"); break;
     }
 }

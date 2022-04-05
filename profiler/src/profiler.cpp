@@ -15,8 +15,10 @@ int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
-int profile_conv_bwd_data(int, char*[]);
+int profile_convnd_bwd_data(int, char*[], int);
 int profile_reduce(int, char*[]);
+int profile_conv_bwd_weight(int, char*[]);
+int profile_batched_gemm_reduce(int, char*[]);
 
 int main(int argc, char* argv[])
 {
@@ -44,6 +46,10 @@ int main(int argc, char* argv[])
     {
         return profile_batched_gemm(argc, argv);
     }
+    else if(strcmp(argv[1], "batched_gemm_reduce") == 0)
+    {
+        return profile_batched_gemm_reduce(argc, argv);
+    }
     else if(strcmp(argv[1], "grouped_gemm") == 0)
     {
         profile_grouped_gemm(argc, argv);
@@ -64,13 +70,25 @@ int main(int argc, char* argv[])
     {
         return profile_conv_fwd_bias_relu_atomic_add(argc, argv);
     }
-    else if(strcmp(argv[1], "conv_bwd") == 0)
+    else if(strcmp(argv[1], "conv1d_bwd_data") == 0)
     {
-        return profile_conv_bwd_data(argc, argv);
+        return profile_convnd_bwd_data(argc, argv, 1);
+    }
+    else if(strcmp(argv[1], "conv2d_bwd_data") == 0)
+    {
+        return profile_convnd_bwd_data(argc, argv, 2);
+    }
+    else if(strcmp(argv[1], "conv3d_bwd_data") == 0)
+    {
+        return profile_convnd_bwd_data(argc, argv, 3);
     }
     else if(strcmp(argv[1], "reduce") == 0)
     {
         return profile_reduce(argc, argv);
+    }
+    else if(strcmp(argv[1], "conv2d_bwd_weight") == 0)
+    {
+        return profile_conv_bwd_weight(argc, argv);
     }
     else
     {
@@ -80,15 +98,17 @@ int main(int argc, char* argv[])
                "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
                "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
                "                        gemm_reduce: GEMM+Reduce\n"
-               "                        grouped_gemm: Grouped Gemm\n"
+               "                        grouped_gemm: Grouped GEMM\n"
                "                        conv_fwd: ForwardConvolution\n"
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
                "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
-               "                        conv_bwd: BackwardConvolution\n"
-               "                        reduce: Reduce\n");
+               "                        conv1d_bwd_data: BackwardConvolution data 1 dim\n"
+               "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
+               "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
+               "                        reduce: REDUCE\n"
+               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
         // clang-format on
-
-        return 0;
     }
+    return 0;
 }

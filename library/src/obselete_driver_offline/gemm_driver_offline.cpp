@@ -315,7 +315,7 @@ int main(int argc, char* argv[])
     ostream_HostTensorDescriptor(b.mDesc, std::cout << "b: ");
     ostream_HostTensorDescriptor(c_host.mDesc, std::cout << "c: ");
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {

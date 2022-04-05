@@ -68,7 +68,7 @@ template <
     typename FloatAB,
     typename FloatAcc,
     typename FloatC,
-    InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
+    InMemoryDataOperationEnum CGlobalMemoryDataOperation,
     typename AGridDesc_K0_M_K1,
     typename BGridDesc_K0_N_K1,
     typename CGridDesc_M_N,
@@ -382,15 +382,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
         const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map)
     {
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_grid_desc_k0_n_k1.GetElementSpaceSize());
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid,
             c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl
                 .GetElementSpaceSize());
-        auto c0_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c0_grid,
             c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl
                 .GetElementSpaceSize());
@@ -422,7 +422,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<K0PerBlock, MPerBlock, K1>,
                                               ABlockTransferThreadClusterLengths_K0_M_K1,
                                               ABlockTransferThreadClusterArrangeOrder,
@@ -453,7 +453,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<K0PerBlock, NPerBlock, K1>,
                                               BBlockTransferThreadClusterLengths_K0_N_K1,
                                               BBlockTransferThreadClusterArrangeOrder,
@@ -505,10 +505,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
         constexpr auto a_block_space_size_aligned =
             math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared), a_block_desc_k0_m_k1.GetElementSpaceSize());
 
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_k0_n_k1.GetElementSpaceSize());
 
@@ -582,7 +582,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
             constexpr auto c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl =
                 GetCBlockDescriptor_MBlock_NXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl();
 
-            auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+            auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                 static_cast<FloatC*>(p_shared),
                 c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl
                     .GetElementSpaceSize());
@@ -661,7 +661,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                                    7,
                                                    1,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    true>{
                     c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
