@@ -18,8 +18,8 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ck::index_t NumDimSpatial                                                     = 2,
-          typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
+          ck::index_t NumDimSpatial                                                    = 2,
+          typename ck::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvBwdData : public device::BaseOperator
 {
     // Argument
