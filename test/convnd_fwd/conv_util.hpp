@@ -76,9 +76,12 @@ void RunConv(const ck::utils::conv::ConvParams& params,
              const Tensor<WeiDataType>& weights,
              Tensor<OutDataType>& output)
 {
-    ck::utils::conv::
-        RunConvFwd<NDim, InDataType, WeiDataType, OutDataType, DeviceConvNDFwdInstance>(
-            params, input, weights, output);
+    ck::utils::conv::run_convolution_forward<NDim,
+                                             InDataType,
+                                             WeiDataType,
+                                             OutDataType,
+                                             DeviceConvNDFwdInstance>(
+        params, input, weights, output);
 }
 
 } // namespace conv

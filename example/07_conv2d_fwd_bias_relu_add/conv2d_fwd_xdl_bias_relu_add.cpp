@@ -200,17 +200,19 @@ int main(int argc, char* argv[])
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
 
-    Tensor<InDataType> input(GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
-    Tensor<WeiDataType> weights(GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
-    Tensor<OutDataType> host_output(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
-    Tensor<OutDataType> device_output(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+    Tensor<InDataType> input(get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
+    Tensor<WeiDataType> weights(get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
+    Tensor<OutDataType> host_output(
+        get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
+    Tensor<OutDataType> device_output(
+        get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
 
     // bias: assume contiguous 1d vector
     Tensor<OutDataType> bias(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(params.K)})));
 
     // residual: assume same layout as output tensor
-    Tensor<OutDataType> residual(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+    Tensor<OutDataType> residual(get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weights: " << weights.mDesc << std::endl;
@@ -280,15 +282,15 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, nrepeat);
 
-    std::size_t flop = GetFlops(
+    std::size_t flop = get_flops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
     std::size_t num_btype =
-        GetBtype<InDataType, WeiDataType, OutDataType>(params.N,
-                                                       params.C,
-                                                       params.K,
-                                                       params.input_spatial_lengths,
-                                                       params.filter_spatial_lengths,
-                                                       output_spatial_lengths) +
+        get_btype<InDataType, WeiDataType, OutDataType>(params.N,
+                                                        params.C,
+                                                        params.K,
+                                                        params.input_spatial_lengths,
+                                                        params.filter_spatial_lengths,
+                                                        output_spatial_lengths) +
         sizeof(OutDataType) * (params.K) +
         sizeof(OutDataType) *
             (params.N * params.K * output_spatial_lengths[0] * output_spatial_lengths[1]);

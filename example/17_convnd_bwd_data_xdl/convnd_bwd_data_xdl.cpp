@@ -222,13 +222,13 @@ int main(int argc, char* argv[])
                        std::end(output_spatial_lengths));
 
     Tensor<InDataType> in_n_c_hi_wi_host_result(
-        ck::utils::conv::GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+        ck::utils::conv::get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
     Tensor<InDataType> in_n_c_hi_wi_device_result(
-        ck::utils::conv::GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+        ck::utils::conv::get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
     Tensor<WeiDataType> wei_k_c_y_x(
-        ck::utils::conv::GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
+        ck::utils::conv::get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
     Tensor<OutDataType> out_n_k_ho_wo(
-        ck::utils::conv::GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+        ck::utils::conv::get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
@@ -287,9 +287,9 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker->Run(argument.get(), nrepeat);
 
-    std::size_t flop = ck::utils::conv::GetFlops(
+    std::size_t flop = ck::utils::conv::get_flops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
-    std::size_t num_btype = ck::utils::conv::GetBtype<InDataType, WeiDataType, OutDataType>(
+    std::size_t num_btype = ck::utils::conv::get_btype<InDataType, WeiDataType, OutDataType>(
         params.N,
         params.C,
         params.K,
