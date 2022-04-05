@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -225,8 +227,7 @@ int main(int argc, char* argv[])
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
-
-            check_error(c_host_tensors[i], c_device_tensors[i]);
+            ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
         }
     }
 

@@ -1,9 +1,10 @@
-#ifndef TEST_UTIL_HPP
-#define TEST_UTIL_HPP
+#ifndef CHECK_ERR_HPP
+#define CHECK_ERR_HPP
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <half.hpp>
 #include <iostream>
 #include <iomanip>
 #include <iterator>
@@ -13,16 +14,17 @@
 
 #include "data_type.hpp"
 
-namespace test {
+namespace ck {
+namespace utils {
 
 template <typename T>
-typename std::enable_if<std::is_floating_point<T>::value && !std::is_same<T, ck::half_t>::value,
+typename std::enable_if<std::is_floating_point<T>::value && !std::is_same<T, half_t>::value,
                         bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
-          const std::string& msg,
-          double rtol = 1e-5,
-          double atol = 1e-8)
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-5,
+          double atol            = 1e-8)
 {
     if(out.size() != ref.size())
     {
@@ -60,13 +62,12 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, ck::bhalf_t>::value || std::is_same<T, ck::half_t>::value,
-                        bool>::type
+typename std::enable_if<std::is_same<T, bhalf_t>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
-          const std::string& msg,
-          double rtol = 1e-5,
-          double atol = 1e-8)
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
 {
     if(out.size() != ref.size())
     {
@@ -77,14 +78,15 @@ check_err(const std::vector<T>& out,
     }
 
     bool res{true};
-    int err_count  = 0;
-    double err     = 0;
-    double max_err = ck::type_convert<float>(ck::NumericLimits<T>::Min());
+    int err_count = 0;
+    double err    = 0;
+    // TODO: This is a hack. We should have proper specialization for bhalf_t data type.
+    double max_err = std::numeric_limits<float>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        float o = ck::type_convert<float>(out[i]);
-        float r = ck::type_convert<float>(ref[i]);
-        err     = std::abs(o - r);
+        double o = type_convert<float>(out[i]);
+        double r = type_convert<float>(ref[i]);
+        err      = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -105,11 +107,14 @@ check_err(const std::vector<T>& out,
     return res;
 }
 
-bool check_err(const std::vector<ck::half_t>& out,
-               const std::vector<ck::half_t>& ref,
-               const std::string& msg,
-               ck::half_t rtol = static_cast<ck::half_t>(1e-3f),
-               ck::half_t atol = static_cast<ck::half_t>(1e-3f))
+template <typename T>
+typename std::enable_if<std::is_same<T, half_t>::value || std::is_same<T, half_float::half>::value,
+                        bool>::type
+check_err(const std::vector<T>& out,
+          const std::vector<T>& ref,
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
 {
     if(out.size() != ref.size())
     {
@@ -122,20 +127,20 @@ bool check_err(const std::vector<ck::half_t>& out,
     bool res{true};
     int err_count  = 0;
     double err     = 0;
-    double max_err = std::numeric_limits<ck::half_t>::min();
+    double max_err = std::numeric_limits<T>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        double out_ = double(out[i]);
-        double ref_ = double(ref[i]);
-        err         = std::abs(out_ - ref_);
-        if(err > atol + rtol * std::abs(ref_) || !std::isfinite(out_) || !std::isfinite(ref_))
+        double o = type_convert<float>(out[i]);
+        double r = type_convert<float>(ref[i]);
+        err      = std::abs(o - r);
+        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
             if(err_count < 5)
             {
                 std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << out_ << "!=" << ref_ << std::endl
+                          << i << "]: " << o << " != " << r << std::endl
                           << msg << std::endl;
             }
             res = false;
@@ -149,13 +154,12 @@ bool check_err(const std::vector<ck::half_t>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, ck::bhalf_t>::value,
-                        bool>::type
+typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, bhalf_t>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
-          const std::string& msg,
-          double = 0,
-          double = 0)
+          const std::string& msg = "Error: Incorrect results!",
+          double                 = 0,
+          double                 = 0)
 {
     if(out.size() != ref.size())
     {
@@ -178,7 +182,8 @@ check_err(const std::vector<T>& out,
     return true;
 }
 
-} // namespace test
+} // namespace utils
+} // namespace ck
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)

@@ -3,6 +3,8 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -300,13 +302,14 @@ int main(int argc, char* argv[])
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        check_error(out_n_c_ho_wo_host, out_n_c_ho_wo_device);
+        ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
 
         if constexpr(NeedIndices)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            //          check_indices(out_indices_n_c_ho_wo_host, out_indices_n_c_ho_wo_device);
+            //          ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
+            //          out_indices_n_c_ho_wo_host.mData);;
         };
     }
 }

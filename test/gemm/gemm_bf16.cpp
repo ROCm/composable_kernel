@@ -19,7 +19,6 @@
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
-#include "test_util.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 

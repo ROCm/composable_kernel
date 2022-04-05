@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "check_err.hpp"
 #include "config.hpp"
 #include "element_wise_operation.hpp"
 #include "tensor_layout.hpp"
@@ -393,7 +394,6 @@ bool profile_batched_gemm_impl(int do_verification,
                 }
                 else
                 {
-
                     float err = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
                     pass      = pass && (err < 1E-6);
                 }
