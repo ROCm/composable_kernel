@@ -336,8 +336,7 @@ bool profile_convnd_bwd_data_impl(int do_verification,
     wei_device_buf.ToDevice(weights.mData.data());
 
     // reset input to zero
-    input_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{0});
-    in_device_buf.ToDevice(input_device_result.mData.data());
+    in_device_buf.SetZero();
 
     if(do_verification)
     {
