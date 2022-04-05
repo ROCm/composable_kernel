@@ -917,21 +917,21 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
 
     } // function end
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
     static auto GetABCGridDesc()
     {
         return MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<1>(
             1, 1, 1, {1}, {1}, {1}, {1}, {1}, {1}, {1}, {0});
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 2, bool>::type = false>
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
     static auto GetABCGridDesc()
     {
         return MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<2>(
             1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {0, 0});
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
     static auto GetABCGridDesc()
     {
         return MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<3>(1,
