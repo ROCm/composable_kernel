@@ -274,8 +274,8 @@ int main(int argc, char* argv[])
     auto invoker_ptr = reduce.MakeInvokerPointer();
     invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
+    // TODO - Need BroadcastSub + exponential + ReduceSum + BroadcastDiv
     // TODO = do_verification
-    if(do_verification)
-        ;
+    (void)do_verification;
     return 0;
 }
