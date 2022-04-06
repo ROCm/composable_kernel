@@ -1,6 +1,5 @@
 #include <half.hpp>
 #include <iostream>
-#include <stdexcept>
 #include <tuple>
 #include <vector>
 
