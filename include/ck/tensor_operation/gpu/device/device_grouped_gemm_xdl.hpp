@@ -366,7 +366,7 @@ struct DeviceGroupedGemmXdl
     {
         using Argument = DeviceGroupedGemmXdl::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false)
         {
             StaticallyIndexedArray<GemmDescKernelArg, MaxGroupCount> gemm_desc_kernel_arg_arg;
 
@@ -438,6 +438,8 @@ struct DeviceGroupedGemmXdl
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
+                              stream_id,
+                              measure_time,
                                                   gemm_desc_kernel_arg_arg,
                                                   arg.gemm_desc_kernel_arg_.size(),
                                                   arg.a_element_op_,
@@ -462,6 +464,8 @@ struct DeviceGroupedGemmXdl
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
+                              stream_id,
+                              measure_time,
                                                   gemm_desc_kernel_arg_arg,
                                                   arg.gemm_desc_kernel_arg_.size(),
                                                   arg.a_element_op_,
@@ -473,9 +477,9 @@ struct DeviceGroupedGemmXdl
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }
     };
 

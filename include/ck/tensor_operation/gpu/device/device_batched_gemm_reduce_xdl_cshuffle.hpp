@@ -673,7 +673,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int /* nrepeat */ = 1)
+        float Run(const Argument& arg, int  nrepeat  = 1, hipStream_t stream_id = nullptr, bool measure_time = false)
         {
 #if 0
             {
@@ -710,6 +710,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
 
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
 
+            float elapsed_time = 0.0f;
+
             if(has_main_k0_block_loop)
             {
                 const auto kernel = kernel_batched_gemm_reduce_xdl_cshuffle_v1<
@@ -730,10 +732,12 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                     remove_reference_t<Block2CTileMap>,
                     true>;
 
-                launch_kernel(kernel,
+                elapsed_time = launch_and_time_kernel(kernel,nrepeat,
                               dim3(grid_size),
                               dim3(BlockSize),
                               0,
+                        stream_id,
+                        measure_time,
                               arg.p_a_grid_,
                               arg.p_b_grid_,
                               arg.p_c_grid_,
@@ -772,10 +776,13 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                     remove_reference_t<Block2CTileMap>,
                     false>;
 
-                launch_kernel(kernel,
+                elapsed_time = launch_and_time_kernel(kernel,
+                              nrepeat,
                               dim3(grid_size),
                               dim3(BlockSize),
                               0,
+                              stream_id,
+                              measure_time,
                               arg.p_a_grid_,
                               arg.p_b_grid_,
                               arg.p_c_grid_,
@@ -795,13 +802,13 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                               arg.block_2_ctile_map_);
             }
 
-            return 0;
+            return elapsed_time;
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }
     };
 
