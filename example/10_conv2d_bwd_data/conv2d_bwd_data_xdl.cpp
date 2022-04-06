@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -27,7 +29,7 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdDefault =
-    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
 using DeviceConvBwdDataInstance = ck::tensor_operation::device::
     DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
@@ -38,7 +40,7 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
         InElementOp,    // InElementwiseOperation
         WeiElementOp,   // WeiElementwiseOperation
         OutElementOp,   // OutElementwiseOperation
-        ConvBwdDefault, // ConvolutionBackwardDataSpecialization_t
+        ConvBwdDefault, // ConvolutionBackwardDataSpecialization
         256,            // BlockSize
         128,            // MPerBlock
         128,            // NPerBlock
@@ -68,6 +70,7 @@ using DeviceConvBwdDataInstance = ck::tensor_operation::device::
 using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                                   WeiDataType,
                                                                                   OutDataType,
+                                                                                  AccDataType,
                                                                                   InElementOp,
                                                                                   WeiElementOp,
                                                                                   OutElementOp>;
@@ -180,6 +183,10 @@ int main(int argc, char* argv[])
     out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
+    // reset input to zero
+    in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{0});
+    in_device_buf.ToDevice(in_n_c_hi_wi_device_result.mData.data());
+
     // do GEMM
     auto conv     = DeviceConvBwdDataInstance{};
     auto invoker  = conv.MakeInvoker();
@@ -242,6 +249,6 @@ int main(int argc, char* argv[])
 
         in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-        check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+        ck::utils::check_err(in_n_c_hi_wi_device_result.mData, in_n_c_hi_wi_host_result.mData);
     }
 }

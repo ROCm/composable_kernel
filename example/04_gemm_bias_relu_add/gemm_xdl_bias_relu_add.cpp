@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -141,15 +143,15 @@ int main(int argc, char* argv[])
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<BDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<BDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     // c0_n[n]
     Tensor<CDataType> c0_n(HostTensorDescriptor(
         std::vector<std::size_t>({static_cast<std::size_t>(N)}), std::vector<std::size_t>({1})));
 
     // c1_m_n[m ,n]
-    Tensor<BDataType> c1_m_n(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c1_m_n(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -248,6 +250,6 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        check_error(c_m_n_host_result, c_m_n_device_result);
+        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
     }
 }

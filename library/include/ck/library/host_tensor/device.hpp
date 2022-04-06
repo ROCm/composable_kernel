@@ -48,8 +48,10 @@ struct DeviceMem
     DeviceMem() = delete;
     DeviceMem(std::size_t mem_size);
     void* GetDeviceBuffer();
+    std::size_t GetBufferSize();
     void ToDevice(const void* p);
     void FromDevice(void* p);
+    void SetZero();
     ~DeviceMem();
 
     void* mpDeviceBuf;
@@ -108,8 +110,6 @@ float launch_and_time_kernel(
     }
 
     timer.End();
-
-    // std::this_thread::sleep_for (std::chrono::microseconds(10));
 
     return timer.GetElapsedTime() / nrepeat;
 #else

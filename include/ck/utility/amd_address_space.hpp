@@ -9,7 +9,7 @@
 
 namespace ck {
 
-enum AddressSpaceEnum_t
+enum struct AddressSpaceEnum
 {
     Generic,
     Global,
@@ -19,7 +19,7 @@ enum AddressSpaceEnum_t
 };
 
 template <typename T>
-__device__ T* cast_pointer_to_generic_address_space(T CONSTANT* p)
+__device__ T* cast_pointer_to_generic_address_space(T CK_CONSTANT_ADDRESS_SPACE* p)
 {
     // cast a pointer in "Constant" address space (4) to "Generic" address space (0)
     // only c-style pointer cast seems be able to be compiled
@@ -30,13 +30,13 @@ __device__ T* cast_pointer_to_generic_address_space(T CONSTANT* p)
 }
 
 template <typename T>
-__host__ __device__ T CONSTANT* cast_pointer_to_constant_address_space(T* p)
+__host__ __device__ T CK_CONSTANT_ADDRESS_SPACE* cast_pointer_to_constant_address_space(T* p)
 {
     // cast a pointer in "Generic" address space (0) to "Constant" address space (4)
     // only c-style pointer cast seems be able to be compiled
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
-    return (T CONSTANT*)p; // NOLINT(old-style-cast)
+    return (T CK_CONSTANT_ADDRESS_SPACE*)p; // NOLINT(old-style-cast)
 #pragma clang diagnostic pop
 }
 

@@ -6,15 +6,9 @@
 #include "hip/hip_fp16.h"
 #endif
 
-// "Constant" address space for kernel parameter
-#define CONSTANT __attribute__((address_space(4)))
-
-// GPU target
-// should enable one and only one GPU target
-#if !(defined(CK_AMD_GPU_GFX803) || defined(CK_AMD_GPU_GFX900) || defined(CK_AMD_GPU_GFX906) || \
-      defined(CK_AMD_GPU_GFX908) || defined(CK_AMD_GPU_GFX90A) || defined(CK_AMD_GPU_GFX1030))
-#error Need to define (only) one GPU target
-#endif
+// constant address space for kernel parameter
+// https://llvm.org/docs/AMDGPUUsage.html#address-spaces
+#define CK_CONSTANT_ADDRESS_SPACE __attribute__((address_space(4)))
 
 // launch bounds
 #define CK_USE_LAUNCH_BOUNDS 1
@@ -24,149 +18,134 @@
 #define CK_MIN_BLOCK_PER_CU 2
 #endif
 
-// GPU-specific parameters
-#if defined(CK_AMD_GPU_GFX803) || defined(CK_AMD_GPU_GFX900) || defined(CK_AMD_GPU_GFX906) || \
-    defined(CK_AMD_GPU_GFX908) || defined(CK_AMD_GPU_GFX90A)
-// buffer resourse
+// check GPU target
+#ifdef __HIP_DEVICE_COMPILE__
+#if !(defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
+      defined(__gfx90a__) || defined(__gfx1030__))
+#error Not supported target
+#endif
+#endif
+
+// buffer resourse, wave size
+#ifndef __HIP_DEVICE_COMPILE__ // for host code
+#define CK_BUFFER_RESOURCE_3RD_DWORD -1
+#define CK_GPU_WAVE_SIZE -1
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
+    defined(__gfx90a__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-// wave size
 #define CK_GPU_WAVE_SIZE 64
-#elif defined(CK_AMD_GPU_GFX1030)
+#elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
 #define CK_GPU_WAVE_SIZE 32
 #endif
 
 // FMA instruction
-#if defined(CK_AMD_GPU_GFX803) || defined(CK_AMD_GPU_GFX900)
+#ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
+#elif defined(__gfx803__) || defined(__gfx900__) // for GPU code
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(CK_AMD_GPU_GFX906) || defined(CK_AMD_GPU_GFX908) || defined(CK_AMD_GPU_GFX90a) || \
-    defined(CK_AMD_GPU_GFX1030)
+#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx1030__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
 #endif
 
-// multi index
-#define CK_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 0
-
-// AMD inline asm
-#ifndef CK_USE_AMD_INLINE_ASM
-#define CK_USE_AMD_INLINE_ASM 1
+// MFMA instruction
+#ifndef __HIP_DEVICE_COMPILE__ // for host code
+#define CK_USE_AMD_MFMA
+#elif defined(__gfx908__) || defined(__gfx90a__) // for GPU code
+#define CK_USE_AMD_MFMA
 #endif
 
-// AMD inner product (DLOP)
-#ifndef CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
-#define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
+#if defined(__gfx90a__)
+#define CK_USE_AMD_MFMA_BF16_1K_OP
 #endif
 
-// AMD buffer_load
-#ifndef CK_USE_AMD_BUFFER_LOAD
+// buffer load
 #define CK_USE_AMD_BUFFER_LOAD 1
-#endif
 
-// AMD buffer_store
-#ifndef CK_USE_AMD_BUFFER_STORE
+// buffer store
 #define CK_USE_AMD_BUFFER_STORE 1
+
+// buffer atomic add: integer
+#define CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER 1
+
+// buffer atomic add: floating point
+#ifndef __HIP_DEVICE_COMPILE__ // for host code
+#define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
+#elif defined(__gfx908__) || defined(__gfx90a__) // for GPU code
+#define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
+#else // for GPU code
+#define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
-// AMD buffer_atomic_add
-#ifndef CK_USE_AMD_BUFFER_ATOMIC_ADD
-#define CK_USE_AMD_BUFFER_ATOMIC_ADD 1
-#endif
+// inline asm
+#define CK_USE_AMD_INLINE_ASM 1
 
-// AMD XDLOPS
-#ifndef CK_USE_AMD_XDLOPS
-#define CK_USE_AMD_XDLOPS 0
-#endif
+// inner product (DLOP)
+#define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
-#ifndef CK_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-#define CK_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
-#endif
+#define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 
-// experimental implementation for buffer load/store/atomic
-#ifndef CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
-#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
-#endif
+// experimental feature: multi index implemented as array
+#define CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 0
 
-#ifndef CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
-#define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
-#endif
-
-#ifndef CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
-#define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
-#endif
-
-// experimental implementation for in-regsiter sub-dword transpose
-#ifndef CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE
-#define CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE 1
-#endif
-
+// experimental feature: static tensor descriptor
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
-// merge transformation use magic number division
-#ifndef CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
+// experimental feature: buffer load/store/atomic-add OOB trick
+#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
+#define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
+#define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
+
+// experimental feature: in-regsiter sub-dword transpose
+#define CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE 1
+
+// experimental feature: merge transformation use magic number division
 #define CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION 1
-#endif
 
-// use __builtin_memcpy instead of pointer cast to access a vector from pointer of scalar
-#ifndef CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+// experimental feature: use __builtin_memcpy instead of pointer cast to access a vector from
+// pointer of scalar
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 0
-#endif
 
-// use __builtin_memcpy instead of union to do bit_cast
-#ifndef CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST
+// experimental feature: use __builtin_memcpy instead of union to do bit_cast
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
-#endif
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
 // thread-invariant, otherwise it's a bug
 // TODO: separate index calculation into "compile-time", "global", "block", "wave", "thread"
-#ifndef CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE
 #define CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE 0
-#endif
 
-// workaround for compiler crash when compiling recursive lambda
-#ifndef CK_WORKAROUND_SWDEV_275126
+// workaround: compiler crash when compiling recursive lambda
 #define CK_WORKAROUND_SWDEV_275126 1
-#endif
 
-// workaround for compiler crash when using buffer load/store for i8
-#ifndef CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE
+// workaround: compiler crash when using buffer load/store for i8
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_BUFFER_LOAD_STORE_ISSUE 1
-#endif
 
-// workaround for compiler gnerating inefficient ds_write instructions
-#ifndef CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
+// workaround: compiler gnerating inefficient ds_write instructions
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
-#endif
 
-// workaround for register spill due to compiler issue, when casting type between fp32 and fp16
-#ifndef CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R4_TYPE_CONVERT_ISSUE
-#define CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R4_TYPE_CONVERT_ISSUE 1
-#endif
-
-#ifndef CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R5_TYPE_CONVERT_ISSUE
-#define CK_WORKAROUND_SWDEV_XXXXXX_THREAD_WISE_COPY_V1R5_TYPE_CONVERT_ISSUE 1
-#endif
-
-// workaround for verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
+// workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter
-#ifndef CK_WORKAROUND_SWDEV_325164
 #define CK_WORKAROUND_SWDEV_325164 1
-#endif
+
+// workaround for verification failure ConvNd forward
+// https://github.com/ROCmSoftwarePlatform/composable_kernel/issues/135
+#define CK_WORKAROUND_GITHUB_135 1
 
 namespace ck {
 
-enum InMemoryDataOperationEnum_t
+enum struct InMemoryDataOperationEnum
 {
     Set,
     AtomicAdd,
     Add
 };
 
-enum ActivTypeEnum_t
+// TODO: no longer needed, remove this
+enum struct ActivTypeEnum
 {
     None,
     LeakyRelu,

@@ -4,12 +4,12 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
-#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"
@@ -25,12 +25,11 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
-using RequantReluRequant = ck::tensor_operation::element_wise::RequantReluRequant;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using ADataType        = int8_t;
 using BDataType        = int8_t;
-using CDataType        = int8_t;
+using CDataType        = int32_t;
 using AccDataType      = int32_t;
 using CShuffleDataType = int32_t;
 
@@ -50,13 +49,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     CLayout,                // CLayout
     PassThrough,            // AElementwiseOperation
     PassThrough,            // BElementwiseOperation
-    RequantReluRequant,     // CElementwiseOperation
+    PassThrough,            // CElementwiseOperation
     256,                    // BlockSize
     256,                    // MPerBlock
     128,                    // NPerBlock
-    32,                     // KPerBlock
-    8,                      // AK1
-    8,                      // BK1
+    64,                     // KPerBlock
+    16,                     // AK1
+    16,                     // BK1
     32,                     // MPerXDL
     32,                     // NPerXDL
     4,                      // MXdlPerWave
@@ -65,24 +64,24 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
     2,                      // ABlockTransferSrcVectorDim
-    8,                      // ABlockTransferSrcScalarPerVector
-    8,                      // ABlockTransferDstScalarPerVector_K1
+    16,                     // ABlockTransferSrcScalarPerVector
+    16,                     // ABlockTransferDstScalarPerVector_K1
     true,                   // ABlockLdsAddExtraM
     S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
     S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
     2,                      // BBlockTransferSrcVectorDim
-    8,                      // BBlockTransferSrcScalarPerVector
-    8,                      // BBlockTransferDstScalarPerVector_K1
+    16,                     // BBlockTransferSrcScalarPerVector
+    16,                     // BBlockTransferDstScalarPerVector_K1
     true,                   // BBlockLdsAddExtraN
     1,                      // CShuffleMXdlPerWavePerShuffle
     1,                      // CShuffleNXdlPerWavePerShuffle
     S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
-    8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
+    4>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, RequantReluRequant>;
+    ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
 
 int main(int argc, char* argv[])
 {
@@ -98,9 +97,6 @@ int main(int argc, char* argv[])
     ck::index_t StrideA = 4096;
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
-
-    float scale_gemm = 0.03;
-    float scale_relu = 1;
 
     if(argc == 4)
     {
@@ -175,7 +171,7 @@ int main(int argc, char* argv[])
 
     auto a_element_op = PassThrough{};
     auto b_element_op = PassThrough{};
-    auto c_element_op = RequantReluRequant{scale_gemm, scale_relu};
+    auto c_element_op = PassThrough{};
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
@@ -225,7 +221,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        check_error(c_m_n_host_result, c_m_n_device_result);
+        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
     }
 
     return 0;

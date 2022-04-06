@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -317,7 +319,7 @@ int main(int argc, char* argv[])
     print_array("ConvStrides", make_tuple(conv_stride_h, conv_stride_w));
     print_array("ConvDilations", make_tuple(conv_dilation_h, conv_dilation_w));
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {
@@ -473,7 +475,7 @@ int main(int argc, char* argv[])
                                        make_tuple(in_right_pad_h, in_right_pad_w),
                                        layout);
 
-        check_error(in_host, in_device);
+        ck::utils::check_err(in_device.mData, in_host.mData);
 
         if(do_log)
         {

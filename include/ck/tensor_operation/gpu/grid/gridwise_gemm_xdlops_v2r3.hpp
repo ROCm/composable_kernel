@@ -54,11 +54,85 @@ __global__ void
                                                    block_2_ctile_map);
 }
 
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename GemmDesc,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          bool HasMainK0BlockLoop,
+          index_t MaxGroupCount>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_grouped_gemm_xdlops_v2r3(
+            const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_desc_,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op)
+{
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    const index_t block_id = get_block_1d_id();
+
+#if 1
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        if(block_id >= gemm_desc_[i].BlockStart_ && block_id < gemm_desc_[i].BlockEnd_ &&
+           i < group_count)
+        {
+            auto group_id = i;
+
+            GridwiseGemm::template Run<HasMainK0BlockLoop>(
+                gemm_desc_[group_id].a_ptr,
+                gemm_desc_[group_id].b_ptr,
+                gemm_desc_[group_id].c_ptr,
+                p_shared,
+                gemm_desc_[group_id].a_grid_desc_k0_m_k1_,
+                gemm_desc_[group_id].b_grid_desc_k0_n_k1_,
+                gemm_desc_[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                a_element_op,
+                b_element_op,
+                c_element_op,
+                gemm_desc_[group_id].grouped_gemm_block_2_ctile_map_);
+        }
+    });
+#else
+    const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(&gemm_desc_);
+
+    index_t group_id = 0;
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        group_id = (block_id >= gemm_desc_[i].BlockStart && block_id < gemm_desc_[i].BlockEnd &&
+                    i < group_count)
+                       ? i
+                       : group_id;
+    });
+
+    const index_t block_id_grp = block_id - gemm_desc_ptr[group_id].BlockStart;
+
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(
+        gemm_desc_ptr[group_id].a_ptr,
+        gemm_desc_ptr[group_id].b_ptr,
+        gemm_desc_ptr[group_id].c_ptr,
+        p_shared,
+        gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
+        gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
+        gemm_desc_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        gemm_desc_ptr[group_id].block_2_ctile_map_,
+        block_id_grp);
+#endif
+}
+
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
           typename CGridDesc_M_N,
@@ -352,11 +426,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         const CElementwiseOperation& c_element_op,
         const Block2CTileMap& block_2_ctile_map)
     {
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_grid_desc_k0_n_k1.GetElementSpaceSize());
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
 
         const auto K0 = a_grid_desc_k0_m_k1.GetLength(I0);
@@ -386,7 +460,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<K0PerBlock, MPerBlock, K1>,
                                               ABlockTransferThreadClusterLengths_K0_M_K1,
                                               ABlockTransferThreadClusterArrangeOrder,
@@ -417,7 +491,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<K0PerBlock, NPerBlock, K1>,
                                               BBlockTransferThreadClusterLengths_K0_N_K1,
                                               BBlockTransferThreadClusterArrangeOrder,
@@ -469,10 +543,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         constexpr auto a_block_space_size_aligned =
             math::integer_least_multiple(a_block_desc_k0_m_k1.GetElementSpaceSize(), max_lds_align);
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared), a_block_desc_k0_m_k1.GetElementSpaceSize());
 
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_k0_n_k1.GetElementSpaceSize());
 

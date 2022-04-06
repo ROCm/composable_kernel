@@ -1,6 +1,4 @@
-#ifndef CK_AMD_BUFFER_ADDRESSING_HPP
-#define CK_AMD_BUFFER_ADDRESSING_HPP
-
+#pragma once
 #include "data_type.hpp"
 
 namespace ck {
@@ -87,6 +85,7 @@ llvm_amdgcn_raw_buffer_load_i32x4(int32x4_t srsrc,
                                   index_t voffset,
                                   index_t soffset,
                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v4i32");
+
 // buffer load fp16
 __device__ half_t
 llvm_amdgcn_raw_buffer_load_fp16(int32x4_t srsrc,
@@ -212,6 +211,7 @@ llvm_amdgcn_raw_buffer_store_fp16x4(half4_t vdata,
                                     index_t voffset,
                                     index_t soffset,
                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4f16");
+
 // buffer store fp32
 __device__ void
 llvm_amdgcn_raw_buffer_store_fp32(float vdata,
@@ -233,6 +233,7 @@ llvm_amdgcn_raw_buffer_store_fp32x4(float4_t vdata,
                                     index_t voffset,
                                     index_t soffset,
                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4f32");
+
 // buffer atomic-add fp16
 __device__ half2_t llvm_amdgcn_raw_buffer_atomic_add_fp16x2(
     half2_t vdata,
@@ -637,19 +638,19 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
         }
         else if constexpr(N == 2)
         {
-            llvm_amdgcn_raw_buffer_store_fp16x2(src_thread_data,
-                                                dst_wave_buffer_resource,
-                                                dst_thread_addr_offset,
-                                                dst_wave_addr_offset,
-                                                0);
+            llvm_amdgcn_raw_buffer_store_i16x2(src_thread_data,
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset,
+                                               0);
         }
         else if constexpr(N == 4)
         {
-            llvm_amdgcn_raw_buffer_store_fp16x4(src_thread_data,
-                                                dst_wave_buffer_resource,
-                                                dst_thread_addr_offset,
-                                                dst_wave_addr_offset,
-                                                0);
+            llvm_amdgcn_raw_buffer_store_i16x4(src_thread_data,
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset,
+                                               0);
         }
         else if constexpr(N == 8)
         {
@@ -1046,4 +1047,3 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
 }
 
 } // namespace ck
-#endif

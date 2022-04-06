@@ -20,8 +20,8 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault   = ck::tensor_operation::device::GemmSpecialization_t::Default;
-static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization_t::MNPadding;
+static constexpr auto GemmDefault   = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 // Compilation parameters for a[m, k] * b[n, k] = c[m, n]
 using device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances =

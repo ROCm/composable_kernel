@@ -3,7 +3,7 @@
 
 namespace ck {
 
-enum DataTypeEnum_t
+enum struct DataTypeEnum
 {
     Half     = 0,
     Float    = 1,

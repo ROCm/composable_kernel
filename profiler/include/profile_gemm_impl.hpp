@@ -1,5 +1,7 @@
 #pragma once
 #include <iomanip>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -26,7 +28,13 @@ void add_device_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNo
 void add_device_gemm_xdl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
+void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instances(
     std::vector<DeviceGemmNoOpPtr>&);
 
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -34,7 +42,13 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(std::vector<De
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(
     std::vector<DeviceGemmNoOpPtr>&);
 
 void add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(
@@ -44,6 +58,11 @@ void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNo
 void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -103,7 +122,7 @@ void profile_gemm_impl(int do_verification,
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;
@@ -126,11 +145,6 @@ void profile_gemm_impl(int do_verification,
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
-
-    // if(do_verification)
-    // {
-
-    // }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
@@ -159,6 +173,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
             }
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
@@ -174,6 +191,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
             }
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -189,6 +209,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
             }
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -204,6 +227,9 @@ void profile_gemm_impl(int do_verification,
             {
                 ck::tensor_operation::device::device_gemm_instance::
                     add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
+
+                ck::tensor_operation::device::device_gemm_instance::
+                    add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
             }
         }
     }
@@ -291,22 +317,64 @@ void profile_gemm_impl(int do_verification,
                       is_same<CDataType, ck::bhalf_t>::value)
     {
         if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instances(gemm_ptrs);
         }
     }
     else if constexpr(is_same<ADataType, int8_t>::value && is_same<BDataType, int8_t>::value &&
                       is_same<CDataType, int8_t>::value)
     {
         if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_gemm_instance::
+                add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(gemm_ptrs);
         }
     }
 
@@ -342,6 +410,10 @@ void profile_gemm_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // re-init C to zero before profiling next kernel
+            c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
+            c_device_buf.ToDevice(c_m_n_device_result.mData.data());
+
             std::string gemm_name = gemm_ptr->GetTypeString();
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
@@ -400,7 +472,7 @@ void profile_gemm_impl(int do_verification,
 
                     ref_invoker.Run(ref_argument);
 
-                    check_error(c_m_n_host_result, c_m_n_device_f32_result);
+                    ck::utils::check_err(c_m_n_device_f32_result.mData, c_m_n_host_result.mData);
 
                     if(do_log)
                     {
@@ -429,7 +501,7 @@ void profile_gemm_impl(int do_verification,
                         a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    check_error(c_m_n_host_result, c_m_n_device_result);
+                    ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
 
                     if(do_log)
                     {

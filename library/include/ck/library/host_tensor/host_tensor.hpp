@@ -40,20 +40,6 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
     return os;
 }
 
-typedef enum
-{
-    Half  = 0,
-    Float = 1,
-} DataType_t;
-
-template <typename T>
-struct DataType;
-
-template <>
-struct DataType<float> : std::integral_constant<DataType_t, DataType_t::Float>
-{
-};
-
 template <typename F, typename T, std::size_t... Is>
 auto call_f_unpack_args_impl(F f, T args, std::index_sequence<Is...>)
 {
@@ -87,10 +73,10 @@ struct HostTensorDescriptor
     HostTensorDescriptor() = delete;
 
     template <typename X>
-    HostTensorDescriptor(std::vector<X> lens);
+    HostTensorDescriptor(const std::vector<X>& lens);
 
     template <typename X, typename Y>
-    HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides);
+    HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides);
 
     void CalculateStrides();
 
@@ -177,7 +163,7 @@ struct ParallelTensorFunctor
         return indices;
     }
 
-    void operator()(std::size_t num_thread = std::thread::hardware_concurrency()) const
+    void operator()(std::size_t num_thread = 1) const
     {
         std::size_t work_per_thread = (mN1d + num_thread - 1) / num_thread;
 
@@ -227,7 +213,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
     template <typename G>
-    void GenerateTensorValue(G g, std::size_t num_thread = std::thread::hardware_concurrency())
+    void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
         switch(mDesc.GetNumOfDimension())
         {
@@ -299,85 +285,69 @@ struct Tensor
 };
 
 template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens) : mLens(lens)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens)
 {
     this->CalculateStrides();
 }
 
 template <typename X, typename Y>
-HostTensorDescriptor::HostTensorDescriptor(std::vector<X> lens, std::vector<Y> strides)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
+                                           const std::vector<Y>& strides)
     : mLens(lens), mStrides(strides)
 {
 }
 
 void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
 
-float bf16_to_f32_(ck::bhalf_t src_val);
-
+#if 1
+// FIXME: remove
 void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
+#endif
 
 template <typename T>
-void check_error(const Tensor<T>& ref, const Tensor<T>& result)
+float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
-    float error     = 0;
-    float max_diff  = -1;
-    float ref_value = 0, result_value = 0;
+    float l1_error       = 0;
+    float linf_error     = -1;
+    float linf_rel_error = -1;
 
-    if constexpr(std::is_same<ck::bhalf_t, T>::value)
-    {
-        for(int i = 0; i < ref.mData.size(); ++i)
-        {
-            error += std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
-            float diff = std::abs(bf16_to_f32_(ref.mData[i]) - bf16_to_f32_(result.mData[i]));
-            if(max_diff < diff)
-            {
-                max_diff     = diff;
-                ref_value    = bf16_to_f32_(ref.mData[i]);
-                result_value = bf16_to_f32_(result.mData[i]);
-            }
-        }
-    }
-    else
-    {
-        for(int i = 0; i < ref.mData.size(); ++i)
-        {
-            error += std::abs(double(ref.mData[i]) - double(result.mData[i]));
-            float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-            if(max_diff < diff)
-            {
-                max_diff     = diff;
-                ref_value    = ref.mData[i];
-                result_value = result.mData[i];
-            }
-        }
-    }
+    float linf_ref_value = 0, linf_result_value = 0;
+    float linf_rel_ref_value = 0, linf_rel_result_value = 0;
 
-    std::cout << "error: " << error << std::endl;
-    std::cout << "max_diff: " << max_diff << ", " << ref_value << ", " << result_value << std::endl;
-}
-
-template <typename T>
-void check_indices(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    bool has_error  = false;
-    int error_count = 0;
+    constexpr float eps = 1e-10;
 
     for(int i = 0; i < ref.mData.size(); ++i)
     {
-        if(ref.mData[i] != result.mData[i])
+        float ref_v    = ck::type_convert<float>(ref.mData[i]);
+        float result_v = ck::type_convert<float>(result.mData[i]);
+
+        float diff     = std::abs(ref_v - result_v);
+        float rel_diff = diff / std::max(std::abs(ref_v), eps);
+
+        l1_error += diff;
+
+        if(linf_error < diff)
         {
-            std::cerr << std::endl
-                      << "Indices different at position " << i << " (ref: " << ref.mData[i]
-                      << ", result: " << result.mData[i] << ")" << std::endl;
-            has_error = true;
-            error_count++;
-            if(error_count == 20)
-                break;
-        };
+            linf_error        = diff;
+            linf_ref_value    = ref_v;
+            linf_result_value = result_v;
+        }
+
+        if(linf_rel_error < rel_diff)
+        {
+            linf_rel_error        = rel_diff;
+            linf_rel_ref_value    = ref_v;
+            linf_rel_result_value = result_v;
+        }
     }
 
-    if(!has_error)
-        std::cout << std::endl << "Indices result is completely acccurate!" << std::endl;
+    std::cout << "Absolute Error L1 Norm (sum of abs diff): " << l1_error << std::endl;
+    std::cout << "Absolute Error L-inf Norm (max abs diff): " << linf_error << ", ref "
+              << linf_ref_value << ", result " << linf_result_value << std::endl;
+    std::cout << "Relative Error L-inf Norm (max relative abs diff): " << linf_rel_error << ", ref "
+              << linf_rel_ref_value << ", result " << linf_rel_result_value << std::endl;
+
+    return linf_error;
 }
 
 #endif

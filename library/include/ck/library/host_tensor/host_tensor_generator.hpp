@@ -1,7 +1,8 @@
-#ifndef HOST_TENSOR_GENERATOR_HPP
-#define HOST_TENSOR_GENERATOR_HPP
+#pragma once
 
 #include <cmath>
+#include <numeric>
+
 #include "config.hpp"
 
 template <typename T>
@@ -93,8 +94,8 @@ struct GeneratorTensor_2<int8_t>
 template <typename T>
 struct GeneratorTensor_3
 {
-    T min_value = 0;
-    T max_value = 1;
+    float min_value = 0;
+    float max_value = 1;
 
     template <typename... Is>
     T operator()(Is...)
@@ -119,22 +120,6 @@ struct GeneratorTensor_3<ck::bhalf_t>
         float fp32_tmp = min_value + tmp * (max_value - min_value);
 
         return ck::type_convert<ck::bhalf_t>(fp32_tmp);
-    }
-};
-
-template <>
-struct GeneratorTensor_3<int8_t>
-{
-    float min_value = 0;
-    float max_value = 1;
-
-    template <typename... Is>
-    int8_t operator()(Is...)
-    {
-        int8_t min_tmp = static_cast<int8_t>(min_value);
-        int8_t max_tmp = static_cast<int8_t>(max_value);
-
-        return (std::rand() % (max_tmp - min_tmp)) + min_tmp;
     }
 };
 
@@ -163,5 +148,3 @@ struct GeneratorTensor_Sequential
         return dims[Dim];
     }
 };
-
-#endif

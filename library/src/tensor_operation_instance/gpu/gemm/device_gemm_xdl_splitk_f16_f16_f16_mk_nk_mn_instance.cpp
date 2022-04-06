@@ -20,7 +20,7 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // Compilation parameters for a[m, k] * b[k, n] = c[m, n]
 using device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances = std::tuple<
@@ -45,15 +45,37 @@ using device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances = std::tuple<
     // clang-format on
     >;
 
-using device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_tile_instances = std::tuple<
-    // clang-format off
-        //#########################|AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
-        //#########################| Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
-        //#########################|     |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
-        //#########################|     |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
-        DeviceGemmXdlSplitKCShuffle<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     4,  8,   16,   16,    2,    9,  S<1, 4, 64, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              2,              2,      true,           1,           9,                   S<1, 2, 1, 72>,               2>
-    // clang-format on
-    >;
+// using device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_tile_instances = std::tuple<
+//     // clang-format off
+//         //#########################|AData| BData| CData| AccData| ALayout| BLayout| CLayout| A|
+//         B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|
+//         ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer|
+//         ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer|
+//         BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|
+//         CBlockTransferClusterLengths|  CBlockTransfer|
+//         //#########################| Type|  Type|  Type|    Type|        |        |        |
+//         Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |
+//         XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|
+//         SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|
+//         SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|
+//         _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
+//         //#########################|     |      |      |        |        |        |        |
+//         Operation|   Operation|   Operation|              |      |      |      |      |   |     |
+//         | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               | PerVector|
+//         PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |
+//         PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|
+//         _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
+//         //#########################|     |      |      |        |        |        |        | | |
+//         |              |      |      |      |      |   |     |     |     |     |                |
+//         |               |               |               |               |          | | | | | | |
+//         |            |            |                                 |                |
+//         DeviceGemmXdlSplitKCShuffle<   F16,   F16,   F16,     F32,     Row,     Col,     Row,
+//         PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   144,     4,  8, 16,
+//         16,    2,    9,  S<1, 4, 64, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3, 8, 8,
+//         true,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              2, 2,
+//         true,           1,           9,                   S<1, 2, 1, 72>,               2>
+//     // clang-format on
+//     >;
 
 void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(
     std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
@@ -61,8 +83,9 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances{});
 
-    add_device_operation_instances(
-        instances, device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_tile_instances{});
+    // FIXME - IsSupportedArgument() is false, need to check validity
+    // add_device_operation_instances(
+    //     instances, device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_tile_instances{});
 }
 
 } // namespace device_gemm_instance

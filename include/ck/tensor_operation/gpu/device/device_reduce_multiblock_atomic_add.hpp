@@ -17,8 +17,8 @@ namespace device {
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
-          int Rank,
-          typename ReduceDims,
+          index_t Rank,
+          index_t NumReduceDim,
           typename ReduceOperation,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
@@ -39,13 +39,18 @@ struct DeviceReduceMultiBlockAtomicAdd
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
 
+    static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
+                   (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
+                      (MThreadSliceSize % OutDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
     using IndexDataType = int32_t;
 
-    using InvariantDims = decltype(get_invariant_dims<Rank, ReduceDims>());
+    static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
-    static constexpr index_t srcDims    = Rank;
-    static constexpr index_t dstDims    = (InvariantDims::Size() == 0) ? 1 : InvariantDims::Size();
-    static constexpr bool reduceAllDims = (InvariantDims::Size() == 0);
+    static constexpr index_t numSrcDim = Rank;
+    static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
+    static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
     static constexpr bool support_AtomicAdd =
         std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value;
@@ -62,18 +67,18 @@ struct DeviceReduceMultiBlockAtomicAdd
                                     int blkGroupSize,
                                     int kBlockTileIterations)
     {
-        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<srcDims>{});
-        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<srcDims>{});
+        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
+        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
 
         const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
 
         const auto in_grid_desc_m_k = [&]() {
-            if constexpr(reduceAllDims)
+            if constexpr(reduceAllDim)
             {
                 const auto one_dim_inDesc = transform_tensor_descriptor(
                     inDesc,
                     make_tuple(make_merge_transform(tupleSrcLengths)),
-                    make_tuple(typename arithmetic_sequence_gen<0, srcDims, 1>::type{}),
+                    make_tuple(typename arithmetic_sequence_gen<0, numSrcDim, 1>::type{}),
                     make_tuple(Sequence<0>{}));
 
                 return transform_tensor_descriptor(one_dim_inDesc,
@@ -84,7 +89,10 @@ struct DeviceReduceMultiBlockAtomicAdd
             }
             else
             {
-                const auto toReduceDimLengths =
+                using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
+                using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
+
+                const auto reduceDimLengths =
                     make_tuple_from_array_and_index_seq(inLengths, ReduceDims{});
                 const auto invariantDimLengths =
                     make_tuple_from_array_and_index_seq(inLengths, InvariantDims{});
@@ -92,25 +100,26 @@ struct DeviceReduceMultiBlockAtomicAdd
                 return transform_tensor_descriptor(
                     inDesc,
                     make_tuple(make_merge_transform(invariantDimLengths),
-                               make_merge_transform(toReduceDimLengths)),
+                               make_merge_transform(reduceDimLengths)),
                     make_tuple(InvariantDims{}, ReduceDims{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
             }
         }();
 
-        const auto outerLen = in_grid_desc_m_k.GetLength(Number<0>{});
-        const auto innerLen = in_grid_desc_m_k.GetLength(Number<1>{});
+        const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
 
         const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
-        const auto inPad_M = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
-        const auto inPad_K = reduceSizePerBlock * blkGroupSize - innerLen;
+        const auto inPad_M =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
+        const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
 
-        auto in_grid_desc_m_k_padded =
-            transform_tensor_descriptor(in_grid_desc_m_k,
-                                        make_tuple(make_right_pad_transform(outerLen, inPad_M),
-                                                   make_right_pad_transform(innerLen, inPad_K)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
+        auto in_grid_desc_m_k_padded = transform_tensor_descriptor(
+            in_grid_desc_m_k,
+            make_tuple(make_right_pad_transform(invariantLength, inPad_M),
+                       make_right_pad_transform(reduceLength, inPad_K)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         return (in_grid_desc_m_k_padded);
     };
@@ -118,68 +127,70 @@ struct DeviceReduceMultiBlockAtomicAdd
     static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
                                     const std::vector<int>& outStrides)
     {
-        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<dstDims>{});
-        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<dstDims>{});
+        const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
+        const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
 
         auto outDesc = make_naive_tensor_descriptor(tupleDstLengths, tupleDstStrides);
 
         auto out_grid_desc_m = transform_tensor_descriptor(
             outDesc,
             make_tuple(make_merge_transform(tupleDstLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, dstDims, 1>::type{}),
+            make_tuple(typename arithmetic_sequence_gen<0, numDstDim, 1>::type{}),
             make_tuple(Sequence<0>{}));
 
-        const auto outerLen = out_grid_desc_m.GetLength(Number<0>{});
+        const auto invariantLength = out_grid_desc_m.GetLength(Number<0>{});
 
-        const auto outPad = math::integer_least_multiple(outerLen, M_BlockTileSize) - outerLen;
+        const auto outPad =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
 
-        auto out_grid_desc_m_padded =
-            transform_tensor_descriptor(out_grid_desc_m,
-                                        make_tuple(make_right_pad_transform(outerLen, outPad)),
-                                        make_tuple(Sequence<0>{}),
-                                        make_tuple(Sequence<0>{}));
+        auto out_grid_desc_m_padded = transform_tensor_descriptor(
+            out_grid_desc_m,
+            make_tuple(make_right_pad_transform(invariantLength, outPad)),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0>{}));
         return (out_grid_desc_m_padded);
     };
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int>& inLengths,
-                 const std::vector<int>& inStrides,
-                 const std::vector<int>& outLengths,
-                 const std::vector<int>& outStrides,
+        Argument(const std::vector<int> inLengths,
+                 const std::vector<int> inStrides,
+                 const std::vector<int> outLengths,
+                 const std::vector<int> outStrides,
+                 const std::vector<int> reduceDims,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
                  IndexDataType* out_indices_dev,
                  AccDataType* workspace_dev,
-                 const InElementwiseOperation& in_elementwise_op,
-                 const AccElementwiseOperation& acc_elementwise_op)
-            : in_dev_{in_dev}, out_dev_{out_dev}
+                 const InElementwiseOperation in_elementwise_op,
+                 const AccElementwiseOperation acc_elementwise_op)
+            : outLengths_{outLengths},
+              outStrides_{outStrides},
+              in_dev_{in_dev},
+              out_dev_{out_dev},
+              in_elementwise_op_{in_elementwise_op},
+              acc_elementwise_op_{acc_elementwise_op}
         {
             (void)out_indices_dev;
             (void)workspace_dev;
 
-            inLengths_  = inLengths;
-            inStrides_  = inStrides;
-            outLengths_ = outLengths;
-            outStrides_ = outStrides;
+            inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
+            inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
-            in_elementwise_op_  = in_elementwise_op;
-            acc_elementwise_op_ = acc_elementwise_op;
-
-            alpha_ = static_cast<AccDataType>(alpha);
-            beta_  = static_cast<OutDataType>(beta);
+            alpha_ = type_convert<AccDataType>(alpha);
+            beta_  = type_convert<AccDataType>(beta);
 
             std::tie(invariant_total_length, reduce_total_length) =
-                get_2d_lengths<Rank, ReduceDims>(inLengths);
+                get_2d_lengths<Rank, NumReduceDim>(inLengths_);
 
-            if constexpr(InvariantDims::Size() == 0)
+            if constexpr(NumInvariantDim == 0)
                 invariant_lowest_length = 1;
             else
-                invariant_lowest_length = inLengths[InvariantDims::At(InvariantDims::Size() - 1)];
+                invariant_lowest_length = inLengths_[NumInvariantDim - 1];
 
-            reduce_lowest_length = inLengths[ReduceDims::At(ReduceDims::Size() - 1)];
+            reduce_lowest_length = inLengths_[Rank - 1];
 
             int iterations = 1;
             while(true)
@@ -212,7 +223,7 @@ struct DeviceReduceMultiBlockAtomicAdd
         std::vector<int> outStrides_;
 
         AccDataType alpha_;
-        OutDataType beta_;
+        AccDataType beta_;
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
@@ -330,18 +341,22 @@ struct DeviceReduceMultiBlockAtomicAdd
 
         if constexpr(InSrcVectorDim == 0)
         {
-            if constexpr(InvariantDims::Size() == 0)
+            if constexpr(NumInvariantDim == 0)
+            {
                 return (false);
+            }
+            else
+            {
+                if(pArg->inStrides_[NumInvariantDim - 1] != 1)
+                    return (false);
 
-            if(pArg->inStrides_[InvariantDims::At(InvariantDims::Size() - 1)] != 1)
-                return (false);
-
-            if(pArg->invariant_lowest_length % InSrcVectorSize != 0)
-                return (false);
+                if(pArg->invariant_lowest_length % InSrcVectorSize != 0)
+                    return (false);
+            };
         }
         else
         {
-            if(pArg->inStrides_[ReduceDims::At(ReduceDims::Size() - 1)] != 1)
+            if(pArg->inStrides_[Rank - 1] != 1)
                 return (false);
 
             if(pArg->reduce_lowest_length % InSrcVectorSize != 0)
@@ -367,23 +382,25 @@ struct DeviceReduceMultiBlockAtomicAdd
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int>& inLengths,
-                        const std::vector<int>& inStrides,
-                        const std::vector<int>& outLengths,
-                        const std::vector<int>& outStrides,
+    MakeArgumentPointer(const std::vector<int> inLengths,
+                        const std::vector<int> inStrides,
+                        const std::vector<int> outLengths,
+                        const std::vector<int> outStrides,
+                        const std::vector<int> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
                         void* out_dev,
                         void* out_indices_dev,
                         void* workspace_dev,
-                        const InElementwiseOperation& in_elementwise_op,
-                        const AccElementwiseOperation& acc_elementwise_op) override
+                        const InElementwiseOperation in_elementwise_op,
+                        const AccElementwiseOperation acc_elementwise_op) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           outLengths,
                                           outStrides,
+                                          reduceDims,
                                           alpha,
                                           beta,
                                           static_cast<const InDataType*>(in_dev),

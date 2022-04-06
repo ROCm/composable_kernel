@@ -61,7 +61,7 @@ template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatC,
-          InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_B_K0_M_K1,
           typename BGridDesc_B_K0_N_K1,
           typename CMNGridDesc,
@@ -277,14 +277,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
-        constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-        constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
+        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(I1,
-                       Number<CShuffleMRepeatPerShuffle * MWaves * MPerXDL>{},
+                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXDL>{},
                        I1,
-                       Number<CShuffleNRepeatPerShuffle * NWaves * NPerXDL>{}));
+                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXDL>{}));
     }
 
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
@@ -305,11 +305,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                const CElementwiseOperation& c_element_op,
                                const CBlockClusterAdaptor& c_block_cluster_adaptor)
     {
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_b_k0_m_k1_grid_desc.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_b_k0_n_k1_grid_desc.GetElementSpaceSize());
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
@@ -399,7 +399,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               AElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<1, K0PerBlock, MPerBlock, K1>,
                                               ABlockTransferThreadClusterLengths_K0_M_K1,
                                               ABlockTransferThreadClusterArrangeOrder,
@@ -429,7 +429,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
                                               ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum_t::Set,
+                                              InMemoryDataOperationEnum::Set,
                                               Sequence<1, K0PerBlock, NPerBlock, K1>,
                                               BBlockTransferThreadClusterLengths_K0_N_K1,
                                               BBlockTransferThreadClusterArrangeOrder,
@@ -486,9 +486,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         constexpr auto a_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_a_block, a_k0_m_k1_block_desc.GetElementSpaceSize());
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_b_block, b_k0_n_k1_block_desc.GetElementSpaceSize());
 
         // preload data into LDS
@@ -539,8 +539,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         // output: register to global memory
         {
-            constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-            constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+            constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
+            constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
 
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
                 blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
@@ -560,12 +560,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             constexpr auto c_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
-            auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum_t::Lds>(
+            auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                 static_cast<FloatC*>(p_shared_block),
                 c_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-            static_assert(M1 == MWaves, "");
-            static_assert(N1 == NWaves, "");
+            static_assert(M1 == MWave, "");
+            static_assert(N1 == NWave, "");
             static_assert(M2 * M3 * M4 == MPerXDL, "");
             static_assert(N2 == NPerXDL, "");
 
@@ -632,7 +632,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                    Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                                    7,
                                                    1,
-                                                   InMemoryDataOperationEnum_t::Set,
+                                                   InMemoryDataOperationEnum::Set,
                                                    1,
                                                    true>{
                     c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -646,14 +646,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                      n_thread_data_on_block_idx[I2]),
                     ck::tensor_operation::element_wise::PassThrough{}};
 
+            // LDS to global
             auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r1<
                 BlockSize,                  // index_t BlockSize,
                 CElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
-                         CShuffleMRepeatPerShuffle * MWaves * MPerXDL,
+                         CShuffleMRepeatPerShuffle * MWave * MPerXDL,
                          1,
-                         CShuffleNRepeatPerShuffle * NWaves * NPerXDL>, // BlockSliceLengths,
+                         CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
                 CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 FloatC,               // typename SrcData,
@@ -672,11 +673,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                  c_element_op};
 
             constexpr auto mxdlperwave_forward_step =
-                make_multi_index(0, CShuffleMRepeatPerShuffle * MWaves * MPerXDL, 0, 0);
+                make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXDL, 0, 0);
             constexpr auto nxdlperwave_forward_step =
-                make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWaves * NPerXDL);
+                make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXDL);
             constexpr auto nxdlperwave_backward_step =
-                make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWaves * NPerXDL);
+                make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXDL);
 
             static_for<0, MRepeat, CShuffleMRepeatPerShuffle>{}([&](auto mxdlperwave_iter) {
                 constexpr auto mxdlperwave = mxdlperwave_iter;

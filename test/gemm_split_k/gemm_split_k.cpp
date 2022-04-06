@@ -12,7 +12,7 @@
 #include "tensor_layout.hpp"
 #include "device_gemm_xdl_splitk.hpp"
 
-enum GemmMatrixLayout
+enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
     MK_NK_MN, // 1
@@ -59,7 +59,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 
 struct gemmArgs
 {
-    int layout;
+    GemmMatrixLayout layout;
     int M;
     int N;
     int K;
@@ -120,7 +120,7 @@ int test_gemm(const gemmArgs& args)
         f_host_tensor_descriptor(args.M, args.N, args.StrideC, c_row_major));
 
     // init data
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     a_m_k.GenerateTensorValue(GeneratorTensor_2<float>{-5, 5}, num_thread);
     b_k_n.GenerateTensorValue(GeneratorTensor_2<float>{-5, 5}, num_thread);
     // set zero to c_device_buf
@@ -216,13 +216,13 @@ int main(int argc, char* argv[])
     std::vector<gemmArgs> test_cases;
     if(argc == 1)
     {
-        test_cases = {{0, 3, 3, 3, 3, 3, 3, 1}};
+        test_cases = {{GemmMatrixLayout::MK_KN_MN, 3, 3, 3, 3, 3, 3, 1}};
         // JD: Populate with more and meaningful
         return 0;
     }
     else if(argc == 9)
     {
-        const int layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
+        const auto layout = static_cast<GemmMatrixLayout>(std::stoi(argv[1]));
 
         const int M = std::stoi(argv[2]);
         const int N = std::stoi(argv[3]);

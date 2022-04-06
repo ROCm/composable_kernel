@@ -1,4 +1,6 @@
 #pragma once
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -7,7 +9,7 @@
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
-#include "device_gemm.hpp"
+#include "device_gemm_bias.hpp"
 #include "reference_gemm_bias_2d.hpp"
 
 namespace ck {
@@ -98,7 +100,7 @@ void profile_gemm_bias_2d_impl(int do_verification,
     std::cout << "c0_m_n: " << c0_m_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;
@@ -283,7 +285,7 @@ void profile_gemm_bias_2d_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                check_error(c_m_n_host_result, c_m_n_device_result);
+                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
 
                 if(do_log)
                 {

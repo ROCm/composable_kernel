@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "debug.hpp"
 #include "print.hpp"
@@ -38,7 +40,7 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
                                            const ConvDilations& conv_dilations,
                                            const InLeftPads& in_left_pads,
                                            const InRightPads&,
-                                           const ck::ActivTypeEnum_t activ_type)
+                                           const ck::ActivTypeEnum activ_type)
 {
     using namespace ck;
 
@@ -126,7 +128,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+    constexpr ck::ActivTypeEnum activ_type = ActivTypeEnum::LeakyRelu;
 
     const ConvForwardAlgo algo = static_cast<ConvForwardAlgo>(std::stoi(argv[1]));
     const bool do_verification = std::stoi(argv[2]);
@@ -176,18 +178,18 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+    constexpr ck::ActivTypeEnum activ_type = ActivTypeEnum::LeakyRelu;
 
 #if 1
-    constexpr auto N                         = Number<1>{};
-    constexpr auto Hi                        = Number<1080>{};
-    constexpr auto Wi                        = Number<1920>{};
-    constexpr auto Y                         = Number<3>{};
-    constexpr auto X                         = Number<3>{};
-    constexpr auto C0                        = Number<2>{};
-    constexpr auto C1                        = Number<8>{};
-    constexpr auto K0                        = Number<2>{};
-    constexpr auto K1                        = Number<8>{};
+    constexpr auto N                       = Number<1>{};
+    constexpr auto Hi                      = Number<1080>{};
+    constexpr auto Wi                      = Number<1920>{};
+    constexpr auto Y                       = Number<3>{};
+    constexpr auto X                       = Number<3>{};
+    constexpr auto C0                      = Number<2>{};
+    constexpr auto C1                      = Number<8>{};
+    constexpr auto K0                      = Number<2>{};
+    constexpr auto K1                      = Number<8>{};
 #elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<1080>{};
@@ -300,7 +302,7 @@ int main(int argc, char* argv[])
     print_array("ConvStrides", make_tuple(conv_stride_h, conv_stride_w));
     print_array("ConvDilations", make_tuple(conv_dilation_h, conv_dilation_w));
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
 
     switch(init_method)
     {
@@ -397,8 +399,8 @@ int main(int argc, char* argv[])
                                               make_tuple(in_right_pad_h, in_right_pad_w),
                                               activ_type);
 
-        check_error(out_host, out_device);
-        check_error(max_host, max_device);
+        ck::utils::check_err(out_device.mData, out_host.mData);
+        ck::utils::check_err(max_device.mData, max_host.mData);
 
         if(do_log)
         {

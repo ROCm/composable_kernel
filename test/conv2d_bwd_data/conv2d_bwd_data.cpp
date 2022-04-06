@@ -121,15 +121,17 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    auto Run = [&](auto input_type, auto wei_type, auto out_type) {
+    auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
         using InDataType  = decltype(input_type);
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
+        using AccDataType = decltype(acc_type);
 
         using ReferenceConvBwdInstance =
             ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                              WeiDataType,
                                                              OutDataType,
+                                                             AccDataType,
                                                              InElementOp,
                                                              WeiElementOp,
                                                              OutElementOp>;
@@ -182,8 +184,8 @@ int main(int argc, char* argv[])
 
         out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
         wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
-
-        in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{5});
+        // reset input to zero
+        in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{0});
         in_device_buf.ToDevice(in_n_c_hi_wi_device_result.mData.data());
 
         // get host result
@@ -225,9 +227,9 @@ int main(int argc, char* argv[])
             ck::tensor_operation::device::device_conv2d_bwd_data_instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
-        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ushort> &&
-                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ushort>)
+        else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::bhalf_t> &&
+                          ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::bhalf_t>)
         {
             ck::tensor_operation::device::device_conv2d_bwd_data_instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
@@ -293,33 +295,33 @@ int main(int argc, char* argv[])
         if(success)
         {
             std::cout << "test conv2d bwd : Pass" << std::endl;
+            return 0;
         }
         else
         {
             std::cout << "test conv2d bwd: Fail " << std::endl;
+            return -1;
         }
     };
 
     if(data_type == 0)
     {
-        Run(F32(), F32(), F32());
+        return Run(F32(), F32(), F32(), F32());
     }
     else if(data_type == 1)
     {
-        Run(F16(), F16(), F16());
+        return Run(F16(), F16(), F16(), F32());
     }
     else if(data_type == 2)
     {
-        Run(BF16(), BF16(), BF16());
+        return Run(BF16(), BF16(), BF16(), F32());
     }
     else if(data_type == 3)
     {
-        Run(INT8(), INT8(), INT8());
+        return Run(INT8(), INT8(), INT8(), int());
     }
     else
     {
         return 1;
     }
-
-    return 0;
 }

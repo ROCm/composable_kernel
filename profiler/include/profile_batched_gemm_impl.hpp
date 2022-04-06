@@ -1,4 +1,14 @@
 #pragma once
+
+#include <memory>
+
+#include "check_err.hpp"
+#include "config.hpp"
+#include "element_wise_operation.hpp"
+#include "tensor_layout.hpp"
+#include "device.hpp"
+#include "host_tensor_generator.hpp"
+#include "device_gemm.hpp"
 #include "reference_batched_gemm.hpp"
 
 namespace ck {
@@ -11,10 +21,30 @@ using DeviceGemmNoOpPtr =
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough>;
 
+void add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gkn_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gnk_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gmk_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(
+    std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_batched_gemm_instance
 } // namespace device
@@ -30,7 +60,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_batched_gemm_impl(int do_verification,
+bool profile_batched_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
                                int nrepeat,
@@ -42,6 +72,8 @@ void profile_batched_gemm_impl(int do_verification,
                                int StrideC,
                                int BatchCount = 1)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
@@ -65,12 +97,14 @@ void profile_batched_gemm_impl(int do_verification,
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
+    std::unique_ptr<Tensor<float>> c_f32_g_m_n_host_result   = nullptr;
+    std::unique_ptr<Tensor<float>> c_f32_g_m_n_device_result = nullptr;
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
     std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;
@@ -95,21 +129,56 @@ void profile_batched_gemm_impl(int do_verification,
 
     if(do_verification)
     {
-        using ReferenceBatchedGemmInstance =
-            ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
-                                                             BDataType,
-                                                             CDataType,
-                                                             AElementOp,
-                                                             BElementOp,
-                                                             CElementOp>;
+        if constexpr(is_same<ADataType, ck::bhalf_t>::value &&
+                     is_same<BDataType, ck::bhalf_t>::value &&
+                     is_same<CDataType, ck::bhalf_t>::value)
+        {
+            Tensor<float> a_f32_g_m_k(
+                f_host_tensor_descriptor(BatchCount, M, K, StrideA, ALayout{}));
+            Tensor<float> b_f32_g_k_n(
+                f_host_tensor_descriptor(BatchCount, K, N, StrideB, BLayout{}));
+            c_f32_g_m_n_host_result = std::make_unique<Tensor<float>>(
+                f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
+            c_f32_g_m_n_device_result = std::make_unique<Tensor<float>>(
+                f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
 
-        auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
-        auto ref_invoker      = ref_batched_gemm.MakeInvoker();
+            bf16_to_f32_(a_g_m_k, a_f32_g_m_k);
+            bf16_to_f32_(b_g_k_n, b_f32_g_k_n);
 
-        auto ref_argument = ref_batched_gemm.MakeArgument(
-            a_g_m_k, b_g_k_n, c_g_m_n_host_result, a_element_op, b_element_op, c_element_op);
+            using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
+                ReferenceBatchedGemm<float, float, float, AElementOp, BElementOp, CElementOp>;
 
-        ref_invoker.Run(ref_argument);
+            auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
+            auto ref_invoker      = ref_batched_gemm.MakeInvoker();
+
+            auto ref_argument = ref_batched_gemm.MakeArgument(a_f32_g_m_k,
+                                                              b_f32_g_k_n,
+                                                              *c_f32_g_m_n_host_result,
+                                                              a_element_op,
+                                                              b_element_op,
+                                                              c_element_op);
+
+            ref_invoker.Run(ref_argument);
+        }
+        else
+        {
+
+            using ReferenceBatchedGemmInstance =
+                ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                                 BDataType,
+                                                                 CDataType,
+                                                                 AElementOp,
+                                                                 BElementOp,
+                                                                 CElementOp>;
+
+            auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
+            auto ref_invoker      = ref_batched_gemm.MakeInvoker();
+
+            auto ref_argument = ref_batched_gemm.MakeArgument(
+                a_g_m_k, b_g_k_n, c_g_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+            ref_invoker.Run(ref_argument);
+        }
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
@@ -154,6 +223,102 @@ void profile_batched_gemm_impl(int do_verification,
         {
             ck::tensor_operation::device::device_batched_gemm_instance::
                 add_device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instances(gemm_ptrs);
+        }
+    }
+    else if constexpr(is_same<ADataType, bhalf_t>::value && is_same<BDataType, bhalf_t>::value &&
+                      is_same<CDataType, bhalf_t>::value)
+    {
+        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gnk_gmn_instances(gemm_ptrs);
+        }
+    }
+    else if constexpr(is_same<ADataType, float>::value && is_same<BDataType, float>::value &&
+                      is_same<CDataType, float>::value)
+    {
+        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gmk_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instances(gemm_ptrs);
+        }
+    }
+    else if constexpr(is_same<ADataType, int8_t>::value && is_same<BDataType, int8_t>::value &&
+                      is_same<CDataType, int8_t>::value)
+    {
+        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(gemm_ptrs);
+        }
+        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
+                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
+        {
+            ck::tensor_operation::device::device_batched_gemm_instance::
+                add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(gemm_ptrs);
         }
     }
 
@@ -218,7 +383,20 @@ void profile_batched_gemm_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
 
-                check_error(c_g_m_n_host_result, c_g_m_n_device_result);
+                if constexpr(is_same<ADataType, ck::bhalf_t>::value &&
+                             is_same<BDataType, ck::bhalf_t>::value &&
+                             is_same<CDataType, ck::bhalf_t>::value)
+                {
+
+                    bf16_to_f32_(c_g_m_n_device_result, *c_f32_g_m_n_device_result);
+                    float err = check_error(*c_f32_g_m_n_host_result, *c_f32_g_m_n_device_result);
+                    pass      = pass && (err < 1E-6);
+                }
+                else
+                {
+                    float err = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
+                    pass      = pass && (err < 1E-6);
+                }
 
                 if(do_log)
                 {
@@ -241,6 +419,8 @@ void profile_batched_gemm_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+
+    return pass;
 }
 
 } // namespace profiler

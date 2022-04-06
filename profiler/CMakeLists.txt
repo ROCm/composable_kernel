@@ -15,6 +15,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/utility
     ${PROJECT_SOURCE_DIR}/profiler/include
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
@@ -26,18 +27,23 @@ set(PROFILER_SOURCE
     src/profile_gemm_bias_2d.cpp
     src/profile_gemm_bias_relu.cpp
     src/profile_gemm_bias_relu_add.cpp
+    src/profile_gemm_reduce.cpp
     src/profile_batched_gemm.cpp
     src/profile_conv_fwd.cpp
     src/profile_conv_fwd_bias_relu.cpp
     src/profile_conv_fwd_bias_relu_add.cpp
     src/profile_conv_fwd_bias_relu_atomic_add.cpp
-    src/profile_conv_bwd_data.cpp
+    src/profile_convnd_bwd_data.cpp
     src/profile_reduce.cpp
+    src/profile_grouped_gemm.cpp
+    src/profile_conv_bwd_weight.cpp
+    src/profile_batched_gemm_reduce.cpp
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
+target_link_libraries(ckProfiler PRIVATE device_gemm_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias2d_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias_relu_instance)
@@ -47,7 +53,11 @@ target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_atomic_add_instance)
-target_link_libraries(ckProfiler PRIVATE device_conv2d_bwd_data_instance)
+target_link_libraries(ckProfiler PRIVATE device_convnd_bwd_data_instance)
 target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
 
 set_target_properties(ckProfiler PROPERTIES EXCLUDE_FROM_ALL 1)
+target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
+target_link_libraries(ckProfiler PRIVATE device_grouped_gemm_instance)
+target_link_libraries(ckProfiler PRIVATE device_conv2d_bwd_weight_instance)
+target_link_libraries(ckProfiler PRIVATE device_batched_gemm_reduce_instance)
