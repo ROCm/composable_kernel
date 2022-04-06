@@ -27,6 +27,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
+option(CK_TIME_KERNELS "Time every kernel and log parameters" OFF)
+
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	# workaround issue hipcc in rocm3.5 cannot find openmp
@@ -227,7 +229,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
-configure_file("${PROJECT_SOURCE_DIR}/include/ck/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/include/ck/hip_version.hpp")
+configure_file("${PROJECT_SOURCE_DIR}/include/ck/options.hpp.in" "${PROJECT_BINARY_DIR}/include/ck/options.hpp")
 
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include

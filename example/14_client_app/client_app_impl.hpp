@@ -28,6 +28,36 @@ enum ConvOutputLayout
     NHWK, // 1
 };
 
+// Code to check CUDA errors
+void check_cuda_error(void)
+{
+    hipError_t err = hipGetLastError();
+    if (err != hipSuccess)
+    {
+        std::cerr
+            << "Error: "
+            << hipGetErrorString(err)
+            << std::endl;
+            exit(err);
+    }
+}
+std::string getDeviceName(int device)
+{
+    struct hipDeviceProp_t prop;
+    hipGetDeviceProperties(&prop, device);
+    check_cuda_error();
+    return std::string(prop.name);
+}
+
+int getDriver(void)
+{
+    int driver;
+    hipDriverGetVersion(&driver);
+    check_cuda_error();
+    return driver;
+}
+
+
 
 namespace ck {
 namespace app {
@@ -127,6 +157,14 @@ void profile_conv_fwd_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    int deviceIndex = 0;
+    hipSetDevice(deviceIndex);
+    check_cuda_error();
+
+
+    hipStream_t stream_id = nullptr;
+    hipStreamCreate(&stream_id);
+    check_cuda_error();
 
     // profile device Conv instances
     for(auto& conv_ptr : conv_ptrs)
@@ -151,8 +189,7 @@ void profile_conv_fwd_impl(int do_verification,
         if(conv_ptr.IsSupportedArgument(argument_ptr.get()))
         {
             std::string conv_name = conv_ptr.GetTypeString();
-
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat, nullptr);
+            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat, stream_id, true);
 
             std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 

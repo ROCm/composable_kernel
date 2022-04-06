@@ -49,3 +49,5 @@ target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instanc
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_atomic_add_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_bwd_data_instance)
 target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
+
+set_target_properties(ckProfiler PROPERTIES EXCLUDE_FROM_ALL 1)

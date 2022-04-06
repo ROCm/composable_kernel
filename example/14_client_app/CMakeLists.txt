@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
 project(ck_app)
+add_compile_options(-std=c++14)
+# add_link_options(--offload-arch=gfx908)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+#set(CMAKE_CXX_STANDARD 14)
+#set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(composable_kernel 1.0.0 COMPONENTS device_operations host_tensor)
 find_package(hip REQUIRED PATHS /opt/rocm)

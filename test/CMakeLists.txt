@@ -28,6 +28,7 @@ function(add_test_executable TEST_NAME)
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
+    set_target_properties(${TEST_NAME} PROPERTIES EXCLUDE_FROM_ALL 1)
 endfunction(add_test_executable TEST_NAME)
 
 add_subdirectory(magic_number_division)

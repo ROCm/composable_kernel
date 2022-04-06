@@ -82,7 +82,6 @@ PUBLIC -DCK_AMD_GPU_GFX908)
 
 target_compile_options(device_operations
 PRIVATE -amdgpu-target=gfx908
-PRIVATE -O3
 )
 # install(TARGETS device_operations LIBRARY DESTINATION lib)
 install(TARGETS device_operations

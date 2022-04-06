@@ -28,8 +28,8 @@ struct DeviceConvFwdPtr_t
 				 std::vector<ck::index_t> conv_filter_strides,
 				 std::vector<ck::index_t> conv_filter_dilations,
 				 std::vector<ck::index_t> input_left_pads,
-				 std::vector<ck::index_t> input_right_pads); // in,wei and out element ops are ignored for now since even if we change them, they cant be linked
-	std::unique_ptr<BaseInvoker> MakeInvokerPointer(); // requires including BaseInvoker headers
+				 std::vector<ck::index_t> input_right_pads) const; // in,wei and out element ops are ignored for now since even if we change them, they cant be linked
+	std::unique_ptr<BaseInvoker> MakeInvokerPointer() const; // requires including BaseInvoker headers
 	std::string GetTypeString();
 	bool IsSupportedArgument(const BaseArgument* arg_ptr);
 };

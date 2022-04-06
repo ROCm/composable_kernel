@@ -521,7 +521,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr)
+        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false)
         {
             nrepeat        = 1;
             float ave_time = 0;
@@ -600,6 +600,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         dim3(BlockSize),
                         0,
                         stream_id,
+                        measure_time,
                         arg.p_a_grid_,
                         arg.p_b_grid_,
                         arg.p_c_grid_,
@@ -634,6 +635,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         dim3(BlockSize),
                         0,
                         stream_id,
+                        measure_time,
                         arg.p_a_grid_,
                         arg.p_b_grid_,
                         arg.p_c_grid_,
@@ -649,9 +651,9 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }
     };
 

@@ -37,12 +37,12 @@ struct DeviceConvFwdPtr_t::DeviceConvFwdPtrImpl
 				 std::vector<ck::index_t> conv_filter_strides,
 				 std::vector<ck::index_t> conv_filter_dilations,
 				 std::vector<ck::index_t> input_left_pads,
-				 std::vector<ck::index_t> input_right_pads)
+				 std::vector<ck::index_t> input_right_pads) const
     {
         return el->MakeArgumentPointer(in_ptr, wei_ptr, out_ptr, N, K, C, input_spatial_lengths, filter_spatial_lengths, output_spatial_lengths, conv_filter_strides,
         conv_filter_dilations, input_left_pads, input_right_pads, PassThrough{}, PassThrough{}, PassThrough{});
     }
-    std::unique_ptr<DeviceConvFwdPtr_t::BaseInvoker> MakeInvokerPointer()
+    std::unique_ptr<DeviceConvFwdPtr_t::BaseInvoker> MakeInvokerPointer() const
     {
         return el->MakeInvokerPointer();
     }
@@ -73,13 +73,13 @@ std::unique_ptr<DeviceConvFwdPtr_t::BaseArgument> DeviceConvFwdPtr_t::MakeArgume
 				 std::vector<ck::index_t> conv_filter_strides,
 				 std::vector<ck::index_t> conv_filter_dilations,
 				 std::vector<ck::index_t> input_left_pads,
-				 std::vector<ck::index_t> input_right_pads)
+				 std::vector<ck::index_t> input_right_pads) const
 {
     return   pImpl->MakeArgumentPointer(in_ptr, wei_ptr, out_ptr, N, K, C, input_spatial_lengths, filter_spatial_lengths, output_spatial_lengths, conv_filter_strides,
         conv_filter_dilations, input_left_pads, input_right_pads);
 }
 
-std::unique_ptr<DeviceConvFwdPtr_t::BaseInvoker> DeviceConvFwdPtr_t::MakeInvokerPointer()
+std::unique_ptr<DeviceConvFwdPtr_t::BaseInvoker> DeviceConvFwdPtr_t::MakeInvokerPointer() const
 {
     return pImpl->MakeInvokerPointer();
 }

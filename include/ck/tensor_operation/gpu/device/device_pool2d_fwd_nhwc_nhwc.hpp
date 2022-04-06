@@ -204,7 +204,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr)
+        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false)
         {
             using gridwise_reduce = GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                                          OutDataType,
@@ -247,6 +247,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
                                           dim3(BlockSize),
                                           0,
                         stream_id,
+                        measure_time,
                                           arg.a_grid_desc_m_k_,
                                           arg.b_grid_desc_m_,
                                           arg.in_element_op_,
@@ -258,9 +259,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
                                           arg.p_out_indices_dev_);
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr) override
+        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }
     };
 
