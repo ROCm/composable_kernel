@@ -302,13 +302,13 @@ HostTensorDescriptor get_host_tensor_descriptor(const std::vector<std::size_t>& 
                  std::is_same<TensorLayout, ck::tensor_layout::convolution::NKW>::value)
     {
 
-        return HostTensorDescriptor(dims, std::vector<std::size_t>({C * dims[2], dims[2], 1}));
+        return HostTensorDescriptor(dims, std::vector<std::size_t>{C * dims[2], dims[2], 1});
     }
     else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NWC>::value ||
                       std::is_same<TensorLayout, ck::tensor_layout::convolution::KXC>::value ||
                       std::is_same<TensorLayout, ck::tensor_layout::convolution::NWK>::value)
     {
-        return HostTensorDescriptor(dims, std::vector<std::size_t>({C * dims[2], 1, C}));
+        return HostTensorDescriptor(dims, std::vector<std::size_t>{C * dims[2], 1, C});
     }
     // 2D
     else if constexpr(std::is_same<TensorLayout, ck::tensor_layout::convolution::NCHW>::value ||
