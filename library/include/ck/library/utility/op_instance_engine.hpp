@@ -64,10 +64,11 @@ class OpInstanceRunEngine
     public:
     using OpInstanceT = OpInstance<InArgTypes..., OutDataType>;
     template <typename T>
-    using TensorPtr      = std::unique_ptr<Tensor<T>>;
-    using DeviceMemPtr   = std::unique_ptr<DeviceMem>;
-    using InTensorsTuple = std::tuple<TensorPtr<InArgTypes>...>;
-    using DeviceBuffers  = std::vector<DeviceMemPtr>;
+    using TensorPtr        = std::unique_ptr<Tensor<T>>;
+    using DeviceMemPtr     = std::unique_ptr<DeviceMem>;
+    using InTensorsTuple   = std::tuple<TensorPtr<InArgTypes>...>;
+    using DeviceBuffers    = std::vector<DeviceMemPtr>;
+    using InArgsTypesTuple = std::tuple<InArgTypes...>;
 
     OpInstanceRunEngine() = delete;
 
@@ -79,23 +80,10 @@ class OpInstanceRunEngine
         out_tensor_ = op_instance_.GetOutputTensor();
         ref_output_ = op_instance_.GetOutputTensor();
 
-        constexpr std::size_t N_IN_ARGS = std::tuple_size_v<InTensorsTuple>;
-        CallRefOpUnpackArgs(reference_op, std::make_index_sequence<N_IN_ARGS>{});
-
-        ck::static_for<0, N_IN_ARGS, 1>{}([this](auto i) {
-            // This is ugly... should somehow iterate also through InArgTypes to get specific
-            // data type
-            const auto& ts = std::get<i>(in_tensors_);
-            using vec_type = decltype(ts->mData);
-            this->in_device_buffers_
-                .emplace_back(std::make_unique<DeviceMem>(sizeof(typename vec_type::value_type) *
-                                                          ts->mDesc.GetElementSpace()))
-                ->ToDevice(ts->mData.data());
-        });
-
-        using vec_type     = decltype(out_tensor_->mData);
-        out_device_buffer_ = std::make_unique<DeviceMem>(sizeof(typename vec_type::value_type) *
-                                                         out_tensor_->mDesc.GetElementSpace());
+        CallRefOpUnpackArgs(reference_op, std::make_index_sequence<kNInArgs_>{});
+        AllocateDeviceInputTensors(std::make_index_sequence<kNInArgs_>{});
+        out_device_buffer_ =
+            std::make_unique<DeviceMem>(sizeof(OutDataType) * out_tensor_->mDesc.GetElementSpace());
         out_device_buffer_->SetZero();
     }
 
@@ -125,7 +113,8 @@ class OpInstanceRunEngine
     template <typename OpInstancePtr>
     ProfileBestConfig Profile(const std::vector<OpInstancePtr>& op_ptrs,
                               int nrepeat          = 100,
-                              bool do_verification = false)
+                              bool do_verification = false,
+                              bool do_log          = false)
     {
         bool res{true};
         ProfileBestConfig best_config;
@@ -162,10 +151,7 @@ class OpInstanceRunEngine
                     // TODO: enable flexible use of custom check_error functions
                     res = res && CheckErr(out_tensor_->mData, ref_output_->mData);
 
-                    // if (do_log)
-                    // {
-
-                    // }
+                    if(do_log) {}
                 }
                 out_device_buffer_->SetZero();
             }
@@ -178,11 +164,29 @@ class OpInstanceRunEngine
 
     private:
     template <typename F, std::size_t... Is>
-    void CallRefOpUnpackArgs(const F& f, std::index_sequence<Is...>)
+    void CallRefOpUnpackArgs(const F& f, std::index_sequence<Is...>) const
     {
         f(*std::get<Is>(in_tensors_)..., *ref_output_);
     }
 
+    template <std::size_t... Is>
+    void AllocateDeviceInputTensors(std::index_sequence<Is...>)
+    {
+        (AllocateDeviceInputTensorsImpl<Is>(), ...);
+    }
+
+    template <std::size_t Index>
+    void AllocateDeviceInputTensorsImpl()
+    {
+        const auto& ts = std::get<Index>(in_tensors_);
+        in_device_buffers_
+            .emplace_back(
+                std::make_unique<DeviceMem>(sizeof(std::tuple_element_t<Index, InArgsTypesTuple>) *
+                                            ts->mDesc.GetElementSpace()))
+            ->ToDevice(ts->mData.data());
+    }
+
+    static constexpr std::size_t kNInArgs_ = std::tuple_size_v<InTensorsTuple>;
     const OpInstanceT& op_instance_;
     double rtol_{1e-5};
     double atol_{1e-8};
