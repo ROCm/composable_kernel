@@ -96,7 +96,7 @@ bool test_conv1d_nwc_instances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptr
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
     ck::utils::conv::run_reference_convolution_forward<1>(params, input, weights, host_output);
-    return ck::utils::conv::run_convolution_forward_instances<1>(
+    return ck::utils::conv::run_convolution_forward_instances(
         params, conv_ptrs, input, weights, device_output, host_output);
 }
 bool test_conv1d_nwc_bf16_instances()

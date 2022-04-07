@@ -845,10 +845,10 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
                            std::begin(params_.filter_spatial_lengths),
                            std::end(params_.filter_spatial_lengths));
 
-        auto input =
-            std::make_unique<Tensor<InDataType>>(GetHostTensorDescriptor(input_dims, InLayout{}));
+        auto input = std::make_unique<Tensor<InDataType>>(
+            get_host_tensor_descriptor(input_dims, InLayout{}));
         auto weights = std::make_unique<Tensor<WeiDataType>>(
-            GetHostTensorDescriptor(filter_dims, WeiLayout{}));
+            get_host_tensor_descriptor(filter_dims, WeiLayout{}));
 
         input_init_f_(input->begin(), input->end());
         weights_init_f_(weights->begin(), weights->end());
@@ -864,7 +864,7 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
                            std::begin(output_spatial_lengths_),
                            std::end(output_spatial_lengths_));
         auto output = std::make_unique<Tensor<OutDataType>>(
-            GetHostTensorDescriptor(output_dims, OutLayout{}));
+            get_host_tensor_descriptor(output_dims, OutLayout{}));
 
         std::fill(output->begin(), output->end(), OutDataType(0.f));
         return output;
@@ -929,21 +929,21 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
 
     virtual std::size_t GetFlops() const override
     {
-        return GetFlops(params_.N,
-                        params_.C,
-                        params_.K,
-                        params_.filter_spatial_lengths,
-                        output_spatial_lengths_);
+        return get_flops(params_.N,
+                         params_.C,
+                         params_.K,
+                         params_.filter_spatial_lengths,
+                         output_spatial_lengths_);
     }
 
     virtual std::size_t GetBtype() const override
     {
-        return GetBtype<InDataType, WeiDataType, OutDataType>(params_.N,
-                                                              params_.C,
-                                                              params_.K,
-                                                              params_.input_spatial_lengths,
-                                                              params_.filter_spatial_lengths,
-                                                              output_spatial_lengths_);
+        return get_btype<InDataType, WeiDataType, OutDataType>(params_.N,
+                                                               params_.C,
+                                                               params_.K,
+                                                               params_.input_spatial_lengths,
+                                                               params_.filter_spatial_lengths,
+                                                               output_spatial_lengths_);
     }
 
     private:

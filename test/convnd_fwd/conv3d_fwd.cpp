@@ -229,7 +229,7 @@ bool test_conv3d_ndhwc_instances(const std::vector<DeviceConvFwdNoOpPtr>& conv_p
     Tensor<T>& device_output = std::get<3>(host_tensors);
 
     ck::utils::conv::run_reference_convolution_forward<3>(params, input, weights, host_output);
-    return ck::utils::conv::run_convolution_forward_instances<3>(
+    return ck::utils::conv::run_convolution_forward_instances(
         params, conv_ptrs, input, weights, device_output, host_output);
 }
 

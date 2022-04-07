@@ -51,8 +51,8 @@ class OpInstance
     MakeArgumentPointer(tensor_operation::device::BaseOperator*,
                         const DeviceBuffers&,
                         const DeviceMemPtr&) const = 0;
-    virtual std::size_t getFlops() const           = 0;
-    virtual std::size_t getBtype() const           = 0;
+    virtual std::size_t GetFlops() const           = 0;
+    virtual std::size_t GetBtype() const           = 0;
 };
 
 /**
