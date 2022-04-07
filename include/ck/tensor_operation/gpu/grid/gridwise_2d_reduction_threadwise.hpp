@@ -55,7 +55,7 @@ __global__ void kernel_reduce_threadwise(const InGridDesc_M_K in_grid_desc_m_k,
                                          OutDataType* const __restrict__ p_out_global,
                                          IndexDataType* const __restrict__ p_indices_global)
 {
-    if constexpr(!NeedIndices)
+   if constexpr(!NeedIndices)
     {
         GridwiseReduction::Run(in_grid_desc_m_k,
                                out_grid_desc_m,

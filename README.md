@@ -20,7 +20,7 @@ mkdir build && cd build
 cmake                                                                 \
 -D BUILD_DEV=OFF                                                      \
 -D CMAKE_BUILD_TYPE=Release                                           \
--D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3  \
+-D CMAKE_CXX_FLAGS=" -O3  \
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                             \
 -D CMAKE_PREFIX_PATH=/opt/rocm                                        \
 ..

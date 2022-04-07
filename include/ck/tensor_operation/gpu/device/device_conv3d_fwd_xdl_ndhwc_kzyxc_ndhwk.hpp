@@ -49,6 +49,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
+#if (defined(__gfx908__) || defined(__gfx90a__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -654,6 +655,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
 
         return str.str();
     }
+#endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 };
 
 } // namespace device

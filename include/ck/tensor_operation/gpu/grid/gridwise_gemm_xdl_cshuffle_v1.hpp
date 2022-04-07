@@ -38,6 +38,7 @@ __global__ void
                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
                                     const Block2CTileMap block_2_ctile_map)
 {
+#if (defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
@@ -51,6 +52,7 @@ __global__ void
                                                    b_grid_desc_bk0_n_bk1,
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                    block_2_ctile_map);
+#endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename FloatAB,

@@ -39,6 +39,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
+#if (defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
@@ -52,6 +53,7 @@ __global__ void
                                                    b_element_op,
                                                    c_element_op,
                                                    block_2_ctile_map);
+#endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename GridwiseGemm,
@@ -74,6 +76,7 @@ __global__ void
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op)
 {
+#if (defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -126,6 +129,7 @@ __global__ void
         gemm_desc_ptr[group_id].block_2_ctile_map_,
         block_id_grp);
 #endif
+#endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <index_t BlockSize,
