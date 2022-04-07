@@ -70,7 +70,7 @@ bool profile_batched_gemm_impl(int do_verification,
                                int StrideA,
                                int StrideB,
                                int StrideC,
-                               int BatchCount = 1)
+                               int BatchCount)
 {
     bool pass = true;
 
