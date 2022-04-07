@@ -622,18 +622,12 @@ bool run_convolution_forward_instances(const ConvParams& params,
     return res;
 }
 
-template <typename T, class Enable = void>
-struct FillUniform;
 template <typename InDataType, typename WeiDataType, typename OutDataType>
 struct ConvolutionFwdInstances;
 
-template <typename T>
-struct FillUniform<T, typename std::enable_if<std::is_integral<T>::value>::type>
 template <>
 struct ConvolutionFwdInstances<float, float, float>
 {
-    T a_ = T{-5};
-    T b_ = T{5};
     template <int NumDimSpatial,
               typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
     static std::vector<DeviceConvFwdNoOpPtr> Get()
@@ -662,8 +656,6 @@ struct ConvolutionFwdInstances<float, float, float>
     }
 };
 
-    template <typename ForwardIter>
-    void operator()(ForwardIter first, ForwardIter last) const
 template <>
 struct ConvolutionFwdInstances<half_t, half_t, half_t>
 {
@@ -671,9 +663,6 @@ struct ConvolutionFwdInstances<half_t, half_t, half_t>
               typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
     static std::vector<DeviceConvFwdNoOpPtr> Get()
     {
-        std::mt19937 gen{11939};
-        std::uniform_int_distribution<> dis{a_, b_};
-        std::generate(first, last, [&dis, &gen]() { return dis(gen); });
         if constexpr(NumDimSpatial == 1)
         {
             std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
@@ -762,18 +751,43 @@ struct ConvolutionFwdInstances<int8_t, int8_t, int8_t>
     }
 };
 
+// template <typename T, class Enable = void>
+// struct FillUniform;
+
+// TODO: what's wrong with this specialization???
+// err: segmentation fault in mt19937 - infinite loop like.
+// template <typename T>
+// struct FillUniform<T, typename std::enable_if<std::is_integral<T>::value &&
+//                                               !std::is_same<T, bhalf_t>::value>::type>
+// {
+//     int a_{0};
+//     int b_{5};
+//     // T a_ = T{0};
+//     // T b_ = T{5};
+
+//     template <typename ForwardIter>
+//     void operator()(ForwardIter first, ForwardIter last) const
+//     {
+//         std::mt19937 gen{11939};
+//         std::uniform_int_distribution<int> dis(a_, b_);
+//         std::generate(first, last, [&dis, &gen]() { return ck::type_convert<T>(dis(gen)); });
+//     }
+// };
+
+// struct FillUniform<T, typename std::enable_if<std::is_floating_point<T>::value ||
+//                                               std::is_same<T, bhalf_t>::value>::type>
 template <typename T>
-struct FillUniform<T, typename std::enable_if<std::is_floating_point<T>::value>::type>
+struct FillUniform
 {
-    T a_ = T{0};
-    T b_ = T{1};
+    float a_{0};
+    float b_{5};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
         std::mt19937 gen{11939};
-        std::uniform_real_distribution<> dis{a_, b_};
-        std::generate(first, last, [&dis, &gen]() { return dis(gen); });
+        std::uniform_real_distribution<> dis(a_, b_);
+        std::generate(first, last, [&dis, &gen]() { return ck::type_convert<T>(dis(gen)); });
     }
 };
 
