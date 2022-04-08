@@ -72,15 +72,21 @@ class OpInstanceRunEngine
 
     OpInstanceRunEngine() = delete;
 
-    template <typename ReferenceOp>
-    OpInstanceRunEngine(const OpInstanceT& op_instance, const ReferenceOp& reference_op)
+    template <typename ReferenceOp = std::function<void()>>
+    OpInstanceRunEngine(const OpInstanceT& op_instance,
+                        const ReferenceOp& reference_op = ReferenceOp{})
         : op_instance_{op_instance}
     {
         in_tensors_ = op_instance_.GetInputTensors();
         out_tensor_ = op_instance_.GetOutputTensor();
-        ref_output_ = op_instance_.GetOutputTensor();
 
-        CallRefOpUnpackArgs(reference_op, std::make_index_sequence<kNInArgs_>{});
+        if constexpr(std::is_invocable_v<ReferenceOp,
+                                         const Tensor<InArgTypes>&...,
+                                         Tensor<OutDataType>&>)
+        {
+            ref_output_ = op_instance_.GetOutputTensor();
+            CallRefOpUnpackArgs(reference_op, std::make_index_sequence<kNInArgs_>{});
+        }
         AllocateDeviceInputTensors(std::make_index_sequence<kNInArgs_>{});
         out_device_buffer_ =
             std::make_unique<DeviceMem>(sizeof(OutDataType) * out_tensor_->mDesc.GetElementSpace());
@@ -102,6 +108,12 @@ class OpInstanceRunEngine
             {
                 invoker->Run(argument.get());
                 out_device_buffer_->FromDevice(out_tensor_->mData.data());
+                if(!ref_output_)
+                {
+                    throw std::runtime_error(
+                        "OpInstanceRunEngine::Test: Reference value not availabe."
+                        " You have to provide reference function.");
+                }
                 // TODO: enable flexible use of custom check_error functions
                 res = res && check_err(out_tensor_->mData, ref_output_->mData);
                 out_device_buffer_->SetZero();
@@ -148,6 +160,12 @@ class OpInstanceRunEngine
                 if(do_verification)
                 {
                     out_device_buffer_->FromDevice(out_tensor_->mData.data());
+                    if(!ref_output_)
+                    {
+                        throw std::runtime_error(
+                            "OpInstanceRunEngine::Profile: Reference value not availabe."
+                            " You have to provide reference function.");
+                    }
                     // TODO: enable flexible use of custom check_error functions
                     res = res && CheckErr(out_tensor_->mData, ref_output_->mData);
 

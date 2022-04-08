@@ -819,11 +819,13 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
     ConvFwdOpInstance& operator=(const ConvFwdOpInstance&) = default;
 
     ConvFwdOpInstance(const ConvParams& params,
+                      bool do_init                         = true,
                       const InputInitFun& input_init_f     = InputInitFun{},
                       const WeightsInitFun& weights_init_f = WeightsInitFun{})
         : BaseType(),
           params_{params},
           output_spatial_lengths_{params.GetOutputSpatialLengths()},
+          do_init_{do_init},
           input_init_f_{input_init_f},
           weights_init_f_{weights_init_f}
     {
@@ -850,8 +852,11 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
         auto weights = std::make_unique<Tensor<WeiDataType>>(
             get_host_tensor_descriptor(filter_dims, WeiLayout{}));
 
-        input_init_f_(input->begin(), input->end());
-        weights_init_f_(weights->begin(), weights->end());
+        if(do_init_)
+        {
+            input_init_f_(input->begin(), input->end());
+            weights_init_f_(weights->begin(), weights->end());
+        }
 
         return std::make_tuple(std::move(input), std::move(weights));
     }
@@ -866,7 +871,10 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
         auto output = std::make_unique<Tensor<OutDataType>>(
             get_host_tensor_descriptor(output_dims, OutLayout{}));
 
-        std::fill(output->begin(), output->end(), OutDataType(0.f));
+        if(do_init_)
+        {
+            std::fill(output->begin(), output->end(), OutDataType(0.f));
+        }
         return output;
     }
 
@@ -949,6 +957,7 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
     private:
     const ConvParams& params_;
     const std::vector<ck::index_t> output_spatial_lengths_;
+    const bool do_init_;
     const InputInitFun& input_init_f_;
     const WeightsInitFun& weights_init_f_;
 };

@@ -44,9 +44,8 @@ bool test_conv3d_ndhwc()
 
 bool test_conv3d_ndhwc_2gb_input()
 {
-    using namespace std::placeholders;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
-    namespace ctl = ck::tensor_layout::convolution;
 
     // >2GB Input
     conv::ConvParams params;
@@ -63,36 +62,30 @@ bool test_conv3d_ndhwc_2gb_input()
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
-    conv::ConvFwdOpInstance<float, float, float, ctl::NDHWC, ctl::KZYXC, ctl::NDHWK> conv_instance(
-        params);
 
-    auto reference_conv_fwd_fun = std::bind(
-        conv::run_reference_convolution_forward<3, float, float, float>, params, _1, _2, _3);
-    OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
-
-    try
-    {
-        run_engine.Test(conv_ptrs);
-    }
-    catch(const std::runtime_error& err)
-    {
-        std::string err_msg{"Error! device_conv with the specified compilation parameters does "
-                            "not support this Conv problem"};
-        if(err.what() != err_msg)
-        {
-            return false;
-        }
-        return true;
-    }
-    std::cout << "Error: Failure checking oversized tensor!" << std::endl;
-    return false;
+    auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
+                                                     nullptr,
+                                                     nullptr,
+                                                     params.N,
+                                                     params.K,
+                                                     params.C,
+                                                     params.input_spatial_lengths,
+                                                     params.filter_spatial_lengths,
+                                                     params.GetOutputSpatialLengths(),
+                                                     params.conv_filter_strides,
+                                                     params.conv_filter_dilations,
+                                                     params.input_left_pads,
+                                                     params.input_right_pads,
+                                                     PassThrough{},
+                                                     PassThrough{},
+                                                     PassThrough{});
+    return !(conv_ptrs.back()->IsSupportedArgument(arg.get()));
 }
 
 bool test_conv3d_ndhwc_2gb_filters()
 {
-    using namespace std::placeholders;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
-    namespace ctl = ck::tensor_layout::convolution;
 
     // >2GB Filters
     conv::ConvParams params;
@@ -109,36 +102,30 @@ bool test_conv3d_ndhwc_2gb_filters()
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
-    conv::ConvFwdOpInstance<float, float, float, ctl::NDHWC, ctl::KZYXC, ctl::NDHWK> conv_instance(
-        params);
 
-    auto reference_conv_fwd_fun = std::bind(
-        conv::run_reference_convolution_forward<3, float, float, float>, params, _1, _2, _3);
-    OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
-
-    try
-    {
-        run_engine.Test(conv_ptrs);
-    }
-    catch(const std::runtime_error& err)
-    {
-        std::string err_msg{"Error! device_conv with the specified compilation parameters does "
-                            "not support this Conv problem"};
-        if(err.what() != err_msg)
-        {
-            return false;
-        }
-        return true;
-    }
-    std::cout << "Error: Failure checking oversized tensor!" << std::endl;
-    return false;
+    auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
+                                                     nullptr,
+                                                     nullptr,
+                                                     params.N,
+                                                     params.K,
+                                                     params.C,
+                                                     params.input_spatial_lengths,
+                                                     params.filter_spatial_lengths,
+                                                     params.GetOutputSpatialLengths(),
+                                                     params.conv_filter_strides,
+                                                     params.conv_filter_dilations,
+                                                     params.input_left_pads,
+                                                     params.input_right_pads,
+                                                     PassThrough{},
+                                                     PassThrough{},
+                                                     PassThrough{});
+    return !(conv_ptrs.back()->IsSupportedArgument(arg.get()));
 }
 
 bool test_conv3d_ndhwc_2gb_output()
 {
-    using namespace std::placeholders;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
-    namespace ctl = ck::tensor_layout::convolution;
 
     // >2GB Output
     conv::ConvParams params;
@@ -155,29 +142,23 @@ bool test_conv3d_ndhwc_2gb_output()
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
-    conv::ConvFwdOpInstance<float, float, float, ctl::NDHWC, ctl::KZYXC, ctl::NDHWK> conv_instance(
-        params);
-
-    auto reference_conv_fwd_fun = std::bind(
-        conv::run_reference_convolution_forward<3, float, float, float>, params, _1, _2, _3);
-    OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
-
-    try
-    {
-        run_engine.Test(conv_ptrs);
-    }
-    catch(const std::runtime_error& err)
-    {
-        std::string err_msg{"Error! device_conv with the specified compilation parameters does "
-                            "not support this Conv problem"};
-        if(err.what() != err_msg)
-        {
-            return false;
-        }
-        return true;
-    }
-    std::cout << "Error: Failure checking oversized tensor!" << std::endl;
-    return false;
+    auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
+                                                     nullptr,
+                                                     nullptr,
+                                                     params.N,
+                                                     params.K,
+                                                     params.C,
+                                                     params.input_spatial_lengths,
+                                                     params.filter_spatial_lengths,
+                                                     params.GetOutputSpatialLengths(),
+                                                     params.conv_filter_strides,
+                                                     params.conv_filter_dilations,
+                                                     params.input_left_pads,
+                                                     params.input_right_pads,
+                                                     PassThrough{},
+                                                     PassThrough{},
+                                                     PassThrough{});
+    return !(conv_ptrs.back()->IsSupportedArgument(arg.get()));
 }
 
 template <typename T>
@@ -257,7 +238,7 @@ int main()
     std::cout << "\ntest_conv3d_ndhwc_f32_instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
     res = test_conv3d_ndhwc_int8_instances();
-    std::cout << "\ntest_conv3d_ndhw_cint_8instances ..... " << (res ? "SUCCESS" : "FAILURE")
+    std::cout << "\ntest_conv3d_ndhwc_int8_instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
 
     return res ? 0 : 1;

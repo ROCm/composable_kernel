@@ -107,7 +107,7 @@ int main()
     std::cout << "\ntest_conv1d_nwc_f32_instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
     res = test_conv1d_nwc_int8_instances();
-    std::cout << "\ntes_tconv1_dnw_cint_8instances ..... " << (res ? "SUCCESS" : "FAILURE")
+    std::cout << "\ntest_conv1d_nwc_int8_instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
 
     return res ? 0 : 1;
