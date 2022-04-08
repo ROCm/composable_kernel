@@ -45,7 +45,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if (defined(__gfx908__) || defined(__gfx90a__))
+#if (defined(!__HIP_DEVICE_COMPILE__  || __gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainK0BlockLoop>(
