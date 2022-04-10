@@ -15,6 +15,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/utility
     ${PROJECT_SOURCE_DIR}/test/include
     ${PROJECT_SOURCE_DIR}/profiler/include
     ${PROJECT_SOURCE_DIR}/external/include/half
@@ -43,3 +44,4 @@ add_subdirectory(batched_gemm_reduce)
 add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
+add_subdirectory(conv2d_bwd_weight)

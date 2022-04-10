@@ -4,8 +4,10 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
-#include "print.hpp"
+#include "magic_division.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
@@ -52,29 +54,6 @@ __host__ void cpu_magic_number_division(uint32_t magic_multiplier,
         p_result[data_id] =
             ck::MagicDivision::DoMagicDivision(p_dividend[data_id], magic_multiplier, magic_shift);
     }
-}
-
-template <typename T>
-T check_error(const std::vector<T>& ref, const std::vector<T>& result)
-{
-    T error     = 0;
-    T max_diff  = 0;
-    T ref_value = 0, result_value = 0;
-
-    for(std::size_t i = 0; i < ref.size(); ++i)
-    {
-        T diff = std::abs(ref[i] - result[i]);
-        error += diff;
-
-        if(max_diff < diff)
-        {
-            max_diff     = diff;
-            ref_value    = ref[i];
-            result_value = result[i];
-        }
-    }
-
-    return max_diff;
 }
 
 int main(int, char*[])
@@ -135,9 +114,9 @@ int main(int, char*[])
         naive_result_dev_buf.FromDevice(naive_result_host.data());
         magic_result_dev_buf.FromDevice(magic_result_host.data());
 
-        int32_t max_diff = check_error(naive_result_host, magic_result_host);
+        bool res = ck::utils::check_err(magic_result_host, naive_result_host);
 
-        if(max_diff != 0)
+        if(!res)
         {
             pass = false;
             continue;
@@ -149,9 +128,9 @@ int main(int, char*[])
                                   magic_result_host2.data(),
                                   num_dividend);
 
-        max_diff = check_error(naive_result_host, magic_result_host2);
+        res = ck::utils::check_err(magic_result_host2, naive_result_host);
 
-        if(max_diff != 0)
+        if(!res)
         {
             pass = false;
             continue;

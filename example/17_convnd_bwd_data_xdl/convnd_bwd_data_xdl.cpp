@@ -6,7 +6,7 @@
 #include <half.hpp>
 
 #include "config.hpp"
-#include "conv_utils.hpp"
+#include "conv_fwd_util.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -29,7 +29,7 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdDefault =
-    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
 using DeviceConvBwdDataBasePtr =
     ck::tensor_operation::device::DeviceConvBwdDataPtr<InElementOp, WeiElementOp, OutElementOp>;
@@ -44,7 +44,7 @@ using DeviceConvNDBwdDataInstance = ck::tensor_operation::device::
         InElementOp,    // InElementwiseOperation
         WeiElementOp,   // WeiElementwiseOperation
         OutElementOp,   // OutElementwiseOperation
-        ConvBwdDefault, // ConvolutionBackwardDataSpecialization_t
+        ConvBwdDefault, // ConvolutionBackwardDataSpecialization
         NumDimSpatial,  // NumDimSpatial
         256,            // BlockSize
         128,            // MPerBlock
@@ -83,7 +83,7 @@ using ReferenceConvBwdDataInstance =
                                                      OutElementOp,
                                                      NumDimSpatial>;
 
-void PrintUseMsg()
+void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
@@ -99,10 +99,10 @@ void PrintUseMsg()
               << " <right padding>, (ie RightPy, RightPx for 2D)\n"
               << std::endl;
 }
-ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
+ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     int arg_idx = 5;
 
     params.num_dim_spatial = num_dim_spatial;
@@ -144,73 +144,7 @@ ck::conv_util::ConvParams ParseConvParams(int num_dim_spatial, char* argv[])
     return params;
 }
 
-HostTensorDescriptor GetInputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                  int num_dim_spatial = 2)
-{
-    namespace tl = ck::tensor_layout::convolution;
-
-    switch(num_dim_spatial)
-    {
-    case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWC{});
-    }
-    case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWC{});
-    }
-    case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWC{});
-    }
-    default: {
-        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-    }
-    }
-}
-HostTensorDescriptor GetFiltersHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                    int num_dim_spatial = 2)
-{
-    namespace tl = ck::tensor_layout::convolution;
-
-    switch(num_dim_spatial)
-    {
-    case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KZYXC{});
-    }
-    case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KYXC{});
-    }
-    case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::KXC{});
-    }
-    default: {
-        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-    }
-    }
-}
-
-HostTensorDescriptor GetOutputHostTensorDescriptor(const std::vector<std::size_t>& dims,
-                                                   int num_dim_spatial = 2)
-{
-    namespace tl = ck::tensor_layout::convolution;
-
-    switch(num_dim_spatial)
-    {
-    case 3: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NDHWK{});
-    }
-    case 2: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NHWK{});
-    }
-    case 1: {
-        return ck::conv_util::GetHostTensorDescriptor(dims, tl::NWK{});
-    }
-
-    default: {
-        throw std::runtime_error("Unsupported number of spatial dimensions provided!");
-    }
-    }
-}
-
-DeviceConvBwdDataBasePtr GetConvInstance(int num_dim_spatial)
+DeviceConvBwdDataBasePtr get_conv_instance(int num_dim_spatial)
 {
     switch(num_dim_spatial)
     {
@@ -236,7 +170,7 @@ int main(int argc, char* argv[])
     int nrepeat          = 5;
     int num_dim_spatial  = 2;
 
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
     params.C = 128;
 
     if(argc == 4)
@@ -256,15 +190,15 @@ int main(int argc, char* argv[])
         int cmdline_nargs = conv_args + 5;
         if(cmdline_nargs != argc)
         {
-            PrintUseMsg();
+            print_use_msg();
             exit(1);
         }
 
-        params = ParseConvParams(num_dim_spatial, argv);
+        params = parse_conv_params(num_dim_spatial, argv);
     }
     else if(argc != 1)
     {
-        PrintUseMsg();
+        print_use_msg();
         exit(1);
     }
 
@@ -288,11 +222,13 @@ int main(int argc, char* argv[])
                        std::end(output_spatial_lengths));
 
     Tensor<InDataType> in_n_c_hi_wi_host_result(
-        GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
+        ck::utils::conv::get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
     Tensor<InDataType> in_n_c_hi_wi_device_result(
-        GetInputHostTensorDescriptor(input_dims, num_dim_spatial));
-    Tensor<WeiDataType> wei_k_c_y_x(GetFiltersHostTensorDescriptor(filter_dims, num_dim_spatial));
-    Tensor<OutDataType> out_n_k_ho_wo(GetOutputHostTensorDescriptor(output_dims, num_dim_spatial));
+        ck::utils::conv::get_input_host_tensor_descriptor(input_dims, num_dim_spatial));
+    Tensor<WeiDataType> wei_k_c_y_x(
+        ck::utils::conv::get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
+    Tensor<OutDataType> out_n_k_ho_wo(
+        ck::utils::conv::get_output_host_tensor_descriptor(output_dims, num_dim_spatial));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi_host_result.mDesc << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
@@ -318,11 +254,10 @@ int main(int argc, char* argv[])
     out_device_buf.ToDevice(out_n_k_ho_wo.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
     // reset input to zero
-    in_n_c_hi_wi_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{0});
-    in_device_buf.ToDevice(in_n_c_hi_wi_device_result.mData.data());
+    in_device_buf.SetZero();
 
     // do GEMM
-    auto conv    = GetConvInstance(num_dim_spatial);
+    auto conv    = get_conv_instance(num_dim_spatial);
     auto invoker = conv->MakeInvokerPointer();
     auto argument =
         conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
@@ -351,15 +286,15 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker->Run(argument.get(), nrepeat);
 
-    std::size_t flop = ck::conv_util::GetFlops(
+    std::size_t flop = ck::utils::conv::get_flops(
         params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
-    std::size_t num_btype =
-        ck::conv_util::GetBtype<InDataType, WeiDataType, OutDataType>(params.N,
-                                                                      params.C,
-                                                                      params.K,
-                                                                      params.input_spatial_lengths,
-                                                                      params.filter_spatial_lengths,
-                                                                      output_spatial_lengths);
+    std::size_t num_btype = ck::utils::conv::get_btype<InDataType, WeiDataType, OutDataType>(
+        params.N,
+        params.C,
+        params.K,
+        params.input_spatial_lengths,
+        params.filter_spatial_lengths,
+        output_spatial_lengths);
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;

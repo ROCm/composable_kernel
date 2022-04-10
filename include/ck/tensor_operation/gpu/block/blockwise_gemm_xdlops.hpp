@@ -42,7 +42,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    StaticBufferTupleOfVector<AddressSpaceEnum_t::Vgpr,
+    StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               FloatAcc,
                               MRepeat * NRepeat,
                               xdlops_gemm.GetRegSizePerXdlops(),
@@ -250,9 +250,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatAB>(
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum_t::Vgpr, FloatAB>(
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             b_thread_desc_.GetElementSpaceSize());
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {

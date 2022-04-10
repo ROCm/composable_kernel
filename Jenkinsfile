@@ -182,7 +182,7 @@ pipeline {
                 {
                     agent { label rocmnode("nogpu")}
                     environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
@@ -192,7 +192,7 @@ pipeline {
                 {
                     agent { label rocmnode("nogpu")}
                     environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
                         // until we stabilize debug build due to compiler crashes
@@ -228,7 +228,7 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="-DCK_AMD_GPU_GFX908 --amdgpu-target=gfx908 -O3 " -DBUILD_DEV=On """
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')

@@ -7,7 +7,7 @@
 
 #include "profile_convnd_bwd_data_impl.hpp"
 
-enum ConvDataType
+enum struct ConvDataType
 {
     F32_F32_F32,    // 0
     F16_F16_F16,    // 1
@@ -15,27 +15,27 @@ enum ConvDataType
     INT8_INT8_INT8, // 3
 };
 
-enum ConvInputLayout
+enum struct ConvInputLayout
 {
     NCHW, // 0
     NHWC, // 1
 };
 
-enum ConvWeightLayout
+enum struct ConvWeightLayout
 {
     KCYX, // 0
     KYXC, // 1
 };
 
-enum ConvOutputLayout
+enum struct ConvOutputLayout
 {
     NKHW, // 0
     NHWK, // 1
 };
-ck::conv_util::ConvParams parse_conv_params(int num_dim_spatial, char* argv[], int arg_idx)
+ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[], int arg_idx)
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
-    ck::conv_util::ConvParams params;
+    ck::utils::conv::ConvParams params;
 
     params.num_dim_spatial = num_dim_spatial;
     params.N               = std::stoi(argv[arg_idx++]);
@@ -97,16 +97,16 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
         return 1;
     }
 
-    const int data_type        = static_cast<ConvDataType>(std::stoi(argv[2]));
-    const int in_layout        = static_cast<ConvInputLayout>(std::stoi(argv[3]));
-    const int wei_layout       = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
-    const int out_layout       = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
+    const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
+    const auto in_layout       = static_cast<ConvInputLayout>(std::stoi(argv[3]));
+    const auto wei_layout      = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
+    const auto out_layout      = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
     const bool do_verification = std::stoi(argv[6]);
     const int init_method      = std::stoi(argv[7]);
     const bool do_log          = std::stoi(argv[8]);
     const int nrepeat          = std::stoi(argv[9]);
 
-    ck::conv_util::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
+    ck::utils::conv::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
         using InDataType  = decltype(input_type);

@@ -83,7 +83,7 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+          ConvolutionForwardSpecialization ConvForwardSpecialization,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -207,7 +207,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         const index_t Ho = output_spatial_lengths[1];
         const index_t Wo = output_spatial_lengths[2];
 
-        static_assert(ConvForwardSpecialization == ConvolutionForwardSpecialization_t::Default,
+        static_assert(ConvForwardSpecialization == ConvolutionForwardSpecialization::Default,
                       "Wrong! This specialization not implemented!");
 
         const auto in_desc_n_di_hi_wi_c =
@@ -287,7 +287,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         InDataType,
         AccDataType,
         OutDataType,
-        InMemoryDataOperationEnum_t::Set,
+        InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         CGridDesc_M_N,

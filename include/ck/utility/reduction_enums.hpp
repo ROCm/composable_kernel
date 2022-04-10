@@ -28,7 +28,7 @@
 
 namespace ck {
 
-enum class ReduceTensorOp_t
+enum struct ReduceTensorOp
 {
     ADD   = 0,
     MUL   = 1,
@@ -41,19 +41,19 @@ enum class ReduceTensorOp_t
     // MUL_NO_ZEROS = 8,
 };
 
-enum class NanPropagation_t
+enum struct NanPropagation
 {
     NOT_PROPAGATE_NAN = 0,
     PROPAGATE_NAN     = 1,
 };
 
-enum class ReduceTensorIndices_t
+enum struct ReduceTensorIndices
 {
     NO_INDICES        = 0,
     FLATTENED_INDICES = 1,
 };
 
-enum class IndicesType_t
+enum struct IndicesType
 {
     INDICES_32BIT = 0,
     INDICES_64BIT = 1,
