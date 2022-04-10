@@ -26,17 +26,14 @@
 #endif
 #endif
 
-// buffer resourse, wave size
+// buffer resourse
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
-#define CK_GPU_WAVE_SIZE -1
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
     defined(__gfx90a__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#define CK_GPU_WAVE_SIZE 64
 #elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#define CK_GPU_WAVE_SIZE 32
 #endif
 
 // FMA instruction

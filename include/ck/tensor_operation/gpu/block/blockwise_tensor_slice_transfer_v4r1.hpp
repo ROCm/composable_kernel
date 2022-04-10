@@ -1,6 +1,4 @@
-#ifndef CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V4R1_HPP
-#define CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V4R1_HPP
-
+#pragma once
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
@@ -169,4 +167,3 @@ struct BlockwiseTensorSliceTransfer_v4r1
 };
 
 } // namespace ck
-#endif
