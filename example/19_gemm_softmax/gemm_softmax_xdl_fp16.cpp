@@ -86,9 +86,9 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
 
 constexpr int Rank                        = 2;
 constexpr int NumReduceDim                = 1;
-constexpr ck::ReduceTensorOp_t ReduceOpId = ck::ReduceTensorOp_t::MAX;
-constexpr ck::NanPropagation_t NanOpt     = ck::NanPropagation_t::PROPAGATE_NAN;
-constexpr bool PropagateNan = (NanOpt == ck::NanPropagation_t::NOT_PROPAGATE_NAN) ? false : true;
+constexpr ck::ReduceTensorOp ReduceOpId = ck::ReduceTensorOp::MAX;
+constexpr ck::NanPropagation NanOpt     = ck::NanPropagation::PROPAGATE_NAN;
+constexpr bool PropagateNan = (NanOpt == ck::NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
 // constexpr ck::ReduceTensorIndices_t IndicesOpt = ck::ReduceTensorIndices_t::NO_INDICES;
 using ReduceOperation = typename ck::reduce_binary_operator<CDataType, ReduceOpId>::opType;
 using InElementwiseOperation =
