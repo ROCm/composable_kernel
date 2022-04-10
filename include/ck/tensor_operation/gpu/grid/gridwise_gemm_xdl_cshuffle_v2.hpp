@@ -67,7 +67,8 @@ template <typename FloatAB,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
           index_t NumGemmKPrefetchStage,
-          index_t BlockSize,
+          index_t ABBlockTransferThreadGroupSize,
+          index_t BlockGemmThreadGroupSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -113,6 +114,50 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
     static constexpr auto BK0 = Number<KPerBlock / BK1Value>{};
     static constexpr auto AK1 = Number<AK1Value>{};
     static constexpr auto BK1 = Number<BK1Value>{};
+
+    using ThisThreadBlock =
+        AnyThreadBlock<ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize>;
+
+#if 1
+    using ABBlockTransferThreadGroup       = ThisThreadBlock;
+    using BlockGemmThreadGroup             = ThisThreadBlock;
+    using CShuffleBlockTransferThreadGroup = ThisThreadBlock;
+#else
+    struct ABBlockTransferThreadGroup
+    {
+        __device__ static constexpr index_t GetNumOfThread()
+        {
+            return ABBlockTransferThreadGroupSize;
+        }
+
+        __device__ static constexpr bool IsBelong()
+        {
+            return get_thread_local_1d_id() < ABBlockTransferThreadGroupSize;
+        }
+
+        __device__ static index_t GetThreadId() { return get_thread_local_1d_id(); }
+    };
+
+    struct BlockGemmThreadGroup
+    {
+        __device__ static constexpr index_t GetNumOfThread()
+        {
+            return ABBlockTransferThreadGroupSize;
+        }
+
+        __device__ static constexpr bool IsBelong()
+        {
+            return get_thread_local_1d_id() >= ABBlockTransferThreadGroupSize;
+        }
+
+        __device__ static index_t GetThreadId()
+        {
+            return get_thread_local_1d_id() - ABBlockTransferThreadGroupSize;
+        }
+    };
+
+    using CShuffleBlockTransferThreadGroup = ThisThreadBlock;
+#endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -345,11 +390,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
-        using ThisThreadBlock = AnyThreadBlock<BlockSize>;
-
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+            ThreadGroupTensorSliceTransfer_v4r1<ABBlockTransferThreadGroup,
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
@@ -380,7 +423,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+            ThreadGroupTensorSliceTransfer_v4r1<ABBlockTransferThreadGroup,
                                                 BElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
@@ -420,7 +463,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<ThisThreadBlock,
+            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockGemmThreadGroup,
                                                                 FloatAB,
                                                                 FloatGemmAcc,
                                                                 decltype(a_block_desc_ak0_m_ak1),
@@ -447,6 +490,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
 
+        const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
+            (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
+            KPerBlock);
+
+#if 1
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
             GridwiseGemmPipeline_v1<remove_cvref_t<decltype(a_grid_desc_ak0_m_ak1)>,
@@ -465,10 +513,28 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
                                     remove_cvref_t<decltype(c_thread_buf)>,
                                     NumGemmKPrefetchStage,
                                     HasMainK0BlockLoop>{};
-
-        const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-            (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            KPerBlock);
+#else
+        // gridwise GEMM pipeline
+        const auto gridwise_gemm_pipeline =
+            GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
+                                    BlockGemmThreadGroup,
+                                    remove_cvref_t<decltype(a_grid_desc_ak0_m_ak1)>,
+                                    remove_cvref_t<decltype(a_block_desc_ak0_m_ak1)>,
+                                    remove_cvref_t<decltype(a_blockwise_copy)>,
+                                    remove_cvref_t<decltype(a_grid_buf)>,
+                                    remove_cvref_t<decltype(a_block_buf)>,
+                                    remove_cvref_t<decltype(a_block_slice_copy_step)>,
+                                    remove_cvref_t<decltype(b_grid_desc_bk0_n_bk1)>,
+                                    remove_cvref_t<decltype(b_block_desc_bk0_n_bk1)>,
+                                    remove_cvref_t<decltype(b_blockwise_copy)>,
+                                    remove_cvref_t<decltype(b_grid_buf)>,
+                                    remove_cvref_t<decltype(b_block_buf)>,
+                                    remove_cvref_t<decltype(b_block_slice_copy_step)>,
+                                    remove_cvref_t<decltype(blockwise_gemm)>,
+                                    remove_cvref_t<decltype(c_thread_buf)>,
+                                    NumGemmKPrefetchStage,
+                                    HasMainK0BlockLoop>{};
+#endif
 
         gridwise_gemm_pipeline.Run(a_grid_desc_ak0_m_ak1,
                                    a_block_desc_ak0_m_ak1,
@@ -601,7 +667,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
-                ThisThreadBlock,            // index_t BlockSize,
+                ThisThreadBlock,            // ThreadGroup
                 CElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
@@ -655,22 +721,28 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
                 // make sure it's safe to write to LDS
                 block_sync_lds();
 
-                // each thread write its data from VGPR to LDS
-                c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                              sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
-                                              c_thread_buf,
-                                              c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                              c_shuffle_block_buf);
+                if(BlockGemmThreadGroup::IsBelong())
+                {
+                    // thread write its data from VGPR to LDS
+                    c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                                  c_thread_buf,
+                                                  c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  c_shuffle_block_buf);
+                }
 
                 // make sure it's safe to read from LDS
                 block_sync_lds();
 
-                // each block copy its data from LDS to global
-                c_shuffle_block_copy_lds_to_global.Run(
-                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                    c_shuffle_block_buf,
-                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                    c_grid_buf);
+                if(CShuffleBlockTransferThreadGroup::IsBelong())
+                {
+                    // block copy its data from LDS to global
+                    c_shuffle_block_copy_lds_to_global.Run(
+                        c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                        c_shuffle_block_buf,
+                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                        c_grid_buf);
+                }
 
                 if constexpr(access_id < num_access - 1)
                 {
