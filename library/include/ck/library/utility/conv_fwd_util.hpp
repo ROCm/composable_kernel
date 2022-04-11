@@ -1,12 +1,10 @@
 #pragma once
 
-#include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <iterator>
 #include <numeric>
 #include <sstream>
-#include <random>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -355,64 +353,6 @@ HostTensorDescriptor get_host_tensor_descriptor(const std::vector<std::size_t>& 
     throw std::runtime_error(err_msg.str());
 }
 
-template <typename InDataType  = float,
-          typename WeiDataType = float,
-          typename OutDataType = float,
-          typename InLayout    = ck::tensor_layout::convolution::NHWC,
-          typename WeiLayout   = ck::tensor_layout::convolution::KYXC,
-          typename OutLayout   = ck::tensor_layout::convolution::NHWK>
-auto get_host_tensors(const ConvParams& params, bool init = true)
-{
-    std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
-                                        static_cast<std::size_t>(params.C)};
-    input_dims.insert(std::end(input_dims),
-                      std::begin(params.input_spatial_lengths),
-                      std::end(params.input_spatial_lengths));
-
-    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(params.K),
-                                         static_cast<std::size_t>(params.C)};
-    filter_dims.insert(std::end(filter_dims),
-                       std::begin(params.filter_spatial_lengths),
-                       std::end(params.filter_spatial_lengths));
-
-    const std::vector<ck::index_t>& output_spatial_lengths = params.GetOutputSpatialLengths();
-    std::vector<std::size_t> output_dims{static_cast<std::size_t>(params.N),
-                                         static_cast<std::size_t>(params.K)};
-    output_dims.insert(std::end(output_dims),
-                       std::begin(output_spatial_lengths),
-                       std::end(output_spatial_lengths));
-
-    Tensor<InDataType> input(get_host_tensor_descriptor(input_dims, InLayout{}));
-    Tensor<WeiDataType> weights(get_host_tensor_descriptor(filter_dims, WeiLayout{}));
-    Tensor<OutDataType> host_output(get_host_tensor_descriptor(output_dims, OutLayout{}));
-    Tensor<OutDataType> device_output(get_host_tensor_descriptor(output_dims, OutLayout{}));
-
-    if(init)
-    {
-        std::mt19937 gen(11939);
-        if constexpr(std::is_same<InDataType, uint8_t>::value)
-        {
-            std::uniform_int_distribution<> dis(-5, 5);
-            std::generate(
-                input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
-            std::generate(
-                weights.begin(), weights.end(), [&dis, &gen]() { return WeiDataType(dis(gen)); });
-        }
-        else
-        {
-            std::uniform_real_distribution<> dis(0.f, 1.f);
-            std::generate(
-                input.begin(), input.end(), [&dis, &gen]() { return InDataType(dis(gen)); });
-            std::generate(
-                weights.begin(), weights.end(), [&dis, &gen]() { return WeiDataType(dis(gen)); });
-        }
-        std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
-        std::fill(device_output.begin(), device_output.end(), OutDataType(0.f));
-    }
-
-    return std::make_tuple(input, weights, host_output, device_output);
-}
-
 HostTensorDescriptor get_output_host_tensor_descriptor(const std::vector<std::size_t>& dims,
                                                        int num_dim_spatial = 2)
 {
@@ -511,118 +451,6 @@ void run_reference_convolution_forward(const ConvParams& params,
     ref_invoker.Run(ref_argument);
 }
 
-template <ck::index_t NDim,
-          typename InDataType  = float,
-          typename WeiDataType = float,
-          typename OutDataType = float,
-          template <ck::index_t, typename, typename, typename>
-          class DeviceConvNDFwdInstance>
-void run_convolution_forward(const ConvParams& params,
-                             const Tensor<InDataType>& input,
-                             const Tensor<WeiDataType>& weights,
-                             Tensor<OutDataType>& output)
-{
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weights.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpace());
-
-    in_device_buf.ToDevice(input.mData.data());
-    wei_device_buf.ToDevice(weights.mData.data());
-    const std::vector<ck::index_t>& output_spatial_lengths = params.GetOutputSpatialLengths();
-
-    auto conv     = DeviceConvNDFwdInstance<NDim, InDataType, WeiDataType, OutDataType>();
-    auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                      params.N,
-                                      params.K,
-                                      params.C,
-                                      params.input_spatial_lengths,
-                                      params.filter_spatial_lengths,
-                                      output_spatial_lengths,
-                                      params.conv_filter_strides,
-                                      params.conv_filter_dilations,
-                                      params.input_left_pads,
-                                      params.input_right_pads,
-                                      PassThrough{},
-                                      PassThrough{},
-                                      PassThrough{});
-
-    if(!conv.IsSupportedArgument(argument))
-    {
-        throw std::runtime_error(
-            "Error! device_conv with the specified compilation parameters does "
-            "not support this Conv problem");
-    }
-
-    invoker.Run(argument);
-    out_device_buf.FromDevice(output.mData.data());
-}
-
-template <typename InDataType = float, typename WeiDataType = float, typename OutDataType = float>
-bool run_convolution_forward_instances(const ConvParams& params,
-                                       const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs,
-                                       const Tensor<InDataType>& input,
-                                       const Tensor<WeiDataType>& weights,
-                                       Tensor<OutDataType>& output,
-                                       const Tensor<OutDataType>& host_output)
-{
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weights.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpace());
-
-    in_device_buf.ToDevice(input.mData.data());
-    wei_device_buf.ToDevice(weights.mData.data());
-    const std::vector<ck::index_t>& output_spatial_lengths = params.GetOutputSpatialLengths();
-
-    bool res{true};
-    for(auto& conv_ptr : conv_ptrs)
-    {
-        auto invoker  = conv_ptr->MakeInvokerPointer();
-        auto argument = conv_ptr->MakeArgumentPointer(
-            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            params.N,
-            params.K,
-            params.C,
-            params.input_spatial_lengths,
-            params.filter_spatial_lengths,
-            output_spatial_lengths,
-            params.conv_filter_strides,
-            params.conv_filter_dilations,
-            params.input_left_pads,
-            params.input_right_pads,
-            PassThrough{},
-            PassThrough{},
-            PassThrough{});
-
-        if(conv_ptr->IsSupportedArgument(argument.get()))
-        {
-            float atol{1e-5f};
-            float rtol{1e-4f};
-            if constexpr(std::is_same_v<InDataType, ck::half_t>)
-            {
-                atol = 1e-4f;
-                rtol = 2.5e-3f;
-            }
-            invoker->Run(argument.get());
-            out_device_buf.FromDevice(output.mData.data());
-            res = res &&
-                  ck::utils::check_err(
-                      output.mData, host_output.mData, "Error: incorrect results!", atol, rtol);
-            hipGetErrorString(
-                hipMemset(out_device_buf.GetDeviceBuffer(), 0, out_device_buf.mMemSize));
-        }
-    }
-    return res;
-}
-
 template <typename InDataType, typename WeiDataType, typename OutDataType>
 struct ConvolutionFwdInstances;
 
@@ -633,27 +461,23 @@ struct ConvolutionFwdInstances<float, float, float>
               typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
     static std::vector<DeviceConvFwdNoOpPtr> Get()
     {
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv1d_fwd_instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
-            return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
-            return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv3d_fwd_instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
-            return conv_ptrs;
         }
+        return conv_ptrs;
     }
 };
 
@@ -664,29 +488,26 @@ struct ConvolutionFwdInstances<half_t, half_t, half_t>
               typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
     static std::vector<DeviceConvFwdNoOpPtr> Get()
     {
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv1d_fwd_instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
             return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
-            return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv3d_fwd_instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
-            return conv_ptrs;
         }
+        return conv_ptrs;
     }
 };
 
@@ -697,27 +518,23 @@ struct ConvolutionFwdInstances<bhalf_t, bhalf_t, bhalf_t>
               typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
     static std::vector<DeviceConvFwdNoOpPtr> Get()
     {
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv1d_fwd_instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
-            return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
-            return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv3d_fwd_instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
-            return conv_ptrs;
         }
+        return conv_ptrs;
     }
 };
 
@@ -728,27 +545,23 @@ struct ConvolutionFwdInstances<int8_t, int8_t, int8_t>
               typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
     static std::vector<DeviceConvFwdNoOpPtr> Get()
     {
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv1d_fwd_instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
-            return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv2d_fwd_instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
-            return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
             ck::tensor_operation::device::device_conv3d_fwd_instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
-            return conv_ptrs;
         }
+        return conv_ptrs;
     }
 };
 

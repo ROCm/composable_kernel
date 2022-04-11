@@ -1,8 +1,12 @@
 #pragma once
 
+#include <cstdlib>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "check_err.hpp"
 #include "device_base.hpp"
