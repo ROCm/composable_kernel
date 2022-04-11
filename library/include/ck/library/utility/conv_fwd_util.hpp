@@ -238,7 +238,7 @@ struct ConvParams
     }
 };
 
-ConvParams parse_conv_params(int num_dim_spatial, int arg_idx, const char* argv[])
+ConvParams parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
 {
     ck::utils::conv::ConvParams params;
 

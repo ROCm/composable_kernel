@@ -4,7 +4,18 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
-#include "profile_conv_fwd_impl.hpp"
+
+#include "conv_fwd_util.hpp"
+#include "tensor_layout.hpp"
+
+namespace {
+
+using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+
+using DeviceConvFwdNoOpPtr =
+    ck::tensor_operation::device::DeviceConvFwdPtr<InElementOp, WeiElementOp, OutElementOp>;
 
 enum struct ConvDataType
 {
@@ -14,177 +25,242 @@ enum struct ConvDataType
     INT8_INT8_INT8, // 3
 };
 
-enum struct ConvInputLayout
+enum struct ConvDataLayout
 {
     NCHW, // 0
     NHWC, // 1
 };
 
-enum struct ConvWeightLayout
+namespace ctl = ck::tensor_layout::convolution;
+
+template <int NDim, ConvDataLayout DataLayout>
+struct ConvolutionLayouts;
+
+template <>
+struct ConvolutionLayouts<1, ConvDataLayout::NHWC>
 {
-    KCYX, // 0
-    KYXC, // 1
+    typedef ctl::NWC Input;
+    typedef ctl::KXC Weight;
+    typedef ctl::NWK Output;
+};
+template <>
+struct ConvolutionLayouts<2, ConvDataLayout::NHWC>
+{
+    typedef ctl::NHWC Input;
+    typedef ctl::KYXC Weight;
+    typedef ctl::NHWK Output;
+};
+template <>
+struct ConvolutionLayouts<3, ConvDataLayout::NHWC>
+{
+    typedef ctl::NDHWC Input;
+    typedef ctl::KZYXC Weight;
+    typedef ctl::NDHWK Output;
+};
+template <>
+struct ConvolutionLayouts<1, ConvDataLayout::NCHW>
+{
+    typedef ctl::NCW Input;
+    typedef ctl::KCX Weight;
+    typedef ctl::NKW Output;
+};
+template <>
+struct ConvolutionLayouts<2, ConvDataLayout::NCHW>
+{
+    typedef ctl::NCHW Input;
+    typedef ctl::KCYX Weight;
+    typedef ctl::NKHW Output;
+};
+template <>
+struct ConvolutionLayouts<3, ConvDataLayout::NCHW>
+{
+    typedef ctl::NCDHW Input;
+    typedef ctl::KCZYX Weight;
+    typedef ctl::NKDHW Output;
 };
 
-enum struct ConvOutputLayout
+void print_use_msg()
 {
-    NKHW, // 0
-    NHWK, // 1
-};
+    std::cout << "arg1: tensor operation (conv_fwd: ForwardConvolution)\n"
+              << "arg2: data type (0: fp32; 1: fp16, 2: bf16, 3: int8)\n"
+              << "arg3: data layout (0: NCHW; 1: NHWC)\n"
+              << "arg4: verification (0=no, 1=yes)\n"
+              << "arg5: initialization (0=no init, 1=integer value, 2=decimal value)\n"
+              << "arg6: print tensor value (0: no; 1: yes)\n"
+              << "arg7: run kernel # of times (>1)\n"
+              << "arg8: N spatial dimensions (default 2)\n"
+              << "Following arguments (depending on number of spatial dims):\n"
+              << " N, K, C, \n"
+              << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
+              << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
+              << " <strides>, (ie Sy, Sx for 2D)\n"
+              << " <dilations>, (ie Dy, Dx for 2D)\n"
+              << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
+              << " <right padding>, (ie RightPy, RightPx for 2D)\n"
+              << std::endl;
+}
+
+ck::utils::conv::ConvParams parse_params(int num_dim_spatial, int argc, char* argv[])
+{
+    // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
+    int conv_args     = 3 + num_dim_spatial * 6;
+    int cmdline_nargs = conv_args + 9;
+    if(cmdline_nargs != argc)
+    {
+        print_use_msg();
+        exit(1);
+    }
+    int arg_idx = 9;
+
+    return ck::utils::conv::parse_conv_params(num_dim_spatial, arg_idx, argv);
+}
+
+template <int NDim,
+          typename InDataType  = float,
+          typename WeiDataType = float,
+          typename OutDataType = float,
+          typename ConvLayouts>
+void profile_convnd_instances_impl(bool do_verification, bool do_log, int nrepeat, ConvLayouts)
+{
+    using namespace std::placeholders;
+    using namespace ck::utils;
+
+    conv::ConvParams params;
+    params.num_dim_spatial        = static_cast<ck::index_t>(NDim);
+    params.filter_spatial_lengths = std::vector<ck::index_t>(NDim, 3);
+    params.input_spatial_lengths  = std::vector<ck::index_t>(NDim, 71);
+    params.conv_filter_strides    = std::vector<ck::index_t>(NDim, 2);
+    params.conv_filter_dilations  = std::vector<ck::index_t>(NDim, 1);
+    params.input_left_pads        = std::vector<ck::index_t>(NDim, 1);
+    params.input_right_pads       = std::vector<ck::index_t>(NDim, 1);
+
+    conv::ConvFwdOpInstance<InDataType,
+                            WeiDataType,
+                            OutDataType,
+                            typename ConvLayouts::Input,
+                            typename ConvLayouts::Weight,
+                            typename ConvLayouts::Output>
+        conv_instance(params);
+    auto reference_conv_fwd_fun = std::bind(
+        conv::run_reference_convolution_forward<NDim, InDataType, WeiDataType, OutDataType>,
+        params,
+        _1,
+        _2,
+        _3);
+    OpInstanceRunEngine<InDataType, WeiDataType, OutDataType> run_engine(conv_instance,
+                                                                         reference_conv_fwd_fun);
+    run_engine.Profile(
+        conv::ConvolutionFwdInstances<InDataType, WeiDataType, OutDataType>::template Get<NDim>(),
+        nrepeat,
+        do_verification,
+        do_log);
+}
+
+template <int NDim>
+void profile_convnd_instances(ConvDataType data_type,
+                              ConvDataLayout data_layout,
+                              bool do_verification,
+                              bool do_log,
+                              int nrepeat)
+{
+    switch(data_layout)
+    {
+    case ConvDataLayout::NHWC: {
+        switch(data_type)
+        {
+        case ConvDataType::F32_F32_F32:
+            profile_convnd_instances_impl<NDim, float, float, float>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
+            break;
+        case ConvDataType::F16_F16_F16:
+            profile_convnd_instances_impl<NDim, ck::half_t, ck::half_t, ck::half_t>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
+            break;
+        case ConvDataType::BF16_BF16_BF16:
+            profile_convnd_instances_impl<NDim, ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
+            break;
+        case ConvDataType::INT8_INT8_INT8:
+            profile_convnd_instances_impl<NDim, int8_t, int8_t, int8_t>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
+            break;
+        }
+        break;
+    }
+    case ConvDataLayout::NCHW: {
+        switch(data_type)
+        {
+        case ConvDataType::F32_F32_F32:
+            profile_convnd_instances_impl<NDim, float, float, float>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
+            break;
+        case ConvDataType::F16_F16_F16:
+            profile_convnd_instances_impl<NDim, ck::half_t, ck::half_t, ck::half_t>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
+            break;
+        case ConvDataType::BF16_BF16_BF16:
+            profile_convnd_instances_impl<NDim, ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
+            break;
+        case ConvDataType::INT8_INT8_INT8:
+            profile_convnd_instances_impl<NDim, int8_t, int8_t, int8_t>(
+                do_verification, do_log, nrepeat, ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
+            break;
+        }
+        break;
+    }
+    }
+}
+
+} // namespace
 
 int profile_conv_fwd(int argc, char* argv[])
 {
-    if(argc != 25)
+    using namespace ck::utils::conv;
+
+    ConvDataType data_type{ConvDataType::F32_F32_F32};
+    ConvDataLayout data_layout{ConvDataLayout::NHWC};
+    bool do_verification{true};
+    int init_method{2};
+    bool do_log{false};
+    int nrepeat{100};
+    int num_dim_spatial{2};
+    ConvParams params;
+
+    if(argc >= 4)
     {
-        printf("arg1: tensor operation (conv_fwd: ForwardConvolution)\n");
-        printf("arg2: data type (0: fp32; 1: fp16)\n");
-        printf("arg3: input tensor layout (0: NCHW; 1: NHWC)\n");
-        printf("arg4: weight tensor layout (0: KCYX; 1: KYXC)\n");
-        printf("arg5: output tensor layout (0: NKHW; 1: NHWK)\n");
-        printf("arg6: verification (0: no; 1: yes)\n");
-        printf("arg7: initialization (0: no init; 1: integer value; 2: decimal value)\n");
-        printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg9: run kernel # of times (>1)\n");
-        printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
-               "RightPx\n");
-        exit(1);
+        data_type   = static_cast<ConvDataType>(std::stoi(argv[2]));
+        data_layout = static_cast<ConvDataLayout>(std::stoi(argv[3]));
+    }
+    if(argc >= 9)
+    {
+        do_verification = std::stoi(argv[4]);
+        init_method     = std::stoi(argv[5]);
+        do_log          = std::stoi(argv[6]);
+        nrepeat         = std::stoi(argv[7]);
+        num_dim_spatial = std::stoi(argv[8]);
+    }
+    if(argc >= 10)
+    {
+        params = parse_params(num_dim_spatial, argc, argv);
     }
 
-    const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
-    const auto in_layout       = static_cast<ConvInputLayout>(std::stoi(argv[3]));
-    const auto wei_layout      = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
-    const auto out_layout      = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
-    const bool do_verification = std::stoi(argv[6]);
-    const int init_method      = std::stoi(argv[7]);
-    const bool do_log          = std::stoi(argv[8]);
-    const int nrepeat          = std::stoi(argv[9]);
+    // TODO Print nice message what is being profiled.
 
-    const ck::index_t N  = std::stoi(argv[10]);
-    const ck::index_t K  = std::stoi(argv[11]);
-    const ck::index_t C  = std::stoi(argv[12]);
-    const ck::index_t Y  = std::stoi(argv[13]);
-    const ck::index_t X  = std::stoi(argv[14]);
-    const ck::index_t Hi = std::stoi(argv[15]);
-    const ck::index_t Wi = std::stoi(argv[16]);
-
-    const ck::index_t conv_stride_h   = std::stoi(argv[17]);
-    const ck::index_t conv_stride_w   = std::stoi(argv[18]);
-    const ck::index_t conv_dilation_h = std::stoi(argv[19]);
-    const ck::index_t conv_dilation_w = std::stoi(argv[20]);
-    const ck::index_t in_left_pad_h   = std::stoi(argv[21]);
-    const ck::index_t in_left_pad_w   = std::stoi(argv[22]);
-    const ck::index_t in_right_pad_h  = std::stoi(argv[23]);
-    const ck::index_t in_right_pad_w  = std::stoi(argv[24]);
-
-    const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
-    const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
-
-    const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
-    const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-
-    if(data_type == ConvDataType::F32_F32_F32 && in_layout == ConvInputLayout::NHWC &&
-       wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
+    switch(num_dim_spatial)
     {
-        ck::profiler::profile_conv_fwd_impl<2,
-                                            float,
-                                            float,
-                                            float,
-                                            ck::tensor_layout::convolution::NHWC,
-                                            ck::tensor_layout::convolution::KYXC,
-                                            ck::tensor_layout::convolution::NHWK>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            N,
-            K,
-            C,
-            std::vector<ck::index_t>{Hi, Wi},
-            std::vector<ck::index_t>{Y, X},
-            std::vector<ck::index_t>{Ho, Wo},
-            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
-            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
-            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
-            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
-    }
-    else if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
-            wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
-    {
-        ck::profiler::profile_conv_fwd_impl<2,
-                                            ck::half_t,
-                                            ck::half_t,
-                                            ck::half_t,
-                                            ck::tensor_layout::convolution::NHWC,
-                                            ck::tensor_layout::convolution::KYXC,
-                                            ck::tensor_layout::convolution::NHWK>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            N,
-            K,
-            C,
-            std::vector<ck::index_t>{Hi, Wi},
-            std::vector<ck::index_t>{Y, X},
-            std::vector<ck::index_t>{Ho, Wo},
-            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
-            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
-            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
-            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
-    }
-    else if(data_type == ConvDataType::BF16_BF16_BF16 && in_layout == ConvInputLayout::NHWC &&
-            wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
-    {
-        ck::profiler::profile_conv_fwd_impl<2,
-                                            uint16_t,
-                                            uint16_t,
-                                            uint16_t,
-                                            ck::tensor_layout::convolution::NHWC,
-                                            ck::tensor_layout::convolution::KYXC,
-                                            ck::tensor_layout::convolution::NHWK>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            N,
-            K,
-            C,
-            std::vector<ck::index_t>{Hi, Wi},
-            std::vector<ck::index_t>{Y, X},
-            std::vector<ck::index_t>{Ho, Wo},
-            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
-            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
-            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
-            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
-    }
-    else if(data_type == ConvDataType::INT8_INT8_INT8 && in_layout == ConvInputLayout::NHWC &&
-            wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
-    {
-        ck::profiler::profile_conv_fwd_impl<2,
-                                            int8_t,
-                                            int8_t,
-                                            int8_t,
-                                            ck::tensor_layout::convolution::NHWC,
-                                            ck::tensor_layout::convolution::KYXC,
-                                            ck::tensor_layout::convolution::NHWK>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            N,
-            K,
-            C,
-            std::vector<ck::index_t>{Hi, Wi},
-            std::vector<ck::index_t>{Y, X},
-            std::vector<ck::index_t>{Ho, Wo},
-            std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
-            std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
-            std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
-            std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
-    }
-    else
-    {
-        throw std::runtime_error("wrong! this Conv data_type & layout is not implemented");
+    case 1:
+        profile_convnd_instances<1>(data_type, data_layout, do_verification, do_log, nrepeat);
+        break;
+    case 2:
+        profile_convnd_instances<2>(data_type, data_layout, do_verification, do_log, nrepeat);
+        break;
+    case 3:
+        profile_convnd_instances<3>(data_type, data_layout, do_verification, do_log, nrepeat);
+        break;
+    default:
+        throw std::runtime_error("profile_conv_fwd: unsupported num_dim_spatial value: " +
+                                 std::to_string(num_dim_spatial));
     }
 
     return 1;

@@ -141,8 +141,8 @@ class OpInstanceRunEngine
                 std::string op_name = op_ptr->GetTypeString();
                 float avg_time      = invoker->Run(argument.get(), nrepeat);
 
-                std::size_t flops     = op_instance_.getFlops();
-                std::size_t num_btype = op_instance_.getBtype();
+                std::size_t flops     = op_instance_.GetFlops();
+                std::size_t num_btype = op_instance_.GetBtype();
                 float tflops          = static_cast<float>(flops) / 1.E9 / avg_time;
                 float gb_per_sec      = num_btype / 1.E6 / avg_time;
 
