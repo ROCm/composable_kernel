@@ -9,6 +9,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_reduce_xdl_cshuffle_v1.hpp"
 #include "gemm_specialization.hpp"
+#define UNUSED(x) (void)(x)
 
 namespace ck {
 namespace tensor_operation {
