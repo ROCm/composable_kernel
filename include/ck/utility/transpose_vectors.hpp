@@ -92,11 +92,11 @@ __device__ void transfer_half2_to_bhalf2(const half2_t& x, bhalf2_t& y)
     const vector_type<half_t, 2> vx{x};
     vector_type<bhalf_t, 2> vy;
 
-    float v1 = static_cast<float>(vx.template AsType<half_t>()[I0]);
-    float v2 = static_cast<float>(vx.template AsType<half_t>()[I1]);
+    float v0 = static_cast<float>(vx.template AsType<half_t>()[I0]);
+    float v1 = static_cast<float>(vx.template AsType<half_t>()[I1]);
 
-    vy.template AsType<bhalf_t>()(I0) = ck::type_convert<bhalf_t>(v1);
-    vy.template AsType<bhalf_t>()(I1) = ck::type_convert<bhalf_t>(v2);
+    vy.template AsType<bhalf_t>()(I0) = ck::type_convert<bhalf_t>(v0);
+    vy.template AsType<bhalf_t>()(I1) = ck::type_convert<bhalf_t>(v1);
 
     y = vy.template AsType<bhalf2_t>()[I0];
 #else
@@ -116,6 +116,66 @@ __device__ void transfer_half2_to_bhalf2(const half2_t& x, bhalf2_t& y)
             "
                  : "=v"(y)
                  : "v"(y0), "v"(y1));
+#endif
+}
+__device__ void
+transpose_half_to_bhalf_2x2(const half2_t& x0, const half2_t& x1, bhalf2_t& y0, bhalf2_t& y1)
+{
+#if 0
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+
+    const vector_type<half_t, 2> vx0{x0}, vx1{x1};
+    vector_type<bhalf_t, 2> vy0, vy1;
+
+    float v0                           = static_cast<float>(vx0.template AsType<half_t>()[I0]);
+    float v1                           = static_cast<float>(vx1.template AsType<half_t>()[I0]);
+    vy0.template AsType<bhalf_t>()(I0) = ck::type_convert<bhalf_t>(v0);
+    vy0.template AsType<bhalf_t>()(I1) = ck::type_convert<bhalf_t>(v1);
+
+    v0                                 = static_cast<float>(vx0.template AsType<half_t>()[I1]);
+    v1                                 = static_cast<float>(vx1.template AsType<half_t>()[I1]);
+    vy1.template AsType<bhalf_t>()(I0) = ck::type_convert<bhalf_t>(v0);
+    vy1.template AsType<bhalf_t>()(I1) = ck::type_convert<bhalf_t>(v1);
+
+    y0 = vy0.template AsType<bhalf2_t>()[I0];
+    y1 = vy1.template AsType<bhalf2_t>()[I0];
+#else
+    float yv0{0}, yv1{0};
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 \n \
+            "
+                 : "=v"(yv0)
+                 : "v"(x0));
+
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 \n \
+            "
+                 : "=v"(yv1)
+                 : "v"(x1));
+
+    asm volatile("\n \
+            v_pack_b32_f16 %0, %1, %2 op_sel:[1, 1] \n \
+            "
+                 : "=v"(y0)
+                 : "v"(yv0), "v"(yv1));
+
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 src0_sel:WORD_1\n \
+            "
+                 : "=v"(yv0)
+                 : "v"(x0));
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 src0_sel:WORD_1\n \
+            "
+                 : "=v"(yv1)
+                 : "v"(x1));
+
+    asm volatile("\n \
+            v_pack_b32_f16 %0, %1, %2 op_sel:[1, 1] \n \
+            "
+                 : "=v"(y1)
+                 : "v"(yv0), "v"(yv1));
 #endif
 }
 } // namespace ck
