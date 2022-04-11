@@ -89,6 +89,7 @@ __global__ void
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                    d_grid_desc_mblock_mperblock,
                                                    block_2_ctile_map);
+#endif //end of if defined (defined(__gfx908__) || defined(__gfx90a__))												   
 }
 
 template <typename ALayout,
@@ -934,7 +935,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
 
         return str.str();
     }
-#endif //end of if defined (defined(__gfx908__) || defined(__gfx90a__))
 };
 
 } // namespace device
