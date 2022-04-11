@@ -1,0 +1,1 @@
+add_example_executable(example_batchnorm_fwd_nhwc batchnorm_fwd_nhwc.cpp)
