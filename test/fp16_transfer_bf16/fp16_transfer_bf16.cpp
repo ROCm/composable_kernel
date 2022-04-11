@@ -12,7 +12,7 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "check_err.hpp"
-//#include "tensor_descriptor.hpp"
+#include "transpose_vectors.hpp"
 //#include "tensor_descriptor_helper.hpp"
 #include "common_header.hpp"
 
@@ -22,31 +22,16 @@ using DstDataType = ck::bhalf_t;
 __global__ void gpu_convert_data(SrcDataType* in, DstDataType* out, int size)
 {
     using namespace ck;
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
 
     ck::index_t num    = blockIdx.x * blockDim.x + threadIdx.x * 2;
     const auto src_buf = ck::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(in, size);
     auto dst_buf       = ck::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(out, size);
 
-    using src_vector_t = vector_type_maker<SrcDataType, 2>::type;
-    // using dst_vector_t = vector_type_maker<DstDataType, 2>::type;
+    auto src_data = src_buf.template Get<ck::half2_t>(num, true);
+    ck::bhalf2_t dst_data;
+    transfer_half2_to_bhalf2(src_data, dst_data);
 
-    src_vector_t src_data = src_buf.template Get<src_vector_t>(num, true);
-
-    const vector_type<half_t, 2> vx0{src_data};
-    vector_type<DstDataType, 2> vy0;
-
-    float v1 = static_cast<float>(vx0.template AsType<half_t>()[I0]);
-    float v2 = static_cast<float>(vx0.template AsType<half_t>()[I1]);
-
-    vy0.template AsType<DstDataType>()(I0) = ck::type_convert<DstDataType>(v1);
-    vy0.template AsType<DstDataType>()(I1) = ck::type_convert<DstDataType>(v2);
-
-    // dst_vector_t vy = vy0.template AsType<DstDataType>()[I0];
-    // dst_buf.template Set<dst_vector_t>(num, true, vy);
-    dst_buf(num)     = vy0.template AsType<DstDataType>()[I0];
-    dst_buf(num + 1) = vy0.template AsType<DstDataType>()[I1];
+    dst_buf.template Set<ck::bhalf2_t>(num, true, dst_data);
 }
 
 void host_conver_data(SrcDataType* in, DstDataType* out, size_t len)

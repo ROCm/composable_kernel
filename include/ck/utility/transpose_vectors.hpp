@@ -83,5 +83,21 @@ struct transpose_vectors<half_t, NX, NY>
     }
 };
 
+__device__ void transfer_half2_to_bhalf2(const half2_t& x, bhalf2_t& y)
+{
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+
+    const vector_type<half_t, 2> vx{x};
+    vector_type<bhalf_t, 2> vy;
+
+    float v1 = static_cast<float>(vx.template AsType<half_t>()[I0]);
+    float v2 = static_cast<float>(vx.template AsType<half_t>()[I1]);
+
+    vy.template AsType<bhalf_t>()(I0) = ck::type_convert<bhalf_t>(v1);
+    vy.template AsType<bhalf_t>()(I1) = ck::type_convert<bhalf_t>(v2);
+
+    y = vy.template AsType<bhalf2_t>()[I0];
+}
 } // namespace ck
 #endif
