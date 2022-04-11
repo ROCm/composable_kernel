@@ -85,6 +85,7 @@ struct transpose_vectors<half_t, NX, NY>
 
 __device__ void transfer_half2_to_bhalf2(const half2_t& x, bhalf2_t& y)
 {
+#if 0
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
@@ -98,6 +99,24 @@ __device__ void transfer_half2_to_bhalf2(const half2_t& x, bhalf2_t& y)
     vy.template AsType<bhalf_t>()(I1) = ck::type_convert<bhalf_t>(v2);
 
     y = vy.template AsType<bhalf2_t>()[I0];
+#else
+    float y0{0}, y1{0};
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 \n \
+            "
+                 : "=v"(y0)
+                 : "v"(x));
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 src0_sel:WORD_1\n \
+            "
+                 : "=v"(y1)
+                 : "v"(x));
+    asm volatile("\n \
+            v_pack_b32_f16 %0, %1, %2 op_sel:[1, 1] \n \
+            "
+                 : "=v"(y)
+                 : "v"(y0), "v"(y1));
+#endif
 }
 } // namespace ck
 #endif

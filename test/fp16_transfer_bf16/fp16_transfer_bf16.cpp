@@ -59,7 +59,7 @@ int main(int, char*[])
         HostTensorDescriptor(std::vector<std::size_t>({N, K}), std::vector<std::size_t>({K, 1})));
 
     // init data
-    src_n_k_host.GenerateTensorValue(GeneratorTensor_3<SrcDataType>{-5, 5});
+    src_n_k_host.GenerateTensorValue(GeneratorTensor_2<SrcDataType>{-5, 5});
     dst_n_k_host_result.GenerateTensorValue(GeneratorTensor_1<DstDataType>{0});
     dst_n_k_device_result.GenerateTensorValue(GeneratorTensor_1<DstDataType>{0});
 
