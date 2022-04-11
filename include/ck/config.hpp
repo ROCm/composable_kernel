@@ -135,6 +135,9 @@
 // https://github.com/ROCmSoftwarePlatform/composable_kernel/issues/135
 #define CK_WORKAROUND_GITHUB_135 1
 
+//workaround for building xdl kernels on all architectures
+#define UNUSED(x) (void)(x)
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum

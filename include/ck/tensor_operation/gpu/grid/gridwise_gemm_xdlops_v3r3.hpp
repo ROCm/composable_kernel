@@ -68,6 +68,21 @@ __global__ void
         b_element_op,
         c_element_op,
         block_2_ctile_map);
+#else
+	UNUSED(p_a_grid);
+	UNUSED(p_b_grid);
+	UNUSED(p_c_grid);
+	UNUSED(p_c0_grid);
+	UNUSED(p_c1_grid);
+	UNUSED(a_grid_desc_k0_m_k1);
+	UNUSED(b_grid_desc_k0_n_k1);
+	UNUSED(c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl);
+	UNUSED(c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl);
+	UNUSED(c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl);
+	UNUSED(a_element_op);
+	UNUSED(b_element_op);
+	UNUSED(c_element_op);
+	UNUSED(block_2_ctile_map);
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
