@@ -739,3 +739,16 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
 } // namespace conv
 } // namespace utils
 } // namespace ck
+
+std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParams& p)
+{
+    os << "ConvParams {"
+       << "\nnum_dim_spatial: " << p.num_dim_spatial << "\nN: " << p.N << "\nK: " << p.K
+       << "\nC: " << p.C << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths
+       << "\ninput_spatial_lengths: " << p.input_spatial_lengths
+       << "\nconv_filter_strides: " << p.conv_filter_strides
+       << "\nconv_filter_dilations: " << p.conv_filter_dilations
+       << "\ninput_left_pads: " << p.input_left_pads
+       << "\ninput_right_pads: " << p.input_right_pads;
+    return os;
+}
