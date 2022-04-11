@@ -125,7 +125,7 @@ struct Sub
 };
 
 using DeviceElementwiseInstance =
-    ck::tensor_operation::device::DeviceElementwise_2D<CDataType, CDataType, CDataType, 256, Sub>;
+    ck::tensor_operation::device::DeviceElementwise_2D<CDataType, CDataType, CDataType, Sub, 16, 16, 8, 8>;
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
