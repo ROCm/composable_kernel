@@ -174,6 +174,72 @@ struct RequantReluRequant
     float scaleRelu_;
 };
 
+// Binary operator used to calculate the invVariance
+// x0 is mean
+// x1 is meansquare
+// y is inVariance
+struct InvVariance
+{
+    InvVariance(double epsilon) : epsilon_(epsilon){};
+
+    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
+    {
+        y = x1 - x0 * x0;
+        y = 1.0f / sqrtf(static_cast<float>(epsilon_) + y);
+    }
+
+    __host__ __device__ constexpr void
+    operator()(double& y, const double& x0, const float& x1) const
+    {
+        y = x1 - x0 * x0;
+        y = 1.0 / sqrt(epsilon_ + y);
+    }
+
+    double epsilon_;
+};
+
+// Binary operator used to calculate the MovingAverage
+// x0 is old runningMean/runningVariance
+// x1 is newMean/newVariance
+// y is updated runningMean/runningVariance
+struct MovingAverage
+{
+    MovingAverage(double factor) : factor_(factor){};
+
+    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
+    {
+        y = x0 * static_cast<float>(1.0 - factor_) + x1 * static_cast<float>(factor_);
+    }
+
+    __host__ __device__ constexpr void
+    operator()(double& y, const double& x0, const float& x1) const
+    {
+        y = x0 * (1.0 - factor_) + x1 * factor_;
+    }
+
+    double factor_;
+};
+
+// Ternary operator used to normalize the element value using mean and invVariance
+// x0 is the value to be normalized
+// x1 is the mean
+// x2 is the inVariance
+// y is the normalized value
+struct Normalize
+{
+    __host__ __device__ constexpr void
+    operator()(float& y, const float& x0, const float& x1, const float& x2) const
+    {
+        y = (x0 - x1) * x2;
+    }
+
+    __host__ __device__ constexpr void
+    operator()(double& y, const double& x0, const double& x1, const double& x2) const
+    {
+        y = (x0 - x1) * x2;
+    }
+};
+
 // Unary operators are usually called element-wisely before/after the reduction is executed on the
 // elements. They are needed for easy implementation of reduction types of AVG, NRM1, NRM2
 
