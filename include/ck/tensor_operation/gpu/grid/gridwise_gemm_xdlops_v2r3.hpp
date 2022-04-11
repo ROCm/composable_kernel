@@ -53,6 +53,17 @@ __global__ void
                                                    b_element_op,
                                                    c_element_op,
                                                    block_2_ctile_map);
+#else
+	UNUSED(p_a_grid);
+	UNUSED(p_b_grid);
+	UNUSED(p_c_grid);
+	UNUSED(a_grid_desc_k0_m_k1);
+	UNUSED(b_grid_desc_k0_n_k1);
+	UNUSED(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2);
+	UNUSED(a_element_op);
+	UNUSED(b_element_op);
+	UNUSED(c_element_op);
+	UNUSED(block_2_ctile_map);	
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -129,6 +140,12 @@ __global__ void
         gemm_desc_ptr[group_id].block_2_ctile_map_,
         block_id_grp);
 #endif
+#else
+	UNUSED(gemm_desc_);
+	UNUSED(group_count);
+	UNUSED(a_element_op);
+	UNUSED(b_element_op);
+	UNUSED(c_element_op);
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 

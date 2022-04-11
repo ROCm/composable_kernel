@@ -74,6 +74,22 @@ __global__ void
                                                   b_element_op,
                                                   c_element_op,
                                                   block_2_ctile_map);
+
+#else
+	UNUSED(p_a_grid);
+	UNUSED(p_b_grid);
+	UNUSED(p_c_grid);
+	UNUSED(num_batches);
+	UNUSED(a_batch_stride);
+	UNUSED(b_batch_stride);
+	UNUSED(c_batch_stride);
+	UNUSED(a_grid_desc_k0_m_k1);
+	UNUSED(b_grid_desc_k0_n_k1);
+	UNUSED(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2);
+	UNUSED(a_element_op);
+	UNUSED(b_element_op);
+	UNUSED(c_element_op);
+	UNUSED(block_2_ctile_map);
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 

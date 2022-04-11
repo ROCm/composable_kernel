@@ -56,6 +56,17 @@ __global__ void
                                                   b_element_op,
                                                   c_element_op,
                                                   c_block_cluster_adaptor);
+#else
+	UNUSED(p_a_grid);
+	UNUSED(p_b_grid);
+	UNUSED(p_c_grid);
+	UNUSED(a_b_k0_m_k1_grid_desc);
+	UNUSED(b_b_k0_n_k1_grid_desc);
+	UNUSED(c_grid_desc_mblock_mperblock_nblock_nperblock);
+	UNUSED(a_element_op);
+	UNUSED(b_element_op);
+	UNUSED(c_element_op);
+	UNUSED(c_block_cluster_adaptor);
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 

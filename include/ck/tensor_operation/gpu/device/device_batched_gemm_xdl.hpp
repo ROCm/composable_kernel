@@ -71,6 +71,20 @@ __global__ void
                                                   b_element_op,
                                                   c_element_op,
                                                   block_2_ctile_map);
+#else
+	UNUSED(p_a_grid);
+	UNUSED(p_b_grid);
+	UNUSED(p_c_grid);
+	UNUSED(batch_count);
+	UNUSED(a_grid_desc_k0_m_k1);
+	UNUSED(b_grid_desc_k0_n_k1);
+	UNUSED(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2);
+	UNUSED(a_element_op);
+	UNUSED(b_element_op);
+	UNUSED(c_element_op);
+	UNUSED(compute_base_ptr_of_batch_);
+	UNUSED(block_2_ctile_map);
+#endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename ADataType,
@@ -610,7 +624,6 @@ struct DeviceBatchedGemmXdl
 
         return str.str();
     }
-#endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 };
 
 } // namespace device
