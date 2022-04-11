@@ -13,6 +13,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/utility
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
@@ -29,17 +30,16 @@ add_subdirectory(01_gemm)
 add_subdirectory(02_gemm_alpha_beta)
 add_subdirectory(03_gemm_bias_relu)
 add_subdirectory(04_gemm_bias_relu_add)
-add_subdirectory(05_conv2d_fwd)
 add_subdirectory(06_conv2d_fwd_bias_relu)
 add_subdirectory(07_conv2d_fwd_bias_relu_add)
-add_subdirectory(08_conv3d_fwd)
 add_subdirectory(09_convnd_fwd)
 add_subdirectory(10_conv2d_bwd_data)
-add_subdirectory(11_conv2d_bwd_wgt)
+add_subdirectory(11_conv2d_bwd_weight)
 add_subdirectory(12_reduce)
 add_subdirectory(13_pool2d_fwd)
 add_subdirectory(14_gemm_xdl_requant_relu_requant)
 add_subdirectory(17_convnd_bwd_data_xdl)
 add_subdirectory(15_grouped_gemm)
 add_subdirectory(16_gemm_reduce)
+add_subdirectory(18_batched_gemm_reduce)
 add_subdirectory(19_batchnorm_fwd)

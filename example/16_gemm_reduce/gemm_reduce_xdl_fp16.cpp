@@ -5,13 +5,10 @@
 #include <stdlib.h>
 #include <half.hpp>
 #include "config.hpp"
-#include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
 #include "device_gemm_reduce_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
@@ -43,7 +40,7 @@ using D0ReduceOp = ck::tensor_operation::element_wise::ReduceSum;
 using D1ReduceOp = ck::tensor_operation::element_wise::ReduceSquareSum;
 
 static constexpr auto GemmSpecialization =
-    ck::tensor_operation::device::GemmSpecialization_t::Default;
+    ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_Xdl_CShuffle

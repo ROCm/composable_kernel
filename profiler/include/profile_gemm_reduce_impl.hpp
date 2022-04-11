@@ -98,7 +98,7 @@ bool profile_gemm_reduce_impl(int do_verification,
     std::cout << "d0_m: " << d0_m_host_result.mDesc << std::endl;
     std::cout << "d1_m: " << d1_m_host_result.mDesc << std::endl;
 
-    std::size_t num_thread = std::thread::hardware_concurrency();
+    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;

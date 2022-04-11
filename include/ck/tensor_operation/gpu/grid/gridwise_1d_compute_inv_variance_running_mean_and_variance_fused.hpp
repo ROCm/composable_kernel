@@ -54,23 +54,23 @@ __global__ void kernel_1d_compute_inv_variance_running_mean_and_variance(
 
     const index_t thread_global_id = block_global_id * BlockSize + thread_local_id;
 
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> mean_buf;
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> meansquare_buf;
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> invVariance_buf;
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> runningMean_buf;
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> runningVariance_buf;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> mean_buf;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> meansquare_buf;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> invVariance_buf;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> runningMean_buf;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> runningVariance_buf;
 
     constexpr auto val_buff_desc = make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
-    auto global_mean_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_mean_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_mean, grid_1d_buffer_desc.GetElementSpaceSize());
-    auto global_meansquare_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_meansquare_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_meansquare, grid_1d_buffer_desc.GetElementSpaceSize());
-    auto global_invVariance_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_invVariance_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_invVariance, grid_1d_buffer_desc.GetElementSpaceSize());
-    auto global_runningMean_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_runningMean_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_runningMean, grid_1d_buffer_desc.GetElementSpaceSize());
-    auto global_runningVariance_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_runningVariance_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_runningVariance, grid_1d_buffer_desc.GetElementSpaceSize());
 
     if(thread_global_id < grid_1d_buffer_desc.GetElementSize())
@@ -122,7 +122,7 @@ __global__ void kernel_1d_compute_inv_variance_running_mean_and_variance(
                                                                    Sequence<0>,
                                                                    0,
                                                                    1,
-                                                                   InMemoryDataOperationEnum_t::Set,
+                                                                   InMemoryDataOperationEnum::Set,
                                                                    1,
                                                                    true>(
             grid_1d_buffer_desc, make_multi_index(thread_global_id), PassThroughOp{});

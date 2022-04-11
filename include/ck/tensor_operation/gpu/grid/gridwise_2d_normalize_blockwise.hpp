@@ -115,45 +115,38 @@ struct GridwiseNormalize_mk_input_m_scale_bias_mean_var
                                const AccDataType* const __restrict__ p_invVariance)
 
     {
-        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global,
             in_out_grid_desc_m_k.GetElementSpaceSize(),
             type_convert<InDataType>(0.0f));
-        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_global, in_out_grid_desc_m_k.GetElementSpaceSize());
 
-        const auto scale_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto scale_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_scale,
             scale_bias_mean_var_grid_desc_m.GetElementSpaceSize(),
             type_convert<AccDataType>(0.0f));
-        const auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_bias,
             scale_bias_mean_var_grid_desc_m.GetElementSpaceSize(),
             type_convert<AccDataType>(0.0f));
-        const auto mean_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_mean,
             scale_bias_mean_var_grid_desc_m.GetElementSpaceSize(),
             type_convert<AccDataType>(0.0f));
-        const auto invVariance_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        const auto invVariance_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_invVariance,
             scale_bias_mean_var_grid_desc_m.GetElementSpaceSize(),
             type_convert<AccDataType>(0.0f));
 
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     AccDataType,
-                     MThreadSliceSize * KThreadSliceSize,
-                     true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     AccDataType,
-                     MThreadSliceSize * KThreadSliceSize,
-                     true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             out_thread_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true>
-            scale_thread_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> bias_thread_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true> mean_thread_buf;
-        StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, MThreadSliceSize, true>
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> scale_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> bias_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> mean_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
             invVariance_thread_buf;
 
         const index_t thread_local_id    = get_thread_local_1d_id();
@@ -196,7 +189,7 @@ struct GridwiseNormalize_mk_input_m_scale_bias_mean_var
                                                ThreadBufferDimAccessOrder,
                                                InOutVectorDim,
                                                InOutVectorSize,
-                                               InMemoryDataOperationEnum_t::Set,
+                                               InMemoryDataOperationEnum::Set,
                                                1,
                                                false>(
                 in_out_grid_desc_m_k,

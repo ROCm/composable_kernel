@@ -1,2 +1,0 @@
-add_example_executable(example_conv2d_fwd_xdl_fp16 conv2d_fwd_xdl_fp16.cpp)
-add_example_executable(example_conv2d_fwd_xdl_int8 conv2d_fwd_xdl_int8.cpp)

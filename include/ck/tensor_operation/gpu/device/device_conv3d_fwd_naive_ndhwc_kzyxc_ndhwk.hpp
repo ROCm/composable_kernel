@@ -4,7 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include "convolution_utility.hpp"
+#include "conv_fwd_util.hpp"
 #include "device.hpp"
 #include "device_conv_fwd.hpp"
 #include "common_header.hpp"
@@ -53,36 +53,30 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
-            : N_{N},
-              K_{K},
-              C_{C},
-              in_spatial_lengths_{input_spatial_lengths},
-              filter_spatial_lengths_{filter_spatial_lengths},
+            : params_{3,
+                      N,
+                      K,
+                      C,
+                      filter_spatial_lengths,
+                      input_spatial_lengths,
+                      conv_filter_strides,
+                      conv_filter_dilations,
+                      input_left_pads,
+                      input_right_pads},
               out_spatial_lengths_{output_spatial_lengths},
-              conv_filter_strides_{conv_filter_strides},
-              conv_filter_dilations_{conv_filter_dilations},
-              in_left_pads_{input_left_pads},
-              in_right_pads_{input_right_pads},
               p_in_{p_in},
               p_wei_{p_wei},
               p_out_{p_out},
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op}
+
         {
         }
 
         //  private:
-        index_t N_;
-        index_t K_;
-        index_t C_;
-        std::vector<index_t> in_spatial_lengths_;
-        std::vector<index_t> filter_spatial_lengths_;
+        utils::conv::ConvParams params_;
         std::vector<index_t> out_spatial_lengths_;
-        std::vector<index_t> conv_filter_strides_;
-        std::vector<index_t> conv_filter_dilations_;
-        std::vector<index_t> in_left_pads_;
-        std::vector<index_t> in_right_pads_;
 
         const InDataType* p_in_;
         const WeiDataType* p_wei_;
@@ -157,13 +151,7 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        std::vector<index_t> out_spatial_lengths =
-            ConvolutionUtility::ComputeOutputSpatialLengths(arg.in_spatial_lengths_,
-                                                            arg.filter_spatial_lengths_,
-                                                            arg.conv_filter_strides_,
-                                                            arg.conv_filter_dilations_,
-                                                            arg.in_left_pads_,
-                                                            arg.in_right_pads_);
+        std::vector<index_t> out_spatial_lengths = arg.params_.GetOutputSpatialLengths();
 
         bool out_lengths_are_consistent = out_spatial_lengths[0] == arg.out_spatial_lengths_[0] &&
                                           out_spatial_lengths[1] == arg.out_spatial_lengths_[1] &&

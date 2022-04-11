@@ -1,4 +1,6 @@
 #pragma once
+
+#include "check_err.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_instance.hpp"
 #include "reduction_enums.hpp"
@@ -64,9 +66,9 @@ template <typename DescriptionType>
 bool description_match(const DescriptionType& description,
                        int Rank,
                        const std::vector<int>& reduceDims,
-                       ReduceTensorOp_t ReduceOpId,
-                       NanPropagation_t NanOpt,
-                       ReduceTensorIndices_t IndicesOpt)
+                       ReduceTensorOp ReduceOpId,
+                       NanPropagation NanOpt,
+                       ReduceTensorIndices IndicesOpt)
 {
     if(description.Rank_ != Rank || description.ReduceOpId_ != static_cast<int>(ReduceOpId) ||
        description.NanOpt_ != static_cast<int>(NanOpt) ||
@@ -148,9 +150,9 @@ template <typename InDataType,
           typename OutDataType,
           int Rank,
           int NumReduceDim,
-          ReduceTensorOp_t ReduceOpId,
-          NanPropagation_t NanOpt,
-          ReduceTensorIndices_t IndicesOpt>
+          ReduceTensorOp ReduceOpId,
+          NanPropagation NanOpt,
+          ReduceTensorIndices IndicesOpt>
 void profile_reduce_impl_impl(bool do_verification,
                               int init_method,
                               bool do_log,
@@ -166,17 +168,17 @@ void profile_reduce_impl_impl(bool do_verification,
     using namespace ck::host_reduce;
 
     constexpr bool op_support_indices =
-        (ReduceOpId == ReduceTensorOp_t::MIN || ReduceOpId == ReduceTensorOp_t::MAX ||
-         ReduceOpId == ReduceTensorOp_t::AMAX);
+        (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
+         ReduceOpId == ReduceTensorOp::AMAX);
 
     constexpr bool NeedIndices =
-        (op_support_indices && (IndicesOpt != ReduceTensorIndices_t::NO_INDICES));
+        (op_support_indices && (IndicesOpt != ReduceTensorIndices::NO_INDICES));
 
-    constexpr bool PropagateNan = (NanOpt == NanPropagation_t::PROPAGATE_NAN);
+    constexpr bool PropagateNan = (NanOpt == NanPropagation::PROPAGATE_NAN);
 
     constexpr bool out_support_atomic_add = std::is_same<OutDataType, float>::value;
     constexpr bool op_support_atomic_add =
-        !op_support_indices && ReduceOpId != ReduceTensorOp_t::NORM2;
+        !op_support_indices && ReduceOpId != ReduceTensorOp::NORM2;
     constexpr bool use_atomic_add = (out_support_atomic_add && op_support_atomic_add);
 
     // 1) If InDataType is half_t, must use half_t as AccDataType for indexable reduction operations
@@ -194,7 +196,7 @@ void profile_reduce_impl_impl(bool do_verification,
 
     // 1) The indices can only be used when the reduction operation is indexable
     constexpr bool invalid_reduce_3 =
-        (!op_support_indices && IndicesOpt != ReduceTensorIndices_t::NO_INDICES);
+        (!op_support_indices && IndicesOpt != ReduceTensorIndices::NO_INDICES);
 
     // 1) If InDataType is int8_t, must use int8_t as AccDataType for indexable reduction operations
     // 2) If InDataType is int8_t, must use int32_t as AccDataType for non-indexable reduction
@@ -207,8 +209,8 @@ void profile_reduce_impl_impl(bool do_verification,
     // 1) If InDataType is int8_t, the supported operation must be either indexable operations or
     // ADD/AVG
     constexpr bool invalid_reduce_5 = std::is_same<InDataType, int8_t>::value &&
-                                      (!op_support_indices && ReduceOpId != ReduceTensorOp_t::ADD &&
-                                       ReduceOpId != ReduceTensorOp_t::AVG);
+                                      (!op_support_indices && ReduceOpId != ReduceTensorOp::ADD &&
+                                       ReduceOpId != ReduceTensorOp::AVG);
 
     // 1) If InDataType is bhalf_t, must use float as AccDataType for all reduction operations
     constexpr bool invalid_reduce_6 =
@@ -242,7 +244,7 @@ void profile_reduce_impl_impl(bool do_verification,
         size_t invariant_total_length = out.mDesc.GetElementSize();
         size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
 
-        std::size_t num_thread = std::thread::hardware_concurrency();
+        std::size_t num_thread = 1;
 
         if(do_verification)
         {
@@ -455,12 +457,13 @@ void profile_reduce_impl_impl(bool do_verification,
             if(do_verification)
             {
                 out_dev.FromDevice(out.mData.data());
-                check_error(out_ref, out);
+                ck::utils::check_err(out.mData, out_ref.mData);
 
                 if(NeedIndices)
                 {
                     out_indices_dev.FromDevice(out_indices.mData.data());
-                    check_indices(out_indices_ref, out_indices);
+                    ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+                    ;
                 };
 
                 if(do_log)
@@ -577,12 +580,13 @@ void profile_reduce_impl_impl(bool do_verification,
                 if(do_verification)
                 {
                     out_dev.FromDevice(out.mData.data());
-                    check_error(out_ref, out);
+                    ck::utils::check_err(out.mData, out_ref.mData);
 
                     if(NeedIndices)
                     {
                         out_indices_dev.FromDevice(out_indices.mData.data());
-                        check_indices(out_indices_ref, out_indices);
+                        ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+                        ;
                     };
 
                     if(do_log)
@@ -631,9 +635,9 @@ void profile_reduce_impl(bool do_verification,
                          int nrepeat,
                          const std::vector<size_t>& inLengths,
                          const std::vector<int>& reduceDims,
-                         ReduceTensorOp_t ReduceOpId,
-                         NanPropagation_t NanOpt,
-                         ReduceTensorIndices_t IndicesOpt,
+                         ReduceTensorOp ReduceOpId,
+                         NanPropagation NanOpt,
+                         ReduceTensorIndices IndicesOpt,
                          float alpha,
                          float beta)
 {
@@ -659,9 +663,9 @@ void profile_reduce_impl(bool do_verification,
                                  OutDataType,
                                  descType::Rank_,
                                  descType::NumReduceDim_,
-                                 static_cast<ReduceTensorOp_t>(descType::ReduceOpId_),
-                                 static_cast<NanPropagation_t>(descType::NanOpt_),
-                                 static_cast<ReduceTensorIndices_t>(descType::IndicesOpt_)>(
+                                 static_cast<ReduceTensorOp>(descType::ReduceOpId_),
+                                 static_cast<NanPropagation>(descType::NanOpt_),
+                                 static_cast<ReduceTensorIndices>(descType::IndicesOpt_)>(
             do_verification,
             init_method,
             do_log,

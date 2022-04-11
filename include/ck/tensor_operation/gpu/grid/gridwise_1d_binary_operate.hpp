@@ -52,17 +52,17 @@ __global__ void kernel_1d_binary_operate(const Grid1dBufferDescType grid_1d_buff
 
     const index_t thread_global_id = block_global_id * BlockSize + thread_local_id;
 
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> value_buf_x0;
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> value_buf_x1;
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, AccDataType, 1, true> value_buf_y;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> value_buf_x0;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> value_buf_x1;
+    StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, 1, true> value_buf_y;
 
     constexpr auto val_buff_desc = make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}));
 
-    auto global_buf_x0 = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_buf_x0 = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_in_x0, grid_1d_buffer_desc.GetElementSpaceSize());
-    auto global_buf_x1 = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_buf_x1 = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_in_x1, grid_1d_buffer_desc.GetElementSpaceSize());
-    auto global_buf_y = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+    auto global_buf_y = make_dynamic_buffer<AddressSpaceEnum::Global>(
         p_out_y, grid_1d_buffer_desc.GetElementSpaceSize());
 
     if(thread_global_id < grid_1d_buffer_desc.GetElementSize())
@@ -107,7 +107,7 @@ __global__ void kernel_1d_binary_operate(const Grid1dBufferDescType grid_1d_buff
                                                                    Sequence<0>,
                                                                    0,
                                                                    1,
-                                                                   InMemoryDataOperationEnum_t::Set,
+                                                                   InMemoryDataOperationEnum::Set,
                                                                    1,
                                                                    true>(
             grid_1d_buffer_desc, make_multi_index(thread_global_id), PassThroughOp{});

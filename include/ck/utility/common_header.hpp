@@ -1,6 +1,4 @@
-#ifndef CK_COMMON_HEADER_HPP
-#define CK_COMMON_HEADER_HPP
-
+#pragma once
 #include "config.hpp"
 #include "array.hpp"
 #include "container_helper.hpp"
@@ -20,30 +18,29 @@
 #include "number.hpp"
 #include "sequence.hpp"
 #include "sequence_helper.hpp"
-#include "synchronization.hpp"
 #include "tuple.hpp"
 #include "tuple_helper.hpp"
 #include "type.hpp"
 #include "magic_division.hpp"
-#include "utility.hpp"
 #include "c_style_pointer_cast.hpp"
-#include "amd_address_space.hpp"
-#include "amd_buffer_addressing.hpp"
-#include "static_buffer.hpp"
-#include "dynamic_buffer.hpp"
 #include "is_known_at_compile_time.hpp"
 #include "transpose_vectors.hpp"
 #include "inner_product.hpp"
 #include "element_wise_operation.hpp"
 #include "debug.hpp"
 
+#include "amd_buffer_addressing.hpp"
+#include "get_id.hpp"
+#include "synchronization.hpp"
+#include "amd_address_space.hpp"
+#include "static_buffer.hpp"
+#include "dynamic_buffer.hpp"
+
 // TODO: remove this
 #if CK_USE_AMD_INLINE_ASM
 #include "amd_inline_asm.hpp"
 #endif
 
-#if CK_USE_AMD_XDLOPS
+#ifdef CK_USE_AMD_MFMA
 #include "amd_xdlops.hpp"
-#endif
-
 #endif

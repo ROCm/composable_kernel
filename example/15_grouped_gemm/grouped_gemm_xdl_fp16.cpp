@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -40,9 +42,9 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 // static constexpr auto GemmMNPadding =
-// ck::tensor_operation::device::GemmSpecialization_t::MNPadding;
+// ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmXdl
@@ -225,8 +227,7 @@ int main(int argc, char* argv[])
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
-
-            check_error(c_host_tensors[i], c_device_tensors[i]);
+            ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
         }
     }
 
