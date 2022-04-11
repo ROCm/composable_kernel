@@ -41,17 +41,10 @@ cmake                                                                  \
 #arg2: update running Mean/Variance (0=no, 1=yes) 
 #arg3: initialization (0=no init, 1=single integer value, 2=scope integer value, 3=decimal value)
 #arg4: run kernel # of times (>1)
-./bin/example_batchnorm_fwd_nhwc -D 128,16,16,1024 -v 1  0 0 3 10
+./bin/example_batchnorm_fwd_nhwc -D 128,16,16,1024 -v 1  1 0 2 10
 ```
 
 Result 
 ```
-in_n_c_hi_wi: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
-out_n_c_ho_wo: dim 4, lengths {128, 192, 36, 36}, strides {248832, 1, 6912, 192}
-launch_and_time_kernel: grid_dim {124416, 1, 1}, block_dim {64, 1, 1} 
-Warm up
-Start running 10 times...
-Perf: 0.415453 ms, 1.37996 TFlops, 749.726 GB/s
-error: 0
-max_diff: 0, 1, 1
+Perf: 1.32944 ms, 50.485 GB/s, DeviceBatch_NHWC_C<256,M_C8_S1,K_C32_S1,InOutVectorSize_1_ScaleBiasMeanVarVectorSize_1>
 ```

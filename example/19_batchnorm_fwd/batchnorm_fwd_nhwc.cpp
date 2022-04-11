@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <getopt.h>
 #include <half.hpp>
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -369,6 +370,6 @@ int main(int argc, char* argv[])
         (void)invoker_ptr_ref->Run(argument_ptr_ref.get(), 1);
 
         out_dev.FromDevice(out.mData.data());
-        check_error(out_ref, out);
+        ck::utils::check_err(out_ref.mData, out.mData);
     };
 }
