@@ -5,7 +5,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_batchnorm_fwd.hpp"
-#include "gridwise_2d_compute_mean_and_meansquare_using_reduction_blockwise.hpp"
+#include "gridwise_2d_compute_mean_and_meansquare_using_reduce_blockwise.hpp"
 #include "gridwise_1d_compute_inv_variance_running_mean_and_variance_fused.hpp"
 #include "gridwise_1d_binary_operate.hpp"
 #include "gridwise_2d_normalize_blockwise.hpp"

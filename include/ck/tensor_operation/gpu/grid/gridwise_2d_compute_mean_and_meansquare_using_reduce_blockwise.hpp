@@ -23,8 +23,8 @@
  * SOFTWARE.
  *
  *******************************************************************************/
-#ifndef CK_GRIDWISE_2D_COMPUTE_MEAN_AND_MEANSQUARE_HPP
-#define CK_GRIDWISE_2D_COMPUTE_MEAN_AND_MEANSQUARE_HPP
+#ifndef CK_GRIDWISE_2D_COMPUTE_MEAN_AND_MEANSQUARE_USING_REDUCE_BLOCKWISE_HPP
+#define CK_GRIDWISE_2D_COMPUTE_MEAN_AND_MEANSQUARE_USING_REDUCE_BLOCKWISE_HPP
 
 #include "data_type.hpp"
 #include "gridwise_2d_reduction_blockwise.hpp"
