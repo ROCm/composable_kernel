@@ -17,9 +17,17 @@ template <typename ADataType,
           index_t MThreadPerBlock,
           index_t NThreadPerBlock,
           index_t MThreadTileSize,
-          index_t NThreadTileSize>
+          index_t NThreadTileSize,
+          index_t AThreadTransferSrcVectorDim,
+          index_t AThreadTransferSrcScalarPerVector,
+          index_t BThreadTransferSrcVectorDim,
+          index_t BThreadTransferSrcScalarPerVector,
+          index_t CThreadTransferSrcScalarPerVector>
 struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
 {
+    static_assert(NThreadTileSize % AThreadTransferSrcScalarPerVector == 0 &&
+                  NThreadTileSize % BThreadTransferSrcScalarPerVector == 0);
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
@@ -38,11 +46,16 @@ struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
                                                    BDataType,
                                                    CDataType,
                                                    GridDesc_M_N,
-                                                   GridDesc_M_N,
-                                                   GridDesc_M_N,
                                                    ElementwiseFunctor,
+                                                   MThreadPerBlock,
+                                                   NThreadPerBlock,
                                                    MThreadTileSize,
-                                                   NThreadTileSize>;
+                                                   NThreadTileSize,
+                                                   AThreadTransferSrcVectorDim,
+                                                   AThreadTransferSrcScalarPerVector,
+                                                   BThreadTransferSrcVectorDim,
+                                                   BThreadTransferSrcScalarPerVector,
+                                                   CThreadTransferSrcScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -88,18 +101,12 @@ struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto kernel = kernel_elementwise_2d<GridwiseEltwise,
+            const auto kernel      = kernel_elementwise_2d<GridwiseEltwise,
                                                       ADataType,
                                                       BDataType,
                                                       CDataType,
                                                       GridDesc_M_N,
-                                                      GridDesc_M_N,
-                                                      GridDesc_M_N,
                                                       ElementwiseFunctor>;
-            // TODO
-            (void)arg;
-            (void)nrepeat;
-            (void)kernel;
             float avgTime          = 0;
             const index_t gridSize = CalculateGridSize(arg.c_grid_desc_m_n_);
             if(nrepeat == 0)

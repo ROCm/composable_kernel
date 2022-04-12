@@ -84,8 +84,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-constexpr int Rank                        = 2;
-constexpr int NumReduceDim                = 1;
+constexpr int Rank                      = 2;
+constexpr int NumReduceDim              = 1;
 constexpr ck::ReduceTensorOp ReduceOpId = ck::ReduceTensorOp::MAX;
 constexpr ck::NanPropagation NanOpt     = ck::NanPropagation::PROPAGATE_NAN;
 constexpr bool PropagateNan = (NanOpt == ck::NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
@@ -118,14 +118,14 @@ using DeviceReduceInstance =
 
 struct Sub
 {
-    __host__ __device__ constexpr void operator()(F16& dst, const F16& src1, const F16& src2) const
+    __host__ __device__ constexpr void operator()(CDataType& dst, const CDataType& src1, const CDataType& src2) const
     {
         dst = src1 - src2;
     }
 };
 
-using DeviceElementwiseInstance =
-    ck::tensor_operation::device::DeviceElementwise_2D<CDataType, CDataType, CDataType, Sub, 16, 16, 8, 8>;
+using DeviceElementwiseInstance = ck::tensor_operation::device::
+    DeviceElementwise_2D<CDataType, CDataType, CDataType, Sub, 16, 16, 8, 8, 1, 1, 1, 1, 1>;
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
@@ -302,8 +302,8 @@ int main(int argc, char* argv[])
 
     if(!broadcastSub.IsSupportedArgument(broadcastSub_argument_ptr.get()))
     {
-        throw std::runtime_error(
-            "The runtime parameters seems not supported by the DeviceElementwise_2D instance, exiting!");
+        throw std::runtime_error("The runtime parameters seems not supported by the "
+                                 "DeviceElementwise_2D instance, exiting!");
     };
 
     auto broadcastSub_invoker_ptr = broadcastSub.MakeInvokerPointer();
