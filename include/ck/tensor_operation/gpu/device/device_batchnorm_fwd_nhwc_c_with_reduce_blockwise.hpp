@@ -23,7 +23,7 @@ template <typename InOutDataType,
           index_t KThreadSliceSize,
           index_t InOutVectorSize,
           index_t ScaleBiasMeanVarVectorSize>
-struct DeviceBatchNorm_Input_N_H_W_C_Output_C : public DeviceBatchNormFwd
+struct DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise : public DeviceBatchNormFwd
 {
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
@@ -195,10 +195,11 @@ struct DeviceBatchNorm_Input_N_H_W_C_Output_C : public DeviceBatchNormFwd
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto in_out_grid_desc_m_k =
-                DeviceBatchNorm_Input_N_H_W_C_Output_C::MakeInOut2dDescriptor(
+                DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise::MakeInOut2dDescriptor(
                     arg.n, arg.h, arg.w, arg.c);
             const auto scale_bias_mean_var_grid_desc_m =
-                DeviceBatchNorm_Input_N_H_W_C_Output_C::MakeScaleBiasMeanVar1dDescriptor(arg.c);
+                DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise::
+                    MakeScaleBiasMeanVar1dDescriptor(arg.c);
             using InOutGridDesc_M_K          = decltype(in_out_grid_desc_m_k);
             using ScaleBiasMeanVarGridDesc_M = decltype(scale_bias_mean_var_grid_desc_m);
 
@@ -471,7 +472,7 @@ struct DeviceBatchNorm_Input_N_H_W_C_Output_C : public DeviceBatchNormFwd
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatch_NHWC_C<" << BlockSize << ",";
+        str << "DeviceBatchNorm_NHWC_C_Blockwise<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "InOutVectorSize_" << InOutVectorSize << "_ScaleBiasMeanVarVectorSize_" << ScaleBiasMeanVarVectorSize << ">";

@@ -14,7 +14,7 @@
 #include "host_reduce_util.hpp"
 #include "device_tensor.hpp"
 #include "reference_batchnorm_fwd_nhwc_c.hpp"
-#include "device_batchnorm_fwd_nhwc_c.hpp"
+#include "device_batchnorm_fwd_nhwc_c_with_reduce_blockwise.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;
@@ -33,7 +33,7 @@ using ReferenceBatchNormInstance =
     ReferenceBatchNorm_Input_N_H_W_C_Output_C<HostInOutDataType, HostAccDataType>;
 
 using DeviceBatchNormInstance =
-    DeviceBatchNorm_Input_N_H_W_C_Output_C<InOutDataType,
+    DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise<InOutDataType,
                                            AccDataType,
                                            256, // BlockSize
                                            8,   // MThreadClusterSize,

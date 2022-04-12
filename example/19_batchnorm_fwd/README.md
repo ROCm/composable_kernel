@@ -1,4 +1,4 @@
-# Instructions for ```batchnorm_fwd_nhwc``` Example
+# Instructions for ```batchnorm_fwd_nhwc_blockwise``` Example
 
 ## Docker script
 ```bash
@@ -13,7 +13,7 @@ rocm/tensorflow:rocm4.3.1-tf2.6-dev                                          \
 /bin/bash
 ```
 
-## Build ```batchnorm_fwd_nhwc```
+## Build ```batchnorm_fwd_nhwc_blockwise```
 ```bash
 mkdir build && cd build
 ```
@@ -30,10 +30,10 @@ cmake                                                                  \
 ```
 
 ```bash
- make -j batchnorm_fwd_nhwc
+ make -j batchnorm_fwd_nhwc_blockwise
 ```
 
-## Run ```batchnorm_fwd_nhwc```
+## Run ```batchnorm_fwd_nhwc_blockwise```
 ```bash
 # -D <xxx> : input 4-d tensor lengths
 # -v <x> :   verification (0=no, 1=yes)
@@ -41,10 +41,10 @@ cmake                                                                  \
 #arg2: update running Mean/Variance (0=no, 1=yes) 
 #arg3: initialization (0=no init, 1=single integer value, 2=scope integer value, 3=decimal value)
 #arg4: run kernel # of times (>1)
-./bin/example_batchnorm_fwd_nhwc -D 128,16,16,1024 -v 1  1 0 2 10
+./bin/example_batchnorm_fwd_nhwc_blockwise -D 128,16,16,1024 -v 1  1 0 2 10
 ```
 
 Result 
 ```
-Perf: 1.32944 ms, 50.485 GB/s, DeviceBatch_NHWC_C<256,M_C8_S1,K_C32_S1,InOutVectorSize_1_ScaleBiasMeanVarVectorSize_1>
+Perf: 1.32944 ms, 50.485 GB/s, DeviceBatchNorm_NHWC_C_Blockwise<256,M_C8_S1,K_C32_S1,InOutVectorSize_1_ScaleBiasMeanVarVectorSize_1>
 ```
