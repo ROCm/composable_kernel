@@ -13,7 +13,6 @@
 #include "device_tensor.hpp"
 #include "check_err.hpp"
 #include "transpose_vectors.hpp"
-//#include "tensor_descriptor_helper.hpp"
 #include "common_header.hpp"
 
 using SrcDataType = ck::half_t;
@@ -113,7 +112,7 @@ int main(int, char*[])
 
     pass = ck::utils::check_err(dst_n_k_device_result.mData, dst_n_k_host_result.mData);
 
-    // run kernel to convert data
+    // run kernel to tanspos and convert data
     gpu_transpose_convert_data<<<1, thread_num>>>(
         static_cast<SrcDataType*>(in_dev_buf.GetDeviceBuffer()),
         static_cast<DstDataType*>(out_dev_buf.GetDeviceBuffer()),

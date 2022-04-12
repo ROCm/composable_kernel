@@ -169,6 +169,18 @@ template <index_t BlockSize,
           index_t NumPrefetch = 1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 {
+    template <typename T>
+    struct TypeMap
+    {
+        using type = T;
+    };
+    template <>
+    struct TypeMap<ck::half_t>
+    {
+        using type = ck::bhalf_t;
+    };
+    using ComputerType = typename TypeMap<FloatAB>::type;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
