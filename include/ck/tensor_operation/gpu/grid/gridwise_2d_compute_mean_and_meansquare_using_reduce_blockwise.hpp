@@ -35,15 +35,15 @@ template <typename GridwiseReduceMean,
           typename GridwiseReduceMeanSquare,
           typename InOutDataType,
           typename AccDataType,
-          typename InGridDesc_M_K,
-          typename OutGridDesc_M,
+          typename InOutGridDesc_M_K,
+          typename ScaleBiasMeanVarGridDesc_M,
           typename InElementwiseOperationMean,
           typename AccElementwiseOperationMean,
           typename InElementwiseOperationMeanSquare,
           typename AccElementwiseOperationMeanSquare>
 __global__ void kernel_compute_mean_and_meansquare_using_reduction_blockwise(
-    const InGridDesc_M_K in_grid_desc_m_k,
-    const OutGridDesc_M out_grid_desc_m,
+    const InOutGridDesc_M_K in_out_grid_desc_m_k,
+    const ScaleBiasMeanVarGridDesc_M scale_bias_mean_var_grid_desc_m,
     const InElementwiseOperationMean in_element_wise_op_mean,
     const AccElementwiseOperationMean acc_element_wise_op_mean,
     const InElementwiseOperationMeanSquare in_element_wise_op_meansquare,
@@ -54,8 +54,8 @@ __global__ void kernel_compute_mean_and_meansquare_using_reduction_blockwise(
 {
     constexpr bool IsSecondCall = false;
 
-    GridwiseReduceMean::template Run<IsSecondCall>(in_grid_desc_m_k,
-                                                   out_grid_desc_m,
+    GridwiseReduceMean::template Run<IsSecondCall>(in_out_grid_desc_m_k,
+                                                   scale_bias_mean_var_grid_desc_m,
                                                    in_element_wise_op_mean,
                                                    acc_element_wise_op_mean,
                                                    type_convert<AccDataType>(1.0f),
@@ -65,8 +65,8 @@ __global__ void kernel_compute_mean_and_meansquare_using_reduction_blockwise(
                                                    nullptr,
                                                    nullptr);
 
-    GridwiseReduceMeanSquare::template Run<IsSecondCall>(in_grid_desc_m_k,
-                                                         out_grid_desc_m,
+    GridwiseReduceMeanSquare::template Run<IsSecondCall>(in_out_grid_desc_m_k,
+                                                         scale_bias_mean_var_grid_desc_m,
                                                          in_element_wise_op_meansquare,
                                                          acc_element_wise_op_meansquare,
                                                          type_convert<AccDataType>(1.0f),
