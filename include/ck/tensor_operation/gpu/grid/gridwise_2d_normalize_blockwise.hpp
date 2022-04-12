@@ -76,7 +76,7 @@ template <typename InDataType,
           index_t InOutVectorDim,
           index_t InOutVectorSize,
           index_t ScaleBiasMeanVarVectorSize>
-struct GridwiseNormalize_mk_input_m_scale_bias_mean_var
+struct GridwiseNormalizeBlockwise_mk_input_m_scale_bias_mean_var
 {
     static_assert(((InOutVectorDim == 0 && MThreadSliceSize % InOutVectorSize == 0) ||
                    (InOutVectorDim == 1 && KThreadSliceSize % InOutVectorSize == 0)) &&

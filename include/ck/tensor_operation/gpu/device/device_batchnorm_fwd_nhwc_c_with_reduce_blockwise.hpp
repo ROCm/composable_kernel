@@ -279,21 +279,21 @@ struct DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise : public Dev
                     InElementwiseOperationMeanSquare,
                     AccElementwiseOperationMeanSquare>;
 
-            using GridwiseNormalize =
-                GridwiseNormalize_mk_input_m_scale_bias_mean_var<InOutDataType,
-                                                                 InOutDataType,
-                                                                 AccDataType,
-                                                                 InOutGridDesc_M_K,
-                                                                 ScaleBiasMeanVarGridDesc_M,
-                                                                 TernaryOperationNormalize,
-                                                                 BlockSize,
-                                                                 MThreadClusterSize,
-                                                                 KThreadClusterSize,
-                                                                 MThreadSliceSize,
-                                                                 KThreadSliceSize,
-                                                                 0, // InOutVectorDim,
-                                                                 InOutVectorSize,
-                                                                 ScaleBiasMeanVarVectorSize>;
+            using GridwiseNormalize = GridwiseNormalizeBlockwise_mk_input_m_scale_bias_mean_var<
+                InOutDataType,
+                InOutDataType,
+                AccDataType,
+                InOutGridDesc_M_K,
+                ScaleBiasMeanVarGridDesc_M,
+                TernaryOperationNormalize,
+                BlockSize,
+                MThreadClusterSize,
+                KThreadClusterSize,
+                MThreadSliceSize,
+                KThreadSliceSize,
+                0, // InOutVectorDim,
+                InOutVectorSize,
+                ScaleBiasMeanVarVectorSize>;
 
             const auto kernel_normalize = kernel_normalize_blockwise<GridwiseNormalize,
                                                                      InOutDataType,
