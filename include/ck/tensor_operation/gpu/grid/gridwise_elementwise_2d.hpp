@@ -2,6 +2,7 @@
 
 #include "cluster_descriptor.hpp"
 #include "data_type.hpp"
+#include "element_wise_operation.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
@@ -48,6 +49,7 @@ struct GridwiseElementwise_2D
     static constexpr auto thread_buf_desc_M_N = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MThreadTileSize>{}, Number<NThreadTileSize>{}));
 
+    using PassThrough       = tensor_operation::element_wise::PassThrough;
     using ThreadBufDesc_M_N = decltype(thread_buf_desc_M_N);
 
     static constexpr auto I0 = Number<0>{};
@@ -88,7 +90,7 @@ struct GridwiseElementwise_2D
             p_a_global, a_grid_desc_m_n.GetElementSpaceSize());
         const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_global, b_grid_desc_m_n.GetElementSpaceSize());
-        const auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_global, c_grid_desc_m_n.GetElementSpaceSize());
 
         StaticBuffer<AddressSpaceEnum::Vgpr, ADataType, MThreadTileSize * NThreadTileSize, true>
@@ -141,10 +143,23 @@ struct GridwiseElementwise_2D
         });
 
         // TODO - global write
-        (void)c_global_buf;
-        // c_global_write.Run(
-        //     thread_buf_desc_M_N, c_thread_buf, c_grid_desc_m_n, make_tuple(I0, I0),
-        //     c_global_buf);
+        const auto c_global_write_offset = CalculateElementwiseIndex(c_grid_desc_m_n);
+        auto c_global_write              = ThreadwiseTensorSliceTransfer_v1r3<
+            CDataType,
+            CDataType,
+            decltype(thread_buf_desc_M_N),
+            GridDesc_M_N,
+            PassThrough,
+            Sequence<MThreadTileSize, NThreadTileSize>, // SliceLengths
+            Sequence<0, 1>,                             // DimAccessOrder
+            1,                                          // DstVectorDim
+            CThreadTransferSrcScalarPerVector,          // DstScalarPerVector
+            InMemoryDataOperationEnum::Set,             // DstInMemOp
+            1,                                          // DstScalarStrideInVector
+            false>{c_grid_desc_m_n, c_global_write_offset, PassThrough{}};
+
+        c_global_write.Run(
+            thread_buf_desc_M_N, make_tuple(I0, I0), c_thread_buf, c_grid_desc_m_n, c_global_buf);
     }
 };
 
