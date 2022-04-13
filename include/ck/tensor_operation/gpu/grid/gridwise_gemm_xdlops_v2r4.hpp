@@ -64,7 +64,7 @@ __global__ void
 	std::ignore = a_element_op;
 	std::ignore = b_element_op;
 	std::ignore = c_element_op;
-	std::ignore = c_block_cluster_adaptor);	
+	std::ignore = c_block_cluster_adaptor;	
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
