@@ -35,6 +35,7 @@
 #include "amd_address_space.hpp"
 #include "static_buffer.hpp"
 #include "dynamic_buffer.hpp"
+#include "ignore.hpp"
 
 // TODO: remove this
 #if CK_USE_AMD_INLINE_ASM
