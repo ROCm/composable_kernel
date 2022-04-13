@@ -83,12 +83,7 @@ template <index_t BlockSize,
           typename BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector,
-          typename AGridStepHacks,
-          typename BGridStepHacks,
-          typename CGridStepHacks,
-          typename AGridMoveSliceWindowStepHacks,
-          typename BGridMoveSliceWindowStepHacks>
+          index_t CThreadTransferDstScalarPerVector>
 struct GridwiseGemmDlops_km_kn_mn_v1r3
 {
     static constexpr auto I0 = Number<0>{};
@@ -437,8 +432,8 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
 
         // LDS double buffer: preload data into LDS
         {
-            a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf, AGridStepHacks{});
-            b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf, BGridStepHacks{});
+            a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf);
+            b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf);
 
             a_blockwise_copy.RunWrite(a_k0_m0_m1_k1_block_desc, a_block_even_buf);
             b_blockwise_copy.RunWrite(b_k0_n0_n1_k1_block_desc, b_block_even_buf);
@@ -456,17 +451,15 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
             {
                 // even iteration
                 a_blockwise_copy.MoveSrcSliceWindow(a_k0_m0_m1_k1_grid_desc,
-                                                    a_block_slice_copy_step,
-                                                    AGridMoveSliceWindowStepHacks{});
+                                                    a_block_slice_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_k0_n0_n1_k1_grid_desc,
-                                                    b_block_slice_copy_step,
-                                                    BGridMoveSliceWindowStepHacks{});
+                                                    b_block_slice_copy_step);
 
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
-                a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf, AGridStepHacks{});
-                b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf, BGridStepHacks{});
+                a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf);
+                b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(c_m10_m11_n10_n11_thread_desc,
@@ -480,17 +473,15 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
 
                 // odd iteration
                 a_blockwise_copy.MoveSrcSliceWindow(a_k0_m0_m1_k1_grid_desc,
-                                                    a_block_slice_copy_step,
-                                                    AGridMoveSliceWindowStepHacks{});
+                                                    a_block_slice_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_k0_n0_n1_k1_grid_desc,
-                                                    b_block_slice_copy_step,
-                                                    BGridMoveSliceWindowStepHacks{});
+                                                    b_block_slice_copy_step);
 
                 __syncthreads();
 
                 // LDS doubel buffer: load next data from device mem
-                a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf, AGridStepHacks{});
-                b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf, BGridStepHacks{});
+                a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf);
+                b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(
@@ -508,15 +499,15 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
         if constexpr(HasDoubleTailKBlockLoop) // if has 2 iteration left
         {
             a_blockwise_copy.MoveSrcSliceWindow(
-                a_k0_m0_m1_k1_grid_desc, a_block_slice_copy_step, AGridMoveSliceWindowStepHacks{});
+                a_k0_m0_m1_k1_grid_desc, a_block_slice_copy_step);
             b_blockwise_copy.MoveSrcSliceWindow(
-                b_k0_n0_n1_k1_grid_desc, b_block_slice_copy_step, BGridMoveSliceWindowStepHacks{});
+                b_k0_n0_n1_k1_grid_desc, b_block_slice_copy_step);
 
             __syncthreads();
 
             // LDS double buffer: load last data from device mem
-            a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf, AGridStepHacks{});
-            b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf, BGridStepHacks{});
+            a_blockwise_copy.RunRead(a_k0_m0_m1_k1_grid_desc, a_global_buf);
+            b_blockwise_copy.RunRead(b_k0_n0_n1_k1_grid_desc, b_global_buf);
 
             // LDS double buffer: GEMM on 2nd-last data
             blockwise_gemm.Run(
@@ -583,8 +574,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
                      make_tuple(I0, I0, I0, I0, I0, I0),
                      c_thread_buf,
                      c_m0_m10_m11_n0_n10_n11_grid_desc,
-                     c_grid_buf,
-                     CGridStepHacks{});
+                     c_grid_buf);
         }
     }
 };
