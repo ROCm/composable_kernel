@@ -222,7 +222,7 @@ bool test_conv1d_nwc()
                                                          ck::tensor_layout::convolution::NWC,
                                                          ck::tensor_layout::convolution::KXC,
                                                          ck::tensor_layout::convolution::NWK>(
-        params, FillMonotonicSeq<float>{0.f, 0.1f});
+        params, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
 
     ref_dims = std::vector<std::size_t>{2, 16, 16};
     ref_data = std::vector<float>{
@@ -320,7 +320,7 @@ bool test_conv3d_ncdhw()
                                                         ck::tensor_layout::convolution::NCDHW,
                                                         ck::tensor_layout::convolution::KCZYX,
                                                         ck::tensor_layout::convolution::NKDHW>(
-        params, FillMonotonicSeq<float>{0.f, 0.1f});
+        params, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
     std::vector<std::size_t> ref_dims{1, 1, 4, 4, 4};
     std::vector<float> ref_data{
         407.7,     410.40002, 413.09998, 415.80002, 423.90002, 426.6,     429.30002, 432.,
@@ -354,7 +354,7 @@ bool test_conv3d_ncdhw()
                                                    ck::tensor_layout::convolution::NCDHW,
                                                    ck::tensor_layout::convolution::KCZYX,
                                                    ck::tensor_layout::convolution::NKDHW>(
-        params, FillMonotonicSeq<float>{0.f, 0.1f});
+        params, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
     ref_dims = std::vector<std::size_t>{1, 2, 4, 4, 4};
     ref_data = std::vector<float>{
         2756.7002, 2764.7998, 2772.9001, 2781.,     2853.9001, 2862.,     2870.1,    2878.2002,

@@ -1,0 +1,44 @@
+fail_fast: false
+repos:
+#- repo : https: //github.com/Lucas-C/pre-commit-hooks.git
+#   sha : v1 .0.1
+#   hooks:
+#   - id : remove - crlf
+#   files : (? ! .*third_party) ^.*$ | (? ! .*book) ^.*$
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    sha: 5bf6c09bfa1297d3692cadd621ef95f1284e33c0
+    hooks:
+    -   id: check-added-large-files
+    -   id: check-merge-conflict
+    -   id: check-symlinks
+    -   id: detect-private-key
+        files: (?!.*third_party)^.*$ | (?!.*book)^.*$
+    -   id: end-of-file-fixer
+#- repo : local
+#  hooks:
+#   - id : clang - format - with - version - check
+#   name : clang - format
+#   description : Format files with ClangFormat.
+#   entry : bash./ tools / codestyle / clang_format.hook - i
+#   language : system
+#   files : \.(c | cc | cxx | cpp | cu | h | hpp | hxx | proto | xpu | kps) $
+#- repo : local
+#   hooks:
+#   - id : cpplint - cpp - source
+#   name : cpplint
+#   description : Check C++ code style using cpplint.py.
+#   entry : bash./ tools / codestyle / cpplint_pre_commit.hook
+#   language : system
+#   files : \.(c | cc | cxx | cpp | cu | h | hpp | hxx) $
+repos:
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: master
+    hooks:
+      - id: clang-format
+        args: [--style=Google]
+      - id: clang-tidy
+     #- id : oclint
+     #- id : uncrustify
+      - id: cppcheck
+     #- id : cpplint
+      - id: include-what-you-use
