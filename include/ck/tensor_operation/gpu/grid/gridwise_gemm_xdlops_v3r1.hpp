@@ -58,16 +58,16 @@ __global__ void
         c_element_op,
         block_2_ctile_map);
 #else
-	UNUSED(p_a_grid);
-	UNUSED(p_b_grid);
-	UNUSED(p_c_grid);
-	UNUSED(a_grid_desc_ak0_m_ak1);
-	UNUSED(b_grid_desc_bk0_n_bk1);
-	UNUSED(c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl);
-	UNUSED(a_element_op);
-	UNUSED(b_element_op);
-	UNUSED(c_element_op);
-	UNUSED(block_2_ctile_map);
+	std::ignore = p_a_grid;
+	std::ignore = p_b_grid;
+	std::ignore = p_c_grid;
+	std::ignore = a_grid_desc_ak0_m_ak1;
+	std::ignore = b_grid_desc_bk0_n_bk1;
+	std::ignore = c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl;
+	std::ignore = a_element_op;
+	std::ignore = b_element_op;
+	std::ignore = c_element_op;
+	std::ignore = block_2_ctile_map;
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 

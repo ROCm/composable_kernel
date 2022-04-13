@@ -72,18 +72,18 @@ __global__ void
                                                   c_element_op,
                                                   block_2_ctile_map);
 #else
-	UNUSED(p_a_grid);
-	UNUSED(p_b_grid);
-	UNUSED(p_c_grid);
-	UNUSED(batch_count);
-	UNUSED(a_grid_desc_k0_m_k1);
-	UNUSED(b_grid_desc_k0_n_k1);
-	UNUSED(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2);
-	UNUSED(a_element_op);
-	UNUSED(b_element_op);
-	UNUSED(c_element_op);
-	UNUSED(compute_base_ptr_of_batch_);
-	UNUSED(block_2_ctile_map);
+	std::ignore = p_a_grid;
+	std::ignore = p_b_grid;
+	std::ignore = p_c_grid;
+	std::ignore = batch_count;
+	std::ignore = a_grid_desc_k0_m_k1;
+	std::ignore = b_grid_desc_k0_n_k1;
+	std::ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
+	std::ignore = a_element_op;
+	std::ignore = b_element_op;
+	std::ignore = c_element_op;
+	std::ignore = compute_base_ptr_of_batch_;
+	std::ignore = block_2_ctile_map;
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
