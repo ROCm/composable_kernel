@@ -85,25 +85,25 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-constexpr int Rank                      = 2;
+constexpr int ReduceRank                      = 2;
 constexpr int NumReduceDim              = 1;
-constexpr ck::ReduceTensorOp ReduceOpId = ck::ReduceTensorOp::MAX;
+constexpr ck::ReduceTensorOp ReduceMaxId = ck::ReduceTensorOp::MAX;
 constexpr ck::NanPropagation NanOpt     = ck::NanPropagation::PROPAGATE_NAN;
 constexpr bool PropagateNan = (NanOpt == ck::NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
 // constexpr ck::ReduceTensorIndices_t IndicesOpt = ck::ReduceTensorIndices_t::NO_INDICES;
-using ReduceOperation = typename ck::reduce_binary_operator<CDataType, ReduceOpId>::opType;
+using ReduceMaxOp = typename ck::reduce_binary_operator<CDataType, ReduceMaxId>::opType;
 using InElementwiseOperation =
-    typename ck::reduce_unary_operator<CDataType, ReduceOpId, true, true>::InElementwiseOperation;
+    typename ck::reduce_unary_operator<CDataType, ReduceMaxId, true, true>::InElementwiseOperation;
 using AccElementwiseOperation =
-    typename ck::reduce_unary_operator<CDataType, ReduceOpId, true, true>::AccElementwiseOperation;
+    typename ck::reduce_unary_operator<CDataType, ReduceMaxId, true, true>::AccElementwiseOperation;
 
-using DeviceReduceInstance =
+using DeviceReduceMaxInstance =
     ck::tensor_operation::device::DeviceReduceBlockWise<CDataType,
                                                         CDataType,
                                                         CDataType,
-                                                        Rank,
+                                                        ReduceRank,
                                                         NumReduceDim,
-                                                        ReduceOperation,
+                                                        ReduceMaxOp,
                                                         InElementwiseOperation,
                                                         AccElementwiseOperation,
                                                         PropagateNan,
@@ -264,7 +264,7 @@ int main(int argc, char* argv[])
     gemm_invoker.Run(gemm_argument, nrepeat);
 
     // do reduce max
-    auto reduce_max    = DeviceReduceInstance{};
+    auto reduce_max    = DeviceReduceMaxInstance{};
     auto wsSizeInBytes = reduce_max.GetWorkspaceSizeInBytes(i_inLengths, reduceDims);
     DeviceMem ws_dev(wsSizeInBytes);
 
