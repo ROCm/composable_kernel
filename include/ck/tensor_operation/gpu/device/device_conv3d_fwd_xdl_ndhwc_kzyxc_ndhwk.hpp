@@ -76,20 +76,20 @@ __global__ void
                                                   block_2_ctile_map);
 
 #else
-	std::ignore = p_a_grid;
-	std::ignore = p_b_grid;
-	std::ignore = p_c_grid;
-	std::ignore = num_batches;
-	std::ignore = a_batch_stride;
-	std::ignore = b_batch_stride;
-	std::ignore = c_batch_stride;
-	std::ignore = a_grid_desc_k0_m_k1;
-	std::ignore = b_grid_desc_k0_n_k1;
-	std::ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
-	std::ignore = a_element_op;
-	std::ignore = b_element_op;
-	std::ignore = c_element_op;
-	std::ignore = block_2_ctile_map;
+	ignore = p_a_grid;
+	ignore = p_b_grid;
+	ignore = p_c_grid;
+	ignore = num_batches;
+	ignore = a_batch_stride;
+	ignore = b_batch_stride;
+	ignore = c_batch_stride;
+	ignore = a_grid_desc_k0_m_k1;
+	ignore = b_grid_desc_k0_n_k1;
+	ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
+	ignore = a_element_op;
+	ignore = b_element_op;
+	ignore = c_element_op;
+	ignore = block_2_ctile_map;
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 

@@ -57,16 +57,16 @@ __global__ void
                                                   c_element_op,
                                                   c_block_cluster_adaptor);
 #else
-	std::ignore = p_a_grid;
-	std::ignore = p_b_grid;
-	std::ignore = p_c_grid;
-	std::ignore = a_b_k0_m_k1_grid_desc;
-	std::ignore = b_b_k0_n_k1_grid_desc;
-	std::ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-	std::ignore = a_element_op;
-	std::ignore = b_element_op;
-	std::ignore = c_element_op;
-	std::ignore = c_block_cluster_adaptor;
+	ignore = p_a_grid;
+	ignore = p_b_grid;
+	ignore = p_c_grid;
+	ignore = a_b_k0_m_k1_grid_desc;
+	ignore = b_b_k0_n_k1_grid_desc;
+	ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+	ignore = a_element_op;
+	ignore = b_element_op;
+	ignore = c_element_op;
+	ignore = c_block_cluster_adaptor;
 #endif //end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
