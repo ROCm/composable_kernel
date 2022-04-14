@@ -33,7 +33,8 @@ template <
     index_t BlockSize,
     index_t MPerBlock,
     index_t NPerBlock,
-    index_t KPerBlock,
+    index_t K0PerBlock,
+    index_t K1,
     index_t M1PerThread,
     index_t N1PerThread,
     index_t KPerThread,
@@ -56,17 +57,13 @@ template <
     typename CThreadTransferSrcDstAccessOrder,
     index_t CThreadTransferSrcDstVectorDim,
     index_t CThreadTransferDstScalarPerVector,
-    typename AGridStepHacks,
-    typename BGridStepHacks,
-    typename CGridStepHacks,
-    typename AGridMoveSliceWindowStepHacks,
-    typename BGridMoveSliceWindowStepHacks,
     enable_if_t<
         is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
             is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
             is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
         bool> = false>
-struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmDlops
+    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -201,12 +198,12 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                                         AccDataType,
                                         CDataType,
                                         InMemoryDataOperationEnum::Set,
-                                        AK0MK1GridDesc,
-                                        BK0NK1GridDesc,
-                                        CMNGridDesc,
+                                        AGridDesc_K0_M_K1,
+                                        BGridDesc_K0_N_K1,
+                                        CGridDesc_M_N,
                                         MPerBlock,
                                         NPerBlock,
-                                        KPerBlock,
+                                        K0PerBlock,
                                         M1PerThread,
                                         N1PerThread,
                                         KPerThread,
@@ -228,18 +225,16 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                                         BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
                                         CThreadTransferSrcDstAccessOrder,
                                         CThreadTransferSrcDstVectorDim,
-                                        CThreadTransferDstScalarPerVector,
-                                        AGridStepHacks,
-                                        BGridStepHacks,
-                                        CGridStepHacks,
-                                        AGridMoveSliceWindowStepHacks,
-                                        BGridMoveSliceWindowStepHacks>;
+                                        CThreadTransferDstScalarPerVector>;
 
-    using AK0M0M1K1GridDesc =
+    using AGridDesc_K0_M0_M1_K1 =
         decltype(GridwiseGemm::MakeAK0M0M1K1GridDescriptor(AGridDesc_K0_M_K1{}));
-    using BK0N0N1K1GridDesc = decltype(GridwiseGemm::MakeBKN0N1GridDescriptor(BGridDesc_K0_N_K1{}));
-    using CM0M10M11N0N10N11GridDesc =
+    using BGridDesc_K0_N0_N1_K1 =
+        decltype(GridwiseGemm::MakeBK0N0N1K1GridDescriptor(BGridDesc_K0_N_K1{}));
+    using CGridDesc_M0_M10_M11_N0_N10_N11 =
         decltype(GridwiseGemm::MakeCM0M10M11N0N10N11GridDescriptor(CGridDesc_M_N{}));
+    using DefaultBlock2CTileMap =
+        decltype(GridwiseGemm::MakeCBlockIdToM0N0BlockClusterAdaptor(CGridDesc_M_N{}));
 
     // Argument
     struct Argument : public BaseArgument
@@ -261,10 +256,9 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              a_grid_desc_k0_m_k1_{},
-              b_grid_desc_k0_n_k1_{},
-              c_grid_desc_m_n_{},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              a_grid_desc_k0_m0_m1_k1_{},
+              b_grid_desc_k0_n0_n1_k1_{},
+              c_grid_desc_m0_m10_m11_n0_n10_n11_{},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01}
@@ -272,15 +266,19 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
         // b_element_op_{b_element_op},
         // c_element_op_{c_element_op}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m_n_     = DeviceGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_k0_m_k1_ = DeviceGemmDlops::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ = DeviceGemmDlops::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+            c_grid_desc_m_n_     = DeviceGemmDlops::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_))
             {
-                c_m0_m10_m11_n0_n10_n11_grid_desc =
-                    GridwiseGemm::MakeCM0M10M11N0N10N11GridDescriptor(c_m_n_grid_desc);
+                a_grid_desc_k0_m0_m1_k1_ =
+                    GridwiseGemm::MakeAK0M0M1K1GridDescriptor(a_grid_desc_k0_m_k1_);
+                b_grid_desc_k0_n0_n1_k1_ =
+                    GridwiseGemm::MakeBK0N0N1K1GridDescriptor(b_grid_desc_k0_n_k1_);
+                c_grid_desc_m0_m10_m11_n0_n10_n11_ =
+                    GridwiseGemm::MakeCM0M10M11N0N10N11GridDescriptor(c_grid_desc_m_n_);
 
                 block_2_ctile_map_ =
                     GridwiseGemm::MakeCBlockIdToM0N0BlockClusterAdaptor(c_grid_desc_m_n_);
@@ -292,11 +290,15 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
 
-        AK0M0M1K1GridDesc a_k0_m0_m1_k1_grid_desc;
-        BK0N0N1K1GridDesc b_k0_n0_n1_k1_grid_desc;
-        CM0M10M11N0N10N11GridDesc c_m0_m10_m11_n0_n10_n11_grid_desc;
+        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
+        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
+        CGridDesc_M_N c_grid_desc_m_n_;
 
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1_;
+        BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1_;
+        CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11_;
+
+        DefaultBlock2CTileMap block_2_ctile_map_;
 
         index_t M01_;
         index_t N01_;
@@ -309,36 +311,35 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdl::Argument;
+        using Argument = DeviceGemmDlops::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
             {
-                std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
-                          << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
+                std::cout << "arg.a_grid_desc_k0_m0_m1_k1_{"
+                          << arg.a_grid_desc_k0_m0_m1_k1_.GetLength(I0) << ", "
+                          << arg.a_grid_desc_k0_m0_m1_k1_.GetLength(I1) << ", "
+                          << arg.a_grid_desc_k0_m0_m1_k1_.GetLength(I2) << "}" << std::endl;
 
-                std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
+                std::cout << "arg.b_grid_desc_k0_n0_n1_k1_{"
+                          << arg.b_grid_desc_k0_n0_n1_k1_.GetLength(I0) << ", "
+                          << arg.b_grid_desc_k0_n0_n1_k1_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_k0_n0_n1_k1_.GetLength(I2) << "}" << std::endl;
 
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
 
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                            arg.b_grid_desc_k0_n_k1_,
-                                            arg.c_grid_desc_m_n_,
-                                            arg.M01_,
-                                            arg.N01_))
+            if(!GridwiseGemm::CheckValidity(
+                   arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_.GetLength(I0), arg.c_grid_desc_m_n_.GetLength(I1));
 
-            const auto K0                    = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
+            const auto K0                    = arg.a_grid_desc_k0_m0_m1_k1_.GetLength(I0);
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K0);
             const bool has_double_tail_k_block_loop =
                 GridwiseGemm::CalculateHasDoubleTailKBlockLoop(K0);
@@ -351,10 +352,10 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                     kernel_gemm_dlops_v1r3<GridwiseGemm,
                                            ADataType,
                                            CDataType,
-                                           remove_reference_t<AK0M0M1K1GridDesc>,
-                                           remove_reference_t<BK0N0N1K1GridDesc>,
-                                           remove_reference_t<CM0M10M11N0N10N11GridDesc>,
-                                           remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                           remove_reference_t<AGridDesc_K0_M0_M1_K1>,
+                                           remove_reference_t<BGridDesc_K0_N0_N1_K1>,
+                                           remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
+                                           remove_reference_t<DefaultBlock2CTileMap>,
                                            true,
                                            true>;
 
@@ -369,7 +370,7 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                                                   arg.a_grid_desc_k0_m0_m1_k1_,
                                                   arg.b_grid_desc_k0_n0_n1_k1_,
                                                   arg.c_grid_desc_m0_m10_m11_n0_n10_n11_,
-                                                  arg.cblockid_to_m0_n0_block_cluster_adaptor_);
+                                                  arg.block_2_ctile_map_);
             }
             else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
             {
@@ -377,10 +378,10 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                     kernel_gemm_dlops_v1r3<GridwiseGemm,
                                            ADataType,
                                            CDataType,
-                                           remove_reference_t<AK0M0M1K1GridDesc>,
-                                           remove_reference_t<BK0N0N1K1GridDesc>,
-                                           remove_reference_t<CM0M10M11N0N10N11GridDesc>,
-                                           remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                           remove_reference_t<AGridDesc_K0_M0_M1_K1>,
+                                           remove_reference_t<BGridDesc_K0_N0_N1_K1>,
+                                           remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
+                                           remove_reference_t<DefaultBlock2CTileMap>,
                                            true,
                                            false>;
 
@@ -395,7 +396,7 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                                                   arg.a_grid_desc_k0_m0_m1_k1_,
                                                   arg.b_grid_desc_k0_n0_n1_k1_,
                                                   arg.c_grid_desc_m0_m10_m11_n0_n10_n11_,
-                                                  arg.cblockid_to_m0_n0_block_cluster_adaptor_);
+                                                  arg.block_2_ctile_map_);
             }
             else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
             {
@@ -403,10 +404,10 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                     kernel_gemm_dlops_v1r3<GridwiseGemm,
                                            ADataType,
                                            CDataType,
-                                           remove_reference_t<AK0M0M1K1GridDesc>,
-                                           remove_reference_t<BK0N0N1K1GridDesc>,
-                                           remove_reference_t<CM0M10M11N0N10N11GridDesc>,
-                                           remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                           remove_reference_t<AGridDesc_K0_M0_M1_K1>,
+                                           remove_reference_t<BGridDesc_K0_N0_N1_K1>,
+                                           remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
+                                           remove_reference_t<DefaultBlock2CTileMap>,
                                            false,
                                            true>;
 
@@ -421,7 +422,7 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                                                   arg.a_grid_desc_k0_m0_m1_k1_,
                                                   arg.b_grid_desc_k0_n0_n1_k1_,
                                                   arg.c_grid_desc_m0_m10_m11_n0_n10_n11_,
-                                                  arg.cblockid_to_m0_n0_block_cluster_adaptor_);
+                                                  arg.block_2_ctile_map_);
             }
             else
             {
@@ -429,10 +430,10 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                     kernel_gemm_dlops_v1r3<GridwiseGemm,
                                            ADataType,
                                            CDataType,
-                                           remove_reference_t<AK0M0M1K1GridDesc>,
-                                           remove_reference_t<BK0N0N1K1GridDesc>,
-                                           remove_reference_t<CM0M10M11N0N10N11GridDesc>,
-                                           remove_reference_t<CBlockIdToM0N0BlockClusterAdaptor>,
+                                           remove_reference_t<AGridDesc_K0_M0_M1_K1>,
+                                           remove_reference_t<BGridDesc_K0_N0_N1_K1>,
+                                           remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
+                                           remove_reference_t<DefaultBlock2CTileMap>,
                                            false,
                                            false>;
 
@@ -447,7 +448,7 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
                                                   arg.a_grid_desc_k0_m0_m1_k1_,
                                                   arg.b_grid_desc_k0_n0_n1_k1_,
                                                   arg.c_grid_desc_m0_m10_m11_n0_n10_n11_,
-                                                  arg.cblockid_to_m0_n0_block_cluster_adaptor_);
+                                                  arg.block_2_ctile_map_);
             }
 
             return ave_time;
@@ -468,11 +469,8 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+        return GridwiseGemm::CheckValidity(
+            arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
     }
 
     // polymorphic
@@ -555,17 +553,16 @@ struct DeviceGemmDlops : public DeviceGemm<AElementwiseOperation, BElementwiseOp
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmXdl"
+        str << "DeviceGemmDlops"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "
             << K1 << ", "
-            << MPerXDL << ", "
-            << NPerXDL << ", "
-            << MXdlPerWave << ", "
-            << NXdlPerWave
+            << M1PerThread << ", "
+            << N1PerThread << ", "
+            << KPerThread
             << ">";
         // clang-format on
 

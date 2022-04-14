@@ -1,4 +1,4 @@
-add_test_executable(test_gemm_dlops_fp32 gemm_fp32.cpp)
+add_test_executable(test_gemm_dlops_fp32 gemm_dlops_fp32.cpp)
 target_link_libraries(test_gemm_dlops_fp32 PRIVATE host_tensor)
 target_link_libraries(test_gemm_dlops_fp32 PRIVATE device_gemm_dlops_instance)
 

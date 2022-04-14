@@ -3,7 +3,7 @@
 
 #include "common_header.hpp"
 #include "tensor_adaptor.hpp"
-#include "threadwise_tensor_slice_transfer_v2.hpp"
+#include "threadwise_tensor_slice_transfer_v4r1.hpp"
 #include "threadwise_contraction_dlops.hpp"
 
 namespace ck {

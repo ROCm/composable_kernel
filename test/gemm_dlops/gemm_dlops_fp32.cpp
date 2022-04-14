@@ -6,7 +6,7 @@
 #include <tuple>
 #include <vector>
 
-#include "gemm_util.hpp"
+#include "../gemm/gemm_util.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -15,7 +15,6 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
-#include "device_gemm_dlops_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"

@@ -7,8 +7,9 @@
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_dlops_v2r3.hpp"
 #include "blockwise_tensor_slice_transfer_v5r1.hpp"
-#include "threadwise_tensor_slice_transfer_v2.hpp"
+#include "threadwise_tensor_slice_transfer.hpp"
 #include "threadwise_tensor_slice_set.hpp"
+#include "element_wise_operation.hpp"
 
 namespace ck {
 
@@ -327,7 +328,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
             ABlockTransferThreadClusterArrangeOrder,
             FloatAB,
             FloatAB,
-            decltype(a_k0_m0_m1_k1_grid_desc),
+            remove_reference_t<decltype(a_k0_m0_m1_k1_grid_desc)>,
             decltype(a_k0_m0_m1_k1_block_desc),
             ABlockTransferSrcAccessOrder,
             Sequence<0, 1, 2, 3>,
@@ -351,7 +352,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
             BBlockTransferThreadClusterArrangeOrder,
             FloatAB,
             FloatAB,
-            decltype(b_k0_n0_n1_k1_grid_desc),
+            remove_reference_t<decltype(b_k0_n0_n1_k1_grid_desc)>,
             decltype(b_k0_n0_n1_k1_block_desc),
             BBlockTransferSrcAccessOrder,
             Sequence<0, 1, 2, 3>,
@@ -498,10 +499,8 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
         // LDS double buffer: tail
         if constexpr(HasDoubleTailKBlockLoop) // if has 2 iteration left
         {
-            a_blockwise_copy.MoveSrcSliceWindow(
-                a_k0_m0_m1_k1_grid_desc, a_block_slice_copy_step);
-            b_blockwise_copy.MoveSrcSliceWindow(
-                b_k0_n0_n1_k1_grid_desc, b_block_slice_copy_step);
+            a_blockwise_copy.MoveSrcSliceWindow(a_k0_m0_m1_k1_grid_desc, a_block_slice_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_k0_n0_n1_k1_grid_desc, b_block_slice_copy_step);
 
             __syncthreads();
 
@@ -552,6 +551,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
                 FloatC,
                 decltype(c_m0_m10_m11_n0_n10_n11_thread_desc),
                 decltype(c_m0_m10_m11_n0_n10_n11_grid_desc),
+                ck::tensor_operation::element_wise::PassThrough,
                 Sequence<1,
                          c_m10_m11_n10_n11_thread_tensor_lengths[I0],
                          c_m10_m11_n10_n11_thread_tensor_lengths[I1],
@@ -569,7 +569,8 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
                                        c_m10_m11_n10_n11_thread_origin_idx_on_block[I1],
                                        in0,
                                        c_m10_m11_n10_n11_thread_origin_idx_on_block[I2],
-                                       c_m10_m11_n10_n11_thread_origin_idx_on_block[I3])}
+                                       c_m10_m11_n10_n11_thread_origin_idx_on_block[I3]),
+                      ck::tensor_operation::element_wise::PassThrough{}}
                 .Run(c_m0_m10_m11_n0_n10_n11_thread_desc,
                      make_tuple(I0, I0, I0, I0, I0, I0),
                      c_thread_buf,
