@@ -29,6 +29,8 @@ struct DeviceAlignedMemCPU
     DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment);
     void* GetDeviceBuffer();
     std::size_t GetBufferSize();
+    void ToDevice(const void* p);
+    void FromDevice(void* p);
     void SetZero();
     ~DeviceAlignedMemCPU();
 
@@ -108,4 +110,27 @@ float launch_and_time_kernel(
 
     return timer.GetElapsedTime() / nrepeat;
 }
+
+template <typename... Args, typename F>
+void launch_cpu_kernel(F kernel, Args... args)
+{
+    kernel(args...);
+}
+
+template <typename... Args, typename F>
+float launch_and_time_cpu_kernel(F kernel, int nrepeat, Args... args)
+{
+    WallTimer timer;
+    kernel(args...);
+
+    timer.Start();
+    for(int i = 0; i < nrepeat; i++)
+    {
+        kernel(args...);
+    }
+    timer.End();
+
+    return timer.GetElapsedTime() / nrepeat;
+}
+
 #endif

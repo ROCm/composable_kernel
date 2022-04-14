@@ -34,7 +34,7 @@
 #include "is_known_at_compile_time.hpp"
 #include "transpose_vectors.hpp"
 #include "inner_product.hpp"
-#include "element_wise_operation.hpp"
+// #include "element_wise_operation.hpp"
 #include "debug.hpp"
 
 // TODO: remove this

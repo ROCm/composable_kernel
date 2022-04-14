@@ -45,6 +45,10 @@ void* DeviceAlignedMemCPU::GetDeviceBuffer() { return mpDeviceBuf; }
 
 std::size_t DeviceAlignedMemCPU::GetBufferSize() { return mMemSize; }
 
+void DeviceAlignedMemCPU::ToDevice(const void* p) { memcpy(mpDeviceBuf, p, mMemSize); }
+
+void DeviceAlignedMemCPU::FromDevice(void* p) { memcpy(p, mpDeviceBuf, mMemSize); }
+
 void DeviceAlignedMemCPU::SetZero() { memset(mpDeviceBuf, 0, mMemSize); }
 
 DeviceAlignedMemCPU::~DeviceAlignedMemCPU() { free((reinterpret_cast<void**>(mpDeviceBuf))[-1]); }

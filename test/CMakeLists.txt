@@ -10,7 +10,11 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/device
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/grid
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/block
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/thread
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/element
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
@@ -32,6 +36,7 @@ function(add_test_executable TEST_NAME)
     add_dependencies(check ${TEST_NAME})
 endfunction(add_test_executable TEST_NAME)
 
+
 add_subdirectory(magic_number_division)
 add_subdirectory(space_filling_curve)
 add_subdirectory(conv_util)
@@ -45,3 +50,5 @@ add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(cpu_ukernel)
+add_subdirectory(cpu_threadwise_transfer)
+add_subdirectory(convnd_fwd_cpu)

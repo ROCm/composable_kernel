@@ -1,0 +1,10 @@
+# device_conv2d_fwd_cpu_instance
+set(DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE
+   device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_instance.cpp
+)
+add_library(device_conv2d_fwd_cpu_instance SHARED ${DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE}) 
+target_compile_features(device_conv2d_fwd_cpu_instance PUBLIC)
+set_target_properties(device_conv2d_fwd_cpu_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_conv2d_fwd_cpu_instance LIBRARY DESTINATION lib) 
+
+clang_tidy_check(device_conv2d_fwd_cpu_instance)

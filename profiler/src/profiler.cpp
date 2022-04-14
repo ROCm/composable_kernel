@@ -69,6 +69,10 @@ int main(int argc, char* argv[])
     {
         return profile_conv_fwd_bias_relu_atomic_add(argc, argv);
     }
+    else if(strcmp(argv[1], "conv_fwd_cpu") == 0)
+    {
+        return profile_conv_fwd_cpu(argc, argv);
+    }
     else if(strcmp(argv[1], "conv1d_bwd_data") == 0)
     {
         return profile_convnd_bwd_data(argc, argv, 1);
@@ -98,6 +102,7 @@ int main(int argc, char* argv[])
                "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
                "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
                "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
+               "                        conv_fwd_cpu: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
                "                        conv1d_bwd_data: BackwardConvolution data 1 dim\n"
                "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
                "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"

@@ -5,12 +5,22 @@
 #include <immintrin.h>
 #endif
 #include "common_header.hpp"
-#include "tensor_layout.hpp"
+#include "../../gpu/device/tensor_layout.hpp"
 #include "math.hpp"
 #include "threadwise_param.hpp"
 
 namespace ck {
 namespace cpu {
+
+#if 0
+struct ThreadWiseGemmAvx2_Base {
+    virtual void Run(ThreadwiseGemmParam* param) = 0;
+    virtual index_t GetMr() const = 0;
+    virtual index_t GetMaxMr() const = 0;
+    virtual index_t GetNr() const = 0;
+    virtual index_t GetMaxNr() const = 0;
+};
+#endif
 
 template <typename FloatA,
           typename FloatB,
@@ -22,17 +32,17 @@ template <typename FloatA,
           bool NonTemporalStore>
 struct ThreadwiseGemmAvx2_MxN_6x16
 {
-    using ALayout_                          = ALayout;
-    using BLayout_                          = BLayout;
-    static constexpr auto Mr_               = Mr;
-    static constexpr auto Nr_               = Nr;
-    static constexpr auto NonTemporalStore_ = NonTemporalStore;
+    using MatrixALayout                 = ALayout;
+    using MatrixBLayout                 = BLayout;
+    static constexpr auto ThreadMaxMr   = 6;
+    static constexpr auto ThreadMaxNr   = 16;
+    static constexpr auto ThreadMr      = Mr;
+    static constexpr auto ThreadNr      = Nr;
+    static constexpr auto ThreadNTStore = NonTemporalStore;
 
-    __host__ constexpr ThreadwiseGemmAvx2_MxN_6x16()
-    {
-        static_assert(Mr <= 6 && Mr >= 1 && (Nr == 8 || Nr == 16), "wrong! Mr x Nr not valid");
-    }
-    __host__ static void Run(ThreadwiseGemmParam* param)
+    static_assert(Mr <= 6 && Mr >= 1 && (Nr == 8 || Nr == 16), "wrong! Mr x Nr not valid");
+
+    static void Run(ThreadwiseGemmParam* param)
     {
         /*  6x16 ukernel
          *
@@ -563,18 +573,18 @@ template <typename FloatA,
           bool NonTemporalStore>
 struct ThreadwiseGemmAvx2_MxN_4x24
 {
-    using ALayout_                          = ALayout;
-    using BLayout_                          = BLayout;
-    static constexpr auto Mr_               = Mr;
-    static constexpr auto Nr_               = Nr;
-    static constexpr auto NonTemporalStore_ = NonTemporalStore;
+    using MatrixALayout                 = ALayout;
+    using MatrixBLayout                 = BLayout;
+    static constexpr auto ThreadMaxMr   = 4;
+    static constexpr auto ThreadMaxNr   = 24;
+    static constexpr auto ThreadMr      = Mr;
+    static constexpr auto ThreadNr      = Nr;
+    static constexpr auto ThreadNTStore = NonTemporalStore;
 
-    __host__ constexpr ThreadwiseGemmAvx2_MxN_4x24()
-    {
-        static_assert(Mr <= 4 && Mr >= 1 && (Nr == 8 || Nr == 16 || Nr == 24),
-                      "wrong! Mr x Nr not valid");
-    }
-    __host__ static void Run(ThreadwiseGemmParam* param)
+    static_assert(Mr <= 4 && Mr >= 1 && (Nr == 8 || Nr == 16 || Nr == 24),
+                  "wrong! Mr x Nr not valid");
+
+    static void Run(ThreadwiseGemmParam* param)
     {
         /*  4x24 ukernel
          *
@@ -820,18 +830,18 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             ".if (m_Mr > 2)\n lea  (%%rbx, %%rdi, 1), %%rcx\n .endif\n"
             ".if (m_Mr > 3)\n lea  (%%rcx, %%rdi, 1), %%rdx\n .endif\n"
 
-            "                               vaddps  (%%rax),    %%ymm0,  %%ymm0 \n"
-            ".if               (m_Nr > 8)\n vaddps  32(%%rax),  %%ymm1,  %%ymm1 \n .endif\n"
-            ".if               (m_Nr >16)\n vaddps  64(%%rax),  %%ymm2,  %%ymm2 \n .endif\n"
-            ".if (m_Mr > 1)              \n vaddps  (%%rbx),    %%ymm3,  %%ymm3 \n .endif\n"
-            ".if (m_Mr > 1) && (m_Nr > 8)\n vaddps  32(%%rbx),  %%ymm4,  %%ymm4 \n .endif\n"
-            ".if (m_Mr > 1) && (m_Nr >16)\n vaddps  64(%%rbx),  %%ymm5,  %%ymm5 \n .endif\n"
-            ".if (m_Mr > 2)              \n vaddps  (%%rcx),    %%ymm6,  %%ymm6 \n .endif\n"
-            ".if (m_Mr > 2) && (m_Nr > 8)\n vaddps  32(%%rcx),  %%ymm7,  %%ymm7 \n .endif\n"
-            ".if (m_Mr > 2) && (m_Nr >16)\n vaddps  64(%%rcx),  %%ymm8,  %%ymm8 \n .endif\n"
-            ".if (m_Mr > 3)              \n vaddps  (%%rdx),    %%ymm9,  %%ymm9 \n .endif\n"
-            ".if (m_Mr > 3) && (m_Nr > 8)\n vaddps  32(%%rdx),  %%ymm10, %%ymm10\n .endif\n"
-            ".if (m_Mr > 3) && (m_Nr >16)\n vaddps  64(%%rdx),  %%ymm11, %%ymm11\n .endif\n"
+            // "                               vaddps  (%%rax),    %%ymm0,  %%ymm0 \n"
+            // ".if               (m_Nr > 8)\n vaddps  32(%%rax),  %%ymm1,  %%ymm1 \n .endif\n"
+            // ".if               (m_Nr >16)\n vaddps  64(%%rax),  %%ymm2,  %%ymm2 \n .endif\n"
+            // ".if (m_Mr > 1)              \n vaddps  (%%rbx),    %%ymm3,  %%ymm3 \n .endif\n"
+            // ".if (m_Mr > 1) && (m_Nr > 8)\n vaddps  32(%%rbx),  %%ymm4,  %%ymm4 \n .endif\n"
+            // ".if (m_Mr > 1) && (m_Nr >16)\n vaddps  64(%%rbx),  %%ymm5,  %%ymm5 \n .endif\n"
+            // ".if (m_Mr > 2)              \n vaddps  (%%rcx),    %%ymm6,  %%ymm6 \n .endif\n"
+            // ".if (m_Mr > 2) && (m_Nr > 8)\n vaddps  32(%%rcx),  %%ymm7,  %%ymm7 \n .endif\n"
+            // ".if (m_Mr > 2) && (m_Nr >16)\n vaddps  64(%%rcx),  %%ymm8,  %%ymm8 \n .endif\n"
+            // ".if (m_Mr > 3)              \n vaddps  (%%rdx),    %%ymm9,  %%ymm9 \n .endif\n"
+            // ".if (m_Mr > 3) && (m_Nr > 8)\n vaddps  32(%%rdx),  %%ymm10, %%ymm10\n .endif\n"
+            // ".if (m_Mr > 3) && (m_Nr >16)\n vaddps  64(%%rdx),  %%ymm11, %%ymm11\n .endif\n"
 
             ".if m_NTStore == 0\n"
             "                               vmovups %%ymm0,     (%%rax)  \n"
@@ -1087,6 +1097,304 @@ struct ThreadwiseGemmAvx2_MxN_4x24
         }
         // clang-format on
 #endif
+    }
+};
+
+typedef void (*pThreadwiseGemmAvx2Run)(ThreadwiseGemmParam*);
+
+template <typename FloatA,
+          typename FloatB,
+          typename FloatC,
+          typename ALayout, // default is k*m, trans->m*k
+          typename BLayout, // default is n/8*k*n8, trans->k*n
+          bool NonTemporalStore>
+struct ThreadwiseGemmAvx2_MxN_6x16_Dispatch
+{
+    using MatrixALayout               = ALayout;
+    using MatrixBLayout               = BLayout;
+    static constexpr auto ThreadMaxMr = 6;
+    static constexpr auto ThreadMaxNr = 16;
+    // static constexpr auto ThreadMr          = Mr;
+    // static constexpr auto ThreadNr          = Nr;
+    static constexpr auto ThreadNTStore = NonTemporalStore;
+    static constexpr auto MatrixAMinVectorSize =
+        std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value ? 1 : 8;
+    static constexpr auto MatrixBMinVectorSize =
+        std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value ? 8 : 8;
+
+    using ThreadwiseGemm_6x16_t = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              6,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_6x8_t  = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             6,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_5x16_t = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              5,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_5x8_t  = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             5,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_4x16_t = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              4,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_4x8_t  = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             4,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_3x16_t = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              3,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_3x8_t  = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             3,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_2x16_t = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              2,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_2x8_t  = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             2,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_1x16_t = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              1,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_1x8_t  = ThreadwiseGemmAvx2_MxN_6x16<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             1,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+
+    static constexpr pThreadwiseGemmAvx2Run dispatch_table[6][2] = {
+        {
+            ThreadwiseGemm_6x16_t::Run,
+            ThreadwiseGemm_6x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_5x16_t::Run,
+            ThreadwiseGemm_5x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_4x16_t::Run,
+            ThreadwiseGemm_4x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_3x16_t::Run,
+            ThreadwiseGemm_3x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_2x16_t::Run,
+            ThreadwiseGemm_2x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_1x16_t::Run,
+            ThreadwiseGemm_1x8_t::Run,
+        },
+    };
+
+    static void Run(ThreadwiseGemmParam* param, index_t mr, index_t nr)
+    {
+        return dispatch_table[mr][nr](param);
+    }
+};
+
+template <typename FloatA,
+          typename FloatB,
+          typename FloatC,
+          typename ALayout, // default is k*m, trans->m*k
+          typename BLayout, // default is n/8*k*n8, trans->k*n
+          bool NonTemporalStore>
+struct ThreadwiseGemmAvx2_MxN_4x24_Dispatch
+{
+    using MatrixALayout               = ALayout;
+    using MatrixBLayout               = BLayout;
+    static constexpr auto ThreadMaxMr = 4;
+    static constexpr auto ThreadMaxNr = 24;
+    // static constexpr auto ThreadMr          = Mr;
+    // static constexpr auto ThreadNr          = Nr;
+    static constexpr auto ThreadNTStore = NonTemporalStore;
+    static constexpr auto MatrixAMinVectorSize =
+        std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value ? 1 : 8;
+    static constexpr auto MatrixBMinVectorSize =
+        std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value ? 8 : 8;
+
+    using ThreadwiseGemm_4x24_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              4,
+                                                              24,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_4x16_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              4,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_4x8_t  = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             4,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_3x24_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              3,
+                                                              24,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_3x16_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              3,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_3x8_t  = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             3,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_2x24_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              2,
+                                                              24,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_2x16_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              2,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_2x8_t  = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             2,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+    using ThreadwiseGemm_1x24_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              1,
+                                                              24,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_1x16_t = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                              FloatB,
+                                                              FloatC,
+                                                              1,
+                                                              16,
+                                                              ALayout,
+                                                              BLayout,
+                                                              NonTemporalStore>;
+    using ThreadwiseGemm_1x8_t  = ThreadwiseGemmAvx2_MxN_4x24<FloatA,
+                                                             FloatB,
+                                                             FloatC,
+                                                             1,
+                                                             8,
+                                                             ALayout,
+                                                             BLayout,
+                                                             NonTemporalStore>;
+
+    static constexpr pThreadwiseGemmAvx2Run dispatch_table[4][3] = {
+        {
+            ThreadwiseGemm_4x24_t::Run,
+            ThreadwiseGemm_4x16_t::Run,
+            ThreadwiseGemm_4x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_3x24_t::Run,
+            ThreadwiseGemm_3x16_t::Run,
+            ThreadwiseGemm_3x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_2x24_t::Run,
+            ThreadwiseGemm_2x16_t::Run,
+            ThreadwiseGemm_2x8_t::Run,
+        },
+        {
+            ThreadwiseGemm_1x24_t::Run,
+            ThreadwiseGemm_1x16_t::Run,
+            ThreadwiseGemm_1x8_t::Run,
+        },
+    };
+
+    static void Run(ThreadwiseGemmParam* param, index_t mr, index_t nr)
+    {
+        return dispatch_table[mr][nr](param);
     }
 };
 
