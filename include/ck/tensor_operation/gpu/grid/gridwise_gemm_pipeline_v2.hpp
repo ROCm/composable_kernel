@@ -71,35 +71,35 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
 
     static __device__ void RunABBlockTransferPipeline(const AGridDesc& a_grid_desc,
                                                       const ABlockDesc& a_block_desc,
-                                                      ABlockTransfer& a_blockwise_copy,
+                                                      ABlockTransfer& a_block_copy,
                                                       const AGridBuffer& a_grid_buf,
                                                       ABlockBuffer& a_block_buf,
                                                       const ABlockTransferStep& a_block_copy_step,
                                                       const BGridDesc& b_grid_desc,
                                                       const BBlockDesc& b_block_desc,
-                                                      BBlockTransfer& b_blockwise_copy,
+                                                      BBlockTransfer& b_block_copy,
                                                       const BGridBuffer& b_grid_buf,
                                                       BBlockBuffer& b_block_buf,
                                                       const BBlockTransferStep& b_block_copy_step,
                                                       index_t num_loop)
     {
         // global read 0
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+        a_block_copy.RunRead(a_grid_desc, a_grid_buf);
+        b_block_copy.RunRead(b_grid_desc, b_grid_buf);
 
         // move to 1
-        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+        a_block_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_block_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // LDS write 0
-        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+        a_block_copy.RunWrite(a_block_desc, a_block_buf);
         // global Read 1
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+        a_block_copy.RunRead(a_grid_desc, a_grid_buf);
 
         // LDS write 0
-        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+        b_block_copy.RunWrite(b_block_desc, b_block_buf);
         // global Read 1
-        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+        b_block_copy.RunRead(b_grid_desc, b_grid_buf);
 
         // main body
         // FIXME: HasMainLoop = (num_loop) > 2
@@ -116,18 +116,18 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
                 block_sync_lds();
 
                 // move to i + 2
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                a_block_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_block_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                 // LDS write i + 1
-                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+                a_block_copy.RunWrite(a_block_desc, a_block_buf);
                 // global read i + 2
-                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+                a_block_copy.RunRead(a_grid_desc, a_grid_buf);
 
                 // LDS write i + 1
-                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+                b_block_copy.RunWrite(b_block_desc, b_block_buf);
                 // global read i + 2
-                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+                b_block_copy.RunRead(b_grid_desc, b_grid_buf);
 
                 ++i;
             } while(i < (num_loop - 2));
@@ -142,8 +142,8 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
             block_sync_lds();
 
             // LDS write num_loop - 1
-            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-            b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+            a_block_copy.RunWrite(a_block_desc, a_block_buf);
+            b_block_copy.RunWrite(b_block_desc, b_block_buf);
 
             block_sync_lds();
 
@@ -153,7 +153,7 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
 
     static __device__ void RunBlockGemmPipeline(ABlockBuffer& a_block_buf,
                                                 BBlockBuffer& b_block_buf,
-                                                const BlockwiseGemm& blockwise_gemm,
+                                                const BlockwiseGemm& block_gemm,
                                                 CThreadBuffer& c_thread_buf,
                                                 index_t num_loop)
     {
@@ -171,7 +171,7 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
                 block_sync_lds();
 
                 // GEMM i
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+                block_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
                 block_sync_lds();
 
@@ -192,7 +192,7 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
             block_sync_lds();
 
             // GEMM num_loop - 2
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+            block_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
             block_sync_lds();
 
@@ -201,46 +201,45 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
             block_sync_lds();
 
             // GEMM num_loop - 1
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+            block_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
         }
     }
 
     static __device__ void Run(const AGridDesc& a_grid_desc,
                                const ABlockDesc& a_block_desc,
-                               ABlockTransfer& a_blockwise_copy,
+                               ABlockTransfer& a_block_copy,
                                const AGridBuffer& a_grid_buf,
                                ABlockBuffer& a_block_buf,
                                const ABlockTransferStep& a_block_copy_step,
                                const BGridDesc& b_grid_desc,
                                const BBlockDesc& b_block_desc,
-                               BBlockTransfer& b_blockwise_copy,
+                               BBlockTransfer& b_block_copy,
                                const BGridBuffer& b_grid_buf,
                                BBlockBuffer& b_block_buf,
                                const BBlockTransferStep& b_block_copy_step,
-                               const BlockwiseGemm& blockwise_gemm,
+                               const BlockwiseGemm& block_gemm,
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
     {
         if(ABBlockTransferThreadGroup::IsBelong())
         {
-            gridwise_gemm_pipeline.RunABBlockTransferPipeline(a_grid_desc_ak0_m_ak1,
-                                                              a_block_desc_ak0_m_ak1,
-                                                              a_blockwise_copy,
-                                                              a_grid_buf,
-                                                              a_block_buf,
-                                                              a_block_slice_copy_step,
-                                                              b_grid_desc_bk0_n_bk1,
-                                                              b_block_desc_bk0_n_bk1,
-                                                              b_blockwise_copy,
-                                                              b_grid_buf,
-                                                              b_block_buf,
-                                                              b_block_slice_copy_step,
-                                                              num_loop);
+            RunABBlockTransferPipeline(a_grid_desc,
+                                       a_block_desc,
+                                       a_block_copy,
+                                       a_grid_buf,
+                                       a_block_buf,
+                                       a_block_copy_step,
+                                       b_grid_desc,
+                                       b_block_desc,
+                                       b_block_copy,
+                                       b_grid_buf,
+                                       b_block_buf,
+                                       b_block_copy_step,
+                                       num_loop);
         }
         else if(BlockGemmThreadGroup::IsBelong())
         {
-            gridwise_gemm_pipeline.RunBlockGemmPipeline(
-                a_block_buf, b_block_buf, blockwise_gemm, c_thread_buf, num_loop);
+            RunBlockGemmPipeline(a_block_buf, b_block_buf, block_gemm, c_thread_buf, num_loop);
         }
     }
 };
