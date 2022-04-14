@@ -90,7 +90,7 @@ int main(int, char*[])
         HostTensorDescriptor(std::vector<std::size_t>({N, K}), std::vector<std::size_t>({K, 1})));
 
     // init data
-    src_n_k_host.GenerateTensorValue(GeneratorTensor_2<SrcDataType>{-5, 5});
+    src_n_k_host.GenerateTensorValue(GeneratorTensor_3<SrcDataType>{-5, 5});
     dst_n_k_host_result.GenerateTensorValue(GeneratorTensor_1<DstDataType>{0});
     dst_n_k_device_result.GenerateTensorValue(GeneratorTensor_1<DstDataType>{0});
 
@@ -113,7 +113,7 @@ int main(int, char*[])
     pass = ck::utils::check_err(dst_n_k_device_result.mData, dst_n_k_host_result.mData);
 
     // run kernel to tanspos and convert data
-    gpu_transpose_convert_data<<<1, thread_num>>>(
+    gpu_transpose_convert_data<<<1, thread_num / 2>>>(
         static_cast<SrcDataType*>(in_dev_buf.GetDeviceBuffer()),
         static_cast<DstDataType*>(out_dev_buf.GetDeviceBuffer()),
         src_n_k_host.mDesc.GetElementSpace(),

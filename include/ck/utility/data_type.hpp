@@ -996,7 +996,6 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, float>(float x)
 template <>
 inline __host__ __device__ bhalf_t type_convert<bhalf_t, half_t>(half_t x)
 {
-#if 0
     union
     {
         float fp32;
@@ -1004,21 +1003,6 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, half_t>(half_t x)
     } u = {static_cast<float>(x)};
 
     return uint16_t(u.int32 >> 16);
-#else
-    float yv0;
-    bhalf_t y;
-    asm volatile("\n \
-            v_cvt_f32_f16 %0, %1 \n \
-            "
-                 : "=v"(yv0)
-                 : "v"(x));
-    asm volatile("\n \
-            v_lshrrev_b32_e32 %0, 16, %1 \n \
-            "
-                 : "=v"(y)
-                 : "v"(yv0));
-    return y;
-#endif
 }
 
 template <>
