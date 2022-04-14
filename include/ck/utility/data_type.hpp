@@ -992,6 +992,57 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, float>(float x)
     return uint16_t(u.int32 >> 16);
 }
 
+// convert fp16 to bf16
+template <>
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, half_t>(half_t x)
+{
+#if 1
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {static_cast<float>(x)};
+
+    return uint16_t(u.int32 >> 16);
+#else
+    float yv0;
+    bhalf_t y;
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 \n \
+            "
+                 : "=v"(yv0)
+                 : "v"(x));
+    asm volatile("\n \
+            v_lshrrev_b32_e32 %0, 16, %1 \n \
+            "
+                 : "=v"(y)
+                 : "v"(yv0));
+    return y;
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, half2_t>(half2_t x)
+{
+    float y0{0}, y1{0}, y{0};
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 \n \
+            "
+                 : "=v"(y0)
+                 : "v"(x));
+    asm volatile("\n \
+            v_cvt_f32_f16 %0, %1 src0_sel:WORD_1\n \
+            "
+                 : "=v"(y1)
+                 : "v"(x));
+    asm volatile("\n \
+            v_pack_b32_f16 %0, %1, %2 op_sel:[1, 1] \n \
+            "
+                 : "=v"(y)
+                 : "v"(y0), "v"(y1));
+    return y;
+}
+
 // TODO: deprecate this
 template <typename T>
 struct inner_product_with_conversion
@@ -1086,5 +1137,18 @@ struct NumericLimits<half_t>
 
     __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
 };
+
+template <typename T>
+struct TypeMap
+{
+    using type = T;
+};
+//#ifdef __gfx90a__
+template <>
+struct TypeMap<ck::half_t>
+{
+    using type = ck::bhalf_t;
+};
+//#endif
 
 } // namespace ck
