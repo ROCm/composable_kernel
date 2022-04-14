@@ -996,7 +996,7 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, float>(float x)
 template <>
 inline __host__ __device__ bhalf_t type_convert<bhalf_t, half_t>(half_t x)
 {
-#if 1
+#if 0
     union
     {
         float fp32;

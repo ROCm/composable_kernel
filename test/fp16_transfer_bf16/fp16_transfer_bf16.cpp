@@ -28,7 +28,7 @@ __global__ void gpu_convert_data(SrcDataType* in, DstDataType* out, int size)
 
     auto src_data = src_buf.template Get<ck::half2_t>(num, true);
     ck::bhalf2_t dst_data;
-    transfer_half2_to_bhalf2(src_data, dst_data);
+    convert_half2_to_bhalf2(src_data, dst_data);
 
     dst_buf.template Set<ck::bhalf2_t>(num, true, dst_data);
 }
@@ -69,8 +69,8 @@ void host_conver_data(SrcDataType* in, DstDataType* out, size_t len)
 {
     for(int i = 0; i < len; i++)
     {
-        float tmp = static_cast<float>(in[i]);
-        out[i]    = ck::type_convert<DstDataType, float>(tmp);
+        // float tmp = static_cast<float>(in[i]);
+        out[i] = ck::type_convert<ck::bhalf_t, ck::half_t>(in[i]);
     }
 }
 int main(int, char*[])
