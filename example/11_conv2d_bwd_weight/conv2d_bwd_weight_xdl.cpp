@@ -52,19 +52,19 @@ using DeviceConvBwdWeightInstance = ck::tensor_operation::device::
         32,                               // NPerXdl
         2,                                // MXdlPerWave
         2,                                // NXdlPerWave
-        S<1, 4, 16, 4>,                   // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 4, 32, 2>,                   // ABlockTransferThreadClusterLengths_K0_M_K1
         S<0, 3, 1, 2>,                    // ABlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,                    // ABlockTransferSrcAccessOrder
         2,                                // ABlockTransferSrcVectorDim
-        8,                                // ABlockTransferSrcScalarPerVector
-        2,                                // ABlockTransferDstScalarPerVector_K1
+        4,                                // ABlockTransferSrcScalarPerVector
+        4,                                // ABlockTransferDstScalarPerVector_K1
         true,                             // ABlockLdsAddExtraM
-        S<1, 4, 16, 4>,                   // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 4, 32, 2>,                   // BBlockTransferThreadClusterLengths_K0_N_K1
         S<0, 3, 1, 2>,                    // BBlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,                    // BBlockTransferSrcAccessOrder
         2,                                // BBlockTransferSrcVectorDim
-        8,                                // BBlockTransferSrcScalarPerVector
-        2,                                // BBlockTransferDstScalarPerVector_K1
+        4,                                // BBlockTransferSrcScalarPerVector
+        4,                                // BBlockTransferDstScalarPerVector_K1
         true,                             // BBlockLdsAddExtraN
         1,                                // CShuffleMXdlPerWavePerShuffle
         1,                                // CShuffleNXdlPerWavePerShuffle
