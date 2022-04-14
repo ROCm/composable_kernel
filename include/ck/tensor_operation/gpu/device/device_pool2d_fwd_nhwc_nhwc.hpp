@@ -16,7 +16,7 @@ namespace device {
 template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          ck::ReduceTensorOp_t ReduceOpId,
+          ck::ReduceTensorOp ReduceOpId,
           bool NeedIndices,
           ck::index_t BlockSize,
           ck::index_t ReduceMThreadClusterSize,
@@ -181,7 +181,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
             reduce_lowest_length_    = window_spatial_lengths[1];
 
             // TODO: is this correct?
-            if constexpr(ReduceOpId == ck::ReduceTensorOp_t::AVG)
+            if constexpr(ReduceOpId == ck::ReduceTensorOp::AVG)
             {
                 ck::index_t divider = window_spatial_lengths[0] * window_spatial_lengths[1];
                 in_element_op_      = InElementwiseOperation{divider};

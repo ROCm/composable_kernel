@@ -3,6 +3,8 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
 #include "device.hpp"
@@ -22,9 +24,9 @@ using InLayout  = ck::tensor_layout::convolution::NHWC;
 using OutLayout = ck::tensor_layout::convolution::NHWC;
 
 #if 1
-static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::MAX;
+static constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 #else
-static constexpr auto ReduceOpId = ck::ReduceTensorOp_t::AVG;
+static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 #endif
 
 static constexpr bool NeedIndices  = false;
@@ -47,7 +49,7 @@ using DevicePoolFwdInstance =
 template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          ck::ReduceTensorOp_t ReduceOpId,
+          ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool NeedIndices>
 static void pool_host_verify(const Tensor<InDataType>& in,
@@ -300,13 +302,14 @@ int main(int argc, char* argv[])
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        check_error(out_n_c_ho_wo_host, out_n_c_ho_wo_device);
+        ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
 
         if constexpr(NeedIndices)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            //          check_indices(out_indices_n_c_ho_wo_host, out_indices_n_c_ho_wo_device);
+            //          ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
+            //          out_indices_n_c_ho_wo_host.mData);;
         };
     }
 }

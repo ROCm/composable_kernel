@@ -56,7 +56,7 @@ template <typename SrcData,
           typename DimAccessOrder,
           index_t DstVectorDim,
           index_t DstScalarPerVector,
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           index_t DstScalarStrideInVector,
           bool DstResetCoordinateAfterRun,
           typename enable_if<SrcDesc::IsKnownAtCompileTime(), bool>::type = false>
@@ -407,7 +407,7 @@ struct ThreadwiseTensorSliceTransfer_v2
 //   3. src_slice_origin and dst_slice_origin are not known at compile-time,
 //   4. Use thread buffer
 template <typename SliceLengths,
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           typename SrcData,
           typename DstData,
           typename SrcDesc,
@@ -464,8 +464,8 @@ struct ThreadwiseTensorSliceTransfer_v3
     __device__ void
     RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf, const SrcStepHacks& src_step_hacks)
     {
-        static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
-                          SrcBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
+        static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Global or
+                          SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
                       "wrong!");
 
         static_assert(
@@ -621,8 +621,8 @@ struct ThreadwiseTensorSliceTransfer_v3
     __device__ void
     RunWrite(const DstDesc& dst_desc, DstBuffer& dst_buf, const DstStepHacks& dst_step_hacks)
     {
-        static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Global or
-                          DstBuffer::GetAddressSpace() == AddressSpaceEnum_t::Lds,
+        static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Global or
+                          DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
                       "wrong!");
 
         static_assert(
@@ -979,7 +979,7 @@ struct ThreadwiseTensorSliceTransfer_v3
 
     static constexpr auto buffer_size_ = buffer_desc_.GetElementSpaceSize();
 
-    StaticBuffer<AddressSpaceEnum_t::Vgpr, SrcData, buffer_size_, true> buffer_;
+    StaticBuffer<AddressSpaceEnum::Vgpr, SrcData, buffer_size_, true> buffer_;
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;

@@ -17,13 +17,13 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvFwdDefault =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Default;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 static constexpr auto ConvFwd1x1P0 =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Pad0;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0;
 
 static constexpr auto ConvFwd1x1S1P0 =
-    ck::tensor_operation::device::ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0;
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
 
 //------------------------------------------------------------------------------
 //            Conv1D

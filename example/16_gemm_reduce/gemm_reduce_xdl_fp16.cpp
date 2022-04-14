@@ -40,7 +40,7 @@ using D0ReduceOp = ck::tensor_operation::element_wise::ReduceSum;
 using D1ReduceOp = ck::tensor_operation::element_wise::ReduceSquareSum;
 
 static constexpr auto GemmSpecialization =
-    ck::tensor_operation::device::GemmSpecialization_t::Default;
+    ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_Xdl_CShuffle

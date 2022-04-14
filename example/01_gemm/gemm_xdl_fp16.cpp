@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -40,7 +42,7 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization_t::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
@@ -171,22 +173,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // warm up
-    invoker.Run(argument);
-
-    // timing
-    KernelTimer timer;
-
-    timer.Start();
-
-    for(int i = 0; i < nrepeat; ++i)
-    {
-        invoker.Run(argument);
-    }
-
-    timer.End();
-
-    float ave_time = timer.GetElapsedTime() / nrepeat;
+    float ave_time = invoker.Run(argument, nrepeat);
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
@@ -211,7 +198,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        check_error(c_m_n_host_result, c_m_n_device_result);
+        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
     }
 
     return 0;
