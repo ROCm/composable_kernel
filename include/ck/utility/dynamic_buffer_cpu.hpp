@@ -8,7 +8,7 @@
 namespace ck {
 namespace cpu {
 
-template <AddressSpaceEnum_t BufferAddressSpace,
+template <AddressSpaceEnum BufferAddressSpace,
           typename T,
           typename ElementSpaceSize,
           bool InvalidElementUseNumericalZeroValue>
@@ -17,7 +17,7 @@ struct DynamicBuffer
     using type = T;
 
     static_assert(BufferAddressSpace ==
-                  AddressSpaceEnum_t::Global); // only valid for global address space on cpu
+                  AddressSpaceEnum::Global); // only valid for global address space on cpu
 
     T* p_data_;
     ElementSpaceSize element_space_size_;
@@ -35,7 +35,7 @@ struct DynamicBuffer
     {
     }
 
-    static constexpr AddressSpaceEnum_t GetAddressSpace() { return BufferAddressSpace; }
+    static constexpr AddressSpaceEnum GetAddressSpace() { return BufferAddressSpace; }
 
     constexpr const T& operator[](index_t i) const { return p_data_[i]; }
 
@@ -68,18 +68,18 @@ struct DynamicBuffer
         }
     }
 
-    template <InMemoryDataOperationEnum_t Op,
+    template <InMemoryDataOperationEnum Op,
               typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
     void Update(index_t i, bool is_valid_element, const X& x)
     {
-        if constexpr(Op == InMemoryDataOperationEnum_t::Set)
+        if constexpr(Op == InMemoryDataOperationEnum::Set)
         {
             this->template Set<X>(i, is_valid_element, x);
         }
-        else if constexpr(Op == InMemoryDataOperationEnum_t::Add)
+        else if constexpr(Op == InMemoryDataOperationEnum::Add)
         {
             auto tmp = this->template Get<X>(i, is_valid_element);
             this->template Set<X>(i, is_valid_element, x + tmp);
@@ -111,14 +111,14 @@ struct DynamicBuffer
     static constexpr bool IsDynamicBuffer() { return true; }
 };
 
-template <AddressSpaceEnum_t BufferAddressSpace, typename T, typename ElementSpaceSize>
+template <AddressSpaceEnum BufferAddressSpace, typename T, typename ElementSpaceSize>
 constexpr auto make_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
 {
     return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true>{p, element_space_size};
 }
 
 template <
-    AddressSpaceEnum_t BufferAddressSpace,
+    AddressSpaceEnum BufferAddressSpace,
     typename T,
     typename ElementSpaceSize,
     typename X,

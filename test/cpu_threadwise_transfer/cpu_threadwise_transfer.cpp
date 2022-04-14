@@ -209,18 +209,18 @@ int main(int argc, char** argv)
     };
 
     using threadwise_transfer_t = ck::cpu::ThreadwiseTensorSliceTransferAvx2<
-        AType,                                // SrcData
-        AType,                                // DstData
-        decltype(input_desc),                 // SrcDesc
-        decltype(input_cblock_desc),          // DstDesc
-        PassThrough,                          // ElementwiseOperation
-        decltype(get_slice_length()),         // SliceLengths
-        decltype(get_dim_access_order()),     // DimAccessOrder
-        1,                                    // VectorDim
-        1,                                    // ScalarPerVector
-        ck::InMemoryDataOperationEnum_t::Set, // InMemoryDataOperationEnum_t
-        false,                                // SrcResetCoordinateAfterRun
-        true                                  // DstResetCoordinateAfterRun
+        AType,                              // SrcData
+        AType,                              // DstData
+        decltype(input_desc),               // SrcDesc
+        decltype(input_cblock_desc),        // DstDesc
+        PassThrough,                        // ElementwiseOperation
+        decltype(get_slice_length()),       // SliceLengths
+        decltype(get_dim_access_order()),   // DimAccessOrder
+        1,                                  // VectorDim
+        1,                                  // ScalarPerVector
+        ck::InMemoryDataOperationEnum::Set, // InMemoryDataOperationEnum
+        false,                              // SrcResetCoordinateAfterRun
+        true                                // DstResetCoordinateAfterRun
         >;
 
     static constexpr ck::index_t nDim =
@@ -232,10 +232,10 @@ int main(int argc, char** argv)
                                                      ck::make_zero_multi_index<nDim>(),
                                                      PassThrough{}};
 
-    auto input_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum_t::Global>(
+    auto input_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
         static_cast<AType*>(input_mem.mpDeviceBuf), input_mem.mMemSize / sizeof(AType));
 
-    auto input_cblock = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum_t::Global>(
+    auto input_cblock = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
         static_cast<AType*>(input_cblock_mem.mpDeviceBuf),
         input_cblock_mem.mMemSize / sizeof(AType));
 

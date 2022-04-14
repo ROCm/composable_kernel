@@ -29,7 +29,7 @@ template <typename SrcData,
           index_t VectorDim,
           index_t ScalarPerVector, // src/dst must use same vector size, aka src/dst both need same
                                    // avx/float register
-          InMemoryDataOperationEnum_t DstInMemOp,
+          InMemoryDataOperationEnum DstInMemOp,
           bool SrcResetCoordinateAfterRun,
           bool DstResetCoordinateAfterRun>
 struct ThreadwiseTensorSliceTransferAvx2
