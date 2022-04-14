@@ -1,1 +1,0 @@
-add_example_executable(example_batchnorm_fwd_nhwc_blockwise batchnorm_fwd_nhwc_blockwise.cpp)

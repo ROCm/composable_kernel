@@ -1,17 +1,17 @@
-#ifndef REFERENCE_BATCHNORM_FWD_NHWC_C_HPP
-#define REFERENCE_BATCHNORM_FWD_NHWC_C_HPP
+#ifndef REFERENCE_BNORM_FWD_NHWC_C_HPP
+#define REFERENCE_BNORM_FWD_NHWC_C_HPP
 
 #include <iostream>
 #include <sstream>
 #include <algorithm>
-#include "device_batchnorm_fwd.hpp"
+#include "device_bnorm_fwd.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace host {
 
 template <typename InOutDataType, typename AccDataType>
-struct ReferenceBatchNorm_Input_N_H_W_C_Output_C : public device::DeviceBatchNormFwd
+struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatchNormFwd
 {
     struct Argument : public device::BaseArgument
     {

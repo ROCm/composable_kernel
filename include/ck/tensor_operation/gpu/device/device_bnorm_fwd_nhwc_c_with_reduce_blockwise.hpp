@@ -1,10 +1,10 @@
-#ifndef DEVICE_BATCHNORM_FWD_NHWC_C_HPP
-#define DEVICE_BATCHNORM_FWD_NHWC_C_HPP
+#ifndef DEVICE_BNORM_FWD_NHWC_C_WITH_REDUCE_BLOCKWISE_HPP
+#define DEVICE_BNORM_FWD_NHWC_C_WITH_REDUCE_BLOCKWISE_HPP
 
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
-#include "device_batchnorm_fwd.hpp"
+#include "device_bnorm_fwd.hpp"
 #include "gridwise_2d_compute_mean_and_meansquare_using_reduce_blockwise.hpp"
 #include "gridwise_1d_compute_inv_variance_running_mean_and_variance_fused.hpp"
 #include "gridwise_1d_binary_operate.hpp"
@@ -23,7 +23,7 @@ template <typename InOutDataType,
           index_t KThreadSliceSize,
           index_t InOutVectorSize,
           index_t ScaleBiasMeanVarVectorSize>
-struct DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise : public DeviceBatchNormFwd
+struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Blockwise : public DeviceBatchNormFwd
 {
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
                   "Invalid thread cluster size assignments!");
@@ -195,10 +195,10 @@ struct DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise : public Dev
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto in_out_grid_desc_m_k =
-                DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise::MakeInOut2dDescriptor(
-                    arg.n, arg.h, arg.w, arg.c);
+                DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Blockwise::
+                    MakeInOut2dDescriptor(arg.n, arg.h, arg.w, arg.c);
             const auto scale_bias_mean_var_grid_desc_m =
-                DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise::
+                DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Blockwise::
                     MakeScaleBiasMeanVar1dDescriptor(arg.c);
             using InOutGridDesc_M_K          = decltype(in_out_grid_desc_m_k);
             using ScaleBiasMeanVarGridDesc_M = decltype(scale_bias_mean_var_grid_desc_m);

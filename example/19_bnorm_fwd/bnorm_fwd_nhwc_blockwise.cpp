@@ -13,8 +13,8 @@
 #include "host_tensor_generator.hpp"
 #include "host_reduce_util.hpp"
 #include "device_tensor.hpp"
-#include "reference_batchnorm_fwd_nhwc_c.hpp"
-#include "device_batchnorm_fwd_nhwc_c_with_reduce_blockwise.hpp"
+#include "reference_bnorm_fwd_nhwc_c.hpp"
+#include "device_bnorm_fwd_nhwc_c_with_reduce_blockwise.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;
@@ -29,19 +29,19 @@ using HostAccDataType   = float;
 static const double exponentialAverageFactor = 0.2;
 static const double epsilon                  = std::numeric_limits<AccDataType>::epsilon();
 
-using ReferenceBatchNormInstance =
-    ReferenceBatchNorm_Input_N_H_W_C_Output_C<HostInOutDataType, HostAccDataType>;
+using ReferenceBatchNormFwdInstance =
+    ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<HostInOutDataType, HostAccDataType>;
 
-using DeviceBatchNormInstance =
-    DeviceBatchNorm_Input_N_H_W_C_Output_C_With_Reduce_Blockwise<InOutDataType,
-                                           AccDataType,
-                                           256, // BlockSize
-                                           8,   // MThreadClusterSize,
-                                           32,  // KThreadClusterSize,
-                                           1,   // MThreadSliceSize,
-                                           1,   // KThreadSliceSize,
-                                           1,   // InOutVectorSize,
-                                           1>;  // ScaleBiasMeanVarVectorSize
+using DeviceBatchNormFwdInstance = DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Blockwise<
+    InOutDataType,
+    AccDataType,
+    256, // BlockSize
+    8,   // MThreadClusterSize,
+    32,  // KThreadClusterSize,
+    1,   // MThreadSliceSize,
+    1,   // KThreadSliceSize,
+    1,   // InOutVectorSize,
+    1>;  // ScaleBiasMeanVarVectorSize
 
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -278,14 +278,14 @@ int main(int argc, char* argv[])
     const auto i_scaleBiasMeanVarLengths = to_int_vector(scaleBiasMeanVarLengths);
     const auto i_scaleBiasMeanVarStrides = to_int_vector(scaleBiasMeanVarStrides);
 
-    auto batchNorm = DeviceBatchNormInstance{};
+    auto batchNormFwd = DeviceBatchNormFwdInstance{};
 
     auto wsSizeInBytes =
-        batchNorm.GetWorkspaceSizeInBytes(i_inOutLengths[3], arg.saveMeanAndInvVariance);
+        batchNormFwd.GetWorkspaceSizeInBytes(i_inOutLengths[3], arg.saveMeanAndInvVariance);
 
     DeviceMem ws_dev(wsSizeInBytes);
 
-    auto argument_ptr = batchNorm.MakeArgumentPointer(
+    auto argument_ptr = batchNormFwd.MakeArgumentPointer(
         i_inOutLengths,
         i_inOutStrides,
         i_inOutLengths,
@@ -306,16 +306,16 @@ int main(int argc, char* argv[])
         arg.saveMeanAndInvVariance ? resultSaveMean_dev.GetDeviceBuffer() : nullptr,
         arg.saveMeanAndInvVariance ? resultSaveInvVariance_dev.GetDeviceBuffer() : nullptr);
 
-    if(!batchNorm.IsSupportedArgument(argument_ptr.get()))
+    if(!batchNormFwd.IsSupportedArgument(argument_ptr.get()))
     {
         std::cout
             << "The runtime parameters seems not supported by the DeviceReduce instance, exiting!"
             << std::endl;
     };
 
-    std::string batchNorm_name = batchNorm.GetTypeString();
+    std::string batchNormFwd_name = batchNormFwd.GetTypeString();
 
-    auto invoker_ptr = batchNorm.MakeInvokerPointer();
+    auto invoker_ptr = batchNormFwd.MakeInvokerPointer();
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), arg.nrepeat);
 
@@ -330,14 +330,14 @@ int main(int argc, char* argv[])
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << batchNorm_name
+    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << batchNormFwd_name
               << std::endl;
 
     if(arg.do_verification)
     {
-        auto batchNorm_ref = ReferenceBatchNormInstance{};
+        auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
 
-        auto argument_ptr_ref = batchNorm_ref.MakeArgumentPointer(
+        auto argument_ptr_ref = batchNormFwd_ref.MakeArgumentPointer(
             i_inOutLengths,
             i_inOutStrides,
             i_inOutLengths,
@@ -358,14 +358,14 @@ int main(int argc, char* argv[])
             arg.saveMeanAndInvVariance ? resultSaveMean_ref.mData.data() : nullptr,
             arg.saveMeanAndInvVariance ? resultSaveInvVariance_ref.mData.data() : nullptr);
 
-        if(!batchNorm_ref.IsSupportedArgument(argument_ptr_ref.get()))
+        if(!batchNormFwd_ref.IsSupportedArgument(argument_ptr_ref.get()))
         {
             std::cout
                 << "The runtime parameters seems not supported by the BatchNorm instance, exiting!"
                 << std::endl;
         };
 
-        auto invoker_ptr_ref = batchNorm_ref.MakeInvokerPointer();
+        auto invoker_ptr_ref = batchNormFwd_ref.MakeInvokerPointer();
 
         (void)invoker_ptr_ref->Run(argument_ptr_ref.get(), 1);
 

@@ -1,5 +1,5 @@
-#ifndef DEVICE_BATCHNORM_FWD_HPP
-#define DEVICE_BATCHNORM_FWD_HPP
+#ifndef DEVICE_BNORM_FWD_HPP
+#define DEVICE_BNORM_FWD_HPP
 
 #include <vector>
 #include <memory>
