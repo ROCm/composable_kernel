@@ -165,10 +165,10 @@ struct Div
 };
 
 using DeviceElementwiseSubExpInstance = ck::tensor_operation::device::
-    DeviceElementwise_2D<CDataType, CDataType, CDataType, Sub_Exp, 16, 16, 8, 8, 1, 1, 1, 1, 1>;
+    DeviceElementwise_2D<CDataType, CDataType, CDataType, Sub_Exp, 256, 32, 8>;
 
 using DeviceElementwiseDivInstance = ck::tensor_operation::device::
-    DeviceElementwise_2D<CDataType, CDataType, CDataType, Div, 16, 16, 8, 8, 1, 1, 1, 1, 1>;
+    DeviceElementwise_2D<CDataType, CDataType, CDataType, Div, 256, 32, 8>;
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
