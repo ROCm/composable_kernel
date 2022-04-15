@@ -175,6 +175,7 @@ struct BlockwiseGemmDlops_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_B
                       "wrong!");
 
         // TODO: remove this restriction
+        static_assert(BM0 == 2, "wrong");
         static_assert(BM0 == 2 && BN0 == 2, "wrong");
     }
 
