@@ -1008,7 +1008,8 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, half_t>(half_t x)
 template <>
 inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, half2_t>(half2_t x)
 {
-    float y0{0}, y1{0}, y{0};
+    float y0{0}, y1{0};
+    bhalf2_t y{0};
     asm volatile("\n \
             v_cvt_f32_f16 %0, %1 \n \
             "
