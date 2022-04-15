@@ -117,6 +117,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
     using ThisThreadBlock =
         AnyThreadBlock<ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize>;
 
+#if 0
     struct ABBlockTransferThreadGroup
     {
         __device__ static constexpr index_t GetNumOfThread()
@@ -151,6 +152,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
     };
 
     using CShuffleBlockTransferThreadGroup = ThisThreadBlock;
+#else
+    using ABBlockTransferThreadGroup       = ThisThreadBlock;
+    using BlockGemmThreadGroup             = ThisThreadBlock;
+    using CShuffleBlockTransferThreadGroup = ThisThreadBlock;
+#endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -487,7 +493,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-#if 0
+#if 1
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
             GridwiseGemmPipeline_v1<remove_cvref_t<decltype(a_grid_desc_ak0_m_ak1)>,
