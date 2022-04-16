@@ -1128,12 +1128,12 @@ struct TypeMap
 {
     using type = T;
 };
-//#if defined(__gfx90a__)
+#if defined(__gfx90a__)
 template <>
 struct TypeMap<ck::half_t>
 {
     using type = ck::bhalf_t;
 };
-//#endif
+#endif
 
 } // namespace ck

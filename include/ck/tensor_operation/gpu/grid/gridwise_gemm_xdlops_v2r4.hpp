@@ -96,7 +96,7 @@ template <index_t BlockSize,
           index_t CThreadTransferDstScalarPerVector>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
 {
-    using LDSDataType = typename TypeMap<FloatAB>::type;
+    using LDSDataType        = typename TypeMap<FloatAB>::type;
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
