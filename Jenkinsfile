@@ -165,79 +165,79 @@ pipeline {
 	//  variable = value
     // }
     stages{
-        stage("Static checks") {
-            parallel{
-                // enable after we move from hipcc to hip-clang
-                // stage('Tidy') {
-                //     agent{ label rocmnode("nogpu") }
-                //     environment{
-                //         // setup_cmd = "CXX='/opt/rocm/bin/hipcc' cmake -DBUILD_DEV=On .. "
-                //         build_cmd = "make -j\$(nproc) -k analyze"
-                //     }
-                //     steps{
-                //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
-                //     }
-                // }
-                stage('Build Profiler: Release, gfx908')
-                {
-                    agent { label rocmnode("nogpu")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-                    }
-                }
-                stage('Build Profiler: Debug, gfx908')
-                {
-                    agent { label rocmnode("nogpu")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        // until we stabilize debug build due to compiler crashes
-                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
-                        }
-                    }
-                }
-                stage('Clang Format') {
-                    agent{ label rocmnode("nogpu") }
-                    environment{
-                        execute_cmd = "find . -iname \'*.h\' \
-                                -o -iname \'*.hpp\' \
-                                -o -iname \'*.cpp\' \
-                                -o -iname \'*.h.in\' \
-                                -o -iname \'*.hpp.in\' \
-                                -o -iname \'*.cpp.in\' \
-                                -o -iname \'*.cl\' \
-                                | grep -v 'build/' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-10 -style=file {} | diff - {}\'"
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
-                    }
-                }
-            }
-        }
-        stage("Tests")
-        {
-            parallel
-            {
-                stage("Run Tests: gfx908")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
-                    }
+        // stage("Static checks") {
+        //     parallel{
+        //         // enable after we move from hipcc to hip-clang
+        //         // stage('Tidy') {
+        //         //     agent{ label rocmnode("nogpu") }
+        //         //     environment{
+        //         //         // setup_cmd = "CXX='/opt/rocm/bin/hipcc' cmake -DBUILD_DEV=On .. "
+        //         //         build_cmd = "make -j\$(nproc) -k analyze"
+        //         //     }
+        //         //     steps{
+        //         //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
+        //         //     }
+        //         // }
+        //         stage('Build Profiler: Release, gfx908')
+        //         {
+        //             agent { label rocmnode("nogpu")}
+        //             environment{
+        //                 setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+        //             }
+        //             steps{
+        //                 buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+        //             }
+        //         }
+        //         stage('Build Profiler: Debug, gfx908')
+        //         {
+        //             agent { label rocmnode("nogpu")}
+        //             environment{
+        //                 setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+        //             }
+        //             steps{
+        //                 // until we stabilize debug build due to compiler crashes
+        //                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+        //                     buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
+        //                 }
+        //             }
+        //         }
+        //         stage('Clang Format') {
+        //             agent{ label rocmnode("nogpu") }
+        //             environment{
+        //                 execute_cmd = "find . -iname \'*.h\' \
+        //                         -o -iname \'*.hpp\' \
+        //                         -o -iname \'*.cpp\' \
+        //                         -o -iname \'*.h.in\' \
+        //                         -o -iname \'*.hpp.in\' \
+        //                         -o -iname \'*.cpp.in\' \
+        //                         -o -iname \'*.cl\' \
+        //                         | grep -v 'build/' \
+        //                         | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-10 -style=file {} | diff - {}\'"
+        //             }
+        //             steps{
+        //                 buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+        //             }
+        //         }
+        //     }
+        // }
+        // stage("Tests")
+        // {
+        //     parallel
+        //     {
+        //         stage("Run Tests: gfx908")
+        //         {
+        //             agent{ label rocmnode("gfx908")}
+        //             environment{
+        //                 setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+        //             }
+        //             steps{
+        //                 buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
+        //             }
 
-                }
+        //         }
 
-            }
-        }
+        //     }
+        // }
         stage("Client App")
         {
             parallel
@@ -246,7 +246,7 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                        setup_args = """ -D  -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
                         execute_args = """ cd ../test/client_app && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="../../../install;/opt/rocm" .. && make  """ 
                     }
                     steps{
