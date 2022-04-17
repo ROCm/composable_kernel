@@ -693,7 +693,10 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int  nrepeat  = 1, hipStream_t stream_id = nullptr, bool measure_time = false)
+        float Run(const Argument& arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false)
         {
 #if 0
             {
@@ -752,29 +755,31 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                     remove_reference_t<Block2CTileMap>,
                     true>;
 
-                elapsed_time = launch_and_time_kernel(kernel,nrepeat,
-                              dim3(grid_size),
-                              dim3(BlockSize),
-                              0,
-                        stream_id,
-                        measure_time,
-                              arg.p_a_grid_,
-                              arg.p_b_grid_,
-                              arg.p_c_grid_,
-                              arg.p_d0_grid_,
-                              arg.p_d1_grid_,
-                              arg.BatchCount_,
-                              arg.a_element_op_,
-                              arg.b_element_op_,
-                              arg.c_element_op_,
-                              arg.d0_reduce_op_,
-                              arg.d1_reduce_op_,
-                              arg.a_grid_desc_ak0_m_ak1_,
-                              arg.b_grid_desc_bk0_n_bk1_,
-                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                              arg.d_grid_desc_mblock_mperblock_,
-                              arg.compute_base_ptr_of_batch_,
-                              arg.block_2_ctile_map_);
+                elapsed_time =
+                    launch_and_time_kernel(kernel,
+                                           nrepeat,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           stream_id,
+                                           measure_time,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.p_d0_grid_,
+                                           arg.p_d1_grid_,
+                                           arg.BatchCount_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.d0_reduce_op_,
+                                           arg.d1_reduce_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.d_grid_desc_mblock_mperblock_,
+                                           arg.compute_base_ptr_of_batch_,
+                                           arg.block_2_ctile_map_);
             }
             else
             {
@@ -796,37 +801,41 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                     remove_reference_t<Block2CTileMap>,
                     false>;
 
-                elapsed_time = launch_and_time_kernel(kernel,
-                              nrepeat,
-                              dim3(grid_size),
-                              dim3(BlockSize),
-                              0,
-                              stream_id,
-                              measure_time,
-                              arg.p_a_grid_,
-                              arg.p_b_grid_,
-                              arg.p_c_grid_,
-                              arg.p_d0_grid_,
-                              arg.p_d1_grid_,
-                              arg.BatchCount_,
-                              arg.a_element_op_,
-                              arg.b_element_op_,
-                              arg.c_element_op_,
-                              arg.d0_reduce_op_,
-                              arg.d1_reduce_op_,
-                              arg.a_grid_desc_ak0_m_ak1_,
-                              arg.b_grid_desc_bk0_n_bk1_,
-                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                              arg.d_grid_desc_mblock_mperblock_,
-                              arg.compute_base_ptr_of_batch_,
-                              arg.block_2_ctile_map_);
+                elapsed_time =
+                    launch_and_time_kernel(kernel,
+                                           nrepeat,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           stream_id,
+                                           measure_time,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.p_d0_grid_,
+                                           arg.p_d1_grid_,
+                                           arg.BatchCount_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.d0_reduce_op_,
+                                           arg.d1_reduce_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.d_grid_desc_mblock_mperblock_,
+                                           arg.compute_base_ptr_of_batch_,
+                                           arg.block_2_ctile_map_);
             }
 
             return elapsed_time;
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false) override
+        float Run(const BaseArgument* p_arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }

@@ -32,13 +32,10 @@ enum ConvOutputLayout
 void check_cuda_error(void)
 {
     hipError_t err = hipGetLastError();
-    if (err != hipSuccess)
+    if(err != hipSuccess)
     {
-        std::cerr
-            << "Error: "
-            << hipGetErrorString(err)
-            << std::endl;
-            exit(err);
+        std::cerr << "Error: " << hipGetErrorString(err) << std::endl;
+        exit(err);
     }
 }
 std::string getDeviceName(int device)
@@ -56,8 +53,6 @@ int getDriver(void)
     check_cuda_error();
     return driver;
 }
-
-
 
 namespace ck {
 namespace app {
@@ -119,19 +114,18 @@ void profile_conv_fwd_impl(int do_verification,
     const ck::index_t Ho = output_spatial_lengths[0];
     const ck::index_t Wo = output_spatial_lengths[1];
 
-    const auto in_sz = N * C * Hi * Wi;
+    const auto in_sz  = N * C * Hi * Wi;
     const auto wei_sz = K * C * Y * X;
     const auto out_sz = N * K * Ho * Wo;
 
     using WeiDataType = float;
-    using InDataType = float;
+    using InDataType  = float;
     using OutDataType = float;
 
     app::DeviceMem in_device_buf(sizeof(InDataType) * in_sz);
     app::DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_sz);
     app::DeviceMem out_device_buf(sizeof(OutDataType) * out_sz);
     // data is already on device!
-
 
     // add device Conv instances
     std::vector<DeviceConvFwdPtr_t> conv_ptrs;
@@ -157,10 +151,9 @@ void profile_conv_fwd_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-    int deviceIndex = 0;
+    int deviceIndex       = 0;
     hipSetDevice(deviceIndex);
     check_cuda_error();
-
 
     hipStream_t stream_id = nullptr;
     hipStreamCreate(&stream_id);
@@ -169,27 +162,27 @@ void profile_conv_fwd_impl(int do_verification,
     // profile device Conv instances
     for(auto& conv_ptr : conv_ptrs)
     {
-        auto argument_ptr = conv_ptr.MakeArgumentPointer(
-            static_cast<void*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<void*>(wei_device_buf.GetDeviceBuffer()),
-            static_cast<void*>(out_device_buf.GetDeviceBuffer()),
-            N,
-            K,
-            C,
-            input_spatial_lengths,
-            filter_spatial_lengths,
-            output_spatial_lengths,
-            conv_filter_strides,
-            conv_filter_dilations,
-            input_left_pads,
-            input_right_pads);
+        auto argument_ptr =
+            conv_ptr.MakeArgumentPointer(static_cast<void*>(in_device_buf.GetDeviceBuffer()),
+                                         static_cast<void*>(wei_device_buf.GetDeviceBuffer()),
+                                         static_cast<void*>(out_device_buf.GetDeviceBuffer()),
+                                         N,
+                                         K,
+                                         C,
+                                         input_spatial_lengths,
+                                         filter_spatial_lengths,
+                                         output_spatial_lengths,
+                                         conv_filter_strides,
+                                         conv_filter_dilations,
+                                         input_left_pads,
+                                         input_right_pads);
 
         auto invoker_ptr = conv_ptr.MakeInvokerPointer();
 
         if(conv_ptr.IsSupportedArgument(argument_ptr.get()))
         {
             std::string conv_name = conv_ptr.GetTypeString();
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat, stream_id, true);
+            float ave_time        = invoker_ptr->Run(argument_ptr.get(), nrepeat, stream_id, true);
 
             std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 
@@ -218,5 +211,5 @@ void profile_conv_fwd_impl(int do_verification,
               << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
 }
 
-} // namespace profiler
+} // namespace app
 } // namespace ck

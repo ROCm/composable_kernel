@@ -266,7 +266,10 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
     {
         using Argument = DeviceGemmXdl_C_Shuffle_Bias_2d::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false)
+        float Run(const Argument& arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false)
         {
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -328,8 +331,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
-                        stream_id,
-                        measure_time,
+                    stream_id,
+                    measure_time,
                     arg.p_a_grid_,
                     arg.p_b_grid_,
                     arg.p_c_grid_,
@@ -369,8 +372,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
-                        stream_id,
-                        measure_time,
+                    stream_id,
+                    measure_time,
                     arg.p_a_grid_,
                     arg.p_b_grid_,
                     arg.p_c_grid_,
@@ -389,7 +392,10 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool measure_time = false) override
+        float Run(const BaseArgument* p_arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }

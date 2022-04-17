@@ -26,14 +26,14 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    const ConvDataType data_type        = static_cast<ConvDataType>(std::stoi(argv[2]));
-    const int in_layout        = static_cast<ConvInputLayout>(std::stoi(argv[3]));
-    const int wei_layout       = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
-    const int out_layout       = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
-    const bool do_verification = std::stoi(argv[6]);
-    const int init_method      = std::stoi(argv[7]);
-    const bool do_log          = std::stoi(argv[8]);
-    const int nrepeat          = std::stoi(argv[9]);
+    const ConvDataType data_type = static_cast<ConvDataType>(std::stoi(argv[2]));
+    const int in_layout          = static_cast<ConvInputLayout>(std::stoi(argv[3]));
+    const int wei_layout         = static_cast<ConvWeightLayout>(std::stoi(argv[4]));
+    const int out_layout         = static_cast<ConvOutputLayout>(std::stoi(argv[5]));
+    const bool do_verification   = std::stoi(argv[6]);
+    const int init_method        = std::stoi(argv[7]);
+    const bool do_log            = std::stoi(argv[8]);
+    const int nrepeat            = std::stoi(argv[9]);
 
     const ck::index_t N  = std::stoi(argv[10]);
     const ck::index_t K  = std::stoi(argv[11]);
@@ -58,21 +58,20 @@ int main(int argc, char* argv[])
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 
-    ck::app::profile_conv_fwd_impl(
-        do_verification,
-        init_method,
-        do_log,
-        nrepeat,
-        data_type,
-        N,
-        K,
-        C,
-        std::vector<ck::index_t>{Hi, Wi},
-        std::vector<ck::index_t>{Y, X},
-        std::vector<ck::index_t>{Ho, Wo},
-        std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
-        std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
-        std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
-        std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
+    ck::app::profile_conv_fwd_impl(do_verification,
+                                   init_method,
+                                   do_log,
+                                   nrepeat,
+                                   data_type,
+                                   N,
+                                   K,
+                                   C,
+                                   std::vector<ck::index_t>{Hi, Wi},
+                                   std::vector<ck::index_t>{Y, X},
+                                   std::vector<ck::index_t>{Ho, Wo},
+                                   std::vector<ck::index_t>{conv_stride_h, conv_stride_w},
+                                   std::vector<ck::index_t>{conv_dilation_h, conv_dilation_w},
+                                   std::vector<ck::index_t>{in_left_pad_h, in_left_pad_w},
+                                   std::vector<ck::index_t>{in_right_pad_h, in_right_pad_w});
     return 1;
 }
