@@ -266,6 +266,9 @@ struct DynamicBuffer
 
                 __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
 #else
+                //if(get_block_1d_id() == 0){
+                //    printf("%d, tid=%d, i=%d\n", __LINE__, get_thread_local_1d_id(), i);
+                //}
                 *c_style_pointer_cast<X*>(&p_data_[i]) = x;
 #endif
             }
