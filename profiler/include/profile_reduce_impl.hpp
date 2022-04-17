@@ -5,6 +5,7 @@
 #include "device_reduce_instance.hpp"
 #include "reduction_enums.hpp"
 #include "host_reduction.hpp"
+#include "host_common_util.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -116,35 +117,6 @@ static inline std::vector<int> get_invariant_dims(const std::vector<int>& reduce
     return invariantDims;
 };
 
-template <typename T>
-static void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
-{
-    std::ofstream outFile(fileName, std::ios::binary);
-    if(outFile)
-    {
-        outFile.write(reinterpret_cast<char*>(data), dataNumItems * sizeof(T));
-        outFile.close();
-        std::cout << "Write output to file " << fileName << std::endl;
-    }
-    else
-    {
-        std::cout << "Could not open file " << fileName << " for writing" << std::endl;
-    }
-};
-
-// map the data type used by the GPU kernels to the corresponding type used by the host codes
-template <typename InType>
-struct type_mapping
-{
-    using OutType = InType;
-};
-
-template <>
-struct type_mapping<ck::half_t>
-{
-    using OutType = half_float::half;
-};
-
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
@@ -166,6 +138,9 @@ void profile_reduce_impl_impl(bool do_verification,
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::device_reduce_instance;
     using namespace ck::host_reduce;
+    using ck::host_common::dumpBufferToFile;
+    using ck::host_common::to_int_vector;
+    using ck::host_common::type_mapping;
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||

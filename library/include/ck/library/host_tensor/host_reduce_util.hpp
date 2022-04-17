@@ -27,11 +27,8 @@
 #define GUARD_HOST_REDUCE_UTIL_HPP
 
 #include <half.hpp>
-#include <limits>
 #include <cmath>
-#include <cassert>
-#include <stdexcept>
-#include <string>
+#include <functional>
 
 #include "reduction_enums.hpp"
 
@@ -41,30 +38,6 @@ namespace host_reduce {
 
 using ck::NanPropagation;
 using ck::ReduceTensorOp;
-
-template <typename T>
-static inline bool float_equal_one(T);
-
-static inline bool float_equal_one(float x) { return x == 1.0f; };
-
-static inline bool float_equal_one(double x) { return x == 1.0; };
-
-static inline bool float_equal_one(half_float::half x)
-{
-    return x == static_cast<half_float::half>(1.0f);
-};
-
-template <typename T>
-static inline bool float_equal_zero(T x);
-
-static inline bool float_equal_zero(float x) { return x == 0.0f; };
-
-static inline bool float_equal_zero(double x) { return x == 0.0; };
-
-static inline bool float_equal_zero(half_float::half x)
-{
-    return x == static_cast<half_float::half>(0.0f);
-};
 
 template <typename AccDataType, ReduceTensorOp ReduceOpId>
 __host__ static inline std::function<void(AccDataType&)> PreUnaryOpFn(int)
@@ -276,16 +249,6 @@ binop_with_nan_check2(std::function<void(AccDataType&, AccDataType, bool&)> opRe
 };
 
 }; // namespace host_reduce
-
-static inline std::vector<int> to_int_vector(const std::vector<size_t>& inData)
-{
-    std::vector<int> outData;
-
-    for(auto elem : inData)
-        outData.push_back(static_cast<int>(elem));
-
-    return (outData);
-};
 
 }; // namespace ck
 

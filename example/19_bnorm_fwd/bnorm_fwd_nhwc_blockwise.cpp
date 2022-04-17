@@ -11,7 +11,7 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_reduce_util.hpp"
+#include "host_common_util.hpp"
 #include "device_tensor.hpp"
 #include "reference_bnorm_fwd_nhwc_c.hpp"
 #include "device_bnorm_fwd_nhwc_c_with_reduce_blockwise.hpp"
@@ -38,10 +38,10 @@ using DeviceBatchNormFwdInstance = DeviceBatchNormFwd_Input_N_H_W_C_Output_C_Wit
     256, // BlockSize
     8,   // MThreadClusterSize,
     32,  // KThreadClusterSize,
-    1,   // MThreadSliceSize,
+    2,   // MThreadSliceSize,
     1,   // KThreadSliceSize,
-    1,   // InOutVectorSize,
-    1>;  // ScaleBiasMeanVarVectorSize
+    2,   // InOutVectorSize,
+    2>;  // ScaleBiasMeanVarVectorSize
 
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -182,7 +182,7 @@ class SimpleAppArg
 
 int main(int argc, char* argv[])
 {
-    using ck::to_int_vector;
+    using ck::host_common::to_int_vector;
 
     SimpleAppArg arg;
 
@@ -234,7 +234,8 @@ int main(int argc, char* argv[])
         const float noise_stddev = 0.0001f;
 
         // input data in normal distribution
-        in.GenerateTensorValue(GeneratorTensor_4<AccDataType>{data_mean, data_stddev}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_4<InOutDataType>{data_mean, data_stddev},
+                               num_thread);
 
         if(arg.updateMovingAverage)
         {

@@ -5,7 +5,7 @@
 #include "host_tensor_generator.hpp"
 #include "host_reduction.hpp"
 #include "check_err.hpp"
-#include "reduce_util.hpp"
+#include "host_common_util.hpp"
 
 using namespace ck;
 
@@ -71,6 +71,7 @@ bool test_reduce_with_index_impl(int init_method,
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::device_reduce_instance;
     using namespace ck::host_reduce;
+    using ck::host_common::to_int_vector;
 
     Tensor<InDataType> in(inLengths);
 
@@ -268,19 +269,8 @@ bool test_reduce_with_index_impl(int init_method,
 
         bool single_result = true;
 
-        if constexpr(std::is_same<OutDataType, ck::half_t>::value ||
-                     std::is_same<OutDataType, ck::bhalf_t>::value)
-        {
-            reduce_util::to_f32_vector(out, out_fp32);
-            reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-            single_result = ck::utils::check_err(
-                out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
-        }
-        else
-        {
-            single_result =
-                ck::utils::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
-        };
+        single_result =
+            ck::utils::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
 
         if(NeedIndices)
         {
@@ -365,19 +355,8 @@ bool test_reduce_with_index_impl(int init_method,
 
             bool single_result = true;
 
-            if constexpr(std::is_same<OutDataType, ck::half_t>::value ||
-                         std::is_same<OutDataType, ck::bhalf_t>::value)
-            {
-                reduce_util::to_f32_vector(out, out_fp32);
-                reduce_util::to_f32_vector(out_ref, out_ref_fp32);
-                single_result = ck::utils::check_err(
-                    out_fp32.mData, out_ref_fp32.mData, "Error: incorrect data result!");
-            }
-            else
-            {
-                single_result =
-                    ck::utils::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
-            };
+            single_result =
+                ck::utils::check_err(out.mData, out_ref.mData, "Error: incorrect data result!");
 
             if(NeedIndices)
             {

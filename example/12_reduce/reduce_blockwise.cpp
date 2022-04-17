@@ -14,7 +14,7 @@
 #include "device_tensor.hpp"
 #include "device_base.hpp"
 #include "device_reduce_blockwise.hpp"
-#include "host_reduce_util.hpp"
+#include "host_common_util.hpp"
 #include "host_reduction.hpp"
 
 #include "reduction_enums.hpp"
@@ -202,6 +202,7 @@ class SimpleAppArgs
 int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
+    using ck::host_common::to_int_vector;
 
     const std::vector<int> reduceDims{0, 1, 2};
     const std::vector<int> invariantDims{3};

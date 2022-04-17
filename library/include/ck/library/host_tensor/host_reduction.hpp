@@ -33,6 +33,7 @@
 
 #include "reduction_enums.hpp"
 #include "host_reduce_util.hpp"
+#include "host_common_util.hpp"
 #include "host_tensor.hpp"
 #include "data_type.hpp"
 
@@ -197,9 +198,9 @@ struct ReductionHost
                             IndexDataType* out_indices)
     {
         using ck::type_convert;
+        using ck::host_common::float_equal_one;
+        using ck::host_common::float_equal_zero;
         using ck::host_reduce::binop_with_nan_check2;
-        using ck::host_reduce::float_equal_one;
-        using ck::host_reduce::float_equal_zero;
         using ck::host_reduce::ReduceOpFn2;
         using ck::host_reduce::ReduceOpZeroVal;
 
@@ -304,9 +305,9 @@ struct ReductionHost
     void RunImpl_no_index(float alpha, const InDataType* in_data, float beta, OutDataType* out_data)
     {
         using ck::type_convert;
+        using ck::host_common::float_equal_one;
+        using ck::host_common::float_equal_zero;
         using ck::host_reduce::binop_with_nan_check;
-        using ck::host_reduce::float_equal_one;
-        using ck::host_reduce::float_equal_zero;
         using ck::host_reduce::ReduceOpFn;
         using ck::host_reduce::ReduceOpZeroVal;
 
