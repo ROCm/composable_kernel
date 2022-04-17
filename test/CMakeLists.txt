@@ -13,6 +13,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/reduce
+    ${PROJECT_SOURCE_DIR}/library/include/ck/library/tensor_operation_instance/gpu/bnorm_fwd
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/utility
@@ -45,3 +46,4 @@ add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
+add_subdirectory(bnorm_fwd)

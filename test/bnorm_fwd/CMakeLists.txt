@@ -1,0 +1,4 @@
+add_test_executable(test_bnorm_fwd bnorm_fwd.cpp)
+target_link_libraries(test_bnorm_fwd PRIVATE host_tensor)
+target_link_libraries(test_bnorm_fwd PRIVATE device_bnorm_fwd_instance)
+
