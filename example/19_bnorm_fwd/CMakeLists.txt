@@ -1,1 +1,2 @@
 add_example_executable(example_bnorm_fwd_nhwc_blockwise bnorm_fwd_nhwc_blockwise.cpp)
+add_example_executable(example_bnorm_fwd_nhwc_multiblock bnorm_fwd_nhwc_multiblock.cpp)
