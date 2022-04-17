@@ -19,6 +19,7 @@ int profile_convnd_bwd_data(int, char*[], int);
 int profile_reduce(int, char*[]);
 int profile_conv_bwd_weight(int, char*[]);
 int profile_batched_gemm_reduce(int, char*[]);
+int profile_bnorm_fwd(int, char*[]);
 
 int main(int argc, char* argv[])
 {
@@ -90,6 +91,10 @@ int main(int argc, char* argv[])
     {
         return profile_conv_bwd_weight(argc, argv);
     }
+    else if(strcmp(argv[1], "bnorm_fwd") == 0)
+    {
+        return profile_bnorm_fwd(argc, argv);
+    }
     else
     {
         // clang-format off
@@ -107,7 +112,8 @@ int main(int argc, char* argv[])
                "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
                "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
                "                        reduce: REDUCE\n"
-               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
+               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n"
+               "                        bnorm_fwd: batch-norm forward\n");
         // clang-format on
     }
     return 0;
