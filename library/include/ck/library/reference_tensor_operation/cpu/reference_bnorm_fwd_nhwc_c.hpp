@@ -161,9 +161,9 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
 
                             AccDataType curr_value = type_convert<AccDataType>(arg.in_dev_[offset]);
 
-                            arg.out_dev_[offset] =
+                            arg.out_dev_[offset] = type_convert<InOutDataType>(
                                 arg.bnScale_[iC] * (curr_value - mean) * invVariance +
-                                arg.bnBias_[iC];
+                                arg.bnBias_[iC]);
                         };
                     }
                 };
