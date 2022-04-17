@@ -249,7 +249,7 @@ add_subdirectory(example)
 add_subdirectory(test)
 add_subdirectory(profiler)
 
-#Create an interface target for the include only files and call it "coposablekernels"
+#Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
 
 set(version 1.0.0)
