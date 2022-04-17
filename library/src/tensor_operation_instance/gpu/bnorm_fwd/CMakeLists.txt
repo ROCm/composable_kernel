@@ -1,0 +1,12 @@
+# device_bnorm_instance
+set(DEVICE_BNORM_INSTANCE_SOURCE
+   device_bnorm_fwd_with_reduce_blockwise_instance.cpp;
+   device_bnorm_fwd_with_reduce_multiblock_instance.cpp;
+)
+
+add_library(device_bnorm_fwd_instance SHARED ${DEVICE_BNORM_INSTANCE_SOURCE}) 
+target_compile_features(device_bnorm_fwd_instance PUBLIC)
+set_target_properties(device_bnorm_fwd_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+install(TARGETS device_bnorm_fwd_instance LIBRARY DESTINATION lib) 
+
+clang_tidy_check(device_bnorm_fwd_instance)
