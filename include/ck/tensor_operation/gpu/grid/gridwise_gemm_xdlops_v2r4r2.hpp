@@ -557,6 +557,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //       register
         // sanity check
 
+        constexpr index_t KPack = math::max(
+            K1, MfmaSelector<FloatAB, MPerXDL, NPerXDL>::selected_mfma.k_per_blk);
+
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
@@ -567,7 +570,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                                 NPerXDL,
                                                                 MRepeat,
                                                                 NRepeat,
-                                                                K1>{};
+                                                                KPack>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
