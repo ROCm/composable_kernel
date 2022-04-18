@@ -39,6 +39,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
@@ -52,6 +53,18 @@ __global__ void
                                                    b_element_op,
                                                    c_element_op,
                                                    block_2_ctile_map);
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = a_grid_desc_k0_m_k1;
+    ignore = b_grid_desc_k0_n_k1;
+    ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = block_2_ctile_map;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename GridwiseGemm,
@@ -74,6 +87,7 @@ __global__ void
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op)
 {
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -126,6 +140,13 @@ __global__ void
         gemm_desc_ptr[group_id].block_2_ctile_map_,
         block_id_grp);
 #endif
+#else
+    ignore = gemm_desc_;
+    ignore = group_count;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <index_t BlockSize,
