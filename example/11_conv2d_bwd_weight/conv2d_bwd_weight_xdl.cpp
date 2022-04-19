@@ -46,26 +46,26 @@ using DeviceConvBwdWeightInstance = ck::tensor_operation::device::
         256,                              // BlockSize
         128,                              // MPerBlock
         128,                              // NPerBlock
-        16,                                // K0PerBlock
-        2,                                // K1
+        4,                                // K0PerBlock
+        8,                                // K1
         32,                               // MPerXdl
         32,                               // NPerXdl
         2,                                // MXdlPerWave
         2,                                // NXdlPerWave
-        S<1, 4, 32, 1>,                   // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 4, 16, 4>,                   // ABlockTransferThreadClusterLengths_K0_M_K1
         S<0, 3, 1, 2>,                    // ABlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,                    // ABlockTransferSrcAccessOrder
         2,                                // ABlockTransferSrcVectorDim
-        4,                                // ABlockTransferSrcScalarPerVector
+        8,                                // ABlockTransferSrcScalarPerVector
         2,                                // ABlockTransferDstScalarPerVector_K1
-        false,                             // ABlockLdsAddExtraM
-        S<1, 4, 32, 1>,                   // BBlockTransferThreadClusterLengths_K0_N_K1
+        true,                             // ABlockLdsAddExtraM
+        S<1, 4, 16, 4>,                   // BBlockTransferThreadClusterLengths_K0_N_K1
         S<0, 3, 1, 2>,                    // BBlockTransferThreadClusterArrangeOrder
         S<0, 2, 1, 3>,                    // BBlockTransferSrcAccessOrder
         2,                                // BBlockTransferSrcVectorDim
-        4,                                // BBlockTransferSrcScalarPerVector
+        8,                                // BBlockTransferSrcScalarPerVector
         2,                                // BBlockTransferDstScalarPerVector_K1
-        false,                             // BBlockLdsAddExtraN
+        true,                             // BBlockLdsAddExtraN
         1,                                // CShuffleMXdlPerWavePerShuffle
         1,                                // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 4>,                   // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
