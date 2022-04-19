@@ -25,6 +25,7 @@ enum struct MfmaInstr
     mfma_f32_16x16x8bf16,
     mfma_i32_32x32x8i8,
     mfma_i32_16x16x16i8,
+    mfma_f64_16x16x4f64,
 };
 
 template <MfmaInstr instr>
@@ -380,6 +381,28 @@ struct mfma_type<MfmaInstr::mfma_i32_16x16x16i8>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
         intrin_mfma_i32_16x16x16i8<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
+struct mfma_type<MfmaInstr::mfma_f64_16x16x4f64>
+{
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = group_size * num_groups_per_blk;
+    static constexpr index_t num_threads_per_blk = 16;
+    static constexpr index_t wave_size           = 64;
+    static constexpr index_t num_input_blks      = wave_size / num_threads_per_blk;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 4;
+    static constexpr bool is_k_reduction         = true;
+
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f64_16x16x4f64<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
 };
 

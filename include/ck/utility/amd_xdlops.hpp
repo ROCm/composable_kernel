@@ -294,5 +294,18 @@ struct intrin_mfma_i32_16x16x16i8<16, 16>
     }
 };
 
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f64_16x16x4f64;
+
+template <>
+struct intrin_mfma_f64_16x16x4f64<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const double& reg_a, const double& reg_b, FloatC& reg_c)
+    {
+        reg_c.template AsType<double4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f64_16x16x4f64(
+            reg_a, reg_b, reg_c.template AsType<double4_t>()[Number<0>{}], 0, 0, 0);
+    }
+};
 } // namespace ck
 #endif
