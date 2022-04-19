@@ -19,7 +19,7 @@ namespace device {
 /*
  * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
  *
- * \tparam ComputePrtOffsetOfBatch Class that computes the base pointer offsets of A, B, C matrix
+ * \tparam ComputePtrOffsetOfBatch Class that computes the base pointer offsets of A, B, C matrix
  * given the batch. For example, ComputePtrOffsetOfStridedBatch() computes the offsets of evenly
  * strided batched, but we can easily extend to other layouts. The returned offset can be either \p
  * index_t or \p long_index_t. If it returns \p long_index_t, we are not subject to the 2GB
@@ -29,7 +29,7 @@ namespace device {
  * returns the 2D index of the tile that it computes. \see
  * GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3::Run().
  *
- * \note Using \p ComputePrtOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
+ * \note Using \p ComputePtrOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
  * tiles from different matrices. Keep in mind that these 2 matrices can share the same grid
  * descriptor (like in BatchedGEMM), or use their own grid descriptors (in GroupedGemm). \link
  * device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for \link
