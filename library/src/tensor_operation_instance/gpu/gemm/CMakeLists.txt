@@ -49,6 +49,14 @@ set(DEVICE_GEMM_DLOPS_INSTANCE_SOURCE
     device_gemm_dlops_f32_f32_f32_mk_nk_mn_instance.cpp;
     device_gemm_dlops_f32_f32_f32_km_kn_mn_instance.cpp;
     device_gemm_dlops_f32_f32_f32_km_nk_mn_instance.cpp;
+    device_gemm_dlops_f16_f16_f16_mk_kn_mn_instance.cpp;
+    device_gemm_dlops_f16_f16_f16_mk_nk_mn_instance.cpp;
+    device_gemm_dlops_f16_f16_f16_km_kn_mn_instance.cpp;
+    device_gemm_dlops_f16_f16_f16_km_nk_mn_instance.cpp;
+    device_gemm_dlops_int8_int8_int8_mk_kn_mn_instance.cpp;
+    device_gemm_dlops_int8_int8_int8_mk_nk_mn_instance.cpp;
+    device_gemm_dlops_int8_int8_int8_km_kn_mn_instance.cpp;
+    device_gemm_dlops_int8_int8_int8_km_nk_mn_instance.cpp;
 )
 
 add_library(device_gemm_dlops_instance SHARED ${DEVICE_GEMM_DLOPS_INSTANCE_SOURCE})

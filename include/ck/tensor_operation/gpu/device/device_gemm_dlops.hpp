@@ -21,8 +21,8 @@ namespace device {
 template <
     typename ADataType,
     typename BDataType,
-    typename AccDataType,
     typename CDataType,
+    typename AccDataType,
     typename ALayout,
     typename BLayout,
     typename CLayout,
