@@ -13,6 +13,7 @@
 #include "gemm_specialization.hpp"
 #include "element_wise_operation.hpp"
 #include "gridwise_gemm_dlops_v1r3.hpp"
+#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
