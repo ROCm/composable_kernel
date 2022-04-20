@@ -298,7 +298,7 @@ template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f64_16x16x4f64;
 
 template <>
-struct intrin_mfma_f64_16x16x4f64<16, 16>
+struct intrin_mfma_f64_16x16x4f64<32, 32>
 {
     template <class FloatC>
     __device__ static void Run(const double& reg_a, const double& reg_b, FloatC& reg_c)
