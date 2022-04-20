@@ -33,6 +33,7 @@ __global__ void kernel_elementwise_1d(const ADataType* __restrict__ p_a_global,
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename ComputeDataType,
           typename GridDesc_M0,
           typename ElementwiseFunctor,
           index_t ThreadPerBlock,
@@ -70,15 +71,15 @@ struct GridwiseElementwise_1D
         auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_global, c_grid_desc_m0.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, ADataType, ScalarPerVector, true> a_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, BDataType, ScalarPerVector, true> b_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, CDataType, ScalarPerVector, true> c_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> a_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> b_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> c_thread_buf;
 
         const auto thread_to_global_offset = CalculateElementwiseIndex();
 
         auto a_global_load =
             ThreadwiseTensorSliceTransfer_v2<ADataType,
-                                             ADataType,
+                                             ComputeDataType,
                                              GridDesc_M0,
                                              decltype(thread_desc_M0),
                                              Sequence<ScalarPerVector>, // SliceLengths
@@ -90,7 +91,7 @@ struct GridwiseElementwise_1D
 
         auto b_global_load =
             ThreadwiseTensorSliceTransfer_v2<BDataType,
-                                             BDataType,
+                                             ComputeDataType,
                                              GridDesc_M0,
                                              decltype(thread_desc_M0),
                                              Sequence<ScalarPerVector>, // SliceLengths
@@ -101,7 +102,7 @@ struct GridwiseElementwise_1D
                                              false>{b_grid_desc_m0, thread_to_global_offset};
 
         auto c_global_write =
-            ThreadwiseTensorSliceTransfer_v1r3<CDataType,
+            ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
                                                CDataType,
                                                decltype(thread_desc_M0),
                                                GridDesc_M0,
