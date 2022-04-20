@@ -42,7 +42,7 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
 
         // pad
         const auto m0  = desc_m0.GetLength(I0);
-        const auto pad = math::integer_least_multiple(m0, ScalarPerVector) - m0;
+        const auto pad = math::integer_least_multiple(m0, BlockTileSize) - m0;
         const auto desc_m0_pad =
             transform_tensor_descriptor(desc_m0,
                                         make_tuple(make_right_pad_transform(m0, pad)),
