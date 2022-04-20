@@ -472,6 +472,7 @@ struct DeviceGemmDlops
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        std::cout << ck::get_device_name() << std::endl;
         return GridwiseGemm::CheckValidity(
             arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
     }
