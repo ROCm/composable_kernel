@@ -23,7 +23,7 @@
 #include "device_reduce_blockwise.hpp"
 #include "reduction_enums.hpp"
 #include "reduction_operator_mapping.hpp"
-#include "device_elementwise_2d.hpp"
+#include "device_binary_elementwise_2d.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -170,7 +170,7 @@ struct Div
 };
 
 using DeviceElementwiseSubExpInstance =
-    ck::tensor_operation::device::DeviceElementwise_2D<CDataType,
+    ck::tensor_operation::device::DeviceBinaryElementwise_2D<CDataType,
                                                        CDataType,
                                                        CDataType,
                                                        EltwiseComputeDataType,
@@ -180,7 +180,7 @@ using DeviceElementwiseSubExpInstance =
                                                        8>;
 
 using DeviceElementwiseDivInstance = ck::tensor_operation::device::
-    DeviceElementwise_2D<CDataType, CDataType, CDataType, EltwiseComputeDataType, Div, 256, 32, 8>;
+    DeviceBinaryElementwise_2D<CDataType, CDataType, CDataType, EltwiseComputeDataType, Div, 256, 32, 8>;
 
 using HostGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
@@ -412,7 +412,7 @@ int main(int argc, char* argv[])
     if(!broadcastSubExp.IsSupportedArgument(broadcastSubExp_argument_ptr.get()))
     {
         throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "DeviceElementwise_2D instance, exiting!");
+                                 "DeviceBinaryElementwise_2D instance, exiting!");
     };
 
     auto broadcastSubExp_invoker_ptr = broadcastSubExp.MakeInvokerPointer();
@@ -462,7 +462,7 @@ int main(int argc, char* argv[])
     if(!broadcastDiv.IsSupportedArgument(broadcastDiv_argument_ptr.get()))
     {
         throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "DeviceElementwise_2D instance, exiting!");
+                                 "DeviceBinaryElementwise_2D instance, exiting!");
     };
 
     auto broadcastDiv_invoker_ptr = broadcastDiv.MakeInvokerPointer();

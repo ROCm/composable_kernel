@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 
 template <typename ElementwiseFunctor>
-struct DeviceElementwise : public BaseOperator
+struct DeviceBinaryElementwise : public BaseOperator
 {
 
     virtual std::unique_ptr<BaseArgument>

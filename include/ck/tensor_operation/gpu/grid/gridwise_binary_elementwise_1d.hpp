@@ -7,7 +7,7 @@
 
 namespace ck {
 
-template <typename GridwiseEltwise,
+template <typename GridwiseBinEltwise,
           typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -21,13 +21,13 @@ __global__ void kernel_elementwise_1d(const ADataType* __restrict__ p_a_global,
                                       const GridDesc_M0 c_grid_desc_m0,
                                       const ElementwiseFunctor functor)
 {
-    GridwiseEltwise::Run(p_a_global,
-                         p_b_global,
-                         p_c_global,
-                         a_grid_desc_m0,
-                         b_grid_desc_m0,
-                         c_grid_desc_m0,
-                         functor);
+    GridwiseBinEltwise::Run(p_a_global,
+                            p_b_global,
+                            p_c_global,
+                            a_grid_desc_m0,
+                            b_grid_desc_m0,
+                            c_grid_desc_m0,
+                            functor);
 }
 
 template <typename ADataType,
@@ -39,7 +39,7 @@ template <typename ADataType,
           index_t ThreadPerBlock,
           index_t ThreadTileSize,
           index_t ScalarPerVector>
-struct GridwiseElementwise_1D
+struct GridwiseBinaryElementwise_1D
 {
     static constexpr auto I0           = Number<0>{};
     static constexpr int BlockTileSize = ThreadPerBlock * ThreadTileSize;

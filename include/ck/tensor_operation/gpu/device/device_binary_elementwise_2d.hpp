@@ -3,8 +3,8 @@
 #include <vector>
 
 #include "device.hpp"
-#include "device_elementwise.hpp"
-#include "gridwise_elementwise_1d.hpp"
+#include "device_binary_elementwise.hpp"
+#include "gridwise_binary_elementwise_1d.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -18,7 +18,7 @@ template <typename ADataType,
           index_t ThreadPerBlock,
           index_t ThreadTileSize,
           index_t ScalarPerVector>
-struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
+struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFunctor>
 {
     static_assert(ThreadTileSize % ScalarPerVector == 0);
     static constexpr int BlockTileSize = ThreadPerBlock * ThreadTileSize;
@@ -51,16 +51,16 @@ struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
         return desc_m0_pad;
     }
 
-    using GridDesc_M0     = decltype(MakeDescriptor_M0({1, 1}, {1, 1}));
-    using GridwiseEltwise = GridwiseElementwise_1D<ADataType,
-                                                   BDataType,
-                                                   CDataType,
-                                                   ComputeDataType,
-                                                   GridDesc_M0,
-                                                   ElementwiseFunctor,
-                                                   ThreadPerBlock,
-                                                   ThreadTileSize,
-                                                   ScalarPerVector>;
+    using GridDesc_M0        = decltype(MakeDescriptor_M0({1, 1}, {1, 1}));
+    using GridwiseBinEltwise = GridwiseBinaryElementwise_1D<ADataType,
+                                                            BDataType,
+                                                            CDataType,
+                                                            ComputeDataType,
+                                                            GridDesc_M0,
+                                                            ElementwiseFunctor,
+                                                            ThreadPerBlock,
+                                                            ThreadTileSize,
+                                                            ScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -101,7 +101,7 @@ struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto kernel      = kernel_elementwise_1d<GridwiseEltwise,
+            const auto kernel      = kernel_elementwise_1d<GridwiseBinEltwise,
                                                       ADataType,
                                                       BDataType,
                                                       CDataType,
@@ -192,8 +192,11 @@ struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceElementwise_2D"
+        str << "DeviceBinaryElementwise_2D"
             << "<"
+            << "ThreadPerBlock = " << ThreadPerBlock
+            << "ThreadTileSize = " << ThreadTileSize
+            << "ScalarPerVector = " << ScalarPerVector
             << ">";
         // clang-format on
 
