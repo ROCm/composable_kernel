@@ -8,7 +8,7 @@ std::string get_device_name()
 {
     hipDeviceProp_t props{};
     int device;
-    hipGetDevice(&device);
+    auto status = hipGetDevice(&device);
     if(status != hipSuccess)
     {
         return std::string();
