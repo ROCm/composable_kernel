@@ -52,7 +52,7 @@ using device_gemm_dlops_int8_int8_int8_km_kn_mn_instances = std::tuple<
         DeviceGemmDlops< int8_t,  int8_t,  int8_t,    int32_t,     Col,     Row,     Row, PassThrough, PassThrough, PassThrough,    GemmDefault,    64,    64,   128,     8,  2,          4,          8,      1,       S<4, 2>,       S<4, 2>,      S<4, 1, 2, 2>,      S<2, 1, 32, 1>,   S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<4, 1, 1, 2>,      S<0, 3, 1, 2>,        S<1, 1, 1, 2>,      S<4, 1, 4, 2>,      S<2, 1, 32, 1>,   S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<4, 1, 1, 2>,       S<0, 3, 1, 2>,        S<1, 1, 1, 2>, S<0, 1, 2, 3, 4, 5>,               5,                  4>,
 
         /*
-         * K1 = 2
+         * K1 = 4
          */
         DeviceGemmDlops< int8_t,  int8_t,  int8_t,    int32_t,     Col,     Row,     Row, PassThrough, PassThrough, PassThrough,    GemmDefault,   256,   256,   128,     8,  4,          8,          4,      1,       S<8, 2>,       S<8, 2>,      S<4, 1, 2, 4>,      S<2, 1, 128, 1>,  S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<4, 1, 1, 4>,      S<0, 3, 1, 2>,        S<1, 1, 1, 4>,      S<4, 1, 1, 4>,      S<2, 1, 128, 1>,  S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<4, 1, 1, 4>,       S<0, 3, 1, 2>,        S<1, 1, 1, 4>, S<0, 1, 2, 3, 4, 5>,               5,                  4>,
         DeviceGemmDlops< int8_t,  int8_t,  int8_t,    int32_t,     Col,     Row,     Row, PassThrough, PassThrough, PassThrough,    GemmDefault,   256,   128,   256,     8,  4,          4,          8,      1,       S<8, 2>,       S<8, 2>,      S<4, 1, 1, 4>,      S<2, 1, 128, 1>,  S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<4, 1, 1, 4>,      S<0, 3, 1, 2>,        S<1, 1, 1, 4>,      S<4, 1, 2, 4>,      S<2, 1, 128, 1>,  S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<4, 1, 1, 4>,       S<0, 3, 1, 2>,        S<1, 1, 1, 4>, S<0, 1, 2, 3, 4, 5>,               5,                  4>,
@@ -75,5 +75,4 @@ void add_device_gemm_dlops_int8_int8_int8_km_kn_mn_instances(
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
 
