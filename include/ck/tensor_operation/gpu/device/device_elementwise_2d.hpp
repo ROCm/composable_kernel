@@ -34,10 +34,21 @@ struct DeviceElementwise_2D : public DeviceElementwise<ElementwiseFunctor>
             make_naive_tensor_descriptor(make_tuple(m, n), make_tuple(stride[0], stride[1]));
 
         // 1d desc - [m * n]
-        return transform_tensor_descriptor(desc_m_n,
-                                           make_tuple(make_merge_transform(make_tuple(m, n))),
-                                           make_tuple(Sequence<0, 1>{}),
-                                           make_tuple(Sequence<0>{}));
+        const auto desc_m0 =
+            transform_tensor_descriptor(desc_m_n,
+                                        make_tuple(make_merge_transform(make_tuple(m, n))),
+                                        make_tuple(Sequence<0, 1>{}),
+                                        make_tuple(Sequence<0>{}));
+
+        // pad
+        const auto m0  = desc_m0.GetLength(I0);
+        const auto pad = math::integer_least_multiple(m0, ScalarPerVector) - m0;
+        const auto desc_m0_pad =
+            transform_tensor_descriptor(desc_m0,
+                                        make_tuple(make_right_pad_transform(m0, pad)),
+                                        make_tuple(Sequence<0>{}),
+                                        make_tuple(Sequence<0>{}));
+        return desc_m0_pad;
     }
 
     using GridDesc_M0     = decltype(MakeDescriptor_M0({1, 1}, {1, 1}));

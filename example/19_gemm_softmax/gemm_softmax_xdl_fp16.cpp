@@ -468,7 +468,6 @@ int main(int argc, char* argv[])
     auto broadcastDiv_invoker_ptr = broadcastDiv.MakeInvokerPointer();
     broadcastDiv_invoker_ptr->Run(broadcastDiv_argument_ptr.get(), nrepeat);
 
-    // TODO = do_verification
     if(do_verification)
     {
         std::cout << "verification..." << std::endl;
