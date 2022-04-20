@@ -52,9 +52,10 @@ void add_device_gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(
 
 int main()
 {
-    using ADataType = ck::half_t;
-    using BDataType = ck::half_t;
-    using CDataType = ck::half_t;
+    using ADataType   = ck::half_t;
+    using BDataType   = ck::half_t;
+    using CDataType   = ck::half_t;
+    using AccDataType = float;
 
     using RowMajor    = ck::tensor_layout::gemm::RowMajor;
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
@@ -74,6 +75,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        ColumnMajor,
                                        RowMajor,
                                        RowMajor,
@@ -96,6 +98,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        ColumnMajor,
                                        ColumnMajor,
                                        RowMajor,
@@ -118,6 +121,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        RowMajor,
                                        RowMajor,
                                        RowMajor,
@@ -142,6 +146,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        RowMajor,
                                        ColumnMajor,
                                        RowMajor,

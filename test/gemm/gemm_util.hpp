@@ -106,6 +106,7 @@ template <typename DeviceGemmPtr_,
           typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -188,6 +189,7 @@ struct TestGemm
             ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                       BDataType,
                                                       CDataType,
+                                                      AccDataType,
                                                       AElementwiseOperation,
                                                       BElementwiseOperation,
                                                       CElementwiseOperation>;
@@ -306,6 +308,7 @@ struct TestGemmBF16
         // use fp32 host kernel to verify bf16 device kernel
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceGemm<float,
+                                                      float,
                                                       float,
                                                       float,
                                                       AElementwiseOperation,

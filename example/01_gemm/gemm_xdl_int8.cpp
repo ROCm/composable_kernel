@@ -80,8 +80,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     4>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        AccDataType,
+                                                                        PassThrough,
+                                                                        PassThrough,
+                                                                        PassThrough>;
 
 int main(int argc, char* argv[])
 {

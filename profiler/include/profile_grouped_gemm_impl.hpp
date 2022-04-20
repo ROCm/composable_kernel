@@ -43,6 +43,7 @@ namespace profiler {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -270,6 +271,7 @@ void profile_grouped_gemm_impl(int do_verification,
                         ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                   BDataType,
                                                                   CDataType,
+                                                                  AccDataType,
                                                                   AElementOp,
                                                                   BElementOp,
                                                                   CElementOp>;

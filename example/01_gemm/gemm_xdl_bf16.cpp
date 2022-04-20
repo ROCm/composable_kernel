@@ -81,7 +81,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<float, float, float, PassThrough, PassThrough, PassThrough>;
+    ReferenceGemm<float, float, float, float, PassThrough, PassThrough, PassThrough>;
 
 int main(int argc, char* argv[])
 {

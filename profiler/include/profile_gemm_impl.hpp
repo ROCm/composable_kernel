@@ -85,6 +85,7 @@ namespace profiler {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -457,8 +458,14 @@ void profile_gemm_impl(int do_verification,
                     bf16_to_f32_(b_k_n, b_f32_k_n);
                     bf16_to_f32_(c_m_n_device_result, c_m_n_device_f32_result);
 
-                    using ReferenceGemmInstance = ck::tensor_operation::host::
-                        ReferenceGemm<float, float, float, AElementOp, BElementOp, CElementOp>;
+                    using ReferenceGemmInstance =
+                        ck::tensor_operation::host::ReferenceGemm<float,
+                                                                  float,
+                                                                  float,
+                                                                  float,
+                                                                  AElementOp,
+                                                                  BElementOp,
+                                                                  CElementOp>;
 
                     auto ref_gemm    = ReferenceGemmInstance{};
                     auto ref_invoker = ref_gemm.MakeInvoker();
@@ -490,6 +497,7 @@ void profile_gemm_impl(int do_verification,
                         ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                   BDataType,
                                                                   CDataType,
+                                                                  AccDataType,
                                                                   AElementOp,
                                                                   BElementOp,
                                                                   CElementOp>;

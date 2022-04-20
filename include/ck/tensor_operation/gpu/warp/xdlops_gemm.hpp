@@ -387,17 +387,17 @@ struct mfma_type<MfmaInstr::mfma_i32_16x16x16i8>
 template <>
 struct mfma_type<MfmaInstr::mfma_f64_16x16x4f64>
 {
-    static constexpr index_t group_size          = 4;
-    static constexpr index_t num_groups_per_blk  = 1;
-    static constexpr index_t num_regs_per_blk    = 4; //group_size * num_groups_per_blk;
+    static constexpr index_t group_size         = 4;
+    static constexpr index_t num_groups_per_blk = 1;
+    static constexpr index_t num_regs_per_blk = 4; // group_size * num_groups_per_blk;
     static constexpr index_t num_threads_per_blk = 16;
     static constexpr index_t wave_size           = 64;
-    static constexpr index_t num_input_blks      = 4; //wave_size / num_threads_per_blk;
-    static constexpr index_t num_output_blks     = 1;
-    static constexpr index_t m_per_blk           = 16;
-    static constexpr index_t n_per_blk           = 16;
-    static constexpr index_t k_per_blk           = 1;
-    static constexpr bool is_k_reduction         = true;
+    static constexpr index_t num_input_blks = 4; // wave_size / num_threads_per_blk;
+    static constexpr index_t num_output_blks = 1;
+    static constexpr index_t m_per_blk       = 16;
+    static constexpr index_t n_per_blk       = 16;
+    static constexpr index_t k_per_blk       = 1;
+    static constexpr bool is_k_reduction     = true;
 
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
@@ -690,8 +690,9 @@ struct XdlopsGemm
     template <class FloatA, class FloatB, class FloatC>
     __device__ void Run(const FloatA& p_a_wave, const FloatB& p_b_wave, FloatC& p_c_thread) const
     {
-        static_assert(is_same<base_type, double>::value ||is_same<base_type, float>::value || is_same<base_type, half_t>::value ||
-                          is_same<base_type, bhalf_t>::value || is_same<base_type, int8_t>::value,
+        static_assert(is_same<base_type, double>::value || is_same<base_type, float>::value ||
+                          is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value ||
+                          is_same<base_type, int8_t>::value,
                       "base base_type must be double, float, half, bfloat16, and int8_t!");
 
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
