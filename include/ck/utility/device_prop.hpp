@@ -14,7 +14,7 @@ std::string get_device_name()
         return std::string();
     }
 
-    hipGetDeviceProperties(&props, device);
+    status = hipGetDeviceProperties(&props, device);
     if(status != hipSuccess)
     {
         return std::string();
