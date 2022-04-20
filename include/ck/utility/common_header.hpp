@@ -13,6 +13,7 @@
 #include "functional3.hpp"
 #include "functional4.hpp"
 #include "enable_if.hpp"
+#include "ignore.hpp"
 #include "integral_constant.hpp"
 #include "math.hpp"
 #include "number.hpp"
@@ -31,6 +32,7 @@
 #include "debug.hpp"
 
 #include "amd_buffer_addressing.hpp"
+#include "generic_memory_space_atomic_add.hpp"
 #include "get_id.hpp"
 #include "synchronization.hpp"
 #include "amd_address_space.hpp"
