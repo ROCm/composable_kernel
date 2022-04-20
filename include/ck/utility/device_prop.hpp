@@ -15,6 +15,10 @@ std::string get_device_name()
     }
 
     hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return std::string();
+    }
     const std::string name(props.gcnArchName);
 
     return name;
