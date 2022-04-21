@@ -450,59 +450,53 @@ struct DeviceGroupedGemmXdl
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            StaticallyIndexedArray<GemmDescKernelArg, MaxGroupCount> gemm_desc_kernel_arg_arg;
+            StaticallyIndexedArray<GemmDescKernelArg, MaxGroupCount> gemm_desc_kernel_args;
 
-            bool has_main_k0_block_loop = true;
+            bool has_main_k_block_loop = true;
 
             static_for<0, MaxGroupCount, 1>{}([&](auto i) {
                 if(i < arg.gemm_desc_kernel_arg_.size())
                 {
-                    gemm_desc_kernel_arg_arg(i) = arg.gemm_desc_kernel_arg_[i];
+                    gemm_desc_kernel_args(i) = arg.gemm_desc_kernel_arg_[i];
 
                     std::cout << "group: " << i << " arg.a_grid_desc_k0_m_k1_{"
-                              << gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I0)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I1)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I2)
-                              << "}";
+                              << gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I0) << ", "
+                              << gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
+                              << gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I2) << "}";
 
                     std::cout << ", arg.b_grid_desc_k0_n_k1_{"
-                              << gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_.GetLength(I0)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_.GetLength(I1)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_.GetLength(I2)
-                              << "}";
+                              << gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_.GetLength(I0) << ", "
+                              << gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
+                              << gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_.GetLength(I2) << "}";
 
                     std::cout << ", arg.c_grid_desc_m_n_{ "
-                              << gemm_desc_kernel_arg_arg[i].c_grid_desc_m_n_.GetLength(I0) << ", "
-                              << gemm_desc_kernel_arg_arg[i].c_grid_desc_m_n_.GetLength(I1) << "}"
+                              << gemm_desc_kernel_args[i].c_grid_desc_m_n_.GetLength(I0) << ", "
+                              << gemm_desc_kernel_args[i].c_grid_desc_m_n_.GetLength(I1) << "}"
                               << std::endl;
 
-                    if(!GridwiseGemm::CheckValidity(
-                           gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_,
-                           gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_,
-                           gemm_desc_kernel_arg_arg[i].c_grid_desc_m_n_,
-                           arg.M01_,
-                           arg.N01_))
+                    if(!GridwiseGemm::CheckValidity(gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_,
+                                                    gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_,
+                                                    gemm_desc_kernel_args[i].c_grid_desc_m_n_,
+                                                    arg.M01_,
+                                                    arg.N01_))
                     {
                         throw std::runtime_error(
                             "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
                     }
 
-                    const auto K0 = gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I0);
+                    const auto K = gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I0) *
+                                   gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I2);
 
-                    if(GridwiseGemm::CalculateHasMainK0BlockLoop(K0) != has_main_k0_block_loop)
+                    if(GridwiseGemm::CalculateHasMainKBlockLoop(K) != has_main_k_block_loop)
                     {
-                        throw std::runtime_error("wrong! not all gemm has_main_k0_block_loop");
+                        throw std::runtime_error("wrong! not all gemm has_main_k_block_loop");
                     }
                 }
             });
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(has_main_k_block_loop)
             {
                 const auto kernel =
                     kernel_grouped_gemm_xdlops_v2r3<GridwiseGemm,
@@ -520,7 +514,7 @@ struct DeviceGroupedGemmXdl
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
-                                                  gemm_desc_kernel_arg_arg,
+                                                  gemm_desc_kernel_args,
                                                   arg.gemm_desc_kernel_arg_.size(),
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
@@ -544,7 +538,7 @@ struct DeviceGroupedGemmXdl
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
-                                                  gemm_desc_kernel_arg_arg,
+                                                  gemm_desc_kernel_args,
                                                   arg.gemm_desc_kernel_arg_.size(),
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,

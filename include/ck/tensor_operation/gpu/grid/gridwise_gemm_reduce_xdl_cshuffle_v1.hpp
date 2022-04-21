@@ -25,7 +25,7 @@ template <typename GridwiseGemm,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename DGridDescriptor_MBlock_MPerBlock,
           typename Block2CTileMap,
-          bool HasMainK0BlockLoop>
+          bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
@@ -51,22 +51,22 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
-                                                   p_b_grid,
-                                                   p_c_grid,
-                                                   p_d0_grid,
-                                                   p_d1_grid,
-                                                   p_shared,
-                                                   a_element_op,
-                                                   b_element_op,
-                                                   c_element_op,
-                                                   d0_reduce_op,
-                                                   d1_reduce_op,
-                                                   a_grid_desc_ak0_m_ak1,
-                                                   b_grid_desc_bk0_n_bk1,
-                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                   d_grid_desc_mblock_mperblock,
-                                                   block_2_ctile_map);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                  p_b_grid,
+                                                  p_c_grid,
+                                                  p_d0_grid,
+                                                  p_d1_grid,
+                                                  p_shared,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  d0_reduce_op,
+                                                  d1_reduce_op,
+                                                  a_grid_desc_ak0_m_ak1,
+                                                  b_grid_desc_bk0_n_bk1,
+                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  d_grid_desc_mblock_mperblock,
+                                                  block_2_ctile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -154,6 +154,10 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     static constexpr auto AK1 = Number<AK1Value>{};
     static constexpr auto BK1 = Number<BK1Value>{};
 
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
+
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
         // A matrix in LDS memory, dst of blockwise copy
@@ -237,21 +241,10 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
             return false;
 
-        // check NumGemmKPrefetchStage
-        if constexpr(NumGemmKPrefetchStage == 1)
-        {
-            // 1-stage prefetch always supported
-        }
-        else if constexpr(NumGemmKPrefetchStage == 2)
-        {
-            // 2-stage prefetch currently only support even number of K0 loop
-            // TODO: add support for odd number of K0 loop
-            if(!((K / KPerBlock) % 2 == 0))
-            {
-                return false;
-            }
-        }
-        else
+        // check gridwise gemm pipeline
+        const auto num_k_loop = K / KPerBlock;
+
+        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
             return false;
         }
@@ -271,12 +264,11 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         return grid_size;
     }
 
-    // TODO move this function into GEMM-pipeline class
-    __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
+    __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
-        const bool has_main_k0_block_loop = ((K0 * AK1) / (NumGemmKPrefetchStage * KPerBlock)) > 1;
+        const index_t num_loop = K / KPerBlock;
 
-        return has_main_k0_block_loop;
+        return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
 
     __host__ __device__ static constexpr auto
@@ -362,7 +354,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
 
-    template <bool HasMainK0BlockLoop, typename Block2CTileMap>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
@@ -485,7 +477,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<ThisThreadBlock,
                                                                 FloatAB,
                                                                 FloatGemmAcc,
                                                                 decltype(a_block_desc_ak0_m_ak1),
@@ -513,43 +505,25 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
 
         // gridwise GEMM pipeline
-        const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_v1<remove_cvref_t<decltype(a_grid_desc_ak0_m_ak1)>,
-                                    remove_cvref_t<decltype(a_block_desc_ak0_m_ak1)>,
-                                    remove_cvref_t<decltype(a_blockwise_copy)>,
-                                    remove_cvref_t<decltype(a_grid_buf)>,
-                                    remove_cvref_t<decltype(a_block_buf)>,
-                                    remove_cvref_t<decltype(a_block_slice_copy_step)>,
-                                    remove_cvref_t<decltype(b_grid_desc_bk0_n_bk1)>,
-                                    remove_cvref_t<decltype(b_block_desc_bk0_n_bk1)>,
-                                    remove_cvref_t<decltype(b_blockwise_copy)>,
-                                    remove_cvref_t<decltype(b_grid_buf)>,
-                                    remove_cvref_t<decltype(b_block_buf)>,
-                                    remove_cvref_t<decltype(b_block_slice_copy_step)>,
-                                    remove_cvref_t<decltype(blockwise_gemm)>,
-                                    remove_cvref_t<decltype(c_thread_buf)>,
-                                    NumGemmKPrefetchStage,
-                                    HasMainK0BlockLoop>{};
-
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        gridwise_gemm_pipeline.Run(a_grid_desc_ak0_m_ak1,
-                                   a_block_desc_ak0_m_ak1,
-                                   a_blockwise_copy,
-                                   a_grid_buf,
-                                   a_block_buf,
-                                   a_block_slice_copy_step,
-                                   b_grid_desc_bk0_n_bk1,
-                                   b_block_desc_bk0_n_bk1,
-                                   b_blockwise_copy,
-                                   b_grid_buf,
-                                   b_block_buf,
-                                   b_block_slice_copy_step,
-                                   blockwise_gemm,
-                                   c_thread_buf,
-                                   num_k_block_main_loop);
+        GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
+                                                          a_block_desc_ak0_m_ak1,
+                                                          a_blockwise_copy,
+                                                          a_grid_buf,
+                                                          a_block_buf,
+                                                          a_block_slice_copy_step,
+                                                          b_grid_desc_bk0_n_bk1,
+                                                          b_block_desc_bk0_n_bk1,
+                                                          b_blockwise_copy,
+                                                          b_grid_buf,
+                                                          b_block_buf,
+                                                          b_block_slice_copy_step,
+                                                          blockwise_gemm,
+                                                          c_thread_buf,
+                                                          num_k_block_main_loop);
 
         // shuffle C and write out
         {

@@ -775,13 +775,12 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_gemm_xdlops_v2r3<
                     GridwiseGemm,

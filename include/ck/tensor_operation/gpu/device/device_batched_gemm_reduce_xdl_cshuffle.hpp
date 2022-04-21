@@ -726,11 +726,10 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
             const index_t grid_size =
                 GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
 
-            const auto K0 = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
+            const auto K =
+                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
-
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_batched_gemm_reduce_xdl_cshuffle_v1<
                     GridwiseGemm,

@@ -292,6 +292,7 @@ struct DeviceGemmXdl
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
+#if 0
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
                           << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
@@ -304,6 +305,7 @@ struct DeviceGemmXdl
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
+#endif
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
@@ -320,11 +322,9 @@ struct DeviceGemmXdl
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
-            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K);
-
             float ave_time = 0;
 
-            if(has_main_k_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_gemm_xdlops_v2r3<
                     GridwiseGemm,
