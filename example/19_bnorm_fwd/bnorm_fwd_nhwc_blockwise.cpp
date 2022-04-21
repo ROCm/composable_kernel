@@ -4,7 +4,6 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <getopt.h>
-#include <half.hpp>
 #include "check_err.hpp"
 #include "config.hpp"
 #include "print.hpp"
@@ -23,14 +22,11 @@ using namespace ck::tensor_operation::host;
 using InOutDataType = ck::half_t;
 using AccDataType   = float;
 
-using HostInOutDataType = half_float::half;
-using HostAccDataType   = float;
-
 static const double exponentialAverageFactor = 0.2;
 static const double epsilon                  = std::numeric_limits<AccDataType>::epsilon();
 
 using ReferenceBatchNormFwdInstance =
-    ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<HostInOutDataType, HostAccDataType>;
+    ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<InOutDataType, AccDataType>;
 
 using DeviceBatchNormFwdInstance = DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Blockwise<
     InOutDataType,
