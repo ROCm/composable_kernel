@@ -39,6 +39,7 @@ __global__ void
                                   const CElementwiseOperation c_element_op,
                                   const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 
@@ -55,6 +56,18 @@ __global__ void
                                                   b_element_op,
                                                   c_element_op,
                                                   c_block_cluster_adaptor);
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = a_b_k0_m_k1_grid_desc;
+    ignore = b_b_k0_n_k1_grid_desc;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = c_block_cluster_adaptor;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <index_t BlockSize,
