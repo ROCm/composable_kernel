@@ -171,9 +171,12 @@ check_err(const std::vector<T>& out,
 
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        if(out[i] != ref[i])
+        const int64_t out_v = static_cast<int64_t>(out[i]);
+        const int64_t ref_v = static_cast<int64_t>(ref[i]);
+
+        if(out_v != ref_v)
         {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << " != " << ref[i]
+            std::cout << "out[" << i << "] != ref[" << i << "]: " << out_v << " != " << ref_v
                       << std::endl
                       << msg << std::endl;
             return false;

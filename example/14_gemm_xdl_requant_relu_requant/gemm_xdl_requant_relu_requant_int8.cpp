@@ -19,22 +19,36 @@
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
 
+struct RequantReluRequant
+{
+    // FIXME: We just need one scale for Relu / Leaky Relu / PRelu
+    RequantReluRequant(float scaleGemm, float scaleRelu)
+        : scaleGemm_(scaleGemm), scaleRelu_(scaleRelu)
+    {
+    }
+
+    __host__ __device__ constexpr void operator()(float& y, const float& x) const
+    {
+        float gemm_requant = scaleGemm_ * x;
+        float relu         = gemm_requant > 0 ? gemm_requant : 0;
+        float relu_requant = scaleRelu_ * relu;
+        y                  = relu_requant > 127 ? 127 : relu_requant < -128 ? -128 : relu_requant;
+    }
+
+    float scaleGemm_;
+    float scaleRelu_;
+};
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F32 = float;
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
-using RequantReluRequant = ck::tensor_operation::element_wise::RequantReluRequant;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using ADataType        = int8_t;
 using BDataType        = int8_t;
 using CDataType        = int8_t;
 using AccDataType      = int32_t;
-using CShuffleDataType = int32_t;
+using CShuffleDataType = float;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
