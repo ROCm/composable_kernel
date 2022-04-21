@@ -76,8 +76,6 @@ struct DeviceConvFwdPtr_t::DeviceConvFwdPtrImpl
 };
 
 DeviceConvFwdPtr_t::DeviceConvFwdPtr_t() : pImpl(nullptr) {}
-// DeviceConvFwdPtr_t::DeviceConvFwdPtr_t(DeviceConvFwdPtr_t::DeviceConvFwdPtrImpl& impl) :
-// pImpl(std::make_unique<DeviceConvFwdPtr_t::DeviceConvFwdPtrImpl>(impl)) {}
 DeviceConvFwdPtr_t::~DeviceConvFwdPtr_t()                    = default;
 DeviceConvFwdPtr_t::DeviceConvFwdPtr_t(DeviceConvFwdPtr_t&&) = default;
 DeviceConvFwdPtr_t::DeviceConvFwdPtr_t(DeviceConvFwdPtr_t::DeviceConvFwdPtrImpl& other)
