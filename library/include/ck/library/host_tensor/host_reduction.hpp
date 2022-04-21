@@ -32,6 +32,7 @@
 #include <functional>
 
 #include "reduction_enums.hpp"
+#include "reduction_common.hpp"
 #include "host_reduce_util.hpp"
 #include "host_common_util.hpp"
 #include "host_tensor.hpp"
@@ -197,6 +198,8 @@ struct ReductionHost
                             OutDataType* out_data,
                             IndexDataType* out_indices)
     {
+        using ck::float_equal_one;
+        using ck::float_equal_zero;
         using ck::type_convert;
         using ck::host_common::float_equal_one;
         using ck::host_common::float_equal_zero;
@@ -228,10 +231,10 @@ struct ReductionHost
 
             posUnaryOp(accuVal);
 
-            if(!float_equal_one(alpha))
+            if(!float_equal_one{}(alpha))
                 accuVal *= type_convert<AccDataType>(alpha);
 
-            if(!float_equal_zero(beta))
+            if(!float_equal_zero{}(beta))
                 accuVal += type_convert<AccDataType>(out_data[0]) * type_convert<AccDataType>(beta);
 
             out_data[0]    = type_convert<OutDataType>(accuVal);
@@ -264,13 +267,13 @@ struct ReductionHost
 
                 posUnaryOp(accuVal);
 
-                if(!float_equal_one(alpha))
+                if(!float_equal_one{}(alpha))
                     accuVal *= type_convert<AccDataType>(alpha);
 
                 auto dst_offset =
                     get_offset_from_index<NumInvariantDim>(outStrides, invariant_index);
 
-                if(!float_equal_zero(beta))
+                if(!float_equal_zero{}(beta))
                     accuVal += type_convert<AccDataType>(out_data[dst_offset]) *
                                type_convert<AccDataType>(beta);
 
@@ -304,6 +307,8 @@ struct ReductionHost
 
     void RunImpl_no_index(float alpha, const InDataType* in_data, float beta, OutDataType* out_data)
     {
+        using ck::float_equal_one;
+        using ck::float_equal_zero;
         using ck::type_convert;
         using ck::host_common::float_equal_one;
         using ck::host_common::float_equal_zero;
@@ -331,10 +336,10 @@ struct ReductionHost
 
             posUnaryOp(accuVal);
 
-            if(!float_equal_one(alpha))
+            if(!float_equal_one{}(alpha))
                 accuVal *= type_convert<AccDataType>(alpha);
 
-            if(!float_equal_zero(beta))
+            if(!float_equal_zero{}(beta))
                 accuVal += type_convert<AccDataType>(out_data[0]) * type_convert<AccDataType>(beta);
 
             out_data[0] = type_convert<OutDataType>(accuVal);
@@ -362,13 +367,13 @@ struct ReductionHost
 
                 posUnaryOp(accuVal);
 
-                if(!float_equal_one(alpha))
+                if(!float_equal_one{}(alpha))
                     accuVal *= type_convert<AccDataType>(alpha);
 
                 auto dst_offset =
                     get_offset_from_index<NumInvariantDim>(outStrides, invariant_index);
 
-                if(!float_equal_zero(beta))
+                if(!float_equal_zero{}(beta))
                     accuVal += type_convert<AccDataType>(out_data[dst_offset]) *
                                type_convert<AccDataType>(beta);
 

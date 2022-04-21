@@ -355,13 +355,9 @@ void profile_reduce_impl_impl(bool do_verification,
 
         if(do_verification)
         {
-            using HostInDataType  = typename type_mapping<InDataType>::OutType;
-            using HostOutDataType = typename type_mapping<OutDataType>::OutType;
-            using HostAccDataType = typename type_mapping<AccDataType>::OutType;
-
-            ReductionHost<HostInDataType,
-                          HostAccDataType,
-                          HostOutDataType,
+            ReductionHost<InDataType,
+                          AccDataType,
+                          OutDataType,
                           ReduceOpId,
                           Rank,
                           NumReduceDim,
@@ -369,11 +365,8 @@ void profile_reduce_impl_impl(bool do_verification,
                           NeedIndices>
                 hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-            hostReduce.Run(alpha,
-                           reinterpret_cast<const HostInDataType*>(in.mData.data()),
-                           beta,
-                           reinterpret_cast<HostOutDataType*>(out_ref.mData.data()),
-                           out_indices_ref.mData.data());
+            hostReduce.Run(
+                alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
         };
 
         const auto i_inLengths  = to_int_vector(inLengths);

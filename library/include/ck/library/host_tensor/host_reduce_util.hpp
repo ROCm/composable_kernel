@@ -26,11 +26,13 @@
 #ifndef GUARD_HOST_REDUCE_UTIL_HPP
 #define GUARD_HOST_REDUCE_UTIL_HPP
 
-#include <half.hpp>
+#include <limits>
 #include <cmath>
 #include <functional>
 
 #include "reduction_enums.hpp"
+#include "data_type.hpp"
+#include "math_v2.hpp"
 
 namespace ck {
 
@@ -42,7 +44,7 @@ using ck::ReduceTensorOp;
 template <typename AccDataType, ReduceTensorOp ReduceOpId>
 __host__ static inline std::function<void(AccDataType&)> PreUnaryOpFn(int)
 {
-    using std::abs;
+    using ck::math::abs;
 
     if constexpr(ReduceOpId == ReduceTensorOp::NORM1)
     {
@@ -169,11 +171,11 @@ __host__ static inline AccDataType ReduceOpZeroVal()
     }
     else if constexpr(ReduceOpId == ReduceTensorOp::MIN)
     {
-        return (std::numeric_limits<AccDataType>::max());
+        return (ck::NumericLimits<AccDataType>::Max());
     }
     else if constexpr(ReduceOpId == ReduceTensorOp::MAX)
     {
-        return (std::numeric_limits<AccDataType>::lowest());
+        return (ck::NumericLimits<AccDataType>::Lowest());
     }
     else if constexpr(ReduceOpId == ReduceTensorOp::AMAX)
     {
@@ -195,7 +197,7 @@ binop_with_nan_check(std::function<void(AccDataType&, AccDataType)> opReduce,
                      AccDataType& accuVal,
                      AccDataType currVal)
 {
-    using std::isnan;
+    using ck::math::isnan;
 
     if constexpr(!PropagateNan)
     {
@@ -218,7 +220,7 @@ binop_with_nan_check2(std::function<void(AccDataType&, AccDataType, bool&)> opRe
                       int& accuIndex,
                       int currIndex)
 {
-    using std::isnan;
+    using ck::math::isnan;
 
     if constexpr(!PropagateNan)
     {

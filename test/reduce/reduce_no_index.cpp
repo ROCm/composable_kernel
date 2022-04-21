@@ -37,19 +37,6 @@ static inline std::vector<int> get_invariant_dims(const std::vector<int>& reduce
     return invariantDims;
 };
 
-// map the data type used by the GPU kernels to the corresponding type used by the host codes
-template <typename InType>
-struct type_mapping
-{
-    using OutType = InType;
-};
-
-template <>
-struct type_mapping<ck::half_t>
-{
-    using OutType = half_float::half;
-};
-
 constexpr int Rank = 4;
 
 constexpr ReduceTensorOp ReduceOpId      = ReduceTensorOp::AVG;
@@ -223,13 +210,9 @@ bool test_reduce_no_index_impl(int init_method,
 
     bool result = true;
 
-    using HostInDataType  = typename type_mapping<InDataType>::OutType;
-    using HostOutDataType = typename type_mapping<OutDataType>::OutType;
-    using HostAccDataType = typename type_mapping<AccDataType>::OutType;
-
-    ReductionHost<HostInDataType,
-                  HostAccDataType,
-                  HostOutDataType,
+    ReductionHost<InDataType,
+                  AccDataType,
+                  OutDataType,
                   ReduceOpId,
                   Rank,
                   NumReduceDim,
@@ -237,11 +220,7 @@ bool test_reduce_no_index_impl(int init_method,
                   NeedIndices>
         hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-    hostReduce.Run(alpha,
-                   reinterpret_cast<const HostInDataType*>(in.mData.data()),
-                   beta,
-                   reinterpret_cast<HostOutDataType*>(out_ref.mData.data()),
-                   nullptr);
+    hostReduce.Run(alpha, in.mData.data(), beta, out_ref.mData.data(), nullptr);
 
     const auto i_inLengths  = to_int_vector(inLengths);
     const auto i_inStrides  = to_int_vector(inStrides);

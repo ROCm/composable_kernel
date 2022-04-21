@@ -3,7 +3,6 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <getopt.h>
-#include <half.hpp>
 
 #include "check_err.hpp"
 #include "config.hpp"
@@ -26,10 +25,6 @@ using namespace ck::tensor_operation::device;
 using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 using AccDataType = float;
-
-using HostInDataType  = half_float::half;
-using HostOutDataType = half_float::half;
-using HostAccDataType = float;
 
 constexpr int Rank         = 4;
 constexpr int NumReduceDim = 3;
@@ -307,9 +302,9 @@ int main(int argc, char* argv[])
 
     if(args.do_verification)
     {
-        ReductionHost<HostInDataType,
-                      HostAccDataType,
-                      HostOutDataType,
+        ReductionHost<InDataType,
+                      AccDataType,
+                      OutDataType,
                       ReduceOpId,
                       Rank,
                       NumReduceDim,
@@ -317,11 +312,8 @@ int main(int argc, char* argv[])
                       NeedIndices>
             hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-        hostReduce.Run(alpha,
-                       reinterpret_cast<const HostInDataType*>(in.mData.data()),
-                       beta,
-                       reinterpret_cast<HostOutDataType*>(out_ref.mData.data()),
-                       out_indices_ref.mData.data());
+        hostReduce.Run(
+            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
     };
 
     const auto i_inLengths  = to_int_vector(args.inLengths);
