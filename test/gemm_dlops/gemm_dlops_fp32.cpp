@@ -123,7 +123,6 @@ int main()
                                        PassThrough>{}(gemmPtr);
     }
 
-
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     return res ? 0 : 1;
 }

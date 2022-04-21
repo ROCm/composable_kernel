@@ -150,17 +150,17 @@ template <>
 __device__ void
 inner_product<int8x2_t, int8x2_t, int32_t>(const int8x2_t& a, const int8x2_t& b, int32_t& c)
 {
-// #if defined(CK_USE_DOT2_I32_I8)
-// #if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
-//     asm volatile("\n \
+    // #if defined(CK_USE_DOT2_I32_I8)
+    // #if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
+    //     asm volatile("\n \
 //             v_dot2_i32_i8 %0, %1, %2, %0\n \
 //             "
-//                  : "=v"(c)
-//                  : "v"(bit_cast<int32_t>(a)), "v"(bit_cast<int32_t>(b)), "0"(c));
-// #else
-//     c = __builtin_amdgcn_sdot2(bit_cast<int32_t>(a), bit_cast<int32_t>(b), c, false);
-// #endif
-// #else
+    //                  : "=v"(c)
+    //                  : "v"(bit_cast<int32_t>(a)), "v"(bit_cast<int32_t>(b)), "0"(c));
+    // #else
+    //     c = __builtin_amdgcn_sdot2(bit_cast<int32_t>(a), bit_cast<int32_t>(b), c, false);
+    // #endif
+    // #else
     const vector_type<int8_t, 2> a_vector{a};
     const vector_type<int8_t, 2> b_vector{b};
 
@@ -168,7 +168,7 @@ inner_product<int8x2_t, int8x2_t, int32_t>(const int8x2_t& a, const int8x2_t& b,
         c += type_convert<int32_t>(a_vector.AsType<int8_t>()[i]) *
              type_convert<int32_t>(b_vector.AsType<int8_t>()[i]);
     });
-// #endif
+    // #endif
 }
 template <>
 __device__ void

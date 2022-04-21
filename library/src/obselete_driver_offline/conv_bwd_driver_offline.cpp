@@ -263,9 +263,9 @@ int main(int argc, char* argv[])
     using acc_data_t                 = float;
     using out_data_t                 = float;
 #elif 1
-    using in_data_t   = half_t;
-    using acc_data_t  = float;
-    using out_data_t  = half_t;
+    using in_data_t  = half_t;
+    using acc_data_t = float;
+    using out_data_t = half_t;
 #endif
 
     std::vector<std::size_t> in_lengths_host(4), wei_lengths_host(4), out_lengths_host(4);

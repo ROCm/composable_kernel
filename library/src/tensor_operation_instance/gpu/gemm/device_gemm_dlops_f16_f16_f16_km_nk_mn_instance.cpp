@@ -65,6 +65,3 @@ void add_device_gemm_dlops_f16_f16_f16_km_nk_mn_instances(
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-
-

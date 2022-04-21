@@ -263,9 +263,9 @@ struct DeviceGemmDlops
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
-        a_element_op_{a_element_op},
-        b_element_op_{b_element_op},
-        c_element_op_{c_element_op}
+              a_element_op_{a_element_op},
+              b_element_op_{b_element_op},
+              c_element_op_{c_element_op}
         {
             a_grid_desc_k0_m_k1_ = DeviceGemmDlops::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
             b_grid_desc_k0_n_k1_ = DeviceGemmDlops::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
@@ -281,8 +281,7 @@ struct DeviceGemmDlops
                 c_grid_desc_m0_m10_m11_n0_n10_n11_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(c_grid_desc_m_n_);
 
-                block_2_ctile_map_ =
-                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
+                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
             }
         }
 
@@ -340,7 +339,8 @@ struct DeviceGemmDlops
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_.GetLength(I0), arg.c_grid_desc_m_n_.GetLength(I1));
+            const index_t grid_size = GridwiseGemm::CalculateGridSize(
+                arg.c_grid_desc_m_n_.GetLength(I0), arg.c_grid_desc_m_n_.GetLength(I1));
 
             const auto K0                    = arg.a_grid_desc_k0_m0_m1_k1_.GetLength(I0);
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K0);
@@ -472,9 +472,15 @@ struct DeviceGemmDlops
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        std::cout << ck::get_device_name() << std::endl;
-        return GridwiseGemm::CheckValidity(
-            arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
+        if(ck::get_device_name() == "gfx1030")
+        {
+            return GridwiseGemm::CheckValidity(
+                arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
+        }
+        else
+        {
+            return false;
+        }
     }
 
     // polymorphic
@@ -577,4 +583,3 @@ struct DeviceGemmDlops
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-

@@ -156,8 +156,9 @@ struct RequantReluRequant
         float gemm_requant = scaleGemm_ * static_cast<float>(x);
         float relu         = gemm_requant > 0 ? gemm_requant : 0;
         float relu_requant = scaleRelu_ * relu;
-        y                  = static_cast<int8_t>(relu_requant > 127 ? 127
-                                                   : relu_requant < -128 ? -128 : relu_requant);
+        y                  = static_cast<int8_t>(relu_requant > 127    ? 127
+                                                 : relu_requant < -128 ? -128
+                                                                       : relu_requant);
     }
 
     // for reference_gemm
@@ -166,8 +167,9 @@ struct RequantReluRequant
         float gemm_requant = scaleGemm_ * x;
         float relu         = gemm_requant > 0 ? gemm_requant : 0;
         float relu_requant = scaleRelu_ * relu;
-        y                  = static_cast<float>(relu_requant > 127 ? 127
-                                                  : relu_requant < -128 ? -128 : relu_requant);
+        y                  = static_cast<float>(relu_requant > 127    ? 127
+                                                : relu_requant < -128 ? -128
+                                                                      : relu_requant);
     }
 
     float scaleGemm_;

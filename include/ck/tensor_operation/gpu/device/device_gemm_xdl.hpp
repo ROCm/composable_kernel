@@ -404,16 +404,6 @@ struct DeviceGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#ifdef __gfx1030__
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
-#else
-        return false;
-#endif
-
         std::cout << ck::get_device_name() << std::endl;
 
         // if (ck::get_device_name() == "gfx1030")

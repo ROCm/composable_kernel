@@ -4,7 +4,7 @@
 
 namespace ck {
 
-std::string get_device_name()
+inline std::string get_device_name()
 {
     hipDeviceProp_t props{};
     int device;
