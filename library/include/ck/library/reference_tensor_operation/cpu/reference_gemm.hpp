@@ -1,6 +1,4 @@
-#ifndef REFERENCE_GEMM_HPP
-#define REFERENCE_GEMM_HPP
-
+#pragma once
 #include <iostream>
 #include <sstream>
 #include "device_base.hpp"
@@ -129,4 +127,3 @@ struct ReferenceGemm : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif
