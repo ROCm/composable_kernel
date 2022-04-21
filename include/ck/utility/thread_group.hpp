@@ -4,7 +4,7 @@
 namespace ck {
 
 template <index_t ThreadPerBlock>
-struct AnyThreadBlock
+struct ThisThreadBlock
 {
     static constexpr index_t kNumThread_ = ThreadPerBlock;
 

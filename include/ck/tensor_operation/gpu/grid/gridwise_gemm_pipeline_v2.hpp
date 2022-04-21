@@ -4,62 +4,8 @@
 
 namespace ck {
 
-template <typename ABBlockTransferThreadGroup,
-          typename BlockGemmThreadGroup,
-          typename AGridDesc,
-          typename ABlockDesc,
-          typename ABlockTransfer,
-          typename AGridBuffer,
-          typename ABlockBuffer,
-          typename ABlockTransferStep,
-          typename BGridDesc,
-          typename BBlockDesc,
-          typename BBlockTransfer,
-          typename BGridBuffer,
-          typename BBlockBuffer,
-          typename BBlockTransferStep,
-          typename BlockwiseGemm,
-          typename CThreadBuffer,
-          index_t NumPrefetch,
-          bool HasMainLoop>
-struct GridwiseGemmPipeline_v2;
-
-// 1-stage prefetch
-template <typename ABBlockTransferThreadGroup,
-          typename BlockGemmThreadGroup,
-          typename AGridDesc,
-          typename ABlockDesc,
-          typename ABlockTransfer,
-          typename AGridBuffer,
-          typename ABlockBuffer,
-          typename ABlockTransferStep,
-          typename BGridDesc,
-          typename BBlockDesc,
-          typename BBlockTransfer,
-          typename BGridBuffer,
-          typename BBlockBuffer,
-          typename BBlockTransferStep,
-          typename BlockwiseGemm,
-          typename CThreadBuffer,
-          bool HasMainLoop>
-struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
-                               BlockGemmThreadGroup,
-                               AGridDesc,
-                               ABlockDesc,
-                               ABlockTransfer,
-                               AGridBuffer,
-                               ABlockBuffer,
-                               ABlockTransferStep,
-                               BGridDesc,
-                               BBlockDesc,
-                               BBlockTransfer,
-                               BGridBuffer,
-                               BBlockBuffer,
-                               BBlockTransferStep,
-                               BlockwiseGemm,
-                               CThreadBuffer,
-                               1,
-                               HasMainLoop>
+template <typename ABBlockTransferThreadGroup, typename BlockGemmThreadGroup>
+struct GridwiseGemmPipeline_v2
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -69,6 +15,31 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
         // TODO static assert
     }
 
+    __host__ __device__ static constexpr bool IsSupported(index_t num_loop)
+    {
+        // TODO: improve applicability
+        return num_loop % 2 == 0;
+    }
+
+    __host__ __device__ static constexpr bool CalculateHasMainLoop(index_t num_loop)
+    {
+        return num_loop / 2 > 1;
+    }
+
+    template <bool HasMainLoop,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename CThreadBuffer>
     static __device__ void RunABBlockTransferPipeline(const AGridDesc& a_grid_desc,
                                                       const ABlockDesc& a_block_desc,
                                                       ABlockTransfer& a_block_copy,
@@ -151,6 +122,11 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
         }
     }
 
+    template <bool HasMainLoop,
+              typename ABlockBuffer,
+              typename BBlockBuffer,
+              typename BlockwiseGemm,
+              typename CThreadBuffer>
     static __device__ void RunBlockGemmPipeline(ABlockBuffer& a_block_buf,
                                                 BBlockBuffer& b_block_buf,
                                                 const BlockwiseGemm& block_gemm,
@@ -161,7 +137,6 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
         c_thread_buf.Clear();
 
         // main body
-        // FIXME: HasMainLoop = (num_loop) > 2
         if constexpr(HasMainLoop)
         {
             index_t i = 0;
@@ -205,6 +180,21 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
         }
     }
 
+    template <bool HasMainLoop,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename BlockwiseGemm,
+              typename CThreadBuffer>
     static __device__ void Run(const AGridDesc& a_grid_desc,
                                const ABlockDesc& a_block_desc,
                                ABlockTransfer& a_block_copy,
@@ -223,23 +213,24 @@ struct GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
     {
         if(ABBlockTransferThreadGroup::IsBelong())
         {
-            RunABBlockTransferPipeline(a_grid_desc,
-                                       a_block_desc,
-                                       a_block_copy,
-                                       a_grid_buf,
-                                       a_block_buf,
-                                       a_block_copy_step,
-                                       b_grid_desc,
-                                       b_block_desc,
-                                       b_block_copy,
-                                       b_grid_buf,
-                                       b_block_buf,
-                                       b_block_copy_step,
-                                       num_loop);
+            RunABBlockTransferPipeline<HasMainLoop>(a_grid_desc,
+                                                    a_block_desc,
+                                                    a_block_copy,
+                                                    a_grid_buf,
+                                                    a_block_buf,
+                                                    a_block_copy_step,
+                                                    b_grid_desc,
+                                                    b_block_desc,
+                                                    b_block_copy,
+                                                    b_grid_buf,
+                                                    b_block_buf,
+                                                    b_block_copy_step,
+                                                    num_loop);
         }
         else if(BlockGemmThreadGroup::IsBelong())
         {
-            RunBlockGemmPipeline(a_block_buf, b_block_buf, block_gemm, c_thread_buf, num_loop);
+            RunBlockGemmPipeline<HasMainLoop>(
+                a_block_buf, b_block_buf, block_gemm, c_thread_buf, num_loop);
         }
     }
 };
