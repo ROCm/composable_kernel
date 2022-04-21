@@ -387,17 +387,17 @@ struct mfma_type<MfmaInstr::mfma_i32_16x16x16i8>
 template <>
 struct mfma_type<MfmaInstr::mfma_f64_16x16x4f64>
 {
-    static constexpr index_t group_size         = 4;
-    static constexpr index_t num_groups_per_blk = 1;
-    static constexpr index_t num_regs_per_blk = 4; // group_size * num_groups_per_blk;
+    static constexpr index_t group_size          = 4;
+    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t num_regs_per_blk    = 4; // group_size * num_groups_per_blk;
     static constexpr index_t num_threads_per_blk = 16;
     static constexpr index_t wave_size           = 64;
-    static constexpr index_t num_input_blks = 4; // wave_size / num_threads_per_blk;
-    static constexpr index_t num_output_blks = 1;
-    static constexpr index_t m_per_blk       = 16;
-    static constexpr index_t n_per_blk       = 16;
-    static constexpr index_t k_per_blk       = 1;
-    static constexpr bool is_k_reduction     = true;
+    static constexpr index_t num_input_blks      = 4; // wave_size / num_threads_per_blk;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t m_per_blk           = 16;
+    static constexpr index_t n_per_blk           = 16;
+    static constexpr index_t k_per_blk           = 1;
+    static constexpr bool is_k_reduction         = true;
 
     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
@@ -413,7 +413,7 @@ struct MfmaSelector
     static constexpr auto GetMfma();
 
     template <>
-    static constexpr auto GetMfma<double, 32, 32>()
+    static constexpr auto GetMfma<double, 16, 16>()
     {
         return MfmaInstr::mfma_f64_16x16x4f64;
     }
