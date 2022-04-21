@@ -72,8 +72,13 @@ using DeviceConvBwdWeightInstance = ck::tensor_operation::device::
         8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
-using ReferenceConvBwdWeightInstance = ck::tensor_operation::host::
-    ReferenceConvBwdWeight<InDataType, WeiDataType, OutDataType, InElementOp, WeiElementOp, OutElementOp>;
+using ReferenceConvBwdWeightInstance =
+    ck::tensor_operation::host::ReferenceConvBwdWeight<InDataType,
+                                                       WeiDataType,
+                                                       OutDataType,
+                                                       InElementOp,
+                                                       WeiElementOp,
+                                                       OutElementOp>;
 
 int main(int argc, char* argv[])
 {
