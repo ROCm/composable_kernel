@@ -201,8 +201,6 @@ struct ReductionHost
         using ck::float_equal_one;
         using ck::float_equal_zero;
         using ck::type_convert;
-        using ck::host_common::float_equal_one;
-        using ck::host_common::float_equal_zero;
         using ck::host_reduce::binop_with_nan_check2;
         using ck::host_reduce::ReduceOpFn2;
         using ck::host_reduce::ReduceOpZeroVal;
@@ -310,8 +308,6 @@ struct ReductionHost
         using ck::float_equal_one;
         using ck::float_equal_zero;
         using ck::type_convert;
-        using ck::host_common::float_equal_one;
-        using ck::host_common::float_equal_zero;
         using ck::host_reduce::binop_with_nan_check;
         using ck::host_reduce::ReduceOpFn;
         using ck::host_reduce::ReduceOpZeroVal;

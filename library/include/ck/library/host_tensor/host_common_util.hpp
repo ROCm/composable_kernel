@@ -35,30 +35,6 @@ namespace ck {
 
 namespace host_common {
 
-template <typename T>
-static inline bool float_equal_one(T);
-
-static inline bool float_equal_one(float x) { return x == 1.0f; };
-
-static inline bool float_equal_one(double x) { return x == 1.0; };
-
-static inline bool float_equal_one(half_float::half x)
-{
-    return x == static_cast<half_float::half>(1.0f);
-};
-
-template <typename T>
-static inline bool float_equal_zero(T x);
-
-static inline bool float_equal_zero(float x) { return x == 0.0f; };
-
-static inline bool float_equal_zero(double x) { return x == 0.0; };
-
-static inline bool float_equal_zero(half_float::half x)
-{
-    return x == static_cast<half_float::half>(0.0f);
-};
-
 static inline std::vector<int> to_int_vector(const std::vector<size_t>& inData)
 {
     std::vector<int> outData;
@@ -67,19 +43,6 @@ static inline std::vector<int> to_int_vector(const std::vector<size_t>& inData)
         outData.push_back(static_cast<int>(elem));
 
     return (outData);
-};
-
-// map the data type used by the GPU kernels to the corresponding type used by the host codes
-template <typename InType>
-struct type_mapping
-{
-    using OutType = InType;
-};
-
-template <>
-struct type_mapping<ck::half_t>
-{
-    using OutType = half_float::half;
 };
 
 template <typename T>

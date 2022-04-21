@@ -140,7 +140,6 @@ void profile_reduce_impl_impl(bool do_verification,
     using namespace ck::host_reduce;
     using ck::host_common::dumpBufferToFile;
     using ck::host_common::to_int_vector;
-    using ck::host_common::type_mapping;
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
