@@ -303,7 +303,7 @@ struct intrin_mfma_f64_16x16x4f64<16, 16>
     template <class FloatC>
     __device__ static void Run(const double& reg_a, const double& reg_b, FloatC& reg_c)
     {
-#ifdef __gxf90a__
+#ifdef __gfx90a__
         reg_c.template AsType<double4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f64_16x16x4f64(
             reg_a, reg_b, reg_c.template AsType<double4_t>()[Number<0>{}], 0, 0, 0);
 #else
