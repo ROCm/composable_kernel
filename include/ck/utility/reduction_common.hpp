@@ -33,7 +33,7 @@ namespace ck {
 struct float_equal_one
 {
     template <class T>
-    __device__ inline bool operator()(T x)
+    __host__ __device__ inline bool operator()(T x)
     {
         return x <= static_cast<T>(1.0f) and x >= static_cast<T>(1.0f);
     };
@@ -42,7 +42,7 @@ struct float_equal_one
 struct float_equal_zero
 {
     template <class T>
-    __device__ inline bool operator()(T x)
+    __host__ __device__ inline bool operator()(T x)
     {
         return x <= static_cast<T>(0.0f) and x >= static_cast<T>(0.0f);
     };
