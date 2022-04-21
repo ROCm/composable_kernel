@@ -12,15 +12,14 @@ template <typename ElementwiseFunctor>
 struct DeviceBinaryElementwise : public BaseOperator
 {
 
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a,
-                        const void* p_b,
-                        void* p_c,
-                        const std::vector<int>& shape_a,
-                        const std::vector<int>& stride_a,
-                        const std::vector<int>& shape_b,
-                        const std::vector<int>& stride_b,
-                        ElementwiseFunctor functor) = 0;
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                              const void* p_b,
+                                                              void* p_c,
+                                                              const std::vector<int>& shape_a,
+                                                              const std::vector<int>& stride_a,
+                                                              const std::vector<int>& shape_b,
+                                                              const std::vector<int>& stride_b,
+                                                              ElementwiseFunctor functor) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

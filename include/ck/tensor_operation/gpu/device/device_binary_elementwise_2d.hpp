@@ -16,15 +16,14 @@ template <typename ADataType,
           typename ComputeDataType,
           typename ElementwiseFunctor,
           index_t ThreadPerBlock,
-          index_t ThreadTileSize,
           index_t ScalarPerVector>
 struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFunctor>
 {
-    static_assert(ThreadTileSize % ScalarPerVector == 0);
-    static constexpr int BlockTileSize = ThreadPerBlock * ThreadTileSize;
-    static constexpr auto I0           = Number<0>{};
+    static constexpr auto I0 = Number<0>{};
 
-    static auto MakeDescriptor_M0(const std::vector<int>& shape, const std::vector<int>& stride)
+    static auto MakeDescriptor_M0(const std::vector<int>& shape,
+                                  const std::vector<int>& stride,
+                                  index_t gridSize)
     {
         const int m = shape[0];
         const int n = shape[1];
@@ -41,8 +40,9 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
                                         make_tuple(Sequence<0>{}));
 
         // pad
-        const auto m0  = desc_m0.GetLength(I0);
-        const auto pad = math::integer_least_multiple(m0, BlockTileSize) - m0;
+        const auto m0           = desc_m0.GetLength(I0);
+        const index_t loop_step = gridSize * ThreadPerBlock * ScalarPerVector;
+        const auto pad          = math::integer_least_multiple(m0, loop_step) - m0;
         const auto desc_m0_pad =
             transform_tensor_descriptor(desc_m0,
                                         make_tuple(make_right_pad_transform(m0, pad)),
@@ -51,15 +51,13 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
         return desc_m0_pad;
     }
 
-    using GridDesc_M0        = decltype(MakeDescriptor_M0({1, 1}, {1, 1}));
+    using GridDesc_M0 = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1));
     using GridwiseBinEltwise = GridwiseBinaryElementwise_1D<ADataType,
                                                             BDataType,
                                                             CDataType,
                                                             ComputeDataType,
                                                             GridDesc_M0,
                                                             ElementwiseFunctor,
-                                                            ThreadPerBlock,
-                                                            ThreadTileSize,
                                                             ScalarPerVector>;
 
     struct Argument : public BaseArgument
@@ -75,11 +73,12 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
             : p_a_(p_a),
               p_b_(p_b),
               p_c_(p_c),
-              a_grid_desc_m0_(MakeDescriptor_M0(shape, stride_a)),
-              b_grid_desc_m0_(MakeDescriptor_M0(shape, stride_b)),
-              c_grid_desc_m0_(MakeDescriptor_M0(shape, stride_c)),
-              functor_(functor)
+              functor_(functor),
+              gridSize_(128) // FIXME - Calculate the grid size by number of CU in the future
         {
+            a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_);
+            b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_);
+            c_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_c, gridSize_);
         }
 
         const ADataType* p_a_;
@@ -89,30 +88,25 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
         GridDesc_M0 b_grid_desc_m0_;
         GridDesc_M0 c_grid_desc_m0_;
         ElementwiseFunctor functor_;
+        index_t gridSize_;
     };
 
     struct Invoker : public BaseInvoker
     {
-        index_t CalculateGridSize(const GridDesc_M0& grid_desc_m0)
-        {
-            const auto gridTileSize = grid_desc_m0.GetLength(I0);
-            return gridTileSize / BlockTileSize;
-        }
-
         float Run(const Argument& arg, int nrepeat = 1)
         {
-            const auto kernel      = kernel_elementwise_1d<GridwiseBinEltwise,
+            (void)arg;
+            const auto kernel = kernel_elementwise_1d<GridwiseBinEltwise,
                                                       ADataType,
                                                       BDataType,
                                                       CDataType,
                                                       GridDesc_M0,
                                                       ElementwiseFunctor>;
-            float avgTime          = 0;
-            const index_t gridSize = CalculateGridSize(arg.c_grid_desc_m0_);
+            float avgTime = 0;
             if(nrepeat == 0)
             {
                 launch_kernel(kernel,
-                              dim3(gridSize),
+                              dim3(arg.gridSize_),
                               dim3(ThreadPerBlock),
                               0,
                               arg.p_a_,
@@ -127,7 +121,7 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
             {
                 avgTime = launch_and_time_kernel(kernel,
                                                  nrepeat,
-                                                 dim3(gridSize),
+                                                 dim3(arg.gridSize_),
                                                  dim3(ThreadPerBlock),
                                                  0,
                                                  arg.p_a_,
@@ -157,7 +151,7 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
         // m * n
         const auto m0 = pArg->c_grid_desc_m0_.GetLength(I0);
 
-        if(m0 % BlockTileSize != 0)
+        if(m0 % ScalarPerVector != 0)
             return false;
 
         return true;
@@ -195,7 +189,6 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
         str << "DeviceBinaryElementwise_2D"
             << "<"
             << "ThreadPerBlock = " << ThreadPerBlock
-            << "ThreadTileSize = " << ThreadTileSize
             << "ScalarPerVector = " << ScalarPerVector
             << ">";
         // clang-format on

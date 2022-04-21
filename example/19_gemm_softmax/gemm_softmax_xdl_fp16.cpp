@@ -171,16 +171,21 @@ struct Div
 
 using DeviceElementwiseSubExpInstance =
     ck::tensor_operation::device::DeviceBinaryElementwise_2D<CDataType,
-                                                       CDataType,
-                                                       CDataType,
-                                                       EltwiseComputeDataType,
-                                                       Sub_Exp,
-                                                       256,
-                                                       32,
-                                                       8>;
+                                                             CDataType,
+                                                             CDataType,
+                                                             EltwiseComputeDataType,
+                                                             Sub_Exp,
+                                                             256,
+                                                             8>;
 
-using DeviceElementwiseDivInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise_2D<CDataType, CDataType, CDataType, EltwiseComputeDataType, Div, 256, 32, 8>;
+using DeviceElementwiseDivInstance =
+    ck::tensor_operation::device::DeviceBinaryElementwise_2D<CDataType,
+                                                             CDataType,
+                                                             CDataType,
+                                                             EltwiseComputeDataType,
+                                                             Div,
+                                                             256,
+                                                             8>;
 
 using HostGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;

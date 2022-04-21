@@ -36,13 +36,10 @@ template <typename ADataType,
           typename ComputeDataType,
           typename GridDesc_M0,
           typename ElementwiseFunctor,
-          index_t ThreadPerBlock,
-          index_t ThreadTileSize,
           index_t ScalarPerVector>
 struct GridwiseBinaryElementwise_1D
 {
-    static constexpr auto I0           = Number<0>{};
-    static constexpr int BlockTileSize = ThreadPerBlock * ThreadTileSize;
+    static constexpr auto I0 = Number<0>{};
     static constexpr auto thread_desc_M0 =
         make_naive_tensor_descriptor_packed(make_tuple(Number<ScalarPerVector>{}));
 
@@ -50,10 +47,8 @@ struct GridwiseBinaryElementwise_1D
 
     static __device__ __host__ auto CalculateElementwiseIndex()
     {
-        const index_t thread_id = get_thread_local_1d_id();
-        const index_t block_id  = get_block_1d_id();
-
-        return make_multi_index(block_id * BlockTileSize + thread_id * ScalarPerVector);
+        const index_t global_thread_id = get_thread_global_1d_id();
+        return make_multi_index(global_thread_id * ScalarPerVector);
     }
 
     __device__ static void Run(const ADataType* __restrict__ p_a_global,
@@ -116,8 +111,13 @@ struct GridwiseBinaryElementwise_1D
                                                false>{
                 c_grid_desc_m0, thread_to_global_offset, PassThrough{}};
 
-        int num_iter                         = ThreadTileSize / ScalarPerVector;
-        constexpr auto thread_to_global_step = make_multi_index(ThreadPerBlock * ScalarPerVector);
+        const index_t threadPerBlock = get_block_size();
+        const index_t blockPerGrid   = get_grid_size();
+        const auto m0                = c_grid_desc_m0.GetLength(I0);
+        const index_t loop_step      = blockPerGrid * threadPerBlock * ScalarPerVector;
+        const auto loop_step_index   = make_multi_index(loop_step);
+
+        index_t num_iter = m0 / (loop_step);
         do
         {
             // read and process ScalarPerVector elements
@@ -140,9 +140,9 @@ struct GridwiseBinaryElementwise_1D
                                c_grid_desc_m0,
                                c_global_buf);
 
-            a_global_load.MoveSrcSliceWindow(a_grid_desc_m0, thread_to_global_step);
-            b_global_load.MoveSrcSliceWindow(b_grid_desc_m0, thread_to_global_step);
-            c_global_write.MoveDstSliceWindow(c_grid_desc_m0, thread_to_global_step);
+            a_global_load.MoveSrcSliceWindow(a_grid_desc_m0, loop_step_index);
+            b_global_load.MoveSrcSliceWindow(b_grid_desc_m0, loop_step_index);
+            c_global_write.MoveDstSliceWindow(c_grid_desc_m0, loop_step_index);
         } while(--num_iter);
     }
 };
