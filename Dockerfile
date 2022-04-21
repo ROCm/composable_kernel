@@ -42,7 +42,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libnuma-dev \
     libpthread-stubs0-dev \
     llvm-amdgpu \
-    miopengemm \
     pkg-config \
     python \
     python3 \
@@ -51,19 +50,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python-pip \
     python3-pip \
     software-properties-common \
-    sqlite3 \
     wget \
     rocm-dev \
     rocm-device-libs \
-    rocm-opencl \
-    rocm-opencl-dev \
     rocm-cmake \
-    rocblas \
     vim \
     zlib1g-dev \
     openssh-server \
-    kmod \
-    mysql-client && \
+    clang-format-10 \
+    kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
