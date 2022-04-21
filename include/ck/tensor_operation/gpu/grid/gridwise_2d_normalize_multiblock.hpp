@@ -146,9 +146,7 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
             type_convert<AccDataType>(0.0f));
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
-            in_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
-            out_thread_buf;
+            in_out_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> scale_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> bias_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> mean_thread_buf;
@@ -255,24 +253,24 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
                                     in_global_buf,
                                     thread_m_k_buffer_desc,
                                     make_tuple(I0, I0),
-                                    in_thread_buf);
+                                    in_out_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
-                    op_normalize(out_thread_buf(offset),
-                                 in_thread_buf(offset),
+                    op_normalize(in_out_thread_buf(offset),
+                                 in_out_thread_buf(offset),
                                  mean_thread_buf(I),
                                  invVariance_thread_buf(I));
 
-                    out_thread_buf(offset) =
-                        out_thread_buf[offset] * scale_thread_buf[I] + bias_thread_buf[I];
+                    in_out_thread_buf(offset) =
+                        in_out_thread_buf[offset] * scale_thread_buf[I] + bias_thread_buf[I];
                 });
             });
 
             threadwise_dst_store.Run(thread_m_k_buffer_desc,
                                      make_tuple(I0, I0),
-                                     out_thread_buf,
+                                     in_out_thread_buf,
                                      in_out_grid_desc_m_k,
                                      out_global_buf);
 
