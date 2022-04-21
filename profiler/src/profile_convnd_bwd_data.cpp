@@ -7,6 +7,8 @@
 
 #include "profile_convnd_bwd_data_impl.hpp"
 
+namespace {
+
 enum struct ConvDataType
 {
     F32_F32_F32,    // 0
@@ -75,6 +77,8 @@ ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[],
 
     return params;
 }
+
+} // namespace
 
 int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
 {
