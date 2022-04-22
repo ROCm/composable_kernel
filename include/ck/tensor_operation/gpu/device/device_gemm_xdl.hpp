@@ -404,7 +404,7 @@ struct DeviceGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if (ck::get_device_name() == "gfx1030")
+        if(ck::get_device_name() == "gfx1030")
         {
             return false;
         }

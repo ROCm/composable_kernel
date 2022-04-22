@@ -545,11 +545,19 @@ struct DeviceGemmXdlSplitK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
-                                           arg.b_grid_desc_kbatch_k0_n_k1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+        if(ck::get_device_name() == "gfx1030")
+        {
+            return false;
+        }
+        else
+        {
+
+            return GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
+                                               arg.b_grid_desc_kbatch_k0_n_k1_,
+                                               arg.c_grid_desc_m_n_,
+                                               arg.M01_,
+                                               arg.N01_);
+        }
     }
 
     // polymorphic
