@@ -62,9 +62,8 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
             if(outLengths[3] != c || bnScaleBiasMeanVarLengths[0] != c)
                 throw std::runtime_error("Inconsistent tensor lengths!");
 
-            if(alpha != 1.0f || beta != 0.0f)
-                throw std::runtime_error(
-                    "Only alpha of value 1.0f and beta of value 0.0f is supported!");
+            alpha_ = alpha;
+            beta_ = beta;
 
             resultSave    = (resultSaveMean != nullptr && resultSaveInvVariance != nullptr);
             resultRunning = (resultRunningMean != nullptr && resultRunningVariance != nullptr);
@@ -82,6 +81,8 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         bool resultSave, resultRunning;
 
         index_t n, h, w, c;
+
+        AccDataType alpha_, beta_;
 
         double exponentialAverageFactor_;
         double epsilon_;
@@ -159,11 +160,15 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
 
                             auto offset = offset_N + offset_H + offset_W + offset_C;
 
-                            AccDataType curr_value = type_convert<AccDataType>(arg.in_dev_[offset]);
+                            AccDataType orig_value = type_convert<AccDataType>(arg.in_dev_[offset]);
 
-                            arg.out_dev_[offset] = type_convert<InOutDataType>(
-                                arg.bnScale_[iC] * (curr_value - mean) * invVariance +
-                                arg.bnBias_[iC]);
+                            AccDataType new_value =
+                                arg.bnScale_[iC] * (orig_value - mean) * invVariance +
+                                arg.bnBias_[iC];
+
+                            new_value = arg.beta_ * arg.out_dev_[offset] + arg.alpha_ * new_value;
+
+                            arg.out_dev_[offset] = type_convert<InOutDataType>(new_value);
                         };
                     }
                 };

@@ -48,6 +48,8 @@ kernel_normalize_multiblock(const InOutGridDesc_M_K in_out_grid_desc_m_k,
                             index_t num_k_block_tile_iteration,
                             const InDataType* const __restrict__ p_in_global,
                             OutDataType* const __restrict__ p_out_global,
+                            AccDataType alpha,
+                            AccDataType beta,
                             const AccDataType* const __restrict__ p_scale,
                             const AccDataType* const __restrict__ p_bias,
                             const AccDataType* const __restrict__ p_mean,
@@ -60,6 +62,8 @@ kernel_normalize_multiblock(const InOutGridDesc_M_K in_out_grid_desc_m_k,
                                num_k_block_tile_iteration,
                                p_in_global,
                                p_out_global,
+                               alpha,
+                               beta,
                                p_scale,
                                p_bias,
                                p_mean,
@@ -115,6 +119,8 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
                                index_t num_k_block_tile_iteration,
                                const InDataType* const __restrict__ p_in_global,
                                OutDataType* const __restrict__ p_out_global,
+                               AccDataType alpha,
+                               AccDataType beta,
                                const AccDataType* const __restrict__ p_scale,
                                const AccDataType* const __restrict__ p_bias,
                                const AccDataType* const __restrict__ p_mean,
@@ -147,6 +153,8 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_out_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
+            prior_out_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> scale_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> bias_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> mean_thread_buf;
@@ -173,6 +181,22 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
 
         auto threadwise_src_load =
             ThreadwiseTensorSliceTransfer_v2<InDataType,
+                                             AccDataType,
+                                             InOutGridDesc_M_K,
+                                             decltype(thread_m_k_buffer_desc),
+                                             Sequence<MThreadSliceSize, KThreadSliceSize>,
+                                             ThreadBufferDimAccessOrder,
+                                             InOutVectorDim,
+                                             InOutVectorSize,
+                                             1,
+                                             false>(
+                in_out_grid_desc_m_k,
+                make_multi_index(blkgroup_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize,
+                                 block_local_id * assignedSizePerBlock +
+                                     thread_k_cluster_id * KThreadSliceSize));
+        auto threadwise_dst_load =
+            ThreadwiseTensorSliceTransfer_v2<OutDataType,
                                              AccDataType,
                                              InOutGridDesc_M_K,
                                              decltype(thread_m_k_buffer_desc),
@@ -255,6 +279,15 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
                                     make_tuple(I0, I0),
                                     in_out_thread_buf);
 
+            if(!float_equal_zero{}(beta))
+            {
+                threadwise_dst_load.Run(in_out_grid_desc_m_k,
+                                        out_global_buf,
+                                        thread_m_k_buffer_desc,
+                                        make_tuple(I0, I0),
+                                        prior_out_thread_buf);
+            };
+
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 static_for<0, KThreadSliceSize, 1>{}([&](auto J) {
                     constexpr auto offset = I * Number<KThreadSliceSize>{} + J;
@@ -265,6 +298,14 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
 
                     in_out_thread_buf(offset) =
                         in_out_thread_buf[offset] * scale_thread_buf[I] + bias_thread_buf[I];
+
+                    in_out_thread_buf(offset) = alpha * in_out_thread_buf[offset];
+
+                    if(!float_equal_zero{}(beta))
+                    {
+                        in_out_thread_buf(offset) =
+                            in_out_thread_buf[offset] + beta * prior_out_thread_buf[offset];
+                    };
                 });
             });
 
@@ -275,6 +316,10 @@ struct GridwiseNormalizeMultiblock_mk_input_m_scale_bias_mean_var
                                      out_global_buf);
 
             threadwise_src_load.MoveSrcSliceWindow(in_out_grid_desc_m_k, in_thread_copy_step);
+            if(!float_equal_zero{}(beta))
+            {
+                threadwise_dst_load.MoveSrcSliceWindow(in_out_grid_desc_m_k, in_thread_copy_step);
+            };
             threadwise_dst_store.MoveDstSliceWindow(in_out_grid_desc_m_k, in_thread_copy_step);
 
             processed_tiles++;

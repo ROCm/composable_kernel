@@ -148,9 +148,8 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
             if(outLengths[3] != c || bnScaleBiasMeanVarLengths[0] != c)
                 throw std::runtime_error("Inconsistent tensor lengths!");
 
-            if(alpha != 1.0f || beta != 0.0f)
-                throw std::runtime_error(
-                    "Only alpha of value 1.0f and beta of value 0.0f is supported!");
+            alpha_ = type_convert<AccDataType>(alpha);
+            beta_  = type_convert<AccDataType>(beta);
 
             resultSave    = (resultSaveMean != nullptr && resultSaveInvVariance != nullptr);
             resultRunning = (resultRunningMean != nullptr && resultRunningVariance != nullptr);
@@ -204,6 +203,8 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
         bool resultSave, resultRunning;
 
         index_t n, h, w, c;
+
+        AccDataType alpha_, beta_;
 
         double exponentialAverageFactor_;
         double epsilon_;
@@ -432,6 +433,8 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
                               arg.kBlockTileIterations,
                               arg.in_dev_,
                               arg.out_dev_,
+                              arg.alpha_,
+                              arg.beta_,
                               arg.bnScale_,
                               arg.bnBias_,
                               arg.resultSaveMean_,

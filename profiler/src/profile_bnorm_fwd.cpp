@@ -13,6 +13,7 @@ static struct option long_options[] = {{"inOutLengths", required_argument, nullp
                                        {"double", no_argument, nullptr, '?'},
                                        {"int8", no_argument, nullptr, '?'},
                                        {"bf16", no_argument, nullptr, '?'},
+                                       {"scales", required_argument, nullptr, 'S'},
                                        {"dumpout", required_argument, nullptr, 'o'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},
@@ -73,6 +74,8 @@ class BatchNormFwdProfilerArgs
 
     std::vector<size_t> inOutLengths;
 
+    std::vector<float> scales;
+
     bool do_verification = false;
     bool do_dumpout      = false;
 
@@ -95,6 +98,8 @@ class BatchNormFwdProfilerArgs
         std::cout << "--double, use fp64 for the input and output tensor data types" << std::endl;
         std::cout << "--int8, use int8 for the input and output tensor data types" << std::endl;
         std::cout << "--bf16, use bfloat16 for the input and output tensor data types" << std::endl;
+        std::cout << "--scales or -S, comma separated two float values for alpha and beta"
+                  << std::endl;
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the batch-norm result by "
                      "comparing with the host-based batch-norm"
                   << std::endl;
@@ -122,7 +127,7 @@ class BatchNormFwdProfilerArgs
 
         while(1)
         {
-            ch = getopt_long(argc, argv, "D:v:o:", long_options, &option_index);
+            ch = getopt_long(argc, argv, "D:v:S:o:", long_options, &option_index);
             if(ch == -1)
                 break;
             switch(ch)
@@ -138,6 +143,15 @@ class BatchNormFwdProfilerArgs
                     throw std::runtime_error("Invalid option format!");
 
                 do_verification = static_cast<bool>(std::atoi(optarg));
+                break;
+            case 'S':
+                if(!optarg)
+                    throw std::runtime_error("Invalid option format!");
+
+                scales = getTypeValuesFromString<float>(optarg);
+
+                if(scales.size() != 2)
+                    throw std::runtime_error("Invalid option format!");
                 break;
             case 'o':
                 if(!optarg)
@@ -171,11 +185,21 @@ class BatchNormFwdProfilerArgs
         if(optind + 4 > argc)
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
+        if(scales.empty())
+        {
+            scales.push_back(1.0f);
+            scales.push_back(0.0f);
+        };
+
         saveMeanAndInvVariance = std::atoi(argv[optind++]);
         updateMovingAverage    = std::atoi(argv[optind++]);
 
         init_method = std::atoi(argv[optind++]);
         nrepeat     = std::atoi(argv[optind]);
+
+        if(do_verification && scales[1] != 0.0f && nrepeat > 0)
+            throw std::runtime_error(
+                "For verification, beta != 0.0f can only be used with nrepeat == 0");
 
         return (0);
     };
@@ -217,8 +241,8 @@ int profile_bnorm_fwd(int argc, char* argv[])
                                                   args.updateMovingAverage,
                                                   epsilon,
                                                   exponentialAverageFactor,
-                                                  1.0f,
-                                                  0.0f);
+                                                  args.scales[0],
+                                                  args.scales[1]);
     }
     else if(args.use_double)
     {
@@ -234,8 +258,8 @@ int profile_bnorm_fwd(int argc, char* argv[])
                                                args.updateMovingAverage,
                                                epsilon,
                                                exponentialAverageFactor,
-                                               1.0f,
-                                               0.0f);
+                                               args.scales[0],
+                                               args.scales[1]);
     }
     else if(args.use_int8)
     {
@@ -251,8 +275,8 @@ int profile_bnorm_fwd(int argc, char* argv[])
                                               args.updateMovingAverage,
                                               epsilon,
                                               exponentialAverageFactor,
-                                              1.0f,
-                                              0.0f);
+                                              args.scales[0],
+                                              args.scales[1]);
     }
     else if(args.use_bf16)
     {
@@ -268,8 +292,8 @@ int profile_bnorm_fwd(int argc, char* argv[])
                                                    args.updateMovingAverage,
                                                    epsilon,
                                                    exponentialAverageFactor,
-                                                   1.0f,
-                                                   0.0f);
+                                                   args.scales[0],
+                                                   args.scales[1]);
     }
     else
     {
@@ -285,8 +309,8 @@ int profile_bnorm_fwd(int argc, char* argv[])
                                              args.updateMovingAverage,
                                              epsilon,
                                              exponentialAverageFactor,
-                                             1.0f,
-                                             0.0f);
+                                             args.scales[0],
+                                             args.scales[1]);
     };
 
     return (0);
