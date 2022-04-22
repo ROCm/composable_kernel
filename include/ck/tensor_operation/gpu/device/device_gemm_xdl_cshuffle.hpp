@@ -9,6 +9,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdl_cshuffle_v1.hpp"
 #include "tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {

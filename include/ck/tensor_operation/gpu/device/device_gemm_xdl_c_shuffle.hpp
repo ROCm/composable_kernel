@@ -10,6 +10,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v3r1.hpp"
+#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {

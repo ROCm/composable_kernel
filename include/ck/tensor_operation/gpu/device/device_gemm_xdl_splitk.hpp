@@ -12,6 +12,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r4.hpp"
 #include "gemm_specialization.hpp"
+#include "device_prop.hpp"
 
 #ifndef CK_RUN_KERNEL_AND_TIME
 #define CK_RUN_KERNEL_AND_TIME 1
