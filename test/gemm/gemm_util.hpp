@@ -139,7 +139,7 @@ struct TestGemm
         Tensor<CDataType> c_m_n_device_result(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
 
-        auto f_generate_tensor_value = [](auto desc, auto type) {
+        auto f_generate_tensor_value = [](auto& desc, auto type) {
             using dataType = decltype(type);
 
             if(std::is_same<dataType, int8_t>::value)
@@ -166,12 +166,19 @@ struct TestGemm
 
         // Arrange
         ck::gemm_util::GemmParams params;
-        params.M       = 1024;
-        params.N       = 1024;
-        params.K       = 1024;
-        params.StrideA = 1024;
-        params.StrideB = 1024;
-        params.StrideC = 1024;
+        // params.M       = 1024;
+        // params.N       = 1024;
+        // params.K       = 1024;
+        // params.StrideA = 1024;
+        // params.StrideB = 1024;
+        // params.StrideC = 1024;
+
+        params.M       = 256;
+        params.N       = 256;
+        params.K       = 256;
+        params.StrideA = 256;
+        params.StrideB = 256;
+        params.StrideC = 256;
 
         auto host_tensors = PrepareGemmTensor(params);
 
@@ -216,6 +223,10 @@ struct TestGemm
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
 
+        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " a_host: \n", a.mData, ", ") << std::endl;
+        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " b_host: \n", b.mData, ", ") << std::endl;
+        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " c_host: \n", c_host.mData, ", ") << std::endl;
+        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " c_device: \n", c_device.mData, ", ") << std::endl;
         return res;
     }
 };

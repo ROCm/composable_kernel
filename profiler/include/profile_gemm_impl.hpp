@@ -140,7 +140,11 @@ void profile_gemm_impl(int do_verification,
     std::size_t num_thread = 1;
     switch(init_method)
     {
-    case 0: break;
+    // case 0: break;
+    case 0: 
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{}, num_thread);
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{}, num_thread);
+        break;
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
