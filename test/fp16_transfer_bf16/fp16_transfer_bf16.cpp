@@ -65,7 +65,7 @@ gpu_transpose_convert_data(SrcDataType* in, DstDataType* out, const int size, co
     dst_buf.template Set<ck::bhalf2_t>(num1, true, vy1.template AsType<ck::bhalf2_t>()[I0]);
 }
 
-void host_conver_data(SrcDataType* in, DstDataType* out, size_t len)
+void host_convert_data(SrcDataType* in, DstDataType* out, size_t len)
 {
     for(int i = 0; i < len; i++)
     {
@@ -102,7 +102,7 @@ int main(int, char*[])
     out_dev_buf.SetZero();
 
     // run cpu data convert
-    host_conver_data(src_n_k_host.mData.data(), dst_n_k_host_result.mData.data(), size);
+    host_convert_data(src_n_k_host.mData.data(), dst_n_k_host_result.mData.data(), size);
     // run kernel to convert data
     gpu_convert_data<<<1, thread_num>>>(static_cast<SrcDataType*>(in_dev_buf.GetDeviceBuffer()),
                                         static_cast<DstDataType*>(out_dev_buf.GetDeviceBuffer()),
