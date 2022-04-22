@@ -573,7 +573,7 @@ void profile_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << gemm_ptr->GetTypeString() << " does not support this GEMM problem" << std::endl;
         }
     }
 
