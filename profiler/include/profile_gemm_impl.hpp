@@ -116,7 +116,7 @@ void profile_gemm_impl(int do_verification,
                        int StrideC,
                        int KBatch)
 {
-    const bool is_xdl = cd::get_device_name() != "gfx1030";
+    const bool is_xdl = ck::get_device_name() != "gfx1030";
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
