@@ -69,7 +69,6 @@ void host_convert_data(SrcDataType* in, DstDataType* out, size_t len)
 {
     for(int i = 0; i < len; i++)
     {
-        // float tmp = static_cast<float>(in[i]);
         out[i] = ck::type_convert<ck::bhalf_t, ck::half_t>(in[i]);
     }
 }
