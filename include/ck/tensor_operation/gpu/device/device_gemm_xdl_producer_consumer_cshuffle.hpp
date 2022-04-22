@@ -7,8 +7,8 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdl_cshuffle_v2.hpp"
-#include "tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "gridwise_gemm_xdl_producer_consumer_cshuffle.hpp"
+#include "gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -56,10 +56,10 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
-struct DeviceGemm_Xdl_CShuffle_v2
+struct DeviceGemm_Xdl_ProducerConsumer_CShuffle
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
-    using DeviceOp = DeviceGemm_Xdl_CShuffle_v2;
+    using DeviceOp = DeviceGemm_Xdl_ProducerConsumer_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -334,7 +334,7 @@ struct DeviceGemm_Xdl_CShuffle_v2
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdl_producer_consumer_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -471,7 +471,7 @@ struct DeviceGemm_Xdl_CShuffle_v2
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v2<
+                const auto kernel = kernel_gemm_xdl_producer_consumer_cshuffle<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -523,7 +523,7 @@ struct DeviceGemm_Xdl_CShuffle_v2
             }
             else
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v2<
+                const auto kernel = kernel_gemm_xdl_producer_consumer_cshuffle<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -672,7 +672,7 @@ struct DeviceGemm_Xdl_CShuffle_v2
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemm_Xdl_CShuffle_v2"
+        str << "DeviceGemm_Xdl_ProducerConsumer_CShuffle"
             << "<"
             << ABBlockTransferThreadGroupSize << ", "
             << BlockGemmThreadGroupSize << ", "

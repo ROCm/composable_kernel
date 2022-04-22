@@ -7,8 +7,7 @@
 #include "thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
-#include "gridwise_gemm_pipeline_v1.hpp"
-#include "gridwise_gemm_pipeline_v2.hpp"
+#include "gridwise_gemm_pipeline_producer_consumer.hpp"
 
 namespace ck {
 
@@ -27,18 +26,20 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdl_cshuffle_v2(const FloatAB* __restrict__ p_a_grid,
-                                    const FloatAB* __restrict__ p_b_grid,
-                                    FloatC* __restrict__ p_c_grid,
-                                    const AElementwiseOperation a_element_op,
-                                    const BElementwiseOperation b_element_op,
-                                    const CElementwiseOperation c_element_op,
-                                    const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                    const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                    const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    const Block2CTileMap block_2_ctile_map)
+        kernel_gemm_xdl_producer_consumer_cshuffle(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatC* __restrict__ p_c_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const Block2CTileMap block_2_ctile_map)
 {
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -52,6 +53,18 @@ __global__ void
                                                   b_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_ctile_map);
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = block_2_ctile_map;
+#endif // end of #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename FloatAB,
@@ -97,7 +110,7 @@ template <typename FloatAB,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
-struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
+struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_producer_consumer_cshuffle
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -114,10 +127,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
     static constexpr auto AK1 = Number<AK1Value>{};
     static constexpr auto BK1 = Number<BK1Value>{};
 
-    using ThisThreadBlock =
-        ThisThreadBlock<ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize>;
-
-#if 0
     struct ABBlockTransferThreadGroup
     {
         __device__ static constexpr index_t GetNumOfThread()
@@ -151,22 +160,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v2
         }
     };
 
-    using CShuffleBlockTransferThreadGroup = ThisThreadBlock;
-#else
-    using ABBlockTransferThreadGroup       = ThisThreadBlock;
-    using BlockGemmThreadGroup             = ThisThreadBlock;
-    using CShuffleBlockTransferThreadGroup = ThisThreadBlock;
-#endif
+    using CShuffleBlockTransferThreadGroup =
+        ThisThreadBlock<ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize>;
 
-#if 1
-    // gridwise GEMM pipeline
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
-#else
-    // gridwise GEMM pipeline
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v2<ABBlockTransferThreadGroup,
-                                                     BlockGemmThreadGroup,
-                                                     NumGemmKPrefetchStage>;
-#endif
+    using GridwiseGemmPipe = GridwiseGemmPipelineProducerConsumer<ABBlockTransferThreadGroup,
+                                                                  BlockGemmThreadGroup,
+                                                                  NumGemmKPrefetchStage>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
