@@ -250,9 +250,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
 #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
 
-    static constexpr index_t KPerInnerLoop = math::max(
-        KPerThread / CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS,
-        KPack);
+    static constexpr index_t KPerInnerLoop =
+        math::max(KPerThread / CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS, KPack);
 
     // 2-wave optimized blockwise gemm
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
@@ -319,8 +318,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         // moved here B) reduce VMEM FIFO congestion by applying small delays to
                         // different wavefronts It is performed near the end of MAC cluster to
                         // minimize lgkmcnt penalty
-                        if constexpr(int(k) == KPerThread - KPerInnerLoop && int(k_) == KPerInnerLoop - KPack &&
-                                     int(m0) == MRepeat - 1 && int(n0) == NRepeat - 1)
+                        if constexpr(int(k) == KPerThread - KPerInnerLoop &&
+                                     int(k_) == KPerInnerLoop - KPack && int(m0) == MRepeat - 1 &&
+                                     int(n0) == NRepeat - 1)
                         {
                             __builtin_amdgcn_sched_barrier();
                             block_sync_lds();
@@ -350,12 +350,12 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     private:
     // A[M0, M1, M2, KPerInnerLoop]
-    static constexpr auto a_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{}, I1, I1, Number<KPerInnerLoop>{}));
+    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MRepeat>{}, I1, I1, Number<KPerInnerLoop>{}));
 
     // B[N0, N1, N2, KPerInnerLoop]
-    static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<NRepeat>{}, I1, I1, Number<KPerInnerLoop>{}));
+    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<NRepeat>{}, I1, I1, Number<KPerInnerLoop>{}));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
@@ -377,7 +377,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          B_K1,
                                                          B_K1>;
 
-#else  // #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
+#else // #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
@@ -467,7 +467,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
-
 
     AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
     BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
