@@ -145,11 +145,12 @@ struct ConvParams
           input_left_pads(left_pads),
           input_right_pads(right_pads)
     {
-        if(filter_spatial_lengths.size() != num_dim_spatial ||
-           input_spatial_lengths.size() != num_dim_spatial ||
-           conv_filter_strides.size() != num_dim_spatial ||
-           conv_filter_dilations.size() != num_dim_spatial ||
-           input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
+        if(static_cast<ck::index_t>(filter_spatial_lengths.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(input_spatial_lengths.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(conv_filter_strides.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(conv_filter_dilations.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(input_left_pads.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(input_right_pads.size()) != num_dim_spatial)
         {
             throw(std::runtime_error(
                 "ConvParams::GetOutputSpatialLengths: "
@@ -173,11 +174,12 @@ struct ConvParams
 
     std::vector<ck::index_t> GetOutputSpatialLengths() const
     {
-        if(filter_spatial_lengths.size() != num_dim_spatial ||
-           input_spatial_lengths.size() != num_dim_spatial ||
-           conv_filter_strides.size() != num_dim_spatial ||
-           conv_filter_dilations.size() != num_dim_spatial ||
-           input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
+        if(static_cast<ck::index_t>(filter_spatial_lengths.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(input_spatial_lengths.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(conv_filter_strides.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(conv_filter_dilations.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(input_left_pads.size()) != num_dim_spatial ||
+           static_cast<ck::index_t>(input_right_pads.size()) != num_dim_spatial)
         {
             throw(std::runtime_error(
                 "ConvParams::GetOutputSpatialLengths: "

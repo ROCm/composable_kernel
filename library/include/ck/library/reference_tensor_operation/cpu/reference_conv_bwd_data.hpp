@@ -72,9 +72,9 @@ struct ReferenceConvBwdData : public device::BaseOperator
             if constexpr(NumDimSpatial == 1)
             {
                 auto f_ncw = [&](auto n, auto c, auto wi) {
-                    std::size_t K  = arg.weight_.mDesc.GetLengths()[0];
-                    std::size_t X  = arg.weight_.mDesc.GetLengths()[2];
-                    std::size_t Wo = arg.output_.mDesc.GetLengths()[2];
+                    int K  = arg.weight_.mDesc.GetLengths()[0];
+                    int X  = arg.weight_.mDesc.GetLengths()[2];
+                    int Wo = arg.output_.mDesc.GetLengths()[2];
 
                     AccDataType v_acc = 0;
 
@@ -119,12 +119,12 @@ struct ReferenceConvBwdData : public device::BaseOperator
             else if constexpr(NumDimSpatial == 2)
             {
                 auto f_nchw = [&](auto n, auto c, auto hi, auto wi) {
-                    std::size_t K = arg.weight_.mDesc.GetLengths()[0];
-                    std::size_t Y = arg.weight_.mDesc.GetLengths()[2];
-                    std::size_t X = arg.weight_.mDesc.GetLengths()[3];
+                    int K = arg.weight_.mDesc.GetLengths()[0];
+                    int Y = arg.weight_.mDesc.GetLengths()[2];
+                    int X = arg.weight_.mDesc.GetLengths()[3];
 
-                    std::size_t Ho = arg.output_.mDesc.GetLengths()[2];
-                    std::size_t Wo = arg.output_.mDesc.GetLengths()[3];
+                    int Ho = arg.output_.mDesc.GetLengths()[2];
+                    int Wo = arg.output_.mDesc.GetLengths()[3];
 
                     AccDataType v_acc = 0;
 
@@ -183,14 +183,14 @@ struct ReferenceConvBwdData : public device::BaseOperator
             else if constexpr(NumDimSpatial == 3)
             {
                 auto f_ncdhw = [&](auto n, auto c, auto di, auto hi, auto wi) {
-                    std::size_t K = arg.weight_.mDesc.GetLengths()[0];
-                    std::size_t Z = arg.weight_.mDesc.GetLengths()[2];
-                    std::size_t Y = arg.weight_.mDesc.GetLengths()[3];
-                    std::size_t X = arg.weight_.mDesc.GetLengths()[4];
+                    int K = arg.weight_.mDesc.GetLengths()[0];
+                    int Z = arg.weight_.mDesc.GetLengths()[2];
+                    int Y = arg.weight_.mDesc.GetLengths()[3];
+                    int X = arg.weight_.mDesc.GetLengths()[4];
 
-                    std::size_t Do = arg.output_.mDesc.GetLengths()[2];
-                    std::size_t Ho = arg.output_.mDesc.GetLengths()[3];
-                    std::size_t Wo = arg.output_.mDesc.GetLengths()[4];
+                    int Do = arg.output_.mDesc.GetLengths()[2];
+                    int Ho = arg.output_.mDesc.GetLengths()[3];
+                    int Wo = arg.output_.mDesc.GetLengths()[4];
 
                     AccDataType v_acc = 0;
 

@@ -154,7 +154,7 @@ struct ParallelTensorFunctor
     {
         std::array<std::size_t, NDIM> indices;
 
-        for(int idim = 0; idim < NDIM; ++idim)
+        for(std::size_t idim = 0; idim < NDIM; ++idim)
         {
             indices[idim] = i / mStrides[idim];
             i -= indices[idim] * mStrides[idim];
