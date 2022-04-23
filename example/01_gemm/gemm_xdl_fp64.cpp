@@ -30,7 +30,6 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
@@ -48,7 +47,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
 //##########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
 //##########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
 #if 1
-             <  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   128,     4,  2,   16,   16,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>;
+             <  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,   128,     4,  4,   16,   16,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,               1>;
 using ADataType   = double;
 using BDataType   = double;
 using CDataType   = double;
@@ -144,10 +143,10 @@ int main(int argc, char* argv[])
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         break;
     default:
-        //a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}); 
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        // a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        //b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+        // b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
     }
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
@@ -209,12 +208,12 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
- #if 1
+#if 0
         {
-            LogRangeAsType<double>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-            LogRangeAsType<double>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-            LogRangeAsType<double>(std::cout << "c_device: ", c_m_n_device_result.mData, ",") << std::endl;
-            LogRangeAsType<double>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+            LogRangeAsType<AccDataType>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
+            LogRangeAsType<AccDataType>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+            LogRangeAsType<AccDataType>(std::cout << "c_device: ", c_m_n_device_result.mData, ",") << std::endl;
+            LogRangeAsType<AccDataType>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
                 << std::endl;
         }
 #endif

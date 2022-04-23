@@ -1,3 +1,4 @@
 add_example_executable(example_convnd_fwd_xdl convnd_fwd_xdl.cpp)
 add_example_executable(example_convnd_fwd_xdl_int8 convnd_fwd_xdl_int8.cpp)
 add_example_executable(example_convnd_fwd_xdl_fp16 convnd_fwd_xdl_fp16.cpp)
+add_example_executable(example_convnd_fwd_xdl_fp64 convnd_fwd_xdl_fp64.cpp)
