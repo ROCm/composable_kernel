@@ -387,8 +387,8 @@ struct mfma_type<MfmaInstr::mfma_i32_16x16x16i8>
 template <>
 struct mfma_type<MfmaInstr::mfma_f64_16x16x4f64>
 {
-    static constexpr index_t group_size          = 4;
-    static constexpr index_t num_groups_per_blk  = 1;
+    static constexpr index_t group_size          = 1;
+    static constexpr index_t num_groups_per_blk  = 4;
     static constexpr index_t num_regs_per_blk    = 4; // group_size * num_groups_per_blk;
     static constexpr index_t num_threads_per_blk = 16;
     static constexpr index_t wave_size           = 64;

@@ -65,7 +65,7 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 template <typename DataType>
-std::ostream& void show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
+std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
 {
     os << "[" << std::endl;
     for(int x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
